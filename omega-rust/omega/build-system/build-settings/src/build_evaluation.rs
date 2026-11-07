@@ -4,6 +4,7 @@
 //! requests join caller consent before execution. The result retains the source
 //! commitment and requested authority beside the evaluated configuration.
 
+use crate::activation::CompletedBuildSource;
 use crate::activation::completed_pure_build::CompletedPureBuildInputs;
 use crate::{ComputedBuildConfig, PreparedBuildExecution, PureBuildCompilation};
 use artifacts::compile_timings::CompileTimings;
@@ -49,7 +50,11 @@ pub struct BuildEvaluationRequest<'request> {
 pub use compilation_products::EvaluatedBuild;
 
 enum BuildEvaluationState {
-    Complete(Arc<ComputedBuildConfig>),
+    Complete {
+        configuration: Arc<ComputedBuildConfig>,
+        source: Arc<CompletedBuildSource>,
+        source_join: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
+    },
     Execute(PreparedBuildExecution),
 }
 
@@ -74,16 +79,65 @@ impl PreparedBuildEvaluation {
             BuildEvaluationState::Execute(execution) => execution
                 .validate_return(returned)
                 .map_err(CompileFailure::from),
-            BuildEvaluationState::Complete(_) => Err(vec![Diagnostic::error(
+            BuildEvaluationState::Complete { .. } => Err(vec![Diagnostic::error(
                 "Build declaration observation requires an executed activation",
             )]
             .into()),
         }
     }
+    /// Read source work only through this occurrence's admitted evaluation.
+    /// Reuse supplies the completed ledger without claiming another execution.
+    pub fn source_result<'result>(
+        &'result mut self,
+        returned: Option<&'result mut crate::ReturnedBuild>,
+    ) -> Result<crate::BuildSourceResult<'result>, CompileFailure> {
+        match (&mut self.state, returned) {
+            (BuildEvaluationState::Execute(execution), Some(returned)) => {
+                execution.validate_return(returned)?;
+                Ok(crate::BuildSourceResult::executed(returned))
+            }
+            (
+                BuildEvaluationState::Complete {
+                    source,
+                    source_join,
+                    ..
+                },
+                None,
+            ) => Ok(crate::BuildSourceResult::reused(source, source_join)),
+            _ => Err(vec![Diagnostic::error(
+                "Build source result does not belong to its admitted evaluation",
+            )]
+            .into()),
+        }
+    }
+
+    pub fn validate_source_join(
+        &self,
+        returned: Option<&crate::ReturnedBuild>,
+        inputs: Option<&PackageCompilationInputs>,
+        initially_unbound: bool,
+    ) -> Result<(), CompileFailure> {
+        let result = match (&self.state, returned) {
+            (BuildEvaluationState::Execute(execution), Some(returned)) => {
+                execution.validate_return(returned)?;
+                returned.validate_source_join(inputs, initially_unbound)
+            }
+            (
+                BuildEvaluationState::Complete {
+                    source,
+                    source_join,
+                    ..
+                },
+                None,
+            ) => source.validate_source_join(source_join.as_ref(), inputs, initially_unbound),
+            _ => Err("Build source join does not belong to its admitted evaluation".into()),
+        };
+        result.map_err(|reason| vec![Diagnostic::error(reason)].into())
+    }
     /// Freshly charged Pure reuse needs no new activation.
     pub fn execution(&mut self) -> Option<&mut PreparedBuildExecution> {
         match &mut self.state {
-            BuildEvaluationState::Complete(_) => None,
+            BuildEvaluationState::Complete { .. } => None,
             BuildEvaluationState::Execute(execution) => Some(execution),
         }
     }
@@ -101,11 +155,12 @@ impl PreparedBuildEvaluation {
             restricted_build_grants,
         } = self;
         let configuration = match (state, returned) {
-            (BuildEvaluationState::Complete(configuration), None) => configuration,
+            (BuildEvaluationState::Complete { configuration, .. }, None) => configuration,
             (BuildEvaluationState::Execute(execution), Some(returned)) => {
+                let source = Arc::new(CompletedBuildSource::capture(&returned));
                 let configuration = Arc::new(execution.complete(returned)?);
                 if let Some((inputs, owner)) = pure_retention {
-                    owner.retain_completed(inputs, configuration.clone())?;
+                    owner.retain_completed(inputs, configuration.clone(), source)?;
                 }
                 configuration
             }
@@ -115,7 +170,7 @@ impl PreparedBuildEvaluation {
                 )]
                 .into());
             }
-            (BuildEvaluationState::Complete(_), Some(_)) => {
+            (BuildEvaluationState::Complete { .. }, Some(_)) => {
                 return Err(vec![Diagnostic::error(
                     "Build completion supplied an activation for defaults or Pure reuse",
                 )]
@@ -218,45 +273,38 @@ pub fn prepare_build_evaluation(
         .into_iter()
         .chain(completed_checks.iter().map(AsRef::as_ref))
         .collect::<Vec<_>>();
-    let (prepared, providers, retained_check) =
-        phase_profile::scope("omega.build.evaluation.check", || {
-            crate::admission::checking::prepare_checked_build(
-                typed,
-                pre_checks,
-                selected_machine,
-                package_inputs,
-                toolchain_defaults,
-                execution_profile,
-                timings,
-                &prior_checks,
-                retain_check || pure_build_compilation.is_some(),
-            )
-        })?;
-    let filesystem_scope = phase_profile::scope("omega.build.evaluation.filesystem_scope", || {
-        crate::prepare_filesystem_scope(
-            root_path,
-            package_inputs,
-            anonymous_source,
-            sources,
-            execution_profile,
-            build_directory,
-            filesystem_sponsor,
-            snapshot,
-        )
-    })?;
-    let admitted = phase_profile::scope("omega.build.evaluation.admit", || {
-        crate::admit_build_program(
-            prepared,
-            providers,
-            selected_machine,
-            &filesystem_scope,
-            evaluation_sponsor.as_ref(),
-            execution_profile,
-            artifact_only,
-            build_source,
-            package_inputs,
-        )
-    })?;
+    let (prepared, providers, retained_check) = crate::admission::checking::prepare_checked_build(
+        typed,
+        pre_checks,
+        selected_machine,
+        package_inputs,
+        toolchain_defaults,
+        execution_profile,
+        timings,
+        &prior_checks,
+        retain_check || pure_build_compilation.is_some(),
+    )?;
+    let filesystem_scope = crate::prepare_filesystem_scope(
+        root_path,
+        package_inputs,
+        anonymous_source,
+        sources,
+        execution_profile,
+        build_directory,
+        filesystem_sponsor,
+        snapshot,
+    )?;
+    let admitted = crate::admit_build_program(
+        prepared,
+        providers,
+        selected_machine,
+        &filesystem_scope,
+        evaluation_sponsor.as_ref(),
+        execution_profile,
+        artifact_only,
+        build_source,
+        package_inputs,
+    )?;
     let restricted_build_requests = admitted.restricted_build_requests();
     if let Some(grants) = restricted_build_grants.as_mut() {
         for request in &restricted_build_requests {
@@ -281,10 +329,11 @@ pub fn prepare_build_evaluation(
     let reusable = inputs
         .as_ref()
         .zip(pure_build_compilation)
-        .map(|(inputs, owner)| owner.matching_configuration(inputs))
+        .map(|(inputs, owner)| owner.matching_result(inputs))
         .transpose()?
         .flatten();
-    let state = if let Some(configuration) = reusable {
+    let state = if let Some(completed) = reusable {
+        let configuration = completed.configuration.clone();
         let configuration = if let Some(sponsor) = admitted.evaluation_sponsor.as_ref() {
             // Reusing a value avoids execution, not the current occurrence's
             // logical cost. Admission above is fresh; charge this account before
@@ -306,11 +355,15 @@ pub fn prepare_build_evaluation(
         } else {
             configuration
         };
-        BuildEvaluationState::Complete(configuration)
+        BuildEvaluationState::Complete {
+            configuration,
+            source: completed.source.clone(),
+            source_join: None,
+        }
     } else {
-        BuildEvaluationState::Execute(phase_profile::scope(
-            "omega.build.evaluation.execution",
-            || PreparedBuildExecution::prepare(admitted, execution_purpose),
+        BuildEvaluationState::Execute(PreparedBuildExecution::prepare(
+            admitted,
+            execution_purpose,
         )?)
     };
     Ok(PreparedBuildEvaluation {

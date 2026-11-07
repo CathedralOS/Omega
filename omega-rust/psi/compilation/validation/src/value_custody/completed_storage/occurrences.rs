@@ -8,10 +8,7 @@ pub fn consumer_captures(
     statement: usize,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<Vec<Handle<FlowOperandFact>>> {
-    let state = control
-        .states
-        .iter()
-        .find_map(|(_, row)| (row.state_symbol == state).then_some(row))?;
+    let state = control.state_by_symbol(state)?;
     let mut pending = Vec::new();
     for row in control
         .statements

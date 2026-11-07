@@ -195,12 +195,6 @@ pub(super) fn collect_type_reference_expressions(
             collect_type_reference_expressions(program, *base_type, visited, reached);
             for constraint in program.type_reference_table.constraints(*constraints) {
                 match constraint {
-                    TypeConstraintNode::Range {
-                        minimum, maximum, ..
-                    } => {
-                        reached.extend(super::reachable_expressions(program, *minimum));
-                        reached.extend(super::reachable_expressions(program, *maximum));
-                    }
                     TypeConstraintNode::Domain(domain) => {
                         for argument in &domain.arguments {
                             collect_type_reference_expressions(

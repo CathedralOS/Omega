@@ -299,7 +299,7 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-    pub(crate) fn reject_access_initialization(
+    pub(crate) fn reject_access_transfer(
         &mut self,
         operation: &Operation,
         boundary: &BoundaryMachineDeclaration,
@@ -309,7 +309,7 @@ impl TerminalExecution<'_> {
         operation_kind!(operation => BoundaryCall {
             structural_arguments, completion_receipts, ..
         });
-        let [extent, original, _profile] = structural_arguments.as_slice() else {
+        let [extent, original, ..] = structural_arguments.as_slice() else {
             return Err(malformed());
         };
         let result = operation.result.structural().ok_or_else(malformed)?;
@@ -318,7 +318,7 @@ impl TerminalExecution<'_> {
             .is_empty()
         {
             return Err(TerminalInterpretError::ContentTransformationMismatch(
-                "placement initialization has no mutable borrowed input to restore",
+                "owned storage transfer has no mutable borrowed input to restore",
             ));
         }
         if self.result_place_in_use(result.place) || !result.qualification_establishments.is_empty()
@@ -326,17 +326,26 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let program = std::sync::Arc::clone(&self.program);
-        let AccessResultContract::Initialize {
-            result: declaration,
-            rejected,
-            returned,
-            failures,
-            ..
-        } = access_result_contract(&program.catalogs, plan)
-            .map_err(TerminalInterpretError::ContentTransformationMismatch)?
-        else {
-            return Err(malformed());
-        };
+        let (declaration, rejected, returned, failures) =
+            match access_result_contract(&program.catalogs, plan)
+                .map_err(TerminalInterpretError::ContentTransformationMismatch)?
+            {
+                AccessResultContract::Initialize {
+                    result,
+                    rejected,
+                    returned,
+                    failures,
+                    ..
+                }
+                | AccessResultContract::Relocate {
+                    result,
+                    rejected,
+                    returned,
+                    failures,
+                    ..
+                } => (result, rejected, returned, failures),
+                _ => return Err(malformed()),
+            };
         if result.structural_type != declaration.structural_type
             || result.multiplicity != declaration.multiplicity
             || result.qualifications != declaration.qualifications

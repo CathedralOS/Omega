@@ -340,12 +340,7 @@ fn state_frontiers(
     active.push(state.symbol);
     let result = (|| {
         let ownership = &facts.flow.ownership;
-        let flow = facts
-            .flow
-            .control
-            .states
-            .iter()
-            .find_map(|(_, row)| (row.state_symbol == state.symbol).then_some(row))?;
+        let flow = facts.flow.control.state_by_symbol(state.symbol)?;
         let mut frontiers = Vec::new();
         let mut conditions = crate::flow::SelectionConditions::new();
         for outgoing in facts.flow.control.outgoing.span_or_empty(flow.outgoing) {
@@ -893,13 +888,7 @@ impl InactivePlaceWrites {
     ) -> Option<Self> {
         let (machine, _) = validation::find_state(program, state.symbol)?;
         let frames = validation::CallFrameResolver::new(program)?;
-        let borrowed_state = borrow
-            .states
-            .iter()
-            .map(|(_, state)| state)
-            .find(|candidate| {
-                candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
-            })?;
+        let (_, borrowed_state) = borrow.first_state_borrow(machine.symbol, state.symbol)?;
         let statements = crate::flow::state_statements(program, state.statement_nodes)
             .iter()
             .enumerate()

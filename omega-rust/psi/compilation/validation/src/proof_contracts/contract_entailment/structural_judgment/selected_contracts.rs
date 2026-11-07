@@ -424,7 +424,6 @@ impl StructuralJudge<'_> {
                 .any(|contract| contract.kind == SignatureContractKind::Ensures)
             && resolving.recorded_body_boolean(&owner, depth + 1).is_none()
         {
-            phase_profile::count("psi.05.selected.empty_result_equations", 1);
             return None;
         }
         let StructuralTerm::Application { arguments, .. } = application else {
@@ -1194,15 +1193,27 @@ pub(super) fn capture_guarantees(
             return;
         }
     }
+    // The compared expression and parameter declarations stay unchanged while
+    // operands are bound below. Keep these metadata results local, and check
+    // identity equality only when its original guard needs it.
+    let builtin_identity_references = binary
+        .filter(|binary| binary.operator == BinaryOperator::Equal)
+        .and_then(|_| {
+            super::super::structural_terms::builtin_identity_operand_references(
+                program, scope, parameters, expression,
+            )
+        });
+    let mut identity_equality = None;
+    let mut has_identity_equality = || {
+        *identity_equality.get_or_insert_with(|| {
+            super::super::structural_terms::has_identity_equality_meaning(
+                program, scope, parameters, expression,
+            )
+        })
+    };
     if let Some(binary) = binary
         && binary.operator == BinaryOperator::Equal
-        && (super::super::structural_terms::builtin_identity_operand_references(
-            program, scope, parameters, expression,
-        )
-        .is_some()
-            || super::super::structural_terms::has_identity_equality_meaning(
-                program, scope, parameters, expression,
-            ))
+        && (builtin_identity_references.is_some() || has_identity_equality())
         && let (Some(left), Some(right)) = (
             judge.bound_contract_term(
                 binary.left,
@@ -1229,29 +1240,20 @@ pub(super) fn capture_guarantees(
         let references = [binary.left, binary.right].map(|operand| {
             crate::parameter_expression_result_type_reference(program, scope, parameters, operand)
         });
-        if let Some(references) =
-            super::super::structural_terms::builtin_identity_operand_references(
-                program, scope, parameters, expression,
+        if let Some(references) = builtin_identity_references.or_else(|| {
+            crate::value_custody::expression_types::builtin_scalar_operand_references(
+                program, binary, references, None,
             )
-            .or_else(|| {
-                crate::value_custody::expression_types::builtin_scalar_operand_references(
-                    program, binary, references, None,
-                )
-            })
-            && super::super::structural_terms::scalar_operand_is_observed(
-                program,
-                references[0],
-                &left,
-            )
-            && super::super::structural_terms::scalar_operand_is_observed(
-                program,
-                references[1],
-                &right,
-            )
-        {
-            if super::super::structural_terms::has_identity_equality_meaning(
-                program, scope, parameters, expression,
-            ) {
+        }) && super::super::structural_terms::scalar_operand_is_observed(
+            program,
+            references[0],
+            &left,
+        ) && super::super::structural_terms::scalar_operand_is_observed(
+            program,
+            references[1],
+            &right,
+        ) {
+            if has_identity_equality() {
                 equations.push((left, right));
             } else {
                 data_identities.push((left, right));

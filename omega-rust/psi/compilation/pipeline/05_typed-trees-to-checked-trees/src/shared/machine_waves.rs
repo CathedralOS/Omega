@@ -74,14 +74,6 @@ impl MachineCallComponents {
         }
     }
 
-    pub(crate) fn component_count(&self) -> usize {
-        self.members.len()
-    }
-
-    pub(crate) fn callee_first_wave_count(&self) -> usize {
-        self.callee_first_waves.len()
-    }
-
     /// Run `step` once per component, callees' components first. `step`
     /// receives the component's members (ascending roster order) and the
     /// results so far, and returns one result per member in the same order.

@@ -170,8 +170,7 @@ use crate::{
     const_evaluation::const_domain_facts, const_evaluation::const_generic_calls,
     const_evaluation::const_generic_expressions, const_evaluation::const_initializers,
     const_evaluation::const_lengths, const_evaluation::data_layout_queries,
-    const_evaluation::range_arguments, const_evaluation::range_endpoints, layouts::access_views,
-    layouts::plan_laid,
+    const_evaluation::range_endpoints, layouts::access_views, layouts::plan_laid,
 };
 
 /// One pre-resolution evaluation request. Standalone syntax has no source
@@ -200,7 +199,6 @@ pub fn evaluate_pre_resolution(
     // Canonical ranges must exist before the const-call probe normalizes its
     // syntax clone: that clone's generic synthesis is itself an equation
     // customer, so retained endpoints cannot arrive after it.
-    let syntax_trees = range_arguments::evaluate(syntax_trees, &source_context)?;
     let mut syntax_trees =
         const_generic_calls::evaluate_const_generic_calls(syntax_trees, source_context.clone())?;
     syntax_trees_to_symbol_resolved_trees::pre_resolution::synthesize_trait_defaults(
@@ -394,13 +392,11 @@ pub struct EvaluatedPreCheck {
 
 impl EvaluatedPreCheck {
     pub fn finish(self, typed: &mut TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {
-        let _g = phase_profile::guard("evaluate_or_defer.finish");
         let selected = SelectedBuildTimeOperators {
             operators: &self.selected_operators,
             provider_bodies: &self.provider_bodies,
         };
         {
-            let _g = phase_profile::guard("evaluate_or_defer.finish.settle_target_observations");
             const_initializers::settle_target_observations(
                 typed,
                 self.selection_authority.clone(),
@@ -408,7 +404,6 @@ impl EvaluatedPreCheck {
                 selected,
             )?;
         }
-        let _g = phase_profile::guard("evaluate_or_defer.finish.validate_retained_invocations");
         const_initializers::validate_retained_invocations(
             typed,
             self.selection_authority,
@@ -693,35 +688,25 @@ impl PreCheckEvaluation {
         self.complete_access_views(typed)?;
         const_initializers::retain_deferred_entries(typed, &self.domain);
         let defer = {
-            let _g = phase_profile::guard("evaluate_or_defer.check_defer");
-            phase_profile::scope("evaluate_or_defer.check_defer.independent_lengths", || {
-                const_lengths::evaluate_independent_lengths(
-                    typed,
-                    self.selection_authority.clone(),
-                    &self.domain,
-                )
-            })? || phase_profile::scope("evaluate_or_defer.check_defer.endpoint_calls", || {
-                range_endpoints::pending_endpoint_calls_need_operator_selection(
-                    typed,
-                    self.selection_authority.clone(),
-                    &self.domain,
-                )
-            })? || phase_profile::scope("evaluate_or_defer.check_defer.memberships", || {
-                const_domain_facts::pending_memberships_need_operator_selection(
-                    typed,
-                    self.selection_authority.clone(),
-                    &self.domain,
-                )
-            })? || phase_profile::scope("evaluate_or_defer.check_defer.const_applications", || {
-                const_applications::pending_const_applications_need_operator_selection(
-                    typed,
-                    self.selection_authority.clone(),
-                    &self.domain,
-                )
-            })? || data_layout_queries::has_pending_target_observations(typed, self.domain.work())
+            const_lengths::evaluate_independent_lengths(
+                typed,
+                self.selection_authority.clone(),
+                &self.domain,
+            )? || range_endpoints::pending_endpoint_calls_need_operator_selection(
+                typed,
+                self.selection_authority.clone(),
+                &self.domain,
+            )? || const_domain_facts::pending_memberships_need_operator_selection(
+                typed,
+                self.selection_authority.clone(),
+                &self.domain,
+            )? || const_applications::pending_const_applications_need_operator_selection(
+                typed,
+                self.selection_authority.clone(),
+                &self.domain,
+            )? || data_layout_queries::has_pending_target_observations(typed, self.domain.work())
         };
         if defer {
-            let _g = phase_profile::guard("evaluate_or_defer.defer_path");
             range_endpoints::defer_pending_endpoint_calls_in(typed, &self.domain)?;
             const_applications::defer_pending_const_applications(typed, &self.domain)?;
             // A const-generic application of a recipe call becomes a symbolic
@@ -821,20 +806,14 @@ impl PreCheckEvaluation {
         mut self,
         typed: &mut TypedTrees,
     ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
-        let _g = phase_profile::guard("evaluate_or_defer.evaluate_work");
         self.complete_access_views(typed)?;
         const_initializers::retain_deferred_entries(typed, &self.domain);
-        phase_profile::scope(
-            "evaluate_or_defer.evaluate_work.const_array_lengths",
-            || {
-                const_lengths::evaluate_const_array_lengths_in(
-                    typed,
-                    self.selection_authority.clone(),
-                    &self.domain,
-                )
-            },
+        const_lengths::evaluate_const_array_lengths_in(
+            typed,
+            self.selection_authority.clone(),
+            &self.domain,
         )?;
-        phase_profile::scope("evaluate_or_defer.evaluate_work.range_endpoints", || {
+        {
             range_endpoints::evaluate_selected_range_endpoints(
                 typed,
                 self.selection_authority.clone(),
@@ -844,8 +823,8 @@ impl PreCheckEvaluation {
                 },
                 &self.domain,
             )
-        })?;
-        phase_profile::scope("evaluate_or_defer.evaluate_work.domain_facts", || {
+        }?;
+        {
             const_domain_facts::evaluate_selected_domain_facts(
                 typed,
                 self.selection_authority.clone(),
@@ -855,8 +834,8 @@ impl PreCheckEvaluation {
                 },
                 &self.domain,
             )
-        })?;
-        phase_profile::scope("evaluate_or_defer.evaluate_work.const_applications", || {
+        }?;
+        {
             const_applications::evaluate_selected_const_applications(
                 typed,
                 self.selection_authority.clone(),
@@ -866,23 +845,18 @@ impl PreCheckEvaluation {
                 },
                 &mut self.domain,
             )
-        })?;
-        phase_profile::scope("evaluate_or_defer.evaluate_work.plan_laid_layouts", || {
-            plan_laid::compute_plan_laid_layouts_in(
-                typed,
-                self.selection_authority.clone(),
-                &self.domain,
-            )
-        })?;
+        }?;
+        plan_laid::compute_plan_laid_layouts_in(
+            typed,
+            self.selection_authority.clone(),
+            &self.domain,
+        )?;
         // Every position this evaluation folded leaves the recipe roster;
         // only still-symbolic positions remain for a later target closure.
         typed.retain_symbolic_constant_recipes();
         // Installed view plans bind their accessor targets before any later
         // continuation consumes them; initializer settlement waits for queries.
-        phase_profile::scope(
-            "evaluate_or_defer.evaluate_work.dynamic_call_targets",
-            || validation::resolve_selected_dynamic_call_targets(typed, self.domain.work()),
-        )?;
+        validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())?;
         Ok(EvaluatedPreCheck {
             domain: self.domain,
             selection_authority: self.selection_authority,
@@ -902,7 +876,6 @@ impl PreCheckEvaluation {
         if self.access_view_records.is_empty() {
             return Ok(());
         }
-        let _g = phase_profile::guard("evaluate_or_defer.complete_access_views");
         access_views::validate_access_view_plans_in(
             typed,
             &self.access_view_records,

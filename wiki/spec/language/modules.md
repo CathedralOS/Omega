@@ -99,9 +99,6 @@ may carry an exact foreign qualification and its evidence through an API without
 importing that domain for authored lookup. Carrying neither erases that evidence
 nor exposes other declarations of the domain's package.
 
-Current support is documented beside
-[source resolution](../../../omega-rust/psi/compilation/pipeline/README.md#resolution-and-closed-instance-normalization).
-
 ## Resolution
 
 Name resolution considers, in order:

@@ -293,9 +293,9 @@ pub(super) fn check_indexed_access(
             .and_then(|reference| arrays::bounded_byte_type_capacity(program, reference))
             .is_some();
     if builtin_geometry
-        && facts
-            .collection_bounds
-            .is_some_and(|observations| observations.proves(facts.statement_index, expression))
+        && facts.collection_bounds.is_some_and(|observations| {
+            observations.proves(state, facts.statement_index, expression)
+        })
     {
         diagnostics.truncate(diagnostic_count);
         obligations.truncate(obligation_count);

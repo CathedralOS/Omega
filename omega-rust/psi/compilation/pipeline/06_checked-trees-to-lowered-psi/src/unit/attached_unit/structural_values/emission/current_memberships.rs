@@ -62,8 +62,26 @@ impl Emission<'_, '_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "completed source has no published memberships",
                 ))?;
-        let (mut whole, projected) =
+        let (born_whole, born_projected) =
             StructuralPathQualification::select(whole, projected, &source.path);
+        let mut whole = born_whole.clone();
+        let mut projected = born_projected.clone();
+        for candidate in
+            self.operations
+                .call_membership_candidates(source.place, self.state, self.statement)
+        {
+            let (added_whole, added_projected) = StructuralPathQualification::select(
+                &candidate.qualifications,
+                &candidate.projected,
+                &source.path,
+            );
+            whole.extend(added_whole);
+            projected.extend(added_projected);
+        }
+        whole.sort();
+        whole.dedup();
+        projected.sort();
+        projected.dedup();
         if whole.is_empty() && projected.is_empty() {
             return Ok((whole, projected));
         }
@@ -112,7 +130,7 @@ impl Emission<'_, '_, '_> {
                 .structural_materialization_statement(source_root, self.state)?
                 == Some(self.statement)
             {
-                return Ok((whole, projected));
+                return Ok((born_whole, born_projected));
             }
             return Err(LoweringError::at_statement(
                 self.checked,
@@ -239,6 +257,13 @@ impl Emission<'_, '_, '_> {
             "membership source lost its exact declared carrier",
         ))?;
         let current = |domain, path: &[StructuralPathSegment], relative: &[facts::PlaceSegment]| {
+            let born = if path.is_empty() {
+                born_whole.contains(&domain)
+            } else {
+                born_projected
+                    .iter()
+                    .any(|row| row.domain == domain && row.path == path)
+            };
             let Some(binding) = self
                 .domain_ids
                 .iter()
@@ -263,7 +288,8 @@ impl Emission<'_, '_, '_> {
                 let operand = self.checked.facts.flow.control.operands.get(*capture);
                 // A missing/unknown storage observation never becomes an empty
                 // proof. Only identical complete producer receipts conserve it.
-                if !crosses_reference
+                if born
+                    && !crosses_reference
                     && !path
                         .iter()
                         .any(|segment| matches!(segment, StructuralPathSegment::Referent))

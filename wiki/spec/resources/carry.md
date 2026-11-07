@@ -76,9 +76,12 @@ Derive these obligations from canonical liveness and existing loan/claim evidenc
 not a separate service-name rule or an author-supplied assertion that all borrows
 are safe. Report the exact missing lifetime, access, carry or runtime-preservation
 obligation. A valid retained loan must not reject merely because it is borrowed;
-a suspension-forbidden live resource still rejects. Preservation establishes
-safety, not deadlock freedom or eventual resumption. Terminal arm calls use this
-same check rather than an empty frontier inferred from tail position.
+a suspension-forbidden live resource still rejects. A generic callback body
+establishes these obligations under its requirement's upper-bound envelope;
+a [non-suspending specialization](../language/effects.md#static-callback-operational-dependencies)
+does not rescue a body that fails this check. Ordinary loans remain admissible
+when preservation is established. Preservation establishes safety, not deadlock
+freedom or eventual resumption. Terminal arm calls use this same check rather than an empty frontier inferred from tail position.
 
 ## Runtime admission
 

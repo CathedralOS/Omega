@@ -4,18 +4,18 @@
 //! or cloning the table carries only the indexes belonging to that storage;
 //! equal revision numbers in unrelated arenas cannot reuse declaration answers.
 
+use super::declaration_index::SymbolRows;
 use crate::machine::Machine;
 use arena::{Arena, Handle, HandleSpan, OwnedIndex};
 use symbols::SymbolHandle;
 
-#[derive(Clone, Default)]
-pub(super) struct MachinePositionIndex {
-    pub(super) rows: Vec<(SymbolHandle, u32)>,
-}
+/// Visible-root machine positions per symbol, in root order.
+pub(super) type MachinePositionIndex = SymbolRows<u32>;
 
+/// One retained declaration per symbol; `None` when copies conflict.
 #[derive(Clone, Default)]
 struct RetainedDeclarationIndex {
-    rows: Vec<(SymbolHandle, Option<Handle<Machine>>)>,
+    rows: SymbolRows<Option<Handle<Machine>>>,
 }
 
 fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
@@ -41,15 +41,13 @@ impl RetainedDeclarationIndex {
                 rows.push((symbol, Some(handle)));
             }
         }
-        Self { rows }
+        Self {
+            rows: SymbolRows::new(rows),
+        }
     }
 
     fn declaration(&self, symbol: SymbolHandle) -> Option<Handle<Machine>> {
-        let position = self
-            .rows
-            .binary_search_by_key(&symbol_key(symbol), |(symbol, _)| symbol_key(*symbol))
-            .ok()?;
-        self.rows[position].1
+        *self.rows.first(symbol)?
     }
 }
 
@@ -101,15 +99,14 @@ impl MachineDeclarationTable {
         self.roots.with(
             roster,
             || {
-                let mut rows = self
-                    .arena
-                    .span_or_empty(roster)
-                    .iter()
-                    .enumerate()
-                    .map(|(position, machine)| (machine.symbol, position as u32))
-                    .collect::<Vec<_>>();
-                rows.sort_by_key(|(symbol, _)| symbol_key(*symbol));
-                MachinePositionIndex { rows }
+                SymbolRows::new(
+                    self.arena
+                        .span_or_empty(roster)
+                        .iter()
+                        .enumerate()
+                        .map(|(position, machine)| (machine.symbol, position as u32))
+                        .collect(),
+                )
             },
             read,
         )
@@ -127,8 +124,8 @@ impl MachineDeclarationTable {
     pub(super) fn seal(&mut self) {
         self.retained
             .with((), || RetainedDeclarationIndex::build(&self.arena), |_| ());
-        self.roots.seal();
-        self.retained.seal();
+        self.roots.seal_with(SymbolRows::densify);
+        self.retained.seal_with(|index| index.rows.densify());
     }
 
     pub(super) fn unseal(&mut self) {

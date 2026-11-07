@@ -123,7 +123,7 @@ impl CompletedResolution<'_> {
 // still compare the full payload, proof context and dependency observations.
 // In particular a capture's occurrence selects its bucket without repeatedly
 // serializing the retained range proof, which full payload equality checks.
-fn fingerprint(term: &StructuralTerm) -> u64 {
+pub(super) fn fingerprint(term: &StructuralTerm) -> u64 {
     fn visit(term: &StructuralTerm, hash: &mut DefaultHasher) {
         // Observation authority remains in same_resolution_payload. Like the
         // former semantic Debug filter, this view intentionally allows those
@@ -216,7 +216,10 @@ impl<'program> CompletedResolutions<'program> {
                     && entry.depth == depth
                     && entry.resolution_depth == judge.application_resolution_depth()
                     && entry.specification_terms == judge.specification_terms
-                    && match (&entry.returned_field_trace, &judge.returned_field_trace) {
+                    && match (
+                        &entry.returned_field_trace,
+                        &judge.query_state.returned_field_trace,
+                    ) {
                         (None, None) => true,
                         (Some(retained), Some(current)) => retained.same_current(current),
                         _ => false,
@@ -336,7 +339,7 @@ impl<'program> StructuralJudge<'program> {
         // Crossing to another trace cannot authorize an enclosing cache entry:
         // replaying that entry would skip the other trace's dependency recording.
         self.invalidate_changed_field_observers();
-        let Some(cache) = &self.completed_resolutions else {
+        let Some(cache) = &self.query_state.completed_resolutions else {
             return compute(self, term);
         };
         let fingerprint = self.query_bucket(kind, &term, depth);
@@ -352,28 +355,8 @@ impl<'program> StructuralJudge<'program> {
                     read.specification_terms,
                 );
             }
-            phase_profile::count(
-                match kind {
-                    StructuralQueryKind::Resolution => "psi.05.resolution.completed.hit",
-                    StructuralQueryKind::IntegerProjection => {
-                        "psi.05.resolution.integer_projection.hit"
-                    }
-                    StructuralQueryKind::Predicate => "psi.05.resolution.predicate.hit",
-                },
-                1,
-            );
             return value;
         }
-        phase_profile::count(
-            match kind {
-                StructuralQueryKind::Resolution => "psi.05.resolution.completed.miss",
-                StructuralQueryKind::IntegerProjection => {
-                    "psi.05.resolution.integer_projection.miss"
-                }
-                StructuralQueryKind::Predicate => "psi.05.resolution.predicate.miss",
-            },
-            1,
-        );
         let context = self.resolution_input_context();
         let observations = Arc::new(ResolutionObservations {
             base_active: self.active_application.clone(),
@@ -391,27 +374,25 @@ impl<'program> StructuralJudge<'program> {
             .lock()
             .ok()
             .and_then(|reads| reads.as_deref().map(CompletedReads::capture));
-        if let Some(reads) = reads {
-            phase_profile::count(
-                "psi.05.resolution.dependencies.retained",
-                reads.as_slice().len() as u64,
-            );
-            if let Ok(mut cache) = cache.lock() {
-                cache.insert(CompletedResolution {
-                    fingerprint,
-                    kind,
-                    term: input,
-                    inputs: self.resolution_inputs(),
-                    specification_terms: self.specification_terms,
-                    returned_field_trace: self.returned_field_trace.as_ref().map(InputOwner::new),
-                    reads,
-                    depth,
-                    resolution_depth: self.application_resolution_depth(),
-                    value: value.clone(),
-                });
-            }
-        } else {
-            phase_profile::count("psi.05.resolution.dependencies.unavailable", 1);
+        if let Some(reads) = reads
+            && let Ok(mut cache) = cache.lock()
+        {
+            cache.insert(CompletedResolution {
+                fingerprint,
+                kind,
+                term: input,
+                inputs: self.resolution_inputs(),
+                specification_terms: self.specification_terms,
+                returned_field_trace: self
+                    .query_state
+                    .returned_field_trace
+                    .as_ref()
+                    .map(InputOwner::new),
+                reads,
+                depth,
+                resolution_depth: self.application_resolution_depth(),
+                value: value.clone(),
+            });
         }
         value
     }
@@ -420,7 +401,7 @@ impl<'program> StructuralJudge<'program> {
         let mut context = self.clone();
         // Keys retain immutable inputs, never their containing cache or observer.
         context.active_application = None;
-        context.completed_resolutions = None;
+        context.query_state.completed_resolutions = None;
         context.resolution_observations = None;
         context
     }
@@ -571,7 +552,7 @@ impl<'program> StructuralJudge<'program> {
     /// a new reason to refuse scalar unfolding.
     pub(super) fn record_returned_field_dependency(&self, selected: SymbolHandle) {
         fn record(context: &StructuralJudge<'_>, selected: SymbolHandle) {
-            if let Some(trace) = &context.returned_field_trace
+            if let Some(trace) = &context.query_state.returned_field_trace
                 && let Ok(mut trace) = trace.lock()
             {
                 if !trace.visited_callees.contains(&selected) {
@@ -596,12 +577,12 @@ impl<'program> StructuralJudge<'program> {
 
     /// Opaque leaf retention must not omit mutable dependency collection.
     pub(super) fn has_resolution_dependency_collector(&self) -> bool {
-        if self.returned_field_trace.is_some() {
+        if self.query_state.returned_field_trace.is_some() {
             return true;
         }
         let mut previous = self.active_application.as_deref();
         while let Some(active) = previous {
-            if active.context.returned_field_trace.is_some()
+            if active.context.query_state.returned_field_trace.is_some()
                 // resolving_application clears this edge in every saved context.
                 // Refuse an unfamiliar nested context rather than omit its effects.
                 || active.context.active_application.is_some()
@@ -624,7 +605,10 @@ impl<'program> StructuralJudge<'program> {
     }
 
     fn same_returned_field_trace(&self, other: &Self) -> bool {
-        match (&self.returned_field_trace, &other.returned_field_trace) {
+        match (
+            &self.query_state.returned_field_trace,
+            &other.query_state.returned_field_trace,
+        ) {
             (None, None) => true,
             (Some(left), Some(right)) => Arc::ptr_eq(left, right),
             _ => false,
@@ -646,7 +630,8 @@ impl<'program> StructuralJudge<'program> {
         fingerprint(term).hash(&mut hash);
         (kind, depth, self.application_resolution_depth()).hash(&mut hash);
         self.specification_terms.hash(&mut hash);
-        self.returned_field_trace
+        self.query_state
+            .returned_field_trace
             .as_deref()
             .map(address)
             .hash(&mut hash);
@@ -1081,7 +1066,7 @@ mod tests {
             StructuralTerm::Opaque("open".to_owned())
         });
         assert!(outside != value);
-        let cache = Arc::downgrade(judge.completed_resolutions.as_ref().unwrap());
+        let cache = Arc::downgrade(judge.query_state.completed_resolutions.as_ref().unwrap());
         drop(active);
         drop(judge);
         assert!(
@@ -1229,7 +1214,7 @@ mod tests {
         );
         judge.specification_terms = true;
         let mut reference = judge.clone();
-        reference.completed_resolutions = None;
+        reference.query_state.completed_resolutions = None;
         let mut stacks = vec![Vec::new()];
         let mut frontier = vec![Vec::new()];
         for _ in 0..3 {
@@ -1270,14 +1255,14 @@ mod tests {
             &[],
             true,
         );
-        judge.returned_field_trace = Some(Arc::new(std::sync::Mutex::new(
+        judge.query_state.returned_field_trace = Some(Arc::new(std::sync::Mutex::new(
             super::super::returned_fields::ReturnedFieldTrace::default(),
         )));
         let calls = Cell::new(0);
         let dependency = symbols::SymbolHandle::invalid();
         let compute = |judge: &StructuralJudge<'_>, term| {
             calls.set(calls.get() + 1);
-            if let Some(trace) = &judge.returned_field_trace {
+            if let Some(trace) = &judge.query_state.returned_field_trace {
                 let mut trace = trace.lock().unwrap();
                 trace.visited_callees.push(dependency);
                 trace.min_cycle_owner_index = 0;
@@ -1290,13 +1275,19 @@ mod tests {
         query(&judge);
         query(&judge);
         assert_eq!(calls.get(), 1);
-        let trace = judge.returned_field_trace.as_ref().unwrap().lock().unwrap();
+        let trace = judge
+            .query_state
+            .returned_field_trace
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap();
         assert_eq!(trace.visited_callees, vec![dependency]);
         assert_eq!(trace.min_cycle_owner_index, 0);
         drop(trace);
 
         let mut other = judge.clone();
-        other.returned_field_trace = Some(Arc::new(Mutex::new(
+        other.query_state.returned_field_trace = Some(Arc::new(Mutex::new(
             super::super::returned_fields::ReturnedFieldTrace::default(),
         )));
         query(&other);
@@ -1304,6 +1295,7 @@ mod tests {
         assert_eq!(calls.get(), 2);
         assert_eq!(
             other
+                .query_state
                 .returned_field_trace
                 .as_ref()
                 .unwrap()
@@ -1312,11 +1304,11 @@ mod tests {
                 .visited_callees,
             vec![dependency]
         );
-        other.returned_field_trace = None;
+        other.query_state.returned_field_trace = None;
         query(&other);
         query(&other);
         assert_eq!(calls.get(), 3);
-        other.returned_field_trace = judge.returned_field_trace.clone();
+        other.query_state.returned_field_trace = judge.query_state.returned_field_trace.clone();
         Arc::make_mut(&mut other.returned_field_owners).push(dependency);
         query(&other);
         assert_eq!(
@@ -1346,15 +1338,15 @@ mod tests {
             ))
         };
         let outer_trace = new_trace();
-        outer.returned_field_trace = Some(Arc::clone(&outer_trace));
+        outer.query_state.returned_field_trace = Some(Arc::clone(&outer_trace));
         outer.returned_field_owners = Arc::new(vec![owner]);
         let mut inner = outer
             .resolving_application(&StructuralTerm::Variable("application".to_owned()), 0)
             .unwrap();
         let inner_trace = new_trace();
-        inner.returned_field_trace = Some(Arc::clone(&inner_trace));
+        inner.query_state.returned_field_trace = Some(Arc::clone(&inner_trace));
         inner.record_returned_field_dependency(owner);
-        inner.returned_field_trace = None;
+        inner.query_state.returned_field_trace = None;
         let dependency = SymbolHandle::from_arena_index(19);
         inner.record_returned_field_dependency(dependency);
         inner.record_returned_field_dependency(dependency);
@@ -1385,7 +1377,7 @@ mod tests {
             judge.completed_resolution(term.clone(), 0, |judge, term| {
                 calls.set(calls.get() + 1);
                 let mut changed = judge.resolving_application(&term, 0).unwrap();
-                changed.returned_field_trace = Some(Arc::clone(&trace));
+                changed.query_state.returned_field_trace = Some(Arc::clone(&trace));
                 assert!(
                     changed.resolving_application(&term, 0).is_none(),
                     "a dependency recorder is not a different recurrence context"
@@ -1435,6 +1427,7 @@ mod work_domain_tests {
         judge.completed_resolution(term(1), 0, compute);
         assert_eq!(calls.get(), 8194);
         let cache = judge
+            .query_state
             .completed_resolutions
             .as_ref()
             .unwrap()
@@ -1465,6 +1458,7 @@ mod work_domain_tests {
             judge.resolve(StructuralTerm::Variable("cheap leaf".to_owned()));
         }
         let entries = judge
+            .query_state
             .completed_resolutions
             .as_ref()
             .unwrap()

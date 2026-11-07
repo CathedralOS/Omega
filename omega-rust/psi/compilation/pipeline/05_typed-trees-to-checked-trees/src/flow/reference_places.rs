@@ -319,12 +319,8 @@ fn preserve_candidate_call_prefix_storage(
     let position = call_position_in_state(flow, state, call)?;
     let calls = flow.control.calls.span_or_empty(state.calls);
     let borrow_calls = borrow
-        .states
-        .iter()
-        .find_map(|(_, owner)| {
-            (owner.machine_symbol == machine.symbol && owner.state_symbol == state.state_symbol)
-                .then(|| borrow.calls.span_or_empty(owner.calls))
-        })
+        .first_state_borrow(machine.symbol, state.state_symbol)
+        .map(|(_, owner)| borrow.calls.span_or_empty(owner.calls))
         .unwrap_or(&[]);
     for prior in calls[..position]
         .iter()

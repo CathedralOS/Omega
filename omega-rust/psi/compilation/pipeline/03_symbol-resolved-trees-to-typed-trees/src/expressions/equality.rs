@@ -30,7 +30,7 @@ pub(crate) fn validate_equality_operands_in(
     cohort: &crate::lowerer::TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
     for (ordinal, machine) in program.machines.iter().enumerate() {
-        if ordinal < cohort.machines && !cohort.completed_machines.contains(&machine.symbol) {
+        if ordinal < cohort.machines && !cohort.completes(machine.symbol) {
             continue;
         }
         for contract in program.signature_contracts(machine.contracts) {

@@ -153,14 +153,14 @@ pub mod values;
 mod wire_schema_queries;
 
 pub use access_views::{
-    AccessAtomicObservingResultContract, AccessAtomicResidentContract, AccessContentShape,
-    AccessExecutionDeclaration, AccessFieldPlan, AccessLifecycleOperation, AccessLifecycleOwner,
-    AccessLifecyclePlan, AccessLifecycleStorage, AccessViewPlan, AccessorPrimitive, AccessorTarget,
-    PlanLaidBitField, PlanLaidBitFragment, PlanLaidFieldLayoutSource, PlanLaidGeometry,
-    PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations, PlanLaidRepeatedField,
-    PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument, PlanLaidSchemaField,
-    PlanLaidSchemaFieldKind, PlanLaidTargetLayout, PrivateCallbackSlotApplication,
-    ScalarAccessorDeclaration, ScalarAccessorOperation,
+    AccessAtomicObservingResultContract, AccessAtomicResidentContract, AccessBackingOutcome,
+    AccessBackingTransfer, AccessContentShape, AccessExecutionDeclaration, AccessFieldPlan,
+    AccessLifecycleOperation, AccessLifecycleOwner, AccessLifecyclePlan, AccessLifecycleStorage,
+    AccessViewPlan, AccessorPrimitive, AccessorTarget, PlanLaidBitField, PlanLaidBitFragment,
+    PlanLaidFieldLayoutSource, PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout,
+    PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidRetiredFieldIdentity,
+    PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
+    PrivateCallbackSlotApplication, ScalarAccessorDeclaration, ScalarAccessorOperation,
 };
 pub use commitments::{
     CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,

@@ -1011,11 +1011,7 @@ pub(crate) fn exact_structural_borrow_access(
     // the machine. Re-express the machine-rooted place in the borrow spelling
     // before matching.
     let (root, segments) = borrow_access_spelling(machine, place)?;
-    let borrow_state = borrow
-        .states
-        .iter()
-        .map(|(_, state)| state)
-        .find(|candidate| candidate.machine_symbol == machine && candidate.state_symbol == state)?;
+    let (_, borrow_state) = borrow.first_state_borrow(machine, state)?;
     let matching_calls = borrow
         .calls
         .span_or_empty(borrow_state.calls)

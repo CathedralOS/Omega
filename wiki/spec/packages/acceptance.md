@@ -49,7 +49,7 @@ accept new package code. An ordinary compile compares every accepted occurrence'
 source identity and compiler input identity with the lock, including the local
 root and each dependency in its exact Product or Build context. On a match it
 consumes the retained occurrence-scoped semantic bindings and skips package
-review. On a mismatch it rejects, names the package and `omega update`, and
+review. On a mismatch it rejects, names the package and `omega packages update`, and
 does not run an inline audit or rewrite acceptance.
 
 Full-package review and its discovery/bound passes belong only to explicit
@@ -154,6 +154,13 @@ audit. Exceeding a packet limit rejects rather than silently truncating evidence
 
 ## Assumed binding contract acceptance
 
+Ordinary applications should reject this category outright. A dependency must
+not turn an ordinary ownership, proof, contract or compiler failure into a
+request for consumer trust. Exceptional acceptance needs a concrete requirement
+to operate outside the checked model, following the
+[usage rule](../build/assumed_binding_contracts.md). A compiler rejection by
+itself supplies no such requirement.
+
 An explicit [assumed binding contract](../build/assumed_binding_contracts.md)
 is an **Extremely high risk - assumed binding contract** finding, including
 when reached only through dependencies or wrappers. Install, update and audit
@@ -192,7 +199,7 @@ request that broader host permissions can satisfy.
 
 ## Restricted-build acceptance
 
-`omega install`, `omega update`, and package audit expose restricted build-time
+`omega packages install`, `omega packages update`, and package audit expose restricted build-time
 requests separately from product/runtime authority. Include direct and transitive
 requests, their originating package and dependency path, build purpose,
 operation, logical resource scope, bounds, and applicable execution profile and
@@ -258,7 +265,7 @@ receipts belong to their artifacts or concrete caches, not ordinary lock accepta
 
 Locked native preparation consumes the same identity-matched accepted occurrence
 inputs; it does not reconstruct a fresh package review for comparison. Stale or
-missing required acceptance directs the user to `omega update`; no second native approval file is
+missing required acceptance directs the user to `omega packages update`; no second native approval file is
 required. This does not waive compiler proof checks, enforceable terminal
 permissions, or actual build-execution grants. Ecosystem receiving
 policy applies separately at explicit admission/installation, not as a required

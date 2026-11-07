@@ -1,5 +1,10 @@
 # Producer/checker decision-sharing audit
 
+Historical record of the cited revisions. Superseded gates, artifact formats
+and checker names below are not current requirements or work to resume.
+Use [verification placement](../../../omega-rust/pipeline.md#verification-placement)
+and the [current task board](../../../TASKS.md) for the maintained model.
+
 Audit of every surface where a producer-written decision, annotation, or
 recorded disposition reaches a checker or consumer that must not trust it.
 Covers the mined `PRODUCER-CHECKER-*` cluster (BOUNDARY-AUDIT,

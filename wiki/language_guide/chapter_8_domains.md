@@ -104,7 +104,7 @@ Type indices use exact normalized type identity and are invariant:
 calls. Structurally equal const values have one semantic identity even when a
 record literal spells its fields in a different order; different values are
 different domains and cannot flow into one another implicitly. Every index is
-retained in checked and terminal identity while the carrier remains unchanged
+retained in checked and Psi identity while the carrier remains unchanged
 at runtime. Explicit qualification selects closed canonical indices or direct
 binders without runtime work. Generic-carrier families such as
 `T::Quantity<U>` and fixed-carrier families such as
@@ -616,8 +616,6 @@ Examples:
 - `bytes as [u8]::Path` requires a proof of `no_nul(bytes) == true`;
 - `5 as i32::Km` is direct qualification because `Km` states no obligations;
 - `small as u32` succeeds only when representability is proved;
-- `PowerOrder as dyn Ranked<Card>` proves the named implementation fits and
-  packages its local dispatch selection; card data is passed separately;
 - `reservation as Reservation::Issued` fails when issuance requires
   `BoxOffice` state;
 - `extent as Extent::Granted` fails when authority requires an admitted root
@@ -755,10 +753,11 @@ data Config {
     rank: u8::Rank;
 }
 
-let ready: Config = Config { rank: 1 };  // omitted level is zero-valid
+let ready: Config = Config { rank: 1, .. };  // explicitly default zero-valid level
 ```
 
-Construction must supply gated fields and prove the whole default domain.
+Construction with `..` must supply gated fields and prove the whole default domain.
+Without `..`, every runtime field is supplied explicitly.
 Machine-owned storage likewise establishes gated fields before observation.
 Gating propagates through embedded values and arrays; a zero-valid first sum
 case need not establish the unused payloads of later cases. See

@@ -2,7 +2,7 @@
 
 Owned values need deterministic cleanup. The
 [ownership specification](../spec/language/ownership.md#consumers-and-cleanup)
-and [Terminal cleanup contract](../spec/terminal-psi/ownership.md) own the rules.
+and [Psi cleanup contract](../spec/terminal-psi/ownership.md) own the rules.
 Omega represents cleanup on graph edges, where ownership changes, rather than
 at lexical braces or in backend-invented drop flags.
 

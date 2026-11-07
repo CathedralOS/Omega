@@ -56,8 +56,8 @@ pub(in crate::proof_contracts::contract_entailment) fn has_identity_equality_mea
     })
 }
 
-/// The exact complete data carriers of a formed Id question. This supplies
-/// neither operand observations nor equality truth; consumers still owe both.
+/// Complete builtin scalar carriers whose selected comparison can imply Id.
+/// This supplies neither operand observations nor comparison truth.
 pub(in crate::proof_contracts::contract_entailment) fn builtin_identity_operand_references(
     program: &dyn crate::CheckingInput,
     scope: SymbolHandle,

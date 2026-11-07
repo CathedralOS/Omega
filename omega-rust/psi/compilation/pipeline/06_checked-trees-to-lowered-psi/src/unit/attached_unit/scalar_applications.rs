@@ -74,8 +74,7 @@ impl SourceScalarApplications {
                 | RetainedConstantPosition::ConstApplication {
                     site: reference, ..
                 } => references.type_references.contains(&reference),
-                RetainedConstantPosition::RangeEndpoint(expression)
-                | RetainedConstantPosition::ContractExpression(expression) => {
+                RetainedConstantPosition::ContractExpression(expression) => {
                     references.expressions.contains(&expression)
                 }
                 RetainedConstantPosition::None => false,
@@ -115,9 +114,7 @@ impl SourceScalarApplications {
                     | RetainedConstantPosition::ConstApplication {
                         site: reference, ..
                     } => owners.type_owners(reference).collect::<Vec<_>>(),
-                    RetainedConstantPosition::RangeEndpoint(expression) => {
-                        owners.expression_owners(expression).collect()
-                    }
+
                     _ => Vec::new(),
                 };
                 if declaring_owners.is_empty() {
@@ -232,8 +229,7 @@ impl SourceScalarApplications {
             RetainedConstantPosition::ArrayLength(reference) => {
                 self.retain_array_length(checked, reference)?
             }
-            RetainedConstantPosition::RangeEndpoint(expression)
-            | RetainedConstantPosition::ContractExpression(expression)
+            RetainedConstantPosition::ContractExpression(expression)
             | RetainedConstantPosition::ConstApplication {
                 root: expression, ..
             } => self.retain_expression_in(checked, expression, owner)?,

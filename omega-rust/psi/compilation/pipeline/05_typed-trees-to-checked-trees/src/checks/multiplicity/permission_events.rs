@@ -107,7 +107,6 @@ pub(crate) fn prepare_permission_events(
     let call_frames =
         crate::flow::shared_call_frames_or(shared_call_frames, program, &mut owned_frames);
 
-    let state_loop_guard = phase_profile::guard("psi.05.build_check_facts.permissions.state_loop");
     let state_flows = facts
         .flow
         .control
@@ -130,11 +129,6 @@ pub(crate) fn prepare_permission_events(
     };
     let prepared_walks = prepare_state_walks(program, facts, &state_flows, &mutated_places);
     for ((state_handle, state_flow), prepared) in state_flows.into_iter().zip(prepared_walks) {
-        let _subject =
-            phase_profile::subject("psi.05.build_check_facts.permissions.state_loop", || {
-                program.symbols.profile_label(state_flow.machine_symbol)
-            });
-        let _setup_guard = phase_profile::guard("psi.05.permissions.setup");
         let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
             continue;
         };
@@ -352,8 +346,6 @@ pub(crate) fn prepare_permission_events(
                         parameter.type_reference,
                     ) != Multiplicity::Unrestricted
             });
-        drop(_setup_guard);
-        let _walk_guard = phase_profile::guard("psi.05.permissions.walk");
         // `walk` visits the same step sequence for any custody value, so the
         // visit ordinal selects the exclusions prepared for this exact step.
         let mut visit = 0;
@@ -665,30 +657,20 @@ pub(crate) fn prepare_permission_events(
             row.storage_transfers = storage_transfers
         });
     }
-    drop(state_loop_guard);
-    phase_profile::checkpoint(
-        "after permission state walk",
-        "psi.05.build_check_facts.permissions.state_loop",
-    );
 
-    phase_profile::scope("psi.05.build_check_facts.permissions.append_borrow", || {
+    {
         append_borrow_permission_events(
             program,
             facts,
             &mut permission_events,
             &mut claim_identities,
         );
-    });
-    let claim_outcome_maps = phase_profile::scope(
-        "psi.05.build_check_facts.permissions.reconcile_origins",
-        || {
-            reconcile_state_call_result_origins(
-                program,
-                &facts.borrow,
-                &mut facts.flow.ownership,
-                &mut permission_events,
-            )
-        },
+    };
+    let claim_outcome_maps = reconcile_state_call_result_origins(
+        program,
+        &facts.borrow,
+        &mut facts.flow.ownership,
+        &mut permission_events,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
 
@@ -717,10 +699,7 @@ pub(crate) fn prepare_permission_events(
         .permissions
         .insert_many(permission_events);
     publish_claim_outcome_maps(facts, claim_outcome_maps);
-    let joined_receivers =
-        phase_profile::scope("psi.05.build_check_facts.permissions.publish_joins", || {
-            publish_call_claim_joins(program, facts)
-        })
+    let joined_receivers = publish_call_claim_joins(program, facts)
         .map_err(|message| vec![Diagnostic::error(message)])?;
     let joined_events = facts
         .flow
@@ -729,16 +708,13 @@ pub(crate) fn prepare_permission_events(
         .iter()
         .map(|(_, event)| event.clone())
         .collect::<Vec<_>>();
-    let joined_maps =
-        phase_profile::scope("psi.05.build_check_facts.permissions.derive_maps", || {
-            derive_checked_claim_outcome_maps(
-                program,
-                &facts.borrow,
-                &facts.flow.ownership,
-                &joined_events,
-            )
-        })
-        .map_err(|message| vec![Diagnostic::error(message)])?;
+    let joined_maps = derive_checked_claim_outcome_maps(
+        program,
+        &facts.borrow,
+        &facts.flow.ownership,
+        &joined_events,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])?;
     let correspondence_changed = claim_outcomes
         .update(joined_maps.clone(), joined_receivers)
         .map_err(|message| vec![Diagnostic::error(message)])?;
@@ -758,21 +734,15 @@ pub(crate) fn prepare_permission_events(
         // carrier. Select that death while source windows still distinguish
         // a live old value from an already extracted hole, before deriving
         // hook prerequisites and effects from the complete death roster.
-        phase_profile::scope(
-            "psi.05.build_check_facts.permissions.storage_deaths",
-            || prepare_storage_deaths(program, facts),
-        )?;
+        prepare_storage_deaths(program, facts)?;
         let mut cleanup_dispositions = std::mem::take(&mut facts.contextual_cleanup);
-        phase_profile::scope(
-            "psi.05.build_check_facts.permissions.bind_applications",
-            || {
-                crate::published::facts::contextual_cleanup::bind_applications(
-                    program,
-                    &facts.flow,
-                    &mut cleanup_dispositions,
-                );
-            },
-        );
+        {
+            crate::published::facts::contextual_cleanup::bind_applications(
+                program,
+                &facts.flow,
+                &mut cleanup_dispositions,
+            );
+        };
         facts.contextual_cleanup = cleanup_dispositions;
         Ok(false)
     } else {
@@ -848,15 +818,10 @@ fn prepare_state_walks(
     mutated_places: &MutatedPlaces<'_>,
 ) -> Vec<PreparedStateWalk> {
     use rayon::prelude::*;
-    const PASS: &str = "psi.05.build_check_facts.permissions.prepare_walks";
-    let _guard = phase_profile::guard(PASS);
     validation::checking_thread_pool().install(|| {
         let queries = state_flows
             .par_iter()
             .map(|(_, state_flow)| {
-                let _subject = phase_profile::subject(PASS, || {
-                    program.symbols.profile_label(state_flow.machine_symbol)
-                });
                 let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
                 let state = program.state_by_symbol(state_flow.state_symbol)?;
                 if machine.has_bodyless_signature() {
@@ -917,21 +882,16 @@ fn prepare_state_walks(
                     .map(move |steps| (state, steps))
             })
             .collect::<Vec<_>>();
-        let sites = queries
+        let groups = queries
             .iter()
             .flatten()
-            .flat_map(|state| (0..state.conservation.len()).map(move |site| (state, site)))
+            .flat_map(|state| (0..state.conservation.groups()).map(move |group| (state, group)))
             .collect::<Vec<_>>();
         let (case_exclusions, conservation_candidates) = rayon::join(
             || {
                 step_runs
                     .par_iter()
                     .flat_map_iter(|&(query, steps)| {
-                        let _subject = phase_profile::subject(PASS, || {
-                            program
-                                .symbols
-                                .profile_label(query.state_flow.machine_symbol)
-                        });
                         let mut carried = None;
                         steps
                             .iter()
@@ -953,17 +913,16 @@ fn prepare_state_walks(
                     .collect::<Vec<_>>()
             },
             || {
-                sites
+                groups
                     .par_iter()
-                    .map(|&(query, site)| {
-                        let _subject = phase_profile::subject(PASS, || {
-                            program
-                                .symbols
-                                .profile_label(query.state_flow.machine_symbol)
-                        });
-                        query
-                            .conservation
-                            .answer(program, facts, query.machine, query.state, site)
+                    .map(|&(query, group)| {
+                        query.conservation.answer_group(
+                            program,
+                            facts,
+                            query.machine,
+                            query.state,
+                            group,
+                        )
                     })
                     .collect::<Vec<_>>()
             },
@@ -976,10 +935,16 @@ fn prepare_state_walks(
                 None => PreparedStateWalk::skipped(),
                 Some(query) => PreparedStateWalk {
                     case_exclusions: case_exclusions.by_ref().take(query.steps.len()).collect(),
-                    conservation_candidates: conservation_candidates
-                        .by_ref()
-                        .take(query.conservation.len())
-                        .collect(),
+                    conservation_candidates: {
+                        // Groups answer their sites out of order; restore site order.
+                        let mut answers = conservation_candidates
+                            .by_ref()
+                            .take(query.conservation.groups())
+                            .flatten()
+                            .collect::<Vec<_>>();
+                        answers.sort_unstable_by_key(|(site, _)| *site);
+                        answers.into_iter().map(|(_, answer)| answer).collect()
+                    },
                     call_writes: query.call_writes,
                     temporary_owners: query.temporary_owners,
                     temporary_occurrences: query.temporary_occurrences,
@@ -1189,7 +1154,7 @@ pub(crate) fn record_crash_frontier_lower_bounds(
         );
     }
 
-    for contract in &mut facts.contract_plans.machines {
+    facts.contract_plans.update_plans(|contract| {
         let checked_sites = contract
             .crash
             .checked_sites()
@@ -1213,7 +1178,7 @@ pub(crate) fn record_crash_frontier_lower_bounds(
             .clone()
             .with_checked_sites(checked_sites)
             .expect("derived crash frontiers retain valid checked-site identity");
-    }
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

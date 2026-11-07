@@ -747,9 +747,9 @@ fn checked_static_dispatches(
     let control = &checked.facts.flow.control;
     let mut calls = Vec::new();
     for (_, state) in control
-        .states
-        .iter()
-        .filter(|(_, state)| state.machine_symbol == owner)
+        .machine_states(owner)
+        .into_iter()
+        .map(|state| ((), state))
     {
         for call in control.calls.span_or_empty(state.calls) {
             let Some(dispatch) = call.static_requirement_dispatch else {

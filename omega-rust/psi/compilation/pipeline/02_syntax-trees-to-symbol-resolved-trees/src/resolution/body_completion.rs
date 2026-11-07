@@ -271,22 +271,42 @@ impl DeferredResolvedFrontier {
         mut self,
         selected: &[SymbolHandle],
     ) -> Result<ResolvedBodyCompletion, Vec<Diagnostic>> {
+        // Every selected symbol looked up its pending body, and checked the
+        // bodies already taken, by scanning both lists: quadratic in the
+        // number of machines selected at once. Sort the pending bodies by
+        // symbol once; ties keep list order, so each lookup finds the body
+        // the scan found first.
+        let symbol_key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
+        let mut pending_by_symbol = self
+            .pending
+            .iter()
+            .enumerate()
+            .map(|(position, body)| {
+                (
+                    symbol_key(self.trees.machines[body.machine_ordinal].symbol),
+                    position,
+                )
+            })
+            .collect::<Vec<_>>();
+        pending_by_symbol.sort_unstable();
+        let mut taken = std::collections::BTreeSet::new();
         let mut pending = Vec::new();
         for &symbol in selected {
-            if pending.iter().any(|body: &PendingMachineBody| {
-                self.trees.machines[body.machine_ordinal].symbol == symbol
-            }) {
+            let key = symbol_key(symbol);
+            if taken.contains(&key) {
                 continue;
             }
-            let body = self
-                .pending
-                .iter()
-                .find(|body| self.trees.machines[body.machine_ordinal].symbol == symbol)
+            let start = pending_by_symbol.partition_point(|(row, _)| *row < key);
+            let body = pending_by_symbol
+                .get(start)
+                .filter(|(row, _)| *row == key)
+                .map(|(_, position)| &self.pending[*position])
                 .ok_or_else(|| {
                     vec![Diagnostic::error(
                         "body completion selected a declaration with no pending implementation",
                     )]
                 })?;
+            taken.insert(key);
             pending.push(body.clone());
         }
         let predecessor = self.trees.clone();

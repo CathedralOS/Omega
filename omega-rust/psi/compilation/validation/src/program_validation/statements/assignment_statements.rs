@@ -447,30 +447,6 @@ pub(super) fn validate<'a, 'p>(
             diagnostics,
         );
         outputs.stored_integer_writes.extend(writes);
-        // Containment for non-literal stores into ranged places (see
-        // the local arm's twin note; literal stores refuse through
-        // the proof plan).
-        if let Some(handle) = assignment_target_type_raw {
-            arithmetic_domains::enforce_symbolic_range(
-                program,
-                machine,
-                current_state,
-                handle,
-                established_value,
-                value_environment,
-                &owner,
-                diagnostics,
-            );
-        }
-        if let Some(handle) = assignment_target_type {
-            arithmetic_domains::check_range_containment(
-                program,
-                handle,
-                observation,
-                &owner,
-                diagnostics,
-            );
-        }
         // Ordinary record writes may open a restoration window; the whole
         // predicate is proved before the next consumption. An atomic update
         // publishes its resident immediately and must preserve it at this event.

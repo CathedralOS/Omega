@@ -3,55 +3,69 @@
 // squaring keeps every intermediate small instead of forming the astronomically
 // large base^exponent. Here 3 ^ 7 mod 100 = 2187 mod 100 = 87.
 //
-// Showcases the full integer-arithmetic kit over a scalar state loop, FULLY
-// EXACT -- no Trapping, no Wrapping: each factor is reduced `% 100` before it
-// is multiplied, so every product is verifiably bounded (|result * base| <=
-// 99*99 = 9801, far under i32::MAX) and every `% m` divisor is provably
-// nonzero, so the decision-17 obligations discharge by proof. When arithmetic
-// is verifiably bounded, no overflow domain is needed -- the avionics posture.
-// `% 2` / `/ 2` are constant divisors; the parity branch reads the exponent's
-// low bit.
+// Each loop entry keeps the accumulator and base in 0..=99. Their product
+// is at most 9801, so Exact multiplication fits i32. The constant divisors
+// 100 and 2 are nonzero; the parity branch tests the exponent's low bit.
 // Expected exit: 87.
 
 use omega_language_std::console;
 
 // Each constant divisor is provably nonzero. The changing algorithm values
 // are explicit state inputs; no application object retains scratch storage.
-machine modular_power(base: i32, exponent: i32) -> i32 {
+machine modular_power(base: i32, exponent: i32) -> i32
+requires base >= 0
+ensures result >= 0 && result <= 99
+{
     transition {
         _ -> step(1, base % 100, exponent)
     }
 
     // Process the exponent bit by bit, lowest first; stop once it is exhausted.
-    machine step(result: i32, base: i32, exponent: i32) -> i32 {
+    machine step(accumulator: i32, base: i32, exponent: i32) -> i32
+    requires accumulator >= 0 && accumulator <= 99
+    requires base >= 0 && base <= 99
+    ensures result >= 0 && result <= 99
+    {
         transition exponent == 0 {
-            true -> (result)
-            _ -> classify(result, base, exponent)
+            true -> (accumulator)
+            _ -> classify(accumulator, base, exponent)
         }
     }
 
     // Fold the current squared base into the result only when this bit is set.
-    machine classify(result: i32, base: i32, exponent: i32) -> i32 {
+    machine classify(accumulator: i32, base: i32, exponent: i32) -> i32
+    requires accumulator >= 0 && accumulator <= 99
+    requires base >= 0 && base <= 99
+    ensures result >= 0 && result <= 99
+    {
         let bit: i32 = exponent % 2;
         transition bit == 1 {
-            true -> accumulate(result, base, exponent)
-            _ -> square(result, base, exponent)
+            true -> accumulate(accumulator, base, exponent)
+            _ -> square(accumulator, base, exponent)
         }
     }
 
-    machine accumulate(result: i32, base: i32, exponent: i32) -> i32 {
-        let next_result: i32 = ((result % 100) * (base % 100)) % 100;
+    machine accumulate(accumulator: i32, base: i32, exponent: i32) -> i32
+    requires accumulator >= 0 && accumulator <= 99
+    requires base >= 0 && base <= 99
+    ensures result >= 0 && result <= 99
+    {
+        let next_accumulator: i32 = (accumulator * base) % 100;
         transition {
-            _ -> square(next_result, base, exponent)
+            _ -> square(next_accumulator, base, exponent)
         }
     }
 
     // Square the base and halve the exponent for the next bit.
-    machine square(result: i32, base: i32, exponent: i32) -> i32 {
-        let next_base: i32 = ((base % 100) * (base % 100)) % 100;
+    machine square(accumulator: i32, base: i32, exponent: i32) -> i32
+    requires accumulator >= 0 && accumulator <= 99
+    requires base >= 0 && base <= 99
+    ensures result >= 0 && result <= 99
+    {
+        let next_base: i32 = (base * base) % 100;
         let next_exponent: i32 = exponent / 2;
         transition {
-            _ -> step(result, next_base, next_exponent)
+            _ -> step(accumulator, next_base, next_exponent)
         }
     }
 

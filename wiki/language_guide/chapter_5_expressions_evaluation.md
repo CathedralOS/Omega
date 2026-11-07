@@ -90,8 +90,8 @@ View::render_room(&mut view, &room);
 The qualified name selects the machine; context is an ordinary argument.
 Dot syntax projects a data field, not an implicit machine receiver.
 
-Calls whose known envelope permits suspension or worker blocking require exact
-acknowledgements:
+Calls whose known envelope permits suspension or worker blocking require the
+corresponding acknowledgements:
 
 ```omega
 ordinary_call();                // guaranteed neither
@@ -101,12 +101,13 @@ suspend block may_do_either();  // may do either
 ```
 
 The markers acknowledge possibilities, not events that must happen. They do
-not select an implementation or create a task. Missing or redundant markers
-reject. Imports and requirements use their pinned envelopes, not a narrower
+not select an implementation or create a task. Missing required markers reject;
+extra markers are permitted without a warning and do not create effects.
+Imports and requirements use their pinned envelopes, not a narrower
 implementation guessed by the caller.
 
-A suspending call must be a complete statement, simple `let` right-hand side,
-transition subject, or terminal expression. The last category includes a
+A call written with `suspend`, even redundantly, must be a complete statement,
+simple `let` right-hand side, transition subject, or terminal expression. The last category includes a
 [final machine call in a transition arm](chapter_4_nested_machines_transitions.md#final-calls-including-suspension),
 with ordinary call markers, result forwarding and cleanup. Bind its result
 before combining it:
@@ -482,10 +483,10 @@ landing boundary even when the call is evaluated during compilation.
 Anonymous `/` is rational division, not truncating integer division:
 
 ```omega
-let exact_integer: i32 = 7 / 2 * 2;    // 7; fractional-intermediate warning
-let fractional: i32 = 7 / 2;          // error: 7/2 is not an integer
-let typed_integer: i32 = 7i32 / 2 * 2; // 6; typed division, no warning
-let exact_float: f64 = 7 / 2 / 2;     // 1.75; no integer-landing warning
+let exact_integer: i32 = (7 / 2 * 2) as i32; // 7; explicit exact landing
+let fractional: i32 = (7 / 2) as i32;        // error: 7/2 is not an integer
+let typed_integer: i32 = 7i32 / 2 * 2;       // 6; typed integer division
+let exact_float: f64 = 7 / 2 / 2;            // 1.75; floating landing
 ```
 
 An already-typed operand instead requests typed arithmetic. With `i: i32`:
@@ -503,19 +504,35 @@ division by zero has no value, whatever destination policy is requested.
 
 ### Fractional-intermediate diagnostic
 
-The warning helps catch an apparent integer align-down that actually cancels
-an exact fraction:
+An apparent integer align-down can instead cancel an exact fraction. Omega
+requires you to choose at this site:
 
 ```omega
-let base: u32 = (4097 / 4096) * 4096;        // 4097; warning
-let aligned: u32 = (4097u32 / 4096) * 4096; // 4096; explicit integer division
+let implicit: u32 = (4097 / 4096) * 4096;         // error: explicit landing required
+let exact: u32 = ((4097 / 4096) * 4096) as u32;   // 4097; exact math, then land
+let aligned: u32 = (4097u32 / 4096) * 4096;       // 4096; integer arithmetic
 ```
 
-A fractional final value cannot land as an integer. An integral final value
-can, but a fractional anonymous intermediate triggers a default-on warning.
-Suppression changes no arithmetic; typed integer division and float landing
-do not trigger it. The [diagnostic contract](../spec/language/numeric_values.md#fractional-intermediate-diagnostics)
-retains the fractional source origin even after cancellation.
+Cast the complete formula when the fractions are intentional. There is no need
+to rearrange the formula to avoid fractional intermediates:
+
+```omega
+let duration_ms: u32 = ((1 / 3 + 1 / 6) * 1000) as u32; // 500
+```
+
+The final value must still be integral and in range. `(5 / 2) as u32` rejects;
+`as` does not truncate. A type annotation alone is implicit landing, and decimal
+spelling does not opt in. Typing an operand requests that carrier's arithmetic.
+
+The cast covers only its operand. `(5 / 2) * 2 as u32` casts only `2` and
+rejects when the other operand, `5/2`, must land as `u32`. Write
+`((5 / 2) * 2) as u32` to get `5`. A cast outside a machine call cannot
+acknowledge a fractional intermediate landing earlier at an argument.
+
+The [diagnostic contract](../spec/language/numeric_values.md#fractional-intermediate-diagnostics)
+retains the fractional origin through cancellation. This is an error, not a
+suppressible warning. Already-typed arithmetic and floating landing keep their
+existing rules.
 
 ### Typed integer quotient and remainder
 

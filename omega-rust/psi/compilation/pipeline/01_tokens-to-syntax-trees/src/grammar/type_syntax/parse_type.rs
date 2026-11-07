@@ -5,7 +5,6 @@
 //! every other value tree is retained without parser-side evaluation.
 
 use crate::grammar::contracts::conformance::parse_conformance::parse_conformance_trait_application;
-use crate::grammar::expressions::parse_expression::parse_expression_handle_without_struct_literals;
 use crate::grammar::expressions::static_argument_values::parse_static_argument_expression;
 use crate::storage::tables::type_refs;
 use crate::tokens::token_cursor::{Input, ParseResult};
@@ -203,7 +202,7 @@ pub(crate) fn parse_named_type_reference<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
     allow_trailing_domain: bool,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
-    let mut type_reference = if input.at_punctuation(PunctuationKind::Less) {
+    let type_reference = if input.at_punctuation(PunctuationKind::Less) {
         input = input.take_punctuation(PunctuationKind::Less, "<")?;
         let mut lifetime_arguments = Vec::new();
         // Every argument's own children -- its base type and, for a nested
@@ -284,14 +283,9 @@ pub(crate) fn parse_named_type_reference<'tokens, 'source>(
     };
 
     if input.at_punctuation(PunctuationKind::LeftBracket) {
-        let (constraints, rest) = parse_type_constraint_handles(syntax_trees, input)?;
-        input = rest;
-        type_reference = syntax_trees
-            .type_references
-            .insert(TypeReferenceNode::Constrained {
-                base_type: type_reference,
-                constraints,
-            });
+        return Err(input.error_here(
+            "type brackets are retired; express scalar bounds in the owning data or machine `requires` clause, result `ensures` clause, or the value's established facts",
+        ));
     }
 
     let (type_reference, input) = if allow_trailing_domain {
@@ -541,84 +535,4 @@ pub(crate) fn parse_optional_lifetime<'tokens, 'source>(
     let input = input.take_punctuation(PunctuationKind::Apostrophe, "'")?;
     let (name, input) = input.take_identifier()?;
     Ok((Some(name), input))
-}
-
-pub(crate) fn parse_type_constraint_handles<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, HandleSpan<TypeConstraintNode>> {
-    let mut input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
-    // A bound expression can carry its own constrained type reference (a cast
-    // target, for instance), whose constraints land in this same table. Collect
-    // the run and insert it once, the way the `in <Domain>` suffix already does.
-    let mut constraints: Vec<TypeConstraintNode> = Vec::new();
-
-    if !input.at_punctuation(PunctuationKind::RightBracket) {
-        loop {
-            // An identifier may start an ordinary range bound. Parse that
-            // expression before distinguishing a range from retired proof sugar.
-            // Data and generic-parameter properties use parse_property_brackets.
-            let starts_with_name = input.at_name_like();
-            let constraint = if input.at_contextual("range")
-                && input
-                    .take_identifier()?
-                    .1
-                    .at_punctuation(PunctuationKind::Less)
-            {
-                return Err(input.error_here(
-                    "the `range<a, b>` constraint syntax is removed; use `a..=b` (inclusive) or `a..b` (exclusive)",
-                ));
-            } else {
-                // Range refinement: `min..=max` (inclusive) or `min..max` (exclusive).
-                // Preserve the authored endpoint and boundary kind. Semantic
-                // normalization checks its original arithmetic before taking a
-                // predecessor in proof integers, without a runtime subtraction
-                // or lost literal landing here.
-                let (minimum, rest) =
-                    parse_expression_handle_without_struct_literals(syntax_trees, input)?;
-                if rest.at_punctuation(PunctuationKind::DotDotEqual) {
-                    let rest = rest.take_punctuation(PunctuationKind::DotDotEqual, "..=")?;
-                    let (maximum, rest) =
-                        parse_expression_handle_without_struct_literals(syntax_trees, rest)?;
-                    input = rest;
-                    TypeConstraintNode::Range {
-                        minimum,
-                        maximum,
-                        end_inclusive: true,
-                    }
-                } else if rest.at_punctuation(PunctuationKind::DotDot) {
-                    let rest = rest.take_punctuation(PunctuationKind::DotDot, "..")?;
-                    let (end_exclusive, rest) =
-                        parse_expression_handle_without_struct_literals(syntax_trees, rest)?;
-                    input = rest;
-                    TypeConstraintNode::Range {
-                        minimum,
-                        maximum: end_exclusive,
-                        end_inclusive: false,
-                    }
-                } else if starts_with_name {
-                    return Err(rest.error_here(
-                        "named proof constraints in type brackets are retired; use `in Domain` for a declared value domain or express the fact in contracts",
-                    ));
-                } else {
-                    return Err(
-                        rest.error_here("range constraint requires `..` or `..=` between bounds")
-                    );
-                }
-            };
-
-            constraints.push(constraint);
-
-            if input.at_punctuation(PunctuationKind::Comma) {
-                input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-                continue;
-            }
-
-            break;
-        }
-    }
-
-    input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
-    let constraints = type_refs(syntax_trees).insert_constraints(constraints);
-    Ok((constraints, input))
 }

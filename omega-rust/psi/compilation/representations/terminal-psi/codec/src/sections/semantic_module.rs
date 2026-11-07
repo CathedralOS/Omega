@@ -163,7 +163,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Input observation lifetimes and provider application roles share this layout.
 // Layout inputs retain target-owned case-tag size and alignment.
 // Lifecycle placements retain their checked target input for installation.
-pub(crate) const FORMAT_MARKER: u16 = 251;
+// Relocation retains separate source and destination profile requirements.
+// Id formation rows and relocation profile requirements share this layout.
+pub(crate) const FORMAT_MARKER: u16 = 252;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -335,3 +337,26 @@ mod global_descriptor_table_tests;
 
 #[cfg(test)]
 mod descriptor_operation_tests;
+
+#[cfg(test)]
+mod format_marker_tests {
+    use super::*;
+
+    #[test]
+    fn legacy_semantic_markers_are_refused_before_payload_interpretation() {
+        // The independently extended Id and relocation layouts both used 251.
+        // Neither body may be interpreted as the combined layout, regardless
+        // of which payload follows their shared legacy marker.
+        for legacy in [250u16, 251] {
+            for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
+                let mut bytes = MAGIC.to_vec();
+                bytes.extend_from_slice(&legacy.to_le_bytes());
+                bytes.extend_from_slice(payload);
+                assert!(matches!(
+                    decode_module(&bytes),
+                    Err(CodecError::UnsupportedFormatMarker(marker)) if marker == legacy
+                ));
+            }
+        }
+    }
+}

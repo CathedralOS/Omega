@@ -9,7 +9,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::mathematical::{MathematicalType, MathematicalTypeHandle};
 use typed_trees::name::Identifier;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::{Elaborator, ScalarCarrier, ScopeEntry};
 
@@ -137,28 +137,6 @@ impl<'a> Elaborator<'a> {
         }
         if let Some(carrier) = self.elaborate_content_carrier(reference)? {
             return Ok(carrier);
-        }
-        // Source intervals belong to flow facts and callable contracts, not
-        // authored mathematical type syntax. Existing runtime operand captures
-        // project their inferred intervals before entering this type/formal path.
-        // Keep this fence ahead of nominal scalar alias formation.
-        let mut qualified = reference;
-        while let TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } = self.program.type_reference_table.type_reference(qualified)
-        {
-            if type_reference_table(self.program)
-                .constraints(*constraints)
-                .iter()
-                .any(|constraint| matches!(constraint, TypeConstraintNode::Range { .. }))
-            {
-                return Err(self.refuse(format!(
-                    "mathematical type `{}` cannot be a borrow, constraint or dynamic trait",
-                    self.program.display_type_reference(reference)
-                )));
-            }
-            qualified = *base_type;
         }
         if let Some(alias) = self.source_type_alias(reference)? {
             return Ok(alias);

@@ -94,7 +94,6 @@ pub(super) fn mutable_scalar_representation_facts(
     mut type_reference: TypeReferenceHandle,
 ) -> Option<MutableScalarRepresentationFacts> {
     let mut domains = Vec::new();
-    let mut range: Option<(i64, i64)> = None;
     loop {
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Reference { referee, .. } => {
@@ -112,26 +111,7 @@ pub(super) fn mutable_scalar_representation_facts(
                             }
                         }
                         TypeConstraintNode::ArithmeticDomain(_) => {}
-                        TypeConstraintNode::Range {
-                            minimum,
-                            maximum,
-                            end_inclusive,
-                        } => {
-                            let minimum =
-                                crate::closed_integer_range_bound(program, *minimum)?.to_i64()?;
-                            let maximum = crate::closed_integer_range_maximum(
-                                program,
-                                *maximum,
-                                *end_inclusive,
-                            )?
-                            .to_i64()?;
-                            range = Some(match range {
-                                Some((existing_minimum, existing_maximum)) => {
-                                    (existing_minimum.max(minimum), existing_maximum.min(maximum))
-                                }
-                                None => (minimum, maximum),
-                            });
-                        }
+
                         TypeConstraintNode::Domain(_) | TypeConstraintNode::Named(_) => {
                             return None;
                         }
@@ -143,29 +123,11 @@ pub(super) fn mutable_scalar_representation_facts(
                 if PrimitiveType::from_name(name.as_str()).is_some() =>
             {
                 let primitive = PrimitiveType::from_name(name.as_str())?;
-                let values = match (primitive, range) {
-                    (PrimitiveType::Bool, None) => {
-                        ScalarRepresentationSet::ExactBitPatterns(vec![(0, 1)])
-                    }
-                    (PrimitiveType::Bool, Some(_)) => return None,
-                    (
-                        primitive @ (PrimitiveType::F32 | PrimitiveType::F64),
-                        Some((minimum, maximum)),
-                    ) if minimum <= maximum => ScalarRepresentationSet::FloatInterval {
+                let values = match primitive {
+                    PrimitiveType::Bool => ScalarRepresentationSet::ExactBitPatterns(vec![(0, 1)]),
+                    _ => ScalarRepresentationSet::ExactBitPatterns(full_scalar_bit_patterns(
                         primitive,
-                        minimum: FloatEndpoint::from_integer(primitive, minimum)?,
-                        maximum: FloatEndpoint::from_integer(primitive, maximum)?,
-                    },
-                    (PrimitiveType::F32 | PrimitiveType::F64, Some(_)) => return None,
-                    (_, Some(range)) => {
-                        ScalarRepresentationSet::ExactBitPatterns(integer_range_bit_patterns(
-                            primitive,
-                            (i128::from(range.0), i128::from(range.1)),
-                        )?)
-                    }
-                    (_, None) => ScalarRepresentationSet::ExactBitPatterns(
-                        full_scalar_bit_patterns(primitive),
-                    ),
+                    )),
                 };
                 let atomic = program
                     .symbols

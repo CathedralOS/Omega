@@ -128,7 +128,6 @@ pub(crate) fn normalize_generic_data(
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
     declarations: [Option<&syntax_trees::SyntaxTrees>; 2],
 ) -> Result<syntax_trees::SyntaxTrees, Vec<Diagnostic>> {
-    let _profile = phase_profile::guard("pre_resolution.generic_data");
     syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
         normalization_request(
             syntax_trees,

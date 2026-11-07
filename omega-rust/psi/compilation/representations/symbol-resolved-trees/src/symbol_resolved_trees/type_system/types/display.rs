@@ -62,19 +62,7 @@ impl TypeConstraint {
                 let _ = domain.arguments;
                 format!("in {}", domain.name)
             }
-            TypeConstraint::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => {
-                let _ = (minimum, maximum);
-                if *end_inclusive {
-                    "expression..=expression"
-                } else {
-                    "expression..expression"
-                }
-                .to_owned()
-            }
+
             TypeConstraint::ArithmeticDomain(domain) => format!("in {}", domain.name()),
         }
     }

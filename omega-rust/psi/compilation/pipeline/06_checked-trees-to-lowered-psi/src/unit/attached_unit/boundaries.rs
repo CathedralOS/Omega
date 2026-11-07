@@ -201,6 +201,9 @@ pub(crate) fn lower_declarations(
                         checked_trees::CheckedBoundaryExecutionPlan::AccessMoveOut => {
                             terminal_psi::CheckedBoundaryExecution::AccessMoveOut
                         }
+                        checked_trees::CheckedBoundaryExecutionPlan::AccessRelocate => {
+                            terminal_psi::CheckedBoundaryExecution::AccessRelocate
+                        }
                         checked_trees::CheckedBoundaryExecutionPlan::AccessView => {
                             terminal_psi::CheckedBoundaryExecution::AccessView
                         }

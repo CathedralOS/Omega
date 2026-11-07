@@ -1,8 +1,7 @@
 //! Optimizer module role: stage group. The stage's failure vocabulary.
 //!
-//! Every way `run_psi_optimization` can refuse: an invalid module, semantic,
-//! proof bundle, debug map or execution record on either side of the selected
-//! passes.
+//! Every way `run_psi_optimization` can refuse: invalid semantic encoding,
+//! debug map or execution record on either side of the selected passes.
 
 use terminal_codec::{CodecError, DebugMapError, PsiOptimizationExecutionRecordError};
 

@@ -73,15 +73,7 @@ impl SourceCacheDirectories {
                 compiled_review: compiled_review.path().to_path_buf(),
             })
         })();
-        match retained {
-            Ok(directories) => Some(directories),
-            Err(reason) => {
-                if std::env::var_os("OMEGA_PHASE_PROFILE").is_some_and(|value| value != "0") {
-                    eprintln!("source acquisition cache directories unavailable: {reason}");
-                }
-                None
-            }
-        }
+        retained.ok()
     }
 
     pub(super) fn apply_to(&self, custody: PackageSourceCustody) -> PackageSourceCustody {

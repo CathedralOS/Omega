@@ -13,7 +13,7 @@ use crate::frozen_program::expression_table;
 use crate::value_custody::places::declared_reference_access;
 use crate::value_custody::type_references::substituted_identity;
 use language_semantics::ReferenceAccess;
-use numerics::bignum::BigInt;
+
 use typed_trees::data::TypeParameterKind;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{FixedArrayLength, TypeConstraintNode};
@@ -365,23 +365,10 @@ fn literal_satisfies_declared_const(
     let Ok(value) = i128::try_from(length) else {
         return false;
     };
-    if !primitive.accepts_integer_literal()
-        || !crate::value_custody::type_references::const_integer_value_fits_primitive(
+    primitive.accepts_integer_literal()
+        && crate::value_custody::type_references::const_integer_value_fits_primitive(
             primitive, value,
         )
-    {
-        return false;
-    }
-    let exact = BigInt::from_i128(value);
-    let Some(bounds) = crate::constrained_range_bounds(program, declared, false) else {
-        return false;
-    };
-    for (minimum, maximum) in bounds {
-        if exact < minimum || exact > maximum {
-            return false;
-        }
-    }
-    true
 }
 
 /// A `collection[a..b]` range result is a fresh view over the collection's own

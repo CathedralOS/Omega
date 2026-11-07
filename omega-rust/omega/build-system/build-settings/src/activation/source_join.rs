@@ -73,118 +73,13 @@ impl ReturnedBuild {
         if self.source_join.is_some() {
             return Err("Build source requests were already joined".into());
         }
-        let declaration = self
-            .declaration
-            .as_ref()
-            .ok_or("default Build cannot acquire a new source graph")?;
-        let name = match declaration {
-            BuildDeclaration::Package(package) => package.name.as_str(),
-            BuildDeclaration::Application(application) => application.name.as_str(),
-            BuildDeclaration::Workspace(_) => {
-                return Err("workspace Build has no Product source join".into());
-            }
-        };
-        if inputs.package_name(inputs.root()) != Some(name)
-            || inputs.root_role() != declaration.kind()
-        {
-            return Err("source join does not match the executed Build declaration".into());
-        }
-        let mut product_count = 0;
-        let mut build_count = 0;
-        let mut product_selections = selections
-            .iter()
-            .filter(|selection| selection.purpose == DependencyPurpose::Product);
-        let mut build_selections = selections
-            .iter()
-            .filter(|selection| selection.purpose == DependencyPurpose::Build);
-        let mut product_acquisitions = inputs.dependency_acquisitions().iter().filter(|acquired| {
-            matches!(
-                &acquired.request,
-                BuildRequest::Dependency {
-                    purpose: DependencyPurpose::Product,
-                    ..
-                }
-            )
-        });
-        let mut build_acquisitions = inputs.dependency_acquisitions().iter().filter(|acquired| {
-            matches!(
-                &acquired.request,
-                BuildRequest::Dependency {
-                    purpose: DependencyPurpose::Build,
-                    ..
-                }
-            )
-        });
-        for issued in &self.requests {
-            let BuildRequest::Dependency { purpose, alias, .. } = issued.request() else {
-                continue;
-            };
-            let (ordinal, selected, acquired) = match purpose {
-                DependencyPurpose::Product => (
-                    &mut product_count,
-                    product_selections.next(),
-                    product_acquisitions.next(),
-                ),
-                DependencyPurpose::Build => (
-                    &mut build_count,
-                    build_selections.next(),
-                    build_acquisitions.next(),
-                ),
-            };
-            let selected = selected.ok_or_else(|| {
-                format!(
-                    "Build {} dependency {} has no acquired selection",
-                    purpose.name(),
-                    ordinal
-                )
-            })?;
-            if selected.request_ordinal != *ordinal {
-                return Err("Build dependency selections do not retain request order".into());
-            }
-            let declared_name = inputs
-                .package_name(selected.package)
-                .ok_or("selected dependency is absent from the joined source graph")?;
-            let alias = alias.as_ref().map_or(declared_name, |alias| alias.as_str());
-            if inputs.dependency_target_for_purpose(inputs.root(), *purpose, alias)
-                != Some(selected.package)
-            {
-                return Err(
-                    "acquired dependency does not match its executed alias and purpose".into(),
-                );
-            }
-            let acquired =
-                acquired.ok_or("issued dependency has no exact acquired request custody")?;
-            if acquired.request_ordinal != *ordinal
-                || &acquired.request != issued.request()
-                || acquired.package != selected.package
-            {
-                return Err(
-                    "issued dependency differs from its exact acquired source request".into(),
-                );
-            }
-            *ordinal += 1;
-        }
-        if selections.len() != product_count + build_count
-            || inputs.dependency_acquisitions().len() != product_count + build_count
-            || inputs
-                .direct_dependencies(DependencyPurpose::Product)
-                .count()
-                != product_count
-            || inputs.direct_dependencies(DependencyPurpose::Build).count() != build_count
-        {
-            return Err("joined source graph contains unrequested dependency selections".into());
-        }
-        for demanded in &self.demanded_sources {
-            if !selections.iter().any(|selected| {
-                selected.purpose == demanded.purpose
-                    && selected.request_ordinal == demanded.request_ordinal
-                    && selected.package == demanded.package
-            }) {
-                return Err(
-                    "joined source graph differs from a dependency used during Build".into(),
-                );
-            }
-        }
+        validate_dependency_sources(
+            self.declaration.as_ref(),
+            self.requests.iter().map(|issued| issued.request()),
+            &self.demanded_sources,
+            inputs,
+            selections,
+        )?;
         self.source_join = Some(inputs.source_inputs());
         Ok(())
     }
@@ -196,25 +91,150 @@ impl ReturnedBuild {
         inputs: Option<&PackageCompilationInputs>,
         initially_unbound: bool,
     ) -> Result<(), String> {
-        if let Some(joined) = &self.source_join {
-            let inputs = inputs.ok_or("joined Build sources have no completion inputs")?;
-            if joined.as_ref() != inputs.source_inputs().as_ref() {
-                return Err(
-                    "Build completion source graph differs from its executed request join".into(),
-                );
-            }
-        } else if self.declaration.is_none() && inputs.is_some() {
-            return Err("unbound default Build cannot adopt a package source graph".into());
-        } else if initially_unbound
-            && inputs.is_some_and(|inputs| {
-                inputs.packages().count() != 1
-                    || DependencyPurpose::ALL
-                        .into_iter()
-                        .any(|purpose| inputs.direct_dependencies(purpose).next().is_some())
-            })
-        {
-            return Err("joined package dependencies require executed-request settlement".into());
-        }
-        Ok(())
+        validate_source_join(
+            self.declaration.as_ref(),
+            self.source_join.as_ref(),
+            inputs,
+            initially_unbound,
+        )
     }
+}
+
+pub(crate) fn validate_dependency_sources<'request>(
+    declaration: Option<&BuildDeclaration>,
+    requests: impl Iterator<Item = &'request BuildRequest>,
+    demanded_sources: &[BuildDependencySelection],
+    inputs: &PackageCompilationInputs,
+    selections: &[BuildDependencySelection],
+) -> Result<(), String> {
+    let declaration = declaration.ok_or("default Build cannot acquire a new source graph")?;
+    let name = match declaration {
+        BuildDeclaration::Package(package) => package.name.as_str(),
+        BuildDeclaration::Application(application) => application.name.as_str(),
+        BuildDeclaration::Workspace(_) => {
+            return Err("workspace Build has no Product source join".into());
+        }
+    };
+    if inputs.package_name(inputs.root()) != Some(name) || inputs.root_role() != declaration.kind()
+    {
+        return Err("source join does not match the executed Build declaration".into());
+    }
+    let mut product_count = 0;
+    let mut build_count = 0;
+    let mut product_selections = selections
+        .iter()
+        .filter(|selection| selection.purpose == DependencyPurpose::Product);
+    let mut build_selections = selections
+        .iter()
+        .filter(|selection| selection.purpose == DependencyPurpose::Build);
+    let mut product_acquisitions = inputs.dependency_acquisitions().iter().filter(|acquired| {
+        matches!(
+            &acquired.request,
+            BuildRequest::Dependency {
+                purpose: DependencyPurpose::Product,
+                ..
+            }
+        )
+    });
+    let mut build_acquisitions = inputs.dependency_acquisitions().iter().filter(|acquired| {
+        matches!(
+            &acquired.request,
+            BuildRequest::Dependency {
+                purpose: DependencyPurpose::Build,
+                ..
+            }
+        )
+    });
+    for request in requests {
+        let BuildRequest::Dependency { purpose, alias, .. } = request else {
+            continue;
+        };
+        let (ordinal, selected, acquired) = match purpose {
+            DependencyPurpose::Product => (
+                &mut product_count,
+                product_selections.next(),
+                product_acquisitions.next(),
+            ),
+            DependencyPurpose::Build => (
+                &mut build_count,
+                build_selections.next(),
+                build_acquisitions.next(),
+            ),
+        };
+        let selected = selected.ok_or_else(|| {
+            format!(
+                "Build {} dependency {} has no acquired selection",
+                purpose.name(),
+                ordinal
+            )
+        })?;
+        if selected.request_ordinal != *ordinal {
+            return Err("Build dependency selections do not retain request order".into());
+        }
+        let declared_name = inputs
+            .package_name(selected.package)
+            .ok_or("selected dependency is absent from the joined source graph")?;
+        let alias = alias.as_ref().map_or(declared_name, |alias| alias.as_str());
+        if inputs.dependency_target_for_purpose(inputs.root(), *purpose, alias)
+            != Some(selected.package)
+        {
+            return Err("acquired dependency does not match its executed alias and purpose".into());
+        }
+        let acquired = acquired.ok_or("issued dependency has no exact acquired request custody")?;
+        if acquired.request_ordinal != *ordinal
+            || &acquired.request != request
+            || acquired.package != selected.package
+        {
+            return Err("issued dependency differs from its exact acquired source request".into());
+        }
+        *ordinal += 1;
+    }
+    if selections.len() != product_count + build_count
+        || inputs.dependency_acquisitions().len() != product_count + build_count
+        || inputs
+            .direct_dependencies(DependencyPurpose::Product)
+            .count()
+            != product_count
+        || inputs.direct_dependencies(DependencyPurpose::Build).count() != build_count
+    {
+        return Err("joined source graph contains unrequested dependency selections".into());
+    }
+    for demanded in demanded_sources {
+        if !selections.iter().any(|selected| {
+            selected.purpose == demanded.purpose
+                && selected.request_ordinal == demanded.request_ordinal
+                && selected.package == demanded.package
+        }) {
+            return Err("joined source graph differs from a dependency used during Build".into());
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_source_join(
+    declaration: Option<&BuildDeclaration>,
+    source_join: Option<&std::sync::Arc<package_compilation::PackageCompilationSourceInputs>>,
+    inputs: Option<&PackageCompilationInputs>,
+    initially_unbound: bool,
+) -> Result<(), String> {
+    if let Some(joined) = source_join {
+        let inputs = inputs.ok_or("joined Build sources have no completion inputs")?;
+        if joined.as_ref() != inputs.source_inputs().as_ref() {
+            return Err(
+                "Build completion source graph differs from its executed request join".into(),
+            );
+        }
+    } else if declaration.is_none() && inputs.is_some() {
+        return Err("unbound default Build cannot adopt a package source graph".into());
+    } else if initially_unbound
+        && inputs.is_some_and(|inputs| {
+            inputs.packages().count() != 1
+                || DependencyPurpose::ALL
+                    .into_iter()
+                    .any(|purpose| inputs.direct_dependencies(purpose).next().is_some())
+        })
+    {
+        return Err("joined package dependencies require executed-request settlement".into());
+    }
+    Ok(())
 }

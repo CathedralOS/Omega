@@ -8,6 +8,9 @@ case, not the definition.
 Machines use named declarations. Static callbacks select those declarations
 and pass ordinary explicit context data. Anonymous machine expressions and implicit
 capture-environment construction are not part of the source language.
+[Runtime machine values](machine_values.md) can store a selected named machine
+under a complete callable contract. [Some packages](some_packages.md) relate
+explicit state and callable fields without introducing anonymous syntax.
 
 ## Static declarations and explicit state
 
@@ -63,14 +66,9 @@ installed entry contract may instead supply arguments, as with UEFI handoff;
 declaring a mutable context parameter requests no automatic allocation. See
 [entry arguments and storage](../build/entry_roots.md#entry-shape-and-arrival-bridge).
 
-This is the source contract. Remaining receiver-based or carrier-qualified
-compiler paths, samples and documentation examples are migration debt, not an
-alternative accepted form.
+Retired receiver-based or carrier-qualified machine forms are not accepted.
 An implementation must reject retired `self` declarations and expressions rather
-than silently translate them or enable a compatibility mode. A rejected legacy
-fixture does not verify the behavior that its eventual static form must exercise.
-The `STATIC-MACHINE-MIGRATION` item in [the execution board](../../../TASKS.md)
-tracks their removal and end-to-end validation.
+than silently translate them or enable a compatibility mode.
 
 ## Declaration forms
 
@@ -167,9 +165,7 @@ leaves use Build-owned native supply. The toolchain derives their selected confo
 closure, coverage, dependencies, reach, and admission inputs. Programs cannot
 assemble provider-plan rows or reauthor inherited ceilings in a binding.
 
-`BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../../TASKS.md) tracks the
-reference compiler and source migration; `via` parsing is not an accepted
-binding form.
+A source `via` clause is not an accepted binding form.
 
 ### Generic sealed primitives
 
@@ -216,8 +212,6 @@ it realizes and validates the selected closure's ABI, imports, layout, and ISA
 applicability. Missing or incompatible selected supply rejects that realization;
 selection never hides an unchecked body or grants authority. See
 [multi-target compilation](../build/configuration.md#multi-target-compilation).
-`BUILD-OWNED-TARGET-SELECTION` in [the task board](../../../TASKS.md) tracks
-removal of the retired syntax and its family machinery.
 
 ## Substitution
 
@@ -238,6 +232,12 @@ and asks no more from its caller:
 | Termination/progress | Every positive guarantee is preserved under no stronger premises. |
 | Context-visible resources | Demand fits the promised ceiling. |
 | Atomicity, reentrancy, calling plan | Behavior is compatible with or stronger than the pinned promise. |
+
+For a selected generic application, substitute its published
+[operational dependencies](effects.md#static-callback-operational-dependencies)
+before applying the suspension/blocking refinement condition. The generic body
+must satisfy its declared ceiling for every admitted callback. A fixed opaque
+ceiling cannot be narrowed by inspecting a private implementation.
 
 Admission conjoins the independently checked axes; matching signatures or one
 successful analysis is insufficient. A stronger implementation does not acquire
@@ -287,7 +287,7 @@ An ordinary call resumes its continuation on normal return. A machine call in a
 terminal `transition` arm forwards its normal result as the current invocation's
 result, with no continuation in that invocation. A nested machine's return is
 local to that invocation: it does not return from arbitrary lexical ancestors.
-Both forms use the same contract, exact call acknowledgements and explicit
+Both forms use the same contract, required call acknowledgements and explicit
 arguments. The distinction is call position, never nesting depth.
 [Invocation contracts](state_contracts.md#terminal-calls-in-transition-arms)
 owns argument, result, cleanup and fact obligations.
@@ -305,11 +305,8 @@ constant-stack requirement in [termination](termination.md#calls-and-productive-
 Replacing old state loops with frame-growing recursion is not an acceptable
 intermediate behavior or an optimization left for later.
 
-This is the ratified end state. Compiler/source migration is tracked by
-`NESTED-MACHINE-UNIFICATION` in [the execution board](../../../TASKS.md).
-Implementation may stage depth support and migrations, but cannot retain a
-permanent state-only calling, contract, ownership or lowering path. Existing
-source examples using `state` are migration debt, not an alternative language.
+There is no separate state-only calling, contract, ownership or lowering path.
+The retired `state` construct is not an alternative source form.
 
 ## Published identity
 

@@ -1,5 +1,12 @@
 # Loan resources and compatibility
 
+[Some packages](../language/some_packages.md) retain ordinary loans on their
+explicit reference fields. Openings are tied to canonical subject/version and
+captured-index evidence; separate projections share a witness only through a
+valid stable opening. Moves, copies and joins retain their checked correlation.
+Reassignment, relocation and overlapping writes cannot preserve stale openings
+or extend loan lifetimes; lowering consumes the checked opening/reborrow plans.
+
 Borrow admission joins resource authority with relational evidence. Neither
 substitutes for the other.
 
@@ -47,8 +54,8 @@ expire after formation without retargeting an already-captured loan.
 These are source-language obligations, not a requirement to serialize successful
 comparisons and replay them inside the same compile. Under
 [verification placement](../../../omega-rust/pipeline.md#verification-placement),
-the borrow checker judges the producer's facts once. Proof-carrying artifact
-verification is removed; authored mathematics and refinement reasoning remain.
+the borrow checker judges the source facts once. Authored mathematics and
+refinement reasoning establish those facts during source checking.
 
 Logical place footprints, semantic `Content<Owner, A>` projections, and physical effect
 footprints are different subjects. Relating them requires an explicit checked
@@ -115,7 +122,5 @@ Executable indexed projections retain their ordinary evaluated selectors and
 bounds obligations independently of this lifecycle publication.
 
 Lowering consumes the checked lifetime and restoration relationships.
-Supported forms live beside
-[borrow checking](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md).
 The [structural access contract](structural_access.md) governs permitted operations
 and original-referent preservation independently of these relational proofs.

@@ -350,18 +350,6 @@ pub(crate) fn require_call_expression_selection(
     Ok(())
 }
 
-pub(crate) fn require_closed_integer_argument(
-    program: &TypedTrees,
-    evaluated: &TypedTrees,
-    expression: ExpressionHandle,
-    authority: Option<&dyn BuildTimeSelectionAuthority>,
-) -> Result<(), String> {
-    require_closed_expression_custody(program, expression, authority)?;
-    evaluated.closed_integer_value_in(expression, SymbolHandle::invalid())
-        .map(|_| ())
-        .ok_or_else(|| "range endpoint argument requires a closed integer expression with context-independent operator meaning".to_owned())
-}
-
 /// Visit every authored selection, including unexecuted branches, before the
 /// shared scalar evaluator validates shapes and executes demanded expressions.
 pub(crate) fn require_closed_expression_custody(

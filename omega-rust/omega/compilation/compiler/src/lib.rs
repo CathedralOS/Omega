@@ -64,7 +64,7 @@ pub use compilation_products::{
     CompileOutputKind, CompileReport, ExecutablePublicationReceipt, OptimizationRollbackReceipt,
     RetainedBuildOutputs, RetainedNativeArtifact,
 };
-pub use native_production::SourceEvaluatedImportSettlement;
+pub use native_compiler::SourceEvaluatedImportSettlement;
 pub use package_compilation::BuildExecutionInputs;
 pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 pub use product_execution::{

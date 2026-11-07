@@ -233,11 +233,9 @@ impl<'program> StructuralJudge<'program> {
             returned_value_source,
             completed_nominal_values,
             returned_field_owners,
-            returned_field_trace: _,
             body_invocations,
             runtime_induction,
             active_application: _,
-            completed_resolutions: _,
             resolution_observations: _,
             normal_memberships,
             normal_content_guarantees,
@@ -262,8 +260,9 @@ impl<'program> StructuralJudge<'program> {
             hypotheses_contradictory,
             ring_licenses: _,
             semiring_licenses: _,
-            frame_resolver: _,
-            prepared_integer_premises_cache: _,
+            // Query state, not a resolution input. Its returned-field trace
+            // is compared through `traversal_inputs`.
+            query_state: _,
         } = self;
         CurrentResolutionInputs {
             program: *program,

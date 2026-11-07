@@ -32,7 +32,6 @@ use crate::execution::terminal_unit::types::{
     ShapeCollector, machine_binders, retain_parameter_arrival_domains, state_flow,
 };
 use crate::execution::terminal_unit::{composed_control, control};
-use crate::values::lower_state_declared_range_predicate;
 use crate::values::lower_state_domain_predicate;
 use crate::values::lower_state_scalar_contract_predicate;
 
@@ -120,9 +119,6 @@ pub(super) fn build_traced(
             return None;
         }
     }
-    let _fused_guard = phase_profile::guard(
-        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.fused_and_ranks",
-    );
     let fused_states = fused_states(program, machine);
     let fused = &fused_states;
     let declarations = loan_backing::DeclaredStoragePlans::new(
@@ -153,10 +149,6 @@ pub(super) fn build_traced(
         &natural_ranks,
         &rank_components,
     )?;
-    drop(_fused_guard);
-    let _sig_guard = phase_profile::guard(
-        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.signatures",
-    );
     let mut signatures = Vec::new();
     let mut state_entry_claims = Vec::new();
     let mut state_requires = Vec::new();
@@ -218,21 +210,7 @@ pub(super) fn build_traced(
                         &mut 4096,
                     )
                 }
-                validation::StateContractRow::DeclaredRange {
-                    parameter,
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } => lower_state_declared_range_predicate(
-                    program,
-                    &facts.operators,
-                    owner,
-                    state,
-                    parameter,
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                ),
+
                 validation::StateContractRow::Domain {
                     parameter,
                     constraint,
@@ -297,7 +275,6 @@ pub(super) fn build_traced(
         state_entry_claims.push(claims);
         signatures.push((structural, scalar));
     }
-    drop(_sig_guard);
     let completion_signatures = fused
         .iter()
         .zip(&signatures)
@@ -311,9 +288,6 @@ pub(super) fn build_traced(
         .collect::<Vec<_>>();
     let mut planned = Vec::new();
     for (state_index, &(owner, state)) in fused.iter().enumerate() {
-        let _seq_guard = phase_profile::guard(
-            "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.sequence",
-        );
         trace.state(Some(state.symbol));
         let (structural, scalar) = &signatures[state_index];
         let statements = program.statement_table.statements(state.statement_nodes);
@@ -357,19 +331,14 @@ pub(super) fn build_traced(
         // Computation roots retain handles into this arena. Borrow the original
         // occurrences so their exact identity survives nested-call validation.
         trace.phase("state graph: outer calls");
-        let calls = phase_profile::scope(
-            "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.outer_calls",
-            || {
-                control::outer_calls_in_prefix_traced(
-                    program,
-                    facts,
-                    owner.symbol,
-                    state,
-                    source_calls,
-                    operation_end,
-                    trace,
-                )
-            },
+        let calls = control::outer_calls_in_prefix_traced(
+            program,
+            facts,
+            owner.symbol,
+            state,
+            source_calls,
+            operation_end,
+            trace,
         )?;
         // Selected operator and FMA applications are not yet routed to the
         // composed states, so the sequence sees none and rewrites no
@@ -378,39 +347,30 @@ pub(super) fn build_traced(
         trace.phase("state graph: parameter storage");
         // Composed graphs admit no machine binders (see the entry guard).
         let parameter_storage = parameter_storage_plans(program, shapes, state, &[], scalar)?;
-        let mut sequence = phase_profile::scope(
-            "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.statement_sequence",
-            || {
-                control::statement_sequence::build(
-                    program,
-                    facts,
-                    scalar_callees,
-                    shapes,
-                    prepared_calls,
-                    owner,
-                    state,
-                    &mut sequence_structural,
-                    scalar,
-                    &parameter_storage,
-                    &state_entry_claims[state_index],
-                    &calls,
-                    &[],
-                    0,
-                    operation_end,
-                    call_frames,
-                    trace,
-                )
-            },
+        let mut sequence = control::statement_sequence::build(
+            program,
+            facts,
+            scalar_callees,
+            shapes,
+            prepared_calls,
+            owner,
+            state,
+            &mut sequence_structural,
+            scalar,
+            &parameter_storage,
+            &state_entry_claims[state_index],
+            &calls,
+            &[],
+            0,
+            operation_end,
+            call_frames,
+            trace,
         )?;
         trace.phase("state graph: operation custody");
         operation_custody::admit(program, state, &mut sequence.operations, trace)?;
-        drop(_seq_guard);
         // Completion custody, not state count or borrow spelling, determines
         // the returned value. The receiving graph rejoins its exact producer
         // and independently validates the source reference's access and path.
-        let _term_guard = phase_profile::guard(
-            "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.terminator",
-        );
         let (terminator, selected_exit) = terminator::build(
             program,
             facts,
@@ -432,10 +392,6 @@ pub(super) fn build_traced(
             terminator_index,
             trace,
         )?;
-        drop(_term_guard);
-        let _cust_guard = phase_profile::guard(
-            "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.result_custody",
-        );
         // The prefix still owes its exact holes. A normal successor must
         // receive established storage; an all-crash roster returns nothing
         // and owns no repair or cleanup successor. Guarded crash spelling
@@ -551,9 +507,6 @@ pub(super) fn build_traced(
     // custody shape the route lacks, not just the phase. States outside the
     // entry successor closure never execute, so their custody rows cannot
     // disqualify the route — the shape check applies to live positions only.
-    let _finish_guard = phase_profile::guard(
-        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.parameter_custody_and_finish",
-    );
     trace.phase("state graph: state signature: parameter custody shape");
     let Some(live_states) = CheckedComposedUnitControlStatePlan::live_mask(&planned) else {
         trace.phase("state graph: state signature: parameter custody shape: edge target missing");

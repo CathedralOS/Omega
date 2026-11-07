@@ -393,12 +393,7 @@ impl<'a> Admission<'a> {
                 .facts
                 .flow
                 .control
-                .states
-                .iter()
-                .find_map(|(_, state)| {
-                    (state.machine_symbol == machine.symbol && state.state_symbol == body.symbol)
-                        .then_some(state)
-                })
+                .state(machine.symbol, body.symbol)
                 .ok_or("callee state has no checked flow inventory")?;
             for (ordinal, statement) in
                 crate::flow::state_statements(self.program, body.statement_nodes)

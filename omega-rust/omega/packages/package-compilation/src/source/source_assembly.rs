@@ -238,11 +238,6 @@ impl DeferredProductSources {
         for root in roots.iter() {
             imports.seed(root.clone(), source::DependencyScope::Product);
         }
-        if let Some(inputs) = package_inputs {
-            for source in inputs.product_selection_source_seeds()? {
-                imports.seed(source, source::DependencyScope::Product);
-            }
-        }
         let mut package_imports = checkpoint.package_imports.to_vec();
         package_imports.extend(load_imports(
             &mut storage,
@@ -404,19 +399,14 @@ impl ImmutableSourceParseCheckpoint {
                 "toolchain source defaults have a different supplier kind",
             )]
         })?;
-        let seeds =
+        let _ =
             defaults.source_seeds(crate::ProviderDefaultsAdmission::CapturedToolchain(capture))?;
         Arc::make_mut(&mut self.source_storage).admit_toolchain_capture(capture)?;
-        let roots = self.product_roots.as_ref().ok_or_else(|| {
-            vec![Diagnostic::error(
+        if self.product_roots.is_none() {
+            return Err(vec![Diagnostic::error(
                 "default source seeds must precede Product typing",
-            )]
-        })?;
-        let mut roots = roots.to_vec();
-        roots.extend(seeds);
-        roots.sort();
-        roots.dedup();
-        self.product_roots = Some(roots.into());
+            )]);
+        }
         Ok(self)
     }
 
@@ -556,30 +546,6 @@ impl ImmutableSourceParseCheckpoint {
             }
         }
         load_phase!(PackageImportPhase::ExactTarget(None))?;
-        // Core query results are ordinary source-backed data. Load their
-        // canonical declarations even for an import-free query occurrence;
-        // source discovery neither evaluates the query nor selects a machine.
-        let core_root = crate::source::source_imports::bundled_core_root()?;
-        let query_types = core_root.join("code_layout.omg");
-        imports.seed(query_types, source_scope);
-        // Primitive float spellings select ordinary source declarations and
-        // their exact target satisfiers (numeric_values.md, Primitive surface).
-        // Make that canonical declaration forest available without requiring
-        // an authored import. Loading supplies no selection or provider
-        // authority: normal operand applicability, ambiguity, checked boundary
-        // applications and selected ProviderPlans still own those judgments.
-        // The joined Product forest retains Build declarations too. Supply
-        // implicit vocabulary for each present checked scope, not only the
-        // roots being appended in this phase.
-        for scope in [
-            source::DependencyScope::Build,
-            source::DependencyScope::Product,
-        ] {
-            if sources_mention_floats(&source_storage, scope) {
-                imports.seed(core_root.join("float_operations.omg"), scope);
-            }
-        }
-        load_phase!(PackageImportPhase::ExactTarget(None))?;
         // Every target's entry contract joins the set; the selected target
         // only decides which one realizes the program entry later.
         // Build bindings carry inert paths. Target entry contracts and Product
@@ -598,6 +564,59 @@ impl ImmutableSourceParseCheckpoint {
             }
             load_phase!(PackageImportPhase::ExactTarget(None))?;
         }
+        if deferred_product.is_none()
+            && let Some(inputs) = package_inputs
+        {
+            loop {
+                let seeds = inputs.product_selection_source_seeds(Some(&source_storage.sources))?;
+                let mut added = false;
+                for seed in seeds {
+                    let already_selected = source_storage.sources.selected_files().any(|file| {
+                        file.dependency_scope == source::DependencyScope::Product
+                            && file.path == seed
+                    });
+                    if !already_selected {
+                        imports.seed(seed, source::DependencyScope::Product);
+                        added = true;
+                    }
+                }
+                if !added {
+                    break;
+                }
+                load_phase!(PackageImportPhase::ExactTarget(None))?;
+            }
+        }
+        // Core query results are ordinary source-backed data. Load their
+        // canonical declarations even for an import-free query occurrence;
+        // source discovery neither evaluates the query nor selects a machine.
+        let core_root = crate::source::source_imports::bundled_core_root()?;
+        let query_types = core_root.join("code_layout.omg");
+        imports.seed(query_types, source_scope);
+        // Primitive float spellings select ordinary source declarations and
+        // their exact target satisfiers (numeric_values.md, Primitive surface).
+        // Make that canonical declaration forest available without requiring
+        // an authored import. Loading supplies no selection or provider
+        // authority: normal operand applicability, ambiguity, checked boundary
+        // applications and selected ProviderPlans still own those judgments.
+        // The joined Product forest retains Build declarations too. Supply
+        // implicit vocabulary for each present checked scope, not only the
+        // roots being appended in this phase.
+        if sources_mention_floats(&source_storage, source::DependencyScope::Build) {
+            imports.seed(
+                core_root.join("float_operations.omg"),
+                source::DependencyScope::Build,
+            );
+        }
+        if sources_mention_floats(&source_storage, source::DependencyScope::Product)
+            || (deferred_product.is_none()
+                && sources_mention_floats(&source_storage, source::DependencyScope::Build))
+        {
+            imports.seed(
+                core_root.join("float_operations.omg"),
+                source::DependencyScope::Product,
+            );
+        }
+        load_phase!(PackageImportPhase::ExactTarget(None))?;
         // A Product preparation follows the completed dependency join, whether
         // Build was implicit or authored. Retaining an authored Build source
         // does not leave its Product declarations anonymously owned. Initial

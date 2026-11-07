@@ -52,7 +52,7 @@ installation model: its section gap is canonical zero padding and the whole
 extent remains read-only. A successful
 post-handoff writer similarly produces unpublished bytes, not an established
 hardware table or publication authority. Physical invocation, consumer semantic
-validation, source linear integration, and PCC/final-code admission must each
+validation, source linear integration, and final-code admission must each
 be supplied by their actual consumers; structural lifecycle tests do not attest
 those operations. [TASKS.md](../../../../../../TASKS.md) owns unfinished work.
 

@@ -19,6 +19,9 @@ binding and is retired together with receiver `self`. Types needed by a trait
 are ordinary declared parameters; zero, one, or several are allowed, and none
 has special status. An implementation name identifies a map of machines, not a
 type that can be borrowed as state. All state remains explicit value arguments.
+[Machine-valued fields](machine_values.md) can name exact implementation
+members. [Some packages](some_packages.md) pair those values with explicit
+borrowed state without attaching data to a conformance or adding a receiver.
 
 The `no-data-code-attachment` decision (2026-10-22) also retires data-owned
 machine declarations even when every parameter is explicit. Put an ordinary
@@ -26,15 +29,9 @@ operation at free or module scope; keep trait requirements and named
 implementation members under their code-owning declarations. A data type is
 neither an implementation nor a machine namespace. `main` gains no exception.
 
-These are the governing source rules. Existing compiler support, fixtures and
-library declarations using data-subject conformances are migration debt, not
-an alternative dialect. The migration may break old tests and source APIs;
-remove the old paths rather than add compatibility inference, aliases or modes.
-Replacement tests must retain the actual behavior and safety obligations.
-Implementation work is on the [execution board](../../../TASKS.md) under
-`NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION`,
-`TRAIT-IMPLEMENTATION-SOURCE-MIGRATION`, and
-`DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION`.
+Data-subject conformances are not an alternative dialect. Compatibility
+inference, aliases or modes must not reintroduce them. Named implementations
+retain the behavior and safety obligations of their selected requirements.
 
 ## Declaration and selection
 
@@ -69,8 +66,7 @@ ordinary machine rules; there is no requirement-to-machine assignment syntax.
 
 Named decision: `inline-conformance-members`, settled 2026-10-16. Reference
 rows (`Trait::member = Existing::machine;`) are retired, not an alternate
-implementation form. Existing source and compiler support for them are migration
-debt owned by the named-implementation and source-migration tasks above.
+implementation form.
 Defaults and authorized core synthesis remain unchanged.
 
 The conformance has its own package-scoped name, visibility, binder telescope,
@@ -106,25 +102,29 @@ planning may later realize its boundary rows without changing the selection.
 A package-local [native binding](../build/foreign_bindings.md#build-owned-native-binding)
 supplies one exact boundary requirement's backing without a bodyless
 `machine ... satisfies ... via ...` forwarding declaration. It does not invent
-a named implementation map, discharge laws, or license `dyn`. Complete provider
-schema coverage and exact requirement contracts still apply; checked adapters
+a named implementation map, discharge laws, or establish runtime operation-record
+laws. Complete provider schema coverage and exact requirement contracts still apply; checked adapters
 remain ordinary named implementations with real bodies.
 
-This same selection supplies operation and law requirements for computed static
-indices. A generic consumer requiring commutativity takes an ordinary conformance
-binder whose trait contains that law for the selected operation. The index
-checker consumes the selected evidence; it does not search for an algebra or
-infer one from operator punctuation. [Licensed normalization](../proofs/contracts.md#licensed-normalization)
-defines which transformations that evidence permits.
+This same selection supplies operations and checked law requirements for
+computed static indices. A generic consumer requesting commutativity takes an
+ordinary conformance binder whose trait contains that law for the selected
+operation. The compatibility prover consumes its exact evidence; it does not
+search for an algebra or infer one from punctuation.
 
-Different algebras can coexist, but index normalization retains each exact
-applied conformance and cannot borrow another selection's laws. Changing a
-trait's laws changes its published contract; below-budget preservation of
-identifications is subject to the explicit
-[mutual-distributivity exception](../proofs/contracts.md#bounded-canonical-index-normalization).
-Neither policy names nor an added law promise unconditional preservation across
-expansion cutoffs. The identity profile and its provenance remain shared across
-producers, not selected by a caller's local proof-work allowance.
+[Stable index identity](../proofs/contracts.md#stable-canonical-index-identity)
+preserves selected operations and applications. Only fixed core-operation rules
+simplify open canonical keys. Selected user laws, including inherited laws,
+literal connections and distributivity, establish compatibility instead.
+Adding a valid law does not turn off another proof or alter the canonical
+rewriting rules. Changing an actual operation or a published trait contract
+still has its ordinary API/dependency consequences.
+
+Conformance matching uses canonical identity without heuristic theorem search.
+An exact conformance application for one symbolic index form does not match
+another solely because their indices are provably equal. Value transport under
+checked evidence does not reselect a map or rewrite its identity. Generic
+conformances over a common index and explicit contracts remain available.
 
 Generic conformances own their telescopes independently of data declarations.
 Select one through a nested application with every type, const,
@@ -210,11 +210,17 @@ descriptor's runtime representation and custody.
 
 `machine ... satisfies Trait<...>::requirement` supplies only that exact
 requirement. It may serve provider selection, a trait/boundary operator
-requirement, an establishment route, or proof citation without satisfying a whole-trait bound or licensing
-`dyn`. An optional `as Name` labels a requirement-local satisfier group; it
+requirement, an establishment route, or proof citation without satisfying a
+whole-trait bound. Runtime selection uses machine values, not `dyn`; the selected
+machine still needs a compatible callable contract. An optional `as Name`
+labels a requirement-local satisfier group; it
 creates neither an independently selectable conformance nor standalone
 visibility. In a whole-conformance selection position, `as Name` instead names
 an already-declared map. Neither use is an overload selector.
+
+Inferring a wrapper's [forwarded callback requirements](generics.md#forwarded-callback-requirements)
+does not infer any of these implementation edges or a named conformance map.
+It retains requirements the caller's explicitly selected machine must satisfy.
 
 The edge's explicit trait application binds its contract parameters. A
 realization parameter used in that application, including inside a compound
@@ -258,6 +264,9 @@ explicit runtime installation relationship, not a conformance or transparent
 refinement. Each implementation still checks against its own declared contract.
 Neither `satisfies` nor ordinary generic conformance selection may use the
 unproved relationship as though it were checked conformance evidence.
+Do not replace a rejected ordinary conformance with an assumed binding. Repair
+the implementation, establish the required facts, correct the declared contract,
+or fix the checker if it rejects a valid program.
 
 ```omega
 public trait LocalLogger = Logger {
@@ -334,5 +343,5 @@ authors generate ordinary checked member calls; it does not expand this sealed
 synthesis catalog, supply missing law evidence, or permit raw quotient observation.
 
 See the [trait guide](../../language_guide/chapter_14_traits.md) for static bounds,
-inline implementations, and dynamic coercion examples. [Relations and quotients](../proofs/quotients.md)
+inline implementations, and runtime machine-value examples. [Relations and quotients](../proofs/quotients.md)
 use this same named-map identity for law selection.

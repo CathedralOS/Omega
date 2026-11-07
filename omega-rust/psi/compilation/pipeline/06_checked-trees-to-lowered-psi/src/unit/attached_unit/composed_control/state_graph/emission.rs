@@ -130,8 +130,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     ),
     LoweringError,
 > {
-    let _setup_guard =
-        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.setup");
     let result_places_start = catalogs.result_places.len();
     let mut structural_places = parameters
         .iter()
@@ -763,20 +761,12 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         produced_values,
         dynamic_dispatch,
     };
-    drop(_setup_guard);
-    let _emit_states_guard =
-        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.emit_states");
     for position in 0..plan.states.len() {
         if !emission.admitted.live[position] {
             continue;
         }
         emission.emit_state(identities, position)?;
     }
-    drop(_emit_states_guard);
-    let _finish_guard =
-        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.finish");
-    let _req_guard =
-        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.requires");
     let live_states = std::mem::take(&mut emission.admitted.live);
     let StateGraphEmission {
         parameters,
@@ -966,9 +956,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             arrivals,
         });
     }
-    drop(_req_guard);
-    let _places_guard =
-        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.places");
     blocks.sort_by_key(|block| block.id);
     let existing_result_and_temp_places: std::collections::HashSet<semantic_vocabulary::PlaceId> =
         catalogs
@@ -1052,9 +1039,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             outcome_specific_ensures: Vec::new(),
         },
     };
-    drop(_places_guard);
-    let _loans_guard =
-        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.loans");
     captured_loans.finish(&mut machine, &state_ids)?;
     let retained_entry_homes =
         loaned_local_homes::finish(&mut machine, &loaned_local_homes, &retained_loan_parents)?;
@@ -1068,9 +1052,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &retained_loan_parents,
         &mut catalogs.scalar_calls.next_call_obligation,
     )?;
-    drop(_loans_guard);
-    let _cont_guard =
-        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.continuations");
     let continuation_value_uses = machine
         .blocks
         .iter()
@@ -1152,9 +1133,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             }
         }
     }
-    drop(_cont_guard);
-    let _affine_guard =
-        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.affine_cleanup");
     // Authored entry/local cleanup already belongs to the composed emitter.
     // Complete checked no-code carrier frontiers after private loans and their
     // continuations have reached their final emitted graph. Plain owned type
@@ -1169,9 +1147,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &mut machine.blocks,
         &catalogs.structural_types,
     )?;
-    drop(_affine_guard);
-    let _rank_guard =
-        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.crash_and_ranking");
     // Crash ceilings live in the invocation signature, independent of the
     // state's block-local value roster. Predicate parameters retain authored
     // structural positions and scalar formals retain their dense coordinates.
@@ -1195,7 +1170,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         )?
     };
     ranking::retain(&mut machine, &block_ranks, &rank_edges)?;
-    drop(_rank_guard);
     Ok((
         machine,
         occurrences,

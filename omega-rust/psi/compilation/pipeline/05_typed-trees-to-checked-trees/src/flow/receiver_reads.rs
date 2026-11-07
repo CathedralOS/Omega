@@ -25,16 +25,16 @@
 //! through it. A state whose own body or receiver call cannot be placed has
 //! no footprint, and its callers treat their whole receiver as read.
 //!
-//! Local jumps obtain a named data binding from its actual argument at the
+//! Terminal invocations obtain a data binding from its actual argument at the
 //! declared ordinal. Transporting that reference delegates observation to the
 //! successor footprint; its selectors still execute in the source state.
-//! Ordinary explicit machine-call arguments keep their whole-operand reads.
+//! Returning invocations keep their ordinary whole-operand reads.
 //! Named parameter roots never collapse to the machine symbol: two instances
 //! of the same record must keep distinct storage identities.
 //!
 //! Each state keeps whole-run and per-parameter footprints (`jump_loans`).
 //! The whole run includes every state it jumps to, because a call holds its
-//! argument loans until it returns. Each held footprint serves a jump into
+//! argument loans until it returns. Each held footprint serves a transfer into
 //! the state and ends when that parameter's loans stop being forwarded. It
 //! includes the whole run of each returning call and the relevant parameter
 //! footprints of each successor, not those of independently forwarded loans.
@@ -198,7 +198,9 @@ fn build_state_receiver_reads(
                 complete = false;
                 continue;
             };
-            if crate::flow::local_jump(program, machine.symbol, state.symbol, call).is_none() {
+            if crate::flow::terminal_invocation(program, machine.symbol, state.symbol, call)
+                .is_none()
+            {
                 continue;
             }
             let Some(data_argument) = call_data_argument(program, machine.symbol, &site) else {

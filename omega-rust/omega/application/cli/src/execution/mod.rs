@@ -11,7 +11,7 @@ mod standard_input;
 
 pub use process_exit::ProcessExitObservation;
 
-use compiler::{CompileOptions, CompileReport};
+use compiler::CompileOptions;
 use diagnostics::Diagnostic;
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::PathBuf;
@@ -52,7 +52,6 @@ pub struct RunRequest {
 }
 
 pub struct RunOutcome {
-    pub report: CompileReport,
     /// Removed on return unless keep_artifacts was requested.
     pub build_dir: PathBuf,
     pub execution: ExecutionOutcome,
@@ -260,7 +259,6 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
         }
     };
     Ok(RunOutcome {
-        report,
         build_dir,
         execution,
     })
@@ -314,7 +312,6 @@ fn run_terminal(
         Err(error) => TerminalOutcome::Failed(error.to_string()),
     };
     Ok(RunOutcome {
-        report,
         build_dir,
         execution: ExecutionOutcome::Terminal(outcome),
     })
@@ -376,7 +373,6 @@ pub struct CaseOutcome {
 }
 
 pub struct CaseRunOutcome {
-    pub report: CompileReport,
     pub build_dir: PathBuf,
     pub cases: Vec<CaseOutcome>,
 }
@@ -483,11 +479,7 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
     }
     std::fs::write(request.output_directory.join("results.tsv"), table)
         .map_err(RunError::ReferenceOutput)?;
-    Ok(CaseRunOutcome {
-        report,
-        build_dir,
-        cases,
-    })
+    Ok(CaseRunOutcome { build_dir, cases })
 }
 
 fn comparison_columns(comparison: &InterpreterComparison) -> (&'static str, String) {

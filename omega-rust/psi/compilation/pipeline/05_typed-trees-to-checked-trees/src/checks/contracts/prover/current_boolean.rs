@@ -34,7 +34,6 @@ impl<'scope> BooleanValueQueries<'scope> {
         contexts: &'scope [facts::FactContextHandle],
         point: ProgramPoint,
     ) -> Self {
-        phase_profile::count("psi.05.boolean_value_queries.batches", 1);
         Self {
             program,
             operators,
@@ -46,7 +45,6 @@ impl<'scope> BooleanValueQueries<'scope> {
     }
 
     pub(crate) fn at_place(&self, actual: &CanonicalPlace) -> Option<bool> {
-        phase_profile::count("psi.05.boolean_value_queries.queries", 1);
         let program = self.program;
         let semantic = self.semantic;
         let contexts = self.contexts;
@@ -108,15 +106,13 @@ impl<'scope> BooleanValueQueries<'scope> {
             return Some(value);
         }
         let predicates = self.predicates.get_or_init(|| {
-            phase_profile::scope("psi.05.boolean_value_queries.prepare", || {
-                crate::published::facts::boolean_predicates::retained(
-                    program,
-                    self.operators,
-                    semantic,
-                    contexts,
-                    point,
-                )
-            })
+            crate::published::facts::boolean_predicates::retained(
+                program,
+                self.operators,
+                semantic,
+                contexts,
+                point,
+            )
         });
         inferred_boolean_at_place(predicates, actual, |place| {
             ordinary_boolean_value_at_place(program, semantic, contexts, place)

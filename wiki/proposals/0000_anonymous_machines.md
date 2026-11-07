@@ -5,6 +5,11 @@ capture-free expressions, capture lists, inferred environment receivers, generic
 literals, custom clauses, and state-bearing anonymous bodies. The body below is
 a candidate design, not current language rules or an implementation mandate.
 
+Runtime named-machine values and `some` data binders were separately ratified on
+2026-11-06; see [their migration](../drafts/designs/machine_values_some.md).
+The candidate below does not prohibit those facilities or ratify anonymous
+syntax through them. Its former dynamic-trait alternative is retired.
+
 ## Context and motivation
 
 Named machines, ordinary data, and explicit static callback selection already
@@ -177,10 +182,11 @@ process-exit outcomes obey their own abandonment contracts.
 
 ## Callable association and exact requirements
 
-Both named and anonymous callbacks bind one statically selected body and its
-ordinary environment argument. The anonymous value's checked association
-identifies the body; it does not store a machine symbol as a runtime field,
-convert one to a native address, or introduce a boxed function type.
+This candidate's anonymous association binds a statically selected body and
+ordinary environment argument. Separately ratified named-machine values may be
+stored in data under a callable contract; `some` may package their borrowed
+context. Neither feature accepts the anonymous syntax proposed here or converts
+an unverified native address into a callable.
 
 Named contracts use exact trait machine requirements. An ordinary library may
 declare the following fixed-ceiling visitor:
@@ -201,17 +207,19 @@ merely because the argument types match. A library authors a different ceiling
 when its customer needs one.
 
 A walker declares Item, Context, and Step in its generic list and constrains
-Step with `where machine Step satisfies Visitor<Item, Context>::visit;`.
-The clause establishes Step's binder kind and complete contract. An explicit
-`machine Step` in the generic list is also consistent; no body or consumer-set
-inference may invent a missing callable contract.
+Step with `requires machine Step satisfies Visitor<Item, Context>::visit;`.
+The clause establishes Step's binder kind and complete originating contract.
+Named wrappers with an explicit `machine Step` binder can inherit exact
+[forwarded requirements](../spec/language/generics.md#forwarded-callback-requirements);
+a direct invocation or consumer set cannot invent an originating contract.
+This accepted named-machine rule does not accept anonymous syntax or captures.
 
 At an anonymous argument application, the checker binds Context to the actual
 environment, selects the associated body, normalizes receiver syntax to its
 explicit environment argument, and checks full refinement against the named
 requirement. It records the exact satisfaction edge. Association chooses the
 body; it does not prove satisfaction by itself. No ambient conformance search,
-whole-trait evidence, or dynamic-dispatch eligibility is created.
+whole-trait evidence, or additional runtime-callable eligibility is created.
 
 An abbreviated call such as `visit_items(items, &mut show)` may recover the
 static Step selection from that checked association when argument and declared
@@ -265,7 +273,7 @@ neither exact selection nor permission to access the member.
 
 ## Operational contracts
 
-Fixed callback ceilings and ordinary call-site acknowledgements apply now.
+Originating callback ceilings and ordinary call-site acknowledgements apply.
 Possible suspension/blocking, reaches, failures, crashes, progress, mutation,
 and resources remain independently checked. Preconditions hold at every call;
 later calls use the previous post-state. Reentrancy or concurrent invocation is
@@ -273,9 +281,11 @@ not granted by receiver inference.
 
 [Reach dependencies](../spec/language/effects.md#static-callback-reach-dependencies)
 propagate through named static callback calls without forwarding syntax.
-Suspension/blocking remain fixed by the requirement; variable operational
-contracts for proposed anonymous forms remain an open design issue here, not
-an accepted extension. Failure remains ordinary
+Named static callbacks also use
+[operational dependencies](../spec/language/effects.md#static-callback-operational-dependencies):
+the body checks the requirement's upper bound, while callers substitute selected
+contracts. Applying that baseline to proposed anonymous forms must preserve
+the same boundaries; anonymous syntax remains unaccepted. Failure remains ordinary
 result data; crash guards require substitution; repetition and overlap affect
 resource composition. A callback contract cannot be copied wholesale onto its
 consumer, and a private selected body cannot weaken the required operational envelope.
@@ -297,8 +307,8 @@ Anonymous environment types cannot be named directly in public signatures.
 Use an explicit named wrapper and contract for public return/storage interfaces.
 No opaque-result syntax or unrestricted existential packaging is introduced.
 Runtime selection among different environments uses an explicit sum/wrapper or
-a separately eligible, explicitly selected whole dynamic conformance. A static
-generic family is not an unrestricted generic virtual method.
+separately checked machine values and `some` packages under their ratified
+rules. A static generic family is not an unrestricted generic virtual method.
 
 [Semantic evaluation](../spec/language/evaluation.md) may evaluate an eligible invocation with
 eligible captured values. A statically known body does not make runtime captures

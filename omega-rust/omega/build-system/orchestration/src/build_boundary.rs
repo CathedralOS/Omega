@@ -157,7 +157,7 @@ fn package_commands_schedule_work_outside_package_policy() {
 fn application_depends_on_facades_not_language_stages() {
     assert_absent(
         &[include_str!(
-            "../../../application/cli/src/cli/compilation.rs"
+            "../../../application/cli/src/commands/compile.rs"
         )],
         "CLI reaches behind Build:",
         &["publish_compilation("],
@@ -198,11 +198,11 @@ fn application_completes_native_products_without_source_continuations() {
         completion,
         "native completion",
         &[
-            "native_production::prepare(",
+            "native_compiler::prepare(",
             "prepared.scalar_completions()",
             "build_settings::scalar_completion::complete(",
             "completion.complete(completed)",
-            "native_production::compile(prepared)",
+            "native_compiler::compile(prepared)",
             ".finish_native(",
             ".with_runtime_provisions(",
         ],

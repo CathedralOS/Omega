@@ -363,11 +363,28 @@ impl StructuralJudge<'_> {
         bindings: &[(SymbolHandle, StructuralTerm)],
         result: Option<&StructuralTerm>,
     ) -> Vec<super::super::CaseGuarantee> {
-        if !parameters.iter().all(|parameter| {
-            bindings
-                .iter()
-                .any(|(symbol, _)| *symbol == parameter.symbol)
-        }) {
+        // The case reader cannot consume this map without exact subjects.
+        if !self.has_exact_case_subjects()
+            || !parameters.iter().all(|parameter| {
+                bindings
+                    .iter()
+                    .any(|(symbol, _)| *symbol == parameter.symbol)
+            })
+        {
+            return Vec::new();
+        }
+        let may_have_cases = owner_contracts(self.program, owner)
+            .filter(|contract| contract.kind == SignatureContractKind::Ensures)
+            .any(|contract| {
+                self.program
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .iter()
+                    .any(|fact| {
+                        matches!(fact, ProofFact::Expression(expression) if self.may_extract_contract_cases(*expression))
+                    })
+            });
+        if !may_have_cases {
             return Vec::new();
         }
         let map = parameters

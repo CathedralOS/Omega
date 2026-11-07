@@ -518,7 +518,7 @@ pub(crate) fn infer_checked_machine_crash_causes(
     }
     let mut plans = facts
         .contract_plans
-        .machines
+        .machines()
         .iter()
         .filter(|plan| plan.machine == machine);
     let plan = plans.next()?;
@@ -538,7 +538,7 @@ pub(crate) fn infer_checked_crash_causes(
     let key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
     let mut machines = program.machines().iter().collect::<Vec<_>>();
     machines.sort_unstable_by_key(|machine| key(machine.symbol));
-    let mut plans = facts.contract_plans.machines.iter().collect::<Vec<_>>();
+    let mut plans = facts.contract_plans.machines().iter().collect::<Vec<_>>();
     plans.sort_unstable_by_key(|plan| key(plan.machine));
     plans
         .iter()

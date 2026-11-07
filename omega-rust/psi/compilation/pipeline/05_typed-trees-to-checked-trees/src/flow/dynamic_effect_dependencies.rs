@@ -179,12 +179,7 @@ fn returned_implementations(
     active: &mut Vec<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>,
 ) -> Option<Vec<CapturedSelectorOrigin>> {
     let capture = facts.flow.control.operands.get(value);
-    let state = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .find_map(|(_, state)| (state.state_symbol == capture.state_symbol).then_some(state))?;
+    let state = facts.flow.control.state_by_symbol(capture.state_symbol)?;
     let mut calls = crate::flow::call_flows(&facts.flow.control, state.calls)
         .iter()
         .filter(|call| {

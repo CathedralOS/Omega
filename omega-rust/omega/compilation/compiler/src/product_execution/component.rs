@@ -9,7 +9,7 @@ use component_description::{
     ComponentDescriptionFacts, DescribeError, publish_component_description,
 };
 use diagnostics::Diagnostic;
-use native_production::TerminalApplication;
+use native_compiler::TerminalApplication;
 use package_compilation::IndependentComponentDescription;
 
 /// The compiler batches portable production; this owner retains only the
@@ -161,7 +161,7 @@ impl ComponentPublication {
         let accepted_permissions =
             super::native_inputs::accepted_terminal_authority_permission_policy(&self.checked)?;
         let native_inputs = self.retain_native_inputs.then(|| {
-            native_production::retain_native_derivation_inputs(
+            native_compiler::retain_native_derivation_inputs(
                 &produced.receipt,
                 produced.physical_entry_adapter,
                 &produced.provider_proposals,

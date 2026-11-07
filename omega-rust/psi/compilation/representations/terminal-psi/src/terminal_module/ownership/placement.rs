@@ -92,9 +92,9 @@ pub enum TerminalAccessLifecycleExecution {
         /// Exact selected-profile input of View or initialization; absent for extraction. This
         /// describes the signature, not an admitted profile-call receipt.
         profile_type: Option<semantic_vocabulary::StructuralTypeId>,
-        /// Exact core ResourceProfileSupply requirement whose completed call
-        /// may supply placement. A matching result type is not this role.
-        profile_requirement: Option<TerminalAccessProfileRequirement>,
+        /// Exact supply roles in backing-operand order. Relocation retains both
+        /// source and destination; equal profile types do not identify a role.
+        profile_requirements: Vec<TerminalAccessProfileRequirement>,
     },
 }
 
@@ -233,6 +233,50 @@ pub enum TerminalAccessLifecycleOperation {
     Initialize,
     MoveOut,
     View,
+    Relocate,
+}
+
+/// The authenticated operation's backing/profile pairs, in supply-role order.
+/// Occupied owners project their backing; vacant inputs already are extents.
+#[derive(Debug, Clone, Copy)]
+pub struct TerminalAccessProfileOperand {
+    pub storage: usize,
+    pub profile: usize,
+    pub occupied: bool,
+}
+
+impl TerminalAccessLifecycleOperation {
+    pub const fn profile_operands(self) -> &'static [TerminalAccessProfileOperand] {
+        match self {
+            Self::Initialize => &[TerminalAccessProfileOperand {
+                storage: 0,
+                profile: 2,
+                occupied: false,
+            }],
+            Self::MoveOut => &[TerminalAccessProfileOperand {
+                storage: 0,
+                profile: 1,
+                occupied: true,
+            }],
+            Self::View => &[TerminalAccessProfileOperand {
+                storage: 0,
+                profile: 1,
+                occupied: false,
+            }],
+            Self::Relocate => &[
+                TerminalAccessProfileOperand {
+                    storage: 0,
+                    profile: 2,
+                    occupied: true,
+                },
+                TerminalAccessProfileOperand {
+                    storage: 1,
+                    profile: 3,
+                    occupied: false,
+                },
+            ],
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -420,7 +420,18 @@ impl TypedTrees {
     pub fn prepare_applied_callable_signatures(
         &mut self,
     ) -> Result<Vec<signature::StateSignature>, &'static str> {
-        let _guard = phase_profile::guard("psi.typed_trees.prepare_applied_callable_signatures");
+        self.prepare_applied_callable_signatures_reporting_change()
+            .map(|(produced, _)| produced)
+    }
+
+    /// [`Self::prepare_applied_callable_signatures`], also reporting whether
+    /// the call wrote anything. It writes only when some pending view has no
+    /// prepared row yet; a call that writes nothing leaves the program as it
+    /// found it, so the same call on that same program writes nothing again
+    /// and its caller can pass that result forward instead of repeating it.
+    pub fn prepare_applied_callable_signatures_reporting_change(
+        &mut self,
+    ) -> Result<(Vec<signature::StateSignature>, bool), &'static str> {
         let roots = self.applied_trait_roots();
         let mut pending = Vec::new();
         for scope in roots {
@@ -473,16 +484,51 @@ impl TypedTrees {
                 }
             });
         }
+        // Every pending view checks for an existing row with its exact
+        // requirement and trait key. Index those rows once, sorted, and add
+        // each row as it is inserted: a scan of the whole table per pending
+        // view was quadratic in the prepared roster. The index is guarded by
+        // the table's revision: any table write other than this loop's own
+        // insert, from any callee, rebuilds it before the next lookup.
+        let row_key =
+            |requirement: SymbolHandle,
+             declaration: SymbolHandle,
+             identity: crate::type_identity::NormalizedTypeIdentity| {
+                (
+                    (requirement.arena_index(), requirement.generation()),
+                    (declaration.arena_index(), declaration.generation()),
+                    identity,
+                )
+            };
+        let index_rows = |program: &Self| {
+            let mut rows = program
+                .applied_callable_signatures
+                .iter()
+                .filter_map(|(_, prepared)| match prepared.owner {
+                    AppliedCallableOwner::Trait {
+                        declaration,
+                        application,
+                    } => Some(row_key(prepared.signature.symbol, declaration, application)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            rows.sort_unstable();
+            (rows, program.applied_callable_signatures.revision())
+        };
+        let (mut prepared_rows, mut indexed_revision) = index_rows(self);
+        let mut wrote = false;
         let mut produced = Vec::new();
         for (trait_symbol, owner, identity, requirement, environment, clauses) in pending {
-            if self
-                .applied_callable_signatures.iter().any(|(_, prepared)| {
-                    prepared.signature.symbol == requirement
-                        && matches!(prepared.owner, AppliedCallableOwner::Trait { declaration, application } if declaration == owner && application == identity)
-                })
+            if self.applied_callable_signatures.revision() != indexed_revision {
+                (prepared_rows, indexed_revision) = index_rows(self);
+            }
+            if prepared_rows
+                .binary_search(&row_key(requirement, owner, identity))
+                .is_ok()
             {
                 continue;
             }
+            wrote = true;
             let mut applied = if let Some(closed) = self.closed_requirement_application(requirement)
             {
                 closed.signature.clone()
@@ -505,7 +551,9 @@ impl TypedTrees {
                 applied
             };
             self.apply_callable_refinements(&mut applied, &clauses)?;
+            let inserted = row_key(applied.symbol, owner, identity);
             produced.push(applied.clone());
+            let before_insert = self.applied_callable_signatures.revision();
             self.applied_callable_signatures
                 .insert(AppliedCallableSignature {
                     owner: AppliedCallableOwner::Trait {
@@ -514,8 +562,20 @@ impl TypedTrees {
                     },
                     signature: applied,
                 });
+            // The insert moves the revision by exactly one. The index then
+            // gains just this row, but only if nothing else wrote the table
+            // since it was built; otherwise it is rebuilt from the table.
+            let after_insert = self.applied_callable_signatures.revision();
+            if before_insert == indexed_revision && after_insert == before_insert + 1 {
+                if let Err(position) = prepared_rows.binary_search(&inserted) {
+                    prepared_rows.insert(position, inserted);
+                }
+                indexed_revision = after_insert;
+            } else {
+                (prepared_rows, indexed_revision) = index_rows(self);
+            }
         }
-        Ok(produced)
+        Ok((produced, wrote))
     }
 
     /// Materialize each simultaneous telescope in its outer scopes. This shared

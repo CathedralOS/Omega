@@ -720,7 +720,7 @@ fn interferes(
     match access.role {
         // Owner handles name descriptors, not backing allocations. Without a
         // disjointness proof any backing write can invalidate a forwarded load.
-        SelectedMemoryAccessRole::WriteBacking => true,
+        SelectedMemoryAccessRole::WriteBacking | SelectedMemoryAccessRole::WriteBackingSpan => true,
         SelectedMemoryAccessRole::WritePlace => {
             access.place != forwarded.place || forwarded.intersects(access)
         }
@@ -742,6 +742,7 @@ fn interferes(
         }
         SelectedMemoryAccessRole::ReadReturnedView { .. }
         | SelectedMemoryAccessRole::ReadBacking
+        | SelectedMemoryAccessRole::ReadBackingSpan
         | SelectedMemoryAccessRole::ReadLocal { .. }
         | SelectedMemoryAccessRole::ReadPlace
         | SelectedMemoryAccessRole::ReadByteSpan { .. }

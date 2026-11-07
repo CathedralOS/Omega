@@ -52,9 +52,9 @@ pub(super) fn prepare_component_geometry(
         }
         for (_, state) in flow
             .control
-            .states
-            .iter()
-            .filter(|(_, state)| state.machine_symbol == machine.symbol)
+            .machine_states(machine.symbol)
+            .into_iter()
+            .map(|state| ((), state))
         {
             for call in flow.control.calls.span_or_empty(state.calls) {
                 let private_component_call = program

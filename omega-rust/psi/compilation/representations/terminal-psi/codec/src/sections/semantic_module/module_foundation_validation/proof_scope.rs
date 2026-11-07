@@ -171,7 +171,7 @@ pub(super) fn validate(
             }
             let machine = scope
                 .calls
-                .machines
+                .machines()
                 .iter()
                 .find_map(|(_, row)| (row.machine == call.caller).then_some(row))
                 .ok_or(CodecError::MalformedStructuralFoundation(
@@ -297,7 +297,7 @@ pub(super) fn validate(
     }
     let graph = &scope.calls;
     let mut summaries = BTreeSet::new();
-    for (_, row) in graph.machines.iter() {
+    for (_, row) in graph.machines().iter() {
         if !machines.contains(&row.machine) || !summaries.insert(row.machine) {
             return malformed("proof scope has an unknown or repeated call summary");
         }

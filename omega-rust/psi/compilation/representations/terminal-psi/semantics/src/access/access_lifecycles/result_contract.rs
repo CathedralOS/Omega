@@ -37,6 +37,14 @@ pub enum AccessResultContract<'module> {
         result: &'module BoundaryStructuralResultDeclaration,
         moved: &'module StructuralCaseDeclaration,
     },
+    Relocate {
+        result: &'module BoundaryStructuralResultDeclaration,
+        ready: &'module StructuralCaseDeclaration,
+        rejected: &'module StructuralCaseDeclaration,
+        moved: &'module [StructuralFieldDeclaration; 2],
+        returned: &'module [StructuralFieldDeclaration; 2],
+        failures: &'module [StructuralCaseDeclaration; 3],
+    },
 }
 
 /// Locate the Ready descriptor in the canonical borrowed outcome. This is a
@@ -252,6 +260,90 @@ pub fn access_result_contract<'module>(
                 failures,
             })
         }
+        TerminalAccessLifecycleOperation::Relocate => {
+            let (vacant, live) = plan.storage.owned_content()?;
+            let [ready, rejected] = cases else {
+                return Err("run relocation requires Ready and Rejected outcomes");
+            };
+            let [moved_field] = ready.fields.as_slice() else {
+                return Err("run relocation Ready must carry its moved run and vacated backing");
+            };
+            let [returned_field, reason] = rejected.fields.as_slice() else {
+                return Err("run relocation Rejected must retain both inputs and a reason");
+            };
+            let moved = record_pair(module, moved_field)?;
+            let returned = record_pair(module, returned_field)?;
+            require_type(&moved[0], plan.storage.owner_carrier())?;
+            require_type(&moved[1], plan.storage.carrier)?;
+            require_type(&returned[0], plan.storage.owner_carrier())?;
+            require_type(&returned[1], plan.storage.carrier)?;
+            let owner_path = [
+                StructuralPathSegment::Case(ready.id),
+                StructuralPathSegment::Field(moved_field.identity),
+                StructuralPathSegment::Field(moved[0].identity),
+            ];
+            let (whole, descendants) = StructuralPathQualification::select(
+                &result.qualifications,
+                &result.projected_qualifications,
+                &owner_path,
+            );
+            let backing_path = plan
+                .storage
+                .owner_storage_path(&module.structural_types)
+                .ok_or("run relocation lost its backing projection")?;
+            let (backing, nested) =
+                StructuralPathQualification::select(&whole, &descendants, &backing_path);
+            if !matches!(
+                plan.storage.owner,
+                terminal_psi::TerminalAccessOwner::Run { .. }
+            ) || whole.as_slice() != [live]
+                || backing.as_slice() != [plan.storage.granted]
+                || !nested.is_empty()
+                || descendants.len() != 1
+            {
+                return Err("run relocation changed its live owner or backing qualifications");
+            }
+            storage_qualifications(
+                result,
+                &[
+                    StructuralPathSegment::Case(ready.id),
+                    StructuralPathSegment::Field(moved_field.identity),
+                    StructuralPathSegment::Field(moved[1].identity),
+                ],
+                plan.storage.granted,
+                vacant,
+            )?;
+            for (position, field) in returned.iter().enumerate() {
+                let parameter = boundary
+                    .structural_parameters
+                    .get(position)
+                    .ok_or("run relocation lost an original owner")?;
+                let (whole, descendants) = StructuralPathQualification::select(
+                    &result.qualifications,
+                    &result.projected_qualifications,
+                    &[
+                        StructuralPathSegment::Case(rejected.id),
+                        StructuralPathSegment::Field(returned_field.identity),
+                        StructuralPathSegment::Field(field.identity),
+                    ],
+                );
+                if whole != parameter.qualifications
+                    || descendants != parameter.projected_qualifications
+                {
+                    return Err(
+                        "run relocation rejection changed an original owner's qualifications",
+                    );
+                }
+            }
+            Ok(AccessResultContract::Relocate {
+                result,
+                ready,
+                rejected,
+                moved,
+                returned,
+                failures: failure_cases(module, reason)?,
+            })
+        }
         TerminalAccessLifecycleOperation::MoveOut => {
             let (vacant, _) = plan.storage.owned_content()?;
             // This declaration constrains the extracted value; it does not
@@ -277,6 +369,22 @@ pub fn access_result_contract<'module>(
             Ok(AccessResultContract::MoveOut { result, moved })
         }
     }
+}
+
+fn record_pair<'module>(
+    module: &'module TerminalModule,
+    field: &StructuralFieldDeclaration,
+) -> Result<&'module [StructuralFieldDeclaration; 2], &'static str> {
+    let Some(StructuralTypeShape::Record { fields, .. }) = module
+        .structural_type(structural_type(field)?)
+        .map(|declaration| &declaration.shape)
+    else {
+        return Err("relocation result must retain its two-owner record");
+    };
+    fields
+        .as_slice()
+        .try_into()
+        .map_err(|_| "relocation result must retain exactly two owners")
 }
 
 fn failure_cases<'module>(

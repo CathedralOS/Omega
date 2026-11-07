@@ -29,23 +29,10 @@ impl StructuralJudge<'_> {
         else {
             return Some(Vec::new());
         };
-        let (input_path, outcomes): (&str, &[(&str, &str)]) =
-            match (declaration.operation(), declaration.content()) {
-                (AccessLifecycleOperation::Initialize, AccessContentShape::Run) => (
-                    "",
-                    &[("Ready", "view.storage"), ("Rejected", "returned.source")],
-                ),
-                (AccessLifecycleOperation::Initialize, AccessContentShape::Resident) => {
-                    ("", &[("Ready", "view"), ("Rejected", "returned.source")])
-                }
-                (AccessLifecycleOperation::MoveOut, AccessContentShape::Run) => {
-                    ("storage", &[("Moved", "storage")])
-                }
-                (AccessLifecycleOperation::MoveOut, AccessContentShape::Resident) => {
-                    ("", &[("Moved", "storage")])
-                }
-                (AccessLifecycleOperation::View, _) => return Some(Vec::new()),
-            };
+        let outcomes = declaration.backing_outcomes();
+        if outcomes.is_empty() {
+            return (declaration.operation() == AccessLifecycleOperation::View).then(Vec::new);
+        }
         let result @ StructuralTerm::CapturedValue { result_type, .. } = result? else {
             return None;
         };
@@ -55,22 +42,51 @@ impl StructuralJudge<'_> {
         let definition = program
             .data_application_definition(result_type)
             .or_else(|| program.closed_data_definition(result_type))?;
-        let parameter = prepared.parameters.first()?.symbol;
-        let source = &prepared
-            .bindings
-            .entry_bindings
-            .iter()
-            .find(|(symbol, _)| *symbol == parameter)?
-            .1;
         let mut guarantees = Vec::with_capacity(outcomes.len());
-        for (case_name, result_path) in outcomes {
+        for outcome in outcomes {
             let case = program
                 .data_members(definition)
                 .iter()
                 .find_map(|member| match member {
-                    DataMember::Variant(case) if case.name.as_str() == *case_name => Some(case),
+                    DataMember::Variant(case) if case.name.as_str() == outcome.case => Some(case),
                     _ => None,
                 })?;
+            let mut equations = Vec::new();
+            for transfer in outcome.transfers {
+                let parameter = prepared.parameters.get(transfer.parameter)?.symbol;
+                let source = &prepared
+                    .bindings
+                    .entry_bindings
+                    .iter()
+                    .find(|(symbol, _)| *symbol == parameter)?
+                    .1;
+                for field in ["base", "length"] {
+                    equations.push(CapturedResultEquation::public((
+                        project(result, transfer.output, field),
+                        project(source, transfer.input, field),
+                    )));
+                }
+            }
+            if declaration.operation() == AccessLifecycleOperation::Relocate
+                && declaration.content() == AccessContentShape::Run
+            {
+                let parameter = prepared.parameters.first()?.symbol;
+                let source = &prepared
+                    .bindings
+                    .entry_bindings
+                    .iter()
+                    .find(|(symbol, _)| *symbol == parameter)?
+                    .1;
+                let owner = match outcome.case {
+                    "Ready" => "view.run",
+                    "Rejected" => "returned.source",
+                    _ => return None,
+                };
+                equations.push(CapturedResultEquation::public((
+                    project(result, owner, "count"),
+                    project(source, "", "count"),
+                )));
+            }
             guarantees.push(ConditionalGuarantees {
                 conditions: vec![(
                     ObservedCondition::Case {
@@ -80,15 +96,7 @@ impl StructuralJudge<'_> {
                     },
                     true,
                 )],
-                equations: ["base", "length"]
-                    .into_iter()
-                    .map(|field| {
-                        CapturedResultEquation::public((
-                            project(result, result_path, field),
-                            project(source, input_path, field),
-                        ))
-                    })
-                    .collect(),
+                equations,
             });
         }
         Some(guarantees)

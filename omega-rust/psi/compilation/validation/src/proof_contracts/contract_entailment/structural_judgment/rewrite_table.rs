@@ -447,38 +447,3 @@ fn predicate_may_unwrap_to_integer_comparison(predicate: &StructuralTerm, depth:
         _ => false,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn value_identity_keeps_descriptors_out_of_scalar_equations() {
-        let application = |descriptor: &str| StructuralTerm::Application {
-            result_type: Default::default(),
-            target: Default::default(),
-            selections: Vec::new(),
-            machine: "read".to_owned(),
-            arguments: vec![StructuralTerm::ObservedValue {
-                observed_type: Default::default(),
-                value: Box::new(StructuralTerm::Opaque("unobserved contents".to_owned())),
-                descriptor: Some(Box::new(StructuralTerm::Variable(descriptor.to_owned()))),
-            }],
-        };
-        let first = application("first");
-        let second = application("second");
-        assert_eq!(first, second);
-        assert!(!first.same_resolution_payload(&second));
-        let value = StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(7));
-        let mut rewrites = RewriteTable::default();
-        rewrites.push_value_identity((first.clone(), value.clone()));
-        assert!(!rewrites.is_empty());
-        assert!(rewrites.find(&first).is_some());
-        assert!(rewrites.find(&second).is_none());
-        assert_eq!(rewrites.iter().count(), 0);
-        assert_eq!(rewrites.potential_integer_premises_len(), 0);
-        rewrites.push((second.clone(), value));
-        assert!(rewrites.find(&second).is_some());
-        assert_eq!(rewrites.iter().count(), 1);
-    }
-}

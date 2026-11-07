@@ -553,6 +553,13 @@ and proved representable narrowing are carrier coercions. Domain-specific scale
 changes and other policy-bearing conversions are ordinary named machines or
 explicitly selected operators, never ambient conversion discovery.
 
+For an anonymous expression, `as` to an integer destination explicitly lands
+the complete operand under the [numeric landing rules](numeric_values.md#fractional-intermediate-diagnostics).
+It acknowledges fractional intermediates while requiring an integral, in-range
+final value and all target obligations. For example, `((5 / 2) * 2) as u32`
+is `5`, while `(5 / 2) as u32` rejects. This does not change the rules for
+already-typed carrier coercions or floating landing.
+
 | Use | Obligation |
 | --- | --- |
 | Predicate qualification | Prove the target predicates. |
@@ -686,40 +693,32 @@ registry. Lifetime and static-machine domain indices are not specified by this
 type/const-index surface.
 
 Closed index expressions evaluate under [canonical static identity](evaluation.md#canonical-static-identities).
-Computed open indices retain their selected operation and normalized expression;
-compatibility with an expected index is a verification condition, not arbitrary
-evaluation in type equality. [Licensed normalization](../proofs/contracts.md#licensed-normalization)
-requires the exact selected checked algebra. Ordinary cited guarantees may
-discharge remaining compatibility; the compiler invents neither public generic
-preconditions nor ambient lemma search.
+Open indices preserve their selected operation and structural expression under
+the fixed core profile. Compatibility with an expected index is a verification
+condition. Selected checked algebra laws and ordinary cited guarantees can
+discharge it without renaming either domain application.
 
-Operations in an index use ordinary expression resolution and explicit
-conformance selection in the enclosing declaration. Consumers declare the trait
-laws needed for a normalization, and callers supply the checked conformance;
-the domain does not select a hidden algebra or redefine operators inside its
-arguments. A domain declaration adds no `using` clause or new selection scope.
-Commutativity is not a condition for forming an indexed family, only evidence
-for a rewrite that reorders operands. Exact operation and law identities survive
-generic substitution and interface publication.
+Operations use ordinary expression resolution, including explicit conformance
+selection where required. The domain selects no hidden algebra and adds no
+`using` clause. A canonical primitive operation needs no extra user conformance
+to receive its fixed simplifications. For user operations, consumers declare the
+laws needed for compatibility and callers supply the checked conformance.
+Commutativity is not required to form an indexed family.
 
-A canonical integer index may have a qualified carrier such as `u8 in Wrapping`
-or `u8 in Saturating`. The qualification constrains operation matching; only
-the explicit conformance supplies the selected operation and its laws. A
-predicate-only qualification grants no arithmetic law. The complete applied
-conformance includes inherited requirements and their substitutions.
-[Literal-linked index identities](../proofs/contracts.md#literal-linked-index-identities)
-combine a checked identity law with its connection to an exact typed literal,
-and affect canonical identity in every application position. Qualification and
-the authored operations' formation obligations remain intact.
+Preserve qualified carriers such as `u8 in Wrapping` and `u8 in Saturating`
+and each exact operation identity. A predicate-only qualification grants no
+arithmetic law. [Literal connections](../proofs/contracts.md#literal-linked-index-identities)
+for user algebras prove compatibility; they do not identify applications in
+signatures and specialization keys. Core-profile neutral-element rules can
+still identify `Indexed<N + 0>` and `Indexed<N>` where licensed.
 
-The selected laws also govern
-[bounded distributive normalization](../proofs/contracts.md#bounded-canonical-index-normalization).
-Equivalent pre-expansion forms under one law set receive the same identity and
-cutoff decision. A well-formed large index may remain unexpanded; if a required
-comparison cannot be established because of that cutoff, report the expansion
-measure and limit instead of asserting inequality. A checked exact equality
-may supply compatibility without renaming the domain application. No localized
-canonical-budget override or implicit algebra selection follows.
+[Distributivity](../proofs/contracts.md#proved-index-compatibility) also proves
+compatibility without canonical expansion. Its default 64-term search allowance
+is configurable through root Build proof-work policy, never a domain parameter.
+An unresolved comparison reports missing evidence or the exhausted allowance,
+not mathematical inequality. Carry successful evidence through specialization
+and artifact consumption. Exact conformance matching continues to use keys,
+so authors needing identical applications use a common expression or alias.
 
 Units, coordinate frames, currencies, tensor shapes, scales, and encodings are
 library customers, not compiler cases. Metadata erasure removes no scaling,

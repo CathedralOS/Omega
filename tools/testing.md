@@ -277,6 +277,14 @@ When corpus fixtures need a new producer, preparation first checks the exact
 check retains its stdout/stderr and stops before building the CLI. CLI-only and
 authenticated retained-producer requests do not run this additional check.
 
+Fresh pilot cache keys end in `prepared-v1-cli` or `prepared-v1-with-runner`,
+matching the executable roster prepared for the selected consumers. Only a
+successful authenticated preparation publishes these keys; failed preparation
+and check-only jobs cannot reserve them with partial Cargo objects. Ordinary
+Cargo caches remain restore fallbacks. Replay plans retain the exact original
+cache key, including this suffix for new producers; older keys and observations
+keep their original identities.
+
 For an ordinary CLI runtime failure, `compiler_diagnostics: true` also records
 the interpreter's operation, block and scalar values in that fixture's
 `both.stderr`. `OMEGA_TERMINAL_TRACE=1` enables the same trace directly. It is
@@ -1474,7 +1482,7 @@ mbx nextest run --workspace --lib --no-fail-fast
 
 The native-boundary gate walks Cargo's declared production path dependencies,
 including optional, build and target-specific edges. It rejects source/compiler,
-package and interpreter owners anywhere behind `native-production`. Its seeded
+package and interpreter owners anywhere behind `native-compiler`. Its seeded
 negative controls run with `python tools/tests/test_native_boundary.py -v`.
 This is a check of the native facade, not a claim that all workspace topology
 has converged to the two-driver contract. The same script's

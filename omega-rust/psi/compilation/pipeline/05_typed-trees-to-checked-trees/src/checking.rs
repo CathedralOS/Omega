@@ -180,9 +180,7 @@ pub fn reuse_retained_check(
     }
     let checked = prior.checked.clone();
     let retained = retain.then(|| prior.clone());
-    phase_profile::scope("psi.05.request_admission", || {
-        admit_request(&checked, request)
-    })?;
+    admit_request(&checked, request)?;
     Ok(CheckingOutcome {
         checked,
         retained,
@@ -236,9 +234,7 @@ pub fn lower_typed_trees_reusing(
         frozen_dependency_bodies,
         dependency_bodies,
     });
-    phase_profile::scope("psi.05.request_admission", || {
-        admit_request(&checked, request)
-    })?;
+    admit_request(&checked, request)?;
     Ok(CheckingOutcome {
         checked,
         retained,
@@ -306,21 +302,16 @@ fn check_program(
     )?;
     let program = program
         .with_retained_borrow_custodies(declared_content.retained_borrow_custodies.clone().into());
-    let proof_plan = phase_profile::scope("psi.05.build_proof_plan", || {
-        proof::obligations::build_proof_plan(&program)
-    });
-    let mut validated = phase_profile::scope("psi.05.prepare_typed_program", || {
-        prepare_typed_program(
-            &program,
-            proof_plan,
-            &opaque_property_receipts,
-            admits_pending_inputs,
-            prior_dependency_bodies,
-            prior_frozen_bodies,
-            record_dependency_bodies,
-        )
-    })?;
-    phase_profile::checkpoint("after typed preparation", "psi.05.prepare_typed_program");
+    let proof_plan = proof::obligations::build_proof_plan(&program);
+    let mut validated = prepare_typed_program(
+        &program,
+        proof_plan,
+        &opaque_property_receipts,
+        admits_pending_inputs,
+        prior_dependency_bodies,
+        prior_frozen_bodies,
+        record_dependency_bodies,
+    )?;
     let deferred_entailment = validated.deferred_entailment;
     let mut deferred_overflow = std::mem::take(&mut validated.deferred_overflow);
     let frozen_dependency_bodies = std::mem::take(&mut validated.frozen_dependency_bodies);
@@ -337,24 +328,22 @@ fn check_program(
     // Retain the arithmetic walk's occurrence intervals for value publication
     // and the later range/contract checks. The analysis already hulled every
     // clean evaluation of a shared expression; no initializer is replayed.
-    program.attach_expression_intervals(std::sync::Arc::from(std::mem::take(
+    let program = program.clone_with_expression_intervals(std::sync::Arc::from(std::mem::take(
         &mut validated.validation_facts.expression_intervals,
     )));
     let proof_recipe_obligations = std::mem::take(&mut validated.constant_recipe_obligations);
     let integer_range_obligations =
         std::mem::take(&mut validated.validation_facts.integer_range_obligations);
-    let built = phase_profile::scope("psi.05.build_check_facts", || {
-        build_check_facts(
-            &program,
-            &validated.proof_plan,
-            declared_content,
-            &validated.integer_assignments,
-            validated.operational,
-            validated.service_reaches,
-            validated.validation_facts,
-            &mutation_summaries,
-        )
-    });
+    let built = build_check_facts(
+        &program,
+        &validated.proof_plan,
+        declared_content,
+        &validated.integer_assignments,
+        validated.operational,
+        validated.service_reaches,
+        validated.validation_facts,
+        &mutation_summaries,
+    );
     let (mut facts, prepared_effects, program, formation_overflow) = match built {
         Ok(built) => built,
         Err(failure) => {
@@ -369,16 +358,13 @@ fn check_program(
         }
     };
     deferred_overflow.extend(formation_overflow);
-    phase_profile::checkpoint("after check-fact construction", "psi.05.build_check_facts");
     // Contract entailment judges each checked body once, after the flow facts
     // it may read exist. The Psi 05 prover reads those proved postconditions
     // at its own decision point; nobody rejudges them.
     let validation::ContractEntailment {
         proven_machine_contracts,
         dependency_body_judgments,
-    } = match phase_profile::scope("psi.05.contract_entailment", || {
-        validation::judge_contract_entailment(&program, deferred_entailment)
-    }) {
+    } = match validation::judge_contract_entailment(&program, deferred_entailment) {
         Ok(entailment) => entailment,
         Err(errors) => return Err(merge_overflow(&mut deferred_overflow, errors)),
     };
@@ -388,7 +374,6 @@ fn check_program(
     // Sealed quotient requests were deferred by validation until termination
     // was proved: judge them now against the checked termination facts. The
     // batch publishes exact admission facts consumed by runtime planning.
-    let mid_guard = phase_profile::guard("psi.05.quotients_borrows_identities");
     let quotient_operations =
         match validation::admit_checked_quotient_requests(&program, &|machine| {
             facts
@@ -429,64 +414,61 @@ fn check_program(
             Ok(identities) => identities,
             Err(errors) => return Err(merge_overflow(&mut deferred_overflow, errors)),
         };
-    drop(mid_guard);
 
-    if let Err(errors) = phase_profile::scope("psi.05.check_checked_facts", || {
-        checks::check_checked_facts_recording(
-            &program,
-            &mut facts,
-            &mutation_summaries,
-            &incoming_guard_index,
-            &proven_machine_contracts,
-        )
-    }) {
+    if let Err(errors) = checks::check_checked_facts_recording(
+        &program,
+        &mut facts,
+        &mutation_summaries,
+        &incoming_guard_index,
+        &proven_machine_contracts,
+    ) {
         return Err(merge_overflow(&mut deferred_overflow, errors));
     }
     if !deferred_overflow.is_empty() {
         return Err(merge_overflow(&mut deferred_overflow, Vec::new()));
     }
-    phase_profile::checkpoint("after checked-fact checks", "psi.05.check_checked_facts");
-    let late_guard = phase_profile::guard("psi.05.finalize_execution_identities");
-    crate::products::quotient_eligibility::check(&program, &facts)?;
-    checks::validate_selected_cleanup_guarantees(&program, &facts)?;
-    validation::validate_runtime_proof_citations(&program, &|machine| {
-        facts
-            .termination
-            .for_machine(machine)
-            .map(|plan| plan.checked_summary.clone())
-    })?;
+    // Three read-only validators of the checked facts. They run together and
+    // report in this order, so the first refusal is the one reported before.
+    let (quotients, (cleanup, citations)) = validation::checking_thread_pool().install(|| {
+        rayon::join(
+            || crate::products::quotient_eligibility::check(&program, &facts),
+            || {
+                rayon::join(
+                    || checks::validate_selected_cleanup_guarantees(&program, &facts),
+                    || {
+                        validation::validate_runtime_proof_citations(&program, &|machine| {
+                            facts
+                                .termination
+                                .for_machine(machine)
+                                .map(|plan| plan.checked_summary.clone())
+                        })
+                    },
+                )
+            },
+        )
+    });
+    quotients?;
+    cleanup?;
+    citations?;
     facts
         .constant_recipe_obligations
         .extend(proof_recipe_obligations);
     crate::published::facts::refresh_realized_contract_envelopes(&mut facts);
 
-    let mut facts = phase_profile::scope(
-        "psi.05.finalize_execution_identities.finalize_execution",
-        || {
-            crate::execution::finalize_execution::finalize_execution(
-                &program,
-                facts,
-                typed_program.boundary_signatures(),
-            )
-        },
+    let mut facts = crate::execution::finalize_execution::finalize_execution(
+        &program,
+        facts,
+        typed_program.boundary_signatures(),
     )?;
-    phase_profile::checkpoint(
-        "after execution finalization",
-        "psi.05.finalize_execution_identities.finalize_execution",
-    );
-    facts.flow.semantic_dependencies = phase_profile::scope(
-        "psi.05.finalize_execution_identities.semantic_dependencies",
-        || crate::flow::derive_checked_semantic_dependencies(&program, &facts),
-    );
+    facts.flow.semantic_dependencies =
+        crate::flow::derive_checked_semantic_dependencies(&program, &facts);
 
     facts.specialization_identities = specialization_identities;
     // One retained identity row per admission-claim template, specialized or
     // not: consumers read the classification checking computed instead of
     // rerunning operational and service-reach inference for canonical bytes.
-    facts.accepted_template_identities = phase_profile::scope(
-        "psi.05.finalize_execution_identities.accepted_template_identities",
-        || {
-            checked_trees::CheckedAcceptedTemplateIdentities::with_rows(
+    facts.accepted_template_identities = {
+        checked_trees::CheckedAcceptedTemplateIdentities::with_rows(
                 program
                     .machines()
                     .iter()
@@ -512,71 +494,75 @@ fn check_program(
                     })
                     .collect(),
             )
-        },
-    );
-    drop(late_guard);
-    let final_guard = phase_profile::guard("psi.05.selections_custody_types_boundaries");
-    facts.finalized_selections = phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.finalize_selections",
-        || {
-            crate::shared::authored_selections::finalize_checked_authored_selections(
-                &program, &mut facts,
-            )
-            .map_err(|diagnostic| vec![diagnostic])
-        },
-    )?;
+    };
+    facts.finalized_selections =
+        crate::shared::authored_selections::finalize_checked_authored_selections(
+            &program, &mut facts,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
     // Visibility and cleanup consume checked choices over the same immutable
     // source. No cloned typed program or consumer fallback supplies this ledger.
     let finalized = program.with_authored_declaration_selections(&facts.finalized_selections);
-    phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.visibility_and_cleanup_selections",
-        || -> Result<(), Vec<diagnostics::Diagnostic>> {
-            validation::validate_reserved_cleanup_selections(&finalized)?;
-            validation::validate_declaration_visibility(&finalized)?;
-            Ok(())
-        },
-    )?;
-
-    // Classify borrow custody last: `program`'s type, machine and state
-    // tables stopped growing in preparation, after monomorphization, so a
-    // row recorded before preparation would miss
-    // the references and specialized states those added. Nothing below
-    // takes `program` mutably — `CheckedTrees::with_roots` only pairs it
+    // Visibility, cleanup selections and the six classifications below each
+    // read only `finalized` and produce their own result, so they run
+    // together on the checking pool. Results are consumed in the order the
+    // passes used to run: a visibility refusal still wins, and every fact
+    // lands in the same field. `program`'s type, machine and state tables
+    // stopped growing in preparation, after monomorphization, so a row
+    // recorded before preparation would miss the references and specialized
+    // states those added; recording before specialization or
+    // authored-selection finalization would miss generated bodies. Nothing
+    // here takes `program` mutably — `CheckedTrees::with_roots` only pairs it
     // with the facts — so neither table can grow past this point.
-    facts.reference_custody = phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.reference_custody",
-        || validation::reference_result_custody::classify_program_reference_custody(&finalized),
-    );
-    // Content classification rides the same placement, and for the same
-    // reason. The data-definition index it leans on is owned by `program`
-    // and keyed by table revision, so it still answers from cache here.
-    facts.content_classes = phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.content_classes",
-        || validation::classify_program_content_classes(&finalized),
-    );
-    // Retain place/result decisions under final occurrence handles. Recording
-    // before specialization or authored-selection finalization would miss the
-    // generated bodies; lowering must not repair an incomplete table itself.
-    facts.resolved_types = phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.resolved_types",
-        || crate::published::facts::resolved_types::resolve_program_types(&finalized),
-    );
-    facts.state_locals = phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.state_locals",
-        || crate::published::facts::state_locals::record_state_locals(&finalized),
-    );
-    facts.provider_closed_requirements = phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.provider_closed_requirements",
-        || {
-            crate::published::facts::provider_closed_requirements::record_provider_closed_requirements(
-                &finalized,
-            )
-        },
-    );
-    facts.executable_bindings = phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.executable_bindings",
-        || crate::published::facts::executable_bindings::record(&finalized),
-    );
+    let mut selections = None;
+    let mut reference_custody = None;
+    let mut content_classes = None;
+    let mut resolved_types = None;
+    let mut state_locals = None;
+    let mut provider_closed_requirements = None;
+    let mut executable_bindings = None;
+    {
+        let finalized = &finalized;
+        validation::checking_thread_pool().scope(|scope| {
+            scope.spawn(|_| {
+                selections = Some((|| -> Result<(), Vec<diagnostics::Diagnostic>> {
+                        validation::validate_reserved_cleanup_selections(finalized)?;
+                        validation::validate_declaration_visibility(finalized)?;
+                        Ok(())
+                    })());
+            });
+            scope.spawn(|_| {
+                reference_custody = Some(validation::reference_result_custody::classify_program_reference_custody(
+                            finalized,
+                        ));
+            });
+            scope.spawn(|_| {
+                content_classes = Some(validation::classify_program_content_classes(finalized));
+            });
+            scope.spawn(|_| {
+                resolved_types = Some(crate::published::facts::resolved_types::resolve_program_types(finalized));
+            });
+            scope.spawn(|_| {
+                state_locals = Some(crate::published::facts::state_locals::record_state_locals(finalized));
+            });
+            scope.spawn(|_| {
+                provider_closed_requirements = Some(crate::published::facts::provider_closed_requirements::record_provider_closed_requirements(
+                            finalized,
+                        ));
+            });
+            scope.spawn(|_| {
+                executable_bindings = Some(crate::published::facts::executable_bindings::record(finalized));
+            });
+        });
+    }
+    let filled = "every selection and classification pass ran";
+    selections.expect(filled)?;
+    facts.reference_custody = reference_custody.expect(filled);
+    facts.content_classes = content_classes.expect(filled);
+    facts.resolved_types = resolved_types.expect(filled);
+    facts.state_locals = state_locals.expect(filled);
+    facts.provider_closed_requirements = provider_closed_requirements.expect(filled);
+    facts.executable_bindings = executable_bindings.expect(filled);
     crate::published::facts::executable_bindings::freeze_contract_subjects(
         &finalized,
         &mut facts.proof,
@@ -703,22 +689,14 @@ fn check_program(
     )?;
     facts.proof.mathematical_signature = mathematics.signature;
     let mut checked = CheckedTrees::with_roots(typed_program, facts);
-    phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.boundary_and_portable_checks",
-        || -> Result<(), Vec<diagnostics::Diagnostic>> {
-            validation::validate_boundary_calls(&checked)?;
-            target_families::validate_portable_references(&checked)?;
-            crate::shared::operators::retain_boundary_body_candidates(&mut checked)
-                .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
-            crate::shared::operators::retain_provider_requirements(&mut checked);
-            Ok(())
-        },
-    )?;
-    drop(final_guard);
-    phase_profile::checkpoint(
-        "after final selections/custody/boundaries",
-        "psi.05.selections_custody_types_boundaries",
-    );
+    (|| -> Result<(), Vec<diagnostics::Diagnostic>> {
+        validation::validate_boundary_calls(&checked)?;
+        target_families::validate_portable_references(&checked)?;
+        crate::shared::operators::retain_boundary_body_candidates(&mut checked)
+            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+        crate::shared::operators::retain_provider_requirements(&mut checked);
+        Ok(())
+    })()?;
     crate::published::facts::declaration_descriptions::retain_declaration_descriptions(
         &mut checked,
     );

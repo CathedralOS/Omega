@@ -202,22 +202,41 @@ impl CompletedProviderDefaults {
         &self,
         admission: ProviderDefaultsAdmission<'_>,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
+        self.reached_source_seeds(admission, None)
+    }
+
+    pub(crate) fn reached_source_seeds(
+        &self,
+        admission: ProviderDefaultsAdmission<'_>,
+        loaded_sources: Option<&source::SourceMap>,
+    ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
         self.admit_activation(admission)?;
+        let package_sliced = match (&self.supplier, loaded_sources) {
+            (ProviderDefaultSupplier::Package(bundle), Some(sources)) => sources
+                .selected_files()
+                .any(|file| file.package_identity == Some(bundle.package())),
+            _ => false,
+        };
         let mut paths = Vec::new();
         for selection in self.selections() {
-            for anchor in [&selection.subject, &selection.provider] {
-                let source = self.admit_source(admission, anchor.source())?;
-                if source.resolution_stratum == SourceResolutionStratum::Base {
-                    paths.push(source.path);
-                }
+            let mut subject_paths = Vec::new();
+            let mut selection_paths = Vec::new();
+            let subject_source = self.admit_source(admission, selection.subject.source())?;
+            if subject_source.resolution_stratum == SourceResolutionStratum::Base {
+                subject_paths.push(subject_source.path.clone());
+                selection_paths.push(subject_source.path);
             }
-            for application in [
-                &selection.subject_application,
-                &selection.provider_application,
-            ]
-            .into_iter()
-            .flatten()
-            {
+            let provider_source = self.admit_source(admission, selection.provider.source())?;
+            if provider_source.resolution_stratum == SourceResolutionStratum::Base {
+                selection_paths.push(provider_source.path);
+            }
+            for (is_subject, application) in [
+                (true, &selection.subject_application),
+                (false, &selection.provider_application),
+            ] {
+                let Some(application) = application else {
+                    continue;
+                };
                 for span in application.declaration_spans() {
                     let file = application.sources.get(span.source_id).ok_or_else(|| {
                         vec![Diagnostic::error(
@@ -226,9 +245,21 @@ impl CompletedProviderDefaults {
                     })?;
                     let source = self.admit_source(admission, file)?;
                     if source.resolution_stratum == SourceResolutionStratum::Base {
-                        paths.push(source.path);
+                        if is_subject {
+                            subject_paths.push(source.path.clone());
+                        }
+                        selection_paths.push(source.path);
                     }
                 }
+            }
+            let reached = !package_sliced
+                || loaded_sources.is_none_or(|sources| {
+                    sources
+                        .selected_files()
+                        .any(|file| subject_paths.contains(&file.path))
+                });
+            if reached {
+                paths.extend(selection_paths);
             }
         }
         paths.sort();
@@ -290,6 +321,18 @@ impl CompletedProviderDefaults {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 application.sources = Arc::new(source::SourceMap::from_files(files));
+            }
+            let subject_loaded = source.typed().symbols.source_files().any(|file| {
+                file.dependency_scope == source::DependencyScope::Product
+                    && source
+                        .typed()
+                        .symbols
+                        .source_map()
+                        .is_none_or(|sources| sources.source_is_selected(file.source_id))
+                    && file.path == selected.subject.source().path
+            });
+            if !subject_loaded {
+                continue;
             }
             selections.push(
                 source

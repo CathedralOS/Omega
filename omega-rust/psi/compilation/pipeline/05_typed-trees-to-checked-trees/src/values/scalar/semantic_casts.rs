@@ -86,8 +86,7 @@ pub(crate) fn has_only_vacuous_tags(
                                 && domain.establishment_routes.is_empty()
                                 && domain_is_vacuous(program, domain.symbol, &mut Vec::new())
                         }
-                        TypeConstraintNode::Range { .. }
-                        | TypeConstraintNode::ArithmeticDomain(_) => true,
+                        TypeConstraintNode::ArithmeticDomain(_) => true,
                         TypeConstraintNode::Named(_) => false,
                     })
         }

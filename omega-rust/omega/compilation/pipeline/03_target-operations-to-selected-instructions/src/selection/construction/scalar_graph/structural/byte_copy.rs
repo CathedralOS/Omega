@@ -5,9 +5,10 @@
 use super::runtime_address::{Written, footprint_at_origin};
 use super::{Builder, SelectedInstructionKind, SelectedInstructionProvenance, transport_register};
 use crate::SelectedInstructionError;
+use crate::selection::extent_copy;
 use crate::selection::scalar_call_abi::load_transfer;
 use selected_instructions::{SelectedMemoryAccessOrigin, VirtualRegisterId};
-use semantic_vocabulary::{IntegerSign, IntegerValue, PlaceId};
+use semantic_vocabulary::{IntegerValue, PlaceId};
 
 /// An already projected pointer and its remaining static offset. Runtime
 /// selectors stay attached to the same exact source/destination extent.
@@ -30,7 +31,7 @@ pub(super) fn copy(
     // the existing independently validated byte loop, with the exact constant
     // count and both complete access rosters. The choice changes neither copy
     // permission nor value/descriptor custody established by the caller.
-    if byte_size > super::zero_fill::INLINE_HOME_MAX_BYTES {
+    if byte_size > extent_copy::INLINE_MAX_BYTES {
         let source = address(builder, &from, provenance.clone())?;
         let destination = address(builder, &to, provenance.clone())?;
         let count = transport_register(builder, to.place, 0)?;
@@ -39,35 +40,35 @@ pub(super) fn copy(
             count,
             provenance.clone(),
         )?;
-        let cursor = super::super::integer_arithmetic::instruction_scratch(
-            builder,
-            3,
-            IntegerSign::Unsigned,
-        )?;
-        let byte = super::super::integer_arithmetic::instruction_scratch(
-            builder,
-            4,
-            IntegerSign::Unsigned,
+        let key = builder.constraints.keys.copy_bytes.ok_or_else(|| {
+            SelectedInstructionError::custody_because(
+                "exact extent copy has no admitted byte-copy form",
+            )
+        })?;
+        let instruction = selected_instructions::SelectedInstructionId(
+            builder
+                .instructions
+                .len()
+                .try_into()
+                .map_err(|_| SelectedInstructionError::custody())?,
+        );
+        let operands = extent_copy::bulk_operands(
+            instruction,
+            [source, destination, count],
+            key,
+            builder.catalog,
+            &mut builder.registers,
         )?;
         access(builder, origin, &from, 0, byte_size, Written::None)?;
         access(builder, origin, &to, 0, byte_size, Written::Structural)?;
         return builder.emit(
             SelectedInstructionKind::CopyBytes,
-            builder.constraints.keys.copy_bytes.ok_or_else(|| {
-                SelectedInstructionError::custody_because(
-                    "exact extent copy has no admitted byte-copy form",
-                )
-            })?,
-            &[source, destination, count, cursor, byte],
+            key,
+            &operands,
             provenance,
         );
     }
-    let mut cursor = 0u32;
-    while cursor < byte_size {
-        let width = [8u8, 4, 2, 1]
-            .into_iter()
-            .find(|width| u32::from(*width) <= byte_size - cursor)
-            .expect("one byte fits a nonempty remainder");
+    for (cursor, width) in extent_copy::chunks(byte_size) {
         let offset = from
             .byte_offset
             .checked_add(cursor)
@@ -118,7 +119,6 @@ pub(super) fn copy(
             Written::Structural,
         )?;
         builder.emit_store(displacement, width, output, value, provenance.clone())?;
-        cursor += u32::from(width);
     }
     Ok(())
 }

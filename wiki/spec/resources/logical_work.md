@@ -1,6 +1,6 @@
 # Logical work and response bounds
 
-[Terminal product](../terminal-psi/product.md) |
+[Psi product](../terminal-psi/product.md) |
 [Spatial resources](storage.md) | [Observation semantics](../terminal-psi/observations.md)
 
 ## Fuel is an accounting domain
@@ -28,6 +28,31 @@ evaluator/Psi semantics, and schedule, never host load or elapsed time.
 Long terminating builds remain legal. Progress reporting, warnings, cache
 accounting, and optional root-selected ceilings consume the meter without
 turning its policy into language semantics.
+
+## Proof discovery and evidence checking
+
+[Index compatibility](../proofs/contracts.md#proved-index-compatibility) separates
+proof discovery from semantic identity and from checking supplied evidence.
+Root [Build proof-work policy](../build/configuration.md#proof-work-policy)
+records the automatic expansion allowance, defaulting to 64 resulting terms
+per product expansion. This is a search-strategy ceiling; it is neither a
+canonical normalization limit nor the Terminal fuel schedule.
+
+Sponsor discovery as compiler work and retain its exact scope, effective
+policy, algorithm/accounting version, usage and outcome. Proof-engine work
+does not silently acquire runtime fuel units: use a named versioned compiler
+account, with its resource bounds/receipts, and charge before admitted work.
+An increased expansion allowance does not waive another work or storage limit.
+Missing proof or exhausted resources cannot establish a negative proposition.
+
+A successfully checked compatibility derivation is evidence, not a record that
+a search once returned true. Generic substitution carries that derivation.
+A published artifact consumer verifies its evidence under ordinary trust and
+verification-resource admission without rerunning discovery under the consumer's
+search limit. Importing a proof does not charge historical producer search.
+Local cached work remains subject to
+[usage-record accounting](../language/evaluation.md#result-caching-and-published-evidence).
+Verification exhaustion must be diagnosed separately from unsuccessful search.
 
 ## Composition and charged work
 

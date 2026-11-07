@@ -28,6 +28,7 @@ mod operator_spellings;
 pub(crate) use operator_spellings::OperatorSpellingRow;
 use operator_spellings::{DomainDeclarationScope, OperatorSpellingIndex, OperatorSpellingScope};
 mod relationships;
+pub(super) use relationships::SymbolRows;
 mod requirement_applications;
 use crate::types::TypeReferenceHandle;
 use relationships::{DataMemberIndex, StateDeclarationIndex, StateDeclarationRevision};
@@ -111,20 +112,14 @@ fn roots_fingerprint(roots: &crate::typed_trees::TypedTreeRoots) -> u64 {
 /// Stored states in full-symbol order, retaining their machine and local
 /// positions. Stable sorting preserves authored order, including duplicates;
 /// first-match, entry-only and ambiguity readers use the same relationship.
-#[derive(Clone, Default)]
-struct StatePositionIndex {
-    rows: Vec<(SymbolHandle, (u32, u32))>,
-}
+type StatePositionIndex = SymbolRows<(u32, u32)>;
 
 pub use super::data_definitions::DataDefinitionIndex;
 
 /// Domain-definition roster: the first position per symbol, matching the
 /// roster `find` the index replaces. Shared by the in-crate proof readers
 /// and the checked stage's field-domain walkers.
-#[derive(Clone, Default)]
-struct DomainPositionIndex {
-    by_symbol: HashMap<SymbolHandle, usize>,
-}
+type DomainPositionIndex = SymbolRows<usize>;
 
 /// Call-target lookup for service-reach inference: the machines, machine
 /// type parameters, traits, trait signatures, and parameter contracts the
@@ -244,14 +239,20 @@ impl super::TypedTrees {
         self.with_operator_spelling_index(|_| ());
         let indexes = &mut self.declaration_indexes;
         self.tables.machines.seal();
-        indexes.states.seal();
-        indexes.state_declarations.seal();
-        indexes.data_members.seal();
+        // Sealed symbol rows also gain their direct per-index table here, the
+        // one build that no later rewrite can repeat.
+        indexes.states.seal_with(SymbolRows::densify);
+        indexes
+            .state_declarations
+            .seal_with(StateDeclarationIndex::densify);
+        indexes.data_members.seal_with(DataMemberIndex::densify);
         self.tables.data_definitions.seal();
         self.tables.data_type_parameters.seal();
-        indexes.domains.seal();
+        indexes.domains.seal_with(SymbolRows::densify);
         indexes.call_targets.seal();
-        indexes.requirement_applications.seal();
+        indexes
+            .requirement_applications
+            .seal_with(RequirementApplicationIndex::densify);
         indexes.operator_spellings.seal();
     }
 
@@ -323,20 +324,14 @@ impl super::TypedTrees {
             return None;
         }
         self.with_machine_position_index(|index| {
-            relationships::first_symbol_row(&index.rows, symbol)
-                .map(|(_, position)| *position as usize)
+            index.first(symbol).map(|position| *position as usize)
         })
     }
 
     /// Every machine carrying the exact symbol, in declaration order. Unlike
     /// the first-match query, ambiguity consumers need all duplicate rows.
     pub fn machine_positions_for_symbol(&self, symbol: SymbolHandle) -> Vec<u32> {
-        self.with_machine_position_index(|index| {
-            relationships::symbol_rows(&index.rows, symbol)
-                .iter()
-                .map(|(_, position)| *position)
-                .collect()
-        })
+        self.with_machine_position_index(|index| index.get(symbol).to_vec())
     }
 
     fn with_machine_position_index<R>(&self, run: impl FnOnce(&MachinePositionIndex) -> R) -> R {
@@ -382,12 +377,13 @@ impl super::TypedTrees {
             return None;
         }
         self.with_state_position_index(|index| {
-            relationships::symbol_rows(&index.rows, state)
+            index
+                .get(state)
                 .iter()
-                .find(|(_, (machine_position, _))| {
+                .find(|(machine_position, _)| {
                     self.machines()[*machine_position as usize].symbol == machine
                 })
-                .map(|(_, (_, state_position))| *state_position as usize)
+                .map(|(_, state_position)| *state_position as usize)
         })
     }
 
@@ -409,20 +405,16 @@ impl super::TypedTrees {
     pub(super) fn with_state_positions_for_symbol<R>(
         &self,
         symbol: SymbolHandle,
-        read: impl FnOnce(&[(SymbolHandle, (u32, u32))]) -> R,
+        read: impl FnOnce(&[(u32, u32)]) -> R,
     ) -> R {
-        self.with_state_position_index(|index| {
-            read(relationships::symbol_rows(&index.rows, symbol))
-        })
+        self.with_state_position_index(|index| read(index.get(symbol)))
     }
 
     /// All stored occurrences, in authored traversal order. Copy only matching
     /// coordinates so consumers can query declarations without retaining an
     /// index lock. Symbol-table parent edges are not storage membership.
     pub(crate) fn state_positions_for_symbol(&self, symbol: SymbolHandle) -> Vec<(u32, u32)> {
-        self.with_state_positions_for_symbol(symbol, |positions| {
-            positions.iter().map(|(_, position)| *position).collect()
-        })
+        self.with_state_positions_for_symbol(symbol, |positions| positions.to_vec())
     }
 
     /// First machine whose own symbol or stored state names `symbol`, matching
@@ -431,12 +423,11 @@ impl super::TypedTrees {
         &self,
         symbol: SymbolHandle,
     ) -> Option<&machine::Machine> {
-        let direct = self.with_machine_position_index(|index| {
-            relationships::first_symbol_row(&index.rows, symbol).map(|(_, position)| *position)
-        });
+        let direct = self.with_machine_position_index(|index| index.first(symbol).copied());
         let containing = self.with_state_position_index(|index| {
-            relationships::first_symbol_row(&index.rows, symbol)
-                .map(|(_, (machine_position, _))| *machine_position)
+            index
+                .first(symbol)
+                .map(|(machine_position, _)| *machine_position)
         });
         let position = match (direct, containing) {
             (Some(direct), Some(containing)) => direct.min(containing),
@@ -452,10 +443,11 @@ impl super::TypedTrees {
         symbol: SymbolHandle,
     ) -> Option<(&machine::Machine, &crate::state::State)> {
         let machine_position = self.with_state_position_index(|index| {
-            relationships::symbol_rows(&index.rows, symbol)
+            index
+                .get(symbol)
                 .iter()
-                .find(|(_, (_, state_position))| *state_position == 0)
-                .map(|(_, (machine_position, _))| *machine_position)
+                .find(|(_, state_position)| *state_position == 0)
+                .map(|(machine_position, _)| *machine_position)
         })?;
         let machine = &self.machines()[machine_position as usize];
         Some((machine, &self.machine_states(machine)[0]))
@@ -468,10 +460,11 @@ impl super::TypedTrees {
         symbol: SymbolHandle,
     ) -> Option<(&machine::Machine, &crate::state::State)> {
         let machine_position = self.with_state_position_index(|index| {
-            let mut entries = relationships::symbol_rows(&index.rows, symbol)
+            let mut entries = index
+                .get(symbol)
                 .iter()
-                .filter(|(_, (_, state_position))| *state_position == 0)
-                .map(|(_, (machine_position, _))| *machine_position);
+                .filter(|(_, state_position)| *state_position == 0)
+                .map(|(machine_position, _)| *machine_position);
             let first = entries.next()?;
             entries.next().is_none().then_some(first)
         })?;
@@ -480,17 +473,16 @@ impl super::TypedTrees {
     }
 
     fn build_state_positions(&self) -> StatePositionIndex {
-        let mut index = StatePositionIndex::default();
+        let mut rows = Vec::new();
         for (machine_position, machine) in self.machines().iter().enumerate() {
             for (state_position, state) in self.machine_states(machine).iter().enumerate() {
-                index.rows.push((
+                rows.push((
                     state.symbol,
                     (machine_position as u32, state_position as u32),
                 ));
             }
         }
-        relationships::sort_symbol_rows(&mut index.rows);
-        index
+        SymbolRows::new(rows)
     }
 
     fn with_type_parameter_index<Result>(
@@ -505,11 +497,9 @@ impl super::TypedTrees {
     pub(super) fn with_type_parameter_declarations<R>(
         &self,
         symbol: SymbolHandle,
-        read: impl FnOnce(&[(SymbolHandle, Handle<data::TypeParameter>)]) -> R,
+        read: impl FnOnce(&[Handle<data::TypeParameter>]) -> R,
     ) -> R {
-        self.with_type_parameter_index(|index| {
-            read(relationships::symbol_rows(&index.rows, symbol))
-        })
+        self.with_type_parameter_index(|index| read(index.get(symbol)))
     }
 
     /// Resolve the last arena occurrence of this exact parameter symbol,
@@ -532,11 +522,7 @@ impl super::TypedTrees {
         if !symbol.is_valid() {
             return None;
         }
-        self.with_type_parameter_index(|index| {
-            relationships::symbol_rows(&index.rows, symbol)
-                .last()
-                .map(|(_, handle)| *handle)
-        })
+        self.with_type_parameter_index(|index| index.get(symbol).last().copied())
     }
 
     /// Resolve the first live arena occurrence before a consumer tests its kind.
@@ -548,9 +534,7 @@ impl super::TypedTrees {
         if !symbol.is_valid() {
             return None;
         }
-        let handle = self.with_type_parameter_index(|index| {
-            relationships::first_symbol_row(&index.rows, symbol).map(|(_, handle)| *handle)
-        })?;
+        let handle = self.with_type_parameter_index(|index| index.first(symbol).copied())?;
         Some(self.data_type_parameters.get(handle))
     }
 
@@ -617,18 +601,16 @@ impl super::TypedTrees {
         self.declaration_indexes.domains.with(
             self.domain_declaration_scope(),
             || {
-                let definitions = self.domain_definitions();
-                let mut by_symbol = HashMap::with_capacity_and_hasher(
-                    definitions.len(),
-                    symbols::BuildSymbolHasher,
-                );
-                for (position, domain) in definitions.iter().enumerate() {
-                    // `find` returns the first matching row; keep it.
-                    by_symbol.entry(domain.symbol).or_insert(position);
-                }
-                DomainPositionIndex { by_symbol }
+                SymbolRows::new(
+                    self.domain_definitions()
+                        .iter()
+                        .enumerate()
+                        .map(|(position, domain)| (domain.symbol, position))
+                        .collect(),
+                )
             },
-            |index| index.by_symbol.get(&symbol).copied(),
+            // `find` returns the first matching row; keep it.
+            |index| index.first(symbol).copied(),
         )
     }
 

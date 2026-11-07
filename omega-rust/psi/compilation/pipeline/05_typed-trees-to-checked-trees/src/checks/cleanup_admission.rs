@@ -98,9 +98,9 @@ pub(crate) fn validate_selected_cleanup_guarantees(
         let calls_complete = facts
             .flow
             .control
-            .states
-            .iter()
-            .filter(|(_, state)| state.machine_symbol == target)
+            .machine_states(target)
+            .into_iter()
+            .map(|state| ((), state))
             .all(|(_, state)| {
                 crate::flow::call_flows(&facts.flow.control, state.calls)
                     .iter()

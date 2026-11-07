@@ -70,8 +70,10 @@ fn apply_fact_pruning(
         });
     facts
         .contract_plans
-        .machines
+        .machines_mut()
         .retain(|row| retained.contains(&row.machine));
+    // The kept plans are final; republish their index for later lookups.
+    facts.contract_plans.index_machines();
     facts
         .contract_plans
         .realized_envelopes

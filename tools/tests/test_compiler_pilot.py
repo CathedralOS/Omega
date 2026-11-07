@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import sys
 import tempfile
 import unittest
@@ -1296,6 +1297,71 @@ class CompilerPilotTests(unittest.TestCase):
             interpreter.write_text("0")
             with self.assertRaisesRegex(ValueError, "matching native and interpreter"):
                 pilot.ordinary_cli_fixture.expected_exit(root, sample, "linux_x86_64")
+
+
+class CompilerPilotCacheWorkflowTests(unittest.TestCase):
+    workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/compiler-pilot.yml").read_text()
+
+    def step_field(self, name, field):
+        step = next(block for block in self.workflow.split("\n      - ")
+                    if block.startswith("name: " + name + "\n") or "\n        id: " + name + "\n" in block)
+        return re.search(r"^\s+" + field + r": (.+)$", step, re.MULTILINE).group(1)
+
+    def evaluate(self, expression, values):
+        # Exercise the authored workflow decision rather than a second policy.
+        # Unknown contexts or expression functions make the control fail.
+        expression = expression.replace("always()", "True").replace("cancelled()", repr(values["cancelled"]))
+        for name, value in sorted(values.items(), key=lambda item: -len(item[0])):
+            if name != "cancelled":
+                expression = expression.replace(name, repr(value))
+        expression = expression.replace("&&", " and ").replace("||", " or ")
+        expression = re.sub(r"!(?!=)", " not ", expression)
+        return eval(expression.strip(), {"__builtins__": {}}, {})
+
+    def test_only_completed_preparation_publishes_an_immutable_producer_cache(self):
+        condition = self.step_field("Save build cache before fixture observations", "if")
+        for preparation, restored, hit, cancelled, checked, expected in (
+            ("success", "success", "false", False, "success", True),
+            ("failure", "success", "false", False, "success", False),
+            ("skipped", "success", "false", False, "success", False),
+            ("success", "success", "true", False, "success", False),
+            ("success", "skipped", "", False, "success", False),
+            ("success", "success", "false", True, "success", False),
+            ("success", "success", "false", False, "failure", False),
+        ):
+            with self.subTest(preparation=preparation, restored=restored, hit=hit,
+                              cancelled=cancelled, checked=checked):
+                self.assertEqual(self.evaluate(condition, {
+                    "cancelled": cancelled,
+                    "steps.compiler-check.outcome": checked,
+                    "steps.producer-preparation.outcome": preparation,
+                    "steps.build-cache.outcome": restored,
+                    "steps.build-cache.outputs.cache-hit": hit,
+                    # A later consumer failure must not erase this producer.
+                    "steps.observations.outcome": "failure",
+                }), expected)
+
+    def test_cache_keys_separate_partial_objects_and_executable_rosters(self):
+        key = self.step_field("build-cache", "key")
+        values = {
+            "runner.os": "Linux", "runner.arch": "ARM64", "github.sha": "a" * 40,
+            "hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml')": "b" * 64,
+            "cancelled": False,
+        }
+        ordinary = "compiler-regression-Linux-ARM64-" + "b" * 64 + "-" + "a" * 40
+        for fixtures, samples, cli, roster in (
+            ("", "", "", "with-runner"),  # Default smoke.
+            ("fail/example/control", "", "", "with-runner"),
+            ("", "samples/cli/facts/example", "", "cli"),
+            ("", "", "pass/example/exit", "cli"),
+            ("pass/example/exit", "", "pass/another/exit", "with-runner"),
+        ):
+            with self.subTest(fixtures=fixtures, samples=samples, cli=cli):
+                contexts = dict(values, **{"inputs.fixtures": fixtures, "inputs.samples": samples,
+                                          "inputs.cli_fixtures": cli})
+                resolved = re.sub(r"\$\{\{(.*?)\}\}",
+                                  lambda match: str(self.evaluate(match[1], contexts)), key)
+                self.assertEqual(resolved, ordinary + "-prepared-v1-" + roster)
 
 
 if __name__ == "__main__":

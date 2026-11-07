@@ -121,15 +121,6 @@ pub(crate) fn build_flow_facts(
     };
 
     let groups = machine_groups(program, borrow);
-    phase_profile::count("psi.05.build_check_facts.flow.groups", groups.len() as u64);
-    phase_profile::count(
-        "psi.05.build_check_facts.flow.max_group_machines",
-        groups
-            .iter()
-            .map(|group| group.machines.len())
-            .max()
-            .unwrap_or(0) as u64,
-    );
     let mut flow = build_groups(&inputs, &groups, &new_build, semantic);
     attach_reach_summaries(program, &mut flow, service_reaches, operational);
     flow
@@ -256,11 +247,24 @@ fn build_split_group<'plans>(
         replays.push(replay);
         part_pages.push((pages, semantic_pages));
     }
-    super::state_values::seed_contract_inputs(inputs.program, build, &group.machines);
-    let replayed = converge(inputs, semantic, build, &group.machines, &mut replays).is_some()
+    // From here on only a part may write its own rows; seeds are attributed to
+    // the machine that owns them, in the same order the serial build seeds.
+    build.replay_guard = Some(super::state_values::ReplayGuard::new(
+        inputs.program.machines().len(),
+        &group.independent_parts,
+    ));
+    for &position in &group.machines {
+        if let Some(guard) = build.replay_guard.as_mut() {
+            guard.set_writer(position);
+        }
+        super::state_values::seed_contract_inputs(inputs.program, build, &[position]);
+    }
+    let replayed = replay_guard_holds(build)
+        && converge(inputs, semantic, build, &group.machines, &mut replays).is_some()
         && replays
             .iter()
             .all(|replay| replay.cursor == replay.visits.len());
+    build.replay_guard = None;
     if !replayed {
         build.take_output_pages();
         semantic.clone_from(inputs.baseline);
@@ -327,7 +331,6 @@ fn converge<'plans>(
         .sum::<usize>();
     let mut pass = 0;
     while pass < pass_limit {
-        phase_profile::count("psi.05.build_check_facts.flow.inner_passes", 1);
         if pass != 0 {
             build.discard_output();
             semantic.clone_from(inputs.baseline);
@@ -340,7 +343,8 @@ fn converge<'plans>(
             complete_pass,
             pass,
             replays,
-        ) {
+        ) || !replay_guard_holds(build)
+        {
             return None;
         }
         // Each newly reached field contributes one literal and its finite
@@ -392,6 +396,9 @@ fn sweep<'plans>(
     };
     for &position in machines {
         let machine = &inputs.program.machines()[position];
+        if let Some(guard) = build.replay_guard.as_mut() {
+            guard.set_writer(position);
+        }
         let mut replay = replays
             .iter_mut()
             .find(|replay| replay.machines.binary_search(&position).is_ok());
@@ -427,7 +434,6 @@ fn sweep<'plans>(
                 semantic.begin_page(page);
                 paged = true;
             }
-            phase_profile::count("psi.05.build_check_facts.flow.states_visited", 1);
             // Clear before transfer: a self/back edge may dirty this state
             // again. A later destination can still run in this same sweep.
             build
@@ -650,4 +656,12 @@ fn machine_groups(
 struct MachineGroup {
     machines: Vec<usize>,
     independent_parts: Vec<Vec<usize>>,
+}
+
+/// No delivery outside a replayed part reached one of its rows.
+fn replay_guard_holds(build: &FlowBuildContext<'_>) -> bool {
+    build
+        .replay_guard
+        .as_ref()
+        .is_none_or(super::state_values::ReplayGuard::holds)
 }

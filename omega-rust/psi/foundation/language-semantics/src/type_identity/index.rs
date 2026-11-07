@@ -22,19 +22,6 @@ pub(super) fn array_length(
     }
 }
 
-/// An open endpoint whose end is excluded wraps its whole operand. Nothing else
-/// writes that wrapper, so no other position reads it.
-pub(super) fn range_endpoint(
-    reader: &mut Reader<'_>,
-    visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
-) -> Result {
-    if reader.peek::<IndexForm>() == Some(IndexForm::ExclusiveEnd) {
-        reader.production::<IndexForm>()?;
-        return compound(reader, visitor, expression);
-    }
-    expression(reader, visitor)
-}
-
 pub(super) fn expression(
     reader: &mut Reader<'_>,
     visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
@@ -197,8 +184,8 @@ pub(super) fn expression(
             reader.expect(b',')?;
             expression(reader, visitor)
         }),
-        // Both are positioned: an endpoint wrapper and a static operand.
-        IndexForm::ExclusiveEnd | IndexForm::StaticApplication => Err(Error::MalformedIdentity),
+        // Static operands belong only to their designated application position.
+        IndexForm::StaticApplication => Err(Error::MalformedIdentity),
         IndexForm::UnsupportedConstSubstitution | IndexForm::UnboundMatchSubject => {
             Err(unadmitted(Unadmitted::InvalidIdentity))
         }

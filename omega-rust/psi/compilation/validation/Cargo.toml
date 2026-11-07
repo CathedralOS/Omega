@@ -17,7 +17,6 @@ checked-trees = { path = "../representations/checked-trees" }
 optimization = { path = "../../foundation/optimization" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 diagnostics = { path = "../../foundation/diagnostics" }
-phase-profile = { path = "../../foundation/phase-profile" }
 rayon = "1.10"
 flow-effects = { path = "../../foundation/flow-effects" }
 facts = { path = "../representations/checked-trees/facts" }

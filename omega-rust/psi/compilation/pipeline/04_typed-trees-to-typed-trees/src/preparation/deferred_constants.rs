@@ -75,11 +75,6 @@ pub(super) fn require_evaluated_constants(
         .filter(|expression| references.expressions.contains(expression))
         .filter(|expression| {
             !program
-                .constant_recipe_for_range_endpoint(**expression)
-                .is_valid()
-        })
-        .filter(|expression| {
-            !program
                 .constant_recipe_for_contract_expression(**expression)
                 .is_valid()
         })

@@ -405,15 +405,8 @@ pub(crate) fn predicate_type_contexts(
                             .iter_mut()
                             .map(|(visitor, _)| visitor as &mut dyn StructuralPrefixVisitor)
                             .collect::<Vec<_>>();
-                        phase_profile::scope("psi.05.overloads.prefix_observation", || {
-                            observe_runtime_state_prefix_batched(
-                                program,
-                                machine,
-                                state,
-                                &mut members,
-                            )
+                        observe_runtime_state_prefix_batched(program, machine, state, &mut members)
                             .is_some()
-                        })
                     };
                     for (_, walked_here) in group {
                         *walked_here = walked;

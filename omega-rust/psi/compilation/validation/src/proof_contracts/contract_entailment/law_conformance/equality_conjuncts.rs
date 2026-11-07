@@ -426,17 +426,13 @@ impl SourceCorrespondence {
             let right = program.expression_table.expression(provided);
             let call_value_difference = matches!(
                 (left, right),
+                (ExpressionNode::Call(_), _) | (_, ExpressionNode::Call(_))
+            ) && !matches!(
+                (left, right),
                 (
                     ExpressionNode::Call(_),
-                    ExpressionNode::StructLiteral(_)
-                        | ExpressionNode::Integer(_)
-                        | ExpressionNode::Boolean(_)
-                ) | (
-                    ExpressionNode::StructLiteral(_)
-                        | ExpressionNode::Integer(_)
-                        | ExpressionNode::Boolean(_),
-                    ExpressionNode::Call(_)
-                )
+                    ExpressionNode::Call(_) | ExpressionNode::Binary(_)
+                ) | (ExpressionNode::Binary(_), ExpressionNode::Call(_))
             );
             if call_value_difference {
                 if !neutral_operation_payloads(program, required, &mut remaining_work)
@@ -691,6 +687,3 @@ pub(crate) fn collect_equality_conjuncts<'scope>(
     }
     complete
 }
-
-#[cfg(test)]
-mod tests;

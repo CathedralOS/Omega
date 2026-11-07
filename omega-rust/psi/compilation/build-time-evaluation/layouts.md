@@ -100,7 +100,7 @@ predicates and arithmetic bounds refuse production. These facts describe
 geometry only; they grant no custody, backing or memory-access authority.
 They do not turn an arbitrary runtime argument into a layout constant.
 
-[Record storage geometry](../../../../samples/cli/layouts/record_geometry/README.md)
+[Record storage geometry](../../../../samples/cli/probes/record_geometry/README.md)
 exercises the supported value flow through native and Terminal execution;
 `tests/omega/fail/layouts/` pins overflow, overwritten values and unselected
 target applications.

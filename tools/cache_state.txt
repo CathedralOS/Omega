@@ -83,11 +83,8 @@
 2 omega-rust/psi/compilation/validation/src/machine_calls/calls/write_frames/boundary_calls.rs
 4 omega-rust/psi/compilation/validation/src/machine_calls/calls/write_frames/isolation.rs
 3 omega-rust/psi/compilation/validation/src/proof_contracts/arithmetic_domains/ordered_values/congruence.rs
-1 omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/completed_values.rs
-1 omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/operand_fits.rs
-3 omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment.rs
+2 omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment.rs
 2 omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs
-1 omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment/resolution_inputs.rs
 2 omega-rust/psi/compilation/validation/src/value_custody/completed_storage/reference_captures.rs
 1 omega-rust/psi/foundation/arena/src/lib.rs
 9 omega-rust/psi/foundation/arena/src/owned_index.rs

@@ -56,7 +56,7 @@ fn complete_census_retains_exact_evidence_and_excludes_fresh_specialized_instanc
     checked
         .facts
         .contract_plans
-        .machines
+        .machines_mut()
         .push(MachineContractPlan {
             machine: SymbolHandle::from_arena_index(1),
             closed_scalar_values: Default::default(),
@@ -109,7 +109,7 @@ fn duplicate_classifications_and_contracts_are_deferred_without_selecting_the_fi
     checked
         .facts
         .contract_plans
-        .machines
+        .machines_mut()
         .extend([contract.clone(), contract]);
     let declarations = collect(&checked);
     assert_eq!(

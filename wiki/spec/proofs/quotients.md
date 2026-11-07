@@ -12,9 +12,9 @@ relation terms, logical hypotheses and existence evidence without quantifier
 keywords. Schematic relation notation below is mathematics, not an extra declaration form.
 These rules imply no arbitrary runtime value-to-type computation or layout.
 
-The set-quotient foundation below is the selected assumption-bearing interface,
-not a completed implementation. It adds no primitive quotient reductions or
-general higher inductive types to the [selected foundation](foundation.md).
+The set-quotient foundation below is an assumption-bearing interface.
+It adds no primitive quotient reductions or general higher inductive types to
+the [selected foundation](foundation.md).
 The laws, their interpretation and executable adapters must be checked under
 the stated assumption policy before claiming the corresponding guarantee.
 
@@ -109,9 +109,8 @@ runtime representation and axiom admission are separate judgments.
 Acceptance pairs a quotient operation with its representative-level theorem
 under a policy refusing quotient assumptions. The integration control depends
 on conversion-independent transitive assumption closure, including helper types
-and statements. Specify the control now; closure implementation is a named
-dependency, not a reason to claim the test already passes. Also reject
-representative-sensitive observation, illicit squash extraction, unavailable
+and statements. Also reject representative-sensitive observation, illicit
+squash extraction, unavailable
 set-valued elimination evidence and universe lowering without justification.
 
 ### Execution through ordinary checked bodies
@@ -369,6 +368,3 @@ rejects.
 The correspondence is a checking judgment only. Terminal Psi does not retain
 it, and it grants no executable operation: executable demand follows
 [ordinary checked-body realization](#execution-through-ordinary-checked-bodies).
-[Validation support](../../../omega-rust/psi/compilation/validation/README.md#quotient-correspondence)
-records producer limits; `QUOTIENT-THEOREM-LIFT` and `PROOF-CONTRACT-MIGRATION`
-on the [execution board](../../../TASKS.md) own the remaining implementation.

@@ -47,6 +47,23 @@ next clause belongs to the enclosing machine. `terminates`, `suspends`, and
 `blocks` have no special punctuation. See the
 [header delimiter rule](../spec/language/state_contracts.md#machine-header-delimiters).
 
+## Operational Inference And Public Contracts
+
+A machine is private unless marked `public`. Private checked bodies may infer
+suspension and blocking from their calls. On public surfaces, omitting `suspends`
+or `blocks` forbids the corresponding behavior; a public generic declares the
+ceilings permitted by its originating callback requirements.
+
+A checked generic also publishes the dependencies of suspension/blocking on its
+static callbacks. Callers substitute the selected contracts into that summary.
+The generic body acknowledges the callback's upper bound, while callers
+acknowledge their specialized envelope. See the complete
+[public callback example](chapter_19_capabilities_effects_boundaries.md#suspension-and-blocking-through-callbacks).
+
+A wrapper can [inherit an exact forwarded callback requirement](chapter_13_generics.md#forwarding-a-callback-contract)
+instead of repeating its clause, whether public or private. This publishes a
+checked requirement; it does not guess a trait from a direct call's shape.
+
 ## One Construct, Several Uses
 
 The same machine can be called at runtime and evaluated by the compiler when

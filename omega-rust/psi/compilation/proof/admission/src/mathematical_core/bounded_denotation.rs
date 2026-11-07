@@ -2,14 +2,14 @@
 //! core.
 //!
 //! `crate::proof` re-decides the bounded `ProofNode`/`Proposition`
-//! certificate language — the shape every shipped certificate producer
-//! emits, from the contract-entailment assumption discharge in
+//! certificate language used by source proof producers, from the
+//! contract-entailment assumption discharge in
 //! `typed-trees-to-checked-trees` upward — directly. This module is the
 //! second, independent route the board item names: the same certificate
 //! is denoted proposition-by-proposition and rule-by-rule into the common
 //! core's terms, and the resulting judgment is re-decided by
 //! [`verify_mathematical_certificate`]. `accept_certificate` consults it
-//! on every acceptance, so a shipped certificate discharging a machine's
+//! on every acceptance, so a supplied certificate discharging a machine's
 //! `ensures` obligation — a theorem such as `requires a == b ensures
 //! b == a` — is judged by the kernel at admission, and the acceptance
 //! records `MathematicalCoreDecision::Judged` with the judgment's

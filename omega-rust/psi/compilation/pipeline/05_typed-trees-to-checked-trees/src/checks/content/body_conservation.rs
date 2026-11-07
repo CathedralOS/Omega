@@ -253,46 +253,106 @@ pub(crate) struct ConservationSites {
         arena::Handle<checked_trees::FlowStateOutgoingFact>,
         arena::Handle<checked_trees::FlowOperandFact>,
     )>,
+    /// Site positions grouped by completed value, in first-appearance order.
+    groups: Vec<Vec<usize>>,
 }
 
 impl ConservationSites {
-    pub(crate) fn len(&self) -> usize {
-        self.sites.len()
+    /// How many completed values the sites ask about.
+    pub(crate) fn groups(&self) -> usize {
+        self.groups.len()
     }
 
-    /// Answer one site's candidate query and, when admitted, its domains.
-    pub(crate) fn answer(
+    /// Answer every site of one completed value: each candidate query and,
+    /// when admitted, its domains, as `(site position, answer)`. Every plan
+    /// and domain asks about the same completed value, so one shared proof
+    /// walk answers them together; a question it does not prove is asked
+    /// alone, exactly as before.
+    pub(crate) fn answer_group(
         &self,
         program: &dyn validation::CheckingInput,
         facts: &CheckFacts,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
-        site: usize,
-    ) -> ConservationCandidate {
-        let (plan, plan_index, returned_at, completed_value) = self.sites[site];
-        let (plan, output_projections) = &self.plans[plan];
-        let admitted =
-            has_conservation_candidate(program, facts, machine, state, completed_value, plan);
+        group: usize,
+    ) -> Vec<(usize, ConservationCandidate)> {
+        let sites = &self.groups[group];
+        let completed_value = self.sites[sites[0]].3;
         let captured = facts.flow.control.operands.get(completed_value);
-        let site = (captured.statement_index, captured.expression);
-        let proven_domains = if admitted {
-            output_projections
-                .iter()
-                .map(|(domain, path)| {
-                    let answer = proves_domain(program, machine, state, site, *domain, path);
-                    (*domain, path.clone(), answer)
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
-        ConservationCandidate {
-            plan_index,
-            returned_at,
-            completed_value,
-            admitted,
-            proven_domains,
+        let plans = sites
+            .iter()
+            .map(|&site| &self.plans[self.sites[site].0].0)
+            .collect::<Vec<_>>();
+        let mut domains: Vec<(symbols::SymbolHandle, &[facts::PlaceSegment])> = Vec::new();
+        for &site in sites {
+            for (domain, path) in &self.plans[self.sites[site].0].1 {
+                if !domains
+                    .iter()
+                    .any(|(known, known_path)| known == domain && *known_path == path.as_slice())
+                {
+                    domains.push((*domain, path));
+                }
+            }
         }
+        let (shared_candidates, shared_domains) = validation::completed_value_conservation_answers(
+            program,
+            machine,
+            state,
+            &validation::CompletedConservationQueries {
+                statement_index: captured.statement_index,
+                expression: captured.expression,
+                reference: captured.type_reference,
+                plans: &plans,
+                projections: &facts.qualifications.content.plans,
+                domains: &domains,
+            },
+        );
+        let site = (captured.statement_index, captured.expression);
+        sites
+            .iter()
+            .zip(shared_candidates)
+            .map(|(&position, shared)| {
+                let (plan, plan_index, returned_at, completed_value) = self.sites[position];
+                let (plan, output_projections) = &self.plans[plan];
+                let admitted = shared
+                    || has_conservation_candidate(
+                        program,
+                        facts,
+                        machine,
+                        state,
+                        completed_value,
+                        plan,
+                    );
+                let proven_domains = if admitted {
+                    output_projections
+                        .iter()
+                        .map(|(domain, path)| {
+                            let shared = domains
+                                .iter()
+                                .position(|(known, known_path)| {
+                                    known == domain && *known_path == path.as_slice()
+                                })
+                                .is_some_and(|known| shared_domains[known]);
+                            let answer = shared
+                                || proves_domain(program, machine, state, site, *domain, path);
+                            (*domain, path.clone(), answer)
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                (
+                    position,
+                    ConservationCandidate {
+                        plan_index,
+                        returned_at,
+                        completed_value,
+                        admitted,
+                        proven_domains,
+                    },
+                )
+            })
+            .collect()
     }
 }
 
@@ -303,10 +363,7 @@ pub(crate) fn conservation_sites(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) -> ConservationSites {
-    let mut sites = ConservationSites {
-        plans: Vec::new(),
-        sites: Vec::new(),
-    };
+    let mut sites = ConservationSites::default();
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
         return sites;
     }
@@ -347,6 +404,17 @@ pub(crate) fn conservation_sites(
             }
         }
         sites.plans.push((plan, output_projections));
+    }
+    for position in 0..sites.sites.len() {
+        let completed_value = sites.sites[position].3;
+        match sites
+            .groups
+            .iter()
+            .position(|group| sites.sites[group[0]].3 == completed_value)
+        {
+            Some(group) => sites.groups[group].push(position),
+            None => sites.groups.push(vec![position]),
+        }
     }
     sites
 }

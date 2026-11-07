@@ -24,6 +24,7 @@ use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
 
 mod cases;
+pub(crate) use cases::CaseGuaranteeEligibility;
 mod conditional_guarantees;
 mod constructor_identity;
 pub(super) use constructor_identity::ConstructorIdentity;
@@ -608,15 +609,11 @@ pub(super) struct StructuralJudge<'program> {
     // Declaration-level field correspondence never recursively re-enters an
     // active body. This belongs to the query, including all cloned path judges.
     returned_field_owners: Arc<Vec<SymbolHandle>>,
-    pub(in crate::proof_contracts::contract_entailment::structural_judgment) returned_field_trace:
-        Option<Arc<std::sync::Mutex<returned_fields::ReturnedFieldTrace>>>,
     // Active executed bodies bound ordinary calls as well as terminal transfers.
     // A recurrent call consumes its checked contract instead of unfolding again.
     body_invocations: Arc<Vec<SymbolHandle>>,
     runtime_induction: Arc<runtime_induction::RuntimeInduction>,
     active_application: Option<Arc<resolution_queries::ApplicationResolution<'program>>>,
-    completed_resolutions:
-        Option<Arc<std::sync::Mutex<resolution_queries::CompletedResolutions<'program>>>>,
     resolution_observations: Option<Arc<resolution_queries::ResolutionObservations<'program>>>,
     normal_memberships: Arc<Vec<MembershipGuarantee>>,
     pub(super) normal_content_guarantees:
@@ -667,12 +664,48 @@ pub(super) struct StructuralJudge<'program> {
     ring_licenses: Vec<RingLicense>,
     /// Tier-2: paired add/mul licenses with a conformed distributivity law.
     semiring_licenses: Vec<SemiringLicense>,
-    /// Frame resolution is program-pure for every judge on one program: the
-    /// shared cell builds it once per judge tree instead of once per probe
-    /// site (per-leaf clones all share the same cell).
+    /// Everything this judge's queries write while answering. Clones made
+    /// inside one query share it; an independent query replaces it whole.
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) query_state:
+        QueryState<'program>,
+}
+
+/// The state one independent structural query writes while it answers, kept
+/// in one value so that a judge for a new query gets fresh state by replacing
+/// this value rather than by resetting a hand-kept list of fields.
+///
+/// Every clone of a judge made inside a query (one per case-arm path, per
+/// resolution step) shares this by design: that sharing is what makes these
+/// the query's memos. Nothing here may carry answers from one independent
+/// query to another, so `StructuralJudge::with_fresh_query_state` gives each
+/// one `QueryState::fresh()`.
+#[derive(Clone)]
+pub(in crate::proof_contracts::contract_entailment::structural_judgment) struct QueryState<'program>
+{
+    /// The returned-field dependency trace of the query that installed it.
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) returned_field_trace:
+        Option<Arc<std::sync::Mutex<returned_fields::ReturnedFieldTrace>>>,
+    completed_resolutions:
+        Option<Arc<std::sync::Mutex<resolution_queries::CompletedResolutions<'program>>>>,
+    /// Frame resolution is program-pure: one cell, built on first use, serves
+    /// every clone in the query instead of one build per probe site.
     frame_resolver: Arc<std::sync::OnceLock<Option<CallFrameResolver<'program>>>>,
     prepared_integer_premises_cache:
         Arc<std::sync::Mutex<integer_predicates::PreparedIntegerPremisesCache<'program>>>,
+}
+
+impl QueryState<'_> {
+    /// The state a newly built judge's first query starts with.
+    fn fresh() -> Self {
+        Self {
+            returned_field_trace: None,
+            completed_resolutions: Some(Arc::new(std::sync::Mutex::new(Default::default()))),
+            frame_resolver: Arc::new(std::sync::OnceLock::new()),
+            prepared_integer_premises_cache: Arc::new(std::sync::Mutex::new(
+                integer_predicates::PreparedIntegerPremisesCache::default(),
+            )),
+        }
+    }
 }
 
 impl Clone for StructuralJudge<'_> {
@@ -689,11 +722,9 @@ impl Clone for StructuralJudge<'_> {
             returned_value_source: self.returned_value_source.clone(),
             completed_nominal_values: Arc::clone(&self.completed_nominal_values),
             returned_field_owners: Arc::clone(&self.returned_field_owners),
-            returned_field_trace: self.returned_field_trace.clone(),
             body_invocations: Arc::clone(&self.body_invocations),
             runtime_induction: Arc::clone(&self.runtime_induction),
             active_application: self.active_application.clone(),
-            completed_resolutions: self.completed_resolutions.clone(),
             resolution_observations: self.resolution_observations.clone(),
             normal_memberships: Arc::clone(&self.normal_memberships),
             normal_content_guarantees: Arc::clone(&self.normal_content_guarantees),
@@ -718,8 +749,7 @@ impl Clone for StructuralJudge<'_> {
             hypotheses_contradictory: self.hypotheses_contradictory,
             ring_licenses: self.ring_licenses.clone(),
             semiring_licenses: self.semiring_licenses.clone(),
-            frame_resolver: Arc::clone(&self.frame_resolver),
-            prepared_integer_premises_cache: Arc::clone(&self.prepared_integer_premises_cache),
+            query_state: self.query_state.clone(),
         }
     }
 }
@@ -1128,22 +1158,14 @@ impl<'program> StructuralJudge<'program> {
         judge
     }
 
-    /// This judge's premises for an independent query. Clones share the
-    /// mutable query memos by design; an independent check must not see
-    /// resolutions another check completed, so each memo starts empty here,
-    /// as it does for a newly built judge.
-    pub(super) fn with_fresh_query_memos(&self) -> Self {
-        let mut judge = self.clone();
-        judge.completed_resolutions = self
-            .completed_resolutions
-            .as_ref()
-            .map(|_| Arc::new(std::sync::Mutex::new(Default::default())));
-        judge.prepared_integer_premises_cache = Arc::new(std::sync::Mutex::new(
-            integer_predicates::PreparedIntegerPremisesCache::default(),
-        ));
-        judge.frame_resolver = Arc::new(std::sync::OnceLock::new());
-        judge.returned_field_trace = None;
-        judge
+    /// This judge's premises for an independent query, with the fresh
+    /// `QueryState` a newly built judge starts with: no resolution, prepared
+    /// premise, frame resolver or trace another query wrote is visible to it.
+    pub(super) fn with_fresh_query_state(&self) -> Self {
+        Self {
+            query_state: QueryState::fresh(),
+            ..self.clone()
+        }
     }
 
     pub(super) fn premise_facts(&self) -> &[ExpressionHandle] {
@@ -1161,7 +1183,8 @@ impl<'program> StructuralJudge<'program> {
     /// Frame writes are program-pure; every probe on a judge tree resolves
     /// the same tables, so the resolver is built once behind the shared cell.
     pub(super) fn frame_resolver(&self) -> Option<&CallFrameResolver<'program>> {
-        self.frame_resolver
+        self.query_state
+            .frame_resolver
             .get_or_init(|| CallFrameResolver::new(self.program))
             .as_ref()
     }
@@ -1227,11 +1250,9 @@ impl<'program> StructuralJudge<'program> {
             returned_value_source: None,
             completed_nominal_values: Arc::new(Vec::new()),
             returned_field_owners: Arc::new(Vec::new()),
-            returned_field_trace: None,
             body_invocations: Arc::new(Vec::new()),
             runtime_induction: Arc::new(runtime_induction::RuntimeInduction::default()),
             active_application: None,
-            completed_resolutions: Some(Arc::new(std::sync::Mutex::new(Default::default()))),
             resolution_observations: None,
             normal_memberships: Arc::new(Vec::new()),
             normal_content_guarantees: Arc::new(Vec::new()),
@@ -1251,10 +1272,7 @@ impl<'program> StructuralJudge<'program> {
             substitutions: Arc::new(Vec::new()),
             rewrites: Arc::new(rewrite_table::RewriteTable::default()),
             disequalities: Arc::new(Vec::new()),
-            frame_resolver: Arc::new(std::sync::OnceLock::new()),
-            prepared_integer_premises_cache: Arc::new(std::sync::Mutex::new(
-                integer_predicates::PreparedIntegerPremisesCache::default(),
-            )),
+            query_state: QueryState::fresh(),
             case_facts: Arc::new(Vec::new()),
             case_substitutions: Arc::new(Vec::new()),
             hypotheses_contradictory: false,

@@ -25,6 +25,12 @@ lifetime nor additional carry or cross-activation sharing permission. Exclusive
 `&mut` and `&write` fields do not qualify. A record still requires an explicit
 `[copy]` declaration; copyable fields do not change the affine default.
 
+Machine-valued fields and `some` packages follow these same multiplicity rules.
+A mutable reference inside a package remains exclusive. Opening a package
+creates no duplicate loan or cleanup authority; moves and permitted copies
+retain the package witness association and exact borrowed places. See
+[some package scope](some_packages.md#scope-escape-and-borrowing).
+
 ## Property declarations
 
 Lowercase bracket properties attach to the data declaration or type parameter,
@@ -51,8 +57,11 @@ namespace. Binding-local `[erased]` has its separate
 Distinguish initialized storage bits, an established semantic value, and a live
 ownership obligation. Implicit zero-filling establishes no linear obligation.
 Explicit construction of an all-zero linear value is legal and owed when that
-value meets its type's validity conditions. There is no universal zero-valued
-consumed inhabitant and no requirement that linear values exclude zero.
+value meets its type's validity conditions. An explicit
+[`..` literal](data_and_literals.md#explicit-field-omission) remains ordinary
+checked construction: it cannot fabricate a resource, and any established linear
+value carries its normal obligation. There is no universal zero-valued consumed
+inhabitant and no requirement that linear values exclude zero.
 [Default-domain gating](dependent_values.md#default-domains-and-zero-initialization)
 separately controls when storage may be observed as a value.
 

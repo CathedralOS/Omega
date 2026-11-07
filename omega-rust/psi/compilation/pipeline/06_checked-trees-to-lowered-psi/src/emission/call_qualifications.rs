@@ -9,6 +9,48 @@ use symbols::SymbolHandle;
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::shared::lowering_error::LoweringError;
 
+/// Keep why a declared field does not carry the complete checked obligation.
+/// Normal publication remains responsible for every such membership.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeclarationRepresentation {
+    Complete,
+    RequiresPublication(DeclarationRepresentationRefusal),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeclarationRepresentationRefusal {
+    NotCallEnsures,
+    NotDomainMembership,
+    NoStoragePlace,
+    NoRootType,
+    NoLeafType,
+    NoExactDeclaredDomain {
+        domain: SymbolHandle,
+        instance: language_semantics::SemanticDomainId,
+        same_symbol: bool,
+        same_instance: bool,
+    },
+    DuplicateDeclaredDomain,
+    NoDomainInstance,
+    IncompletePredicateTheory,
+    EstablishmentRoute,
+    RequiredSubjectMembership,
+    ContentCustody,
+    NotDeclaredByteField,
+    UnknownDeclaredBytePredicate,
+    MissingDeclaredBytePredicate,
+    NotScalarPredicate,
+    NoScalarRestriction,
+    NoScalarDomainPredicate,
+    ScalarPredicateNotEntailed,
+}
+
+impl DeclarationRepresentation {
+    pub(crate) fn is_complete(self) -> bool {
+        matches!(self, Self::Complete)
+    }
+}
+
 pub(crate) fn for_call<'a>(
     checked: &'a CheckedTrees,
     machine: SymbolHandle,
@@ -45,20 +87,23 @@ pub(crate) fn declaration_represents(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     fact: &facts::Fact,
-) -> Result<bool, LoweringError> {
+) -> Result<DeclarationRepresentation, LoweringError> {
+    use DeclarationRepresentation::{Complete, RequiresPublication};
+    use DeclarationRepresentationRefusal as Refusal;
+    let program = &checked.typed;
     let facts::ProgramPoint::CallEnsures {
         state_symbol,
         statement_index,
         ..
     } = fact.point
     else {
-        return Ok(false);
+        return Ok(RequiresPublication(Refusal::NotCallEnsures));
     };
     let Some((_, _, domain_symbol, semantic_domain)) = fact.payload.domain_membership() else {
-        return Ok(false);
+        return Ok(RequiresPublication(Refusal::NotDomainMembership));
     };
     let Some(place) = fact.place.as_place() else {
-        return Ok(false);
+        return Ok(RequiresPublication(Refusal::NoStoragePlace));
     };
     let place = checked.facts.semantic.places.get(place);
     let segments = checked
@@ -66,49 +111,71 @@ pub(crate) fn declaration_represents(
         .semantic
         .place_segments
         .span_or_empty(place.segments);
-    let Some(reference) = validation::canonical_place_type_reference(
-        &checked.typed,
+    let Some(root_type) = validation::canonical_place_type_reference(
+        program,
         state_symbol,
         statement_index,
         &validation::CanonicalPlace {
             root: place.root,
-            segments: segments.to_vec(),
+            segments: Vec::new(),
         },
     ) else {
-        return Ok(false);
+        return Ok(RequiresPublication(Refusal::NoRootType));
+    };
+    let Some(reference) =
+        validation::qualification_storage_type_reference(program, root_type, segments)
+    else {
+        return Ok(RequiresPublication(Refusal::NoLeafType));
     };
     let constraints =
-        validation::field_domains::declared_domain_constraint_records(&checked.typed, reference);
-    let mut selected = constraints.into_iter().filter(|constraint| {
-        constraint.symbol == domain_symbol && constraint.semantic_id == semantic_domain
-    });
-    let Some(constraint) = selected.next() else {
-        return Ok(false);
-    };
-    if selected.next().is_some() {
-        return Ok(false);
+        validation::field_domains::declared_domain_constraint_records(program, reference);
+    let mut same_symbol = false;
+    let mut same_instance = false;
+    let mut selected = None;
+    for constraint in constraints {
+        same_symbol |= constraint.symbol == domain_symbol;
+        same_instance |= constraint.semantic_id == semantic_domain;
+        if constraint.symbol == domain_symbol
+            && constraint.semantic_id == semantic_domain
+            && selected.replace(constraint).is_some()
+        {
+            return Ok(RequiresPublication(Refusal::DuplicateDeclaredDomain));
+        }
     }
-    let Some(definition) = checked
-        .typed
-        .domain_definition_for_instance(domain_symbol, semantic_domain)
-    else {
-        return Ok(false);
+    let Some(constraint) = selected else {
+        return Ok(RequiresPublication(Refusal::NoExactDeclaredDomain {
+            domain: domain_symbol,
+            instance: semantic_domain,
+            same_symbol,
+            same_instance,
+        }));
     };
-    if !validation::field_domains::domain_predicate_theory_is_complete(&checked.typed, definition)
-        || !definition.establishment_routes.is_empty()
-        || !typed_trees::domain::required_subject_memberships(&checked.typed, definition)
-            .is_some_and(|required| required.is_empty())
-        || checked
-            .facts
-            .qualifications
-            .content
-            .for_semantic_domain(semantic_domain)
-            .is_some()
+    let Some(definition) = program.domain_definition_for_instance(domain_symbol, semantic_domain)
+    else {
+        return Ok(RequiresPublication(Refusal::NoDomainInstance));
+    };
+    if !validation::field_domains::domain_predicate_theory_is_complete(program, definition) {
+        return Ok(RequiresPublication(Refusal::IncompletePredicateTheory));
+    }
+    if !definition.establishment_routes.is_empty() {
+        return Ok(RequiresPublication(Refusal::EstablishmentRoute));
+    }
+    if !typed_trees::domain::required_subject_memberships(program, definition)
+        .is_some_and(|required| required.is_empty())
     {
-        return Ok(false);
+        return Ok(RequiresPublication(Refusal::RequiredSubjectMembership));
+    }
+    if checked
+        .facts
+        .qualifications
+        .content
+        .for_semantic_domain(semantic_domain)
+        .is_some()
+    {
+        return Ok(RequiresPublication(Refusal::ContentCustody));
     }
     if let Some(predicate) =
-        validation::field_domains::domain_byte_predicate(&checked.typed, domain_symbol)
+        validation::field_domains::domain_byte_predicate(program, domain_symbol)
     {
         // Inline byte fields retain their complete predicate in the field
         // declaration. Reattaching that represented invariant as a nominal
@@ -116,44 +183,60 @@ pub(crate) fn declaration_represents(
         // although its public result correctly contains no such row. Whole
         // view roots and stored pointer crossings retain their ordinary
         // qualification publication; neither has this inline field contract.
+        // Qualified fixed arrays keep their ordinary array storage; the
+        // borrowed byte-slice carrier is a different presentation.
         if !matches!(segments.last(), Some(facts::PlaceSegment::Field { .. }))
             || !matches!(
                 constraint.subject,
                 typed_trees::types::DomainConstraintSubject::Declared
             )
-            || validation::byte_sequence_carrier(&checked.typed, reference, &[]).is_none()
-            || validation::stores_reference_shape(&checked.typed, reference, &[])
+            || !matches!(
+                program.type_reference_table.type_reference(
+                    validation::peel_declared_constraints(program, reference)
+                ),
+                typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. }
+                    if checked.primitive_type_reference(*element_type)
+                        == Some(typed_trees::types::PrimitiveType::U8)
+            )
+            || validation::stores_reference_shape(program, reference, &[])
         {
-            return Ok(false);
+            return Ok(RequiresPublication(Refusal::NotDeclaredByteField));
         }
-        let declared = typed_trees::byte_predicates::type_reference_domain_predicates(
-            &checked.typed,
-            reference,
-        );
-        return Ok(declared.iter().all(|(_, predicate)| predicate.is_some())
-            && declared
+        let declared =
+            typed_trees::byte_predicates::type_reference_domain_predicates(program, reference);
+        if !declared.iter().all(|(_, predicate)| predicate.is_some()) {
+            return Ok(RequiresPublication(Refusal::UnknownDeclaredBytePredicate));
+        }
+        return Ok(
+            if declared
                 .iter()
-                .any(|(_, candidate)| *candidate == Some(predicate)));
+                .any(|(_, candidate)| *candidate == Some(predicate))
+            {
+                Complete
+            } else {
+                RequiresPublication(Refusal::MissingDeclaredBytePredicate)
+            },
+        );
     }
     let Some(primitive) = checked.primitive_type_reference(reference) else {
-        return Ok(false);
+        return Ok(RequiresPublication(Refusal::NotScalarPredicate));
     };
     let Some(restriction) =
         crate::expression_preparation::qualifications::retained_scalar_restriction(
             checked, reference,
         )
     else {
-        return Ok(false);
+        return Ok(RequiresPublication(Refusal::NoScalarRestriction));
     };
     let Some(predicate) = validation::scalar_domain_value_predicate(
-        &checked.typed,
+        program,
         constraint,
         checked_trees::CheckedScalarExpression::Parameter {
             position: 0,
             primitive_type: primitive,
         },
     ) else {
-        return Ok(false);
+        return Ok(RequiresPublication(Refusal::NoScalarDomainPredicate));
     };
     let required = crate::shared::structural_types::lower_field_type(
         identities,
@@ -166,9 +249,13 @@ pub(crate) fn declaration_represents(
     )?;
     let declared =
         crate::shared::structural_types::lower_field_type(identities, checked, restriction, &[])?;
-    Ok(terminal_semantics::scalar_field_entails(
-        &declared, &required,
-    ))
+    Ok(
+        if terminal_semantics::scalar_field_entails(&declared, &required) {
+            Complete
+        } else {
+            RequiresPublication(Refusal::ScalarPredicateNotEntailed)
+        },
+    )
 }
 
 /// The storage duties of this call's actual references. Select the exact

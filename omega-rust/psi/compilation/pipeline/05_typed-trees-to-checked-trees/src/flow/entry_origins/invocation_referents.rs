@@ -218,9 +218,6 @@ pub(in crate::flow) fn extend_invocation_observations(
     {
         return;
     }
-    let measured = phase_profile::guard("psi.05.invocation_observations");
-    let input_count = places.len();
-    let mut candidate_count = 0;
     let mut projected = UniqueRoster::default();
     for place in places.iter() {
         match project_invocation_place(
@@ -235,7 +232,6 @@ pub(in crate::flow) fn extend_invocation_observations(
             Some(incoming) => {
                 // Many fields can refer to the same caller storage. Keep its
                 // first occurrence without rescanning every earlier projection.
-                candidate_count += incoming.len();
                 for place in incoming {
                     projected.push(place);
                 }
@@ -263,7 +259,6 @@ pub(in crate::flow) fn extend_invocation_observations(
                                     Vec::new()
                                 },
                             };
-                            candidate_count += 1;
                             projected.push(projected_place);
                         }
                     }
@@ -272,18 +267,6 @@ pub(in crate::flow) fn extend_invocation_observations(
             }
         }
     }
-    phase_profile::count(
-        "psi.05.invocation_observations.input_places",
-        input_count as u64,
-    );
-    phase_profile::count(
-        "psi.05.invocation_observations.candidates",
-        candidate_count as u64,
-    );
-    phase_profile::count(
-        "psi.05.invocation_observations.distinct",
-        projected.as_slice().len() as u64,
-    );
     let mut projected = projected.into_vec();
     if !projected.is_empty() {
         // Preserve the original list, including any repeated entries. The new
@@ -291,24 +274,5 @@ pub(in crate::flow) fn extend_invocation_observations(
         let existing: HashSet<_> = places.iter().collect();
         projected.retain(|place| !existing.contains(place));
         places.extend(projected);
-    }
-    drop(measured);
-    if input_count >= 256 {
-        phase_profile::checkpoint(
-            "large invocation observation merge",
-            "psi.05.invocation_observations",
-        );
-        phase_profile::checkpoint(
-            "invocation observation inputs",
-            "psi.05.invocation_observations.input_places",
-        );
-        phase_profile::checkpoint(
-            "invocation observation candidates",
-            "psi.05.invocation_observations.candidates",
-        );
-        phase_profile::checkpoint(
-            "invocation observation distinct projections",
-            "psi.05.invocation_observations.distinct",
-        );
     }
 }

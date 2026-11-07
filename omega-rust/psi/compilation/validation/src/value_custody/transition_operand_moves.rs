@@ -52,15 +52,7 @@ pub fn transition_operand_moves(
             program, *argument, &mut nodes, &mut seen,
         );
     }
-    let flow = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .find_map(|(_, candidate)| {
-            (candidate.machine_symbol == machine && candidate.state_symbol == state.symbol)
-                .then_some(candidate)
-        })?;
+    let flow = facts.flow.control.state(machine, state.symbol)?;
     let calls = facts.flow.control.calls.span_or_empty(flow.calls);
     let mut moves = Vec::new();
     for node in nodes {

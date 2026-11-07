@@ -5,6 +5,11 @@ valid for its use. It does not create a loan, widen access, or identify a
 referent by itself. [Loan resources](../terminal-psi/loans.md) retain the exact
 captured place, lineage, formation and restoration evidence separately.
 
+A `some` binder hides a type choice, not a reference lifetime. Packages keep
+ordinary lifetime parameters or permitted elision; their fields and concrete
+returned borrows remain tied to the same input/storage origins. Opening or
+repacking cannot extend those lifetimes. See [some packages](some_packages.md).
+
 ## Binders and source applications
 
 Lifetime binders use tick spelling in the declaration's `<>` list alongside
@@ -67,9 +72,7 @@ Generic returned views require the complete instantiated frontier and its
 result-to-input relation. A template-dependent frontier is not an empty one;
 discarding the result cannot excuse missing call admission. General outlives
 syntax and broader multiple-source result relations are not supplied by the
-single-source elision rule. Current source-checker restrictions are recorded
-[beside checking](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md#lifetime-source-correspondence),
-not additional permissions to omit unresolved loans.
+single-source elision rule. Unresolved loans cannot be omitted.
 
 ## Carried-loan transport
 

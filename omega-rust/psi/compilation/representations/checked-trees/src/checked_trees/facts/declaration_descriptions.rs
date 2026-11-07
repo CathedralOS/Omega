@@ -107,15 +107,41 @@ impl CheckedDeclarationDescription {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub struct CheckedDeclarationDescriptions {
     pub selections: Arena<CheckedSelectionRequirement>,
     pub evaluation_dependencies: CheckedCompilerEvaluationDependencies,
     pub headers: Arena<CheckedCallableHeader>,
     pub invocation_targets: Arena<CheckedSynchronousBoundaryTarget>,
-    pub machines: Arena<CheckedDeclarationDescription>,
+    /// Private: `insert_machine` is the only writer, so `machine_index` and
+    /// its revision stamp always describe this arena.
+    machines: Arena<CheckedDeclarationDescription>,
     pub parameters: Arena<CheckedDeclarationParameter>,
+    /// `machines` sorted by machine symbol, published by the producer once
+    /// every row is in place (`index_machines`). Ties keep arena order.
+    /// Each lowered declaration asks for its own description; scanning every
+    /// machine row per question made lowering quadratic in the machine count.
+    /// Derived from `machines`: never recorded, never compared, and trusted
+    /// only while `machines` keeps the revision and length it was built at.
+    /// Rows are added only through `insert_machine`, which moves the revision.
+    #[record(skip)]
+    machine_index: Vec<((u32, u32), arena::Handle<CheckedDeclarationDescription>)>,
+    #[record(skip)]
+    indexed_at: Option<(u64, usize)>,
 }
+
+impl PartialEq for CheckedDeclarationDescriptions {
+    fn eq(&self, other: &Self) -> bool {
+        self.selections == other.selections
+            && self.evaluation_dependencies == other.evaluation_dependencies
+            && self.headers == other.headers
+            && self.invocation_targets == other.invocation_targets
+            && self.machines == other.machines
+            && self.parameters == other.parameters
+    }
+}
+
+impl Eq for CheckedDeclarationDescriptions {}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedSelectionRequirement {
@@ -150,6 +176,8 @@ impl Default for CheckedDeclarationDescriptions {
             invocation_targets: Arena::new(),
             machines: Arena::new(),
             parameters: Arena::new(),
+            machine_index: Vec::new(),
+            indexed_at: None,
         }
     }
 }
@@ -177,9 +205,67 @@ pub struct CheckedCompilerEvaluationCall {
 
 impl CheckedDeclarationDescriptions {
     pub fn description(&self, machine: SymbolHandle) -> Option<&CheckedDeclarationDescription> {
-        self.machines
+        if !machine.is_valid() {
+            return None;
+        }
+        // The published index is exact only while the rows are unchanged since
+        // it was built; otherwise read the rows themselves.
+        if self.indexed_at != Some((self.machines.revision(), self.machines.len())) {
+            return self
+                .machines
+                .iter()
+                .find_map(|(_, row)| (row.machine() == machine).then_some(row));
+        }
+        let key = symbol_key(machine);
+        let start = self.machine_index.partition_point(|(row, _)| *row < key);
+        self.machine_index[start..]
             .iter()
-            .find_map(|(_, row)| (machine.is_valid() && row.machine() == machine).then_some(row))
+            .take_while(|(row, _)| *row == key)
+            .map(|(_, handle)| self.machines.get(*handle))
+            .find(|row| row.machine() == machine)
+    }
+
+    /// An empty description set over these selection and evaluation
+    /// requirements; machine rows are added with `insert_machine`.
+    pub fn with_requirements(
+        selections: Arena<CheckedSelectionRequirement>,
+        evaluation_dependencies: CheckedCompilerEvaluationDependencies,
+    ) -> Self {
+        Self {
+            selections,
+            evaluation_dependencies,
+            ..Self::default()
+        }
+    }
+
+    /// Every machine description, in arena order.
+    pub fn machines(&self) -> &Arena<CheckedDeclarationDescription> {
+        &self.machines
+    }
+
+    /// Append one machine description. The index stops matching the arena
+    /// revision, so lookups read the rows until `index_machines` runs again.
+    pub fn insert_machine(
+        &mut self,
+        row: CheckedDeclarationDescription,
+    ) -> arena::Handle<CheckedDeclarationDescription> {
+        self.machines.insert(row)
+    }
+
+    /// Publish `machine_index` over the finished `machines` rows.
+    pub fn index_machines(&mut self) {
+        let mut index = self
+            .machines
+            .iter()
+            .enumerate()
+            .map(|(position, (handle, row))| (symbol_key(row.machine()), position, handle))
+            .collect::<Vec<_>>();
+        index.sort_unstable_by_key(|(key, position, _)| (*key, *position));
+        self.machine_index = index
+            .into_iter()
+            .map(|(key, _, handle)| (key, handle))
+            .collect();
+        self.indexed_at = Some((self.machines.revision(), self.machines.len()));
     }
 
     pub fn for_machine(&self, machine: SymbolHandle) -> Result<&CheckedMachineDescription, &str> {
@@ -189,4 +275,8 @@ impl CheckedDeclarationDescriptions {
             _ => Err("checked machine lost its retained declaration description"),
         }
     }
+}
+
+fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
 }

@@ -235,6 +235,14 @@ facts that mention the selected field, including predicate-call arguments,
 remain fences. The runtime local-loan control temporarily writes 2 then
 restores 0, distinguishing handback from per-store parameter restrictions.
 
+On Linux x86_64, both unchanged programs returned 0 in native and Terminal
+execution. `runtime_scalar_field_local_loan_handback_exit` verified restoration
+to 0 after the temporary write of 2. `runtime_tail_recursive_nested_field_frame_exit`
+verified count 2 survived recursive writes of 4.0 to `scratch[1]`. Existing
+controls rejected missing restoration and a write of 9 to the guarded count.
+These observations belong to consumer `f07ae35f9283` with retained producer
+`1cd41f4fb925`; other hosts and newer compiler inputs are unverified.
+
 ## Audited call selectors and mutable arrival observations
 
 Five call customers retain six historical field bounds as data predicates.
@@ -367,6 +375,24 @@ parameters), plus six directory-offset results across Linux ARM64, Linux x86-64
 and macOS ARM64. Those results retain `18 <= result <= 20` or
 `19 <= result <= 21` as `ensures`. Its count is not the original 16-parameter
 inventory; its additional callback parameter is outside both filesystem counts.
+
+On Linux x86_64 and ARM64, the existing `dir_walk_wrappers_exit` program now
+creates a nested tree, counts two files, removes the tree and returns 70 in
+native and Terminal execution. It exercises the shared `rds_*` operations
+above without changing their `name_len <= 255` requirements. The Linux host
+uses captured path/output windows and private descriptors; array captures
+preserve the original backing owner's qualifications. ARM64 keeps its public
+128-byte metadata window and the complete shared raw binding schema.
+
+The x86_64 observations are [run 42300697162](https://github.com/CathedralOS/Omega/actions/runs/42300697162)
+at `c0c5b49589b1`, including 0/0 for `create_dir_all_existing_file_exit`.
+ARM64 is [run 42312446103](https://github.com/CathedralOS/Omega/actions/runs/42312446103)
+at `42274da231be`. Later ARM entry/binding rows and refusal text leave the
+qualified x86_64 declarations, selected rows and execution paths unchanged.
+Seven source/control rows retain their actual `e40519df616f` and `c0c5b49589b1`
+stamps. The extra legacy array-loan fixture's missing-provider refusal and
+earlier corpus runtime timeouts are not passing evidence. These observations
+do not qualify Windows or macOS execution or close the parent migration.
 
 This reconciles source positions, not complete filesystem execution acceptance.
 Matching-host native/Terminal service and occurrence-bound release obligations
@@ -1095,6 +1121,25 @@ projects, original owner endpoints and fact-sensitive rejects qualify this
 cohort. Other hosts, GUI customers and the whole historical migration audit
 remain open.
 
+## Audited modular exponentiation state
+
+At `7a9a7b8287e6`, `samples/cli/arithmetic/modular_exponentiation` declared
+`ModExp.result: i32 [0..=99]` and `ModExp.base: i32 [0..=99]`.
+Migration `f0fbaddf4ca` erased both bounds and reduced each product's factors
+again. Commit `bf34ac4736b` independently replaced the scratch record with
+explicit scalar state inputs; that design remains.
+
+The original result field now corresponds to `accumulator` in `step`,
+`classify`, `accumulate` and `square`; the original base field corresponds
+to each machine's `base`. Each input tuple retains both inclusive signed
+0..=99 bounds through `requires`. Return `ensures` clauses carry the same
+result bound through the calls; `accumulator` cannot be confused with the
+logical return subject `result`. The original products precede their outer
+remainder, and the entry still reduces the base once. Entry requires only
+`base >= 0`, so reduction also admits larger nonnegative inputs. Exponent
+inputs remain unrestricted, with the original remainder, division and
+branch behavior. The authored Console transcript and exit 87 are unchanged.
+
 ## Audited guarded-store owner fields
 
 The existing `pass/range/runtime_funnel_guard_agreement_exit` and
@@ -1136,3 +1181,77 @@ retains this establishment through nine places and tests missing-bound,
 out-of-bound-store and unauthorized-read controls. Final producer and execution
 observations are recorded with the owning PR; this inventory does not close the
 remaining historical audit or authorize suffix-parser retirement.
+
+
+## Record ranges and returned record views
+
+On Linux x86_64, the unchanged [copied](../../../tests/omega/pass/borrows/runtime_copied_range_record_domains_exit/main.omg)
+and [measured](../../../tests/omega/pass/borrows/runtime_measured_range_record_domains_exit/main.omg)
+record-range programs returned 0 in native and Terminal execution; the
+[forwarded-view program](../../../tests/omega/pass/borrows/runtime_forwarded_view_field_domain_exit/main.omg)
+returned 70, and the [generic-return program](../../../tests/omega/run/domains/qualified_fixed_byte_array_generic_view_return_exit/main.omg)
+returned 0. They retain the Utf8 or Ascii requirements on their text fields
+through bounded ranges, saved views and returned references, and check the
+selected values and neighboring text at runtime. The existing mutation,
+missing-membership and unselected-lifetime controls still reject for their
+intended obligations. No program, Build binding, oracle or rejection pin changed.
+
+[Source run 42334912961](https://github.com/CathedralOS/Omega/actions/runs/42334912961)
+records the three borrow positives and controls at `8ade856e00f6`.
+[Replay 42335998626](https://github.com/CathedralOS/Omega/actions/runs/42335998626)
+ran the three CLI programs at consumer `98d54ac0c79` with that same authenticated
+optimized producer. The later backend repair preserves their accepted backing
+paths; it admits ordinary record arrivals with field predicates while keeping
+view descriptors under their existing separate checks.
+[Run 42338824785](https://github.com/CathedralOS/Omega/actions/runs/42338824785)
+records the generic program's source check and both-engine agreement with its
+own optimized producer at `071034107c35`. Source records retain the authored
+`macos_arm64` checking target; execution observations are Linux x86_64 only.
+Other hosts and the parent scalar migration remain open.
+
+
+## Captured byte destinations
+
+The unchanged [captured-destination program](../../../tests/omega/run/domains/qualified_fixed_byte_array_captured_destination_exit/main.omg)
+returned 0 in native and Terminal execution on Linux x86_64. The assignment
+updates the original array to `Amega600` even though its right-hand side replaces
+the selecting reference; the replacement array remains `omega601`, and the
+neighboring fields and layout remain intact. The checker retains the selected
+storage before the right-hand side and proves that the stored byte preserves
+Ascii. The existing out-of-range-byte, retargeted-reference and changed-index
+controls still reject for their intended obligations. No source, Build binding,
+oracle or rejection pin changed.
+
+[Source run 42346932689](https://github.com/CathedralOS/Omega/actions/runs/42346932689)
+records the positive and byte control at `413fb4703959`; the source row retains
+its authored `macos_arm64` checking target. The two U64 controls retain their
+[run 42344159641](https://github.com/CathedralOS/Omega/actions/runs/42344159641)
+observations at `cf504bf87162`: the later byte-proof change only handles U8
+values and leaves their rejection paths unchanged.
+[Replay 42347834202](https://github.com/CathedralOS/Omega/actions/runs/42347834202)
+executes consumer `cc3dd85de6a3` with the authenticated optimized `413fb4703959`
+producer; all ten declared compiler input objects match. Execution on other
+hosts and the parent scalar migration remain open.
+
+
+## Field reads after selector writes
+
+The unchanged [selector-write program](../../../tests/omega/pass/proofs/scalar_field_snapshot_selector_writes_payload/main.omg)
+returned 0 in native and Terminal execution on Linux x86_64. Its direct read
+observes 7 and its stored-reference read observes 11 after each selector writes
+the selected payload. Each selector runs once. The checker preserves the field's
+complete declared type, then checks that every captured reference descriptor
+still names the same storage when the read occurs. Payload writes do not count
+as descriptor replacement. The existing changed-selector and replaced-collection
+controls still reject their equality obligations. Source, Build bindings, oracles
+and diagnostic pins are unchanged.
+
+[Source run 42352183267](https://github.com/CathedralOS/Omega/actions/runs/42352183267)
+records both affected positives and all three intended rejections at
+`7a71b2c1f2d4`, retaining the authored `macos_arm64` checking target.
+[Replay 42354136490](https://github.com/CathedralOS/Omega/actions/runs/42354136490)
+records the selector program's 0/0 agreement at consumer `e9feda3dd89d` using
+that same authenticated optimized producer; all ten compiler input objects
+match. The earlier captured-byte 0/0 execution remains applicable because its
+selector has no writes; its fresh source check covers the changed receiving-type
+validation. Other runtime hosts and the parent scalar migration remain open.

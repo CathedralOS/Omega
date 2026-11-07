@@ -66,14 +66,7 @@ pub(super) fn for_each_projection_expression(
 pub(super) fn entry_expressions(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    root: &State,
+    _root: &State,
 ) -> Vec<ExpressionHandle> {
-    let mut expressions = super::required_contract_expressions(program, machine);
-    crate::proof_contracts::contract_entailment::ranking_range::constrained_parameter_bound_expressions(
-        program,
-        root,
-        &mut expressions,
-        None,
-    );
-    expressions
+    super::required_contract_expressions(program, machine)
 }

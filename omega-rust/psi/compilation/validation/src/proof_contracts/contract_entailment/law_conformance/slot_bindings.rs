@@ -101,6 +101,31 @@ impl TraitOperationSlots {
     }
 }
 
+/// Select an existing row under the same source family preference everywhere.
+/// A family label narrows candidates; only the selected row supplies identity.
+pub(crate) fn select_slot_candidate<'row, T>(
+    candidates: &'row [T],
+    preferred_alias: Option<&str>,
+    alias: impl Fn(&T) -> Option<&str>,
+) -> Option<&'row T> {
+    let mut preferred = candidates
+        .iter()
+        .filter(|candidate| alias(candidate) == preferred_alias);
+    if let Some(first) = preferred.next()
+        && preferred.next().is_none()
+    {
+        return Some(first);
+    }
+    let mut unaliased = candidates
+        .iter()
+        .filter(|candidate| alias(candidate).is_none());
+    match (unaliased.next(), unaliased.next(), candidates) {
+        (Some(single), None, _) => Some(single),
+        (None, _, [single]) => Some(single),
+        _ => None,
+    }
+}
+
 /// The CARRIER's op-slot bindings: for each used requirement of the trait, the
 /// machine conforming to it whose carrier type matches. Alias preference
 /// (plural algebras): a binding sharing the checking conformance's alias
@@ -180,29 +205,11 @@ pub(crate) fn carrier_slot_bindings(
             if candidates.is_empty() {
                 continue; // an unbound slot only matters if a law mentions it
             }
-            let chosen = if let Some(preferred) = candidates
-                .iter()
-                .filter(|(_, alias)| alias.as_deref() == prefer_alias)
-                .collect::<Vec<_>>()
-                .split_first()
-                .filter(|(_, rest)| rest.is_empty())
-                .map(|(first, _)| (*first).clone())
-            {
-                Some(preferred)
-            } else {
-                let unaliased: Vec<_> = candidates
-                    .iter()
-                    .filter(|(_, alias)| alias.is_none())
-                    .collect();
-                match unaliased.as_slice() {
-                    [single] => Some((*single).clone()),
-                    [] if candidates.len() == 1 => Some(candidates[0].clone()),
-                    _ => None,
-                }
-            };
+            let chosen =
+                select_slot_candidate(&candidates, prefer_alias, |(_, alias)| alias.as_deref());
             match chosen {
                 Some((machine_name, _)) => {
-                    bindings.push((slot, machine_name));
+                    bindings.push((slot, machine_name.clone()));
                 }
                 None => {
                     diagnostics.push(Diagnostic::error(format!(

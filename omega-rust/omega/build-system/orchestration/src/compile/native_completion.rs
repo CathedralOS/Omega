@@ -50,7 +50,7 @@ pub(crate) fn complete_products<Owner: Send>(
 /// Native production ends in an image, or, for Terminal-only execution, in
 /// the runtime provisions admitted for the retained Terminal artifact.
 enum NativeStop {
-    Image(native_production::RealizedNativeProduct),
+    Image(native_compiler::RealizedNativeProduct),
     RuntimeAdmission(Option<compilation_products::TerminalRuntimeProvisions>),
 }
 
@@ -67,13 +67,13 @@ fn complete_native(
         mut settlement,
     } = product;
     let image = request.image;
-    let produced = phase_profile::scope("omega.product.produce_native_product", || {
+    let produced = {
         let selected = components
             .as_ref()
             .map_err(|reason| vec![Diagnostic::error(reason.clone())])?;
         let mut components = Vec::with_capacity(selected.len());
         for component in selected {
-            components.push(native_production::ComponentCompilation {
+            components.push(native_compiler::ComponentCompilation {
                 input: component
                     .input()
                     .map_err(|reason| vec![Diagnostic::error(reason)])?,
@@ -83,7 +83,7 @@ fn complete_native(
             });
         }
         let post_terminal = rollback.effective().project_post_terminal();
-        let request = native_production::NativeCompileRequest {
+        let request = native_compiler::NativeCompileRequest {
             private_entry_ram: &request.private_entry_ram,
             optimization_selections: post_terminal.selections(),
             terminal_authority_policy: request.terminal_authority_policy,
@@ -93,8 +93,8 @@ fn complete_native(
             imports: &[],
             components: &components,
         };
-        let mut prepared = native_production::prepare(&terminal, request)
-            .map_err(|(_, diagnostics)| diagnostics)?;
+        let mut prepared =
+            native_compiler::prepare(&terminal, request).map_err(|(_, diagnostics)| diagnostics)?;
         for completion in prepared.scalar_completions() {
             let completed = build_settings::scalar_completion::complete(
                 completion.artifact(),
@@ -109,16 +109,16 @@ fn complete_native(
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
         }
         match image {
-            compilation_products::NativeImageDemand::Emit => native_production::compile(prepared)
+            compilation_products::NativeImageDemand::Emit => native_compiler::compile(prepared)
                 .map(NativeStop::Image)
                 .map_err(|(_, diagnostics)| diagnostics),
             compilation_products::NativeImageDemand::RuntimeAdmissionOnly => {
-                native_production::admit_runtime(prepared)
+                native_compiler::admit_runtime(prepared)
                     .map(NativeStop::RuntimeAdmission)
                     .map_err(|(_, diagnostics)| diagnostics)
             }
         }
-    });
+    };
     let produced = match produced {
         Ok(produced) => produced,
         Err(diagnostics) => {
@@ -129,9 +129,8 @@ fn complete_native(
         }
     };
     let accounting = settlement.source_completion_accounting_mut().clone();
-    let report = phase_profile::scope(
-        "omega.product.settlement_finish_native",
-        || -> Result<_, CompilationProductError> {
+    let report =
+        (|| -> Result<_, CompilationProductError> {
             match produced {
                 NativeStop::Image(produced) => Ok(settlement
                     .finish_native(produced.artifact, rollback.into_receipt())?
@@ -140,11 +139,10 @@ fn complete_native(
                 NativeStop::RuntimeAdmission(provisions) => Ok(settlement
                     .finish_terminal_runtime(terminal, provisions, rollback.into_receipt())?),
             }
-        },
-    )
-    .map_err(|error| CompilationProductError::ProductionAttempt {
-        diagnostics: error.into_diagnostics(),
-        accounting,
-    })?;
+        })()
+        .map_err(|error| CompilationProductError::ProductionAttempt {
+            diagnostics: error.into_diagnostics(),
+            accounting,
+        })?;
     Ok(CompilationOutput::Report(report))
 }

@@ -66,24 +66,6 @@ pub(crate) fn validate_package_type_identity_input_inner(
             validate_child!(*base_type, false)?;
             for constraint in program.type_reference_table.constraints(*constraints) {
                 match constraint {
-                    TypeConstraintNode::Range {
-                        minimum, maximum, ..
-                    } => {
-                        validate_package_index_expression(
-                            compilation,
-                            program,
-                            *minimum,
-                            binders,
-                            None,
-                        )?;
-                        validate_package_index_expression(
-                            compilation,
-                            program,
-                            *maximum,
-                            binders,
-                            None,
-                        )?;
-                    }
                     TypeConstraintNode::Domain(domain) => {
                         use typed_trees::types::DomainConstraintSubject;
 

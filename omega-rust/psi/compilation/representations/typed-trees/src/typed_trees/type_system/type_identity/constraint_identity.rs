@@ -2,11 +2,9 @@
 //! identities and array lengths into canonical atoms.
 
 use crate::TypedTrees;
-use crate::expression::ExpressionHandle;
 use crate::type_identity::substitution;
 use crate::typed_trees::type_system::type_identity::identity_context::{
-    TypeIdentityContext, TypeIdentityQualification, normalize_index_expression,
-    normalize_type_reference,
+    TypeIdentityContext, TypeIdentityQualification, normalize_type_reference,
 };
 use crate::types::{
     DomainConstraint, DomainConstraintSubject, FixedArrayLength, TypeConstraintNode,
@@ -52,18 +50,7 @@ pub(crate) fn normalized_constraints(
             TypeConstraintNode::Named(name) => {
                 NormalizedConstraint::Named(name.as_str().to_owned())
             }
-            TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => {
-                // Canonical identity and range checking share exact endpoint
-                // evaluation. Keep symbolic end-kind when evaluation is open;
-                // flow facts never supply static type identity.
-                let minimum = normalized_range_endpoint(program, *minimum, true, context);
-                let maximum = normalized_range_endpoint(program, *maximum, *end_inclusive, context);
-                NormalizedConstraint::Range { minimum, maximum }
-            }
+
             TypeConstraintNode::ArithmeticDomain(domain) => {
                 NormalizedConstraint::Arithmetic(domain.name().to_owned())
             }
@@ -81,43 +68,6 @@ pub(crate) fn normalized_constraints(
             },
         })
         .collect()
-}
-
-pub(crate) fn normalized_range_endpoint(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    end_inclusive: bool,
-    context: &TypeIdentityContext<'_>,
-) -> String {
-    if let Some(path) = program.expression_table.name_path_node(expression)
-        && let Some(identity) =
-            substitution::range_endpoint(program, path.symbol, end_inclusive, context)
-    {
-        return identity;
-    }
-    if let Some(value) = program.closed_integer_range_endpoint(expression, end_inclusive) {
-        return normalized_range_integer(&value, context);
-    }
-    // Open endpoints retain the same binder slots, exact substitutions and
-    // declaration ownership as other const indices. Diagnostic spelling cannot
-    // distinguish two owners' same-named binders, even in ordinary identity.
-    let identity = normalize_index_expression(program, expression, context);
-    if end_inclusive {
-        identity
-    } else {
-        compound(IndexForm::ExclusiveEnd, [identity])
-    }
-}
-
-pub(crate) fn normalized_range_integer(
-    value: &numerics::bignum::BigInt,
-    context: &TypeIdentityContext<'_>,
-) -> String {
-    if context.qualification == TypeIdentityQualification::PackageQualified {
-        atom(IndexForm::Integer, &value.to_string())
-    } else {
-        value.to_string()
-    }
 }
 
 fn normalized_declared_domain_identity(
@@ -221,7 +171,6 @@ pub(crate) enum NormalizedConstraint {
     CompilerDomain(String),
     DeclaredDomain(String),
     Named(String),
-    Range { minimum: String, maximum: String },
 }
 
 impl NormalizedConstraint {
@@ -237,13 +186,6 @@ impl NormalizedConstraint {
             Self::Named(name) => {
                 compound(ConstraintForm::NamedConstraint, [atom(Label::Name, &name)])
             }
-            Self::Range { minimum, maximum } => compound(
-                ConstraintForm::Range,
-                [
-                    atom(Label::Minimum, &minimum),
-                    atom(Label::Maximum, &maximum),
-                ],
-            ),
         }
     }
 }

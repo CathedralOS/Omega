@@ -697,11 +697,7 @@ pub enum TypeReferenceNode {
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum TypeConstraint {
     Named(DiagnosticName),
-    Range {
-        minimum: crate::expression::ExpressionHandle,
-        maximum: crate::expression::ExpressionHandle,
-        end_inclusive: bool,
-    },
+
     ArithmeticDomain(numerics::arithmetic::ArithmeticDomain),
     /// A declared domain or closed indexed-domain family application.
     Domain(DomainConstraint),
@@ -716,11 +712,7 @@ pub struct DomainConstraint {
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum TypeConstraintNode {
     Named(DiagnosticName),
-    Range {
-        minimum: crate::expression::ExpressionHandle,
-        maximum: crate::expression::ExpressionHandle,
-        end_inclusive: bool,
-    },
+
     ArithmeticDomain(numerics::arithmetic::ArithmeticDomain),
     /// A declared domain or closed indexed-domain family application.
     Domain(DomainConstraintNode),
@@ -743,15 +735,7 @@ impl TypeConstraintNode {
     ) -> Self {
         match constraint {
             TypeConstraint::Named(name) => Self::Named(name.clone()),
-            TypeConstraint::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => Self::Range {
-                minimum: source_expressions.copy_into(expressions, *minimum),
-                maximum: source_expressions.copy_into(expressions, *maximum),
-                end_inclusive: *end_inclusive,
-            },
+
             TypeConstraint::ArithmeticDomain(domain) => Self::ArithmeticDomain(*domain),
             TypeConstraint::Domain(domain) => Self::Domain(DomainConstraintNode {
                 name: domain.name.clone(),

@@ -25,12 +25,16 @@ pub(super) fn publish(
 ) -> Result<PublishedScope, LoweringError> {
     let source = &checked.facts.proof_applications;
     let mut coordinates = Vec::new();
+    // Every declaration of the program asks for its identity; finding it by
+    // scanning the identities assigned so far made publication quadratic.
+    let mut assigned = std::collections::BTreeMap::new();
     let mut descriptions = arena::Arena::default();
     let mut identity = |symbol: SymbolHandle| -> Result<ProofDeclarationId, LoweringError> {
         if !symbol.is_valid() {
             return Ok(ProofDeclarationId::default());
         }
-        if let Some((_, identity)) = coordinates.iter().find(|(owner, _)| *owner == symbol) {
+        let key = (symbol.arena_index(), symbol.generation());
+        if let Some(identity) = assigned.get(&key) {
             return Ok(*identity);
         }
         let ordinal = u32::try_from(coordinates.len())
@@ -43,6 +47,7 @@ pub(super) fn publish(
         let description = describe(checked, identities, sources, symbol);
         descriptions.insert(description.unwrap_or_else(ProofScopeDeclaration::Unavailable));
         coordinates.push((symbol, identity));
+        assigned.insert(key, identity);
         Ok(identity)
     };
     let plan = source.try_map(&mut identity)?;
@@ -52,6 +57,7 @@ pub(super) fn publish(
         &mut identity,
     )?;
     retain_selected_algebra_calls(checked, &mut calls, &mut identity)?;
+    calls.index_machines();
     let mut callables = arena::Arena::new();
     for &(source, body) in machines {
         callables.insert(terminal_psi::ProofCallableAssociation::Callable {
@@ -175,7 +181,7 @@ fn retain_selected_algebra_calls(
             position + selected[position..].partition_point(|(candidate, _)| *candidate == owner);
         let declaration = identity(owner)?;
         if let Some((row, span)) = graph
-            .machines
+            .machines()
             .iter()
             .find_map(|(handle, row)| (row.machine == declaration).then_some((handle, row.calls)))
         {
@@ -191,7 +197,8 @@ fn retain_selected_algebra_calls(
                     },
                 );
             }
-            graph.machines.get_mut(row).calls = graph.calls.insert_many(calls);
+            let calls = graph.calls.insert_many(calls);
+            graph.update_machine(row, |machine| machine.calls = calls);
         }
         position = end;
     }

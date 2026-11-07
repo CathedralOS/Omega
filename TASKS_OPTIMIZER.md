@@ -20,8 +20,8 @@ Selections are exact names. Do not add `O1`/`O2`/`O3`, `debug`/`release`, or
 another broad alias. Every rule names the exact semantic, proof, ownership,
 effect and target facts it consumes. Checked facts may be consumed
 in-process; no item here requires shipped proofs, independent replay of the
-compiler's own rewrites, or custody-mutation matrices (proof-carrying code was
-removed; see [PCC removal](TASKS.md#pcc-removal)). Optimizer crates have no
+compiler's own rewrites, or custody-mutation matrices; follow
+[verification placement](omega-rust/pipeline.md#verification-placement). Optimizer crates have no
 Rust tests; acceptance names corpus fixtures under `tests/omega/` run through
 `tools/corpus_gate.py`.
 

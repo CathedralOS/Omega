@@ -76,9 +76,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<usize, Vec<Diagnos
                 RetainedConstantPosition::ConstApplication { site, .. } => operands
                     .type_owners(site)
                     .any(|owner| owner == context.owner),
-                RetainedConstantPosition::RangeEndpoint(root) => operands
-                    .expression_owners(root)
-                    .any(|owner| owner == context.owner),
+
                 _ => false,
             };
             if context.evaluation_entry.is_valid()

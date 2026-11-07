@@ -229,6 +229,32 @@ impl<'program> StorageProjectionCursor<'program> {
         (start <= end && end <= *extent).then_some(())
     }
 
+    /// Geometry may inspect an unqualified carrier, but the final selected
+    /// declaration still owns its predicates and arithmetic policy. Compare
+    /// that complete leaf in its supplying scope before carrier normalization.
+    pub(in crate::machine_calls::calls::write_frames) fn has_declared_type(
+        self,
+        receiving: TypeReferenceHandle,
+    ) -> bool {
+        if self.selected_case.is_some()
+            || !self
+                .program
+                .type_reference_table
+                .contains_type_reference(self.reference)
+            || !self
+                .program
+                .type_reference_table
+                .contains_type_reference(receiving)
+        {
+            return false;
+        }
+        let selected = self
+            .scopes
+            .type_identity(self.program, self.reference, self.scope);
+        let receiving = self.program.normalized_type_identity(receiving);
+        selected.is_valid() && receiving.is_valid() && selected == receiving
+    }
+
     pub(in crate::machine_calls::calls::write_frames) fn finish(
         mut self,
     ) -> Option<TypeReferenceHandle> {

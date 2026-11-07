@@ -181,7 +181,7 @@ pub(super) fn exact_realization_contract<'facts>(
     let contracts = checked
         .facts
         .contract_plans
-        .machines
+        .machines()
         .iter()
         .filter(|contract| contract.machine == realization_machine)
         .collect::<Vec<_>>();

@@ -229,13 +229,10 @@ pub(in super::super) fn build(
     trace: &LocalConstructionTrace,
 ) -> Option<StatementSequence> {
     trace.phase("statement sequence: scalar control guard");
-    let (scalar_control, terminator_start) = phase_profile::scope(
-        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.scalar_control",
-        || match scalar_control(program, facts, machine, state) {
-            Some((control, prefix_count)) => (Some(control), prefix_count),
-            None => (None, usize::MAX),
-        },
-    );
+    let (scalar_control, terminator_start) = match scalar_control(program, facts, machine, state) {
+        Some((control, prefix_count)) => (Some(control), prefix_count),
+        None => (None, usize::MAX),
+    };
     let statements = program.statement_table.statements(state.statement_nodes);
     // The walk plans each statement up to the body's completion: a trailing
     // transition run (each arm's destructure marker before it), the final
@@ -379,7 +376,7 @@ pub(in super::super) fn build(
         };
     }
     trace.phase("statement sequence: scalar field store sequence");
-    let mut stores = phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.stores", || {
+    let mut stores =
         super::super::structural_scalar_store::build_structural_scalar_field_store_sequence_traced(
             program,
             facts,
@@ -390,13 +387,9 @@ pub(in super::super) fn build(
             parameter_storage,
             construction_statement_count,
             trace,
-        )
-    })?
-    .into_iter()
-    .peekable();
-    let _loop_guard = phase_profile::guard(
-        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.statement_loop",
-    );
+        )?
+        .into_iter()
+        .peekable();
     // A composed state ends its sequence where its terminator begins: a
     // transition into a fused sibling is a successor edge the state graph
     // plans, not a terminal call, so the caller bounds the walk.
@@ -717,32 +710,28 @@ pub(in super::super) fn build(
             break;
         }
     }
-    drop(_loop_guard);
     trace.statement(None);
-    phase_profile::scope(
-        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.completion",
-        || {
-            completion::complete(completion::Completion {
-                construction: construction!(),
-                owner_candidates,
-                prepared_calls,
-                binders: &binders,
-                calls,
-                statement_end,
-                scalar_control,
-                operations,
-                place_loans,
-                scalar_count,
-                structural_count,
-                structural_local_symbols,
-                windows,
-                returned_call,
-                returned_scalar_call,
-                structural_results,
-                call_count,
-            })
-        },
-    )
+    {
+        completion::complete(completion::Completion {
+            construction: construction!(),
+            owner_candidates,
+            prepared_calls,
+            binders: &binders,
+            calls,
+            statement_end,
+            scalar_control,
+            operations,
+            place_loans,
+            scalar_count,
+            structural_count,
+            structural_local_symbols,
+            windows,
+            returned_call,
+            returned_scalar_call,
+            structural_results,
+            call_count,
+        })
+    }
 }
 
 /// Find where this state's ordinary operations hand control to its completion.

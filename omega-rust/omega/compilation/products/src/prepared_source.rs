@@ -295,13 +295,7 @@ impl TypedCompilationFrontier {
         });
         match self.source.rejoin_current_authority(authority) {
             Ok(source) => Some(Self { source, ..self }),
-            Err(reason) => {
-                phase_profile::count("source.frontier.authority_misses", 1);
-                if phase_profile::enabled() {
-                    eprintln!("retained source frontier ignored: {reason}");
-                }
-                None
-            }
+            Err(_) => None,
         }
     }
 }

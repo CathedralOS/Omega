@@ -163,6 +163,7 @@ fn invalid_operands() -> TerminalEffectRejection {
 
 impl<'layout> CapturedStorage<'layout> {
     pub fn capture(
+        expected_argument_index: usize,
         buffers: &[TerminalBoundaryStorageBuffer],
         access: StructuralAccess,
         layout: Option<&'layout NativeBorrowedStorageLayout>,
@@ -207,7 +208,7 @@ impl<'layout> CapturedStorage<'layout> {
             }
             _ => return Err(invalid_operands()),
         };
-        if argument_index != 0
+        if argument_index != expected_argument_index
             || actual_access != access
             || (transfer == StorageTransfer::ReplacePrefix
                 && access != StructuralAccess::MutableBorrow)

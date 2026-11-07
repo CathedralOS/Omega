@@ -1,26 +1,10 @@
-//! Shared structural `where Binder == <type>` equation matching.
+//! Recover static arguments from declared structural type equations.
 //!
-//! A declaration template's `where` clause may equate a declared type binder with
-//! known type structure (`Length == u64[0..=Capacity]`). Applying the
-//! template with fewer arguments than binders recovers the omitted trailing
-//! binders by matching each equation's structure against the supplied
-//! argument; a complete tuple must still satisfy every equation exactly, and
-//! a verified equation is an instantiation obligation the instance no longer
-//! carries. A supplied range shell is identified only by its retained
-//! canonical `IntegerRangeNormalization`: no rendered spelling and no
-//! compatibility interval stands in for it, so `u64[0..257]` and
-//! `u64[0..=256]` bind the same capacity, and a larger containing interval
-//! does not satisfy the equation.
-//!
-//! Recovery runs in both directions of one equation. An omitted value binder
-//! reads its endpoint out of a supplied shell; an omitted *type* binder is
-//! built from the shell once the equation's own endpoints are closed
-//! integers, so `Bytes<const Capacity: u64, Length> where Length ==
-//! u64[0..=Capacity]` applied as `Bytes<256>` binds Length to `u64[0..=256]`.
-//! The constructed argument is an ordinary constrained type reference
-//! carrying the same canonical normalization the authored spelling would
-//! carry, so every later equation, repeat occurrence and closed identity
-//! compares one shape.
+//! A `requires` equation such as `Backing == [Element; Count]` relates exact
+//! type structure. A partial argument tuple can recover omitted binders from
+//! that structure; every complete tuple still proves the entire equation.
+//! Predicates on runtime scalar values are ordinary contract obligations and
+//! do not define structural type arguments.
 //!
 //! Fixed arrays, slices, anonymous references and declared generic applications
 //! retain ordinary type trees.
@@ -49,14 +33,14 @@ use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::closed_argument_identity;
 use crate::preparation::generic_data::closed_name_identity;
-use crate::preparation::generic_data::evaluate_const_fact_expression;
+
 use crate::preparation::generic_data::selected_data_item;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{
     CanonicalConstValue, DecodedCanonicalConstValue, boolean_literal_spelling,
 };
 use numerics::bignum::BigInt;
-use numerics::literals::{IntegerLiteral, IntegerRadix, LandedIntegerType};
+use numerics::literals::LandedIntegerType;
 use source::SourceSpan;
 use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
@@ -64,9 +48,7 @@ use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode,
 use syntax_trees::identifier::Identifier;
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::item::{ProofFact, TypeParameter, TypeParameterKind};
-use syntax_trees::types::{
-    IntegerRangeNormalization, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
+use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use type_structure::collect_binder_mentions;
 
 mod type_structure;
@@ -274,10 +256,7 @@ pub(crate) fn template_type_equation_offsets(
                 }
                 offsets.push(equation.fact_offset);
             }
-            EquationShape::Structural {
-                structure: Structure::RangeShell { .. },
-                ..
-            } => {}
+
             EquationShape::KindMismatch { span, description } => {
                 return Err(Diagnostic::error(format!(
                     "generic data `{}` requires equation mixes type and value kinds: {description}",
@@ -371,7 +350,7 @@ enum EquationShape {
         structure: Structure,
         span: SourceSpan,
     },
-    /// One side names a range shell or a type binder, but the other side is
+    /// One side names a type constructor or binder, but the other side is
     /// a value, a const binder, or a value binder: the sides cannot be
     /// equated as types, and nothing converts a type to a value.
     KindMismatch {
@@ -396,29 +375,12 @@ enum Structure {
     /// as names or treating their operands as runtime array elements.
     TypeReference(TypeReferenceHandle),
     /// `carrier[minimum..maximum]` or `carrier[minimum..=maximum]`.
-    RangeShell {
-        carrier: Identifier,
-        /// The carrier position names a type binder rather than a closed type.
-        carrier_binder: Option<usize>,
-        minimum: Endpoint,
-        maximum: Endpoint,
-        end_inclusive: bool,
-    },
+
     /// A single name: a closed type, or another type binder.
     Name {
         name: Identifier,
         binder: Option<usize>,
     },
-}
-
-#[derive(Clone)]
-enum Endpoint {
-    Literal(BigInt),
-    /// A bare const binder of the template.
-    Binder(usize),
-    /// Any other expression, compared once every binder it mentions is bound.
-    Expression(ExpressionHandle),
-    Absent,
 }
 
 impl Structure {
@@ -431,33 +393,7 @@ impl Structure {
             Structure::TypeReference(reference) => {
                 collect_binder_mentions(syntax, *reference, parameters, &mut mentions);
             }
-            Structure::RangeShell {
-                carrier,
-                carrier_binder,
-                minimum,
-                maximum,
-                ..
-            } => {
-                mentions.extend(carrier_binder.or_else(|| {
-                    parameters
-                        .iter()
-                        .position(|parameter| parameter == carrier.as_str(syntax))
-                }));
-                for endpoint in [minimum, maximum] {
-                    match endpoint {
-                        Endpoint::Binder(index) => mentions.push(*index),
-                        Endpoint::Expression(expression) => {
-                            collect_expression_binder_mentions(
-                                syntax,
-                                *expression,
-                                parameters,
-                                &mut mentions,
-                            );
-                        }
-                        Endpoint::Literal(_) | Endpoint::Absent => {}
-                    }
-                }
-            }
+
             Structure::Name { name, binder } => mentions.extend(binder.or_else(|| {
                 parameters
                     .iter()
@@ -474,12 +410,7 @@ enum Side {
     TypeBinder(usize),
     ValueBinder(usize),
     ClosedName(Identifier),
-    RangeShell {
-        carrier: Identifier,
-        start: ExpressionHandle,
-        end: ExpressionHandle,
-        end_inclusive: bool,
-    },
+
     Other(&'static str),
 }
 
@@ -494,18 +425,8 @@ fn binder_index<'parameters>(
         .map(|index| (index, &parameters[index].kind))
 }
 
-fn single_name(syntax: &SyntaxTrees, expression: ExpressionHandle) -> Option<&Identifier> {
-    let ExpressionNode::Name(path) = syntax.expressions.expression(expression) else {
-        return None;
-    };
-    let [member] = syntax.expressions.identifier_path_members(*path) else {
-        return None;
-    };
-    Some(member)
-}
-
 /// Classify every declaration-level `where` fact that equates a type binder or a
-/// range shell. Facts over const binders and values alone (`Capacity > 0`)
+/// type constructor. Facts over const binders and values alone (`Capacity > 0`)
 /// stay ordinary instantiation obligations for the const evaluator.
 /// A machine's structural equations among its `requires` facts; see
 /// [`TypeEquation::defines_structure`].
@@ -594,15 +515,7 @@ pub(crate) fn classify_type_equations(
                 (Side::TypeBinder(binder), other) | (other, Side::TypeBinder(binder)) => {
                     equation_shape(syntax, parameters, binder, other, span)
                 }
-                (Side::RangeShell { .. }, other) | (other, Side::RangeShell { .. }) => {
-                    EquationShape::KindMismatch {
-                        span,
-                        description: format!(
-                            "{} cannot equal a range shell",
-                            describe_side(syntax, parameters, &other)
-                        ),
-                    }
-                }
+
                 (Side::TypeStructure(_), other) | (other, Side::TypeStructure(_)) => {
                     EquationShape::KindMismatch {
                         span,
@@ -669,20 +582,6 @@ fn classify_side(
                 .end;
             Side::ClosedName(Identifier::new(members.joined_path_in(syntax), span))
         }
-        ExpressionNode::Indexed(indexed) => {
-            let Some(carrier) = single_name(syntax, indexed.collection) else {
-                return Side::Other("an indexed expression");
-            };
-            let ExpressionNode::Range(range) = syntax.expressions.expression(indexed.index) else {
-                return Side::Other("an indexed expression");
-            };
-            Side::RangeShell {
-                carrier: carrier.clone(),
-                start: range.start,
-                end: range.end,
-                end_inclusive: range.end_inclusive,
-            }
-        }
         _ => Side::Other("a value expression"),
     }
 }
@@ -702,9 +601,7 @@ fn describe_side(syntax_trees: &SyntaxTrees, parameters: &[TypeParameter], side:
             )
         }
         Side::ClosedName(name) => format!("`{}`", name.as_str(syntax_trees)),
-        Side::RangeShell { carrier, .. } => {
-            format!("range shell on `{}`", carrier.as_str(syntax_trees))
-        }
+
         Side::Other(what) => (*what).to_owned(),
     }
 }
@@ -740,70 +637,11 @@ fn equation_shape(
         Side::Other(what) => {
             return mismatch(format!("type binder `{binder_name}` cannot equal {what}"));
         }
-        Side::RangeShell {
-            carrier,
-            start,
-            end,
-            end_inclusive,
-        } => {
-            let carrier_binder = match binder_index(syntax, parameters, carrier.as_str(syntax)) {
-                Some((index, TypeParameterKind::Type)) => Some(index),
-                Some(_) => {
-                    return mismatch(format!(
-                        "value binder `{}` cannot carry a range shell",
-                        carrier.as_str(syntax)
-                    ));
-                }
-                None => None,
-            };
-            let (minimum, maximum) = match (
-                classify_endpoint(syntax, parameters, start),
-                classify_endpoint(syntax, parameters, end),
-            ) {
-                (Ok(minimum), Ok(maximum)) => (minimum, maximum),
-                (Err(description), _) | (_, Err(description)) => return mismatch(description),
-            };
-            Structure::RangeShell {
-                carrier,
-                carrier_binder,
-                minimum,
-                maximum,
-                end_inclusive,
-            }
-        }
     };
     EquationShape::Structural {
         binder,
         structure,
         span,
-    }
-}
-
-fn classify_endpoint(
-    syntax: &SyntaxTrees,
-    parameters: &[TypeParameter],
-    expression: ExpressionHandle,
-) -> Result<Endpoint, String> {
-    if !expression.is_valid() {
-        return Ok(Endpoint::Absent);
-    }
-    match syntax.expressions.expression(expression) {
-        ExpressionNode::Integer(literal) => Ok(literal
-            .value_bignum()
-            .map_or(Endpoint::Expression(expression), Endpoint::Literal)),
-        ExpressionNode::Name(_) => match single_name(syntax, expression)
-            .and_then(|name| binder_index(syntax, parameters, name.as_str(syntax)))
-        {
-            Some((_, TypeParameterKind::Type)) => Err(format!(
-                "type binder `{}` cannot be a range endpoint",
-                single_name(syntax, expression)
-                    .expect("a single-segment name was matched")
-                    .as_str(syntax)
-            )),
-            Some((index, _)) => Ok(Endpoint::Binder(index)),
-            None => Ok(Endpoint::Expression(expression)),
-        },
-        _ => Ok(Endpoint::Expression(expression)),
     }
 }
 
@@ -1087,16 +925,8 @@ enum Outcome {
     Deferred,
 }
 
-/// The carrier of a range shell being constructed for an omitted type binder:
-/// an already bound type argument, or the equation's own closed carrier name.
-enum ConstructedCarrier {
-    Bound(TypeReferenceHandle),
-    Name(Identifier),
-}
-
 struct Solver<'a, 's> {
-    /// Constructing an omitted type binder's range shell appends its carrier,
-    /// endpoints and canonical normalization to these tables while solving.
+    /// Constructing an omitted type argument appends its ordinary type tree.
     syntax: &'a mut SyntaxTrees,
     base_info: EquationTemplate<'a>,
     base_name: &'a Identifier,
@@ -1186,20 +1016,6 @@ impl<'a, 's> Solver<'a, 's> {
                     "requires equations define `{binder}` through itself; supply the argument explicitly"
                 )));
             }
-            if let Some(owner) = self.expression_endpoint_mentioning(index) {
-                return Err(self.reject(format!(
-                    "requires equation on `{}` cannot bind `{binder}`: structural inference binds a bare const binder, not an expression over it; supply the argument explicitly",
-                    self.binder_name(owner)
-                )));
-            }
-            if self
-                .equations_defining(index)
-                .any(|structure| matches!(structure, Structure::RangeShell { .. }))
-            {
-                return Err(self.reject(format!(
-                    "cannot construct type binder `{binder}` from its range-shell equation; supply the argument explicitly"
-                )));
-            }
             return Err(self.reject(format!(
                 "cannot determine `{binder}` from its requires equations; supply the argument explicitly"
             )));
@@ -1239,37 +1055,6 @@ impl<'a, 's> Solver<'a, 's> {
                     structure,
                     ..
                 } if *defined == binder => Some(structure),
-                _ => None,
-            })
-    }
-
-    /// The binder side of an equation whose endpoint expression mentions
-    /// `binder` without being that bare binder: `0..=N * 2` cannot bind N.
-    fn expression_endpoint_mentioning(&self, binder: usize) -> Option<usize> {
-        self.base_info
-            .type_equations
-            .iter()
-            .find_map(|equation| match &equation.shape {
-                EquationShape::Structural {
-                    binder: owner,
-                    structure:
-                        Structure::RangeShell {
-                            minimum, maximum, ..
-                        },
-                    ..
-                } => [minimum, maximum].into_iter().find_map(|endpoint| {
-                    let Endpoint::Expression(expression) = endpoint else {
-                        return None;
-                    };
-                    let mut mentions = Vec::new();
-                    collect_expression_binder_mentions(
-                        self.syntax,
-                        *expression,
-                        self.base_info.parameter_names,
-                        &mut mentions,
-                    );
-                    mentions.contains(&binder).then_some(*owner)
-                }),
                 _ => None,
             })
     }
@@ -1368,7 +1153,7 @@ impl<'a, 's> Solver<'a, 's> {
                         else {
                             return Err(self
                                 .reject(format!(
-                                    "cannot construct type binder `{}` from its range-shell equation; supply the argument explicitly",
+                                    "cannot construct type binder `{}` from its requires equation; supply the argument explicitly",
                                     self.binder_name(*binder)
                                 ))
                                 .with_source_span(*span));
@@ -1470,13 +1255,13 @@ impl<'a, 's> Solver<'a, 's> {
     }
 
     /// The binder side is unbound: a closed name, an already bound type
-    /// binder, or the equation's own range shell defines it.
+    /// binder, or the equation's own type structure defines it.
     fn recover_binder(
         &mut self,
         binder: usize,
         structure: &Structure,
         span: SourceSpan,
-        warnings: &mut Vec<Diagnostic>,
+        _warnings: &mut Vec<Diagnostic>,
     ) -> Result<Outcome, Diagnostic> {
         let (name, other) = match structure {
             Structure::TypeOperand(expression) => {
@@ -1498,24 +1283,6 @@ impl<'a, 's> Solver<'a, 's> {
                 name,
                 binder: other,
             } => (name, other),
-            Structure::RangeShell {
-                carrier,
-                carrier_binder,
-                minimum,
-                maximum,
-                end_inclusive,
-            } => {
-                return self.construct_range_shell(
-                    binder,
-                    carrier,
-                    *carrier_binder,
-                    minimum,
-                    maximum,
-                    *end_inclusive,
-                    span,
-                    warnings,
-                );
-            }
         };
         let binding = match other {
             None => Binding::NamedType(name.clone()),
@@ -1531,260 +1298,13 @@ impl<'a, 's> Solver<'a, 's> {
         Ok(Outcome::Settled)
     }
 
-    /// Build the omitted type binder's argument out of the equation's own
-    /// range shell. Every endpoint must already be a closed integer; while one
-    /// is still open the equation defers, and the unsolved-binder report then
-    /// asks for an explicit argument. The materialized node is an ordinary
-    /// constrained type reference with the canonical inclusive interval
-    /// retained beside it, which is the only thing that identifies a shell.
-    #[allow(clippy::too_many_arguments)]
-    fn construct_range_shell(
-        &mut self,
-        binder: usize,
-        carrier: &Identifier,
-        carrier_binder: Option<usize>,
-        minimum: &Endpoint,
-        maximum: &Endpoint,
-        end_inclusive: bool,
-        span: SourceSpan,
-        warnings: &mut Vec<Diagnostic>,
-    ) -> Result<Outcome, Diagnostic> {
-        let binder_name = self.binder_name(binder).to_owned();
-        let carrier = match carrier_binder {
-            None => ConstructedCarrier::Name(carrier.clone()),
-            Some(index) => match self.bindings[index].clone() {
-                Some(Binding::Type(handle)) => ConstructedCarrier::Bound(handle),
-                Some(Binding::NamedType(name)) => ConstructedCarrier::Name(name),
-                Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Constant(_)) => {
-                    unreachable!("a type binder holds a type binding")
-                }
-                None => return Ok(Outcome::Deferred),
-            },
-        };
-        let Some(minimum) =
-            self.constructed_endpoint(minimum, &binder_name, "minimum", span, warnings)?
-        else {
-            return Ok(Outcome::Deferred);
-        };
-        let Some(maximum) =
-            self.constructed_endpoint(maximum, &binder_name, "maximum", span, warnings)?
-        else {
-            return Ok(Outcome::Deferred);
-        };
-        // An exclusive end lands as its proof-integer predecessor, exactly the
-        // interval an authored spelling of the same shell would retain.
-        let inclusive_maximum = if end_inclusive {
-            maximum.clone()
-        } else {
-            maximum.sub(&BigInt::from_u64(1))
-        };
-        let handle = self.materialize_range_shell(
-            carrier,
-            &minimum,
-            &maximum,
-            &inclusive_maximum,
-            end_inclusive,
-            span,
-            &binder_name,
-        )?;
-        self.bindings[binder] = Some(Binding::Type(handle));
-        Ok(Outcome::Settled)
-    }
-
-    /// One endpoint of a shell being constructed, as a closed integer.
-    /// `Ok(None)` defers while a binder it mentions is still unbound.
-    fn constructed_endpoint(
-        &self,
-        endpoint: &Endpoint,
-        binder_name: &str,
-        position: &str,
-        span: SourceSpan,
-        warnings: &mut Vec<Diagnostic>,
-    ) -> Result<Option<BigInt>, Diagnostic> {
-        match endpoint {
-            Endpoint::Absent => Err(self
-                .reject(format!(
-                    "cannot construct type binder `{binder_name}` from its range-shell equation: it has no {position} endpoint; supply the argument explicitly"
-                ))
-                .with_source_span(span)),
-            Endpoint::Literal(value) => Ok(Some(value.clone())),
-            Endpoint::Binder(index) => match &self.bindings[*index] {
-                Some(Binding::Integer(value)) => Ok(Some(value.clone())),
-                Some(Binding::Boolean(_) | Binding::Constant(_)) => Err(self
-                    .reject(format!(
-                        "requires equation mixes type and value kinds: const binder `{}` holds a non-integer argument",
-                        self.binder_name(*index)
-                    ))
-                    .with_source_span(span)),
-                Some(Binding::Type(_) | Binding::NamedType(_)) => {
-                    unreachable!("classification admits only value binders as endpoints")
-                }
-                None => Ok(None),
-            },
-            Endpoint::Expression(expression) => {
-                self.expression_endpoint_value(*expression, binder_name, position, span, warnings)
-            }
-        }
-    }
-
-    /// Append the constructed shell: its carrier, one range constraint over
-    /// freshly landed decimal endpoints, and the canonical normalization that
-    /// gives the argument its closed identity.
-    #[allow(clippy::too_many_arguments)]
-    fn materialize_range_shell(
-        &mut self,
-        carrier: ConstructedCarrier,
-        minimum: &BigInt,
-        maximum: &BigInt,
-        inclusive_maximum: &BigInt,
-        end_inclusive: bool,
-        span: SourceSpan,
-        binder_name: &str,
-    ) -> Result<TypeReferenceHandle, Diagnostic> {
-        let base_type = match carrier {
-            ConstructedCarrier::Bound(handle) => handle,
-            ConstructedCarrier::Name(name) => self
-                .syntax
-                .tables
-                .type_references
-                .insert(TypeReferenceNode::Named(name)),
-        };
-        let minimum_expression = self.insert_integer_expression(minimum, span, binder_name)?;
-        let maximum_expression = self.insert_integer_expression(maximum, span, binder_name)?;
-        let constraints =
-            self.syntax
-                .tables
-                .type_references
-                .insert_constraints([TypeConstraintNode::Range {
-                    minimum: minimum_expression,
-                    maximum: maximum_expression,
-                    end_inclusive,
-                }]);
-        let handle = self
-            .syntax
-            .tables
-            .type_references
-            .insert(TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            });
-        self.syntax
-            .tables
-            .type_references
-            .retain_integer_range_normalization(
-                handle,
-                0,
-                IntegerRangeNormalization {
-                    minimum: minimum.clone(),
-                    maximum: inclusive_maximum.clone(),
-                },
-            );
-        Ok(handle)
-    }
-
-    fn insert_integer_expression(
-        &mut self,
-        value: &BigInt,
-        span: SourceSpan,
-        binder_name: &str,
-    ) -> Result<ExpressionHandle, Diagnostic> {
-        let literal = IntegerLiteral::from_parts(
-            value.is_negative(),
-            IntegerRadix::Decimal,
-            value.abs().to_string().as_str(),
-        )
-        .map_err(|reason| {
-            self.reject(format!(
-                "cannot construct type binder `{binder_name}` from its range-shell equation: {reason}"
-            ))
-            .with_source_span(span)
-        })?;
-        let handle = self
-            .syntax
-            .expressions
-            .insert(ExpressionNode::Integer(literal));
-        self.syntax.expressions.set_source_span(handle, span);
-        Ok(handle)
-    }
-
-    /// Evaluate an endpoint expression once every template binder it mentions
-    /// is a bound integer. `Ok(None)` means one mention is still unbound, so
-    /// the caller defers; a closed expression that is not an integer rejects.
-    fn expression_endpoint_value(
-        &self,
-        expression: ExpressionHandle,
-        binder_name: &str,
-        position: &str,
-        span: SourceSpan,
-        warnings: &mut Vec<Diagnostic>,
-    ) -> Result<Option<BigInt>, Diagnostic> {
-        let mut mentions = Vec::new();
-        collect_expression_binder_mentions(
-            self.syntax,
-            expression,
-            self.base_info.parameter_names,
-            &mut mentions,
-        );
-        let mut parameter_values = HashMap::new();
-        for mention in mentions {
-            match &self.bindings[mention] {
-                Some(Binding::Integer(value)) => {
-                    let Some(value) = value
-                        .to_i64()
-                        .map(i128::from)
-                        .or_else(|| value.to_u64().map(i128::from))
-                    else {
-                        return Err(self.reject(format!(
-                            "requires equation on `{binder_name}` cannot be decided: `{}` exceeds the endpoint evaluator's 64-bit envelope",
-                            self.binder_name(mention)
-                        )).with_source_span(span));
-                    };
-                    parameter_values.insert(self.binder_name(mention).to_owned(), value);
-                }
-                Some(_) => {
-                    return Err(self
-                        .reject(format!(
-                            "requires equation mixes type and value kinds: `{}` is not an integer const binder",
-                            self.binder_name(mention)
-                        ))
-                        .with_source_span(span));
-                }
-                None => return Ok(None),
-            }
-        }
-        let value = evaluate_const_fact_expression(
-            self.syntax,
-            expression,
-            self.const_values,
-            &parameter_values,
-            self.selection,
-            warnings,
-        )
-        .and_then(|value| match value {
-            Some(value) => value.into_integer(self.syntax, warnings),
-            None => Ok(None),
-        })
-        .map_err(|reason| {
-            self.reject(format!(
-                "requires equation on `{binder_name}` has an invalid {position} endpoint: {reason}"
-            ))
-            .with_source_span(span)
-        })?;
-        let Some(value) = value else {
-            return Err(self.reject(format!(
-                "requires equation on `{binder_name}` cannot be decided: its {position} endpoint is not a closed integer; structural inference binds a bare const binder, not an expression over it"
-            )).with_source_span(span));
-        };
-        Ok(Some(BigInt::from_i128(value)))
-    }
-
     fn match_structure(
         &mut self,
         binder: usize,
         handle: TypeReferenceHandle,
         structure: &Structure,
         span: SourceSpan,
-        warnings: &mut Vec<Diagnostic>,
+        _warnings: &mut Vec<Diagnostic>,
     ) -> Result<Outcome, Diagnostic> {
         match structure {
             Structure::TypeOperand(expression) => {
@@ -1804,151 +1324,6 @@ impl<'a, 's> Solver<'a, 's> {
                 let actual = closed_argument_identity(self.syntax, self.selection, handle, false);
                 self.match_name(binder, actual, name, *other, span)
             }
-            Structure::RangeShell {
-                carrier,
-                carrier_binder,
-                minimum,
-                maximum,
-                end_inclusive,
-            } => {
-                let binder_name = self.binder_name(binder).to_owned();
-                let TypeReferenceNode::Constrained {
-                    base_type,
-                    constraints,
-                } = self.syntax.tables.type_references.type_reference(handle)
-                else {
-                    return Err(self.reject(format!(
-                        "cannot match the requires equation on `{binder_name}`: the supplied `{binder_name}` argument lacks a declared range shell; supply the omitted arguments explicitly"
-                    )).with_source_span(span));
-                };
-                let constraints = self.syntax.tables.type_references.constraints(*constraints);
-                let ranges = constraints
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, constraint)| {
-                        matches!(constraint, TypeConstraintNode::Range { .. })
-                    })
-                    .map(|(ordinal, _)| ordinal)
-                    .collect::<Vec<_>>();
-                let ordinal = match ranges.as_slice() {
-                    [] => {
-                        return Err(self.reject(format!(
-                            "cannot match the requires equation on `{binder_name}`: the supplied `{binder_name}` argument lacks a declared range shell; supply the omitted arguments explicitly"
-                        )).with_source_span(span));
-                    }
-                    [ordinal] => *ordinal,
-                    _ => {
-                        return Err(self.reject(format!(
-                            "cannot match the requires equation on `{binder_name}`: the supplied `{binder_name}` argument carries {} range constraints, so its endpoint is ambiguous",
-                            ranges.len()
-                        )).with_source_span(span));
-                    }
-                };
-                if constraints.len() != 1 {
-                    return Err(self.reject(format!(
-                        "requires equation on `{binder_name}` does not hold: the supplied `{binder_name}` argument carries qualification beyond the equation's range shell"
-                    )).with_source_span(span));
-                }
-                let base_type = *base_type;
-                let actual_carrier =
-                    closed_argument_identity(self.syntax, self.selection, base_type, false);
-                match carrier_binder {
-                    Some(index) => match self.bindings[*index].clone() {
-                        None => self.bindings[*index] = Some(Binding::Type(base_type)),
-                        Some(Binding::Type(bound)) => {
-                            let expected =
-                                closed_argument_identity(self.syntax, self.selection, bound, false);
-                            self.require_same_carrier(
-                                &binder_name,
-                                carrier,
-                                expected,
-                                actual_carrier,
-                                span,
-                            )?;
-                        }
-                        Some(Binding::NamedType(name)) => {
-                            let expected = closed_name_identity(self.syntax, self.selection, &name);
-                            self.require_same_carrier(
-                                &binder_name,
-                                carrier,
-                                expected,
-                                actual_carrier,
-                                span,
-                            )?;
-                        }
-                        Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Constant(_)) => {
-                            unreachable!("a type binder holds a type binding")
-                        }
-                    },
-                    None => {
-                        let expected = closed_name_identity(self.syntax, self.selection, carrier);
-                        self.require_same_carrier(
-                            &binder_name,
-                            carrier,
-                            expected,
-                            actual_carrier,
-                            span,
-                        )?;
-                    }
-                }
-                let Some(normalization) = self
-                    .syntax
-                    .type_references
-                    .integer_range_normalization(handle, ordinal)
-                else {
-                    return Err(self.reject(format!(
-                        "cannot match the requires equation on `{binder_name}`: the supplied `{binder_name}` argument has no canonical range endpoint; supply the omitted arguments explicitly"
-                    )).with_source_span(span));
-                };
-                let actual_minimum = normalization.minimum.clone();
-                let actual_maximum = if *end_inclusive {
-                    normalization.maximum.clone()
-                } else {
-                    normalization.maximum.add(&BigInt::from_u64(1))
-                };
-                let mut outcome = Outcome::Settled;
-                for (endpoint, actual, position) in [
-                    (minimum, actual_minimum, "minimum"),
-                    (maximum, actual_maximum, "maximum"),
-                ] {
-                    if let Outcome::Deferred = self.match_endpoint(
-                        &binder_name,
-                        endpoint,
-                        actual,
-                        position,
-                        span,
-                        warnings,
-                    )? {
-                        outcome = Outcome::Deferred;
-                    }
-                }
-                Ok(outcome)
-            }
-        }
-    }
-
-    fn require_same_carrier(
-        &self,
-        binder_name: &str,
-        carrier: &Identifier,
-        expected: Option<ClosedArgumentIdentity>,
-        actual: Option<ClosedArgumentIdentity>,
-        span: SourceSpan,
-    ) -> Result<(), Diagnostic> {
-        match (expected, actual) {
-            (Some(expected), Some(actual)) if expected == actual => Ok(()),
-            (Some(_), Some(_)) => Err(self
-                .reject(format!(
-                    "requires equation on `{binder_name}` does not hold: the supplied range carrier is not `{}`",
-                    carrier.as_str(self.syntax)
-                ))
-                .with_source_span(span)),
-            _ => Err(self
-                .reject(format!(
-                    "requires equation on `{binder_name}` cannot be decided: `{}` or the supplied carrier does not name a closed type",
-                    carrier.as_str(self.syntax)
-                ))
-                .with_source_span(span)),
         }
     }
 
@@ -1999,61 +1374,6 @@ impl<'a, 's> Solver<'a, 's> {
                 .with_source_span(span)),
         }
     }
-
-    fn match_endpoint(
-        &mut self,
-        binder_name: &str,
-        endpoint: &Endpoint,
-        actual: BigInt,
-        position: &str,
-        span: SourceSpan,
-        warnings: &mut Vec<Diagnostic>,
-    ) -> Result<Outcome, Diagnostic> {
-        match endpoint {
-            Endpoint::Absent => Err(self
-                .reject(format!(
-                    "requires equation on `{binder_name}` has no {position} endpoint to match"
-                ))
-                .with_source_span(span)),
-            Endpoint::Literal(expected) => {
-                if *expected == actual {
-                    Ok(Outcome::Settled)
-                } else {
-                    Err(self
-                        .reject(format!(
-                            "requires equation on `{binder_name}` does not hold: its {position} endpoint {expected} differs from the supplied {actual}"
-                        ))
-                        .with_source_span(span))
-                }
-            }
-            Endpoint::Binder(index) => {
-                self.bind_integer(*index, actual, span)?;
-                Ok(Outcome::Settled)
-            }
-            Endpoint::Expression(expression) => {
-                let Some(value) = self.expression_endpoint_value(
-                    *expression,
-                    binder_name,
-                    position,
-                    span,
-                    warnings,
-                )?
-                else {
-                    return Ok(Outcome::Deferred);
-                };
-                if value == actual {
-                    Ok(Outcome::Settled)
-                } else {
-                    Err(self
-                        .reject(format!(
-                            "requires equation on `{binder_name}` does not hold: its {position} endpoint {value} differs from the supplied {actual}"
-                        ))
-                        .with_source_span(span))
-                }
-            }
-        }
-    }
-
     fn bind_integer(
         &mut self,
         index: usize,

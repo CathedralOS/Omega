@@ -215,12 +215,7 @@ impl Elaborator<'_> {
             if !type_reference_table(self.program)
                 .constraints(*constraints)
                 .iter()
-                .all(|constraint| {
-                    matches!(
-                        constraint,
-                        TypeConstraintNode::Range { .. } | TypeConstraintNode::ArithmeticDomain(_)
-                    )
-                })
+                .all(|constraint| matches!(constraint, TypeConstraintNode::ArithmeticDomain(_)))
             {
                 return None;
             }

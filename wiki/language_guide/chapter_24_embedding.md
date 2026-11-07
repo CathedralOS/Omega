@@ -72,11 +72,11 @@ The command-line choice is explicit:
 
 ```text
 omega run --engine native main.omg
-omega run --engine terminal main.omg
+omega run --engine psi main.omg
 omega run --both main.omg
 ```
 
-Native is the default. Terminal runs the interpreted program without producing
+Native is the default. Psi runs the interpreted program without producing
 or launching a native image. `--both` compares the two engines and is not combined
 with `--engine`. The target environment is still selected separately: interpreted
 Linux code needs the admitted Linux contracts, not arbitrary host substitutes.

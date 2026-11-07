@@ -78,12 +78,7 @@ impl LivePlaceIntervals<'_> {
         symbol: SymbolHandle,
         primitive_type: PrimitiveType,
     ) -> Option<IntegerRange> {
-        let mut bounds = self
-            .declared_type(symbol)
-            .and_then(|reference| {
-                validation::frozen_declared_integer_range(self.program, reference, primitive_type)
-            })
-            .or_else(|| validation::carrier_integer_range(primitive_type))?;
+        let mut bounds = validation::carrier_integer_range(primitive_type)?;
         // An immutable owned formal retains its arrival contract throughout
         // this state. Mutable or borrowed storage must use live evidence, not
         // an assumption about the value that arrived before intervening writes.
@@ -124,26 +119,6 @@ impl LivePlaceIntervals<'_> {
         place.segments = segments;
         Some((place, reference, frozen))
     }
-
-    /// The declared type behind a storage symbol: a frozen formal or immutable
-    /// local declared in this state. Mutable and exclusive-reference storage
-    /// can be reborrowed into a call whose own pointee type drops declared
-    /// constraints, so they keep the raw carrier instead.
-    fn declared_type(&self, symbol: SymbolHandle) -> Option<TypeReferenceHandle> {
-        if let Some(parameter) = self
-            .parameters
-            .iter()
-            .find(|parameter| parameter.symbol == symbol)
-        {
-            return (!parameter.is_mutable
-                && !exclusive_reference(self.program, parameter.type_reference))
-            .then_some(parameter.type_reference);
-        }
-        let state = self.program.state_by_symbol(self.state)?;
-        let (_, local) = self.program.state_local_declaration(state, symbol)?;
-        (!local.is_mutable && !exclusive_reference(self.program, local.type_reference))
-            .then_some(local.type_reference)
-    }
 }
 
 impl SelectedScalarIntervalSource for LivePlaceIntervals<'_> {
@@ -165,7 +140,7 @@ impl SelectedScalarIntervalSource for LivePlaceIntervals<'_> {
         position: u32,
         path: &[CheckedStructuralPredicatePathSegment],
     ) -> Option<IntegerRange> {
-        let (place, reference, frozen) = self.field(position, path)?;
+        let (place, reference, _frozen) = self.field(position, path)?;
         let declared = (|| {
             // A constant index below a byte carrier is the same read the
             // dynamic indexed plan serves: when no snapshot sits at the
@@ -189,12 +164,7 @@ impl SelectedScalarIntervalSource for LivePlaceIntervals<'_> {
             // carrier remains. This is not a declaration-derived domain
             // membership or initialization proof.
             let primitive_type = self.program.primitive_type_reference(reference)?;
-            if frozen {
-                validation::frozen_declared_integer_range(self.program, reference, primitive_type)
-            } else {
-                None
-            }
-            .or_else(|| validation::carrier_integer_range(primitive_type))
+            validation::carrier_integer_range(primitive_type)
         })();
         let primitive = self.program.primitive_type_reference(reference)?;
         let current = self.contents.at_place(&place, primitive);
@@ -310,10 +280,10 @@ impl LivePlaceIntervals<'_> {
         path: &[CheckedStructuralPredicatePathSegment],
         index: Option<&IntegerRange>,
     ) -> Option<IntegerRange> {
-        let (place, mut reference, frozen) = self.field(position, path)?;
+        let (place, mut reference, _frozen) = self.field(position, path)?;
         // Literal byte reads need an element type, not a nominal text domain.
         // Raw fixed arrays and constrained carriers share the same read rule.
-        let element_reference = loop {
+        loop {
             use typed_trees::types::TypeReferenceNode;
             match self.program.type_reference_table.type_reference(reference) {
                 TypeReferenceNode::Reference { referee, .. }
@@ -325,11 +295,11 @@ impl LivePlaceIntervals<'_> {
                     if self.program.primitive_type_reference(*element_type)
                         == Some(PrimitiveType::U8) =>
                 {
-                    break *element_type;
+                    break;
                 }
                 _ => return None,
             }
-        };
+        }
         let literal_bounds = literal_at_place(
             self.program,
             self.semantic,
@@ -354,22 +324,9 @@ impl LivePlaceIntervals<'_> {
                 maximum: BigInt::from_u64(u64::from(*bytes.iter().max()?)),
             })
         });
-        // Without a live literal, a declared element range is the storage
-        // invariant every checked write enforced on every element — but only
-        // while the carrier is frozen; mutable storage can be reborrowed
-        // through a pointee type that drops declared constraints. Past that,
-        // the element's own primitive carrier still bounds any successful
-        // read; this proves nothing about the index or the access returning.
-        literal_bounds
-            .or_else(|| {
-                frozen.then(|| {
-                    validation::frozen_declared_integer_range(
-                        self.program,
-                        element_reference,
-                        PrimitiveType::U8,
-                    )
-                })?
-            })
-            .or_else(|| validation::carrier_integer_range(PrimitiveType::U8))
+        // Without a live literal, the byte carrier still bounds any
+        // successful read. This proves neither the index nor the access's
+        // normal return.
+        literal_bounds.or_else(|| validation::carrier_integer_range(PrimitiveType::U8))
     }
 }

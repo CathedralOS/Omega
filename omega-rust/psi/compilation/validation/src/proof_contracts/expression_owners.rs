@@ -123,7 +123,7 @@ pub struct OwnerEnvironmentIndex {
     index: OwnerIndex,
     /// The walk's index over no checked facts, for queries inside it that ask
     /// what the program alone determines.
-    program_only: std::cell::OnceCell<Box<OwnerEnvironmentIndex>>,
+    program_only: std::sync::OnceLock<Box<OwnerEnvironmentIndex>>,
 }
 
 impl OwnerEnvironmentIndex {
@@ -153,7 +153,7 @@ impl OwnerEnvironmentIndex {
     ) -> Self {
         Self {
             index: build_owner_environment_index(program, contract_facts, call_signatures),
-            program_only: std::cell::OnceCell::new(),
+            program_only: std::sync::OnceLock::new(),
         }
     }
 
