@@ -4,9 +4,7 @@
 //! Current reference slots are a separate result of operand execution.
 
 use super::*;
-use crate::machine_calls::calls::write_frames::{
-    FramePathPrecision, FramePlaceOrigin, FrameSourcePlace,
-};
+use crate::machine_calls::calls::write_frames::{FramePathPrecision, FramePlaceOrigin};
 use std::collections::BTreeMap;
 
 type CaptureKey = (u32, u32);
