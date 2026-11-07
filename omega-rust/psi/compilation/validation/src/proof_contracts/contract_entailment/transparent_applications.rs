@@ -350,10 +350,11 @@ fn premises_prove(
     judge.hypotheses_contradictory
         || predicates.into_iter().all(|predicate| {
             let predicate = StructuralJudge::substitute_term(&predicate, renames);
-            matches!(
-                judge.judge_observed_predicate(predicate, 0),
-                StructuralJudgment::Proven
-            )
+            let judgment = judge.judge_observed_predicate(predicate.clone(), 0);
+            if matches!(judgment, StructuralJudgment::Unknown) {
+                judge.trace_formed_identity_refusal(Some(&predicate));
+            }
+            matches!(judgment, StructuralJudgment::Proven)
         })
 }
 
