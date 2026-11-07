@@ -44,8 +44,8 @@ pub(super) struct ExpressionTableLowerer<'program, 'target, 'scope> {
     pub(super) target_trees: &'target mut typed::TypedTrees,
     symbol_substitution: Option<(symbols::SymbolHandle, typed::expression::ExpressionHandle)>,
     pub(super) equality_scope: Option<&'scope EqualityScope>,
-    /// Fact equality over data retains logical identity instead of selecting
-    /// executable equality. Value children leave this context explicitly.
+    /// Tracks proposition-only placement diagnostics. Calls and value
+    /// children leave this context explicitly; comparison meaning is unchanged.
     pub(super) fact_position: bool,
     lowered_expressions: Vec<(
         resolved::expression::ExpressionHandle,
