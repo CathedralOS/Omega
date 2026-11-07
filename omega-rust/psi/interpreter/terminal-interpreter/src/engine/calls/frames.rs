@@ -363,7 +363,8 @@ impl TerminalExecution<'_> {
         claim_transfers: &[ClaimTransfer],
         mut result: SuspendedCallResult,
     ) -> Result<(), TerminalInterpretError> {
-        let values = bind_arguments(&callee.parameters, scalar_arguments, self.account.as_ref())?;
+        let values = bind_arguments(&callee.parameters, scalar_arguments, self.account.as_ref())
+            .map_err(|error| error.in_argument_preparation("bind scalar call parameters"))?;
         prepared_arguments
             .validate_carrier_partition(&callee.structural_parameters)
             .map_err(|error| error.in_argument_preparation("join callee carrier partition"))?;
@@ -392,11 +393,13 @@ impl TerminalExecution<'_> {
                     error.in_argument_preparation("capture reference result backings")
                 })?;
         }
-        let aggregate_payload = self.stage_owned_value_arguments(
-            &prepared_arguments.descriptor_parameters,
-            &mut structural_values,
-            &mut identity_cursor,
-        )?;
+        let aggregate_payload = self
+            .stage_owned_value_arguments(
+                &prepared_arguments.descriptor_parameters,
+                &mut structural_values,
+                &mut identity_cursor,
+            )
+            .map_err(|error| error.in_argument_preparation("stage owned call payloads"))?;
         let byte_sequence_values = prepared_arguments.byte_sequences;
         let mut callee_affine_frontier = crate::engine::custody::bind_affine_frontier(
             &callee.structural_parameters,
@@ -430,7 +433,8 @@ impl TerminalExecution<'_> {
                     &current.path,
                 )
             },
-        )?;
+        )
+        .map_err(|error| error.in_argument_preparation("exclude transferred linear regions"))?;
         let mut caller_affine_frontier = self.live_affine_frontier.clone();
         for (argument, parameter) in structural_arguments
             .iter()
@@ -612,14 +616,26 @@ impl TerminalExecution<'_> {
     ) -> Result<(), TerminalInterpretError> {
         let program = std::sync::Arc::clone(&self.program);
         let callee = program.verified_machine(callee_id)?;
+        let invalid_result = |reason| TerminalInterpretError::StructuralCallResultContract {
+            callee: callee_id,
+            place: result.place,
+            actual: result.structural_type,
+            expected: callee
+                .result
+                .structural()
+                .map(|value| value.structural_type),
+            reason,
+        };
         let Some(callee_result) = callee.result.structural() else {
-            return Err(malformed());
+            return Err(invalid_result("callee has no structural result"));
         };
         if let crate::engine::execution::ResultClaimOrigin::TargetFamilyReturn { head, member } =
             claim_origin
             && (member != callee_id || !program.is_target_family_head(head))
         {
-            return Err(malformed());
+            return Err(invalid_result(
+                "result origin does not name this target-family member",
+            ));
         }
         let mut preserved_projected_qualifications = Vec::new();
         if claim_origin == crate::engine::execution::ResultClaimOrigin::CalleeReturn
@@ -639,9 +655,13 @@ impl TerminalExecution<'_> {
                         .structural()
                         .is_some_and(|value| value.place == result.place)
                 });
-            let operation = operations.next().ok_or_else(malformed)?;
+            let operation = operations
+                .next()
+                .ok_or_else(|| invalid_result("result has no defining call operation"))?;
             if operations.next().is_some() || operation.result.structural() != Some(&result) {
-                return Err(malformed());
+                return Err(invalid_result(
+                    "result has multiple or inconsistent defining operations",
+                ));
             }
             let performed_arguments = structural_arguments;
             let same_call = match &operation.kind {
@@ -651,7 +671,9 @@ impl TerminalExecution<'_> {
                 _ => false,
             };
             if !same_call {
-                return Err(malformed());
+                return Err(invalid_result(
+                    "defining call has different callee or structural arguments",
+                ));
             }
             let preserved = terminal_semantics::ReferenceResultMemberships::new(&program.catalogs)
                 .for_operation(caller, operation)
@@ -659,7 +681,9 @@ impl TerminalExecution<'_> {
             for row in &result.projected_qualifications {
                 if !callee_result.projected_qualifications.contains(row) {
                     if !preserved.contains(row) {
-                        return Err(malformed());
+                        return Err(invalid_result(
+                            "projected result qualification has no preserved input source",
+                        ));
                     }
                     preserved_projected_qualifications.push(row.clone());
                 }
@@ -669,18 +693,28 @@ impl TerminalExecution<'_> {
         // checks. Returning a value does not impose a second argument-path or
         // result-shape language. Completion checks the produced carrier against
         // this exact declaration before installing it in the caller.
-        if result.structural_type != callee_result.structural_type
-            || result.multiplicity != callee_result.multiplicity
-            || !claim_origin.result_qualifications_match(&result, &callee_result.qualifications)
-            || !claim_origin.result_projected_qualifications_match(
-                &result,
-                &callee_result.projected_qualifications,
-                &preserved_projected_qualifications,
-            )
-            || self.structural_values.contains_key(&result.place)
-            || self.scalar_array_values.contains_key(&result.place)
+        let refusal = if result.structural_type != callee_result.structural_type {
+            Some("result carrier differs from the callee declaration")
+        } else if result.multiplicity != callee_result.multiplicity {
+            Some("result multiplicity differs from the callee declaration")
+        } else if !claim_origin.result_qualifications_match(&result, &callee_result.qualifications)
         {
-            return Err(malformed());
+            Some("result qualifications differ from the callee declaration")
+        } else if !claim_origin.result_projected_qualifications_match(
+            &result,
+            &callee_result.projected_qualifications,
+            &preserved_projected_qualifications,
+        ) {
+            Some("projected result qualifications have no complete callee or input source")
+        } else if self.structural_values.contains_key(&result.place) {
+            Some("result destination already has a structural value")
+        } else if self.scalar_array_values.contains_key(&result.place) {
+            Some("result destination already has a scalar array")
+        } else {
+            None
+        };
+        if let Some(reason) = refusal {
+            return Err(invalid_result(reason));
         }
         self.enter_call(
             callee_id,
@@ -697,5 +731,6 @@ impl TerminalExecution<'_> {
                 profile_completion: None,
             },
         )
+        .map_err(|error| error.in_argument_preparation("enter structural-result callee"))
     }
 }
