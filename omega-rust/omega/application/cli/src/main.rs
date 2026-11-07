@@ -8,15 +8,13 @@
 //! process to load it, so `main` hands that child over before parsing any
 //! arguments; it exits and never returns here.
 //!
-//! Every command runs on a 256 MB stack because OS main-thread stacks are
-//! small and host-dependent (1 MB on Windows, 8 MB on macOS and Linux).
-//! Before `compile_packages` enters `run_on_compile_thread`, package source
-//! discovery (`ReadinessScheduler::drive_work`) runs `PackageBuildInvocation::advance`
-//! and `ProductQueries::describe` (`lower_typed_frontier` name resolution and
-//! type-checking) on the command's own thread, which overflows 1 MB on ordinary
-//! package projects. The 256 MB is virtual address space reserved up front and
-//! committed by the OS only a page at a time as touched, so `omega --version`
-//! and `--help` pay only a single thread spawn (~50 µs).
+//! Compiler and package commands run on `compiler::checked::spawn_compile_worker`
+//! so `ON_COMPILER_WORKER` is active from the start of the command. OS main-thread
+//! stacks are small on Windows (1 MB vs. 8 MB on macOS and Linux), and nested
+//! `run_on_compile_thread` calls inside package readiness and compilation reuse
+//! that single worker inline instead of spawning a second 256 MB thread.
+//! Lightweight metadata flags (`--help`, `--version`, `--build-profile`) run
+//! directly on `main` without spawning a worker.
 
 mod allocator;
 mod cli;
@@ -24,8 +22,6 @@ mod cli;
 use cli::arguments::{self, Invocation};
 use cli::{compilation, execution, inspection, packages};
 use std::process::ExitCode;
-
-const COMMAND_STACK_SIZE: usize = 256 * 1024 * 1024;
 
 fn main() -> ExitCode {
     let _allocation_report = allocator::ReportOnExit;
@@ -38,14 +34,33 @@ fn main() -> ExitCode {
             return ExitCode::from(arguments::USAGE_ERROR_EXIT);
         }
     };
-    run_with_large_stack(invocation)
+    run_invocation(invocation)
 }
 
-fn run_with_large_stack(invocation: Invocation) -> ExitCode {
-    let worker = std::thread::Builder::new()
-        .name("omega-command".to_owned())
-        .stack_size(COMMAND_STACK_SIZE)
-        .spawn(move || match invocation {
+fn run_invocation(invocation: Invocation) -> ExitCode {
+    match invocation {
+        Invocation::Help(usage) => {
+            println!("{usage}");
+            return ExitCode::SUCCESS;
+        }
+        Invocation::BuildProfile => {
+            println!("{}", compiler::compiler_build_profile());
+            return ExitCode::SUCCESS;
+        }
+        Invocation::Version => {
+            println!(
+                "omega {}{} ({}; {})",
+                env!("OMEGA_VERSION"),
+                allocator::VERSION_SUFFIX,
+                env!("OMEGA_COMMIT"),
+                env!("OMEGA_HOST")
+            );
+            return ExitCode::SUCCESS;
+        }
+        _ => {}
+    }
+    std::thread::scope(|scope| {
+        let worker = compiler::checked::spawn_compile_worker(scope, move || match invocation {
             Invocation::Compile(request) => compilation::compile_project_command(request),
             Invocation::Run(request) => execution::run(request),
             Invocation::InspectTerminal(request) => inspection::run(request),
@@ -56,26 +71,19 @@ fn run_with_large_stack(invocation: Invocation) -> ExitCode {
             } => packages::run(command, options, accept_all),
             Invocation::AuditSource(request) => packages::source::run(request),
             Invocation::AuditPackages(request) => packages::audit::run(request),
-            Invocation::Help(usage) => println!("{usage}"),
-            Invocation::BuildProfile => println!("{}", compiler::compiler_build_profile()),
-            Invocation::Version => println!(
-                "omega {}{} ({}; {})",
-                env!("OMEGA_VERSION"),
-                allocator::VERSION_SUFFIX,
-                env!("OMEGA_COMMIT"),
-                env!("OMEGA_HOST")
-            ),
+            Invocation::Help(_) | Invocation::BuildProfile | Invocation::Version => unreachable!(),
         });
-    match worker {
-        Ok(worker) => {
-            if let Err(panic) = worker.join() {
-                std::panic::resume_unwind(panic);
+        match worker {
+            Ok(worker) => {
+                if let Err(panic) = worker.join() {
+                    std::panic::resume_unwind(panic);
+                }
+                ExitCode::SUCCESS
             }
-            ExitCode::SUCCESS
+            Err(error) => {
+                eprintln!("failed to start compiler thread: {error}");
+                ExitCode::FAILURE
+            }
         }
-        Err(error) => {
-            eprintln!("failed to start compiler thread: {error}");
-            ExitCode::FAILURE
-        }
-    }
+    })
 }

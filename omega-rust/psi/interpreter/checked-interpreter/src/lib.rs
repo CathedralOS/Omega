@@ -150,7 +150,6 @@ pub use filesystem_operation_attempts::{
 pub use interpreter::{
     BuildMachineEntry, BuildMachineEvaluationError, BuildMachineEvaluationRequest,
     BuildMachineProgram, InterpretOptions, SelectedBuildTimeMachineBody, UnavailableStaticInput,
-    evaluate_build_time_machine, evaluate_const_machine, evaluate_const_machine_measured,
     evaluate_prepared_build_time_machine, interpret_entry,
     materialize_zero_initialized_build_time_value, pure_evaluation_step_ceiling,
 };
