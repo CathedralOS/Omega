@@ -166,12 +166,10 @@ pub(crate) struct CallFrameCaches {
     /// One prefix-walk snapshot per statement index, built once per
     /// (machine, state): replaces a fresh O(index) prefix walk per demand
     /// site with a single O(statements) walk per state.
-    state_write_collections:
-        Mutex<HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>>,
+    state_write_collections: Mutex<super::state_write_walk::CollectedPrefixMap>,
     /// The shared-accumulator flavor of the same collection, serving
     /// `ReferenceBefore` boundaries.
-    state_write_shared_collections:
-        Mutex<HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>>,
+    state_write_shared_collections: Mutex<super::state_write_walk::CollectedPrefixMap>,
     expression_frames: Mutex<HashMap<(SymbolHandle, ExpressionHandle), NormalizedWriteFrame>>,
     statement_value_frames: Mutex<HashMap<(SymbolHandle, usize), NormalizedWriteFrame>>,
     inferred_state_frames: Mutex<HashMap<SymbolHandle, NormalizedWriteFrame>>,
