@@ -2764,7 +2764,7 @@ impl<'program> NormalReturnPath<'program> {
         // current caller storage.
         let mut context = self.judge.clone();
         context.returned_value_source = None;
-        context.completed_resolutions = None;
+        context.query_state.completed_resolutions = None;
         self.source = Some(CompletedValueSource {
             machine: scope.0.symbol,
             state: scope.1.symbol,

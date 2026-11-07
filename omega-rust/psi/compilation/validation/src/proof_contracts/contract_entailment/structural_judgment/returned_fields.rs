@@ -135,7 +135,7 @@ impl StructuralJudge<'_> {
             let (min_cycle, visited) = trace.lock().map_or((0, Vec::new()), |guard| {
                 (guard.min_cycle_owner_index, guard.visited_callees.clone())
             });
-            if let Some(parent_trace) = &self.returned_field_trace
+            if let Some(parent_trace) = &self.query_state.returned_field_trace
                 && let Ok(mut parent_guard) = parent_trace.lock()
             {
                 if min_cycle < outer_len {
@@ -160,7 +160,7 @@ impl StructuralJudge<'_> {
         let mut judge = Self::from_runtime_state_requires(program, callee, entry, &requires);
         judge.returned_field_owners = std::sync::Arc::clone(&self.returned_field_owners);
         std::sync::Arc::make_mut(&mut judge.returned_field_owners).push(callee.symbol);
-        judge.returned_field_trace = Some(std::sync::Arc::clone(&trace));
+        judge.query_state.returned_field_trace = Some(std::sync::Arc::clone(&trace));
         let mut diagnostics = Vec::new();
         let Some(leaves) = phase_profile::scope("psi.05.returned_fields.recognize", || {
             recognize_structural_case_arms(
