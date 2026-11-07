@@ -10,7 +10,9 @@ use super::*;
 use crate::proof_contracts::contract_entailment::specification_calls::{
     SelectedCallContract, selected_call_site_contract,
 };
-use crate::proof_contracts::contract_entailment::structural_judgment::normal_returns::OperationOperandDemand;
+use crate::proof_contracts::contract_entailment::structural_judgment::normal_returns::{
+    OperationObservation, OperationOperandDemand,
+};
 
 /// A refuted arm excludes its complete target, including nested call operands.
 /// The ordinary occurrence owner separates that target from the live guard
@@ -26,20 +28,16 @@ pub(super) fn exclude_target_calls(
     if !target.is_valid() {
         return;
     }
-    for (ordinal, site) in crate::machine_calls::calls::collect_call_sites_in_statement(
+    for occurrence in crate::machine_calls::calls::collect_statement_call_occurrences(
         program,
         invocation,
         state,
         statement_index,
-    )
-    .into_iter()
-    .enumerate()
-    {
-        if crate::transition_call_target(program, invocation, state, statement_index, ordinal)
-            != Some(target)
-        {
+    ) {
+        if occurrence.transition_target != target {
             continue;
         }
+        let site = occurrence.site;
         let Some(SelectedCallContract::Concrete(_, entry)) =
             selected_call_site_contract(program, invocation.symbol, site)
         else {
@@ -61,8 +59,16 @@ pub(super) fn exclude_target_calls(
     }
 }
 
+/// A selected target starts after its completed guard. Exact source lane
+/// association keeps guard and sibling operands out of this entry inventory.
+#[derive(Clone, Copy)]
+pub(super) enum CallEntryScope {
+    Statement,
+    SelectedTarget(typed_trees::statement::TransitionTargetHandle),
+}
+
 #[allow(clippy::too_many_arguments)]
-pub(super) fn observe_statement<'program>(
+pub(super) fn observe_calls<'program>(
     program: &'program dyn crate::CheckingInput,
     theorem: &Machine,
     invocation: &Machine,
@@ -72,6 +78,7 @@ pub(super) fn observe_statement<'program>(
     states: &[typed_trees::state::State],
     state: &typed_trees::state::State,
     statement_index: usize,
+    scope: CallEntryScope,
     parameter_names: &[String],
     environment: &[(String, StructuralTerm)],
     hypotheses: &[(String, StructuralTerm)],
@@ -84,6 +91,18 @@ pub(super) fn observe_statement<'program>(
     visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
     guarantees: &CitationFacts,
 ) -> Option<()> {
+    if let CallEntryScope::SelectedTarget(target) = scope {
+        let transition = program
+            .statement_table
+            .statement_at(state, statement_index)?
+            .as_transition()?;
+        if !target.is_valid()
+            || !program.statement_table.transition_target_is_valid(target)
+            || !transition.targets().any(|candidate| candidate == target)
+        {
+            return None;
+        }
+    }
     // Only members observing inside another body ride a call entry. A site
     // in this state or on the current path is already (or can only still be)
     // served by this frame's own statements.
@@ -97,15 +116,18 @@ pub(super) fn observe_statement<'program>(
     if active.is_empty() {
         return Some(());
     }
-    for (ordinal, site) in crate::machine_calls::calls::collect_call_sites_in_statement(
+    for occurrence in crate::machine_calls::calls::collect_statement_call_occurrences(
         program,
         invocation,
         state,
         statement_index,
-    )
-    .into_iter()
-    .enumerate()
-    {
+    ) {
+        if let CallEntryScope::SelectedTarget(target) = scope
+            && occurrence.transition_target != target
+        {
+            continue;
+        }
+        let site = occurrence.site;
         let Some(SelectedCallContract::Concrete(callee, entry)) =
             selected_call_site_contract(program, invocation.symbol, site)
         else {
@@ -136,13 +158,28 @@ pub(super) fn observe_statement<'program>(
             _ => None,
         };
         let frames = if let Some(expression) = expression {
-            judge.normal_operation_entries(
+            match judge.operation_observation(
                 statement_index,
                 expression,
                 OperationOperandDemand::All,
                 environment,
                 (invocation, state, state.return_type),
-            )?
+            ) {
+                OperationObservation::Reached(entries) => entries,
+                OperationObservation::Unreached => {
+                    for member in eligible.iter_mut() {
+                        member.excluded_body(
+                            state.symbol,
+                            statement_index,
+                            Some(expression),
+                            occurrence.transition_target,
+                            entry.symbol,
+                        );
+                    }
+                    continue;
+                }
+                OperationObservation::Refused => return None,
+            }
         } else {
             judge.normal_argument_entries(
                 crate::call_site_argument_expressions(program, &site),
@@ -182,14 +219,7 @@ pub(super) fn observe_statement<'program>(
                     state.symbol,
                     statement_index,
                     expression,
-                    crate::transition_call_target(
-                        program,
-                        invocation,
-                        state,
-                        statement_index,
-                        ordinal,
-                    )
-                    .unwrap_or_default(),
+                    occurrence.transition_target,
                     entry.symbol,
                 );
             }
