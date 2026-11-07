@@ -90,6 +90,92 @@ impl CleanupEmission<'_> {
             })
     }
 
+    /// Retain decisions whose sums contain an actual transferred argument.
+    /// Other cleanup regions keep their ordinary selected scope: in particular
+    /// an inactive sibling payload is never read ahead of its enclosing test.
+    pub(super) fn capture_transfer_cases(
+        &self,
+        regions: &[crate::unit::unit_cleanup::CleanupRegion],
+        arguments: &[terminal_psi::StructuralArgument],
+        next_value: &mut u64,
+        operations: &mut OperationBuffer,
+    ) -> Result<(), LoweringError> {
+        let owned = arguments
+            .iter()
+            .filter(|argument| {
+                argument.access == terminal_psi::StructuralAccess::Owned
+                    && !argument.path.is_empty()
+            })
+            .map(|argument| (argument.place, argument.path.as_slice()))
+            .collect::<std::collections::BTreeSet<_>>();
+        if owned.is_empty() {
+            return Ok(());
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        for condition in regions.iter().flat_map(|region| &region.conditions) {
+            if !inline_case_path(&condition.path)
+                || !owned
+                    .range((condition.place, condition.path.as_slice())..)
+                    .next()
+                    .is_some_and(|(place, path)| {
+                        *place == condition.place && path.starts_with(&condition.path)
+                    })
+                || !seen.insert((
+                    condition.place,
+                    condition.path.as_slice(),
+                    condition.structural_type,
+                    condition.case,
+                ))
+            {
+                continue;
+            }
+            // The argument already names a readable selected descendant of
+            // this sum. Its exact declaration still owns the case geometry.
+            self.case_subject(condition, operations)?;
+            if !self.declared_single_case(condition, operations) {
+                self.observe_case(condition, next_value, operations)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn observe_case(
+        &self,
+        condition: &crate::unit::unit_cleanup::CleanupCaseCondition,
+        next_value: &mut u64,
+        operations: &mut OperationBuffer,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        if let Some(observed) = self.retained_case(condition, operations) {
+            return Ok(observed);
+        }
+        let value = ValueDeclaration {
+            id: crate::shared::terminal_identities::value_id(
+                crate::shared::terminal_identities::allocate_dense(next_value)?,
+            ),
+            scalar_type: semantic_vocabulary::ScalarType::Boolean,
+            qualifications: Default::default(),
+        };
+        let producer = operations.push_leaf(
+            terminal_psi::OperationResult::Scalar(value),
+            OperationKind::StructuralCaseMembership {
+                source: condition.place,
+                path: condition.path.clone(),
+                case: condition.case,
+            },
+        );
+        operations.storage_observations.cases.push(
+            crate::emission::operation_emission::buffer::CapturedStructuralCaseObservation {
+                source: condition.place,
+                path: condition.path.clone(),
+                structural_type: condition.structural_type,
+                case: condition.case,
+                value,
+                producer,
+            },
+        );
+        Ok(value)
+    }
+
     /// Reuse the completed Boolean, never a tag load on the current payload.
     /// Its scope supplies dominance. The append-only operation prefix also
     /// authenticates the unchanged storage epoch, including effects emitted in
