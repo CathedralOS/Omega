@@ -73,7 +73,9 @@ pub(super) fn proves(
                 ExpressionNode::Name(_)
             ) || is_result_reference(program, machine, *expression)
         });
-    let referent_goal = referents::ReferentGoal::new(program, facts, machine, *guarantee);
+    let mut remaining = super::demands::TRANSPORT_WORK;
+    let referent_goal =
+        referents::ReferentGoal::new(program, facts, machine, *guarantee, &mut remaining);
     let frames = validation::CallFrameResolver::new(program);
     // This answer is cached for every exit carrying this contract. Include
     // every body of the owner, even one unreachable from its entry; a proved
@@ -92,13 +94,21 @@ pub(super) fn proves(
             )
         })
         .collect::<Vec<_>>();
-    let mut visited = Vec::new();
+    let mut visited = std::collections::HashSet::new();
     let mut observed_return = false;
     while let Some((machine_symbol, state_symbol, subjects)) = pending.pop() {
-        if visited.contains(&(machine_symbol, state_symbol, subjects.clone())) {
+        let work = subjects.as_ref().map_or(Some(1usize), |subjects| {
+            subjects.iter().try_fold(1usize, |work, subject| {
+                work.checked_add(subject.segments.len().checked_add(1)?)
+            })
+        });
+        let Some(left) = work.and_then(|work| remaining.checked_sub(work)) else {
+            return false;
+        };
+        remaining = left;
+        if !visited.insert((machine_symbol, state_symbol, subjects.clone())) {
             continue;
         }
-        visited.push((machine_symbol, state_symbol, subjects.clone()));
         let Some((current_machine, state)) = program.state_flow_site(machine_symbol, state_symbol)
         else {
             return false;
@@ -107,9 +117,15 @@ pub(super) fn proves(
             return false;
         };
         let mut outgoing_found = false;
-        for (_, outgoing) in facts.flow.control.outgoing.iter().filter(|(_, outgoing)| {
-            outgoing.machine_symbol == machine_symbol && outgoing.state_symbol == state_symbol
-        }) {
+        for outgoing in facts
+            .flow
+            .control
+            .outgoing
+            .span_or_empty(state_flow.outgoing)
+        {
+            if super::demands::charge(&mut remaining).is_none() {
+                return false;
+            }
             outgoing_found = true;
             if let Some(StatementNode::Transition(transition)) = program
                 .statement_table
@@ -128,7 +144,7 @@ pub(super) fn proves(
                 && let Some(destination) =
                     validation::activation_target_state_index(program, current_machine, path.symbol)
             {
-                let next_subjects = if let Some(goal) = &referent_goal {
+                let next_subjects = if referent_goal.is_some() {
                     let Some(frames) = &frames else {
                         return false;
                     };
@@ -155,7 +171,15 @@ pub(super) fn proves(
                         return false;
                     }
                     let Some(subjects) = subjects.as_deref().and_then(|subjects| {
-                        goal.forward(program, frames, current_machine, state, call, subjects)
+                        referents::ReferentGoal::forward(
+                            program,
+                            frames,
+                            current_machine,
+                            state,
+                            call,
+                            subjects,
+                            &mut remaining,
+                        )
                     }) else {
                         return false;
                     };
@@ -197,12 +221,20 @@ pub(super) fn proves(
                 if call.target_symbol != callee_entry.symbol {
                     return false;
                 }
-                let next_subjects = if let Some(goal) = &referent_goal {
+                let next_subjects = if referent_goal.is_some() {
                     let Some(frames) = &frames else {
                         return false;
                     };
                     let Some(subjects) = subjects.as_deref().and_then(|subjects| {
-                        goal.forward(program, frames, current_machine, state, call, subjects)
+                        referents::ReferentGoal::forward(
+                            program,
+                            frames,
+                            current_machine,
+                            state,
+                            call,
+                            subjects,
+                            &mut remaining,
+                        )
                     }) else {
                         return false;
                     };

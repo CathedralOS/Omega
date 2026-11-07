@@ -29,6 +29,7 @@ impl ReferentGoal {
         facts: &CheckFacts,
         machine: &Machine,
         expression: ExpressionHandle,
+        remaining: &mut usize,
     ) -> Option<Self> {
         let owner = machine.symbol;
         let entry = program.machine_states(machine).first()?;
@@ -52,6 +53,7 @@ impl ReferentGoal {
         let mut reads = Vec::new();
         let mut places = Vec::new();
         for operand in tree {
+            super::super::demands::charge(remaining)?;
             // Bind scalar reads, not their enclosing comparison or an entry
             // snapshot. The scoped arithmetic reader still refuses other free
             // operands, unsupported operators and unformed observations.
@@ -111,10 +113,12 @@ impl ReferentGoal {
         // even an unreachable body, exactly as the result completion closure does.
         let mut initial = Vec::new();
         for state in program.machine_states(machine) {
+            super::super::demands::charge(remaining)?;
             let origins = crate::flow::state_parameter_origins(program, machine, state, &origins);
             let mapped = places
                 .iter()
                 .map(|place| {
+                    *remaining = remaining.checked_sub(place.segments.len().checked_add(1)?)?;
                     let source = place.root.as_symbol()?;
                     let mut matches = origins.iter().filter(|(entry, _)| *entry == source);
                     let (_, destination) = matches.next()?;
@@ -142,13 +146,13 @@ impl ReferentGoal {
     }
 
     pub(super) fn forward<'program>(
-        &self,
         program: &'program dyn validation::CheckingInput,
         frames: &validation::CallFrameResolver<'program>,
         machine: &'program Machine,
         state: &State,
         call: &FlowCallFact,
         places: &[CanonicalPlace],
+        remaining: &mut usize,
     ) -> Option<Vec<CanonicalPlace>> {
         let target = validation::call_target_state(program, call.target_symbol)?;
         let correspondence = frames.normal_return_reference_correspondence(
@@ -157,9 +161,17 @@ impl ReferentGoal {
             call,
             program.state_parameters(target),
         )?;
+        *remaining = remaining.checked_sub(correspondence.len())?;
+        let comparison_work = correspondence
+            .iter()
+            .try_fold(1usize, |work, (_, source)| {
+                work.checked_add(source.segments.len().checked_add(1)?)
+            })?;
+        *remaining = remaining.checked_sub(comparison_work.checked_mul(places.len())?)?;
         let places = places
             .iter()
             .map(|place| {
+                *remaining = remaining.checked_sub(place.segments.len().checked_add(1)?)?;
                 let mut suppliers = correspondence.iter().filter_map(|(parameter, source)| {
                     if source.root != place.root {
                         return None;
