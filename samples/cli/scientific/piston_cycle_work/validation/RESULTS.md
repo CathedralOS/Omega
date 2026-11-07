@@ -57,7 +57,7 @@ Terminal capture executable SHA-256:
 The harness links against the exact CLI dependency fingerprints, not artifacts
 selected by timestamps. It uses normal package preparation, native production
 and the retained Terminal artifact; it calculates no reference physics and
-manufactures no compiler IR. Fuel allowance is 10,000,000 per input with isolated
+manufactures no compiler IR. Work budget is 10,000,000 per input with isolated
 domain termination. All 200 input/stdout/stderr/exit capture files are hashed in
 the transfer evidence. Other native operating systems were not available on this
 executor and are not claimed.

@@ -415,7 +415,7 @@ REPRESENTATION_FAMILY = {
     "facts": "checked-trees",
     "terminal-codec": "terminal-psi",
     "terminal-semantics": "terminal-psi",
-    "terminal-fuel": "terminal-psi",
+    "psi-work": "terminal-psi",
     "optimization-unit": "abstract-operations",
     "optimization-unit-semantics": "abstract-operations",
     "legalized-operations": "target-operations",

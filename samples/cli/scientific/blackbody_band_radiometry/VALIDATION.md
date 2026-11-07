@@ -39,7 +39,7 @@ The native executable SHA256 was
 `615cb57baee347453a53161b4a465a47d9aefd2558d3e5ba333dd08f6af0fa10`.
 The private consumer compiled through the ordinary accepted package route,
 retained the exact native production's 619958-byte Terminal artifact and
-executed each case with isolated domain exit and bounded fuel. That artifact's
+executed each case with isolated domain exit and bounded work. That artifact's
 SHA256 was
 `0375f1577ba0053fbdf631b4c3ccee7bfc2c79fe95da3868d1c0600123e6c6a3`.
 `tools/link_terminal_sponsor.py` selected the verified CLI's exact 159-unit

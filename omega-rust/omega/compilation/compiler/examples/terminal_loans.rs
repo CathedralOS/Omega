@@ -6,8 +6,8 @@ use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
     TerminalStorageScheduleIdentity,
 };
+use psi_work::WorkMeter;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue};
-use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalBoundaryStorageValue, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalInstantiation, TerminalProgram, TerminalReturnedLoanError, TerminalScalarValue,
@@ -154,7 +154,7 @@ fn main() {
                 ];
                 for first in [true, false] {
                     let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-                        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
                         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
                     };
                     let limits = BuildEvaluationSponsorLimits::new(
@@ -183,9 +183,9 @@ fn main() {
                             limits.maximum_live_storage_cells() - sponsor.live_storage_cells();
                         let blocker = account.reserve_storage(remaining - 2, 0).unwrap();
                         let reserved = sponsor.live_storage_cells();
-                        let error = refused.invoke(&mut TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap()).expect_err("two cells cannot hold one return slot and both possible input backings");
+                        let error = refused.invoke(&mut WorkMeter::with_invocation(account.clone(), Some(0)).unwrap()).expect_err("two cells cannot hold one return slot and both possible input backings");
                         assert!(
-                            matches!(error, terminal_interpreter::TerminalInstanceError::Execution(terminal_interpreter::TerminalInterpretError::ExecutionSite {cause, ..}) if matches!(*cause, terminal_interpreter::TerminalInterpretError::Storage(evaluation_accounting::EvaluationAccountingError::AllowanceExhausted(evaluation_accounting::EvaluationResource::LiveStorage))))
+                            matches!(error, terminal_interpreter::TerminalInstanceError::Execution(terminal_interpreter::TerminalInterpretError::ExecutionSite {cause, ..}) if matches!(*cause, terminal_interpreter::TerminalInterpretError::Storage(evaluation_accounting::EvaluationAccountingError::BudgetExhausted(evaluation_accounting::EvaluationResource::LiveStorage))))
                         );
                         assert_eq!(
                             sponsor.live_storage_cells(),
@@ -193,7 +193,7 @@ fn main() {
                             "failed capture must reserve nothing"
                         );
                         assert_eq!(
-                            account.snapshot().unwrap().record().fuel_units,
+                            account.snapshot().unwrap().record().work_units,
                             0,
                             "capture refusal precedes guest work"
                         );
@@ -201,11 +201,8 @@ fn main() {
                         assert!(
                             refused
                                 .invoke(
-                                    &mut TerminalFuelMeter::with_invocation(
-                                        account.clone(),
-                                        Some(100_000)
-                                    )
-                                    .unwrap()
+                                    &mut WorkMeter::with_invocation(account.clone(), Some(100_000))
+                                        .unwrap()
                                 )
                                 .is_err(),
                             "a host fault is latched, not a replayable suspension"
@@ -254,7 +251,7 @@ fn main() {
                             .unwrap();
                         let error = unprovided
                             .invoke(
-                                &mut TerminalFuelMeter::with_invocation(
+                                &mut WorkMeter::with_invocation(
                                     unprovided_account.clone(),
                                     Some(100_000),
                                 )
@@ -265,7 +262,7 @@ fn main() {
                             matches!(error, terminal_interpreter::TerminalInstanceError::Execution(terminal_interpreter::TerminalInterpretError::ExecutionSite {cause, ..}) if matches!(*cause, terminal_interpreter::TerminalInterpretError::UnsupportedSemanticVariant("host reference results require an explicit loan carrier interface")))
                         );
                         assert_eq!(
-                            unprovided_account.snapshot().unwrap().record().fuel_units,
+                            unprovided_account.snapshot().unwrap().record().work_units,
                             0
                         );
                         drop(unprovided);
@@ -275,10 +272,7 @@ fn main() {
                     }
                     let before_capture = sponsor.live_storage_cells();
                     let pause = instance
-                        .invoke(
-                            &mut TerminalFuelMeter::with_invocation(account.clone(), Some(0))
-                                .unwrap(),
-                        )
+                        .invoke(&mut WorkMeter::with_invocation(account.clone(), Some(0)).unwrap())
                         .unwrap();
                     assert!(matches!(
                         pause,
@@ -287,10 +281,7 @@ fn main() {
                     let after_capture = sponsor.live_storage_cells();
                     assert!(after_capture > before_capture);
                     let repeated = instance
-                        .invoke(
-                            &mut TerminalFuelMeter::with_invocation(account.clone(), Some(0))
-                                .unwrap(),
-                        )
+                        .invoke(&mut WorkMeter::with_invocation(account.clone(), Some(0)).unwrap())
                         .unwrap();
                     assert!(matches!(
                         repeated,
@@ -311,7 +302,7 @@ fn main() {
                     ));
                     let outcome = instance
                         .invoke(
-                            &mut TerminalFuelMeter::with_invocation(account.clone(), Some(100_000))
+                            &mut WorkMeter::with_invocation(account.clone(), Some(100_000))
                                 .unwrap(),
                         )
                         .unwrap();

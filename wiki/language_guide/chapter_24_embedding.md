@@ -115,7 +115,7 @@ outcome  = call.resume(work_budget)
 
 `outcome` distinguishes return, budget pause, pending host operation, and fault.
 A synchronous call is a convenience over the same mechanism. No background thread
-or async executor is silently created. Fuel limits interpreter work, not the
+or async executor is silently created. Work limits interpreter work, not the
 duration of a synchronous native host call.
 
 A paused call retains its locals, loans, and unfinished obligations. Returning
@@ -138,7 +138,7 @@ operations, with ordinary access constraints. A detached document may be freely
 edited and submitted to an operation that validates and applies it.
 
 This matters even when an edit would preserve a type invariant: paused code can
-rely on stronger facts about the current value. A fuel stop can also occur inside
+rely on stronger facts about the current value. A work stop can also occur inside
 an invariant window. Neither the schema nor a checked setter grants permission
 to interfere with that activation. Diagnostic snapshots are observations, not
 established values that can be written back to the interpreter.

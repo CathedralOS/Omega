@@ -40,7 +40,7 @@ a39d9f07282e7533163dcadfa2a35e8e70e67385025df8c5e9e6658ff2edec27  controls/out_o
 The same reviewer separately approved the row-driven stage03 input transport
 repair, SHA-256 `428714a51e0597fdd203923ff0a5aa081357c181e1b9967f70d911b5134ed487`,
 after tracing fixed-use custody, source lineage, early-clobber separation and
-preservation of arithmetic obligations/fuel. The corrected complete runtime
+preservation of arithmetic obligations/work. The corrected complete runtime
 regression `tests/omega/pass/arithmetic/reused_fixed_integer_operands_exit/main.omg`
 has SHA-256 `57ae00fe41f401db2de04c0f4d6066a638086871925ff025538668f38ba59f36`.
 Reviewer corrected the initial ByteRead/scalar API assumption; the primary added

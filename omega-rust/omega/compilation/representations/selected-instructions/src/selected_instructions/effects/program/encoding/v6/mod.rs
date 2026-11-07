@@ -32,14 +32,14 @@ use crate::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
 };
-use optimization_unit::{FuelSettlement, OwnershipEvent, PsiProvenance};
+use optimization_unit::{OwnershipEvent, PsiProvenance, WorkSettlement};
 use register_model::{
     RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
     RegisterUnitId, TargetRegisterEnvironmentIdentity,
 };
 use semantic_vocabulary::{
-    ClaimId, EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, ObligationId, OperationId,
-    PlaceId, StructuralTypeId, ValueId,
+    ClaimId, EdgeId, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, StructuralTypeId,
+    ValueId, WorkScheduleIdentity,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 

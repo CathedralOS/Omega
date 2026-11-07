@@ -10,7 +10,7 @@ backend-plan = { path = "../../compilation/backend/plans/backend-plan" }
 calling-conventions = { path = "../../compilation/backend/calling-conventions" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 terminal-installation = { path = "../../../psi/compilation/validation/terminal-installation" }
-terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
+psi-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 psi-compiler = { path = "../../../psi/compilation/psi-compiler" }

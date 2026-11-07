@@ -31,10 +31,10 @@ pub(super) fn validate(sources: &PlanSources<'_>) -> Result<(), PostAllocationMa
     {
         return Err(PostAllocationMachineError::OptimizationUnitMismatch);
     }
-    if effects.fuel_schedule != selected.fuel_schedule
-        || ranges.fuel_schedule != selected.fuel_schedule
+    if effects.work_schedule != selected.work_schedule
+        || ranges.work_schedule != selected.work_schedule
     {
-        return Err(PostAllocationMachineError::FuelScheduleMismatch);
+        return Err(PostAllocationMachineError::WorkScheduleMismatch);
     }
     if legality.ranges != ranges_identity {
         return Err(PostAllocationMachineError::RangeRootMismatch);

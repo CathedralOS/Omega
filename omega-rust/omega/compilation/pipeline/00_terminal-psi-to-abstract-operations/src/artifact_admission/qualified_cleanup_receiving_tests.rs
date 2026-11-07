@@ -23,7 +23,7 @@ fn independently_validate_ownership(module: TerminalModule) -> Result<(), String
         .into_optimization_input();
     let verified = crate::build_verified_psi_optimization_unit(
         input,
-        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        psi_work::WorkSchedule::CURRENT.identity(),
     )
     .expect("construct exact unit before explicit semantic validation");
     let (_, unit) = verified.into_parts();

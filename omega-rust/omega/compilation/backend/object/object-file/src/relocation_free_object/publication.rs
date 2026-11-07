@@ -13,7 +13,7 @@ use optimization_core::{
     RelocationFreeObjectPlanIdentity, TerminalRelocationFreeTextSectionIdentity,
 };
 use selected_instructions::SelectedInstructionPlanIdentity;
-use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 pub(crate) use statistics::relocation_free_object_statistics;
 use target::{NativeTarget, TargetWireIdentityError};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
@@ -46,7 +46,7 @@ pub struct FunctionFragmentObjectContainerManifest {
     pub source_text_section_manifest: FunctionFragmentTextSectionManifestIdentity,
     pub text_section: TerminalRelocationFreeTextSectionIdentity,
     pub psi: TerminalPsiIdentity,
-    pub fuel_schedule: FuelScheduleIdentity,
+    pub work_schedule: WorkScheduleIdentity,
     pub selections: OptimizationSelectionIdentity,
     pub selected: SelectedInstructionPlanIdentity,
     pub target: NativeTarget,
@@ -70,7 +70,7 @@ pub enum FunctionFragmentObjectContainerManifestDecodeError {
     UnsupportedVersion(u32),
     UnknownStage(u8),
     UnknownVocabulary(u16),
-    InvalidFuelSchedule,
+    InvalidWorkSchedule,
     UnknownArchitecture(u8),
     UnknownObjectFormat(u8),
     TargetLayoutOverflow,

@@ -99,7 +99,7 @@ use selected_instructions::{
     CopiedCallOperandIdentity, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::FuelScheduleIdentity;
+use semantic_vocabulary::WorkScheduleIdentity;
 
 pub(crate) use rewrite::fold_selected_copied_call_operand;
 pub(crate) use validation::copied_call_operand_measured_steps;
@@ -138,7 +138,7 @@ pub struct CopiedCallOperandReceipt {
     /// The rewritten call's instruction identity.
     call: SelectedInstructionId,
     optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
+    work_schedule: WorkScheduleIdentity,
 }
 
 impl CopiedCallOperandReceipt {

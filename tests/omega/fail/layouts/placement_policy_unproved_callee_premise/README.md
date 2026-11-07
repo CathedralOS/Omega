@@ -33,7 +33,7 @@ remain unchanged through the migration base `e7929ee7fae`:
 
 | Position | Original bound | Replacement premise |
 | --- | --- | --- |
-| `with_bounded.fuel`, `seek.fuel`, `inspect.fuel`, `advance.fuel` | `u64 [1..=128]` | `fuel >= 1 && fuel <= 128` |
+| `with_bounded.work`, `seek.work`, `inspect.work`, `advance.work` | `u64 [1..=128]` | `work >= 1 && work <= 128` |
 | `seek.index` | `u64 [0..=32]` | `index <= 32` |
 | `inspect.index`, `replace.index`, `advance.index` | `u64 [0..=31]` | `index <= 31` |
 | `grow_invalid.field_count` | `u64 [0..=31]` | `field_count <= 31` |

@@ -107,7 +107,7 @@ pub(super) fn propose(
                                 site,
                                 site,
                                 &edge.provenance,
-                                &edge.fuel,
+                                &edge.work,
                             ));
                         }
                         if changes_use {
@@ -123,7 +123,7 @@ pub(super) fn propose(
                                     site,
                                     site,
                                     &node.provenance,
-                                    &node.fuel,
+                                    &node.work,
                                 ));
                             }
                         }

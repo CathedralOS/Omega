@@ -7,8 +7,8 @@
 use super::CallingPolicySignature;
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use evaluation_accounting::EvaluationInvocationAccount;
+use psi_work::WorkUsage;
 use terminal_codec::CanonicalTerminalArtifact;
-use terminal_fuel::TerminalFuelUsage;
 use terminal_psi::TargetMachineCallable;
 
 /// One activation's complete pre-effect admission. Receiving admission
@@ -53,7 +53,6 @@ pub struct TerminalCallingPolicyInvocation<'input> {
 
 /// Execute the selected callable on the supplied signature, decode its actual
 /// returned plan, and validate every placement against that same signature.
-pub type CallingPolicyEvaluator =
-    fn(
-        TerminalCallingPolicyInvocation<'_>,
-    ) -> Result<(ValidatedBoundaryEntryPlan, TerminalFuelUsage), String>;
+pub type CallingPolicyEvaluator = fn(
+    TerminalCallingPolicyInvocation<'_>,
+) -> Result<(ValidatedBoundaryEntryPlan, WorkUsage), String>;

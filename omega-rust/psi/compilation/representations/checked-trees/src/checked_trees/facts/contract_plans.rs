@@ -242,7 +242,7 @@ impl MachineContractPlans {
     /// machine contract and compare it with the retained realized row.
     ///
     /// This deliberately rederives only the structural obligations available
-    /// at checked-Psi time. It does not accept a stack number, a fuel number,
+    /// at checked-Psi time. It does not accept a stack number, a work number,
     /// a target footprint, or an installation receipt as an input.
     pub fn validate_resource_envelopes(&self) -> Result<(), &'static str> {
         // Resolve the realized roster once: one row per exact machine

@@ -74,7 +74,7 @@ fn refused_cleanup_frame_retains_outgoing_backing_and_claims() {
     let sponsor = BuildEvaluationSponsor::new_with_measurement(
         BuildEvaluationSponsorLimits::new(100, 8, 2, 2, 1, 100, 100, 100).unwrap(),
         EvaluationMeasurementIdentity::TerminalPsi {
-            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         },
     )
@@ -127,7 +127,7 @@ fn refused_cleanup_frame_retains_outgoing_backing_and_claims() {
             Vec::new(),
         ),
         Err(TerminalInterpretError::Storage(
-            EvaluationAccountingError::AllowanceExhausted(EvaluationResource::LiveStorage)
+            EvaluationAccountingError::BudgetExhausted(EvaluationResource::LiveStorage)
         ))
     ));
     assert_eq!(

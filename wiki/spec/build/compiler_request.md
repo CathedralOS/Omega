@@ -563,7 +563,7 @@ one complete canonical or relaxed integer certificate search, including nested
 implication and endpoint queries. Each uncached search charges the number of
 assumptions and axioms in its scope, with a minimum charge of one. Recursive
 searches share that allowance; proof memos are partitioned by invocation so
-worker history cannot grant extra fuel or preserve an exhausted refusal.
+worker history cannot grant extra work or preserve an exhausted refusal.
 A refusal names the obligation
 left unproved — an internal row identity — as its coordinate and reports
 the declined draw as `requested`: one past the provisioned limit for a unit

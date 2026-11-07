@@ -18,7 +18,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         root_path: arguments.main_path,
         target_name: arguments.target_name,
         selection: arguments.selection,
-        terminal_fuel_allowance: arguments.terminal_fuel_allowance,
+        psi_work_budget: arguments.psi_work_budget,
         keep_artifacts: arguments.keep,
     }) {
         Ok(outcome) => outcome,
@@ -168,8 +168,8 @@ fn present_terminal(outcome: TerminalOutcome) -> i32 {
             eprintln!("terminal: program entry returned a non-process result: {result:?}");
             200
         }
-        TerminalExecutionStatus::SponsorExhausted(_) => {
-            eprintln!("terminal: execution exhausted its sponsor fuel allowance");
+        TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
+            eprintln!("psi: {exhaustion}; raise --psi-work-budget to permit more work");
             200
         }
         TerminalExecutionStatus::AwaitingEffect(site) => {
@@ -216,7 +216,7 @@ fn run_cases(arguments: RunArguments, outputs: std::path::PathBuf) -> ! {
         private_entry_ram: arguments.private_entry_ram,
         root_path: arguments.main_path,
         compare_interpreter: arguments.selection == ExecutionSelection::Both,
-        terminal_fuel_allowance: arguments.terminal_fuel_allowance,
+        psi_work_budget: arguments.psi_work_budget,
         inputs: cases,
         output_directory: outputs.clone(),
         keep_artifacts: arguments.keep,

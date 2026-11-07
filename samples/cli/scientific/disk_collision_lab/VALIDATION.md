@@ -83,7 +83,7 @@ formatter for a fixed-view common-domain conflict. The historical bounded Omega 
 repair copies pinned inputs for Exact, Wrapping and Saturating division using the
 existing selected constraint rows. The source value can survive calls in its own
 home; short-lived copies serve instruction pins. Source value and definition,
-proof and fuel remain attached to the same division. Free inputs are unchanged.
+proof and work remain attached to the same division. Free inputs are unchanged.
 No allocation, borrow, bounds, custody or publication guard is weakened. The
 unsuccessful optional spill-policy experiment and all temporary tracing were
 removed. Published main's general allocator recovery is retained unchanged.
@@ -120,7 +120,7 @@ There was no package acceptance denial and no retry of denied acceptance.
 
 Linux x86-64, UID 1000, rustc nightly-2026-09-04 1.100.0-nightly (a69a63265),
 approximately 17 GiB RAM, four Rust build jobs; one Rust build and one Omega
-execution at a time. Terminal allowance is 10,000,000 fuel units. Target cache:
+execution at a time. Terminal allowance is 10,000,000 work units. Target cache:
 `/workspace/cloud-setup/cache/mbx/targets/v1/d27e61c8ff8d442f87f1d630890d9e12fd8dcbcfe4c2602c944659a897dee809`.
 The default sandbox exposes synthetic root UID 65534 and fails cache custody.
 Approved per-command require_escalated execution sees real root UID 0. No

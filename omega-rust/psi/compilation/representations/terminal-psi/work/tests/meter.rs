@@ -1,10 +1,10 @@
+use psi_work::{
+    WorkBudgetExhausted, WorkChargeSite, WorkMeter, WorkMeterError, WorkSchedule,
+    WorkScheduleIdentity,
+};
 use semantic_vocabulary::{
     BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
     OperationId, PlaceId, ScalarType, ServiceId, ValueId,
-};
-use terminal_fuel::{
-    FuelChargeSite, FuelExhaustion, FuelMeterError, FuelScheduleIdentity, TerminalFuelMeter,
-    TerminalFuelSchedule,
 };
 use terminal_psi::{
     CrashCause, Operation, OperationKind, TerminalAffineCleanupAction, Terminator, ValueDeclaration,
@@ -12,31 +12,30 @@ use terminal_psi::{
 
 #[test]
 fn schedule_identity_is_nonzero_and_independent() {
-    assert_eq!(FuelScheduleIdentity::new(0), None);
-    assert_eq!(TerminalFuelSchedule::CURRENT.identity().marker(), 1);
+    assert_eq!(WorkScheduleIdentity::new(0), None);
+    assert_eq!(WorkSchedule::CURRENT.identity().marker(), 1);
     assert_ne!(
-        FuelScheduleIdentity::new(2).unwrap(),
-        TerminalFuelSchedule::CURRENT.identity()
+        WorkScheduleIdentity::new(2).unwrap(),
+        WorkSchedule::CURRENT.identity()
     );
 }
 
 #[test]
 fn current_vocabulary_has_explicit_costs_and_attribution() {
     assert_eq!(
-        TerminalFuelSchedule::CURRENT
-            .operation_units(&OperationKind::BooleanConstant { value: true }),
+        WorkSchedule::CURRENT.operation_units(&OperationKind::BooleanConstant { value: true }),
         1,
         "every current Boolean operation has an explicit schedule cost"
     );
     assert_eq!(
-        TerminalFuelSchedule::CURRENT.operation_units(&OperationKind::BooleanNot {
+        WorkSchedule::CURRENT.operation_units(&OperationKind::BooleanNot {
             operand: value_id(1),
         }),
         1,
         "Boolean logical not has one explicit schedule unit"
     );
     assert_eq!(
-        TerminalFuelSchedule::CURRENT.operation_units(&OperationKind::BooleanEqual {
+        WorkSchedule::CURRENT.operation_units(&OperationKind::BooleanEqual {
             left: value_id(1),
             right: value_id(2),
         }),
@@ -74,7 +73,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         },
     ] {
         assert_eq!(
-            TerminalFuelSchedule::CURRENT.operation_units(&kind),
+            WorkSchedule::CURRENT.operation_units(&kind),
             1,
             "each integer comparison, bitwise operation, or wrapping shift has one explicit schedule unit"
         );
@@ -119,7 +118,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         },
     ] {
         assert_eq!(
-            TerminalFuelSchedule::CURRENT.operation_units(&kind),
+            WorkSchedule::CURRENT.operation_units(&kind),
             1,
             "every represented operation, including a primitive store, has the schedule's uniform one-unit cost"
         );
@@ -166,38 +165,38 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         frontier_lower_bound: Vec::new(),
     };
     assert_eq!(
-        TerminalFuelSchedule::CURRENT.terminator_units(&crash_edge),
+        WorkSchedule::CURRENT.terminator_units(&crash_edge),
         1,
         "an explicit crash exit has one schedule unit"
     );
     assert_eq!(
-        TerminalFuelSchedule::CURRENT.terminator_units(&unit_return_edge),
+        WorkSchedule::CURRENT.terminator_units(&unit_return_edge),
         1,
         "a value-less normal return has one explicit edge unit"
     );
     assert_eq!(
-        TerminalFuelSchedule::CURRENT.terminator_units(&structural_return_edge),
+        WorkSchedule::CURRENT.terminator_units(&structural_return_edge),
         1,
         "a structural ownership transfer is one explicit edge unit"
     );
-    let mut structural_meter = TerminalFuelMeter::with_allowance(1);
+    let mut structural_meter = WorkMeter::with_budget(1);
     structural_meter
         .charge_terminator(&structural_return_edge)
         .unwrap();
     assert_eq!(
         structural_meter
             .usage()
-            .at(FuelChargeSite::Edge(edge_id(6)))
+            .at(WorkChargeSite::Edge(edge_id(6)))
             .unwrap()
             .units(),
         1
     );
     assert_eq!(
-        TerminalFuelSchedule::CURRENT.terminator_units(&scalar_cleanup_edge),
+        WorkSchedule::CURRENT.terminator_units(&scalar_cleanup_edge),
         1,
         "a scalar return with no-code affine cleanup has one explicit edge unit"
     );
-    let mut meter = TerminalFuelMeter::unbounded();
+    let mut meter = WorkMeter::unbounded();
 
     meter.charge_operation(&operation).unwrap();
     meter.charge_terminator(&jump).unwrap();
@@ -207,14 +206,14 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
     assert_eq!(meter.usage().total_units(), 4);
     let operation_usage = meter
         .usage()
-        .at(FuelChargeSite::Operation(operation_id(1)))
+        .at(WorkChargeSite::Operation(operation_id(1)))
         .unwrap();
     assert_eq!(operation_usage.executions(), 2);
     assert_eq!(operation_usage.units(), 2);
     assert_eq!(
         meter
             .usage()
-            .at(FuelChargeSite::Edge(edge_id(1)))
+            .at(WorkChargeSite::Edge(edge_id(1)))
             .unwrap()
             .units(),
         1
@@ -223,27 +222,32 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
 }
 
 #[test]
-fn sponsor_allowance_exhausts_atomically_before_execution() {
+fn sponsor_budget_exhausts_atomically_before_execution() {
     let operation = operation();
-    let mut meter = TerminalFuelMeter::with_allowance(1);
+    let mut meter = WorkMeter::with_budget(1);
     meter.charge_operation(&operation).unwrap();
     let usage_before = meter.usage().clone();
 
     assert_eq!(
         meter.charge_operation(&operation),
-        Err(FuelMeterError::Exhausted(FuelExhaustion {
-            schedule: TerminalFuelSchedule::CURRENT.identity(),
-            site: FuelChargeSite::Operation(operation_id(1)),
+        Err(WorkMeterError::Exhausted(WorkBudgetExhausted {
+            schedule: WorkSchedule::CURRENT.identity(),
+            site: WorkChargeSite::Operation(operation_id(1)),
             required_units: 1,
             remaining_units: 0,
+            work_used: 1,
         }))
     );
-    assert_eq!(meter.remaining_allowance(), Some(0));
+    assert_eq!(
+        meter.charge_operation(&operation).unwrap_err().to_string(),
+        "Work budget exhausted: 1 units used, 0 remaining; next charge requires 1 (schedule 1)"
+    );
+    assert_eq!(meter.work_remaining(), Some(0));
     assert_eq!(meter.usage(), &usage_before);
 
     meter.replenish(1).unwrap();
     meter.charge_operation(&operation).unwrap();
-    assert_eq!(meter.remaining_allowance(), Some(0));
+    assert_eq!(meter.work_remaining(), Some(0));
     assert_eq!(meter.usage().total_units(), 2);
 }
 
@@ -284,29 +288,27 @@ fn primitive_local_actions_charge_one_unit_atomically_at_their_own_sites() {
             path: Vec::new(),
         },
     };
-    let mut meter = TerminalFuelMeter::with_allowance(0);
+    let mut meter = WorkMeter::with_budget(0);
     for operation in [establish, read] {
-        assert_eq!(
-            TerminalFuelSchedule::CURRENT.operation_units(&operation.kind),
-            1
-        );
+        assert_eq!(WorkSchedule::CURRENT.operation_units(&operation.kind), 1);
         let usage_before = meter.usage().clone();
         assert_eq!(
             meter.charge_operation(&operation),
-            Err(FuelMeterError::Exhausted(FuelExhaustion {
-                schedule: TerminalFuelSchedule::CURRENT.identity(),
-                site: FuelChargeSite::Operation(operation.id),
+            Err(WorkMeterError::Exhausted(WorkBudgetExhausted {
+                schedule: WorkSchedule::CURRENT.identity(),
+                site: WorkChargeSite::Operation(operation.id),
                 required_units: 1,
                 remaining_units: 0,
+                work_used: usage_before.total_units(),
             })),
         );
         assert_eq!(meter.usage(), &usage_before);
         meter.replenish(1).unwrap();
         meter.charge_operation(&operation).unwrap();
-        assert_eq!(meter.remaining_allowance(), Some(0));
+        assert_eq!(meter.work_remaining(), Some(0));
         let usage = meter
             .usage()
-            .at(FuelChargeSite::Operation(operation.id))
+            .at(WorkChargeSite::Operation(operation.id))
             .unwrap();
         assert_eq!(usage.executions(), 1);
         assert_eq!(usage.units(), 1);
@@ -316,10 +318,10 @@ fn primitive_local_actions_charge_one_unit_atomically_at_their_own_sites() {
 }
 
 #[test]
-fn allowance_replenishment_fails_closed_on_overflow() {
-    let mut meter = TerminalFuelMeter::with_allowance(u64::MAX);
-    assert_eq!(meter.replenish(1), Err(FuelMeterError::AllowanceOverflow));
-    assert_eq!(meter.remaining_allowance(), Some(u64::MAX));
+fn budget_replenishment_fails_closed_on_overflow() {
+    let mut meter = WorkMeter::with_budget(u64::MAX);
+    assert_eq!(meter.replenish(1), Err(WorkMeterError::BudgetOverflow));
+    assert_eq!(meter.work_remaining(), Some(u64::MAX));
     assert_eq!(meter.usage().total_units(), 0);
 }
 
@@ -350,7 +352,7 @@ fn terminal_sponsor(units: u64) -> evaluation_accounting::BuildEvaluationSponsor
     BuildEvaluationSponsor::new_with_measurement(
         BuildEvaluationSponsorLimits::new(units, 8, 2, 2, 8, 8, 8, 8).unwrap(),
         EvaluationMeasurementIdentity::TerminalPsi {
-            fuel_schedule: TerminalFuelSchedule::CURRENT.identity(),
+            work_schedule: WorkSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         },
     )
@@ -362,37 +364,37 @@ fn invocation_payment_is_atomic_with_local_attribution_and_shared_between_meters
     use evaluation_accounting::{EvaluationAccountingError, EvaluationResource};
     let sponsor = terminal_sponsor(2);
     let invocation = sponsor.begin_invocation(sponsor.measurement(), 3).unwrap();
-    let mut meter = TerminalFuelMeter::with_invocation(invocation.clone(), Some(0)).unwrap();
+    let mut meter = WorkMeter::with_invocation(invocation.clone(), Some(0)).unwrap();
     let operation = operation();
     assert!(matches!(
         meter.charge_operation(&operation),
-        Err(FuelMeterError::Exhausted(_))
+        Err(WorkMeterError::Exhausted(_))
     ));
-    assert_eq!(sponsor.consumed_fuel_units(), 0);
+    assert_eq!(sponsor.consumed_work_units(), 0);
     meter.replenish(10).unwrap();
     meter.charge_operation(&operation).unwrap();
     let mut alias = meter.clone();
     alias.charge_operation(&operation).unwrap();
-    assert_eq!(sponsor.consumed_fuel_units(), 2);
+    assert_eq!(sponsor.consumed_work_units(), 2);
     let before = meter.usage().clone();
-    let allowance = meter.remaining_allowance();
+    let budget = meter.work_remaining();
     assert_eq!(
         meter.charge_operation(&operation),
-        Err(FuelMeterError::InvocationCharge {
-            site: FuelChargeSite::Operation(operation.id),
-            reason: EvaluationAccountingError::AllowanceExhausted(EvaluationResource::Fuel),
+        Err(WorkMeterError::InvocationCharge {
+            site: WorkChargeSite::Operation(operation.id),
+            reason: EvaluationAccountingError::BudgetExhausted(EvaluationResource::Work),
         })
     );
     assert_eq!(meter.usage(), &before);
-    assert_eq!(meter.remaining_allowance(), allowance);
-    assert_eq!(invocation.snapshot().unwrap().record().fuel_units, 2);
+    assert_eq!(meter.work_remaining(), budget);
+    assert_eq!(invocation.snapshot().unwrap().record().work_units, 2);
     let second = sponsor.begin_invocation(sponsor.measurement(), 3).unwrap();
-    let mut independent = TerminalFuelMeter::with_invocation(second.clone(), None).unwrap();
+    let mut independent = WorkMeter::with_invocation(second.clone(), None).unwrap();
     assert!(matches!(
         independent.charge_operation(&operation),
-        Err(FuelMeterError::InvocationCharge { .. })
+        Err(WorkMeterError::InvocationCharge { .. })
     ));
-    assert_eq!(second.snapshot().unwrap().record().fuel_units, 0);
+    assert_eq!(second.snapshot().unwrap().record().work_units, 0);
     assert_eq!(independent.usage().total_units(), 0);
 }
 
@@ -408,13 +410,13 @@ fn invocation_ceiling_and_engine_identity_cannot_be_changed_by_the_meter() {
         .begin_invocation(EvaluationMeasurementIdentity::CheckedTree, 8)
         .unwrap();
     assert!(matches!(
-        TerminalFuelMeter::with_invocation(tree_invocation, None),
-        Err(FuelMeterError::InvocationMeasurementMismatch)
+        WorkMeter::with_invocation(tree_invocation, None),
+        Err(WorkMeterError::InvocationMeasurementMismatch)
     ));
-    assert_eq!(tree.consumed_fuel_units(), 0);
+    assert_eq!(tree.consumed_work_units(), 0);
     let sponsor = terminal_sponsor(8);
     let invocation = sponsor.begin_invocation(sponsor.measurement(), 1).unwrap();
-    let mut meter = TerminalFuelMeter::with_invocation(invocation.clone(), None).unwrap();
+    let mut meter = WorkMeter::with_invocation(invocation.clone(), None).unwrap();
     meter.charge_operation(&operation()).unwrap();
     meter.replenish(100).unwrap();
     let edge = Terminator::ReturnUnit {
@@ -423,12 +425,12 @@ fn invocation_ceiling_and_engine_identity_cannot_be_changed_by_the_meter() {
     };
     assert!(matches!(
         meter.charge_terminator(&edge),
-        Err(FuelMeterError::InvocationCharge {
-            site: FuelChargeSite::Edge(_),
+        Err(WorkMeterError::InvocationCharge {
+            site: WorkChargeSite::Edge(_),
             ..
         })
     ));
-    assert_eq!(invocation.snapshot().unwrap().record().fuel_units, 1);
+    assert_eq!(invocation.snapshot().unwrap().record().work_units, 1);
     assert_eq!(meter.usage().total_units(), 1);
 }
 

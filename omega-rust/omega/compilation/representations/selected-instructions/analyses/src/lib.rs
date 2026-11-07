@@ -20,7 +20,7 @@
 
 /// The six analysis identities every validation receipt and analysis input
 /// in this stage carries: live ranges, allocation legality, the register
-/// environment, allocator availability, the optimization unit and the fuel
+/// environment, allocator availability, the optimization unit and the work
 /// schedule. Expanded inside each receipt's `impl` so `self.<field>`
 /// resolves on the receiver's own field names.
 #[macro_export]
@@ -45,8 +45,8 @@ macro_rules! shared_analysis_identity_accessors {
         $visibility const fn optimization_unit(self) -> OptimizationUnitIdentity {
             self.optimization_unit
         }
-        $visibility const fn fuel_schedule(self) -> FuelScheduleIdentity {
-            self.fuel_schedule
+        $visibility const fn work_schedule(self) -> WorkScheduleIdentity {
+            self.work_schedule
         }
     };
 }
@@ -326,7 +326,7 @@ macro_rules! validated_transformed_receipt {
 }
 
 /// Every selected-rewrite receipt exposes the same four identities: the
-/// selected plan before and after, plus the optimization-unit and fuel
+/// selected plan before and after, plus the optimization-unit and work
 /// identities the rewrite carried. One declarative row per receipt expands
 /// those accessors; receipts with extra accessors keep them in their own
 /// impl.
@@ -346,9 +346,9 @@ macro_rules! receipt_selected_identities {
             pub const fn optimization_unit(&self) -> OptimizationUnitIdentity {
                 self.optimization_unit
             }
-            /// Fuel schedule the rewrite ran under.
-            pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
-                self.fuel_schedule
+            /// Work schedule the rewrite ran under.
+            pub const fn work_schedule(&self) -> WorkScheduleIdentity {
+                self.work_schedule
             }
         }
     };
@@ -372,7 +372,7 @@ macro_rules! rewrite_receipt {
             source_selected: SelectedInstructionPlanIdentity,
             transformed_selected: SelectedInstructionPlanIdentity,
             optimization_unit: OptimizationUnitIdentity,
-            fuel_schedule: FuelScheduleIdentity,
+            work_schedule: WorkScheduleIdentity,
             $($(#[$meta])* $field: $ty,)*
         }
 
@@ -390,7 +390,7 @@ macro_rules! rewrite_receipt {
             source_selected: SelectedInstructionPlanIdentity,
             transformed_selected: SelectedInstructionPlanIdentity,
             optimization_unit: OptimizationUnitIdentity,
-            fuel_schedule: FuelScheduleIdentity,
+            work_schedule: WorkScheduleIdentity,
         }
 
         receipt_selected_identities!($receipt);
@@ -398,7 +398,7 @@ macro_rules! rewrite_receipt {
 }
 
 /// Every rewrite receipt's canonical identity: the family's own domain
-/// separator, both selected-plan identities, the optimization unit, the fuel
+/// separator, both selected-plan identities, the optimization unit, the work
 /// schedule, the transformed function coordinate, and the rule's instruction
 /// coordinate(s). One declarative row per rule expands the encoder and the
 /// receipt's own `identity()` accessor, so a rule declares only what
@@ -417,7 +417,7 @@ macro_rules! rewrite_receipt_identity {
                 &receipt.transformed_selected.bytes(),
                 &receipt.optimization_unit.bytes(),
                 |bytes| {
-                    $crate::codec_bytes::push_encoded(bytes, receipt.fuel_schedule.marker().to_le_bytes());
+                    $crate::codec_bytes::push_encoded(bytes, receipt.work_schedule.marker().to_le_bytes());
                     bytes.extend_from_slice(
                         &u64::try_from(receipt.function_index)
                             .expect(concat!($phrase, " function index fits u64"))
@@ -741,7 +741,7 @@ impl UnsealedRecoveryFacts {
         let liveness_plan = selected_instructions::LivenessPlan {
             selected: selected.selected_identity(),
             optimization_unit: selected.optimization_unit_identity(),
-            fuel_schedule: selected.fuel_schedule_identity(),
+            work_schedule: selected.work_schedule_identity(),
             target: next_plan.target,
             functions: liveness_functions,
         };
@@ -754,7 +754,7 @@ impl UnsealedRecoveryFacts {
             selected: selected.selected_identity(),
             liveness: validated_liveness.receipt().identity(),
             optimization_unit: selected.optimization_unit_identity(),
-            fuel_schedule: selected.fuel_schedule_identity(),
+            work_schedule: selected.work_schedule_identity(),
             target: next_plan.target,
             functions: self.range_functions,
         };

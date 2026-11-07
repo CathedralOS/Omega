@@ -55,7 +55,7 @@ fn run() {
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
             provider_proposal: None,
-            fuel_allowance: 500_000_000,
+            work_budget: 500_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(fs::File::open(&input_path).unwrap())),
             clock: None,

@@ -450,7 +450,7 @@ policy-code catalog through ordinary Psi production per checked source;
 target children borrow the same artifact as the final Product. Signature
 preparation closes the complete native telescope and callback geometry before
 the policy's single activation. That activation executes the shared catalog in
-Terminal with finite fuel and metered storage/results, not the checked-source
+Terminal with finite work and metered storage/results, not the checked-source
 interpreter. There is no preliminary incomplete-signature evaluation or later
 plan replacement.
 
@@ -1013,7 +1013,7 @@ library APIs; they do not introduce another compiler driver.
 | --- | --- |
 | Current program forms and their attached records/codecs | Each half's `compilation/representations/`, grouped by program family |
 | Source-program judgments | Psi `compilation/validation/`; source proof planning/search in `compilation/proof/`, independent mathematical checking in `compilation/proof/admission/` |
-| Terminal encoding, semantic reconstruction and fuel | Independent packages beneath Psi `compilation/representations/terminal-psi/` |
+| Terminal encoding, semantic reconstruction and work | Independent packages beneath Psi `compilation/representations/terminal-psi/` |
 | Transformation, rewrite, private scratch and analyses | Each half's `compilation/pipeline/`, in the owning `X-to-Y` or `X-to-X` package |
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `compilation/backend/` |
 | Shared target-neutral source/arena/numeric primitives and optimization selections | Psi `foundation/` |
@@ -1337,7 +1337,7 @@ backend layout derives target shape from the admitted carrier. Its independent
 `psi/compilation/proof/` constructs and solves source proof obligations; its
 independent `admission/` package owns the mathematical kernel and
 supplied-certificate checking. Terminal-specific codec, semantic reconstruction
-and fuel schedule packages live beside Terminal Psi under
+and work schedule packages live beside Terminal Psi under
 `psi/compilation/representations/terminal-psi/`. Each keeps its own manifest and
 dependency direction. Nesting gives these companions a subject; it adds no
 program stage. A general `psi/semantics/` bucket obscures these distinct
@@ -1548,7 +1548,7 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
 - Psi `compilation/proof/` — source obligation construction and proof search; independent
   `compilation/proof/admission/` owns the shared mathematical checker.
 - Terminal companion packages live beneath `compilation/representations/terminal-psi/`:
-  `codec/`, `semantics/` and `fuel/`.
+  `codec/`, `semantics/` and `work/`.
   Representation data and candidate production remain independent of checking.
 - Psi `compilation/psi-compiler/terminal-production/` — sequences Psi 06–08 through
   publication. Omega consumers supply product policy and reporting directly;

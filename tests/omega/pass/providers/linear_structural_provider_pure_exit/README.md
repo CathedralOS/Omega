@@ -8,5 +8,5 @@ and Terminal completion is zero.
 The hosted arrival bridge provisions the entry's explicit `Binding<Flow>`;
 the caller supplies no structural arrival values or host imports. The sibling
 `linear_structural_provider_return_exit/validation` runner uses its retained
-installation to compare uninterrupted execution against 265 fuel cutoffs and
+installation to compare uninterrupted execution against 265 work cutoffs and
 resumptions. It supplies no artificial receiver or boundary-result callback.

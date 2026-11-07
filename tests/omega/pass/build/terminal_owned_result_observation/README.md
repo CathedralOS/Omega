@@ -13,7 +13,7 @@ the selected callable in borrowed and encoded/reloaded code without source
 custody, then observes actual result leaves and literal backing. It also checks
 the existing packed scalar-case and array result representations.
 
-Every inspection refuses before execution, through a fuel pause, after a crash,
+Every inspection refuses before execution, through a work-budget pause, after a crash,
 and after close. Declared but inactive case paths and out-of-range indices must
 refuse rather than expose another payload. Repeated successful reads must not
 change invocation accounting. These are SDK transport controls, not static

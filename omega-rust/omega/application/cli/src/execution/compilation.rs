@@ -30,7 +30,7 @@ pub(super) fn compile(
     options: CompileOptions,
     destination: NativeDestination,
     reference_inputs: Vec<std::fs::File>,
-    terminal_fuel_allowance: u64,
+    psi_work_budget: u64,
 ) -> Result<ProbeCompilation, Vec<Diagnostic>> {
     let targets = match options.target_name.as_deref() {
         Some(name) => BuildTargets::Single(
@@ -69,12 +69,7 @@ pub(super) fn compile(
     let interpretations = reference_inputs
         .into_iter()
         .map(|input| {
-            interpret_product(
-                &report,
-                Some(Box::new(input)),
-                target_name,
-                terminal_fuel_allowance,
-            )
+            interpret_product(&report, Some(Box::new(input)), target_name, psi_work_budget)
         })
         .collect();
     Ok(ProbeCompilation {
@@ -88,7 +83,7 @@ pub(super) fn interpret_product(
     report: &CompileReport,
     input: Option<Box<dyn std::io::Read + Send>>,
     target: &str,
-    terminal_fuel_allowance: u64,
+    psi_work_budget: u64,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
     // A retained native product carries its Terminal program; a Terminal-only
     // run's report is that program with the provisions native admission settled.
@@ -121,7 +116,7 @@ pub(super) fn interpret_product(
         artifact,
         target: Some(target),
         provisions: report.runtime_provisions(),
-        fuel_allowance: terminal_fuel_allowance,
+        work_budget: psi_work_budget,
         // `run` sponsors one standalone private domain. Its death cannot end
         // this CLI or invalidate another instance's storage/capabilities.
         domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,

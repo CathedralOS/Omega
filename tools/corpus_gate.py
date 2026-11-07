@@ -416,7 +416,7 @@ def terminal_fence_failures(records: list[dict], corpus: Path) -> list[dict]:
                 or facts.get("terminal-fences") != "match" or mismatches):
             failures.append(oracle_failure(
                 record, f"{record['fixture']}: expected exact fence events with missing/wrong-model refusal "
-                        f"and replay-free fuel progress; observed {record['status']} {facts}; {'; '.join(mismatches)}"))
+                        f"and replay-free work progress; observed {record['status']} {facts}; {'; '.join(mismatches)}"))
     return failures
 
 

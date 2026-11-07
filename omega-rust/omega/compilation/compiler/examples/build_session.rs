@@ -68,7 +68,7 @@ fn main() {
         build_time_evaluation::BuildEvaluationSponsor::new_with_measurement(
             limits,
             evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
-                fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
                 storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
             },
         )
@@ -77,12 +77,12 @@ fn main() {
     let result = orchestration::check_source(&mut session, limited);
     let diagnostics = match result.result {
         Err(failure) => failure.into_diagnostics(),
-        Ok(_) => panic!("fresh fuel authority must not be borrowed from a prior result"),
+        Ok(_) => panic!("fresh work authority must not be borrowed from a prior result"),
     };
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("Terminal Build failed: evaluation Fuel allowance exhausted")),
+            .contains("Terminal Build failed: evaluation Work budget exhausted")),
         "unexpected rejection: {diagnostics:?}"
     );
     assert_eq!(counters::build_execution_count() - before, 2);

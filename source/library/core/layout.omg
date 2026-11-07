@@ -311,33 +311,33 @@ public machine AccessPlan::inaccessible(layout: LayoutPlan) -> AccessPlan {
 }
 
 // The helper makes the finite entry walk's ordinary termination witness
-// explicit. Fuel is library policy, not part of the public access-plan
+// explicit. The step budget is library policy, not part of the public access-plan
 // surface; 64 entries times a 32-slot duplicate search never exhausts it, and
 // an exhausted walk returns the partial seed for final validation to reject.
 // Every cyclic participant names the same rank. Lexical nesting does not make
 // the enclosing machine's witness a witness for the nested call component.
-machine AccessPlan::seed_bounded(plan: AccessPlan, index: u64, fuel: u64) -> AccessPlan
-terminates by fuel
-requires index <= 64 && fuel >= 1 && fuel <= 4096
+machine AccessPlan::seed_bounded(plan: AccessPlan, index: u64, remaining_steps: u64) -> AccessPlan
+terminates by remaining_steps
+requires index <= 64 && remaining_steps >= 1 && remaining_steps <= 4096
 {
-    transition { _ -> seed(plan, index, fuel) }
+    transition { _ -> seed(plan, index, remaining_steps) }
 
-    machine seed(plan: AccessPlan, index: u64, fuel: u64) -> AccessPlan
-    terminates by fuel
-    requires index <= 64 && fuel >= 1 && fuel <= 4096
+    machine seed(plan: AccessPlan, index: u64, remaining_steps: u64) -> AccessPlan
+    terminates by remaining_steps
+    requires index <= 64 && remaining_steps >= 1 && remaining_steps <= 4096
     {
-        transition fuel > 1 && index < plan.layout.entry_count && index < 64 {
-            true -> examine(plan, index, fuel - 1)
+        transition remaining_steps > 1 && index < plan.layout.entry_count && index < 64 {
+            true -> examine(plan, index, remaining_steps - 1)
             _ -> (plan)
         }
     }
 
-    machine examine(plan: AccessPlan, index: u64, fuel: u64) -> AccessPlan
-    terminates by fuel
-    requires index <= 63 && fuel >= 1 && fuel <= 4096
+    machine examine(plan: AccessPlan, index: u64, remaining_steps: u64) -> AccessPlan
+    terminates by remaining_steps
+    requires index <= 63 && remaining_steps >= 1 && remaining_steps <= 4096
     {
         let key: u64 = plan.layout.entries[index].key;
-        transition { _ -> search(plan, index, key, 0, fuel) }
+        transition { _ -> search(plan, index, key, 0, remaining_steps) }
     }
 
     machine search(
@@ -345,15 +345,15 @@ requires index <= 64 && fuel >= 1 && fuel <= 4096
         index: u64,
         key: u64,
         slot: u64,
-        fuel: u64
+        remaining_steps: u64
     ) -> AccessPlan
-    terminates by fuel
-    requires index <= 63 && slot <= 32 && fuel >= 1 && fuel <= 4096
+    terminates by remaining_steps
+    requires index <= 63 && slot <= 32 && remaining_steps >= 1 && remaining_steps <= 4096
     {
         let field_count: u64 = plan.field_count;
         transition {
-            fuel > 1 && slot < field_count && slot < 32 -> compare(plan, index, key, slot, fuel - 1)
-            fuel > 1 && field_count < 32 -> append(plan, index, key, field_count, fuel - 1)
+            remaining_steps > 1 && slot < field_count && slot < 32 -> compare(plan, index, key, slot, remaining_steps - 1)
+            remaining_steps > 1 && field_count < 32 -> append(plan, index, key, field_count, remaining_steps - 1)
             _ -> (plan)
         }
     }
@@ -363,14 +363,14 @@ requires index <= 64 && fuel >= 1 && fuel <= 4096
         index: u64,
         key: u64,
         slot: u64,
-        fuel: u64
+        remaining_steps: u64
     ) -> AccessPlan
-    terminates by fuel
-    requires index <= 63 && slot <= 31 && fuel >= 1 && fuel <= 4096
+    terminates by remaining_steps
+    requires index <= 63 && slot <= 31 && remaining_steps >= 1 && remaining_steps <= 4096
     {
         transition {
-            fuel > 1 && plan.fields[slot].key == key -> seed(plan, index + 1, fuel - 1)
-            fuel > 1 -> search(plan, index, key, slot + 1, fuel - 1)
+            remaining_steps > 1 && plan.fields[slot].key == key -> seed(plan, index + 1, remaining_steps - 1)
+            remaining_steps > 1 -> search(plan, index, key, slot + 1, remaining_steps - 1)
             _ -> (plan)
         }
     }
@@ -380,15 +380,15 @@ requires index <= 64 && fuel >= 1 && fuel <= 4096
         index: u64,
         key: u64,
         field_count: u64,
-        fuel: u64
+        remaining_steps: u64
     ) -> AccessPlan
-    terminates by fuel
-    requires index <= 63 && field_count <= 31 && fuel >= 1 && fuel <= 4096
+    terminates by remaining_steps
+    requires index <= 63 && field_count <= 31 && remaining_steps >= 1 && remaining_steps <= 4096
     {
         let mut updated: AccessPlan = plan;
         updated.fields[field_count] = AccessFieldEntry { key: key, access: FieldAccess::Inaccessible };
         updated.field_count = field_count + 1;
-        transition { _ -> seed(updated, index + 1, fuel) }
+        transition { _ -> seed(updated, index + 1, remaining_steps) }
     }
 }
 
@@ -410,30 +410,30 @@ public machine AccessPlan::with_reach(plan: AccessPlan, reach: BoundaryReach) ->
 }
 
 // The helper makes the finite search's ordinary termination witness explicit.
-// Fuel is compiler/library policy, not part of the public access-plan surface.
+// The step budget is compiler/library policy, not part of the public access-plan surface.
 machine AccessPlan::with_bounded(
     plan: AccessPlan,
     key: u64,
     access: FieldAccess,
-    fuel: u64
+    remaining_steps: u64
 ) -> AccessPlan
-terminates by fuel
-requires fuel >= 1 && fuel <= 128
+terminates by remaining_steps
+requires remaining_steps >= 1 && remaining_steps <= 128
 {
-    transition { _ -> seek(plan, key, access, 0, fuel) }
+    transition { _ -> seek(plan, key, access, 0, remaining_steps) }
 
     machine seek(
         plan: AccessPlan,
         key: u64,
         access: FieldAccess,
         index: u64,
-        fuel: u64
+        remaining_steps: u64
     ) -> AccessPlan
-    terminates by fuel
-    requires index <= 32 && fuel >= 1 && fuel <= 128
+    terminates by remaining_steps
+    requires index <= 32 && remaining_steps >= 1 && remaining_steps <= 128
     {
-        transition fuel > 1 && index < plan.field_count && index < 32 {
-            true -> inspect(plan, key, access, index, fuel - 1)
+        transition remaining_steps > 1 && index < plan.field_count && index < 32 {
+            true -> inspect(plan, key, access, index, remaining_steps - 1)
             _ -> invalid(plan, key, access)
         }
     }
@@ -443,14 +443,14 @@ requires fuel >= 1 && fuel <= 128
         key: u64,
         access: FieldAccess,
         index: u64,
-        fuel: u64
+        remaining_steps: u64
     ) -> AccessPlan
-    terminates by fuel
-    requires index <= 31 && fuel >= 1 && fuel <= 128
+    terminates by remaining_steps
+    requires index <= 31 && remaining_steps >= 1 && remaining_steps <= 128
     {
         transition {
-            fuel > 1 && plan.fields[index].key == key -> replace(plan, key, access, index)
-            fuel > 1 -> advance(plan, key, access, index, fuel - 1)
+            remaining_steps > 1 && plan.fields[index].key == key -> replace(plan, key, access, index)
+            remaining_steps > 1 -> advance(plan, key, access, index, remaining_steps - 1)
             _ -> invalid(plan, key, access)
         }
     }
@@ -473,13 +473,13 @@ requires fuel >= 1 && fuel <= 128
         key: u64,
         access: FieldAccess,
         index: u64,
-        fuel: u64
+        remaining_steps: u64
     ) -> AccessPlan
-    terminates by fuel
-    requires index <= 31 && fuel >= 1 && fuel <= 128
+    terminates by remaining_steps
+    requires index <= 31 && remaining_steps >= 1 && remaining_steps <= 128
     {
-        transition fuel > 1 {
-            true -> seek(plan, key, access, index + 1, fuel - 1)
+        transition remaining_steps > 1 {
+            true -> seek(plan, key, access, index + 1, remaining_steps - 1)
             _ -> invalid(plan, key, access)
         }
     }

@@ -3,7 +3,7 @@ use super::super::super::{
     LegalizedExactIntegerOperator, LegalizedScalarComparison, LegalizedScalarInstruction,
     LegalizedValueDefinition,
 };
-use super::super::{EffectLink, FuelSettlement, PsiProvenance};
+use super::super::{EffectLink, PsiProvenance, WorkSettlement};
 use super::{
     IntegerSign, IntegerType, IntegerValue, LegalizedOperationPlan, LegalizedScalarInstructionKind,
     OwnershipEvent, ScalarType, assert_identity_drift, id, legalized_operation_plan_identity,
@@ -57,7 +57,7 @@ fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence
                 claims: vec![],
             },
         },
-        fuel: vec![],
+        work: vec![],
         effect: EffectLink {
             input: 0,
             output: 1,
@@ -162,7 +162,7 @@ fn operation_plan() -> LegalizedOperationPlan {
                     },
                 }),
                 kind,
-                fuel: vec![FuelSettlement {
+                work: vec![WorkSettlement {
                     site: PsiProvenance::Operation(operation),
                     units: 1,
                 }],
@@ -421,8 +421,8 @@ fn scalar_operation_identity_binds_each_authored_row_envelope_and_order() {
                     row.result.as_mut().unwrap().definition_site =
                         ValueDefinitionSite::FunctionParameter(0)
                 }
-                4 => row.fuel[0].site = PsiProvenance::Operation(id(999)),
-                5 => row.fuel[0].units += 1,
+                4 => row.work[0].site = PsiProvenance::Operation(id(999)),
+                5 => row.work[0].units += 1,
                 6 => row.effect.input += 1,
                 7 => row.effect.output += 1,
                 _ => row.ownership.push(OwnershipEvent::Cleanup(vec![])),

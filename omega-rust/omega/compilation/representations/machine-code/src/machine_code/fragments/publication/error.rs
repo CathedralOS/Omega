@@ -5,7 +5,7 @@ pub enum FunctionFragmentEmissionManifestDecodeError {
     UnsupportedVersion(u32),
     UnknownStage(u8),
     UnknownVocabulary(u16),
-    InvalidFuelSchedule,
+    InvalidWorkSchedule,
     UnknownArchitecture(u8),
     UnknownObjectFormat(u8),
     TargetLayoutOverflow,

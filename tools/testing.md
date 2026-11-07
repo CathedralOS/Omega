@@ -8,10 +8,10 @@ one command.
 
 ## Validation scope
 
-Terminal corpus execution defaults to one million fuel units. A long fixture may
-author one positive `u64` in `terminal_fuel_allowance.txt` to raise its allowance
+Terminal corpus execution defaults to one million work units. A long fixture may
+author one positive `u64` in `psi_work_budget.txt` to raise its budget
 for ordinary interpretation and target-installation observations. Exhaustion
-remains a failed execution oracle; the allowance changes no program semantics.
+remains a failed execution oracle; the budget changes no program semantics.
 
 Iteration uses focused behavioral feedback; landing establishes the scoped
 change and attributes affected failures; release runs the full release matrix.
@@ -201,7 +201,7 @@ gh workflow run compiler-pilot.yml --ref work/NAME \
 ```
 
 This replaces the default smoke when used alone and produces `cli.json` plus
-per-project observations/logs. Review phases have a 600-second allowance based
+per-project observations/logs. Review phases have a 600-second budget based
 on measured single-project Std admission; runtime has a 240-second cap. It
 changes neither corpus defaults nor the corpus's absent filesystem delegation.
 A single project can still spend minutes in real admission: retain those phase

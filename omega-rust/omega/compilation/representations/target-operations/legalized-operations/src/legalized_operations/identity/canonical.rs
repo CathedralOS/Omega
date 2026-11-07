@@ -9,7 +9,7 @@ pub fn identity(plan: &LegalizedOperationPlan) -> LegalizedOperationPlanIdentity
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, plan.work_schedule.marker().to_le_bytes());
     bytes.extend_from_slice(&plan.target.identity_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, plan.entry.get().to_le_bytes());
     bytes.extend_from_slice(b"ordinary-scalar-graph.v39\0");

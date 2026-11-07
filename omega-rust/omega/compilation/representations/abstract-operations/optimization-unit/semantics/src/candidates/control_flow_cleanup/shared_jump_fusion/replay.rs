@@ -100,7 +100,7 @@ pub(super) fn validate(
     clone
         .provenance
         .extend_from_slice(&incoming_edge.provenance);
-    clone.fuel.extend_from_slice(&incoming_edge.fuel);
+    clone.work.extend_from_slice(&incoming_edge.work);
     clone.effect = removed_effect;
     clone.definitions = expected_definitions(
         &clone.operation,

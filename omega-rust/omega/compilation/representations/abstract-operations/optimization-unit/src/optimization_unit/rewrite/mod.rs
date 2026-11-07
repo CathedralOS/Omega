@@ -21,7 +21,7 @@ use semantic_vocabulary::{
 };
 
 use crate::{
-    FuelSettlement, OwnershipFrontierSite, PsiProvenance, ValueDefinition, ValueDefinitionSite,
+    OwnershipFrontierSite, PsiProvenance, ValueDefinition, ValueDefinitionSite, WorkSettlement,
 };
 
 mod candidate;

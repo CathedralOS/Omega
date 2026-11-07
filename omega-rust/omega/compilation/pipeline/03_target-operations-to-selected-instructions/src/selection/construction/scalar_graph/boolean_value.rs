@@ -103,7 +103,7 @@ pub(super) fn emit(
         }
         _ => return Err(SelectedInstructionError::custody()),
     };
-    // The source operation and logical fuel occur once, at the comparison.
+    // The source operation and logical work occur once, at the comparison.
     state.emit(
         comparison,
         comparison_key,
@@ -111,7 +111,7 @@ pub(super) fn emit(
         SelectedInstructionProvenance {
             operations: vec![operation.operation],
             values,
-            fuel: operation.fuel.clone(),
+            work: operation.work.clone(),
             ..Default::default()
         },
     )?;
@@ -176,7 +176,7 @@ pub(super) fn emit_branch_comparison(
             SelectedInstructionProvenance {
                 operations: vec![zero.operation, operation.operation],
                 values: vec![input, zero.result.ok_or_else(invalid)?.value, result.value],
-                fuel: zero.fuel.iter().chain(&operation.fuel).copied().collect(),
+                work: zero.work.iter().chain(&operation.work).copied().collect(),
                 ..Default::default()
             },
         )?;
@@ -209,10 +209,10 @@ pub(super) fn emit_branch_comparison(
                     immediate.result.ok_or_else(invalid)?.value,
                     result.value,
                 ],
-                fuel: immediate
-                    .fuel
+                work: immediate
+                    .work
                     .iter()
-                    .chain(&operation.fuel)
+                    .chain(&operation.work)
                     .copied()
                     .collect(),
                 ..Default::default()
@@ -322,7 +322,7 @@ struct IntegerComparisonSequence<'state, 'catalog> {
 impl IntegerComparisonSequence<'_, '_> {
     fn provenance(&mut self) -> SelectedInstructionProvenance {
         let provenance = self.provenance.clone();
-        self.provenance.fuel.clear();
+        self.provenance.work.clear();
         provenance
     }
 

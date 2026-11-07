@@ -155,8 +155,8 @@ fn encode_usage(hash: &mut crate::digest_encoder::DomainDigestEncoder, usage: Ev
     for value in [
         u64::from(usage.schema().schema_version()),
         u64::from(usage.schedule().marker()),
-        usage.fuel_units(),
-        usage.fuel_ceiling(),
+        usage.work_units(),
+        usage.work_budget(),
         usage.build_log_bytes(),
         usage.filesystem_operation_attempts(),
         usage.peak_live_cells(),

@@ -144,7 +144,7 @@ and before the first resume. The normal return validator remains shared. A host
 that does not opt in still refuses, before guest work. Capture reserves one
 logical storage cell per return slot and possible source; referent payloads keep
 their original accounting. A failed reservation changes no counters and remains
-a fatal host error. Zero-fuel pauses retain one capture, and closing retires it.
+a fatal host error. Zero-work-budget pauses retain one capture, and closing retires it.
 
 The workflow uses borrowed and decoded artifacts, both input selections, direct
 and call-returned carriers, active and inactive case payloads, and write-only

@@ -28,7 +28,7 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: SelectedProgram
     catalog: &ValidatedMachineEffectCatalog,
 ) -> Result<PreAllocationMachineEffectPlan, MachineEffectError> {
     let source = selected.selected_plan();
-    if source.fuel_schedule != selected.fuel_schedule_identity() {
+    if source.work_schedule != selected.work_schedule_identity() {
         return Err(MachineEffectError::SelectedRootMismatch);
     }
     if target_register_environment_identity(
@@ -90,7 +90,7 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: SelectedProgram
         identity: selected_instructions::PreAllocationMachineEffectIdentity::from_bytes([0; 32]),
         selected: selected.selected_identity(),
         optimization_unit: selected.optimization_unit_identity(),
-        fuel_schedule: selected.fuel_schedule_identity(),
+        work_schedule: selected.work_schedule_identity(),
         target: source.target,
         register_environment,
         register_constraints: constraints.identity(),
@@ -252,9 +252,9 @@ fn compute_instruction(
         });
     }
     // The produced sidecar copies the retained provenance verbatim; refuse to
-    // carry fuel that settles sites the instruction never claimed.
-    if !instruction.provenance.fuel_settles_only_claimed_sites() {
-        return Err(MachineEffectError::FuelProvenanceMismatch {
+    // carry work that settles sites the instruction never claimed.
+    if !instruction.provenance.work_settles_only_claimed_sites() {
+        return Err(MachineEffectError::WorkProvenanceMismatch {
             instruction: instruction.id,
         });
     }

@@ -79,9 +79,9 @@ pub(super) fn classify(
         || defining.provenance.operations.len() != 1
         || !defining.provenance.edges.is_empty()
         || !defining.provenance.obligations.is_empty()
-        || defining.provenance.fuel.is_empty()
-        || !defining.provenance.fuel.iter().all(|fuel| {
-            fuel.site
+        || defining.provenance.work.is_empty()
+        || !defining.provenance.work.iter().all(|work| {
+            work.site
                 == optimization_unit::PsiProvenance::Operation(defining.provenance.operations[0])
         })
         || !matches!(victim.scalar_type, ScalarType::Integer(integer) if integer.admits(value))

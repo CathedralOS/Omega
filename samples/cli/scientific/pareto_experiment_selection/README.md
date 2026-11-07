@@ -100,7 +100,7 @@ samples/cli/independent/pareto_experiment_selection/build/rust-validation/releas
 ```
 
 Use `cargo` if `mbx` is unavailable. Run one Rust build and one Omega execution
-at a time. The harness's explicit target is `linux_x86_64` and its sponsor fuel
+at a time. The harness's explicit target is `linux_x86_64` and its sponsor work
 is 10,000,000 per input. Exhaustion, declined imports, crashes or partial output
 fail validation. Native output is separately checked through `validate.py --native`
 using the executable produced by the ordinary Omega compile command.

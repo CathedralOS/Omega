@@ -11,7 +11,7 @@ use terminal_interpreter::TerminalExecutionStatus;
 fn run(
     root: PathBuf,
     output: PathBuf,
-    fuel: u64,
+    work: u64,
     timeout: u64,
     names: Vec<String>,
 ) -> Result<(), String> {
@@ -47,7 +47,7 @@ fn run(
         {
             return Err("invalid fixture name".into());
         }
-        println!("starting {name}; sponsor fuel {fuel}");
+        println!("starting {name}; sponsor work {work}");
         let started = std::time::Instant::now();
         let (completed, watch) = std::sync::mpsc::channel();
         let watched_name = name.clone();
@@ -68,7 +68,7 @@ fn run(
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
             provider_proposal: None,
-            fuel_allowance: fuel,
+            work_budget: work,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(
                 fs::File::open(root.join("data").join(format!("{name}.txt")))
@@ -169,9 +169,9 @@ fn main() {
             .canonicalize()
             .map_err(|error| error.to_string())?;
         let output = PathBuf::from(arguments.next().ok_or("missing output directory")?);
-        let fuel = arguments
+        let work = arguments
             .next()
-            .ok_or("missing sponsor fuel")?
+            .ok_or("missing sponsor work")?
             .parse::<u64>()
             .map_err(|error| error.to_string())?;
         let timeout = arguments
@@ -179,16 +179,16 @@ fn main() {
             .ok_or("missing per-case wall-clock allowance")?
             .parse::<u64>()
             .map_err(|error| error.to_string())?;
-        if fuel == 0 || timeout == 0 {
-            return Err("fuel and timeout must be positive".into());
+        if work == 0 || timeout == 0 {
+            return Err("work and timeout must be positive".into());
         }
         let names = arguments.collect::<Vec<_>>();
         if names.is_empty() {
             return Err("missing fixture names".into());
         }
-        Ok((root, output, fuel, timeout, names))
+        Ok((root, output, work, timeout, names))
     })();
-    let (root, output, fuel, timeout, names) = match parsed {
+    let (root, output, work, timeout, names) = match parsed {
         Ok(value) => value,
         Err(error) => {
             eprintln!("{error}");
@@ -198,7 +198,7 @@ fn main() {
     let thread = std::thread::Builder::new()
         .name("powder-diffraction-terminal-output".into())
         .stack_size(256 * 1024 * 1024)
-        .spawn(move || run(root, output, fuel, timeout, names));
+        .spawn(move || run(root, output, work, timeout, names));
     let result = match thread {
         Ok(thread) => match thread.join() {
             Ok(result) => result,

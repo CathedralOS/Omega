@@ -64,7 +64,7 @@ CLI exit comparison alone is insufficient.
 
 `validation/terminal_sdk.rs` is a host sponsor using the normal accepted native
 product and its retained Terminal artifact and runtime provisions. Each case
-gets finite stdin, an isolated exit domain and 100000000 fuel. It publishes the
+gets finite stdin, an isolated exit domain and 100000000 work. It publishes the
 same native product through the normal custody path and captures real Terminal
 stdout/stderr/exit. Link it against the recorded compiler build, with its normal
 package-manager, compiler, publication, target and interpreter dependencies.

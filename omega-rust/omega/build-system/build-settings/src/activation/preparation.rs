@@ -59,14 +59,14 @@ impl PreparedBuildExecution {
         // These are Terminal units. An existing tree-measured sponsor is never
         // relabeled or silently replaced by a fresh account.
         let measurement = crate::activation::measurement();
-        const INVOCATION_FUEL: u64 = 100_000;
+        const INVOCATION_WORK: u64 = 100_000;
         let sponsor = match evaluation_sponsor {
             Some(sponsor) => sponsor,
             None => {
                 // Standalone compilation previously had only a per-invocation work
                 // ceiling. Its private account adds measurement, not filesystem grants.
                 let limits = BuildEvaluationSponsorLimits::new(
-                    INVOCATION_FUEL,
+                    INVOCATION_WORK,
                     u64::MAX,
                     u64::MAX,
                     u64::MAX,
@@ -81,7 +81,7 @@ impl PreparedBuildExecution {
             }
         };
         let account = sponsor
-            .begin_invocation(measurement, INVOCATION_FUEL)
+            .begin_invocation(measurement, INVOCATION_WORK)
             .map_err(|error| refuse(error.to_string()))?;
         Ok(Self {
             execution_purpose,

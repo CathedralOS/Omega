@@ -1,7 +1,7 @@
 //! Retain one source-issued Build activation and its original receiver.
 //!
 //! This is the execution owner, not source discovery or package resolution.
-//! The caller advances execution, receives requests between fuel slices, and must join
+//! The caller advances execution, receives requests between work slices, and must join
 //! them before publishing a product. Protocol adapters retain one activation's state;
 //! a pause never reconstructs the instance or replays earlier effects.
 
@@ -25,8 +25,8 @@ use package_compilation::build_execution::build_value::{
     BuildValueAdmission, EvaluatedBuildSettings,
 };
 use psi_compiler::ProducedTerminalProgram;
+use psi_work::WorkMeter;
 use std::sync::Arc;
-use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstance, TerminalInstantiation,
     TerminalProgram, TerminalStructuralInputs, TerminalStructuralValue,
@@ -37,7 +37,7 @@ use crate::host::requests::{IssuedBuildRequest, TerminalBuildRequestHost};
 
 pub(crate) fn measurement() -> evaluation_accounting::EvaluationMeasurementIdentity {
     evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
-        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
         storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
     }
 }
@@ -283,12 +283,11 @@ impl TerminalBuildHost {
             }
         }
 
-        let fuel =
-            TerminalFuelMeter::with_invocation(self.account.clone(), Some(0)).map_err(describe)?;
+        let work = WorkMeter::with_invocation(self.account.clone(), Some(0)).map_err(describe)?;
         Ok(TerminalBuildActivation {
             instance,
             host: Arc::clone(self),
-            fuel,
+            work,
             state: ActivationState::Running,
             requests: Vec::new(),
             demanded_sources: Vec::new(),
@@ -308,7 +307,7 @@ enum ActivationState {
 pub struct TerminalBuildActivation {
     instance: TerminalInstance<'static, 'static>,
     host: Arc<TerminalBuildHost>,
-    fuel: TerminalFuelMeter,
+    work: WorkMeter,
     state: ActivationState,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
@@ -370,7 +369,7 @@ impl TerminalBuildActivation {
         Ok(())
     }
 
-    /// Complete immutable ledger issued so far, including earlier fuel slices.
+    /// Complete immutable ledger issued so far, including earlier work slices.
     pub fn requests(&self) -> &[IssuedBuildRequest] {
         &self.requests
     }
@@ -448,19 +447,19 @@ impl TerminalBuildActivation {
         Ok(())
     }
 
-    pub fn advance(&mut self, additional_fuel: u64) -> Result<TerminalBuildStep<'_>, String> {
+    pub fn advance(&mut self, additional_work: u64) -> Result<TerminalBuildStep<'_>, String> {
         match self.state {
             ActivationState::Returned => return Err("Build activation has already returned".into()),
             ActivationState::Refused => return Err("Build activation has already failed".into()),
             ActivationState::Running => {}
         }
         // Failure is sticky, including an account or host-drain refusal. A slice
-        // replenishes scheduling fuel, never the total invocation allowance.
+        // replenishes scheduling work, never the total invocation budget.
         self.state = ActivationState::Refused;
-        self.fuel.replenish(additional_fuel).map_err(describe)?;
+        self.work.replenish(additional_work).map_err(describe)?;
         let status = self
             .instance
-            .invoke(&mut self.fuel)
+            .invoke(&mut self.work)
             .map_err(|error| error.to_string())?;
         let first_request = self.requests.len();
         self.requests.extend(self.host.requests.drain_requests()?);

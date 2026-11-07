@@ -7,7 +7,7 @@
 //! runtime memberships. A destination declaration never mints missing evidence.
 //!
 //! Cleanup preflight follows the ordered custody transaction on scratch ledgers.
-//! It never runs hooks or writes backing. This keeps rejection before fuel and
+//! It never runs hooks or writes backing. This keeps rejection before work and
 //! mutation without treating an already-disposed parent's claim as child overlap;
 //! the subsequent commit applies the same transitions to the live frame.
 //! Projected ownership transfers the affine complement and authenticated linear
@@ -108,7 +108,7 @@ impl BlockBindings {
     /// places are also destinations. Updating one destination cannot affect
     /// another binding. Affine and borrowed descriptors retain their backing;
     /// owned unrestricted records publish independent staged payloads.
-    /// Reserve staged identities after edge fuel succeeds but before hooks can
+    /// Reserve staged identities after edge work succeeds but before hooks can
     /// allocate. Completion must not rewind the allocator to this saved cursor.
     pub(crate) fn reserve_identities(&self, execution: &mut TerminalExecution) {
         execution

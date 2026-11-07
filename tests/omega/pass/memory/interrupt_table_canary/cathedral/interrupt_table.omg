@@ -156,31 +156,31 @@ public data DescriptorTableLayout {
 machine DescriptorTableLayout::plan(descriptor_table_layout: &mut DescriptorTableLayout, schema: Schema) -> LayoutPlan {
     DescriptorTableLayout::evaluate(descriptor_table_layout, schema, 128)
 }
-machine DescriptorTableLayout::evaluate(descriptor_table_layout: &mut DescriptorTableLayout, schema: Schema, fuel: u64) -> LayoutPlan
-requires fuel >= 1 && fuel <= 128
-terminates by fuel
+machine DescriptorTableLayout::evaluate(descriptor_table_layout: &mut DescriptorTableLayout, schema: Schema, remaining_steps: u64) -> LayoutPlan
+requires remaining_steps >= 1 && remaining_steps <= 128
+terminates by remaining_steps
 {
     let entries: [FieldEntry; 64];
-    transition { _ -> fill(schema, entries, fuel, 0) }
+    transition { _ -> fill(schema, entries, remaining_steps, 0) }
 
-    machine fill(schema: Schema, entries: [FieldEntry; 64], fuel: u64, index: u64 in Wrapping) -> LayoutPlan
-    requires fuel >= 1 && fuel <= 128
-    terminates by fuel in 1..=128
+    machine fill(schema: Schema, entries: [FieldEntry; 64], remaining_steps: u64, index: u64 in Wrapping) -> LayoutPlan
+    requires remaining_steps >= 1 && remaining_steps <= 128
+    terminates by remaining_steps in 1..=128
     {
-        transition fuel > 1 && index < 33 {
-            true -> place(schema, entries, fuel - 1, index)
+        transition remaining_steps > 1 && index < 33 {
+            true -> place(schema, entries, remaining_steps - 1, index)
             _ -> done(schema, entries)
         }
     }
 
-    machine place(schema: Schema, entries: [FieldEntry; 64], fuel: u64, index: u64 in Wrapping) -> LayoutPlan requires fuel >= 1 && fuel <= 128 {
+    machine place(schema: Schema, entries: [FieldEntry; 64], remaining_steps: u64, index: u64 in Wrapping) -> LayoutPlan requires remaining_steps >= 1 && remaining_steps <= 128 {
         let mut updated: [FieldEntry; 64] = entries;
         updated[index] = FieldEntry {
             key: schema.fields[0].key,
             representation: FieldPlan::At { offset: (index * 16) as u64 },
         };
-        transition fuel > 1 {
-            true -> fill(schema, updated, fuel - 1, index + 1)
+        transition remaining_steps > 1 {
+            true -> fill(schema, updated, remaining_steps - 1, index + 1)
             _ -> done(schema, updated)
         }
     }

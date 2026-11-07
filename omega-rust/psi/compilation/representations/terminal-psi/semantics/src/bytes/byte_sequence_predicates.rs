@@ -618,13 +618,13 @@ pub fn byte_sequence_source_predicates(
         module: &TerminalModule,
         machine: &TerminalMachine,
         source: PlaceId,
-        fuel: usize,
+        work: usize,
         memo: &mut Vec<(PlaceId, Option<ByteSequencePredicateSet>)>,
     ) -> Option<ByteSequencePredicateSet> {
         if let Some((_, result)) = memo.iter().find(|(place, _)| *place == source) {
             return *result;
         }
-        let fuel = fuel.checked_sub(1)?;
+        let work = work.checked_sub(1)?;
         let place = machine.structural_place(source)?;
         // Mark an in-progress replay before following children. A malformed
         // cycle contributes no predicates, and shared subgraphs replay once.
@@ -699,7 +699,7 @@ pub fn byte_sequence_source_predicates(
                     // source access and dominance remain use-site obligations.
                     return Some(
                         if backing.path.is_empty() {
-                            source_predicates(module, machine, backing.place, fuel, memo)?
+                            source_predicates(module, machine, backing.place, work, memo)?
                         } else {
                             let (root, access) = byte_field_root(machine, backing.place)?;
                             if access == StructuralAccess::WriteOnlyBorrow
@@ -727,7 +727,7 @@ pub fn byte_sequence_source_predicates(
                     })
                 {
                     let captured = if path.is_empty() {
-                        source_predicates(module, machine, *backing, fuel, memo)?
+                        source_predicates(module, machine, *backing, work, memo)?
                     } else {
                         let (root, access) = byte_field_root(machine, *backing)?;
                         if access == StructuralAccess::WriteOnlyBorrow {
@@ -756,7 +756,7 @@ pub fn byte_sequence_source_predicates(
                 {
                     return byte_owned_result_predicates(module, machine, source);
                 }
-                let mut resolve = |source| source_predicates(module, machine, source, fuel, memo);
+                let mut resolve = |source| source_predicates(module, machine, source, work, memo);
                 Some(
                     concatenation_operand_predicates(module, machine, left, &mut resolve)?
                         .concatenation(concatenation_operand_predicates(

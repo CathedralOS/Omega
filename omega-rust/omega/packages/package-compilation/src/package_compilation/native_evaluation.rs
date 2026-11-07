@@ -46,16 +46,16 @@ impl NativeBuildEvaluation {
         digest.raw(&usage.usage_schema_version.to_le_bytes());
         digest.raw(&usage.step_schedule_marker.to_le_bytes());
         if let evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
-            fuel_schedule,
+            work_schedule,
             storage_schedule,
         } = usage.measurement
         {
-            digest.raw(&fuel_schedule.marker().to_le_bytes());
+            digest.raw(&work_schedule.marker().to_le_bytes());
             digest.raw(&storage_schedule.marker().to_le_bytes());
         }
         for counter in [
-            usage.invocation_fuel_ceiling,
-            usage.fuel_units,
+            usage.invocation_work_budget,
+            usage.work_units,
             usage.build_log_bytes,
             usage.filesystem_operation_attempts,
             usage.peak_live_storage_cells,

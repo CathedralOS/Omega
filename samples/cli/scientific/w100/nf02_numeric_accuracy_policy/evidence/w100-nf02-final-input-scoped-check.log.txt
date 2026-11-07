@@ -179,7 +179,7 @@ warning: `build-output` (lib) generated 9 warnings
     Checking abstract-operations v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/compilation/representations/abstract-operations)
     Checking terminal-semantics v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/terminal-psi/semantics)
     Checking function-identity v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/foundation/function-identity)
-    Checking terminal-fuel v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/terminal-psi/fuel)
+    Checking psi-work v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/terminal-psi/work)
     Checking installation-evidence v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/compilation/backend/runtime/installation-evidence)
     Checking syntax-trees-to-symbol-resolved-trees v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees)
     Checking build-declarations v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/packages/build-declarations)

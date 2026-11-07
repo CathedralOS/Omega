@@ -22,10 +22,10 @@ pub(super) fn emit(
     }
     if let LegalizedScalarInstructionKind::ReleaseActivationClaim { source, .. } = &row.kind {
         // Retirement is statically proved; backing remains reserved until frame
-        // unwind. Retain an executable fuel/provenance anchor for the operation.
+        // unwind. Retain an executable work/provenance anchor for the operation.
         let anchor = transport_register(builder, source.place, 0)?;
         let mut origin = provenance(row);
-        origin.fuel = row.fuel.clone();
+        origin.work = row.work.clone();
         return builder.emit_materialize_i64(IntegerValue::Unsigned(0), anchor, origin);
     }
     let LegalizedScalarInstructionKind::EstablishActivationClaim {

@@ -31,7 +31,7 @@ fn run() {
             x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact, target: Some("linux_x86_64"), provisions: report.runtime_provisions(),
             provider_proposal: None,
-            fuel_allowance: 10_000_000,
+            work_budget: 10_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(fs::File::open(&fixture).unwrap())), clock: None,
         });

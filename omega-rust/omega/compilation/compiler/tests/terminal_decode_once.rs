@@ -245,7 +245,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
         artifact: artifact.psi_artifact(),
         target: None,
         provisions: product.runtime_provisions.as_ref(),
-        fuel_allowance: 100_000,
+        work_budget: 100_000,
         domain_exit: terminal_runtime::TerminalDomainExitDelegation::default(),
         standard_input: None,
         clock: None,
@@ -272,7 +272,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
         artifact: artifact.psi_artifact(),
         target: None,
         provisions: product.runtime_provisions.as_ref(),
-        fuel_allowance: 100_000,
+        work_budget: 100_000,
         domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: None,
         clock: None,
@@ -296,7 +296,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
 }
 
 fn exercise_owned_and_borrowed_instances() {
-    use terminal_fuel::TerminalFuelMeter;
+    use psi_work::WorkMeter;
     use terminal_interpreter::{
         TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalStructuralInputs,
     };
@@ -370,18 +370,16 @@ fn exercise_owned_and_borrowed_instances() {
         .unwrap();
     drop(borrowed);
     assert!(matches!(
-        first
-            .invoke(&mut TerminalFuelMeter::with_allowance(0))
-            .unwrap(),
+        first.invoke(&mut WorkMeter::with_budget(0)).unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert!(!second.is_finished());
     assert_eq!(
-        second.invoke(&mut TerminalFuelMeter::unbounded()).unwrap(),
+        second.invoke(&mut WorkMeter::unbounded()).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(
-        first.invoke(&mut TerminalFuelMeter::unbounded()).unwrap(),
+        first.invoke(&mut WorkMeter::unbounded()).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(terminal_codec::module_decode_count() - before, 0);
@@ -412,7 +410,7 @@ fn exercise_owned_and_borrowed_instances() {
     let after_load = terminal_codec::module_decode_count();
     assert_eq!(
         retained_instance
-            .invoke(&mut TerminalFuelMeter::unbounded())
+            .invoke(&mut WorkMeter::unbounded())
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit),
         "retained execution must survive the original artifact owner's drop"
@@ -437,9 +435,7 @@ fn exercise_owned_and_borrowed_instances() {
         .unwrap();
     drop(owned);
     assert_eq!(
-        instance
-            .invoke(&mut TerminalFuelMeter::unbounded())
-            .unwrap(),
+        instance.invoke(&mut WorkMeter::unbounded()).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(TerminalProgram::load_envelope(b"not a Terminal artifact").is_err());

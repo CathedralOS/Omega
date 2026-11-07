@@ -175,7 +175,7 @@ pub enum StructuralEffectExternalEffect {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum StructuralEffectFuelPolicy {
+pub enum StructuralEffectWorkPolicy {
     ConsumeOne,
 }
 
@@ -218,7 +218,7 @@ pub struct StructuralEffectLeafSchema {
     custody: StructuralEffectCustody,
     action: StructuralEffectAction,
     external_effect: StructuralEffectExternalEffect,
-    fuel: StructuralEffectFuelPolicy,
+    work: StructuralEffectWorkPolicy,
     goal: StructuralEffectGoalShape,
     frontier: StructuralEffectFrontierPolicy,
 }
@@ -240,8 +240,8 @@ impl StructuralEffectLeafSchema {
         self.external_effect
     }
 
-    pub const fn fuel(self) -> StructuralEffectFuelPolicy {
-        self.fuel
+    pub const fn work(self) -> StructuralEffectWorkPolicy {
+        self.work
     }
 
     pub const fn goal(self) -> StructuralEffectGoalShape {
@@ -265,7 +265,7 @@ const fn structural_effect_leaf(
         custody,
         action,
         external_effect,
-        fuel: StructuralEffectFuelPolicy::ConsumeOne,
+        work: StructuralEffectWorkPolicy::ConsumeOne,
         goal: match action {
             StructuralEffectAction::StoreByteSequence => {
                 StructuralEffectGoalShape::ByteLengthWithinOwnerCapacity
@@ -750,7 +750,7 @@ fn validate_structural_effect_schema(
                         && schema.frontier == StructuralEffectFrontierPolicy::AddsUnrestrictedPlace
                 }
             }
-            && schema.fuel == StructuralEffectFuelPolicy::ConsumeOne;
+            && schema.work == StructuralEffectWorkPolicy::ConsumeOne;
     valid
         .then_some(())
         .ok_or(OperationSemanticError::StructuralEffectSchemaMismatch(tag))

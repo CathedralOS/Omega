@@ -169,7 +169,7 @@ cancellation response and replacement quiescence unbounded.
 
 Whole-call-graph WCSU bounds simultaneously live stack space, not work or time.
 Sequential work adds; sequential stack frames can reuse capacity after return.
-Logical-work bounds create no native fuel counter or fuel-induced suspension.
+Logical-work bounds create no native work counter or work-budget-induced suspension.
 Converting work to elapsed time requires a separate timing model. Hard-control
 profiles reject unknown or absent finite response guarantees rather than force-
 terminating a blocked holder. See [logical work](../spec/resources/logical_work.md).

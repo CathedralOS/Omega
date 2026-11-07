@@ -1,4 +1,4 @@
-// After an opaque callback, fresh count <= slots.len and preserved immutable fuel > 0 admit the nested call's slots.len - count and fuel - 1.
+// After an opaque callback, fresh count <= slots.len and preserved immutable remaining_steps > 0 admit the nested call's slots.len - count and remaining_steps - 1.
 // Expected exit: 0
 public data CompactBinary {}
 public data Ctx { slots: &mut [u64]; count: u64; valid: bool; }
@@ -13,22 +13,22 @@ SelectedFuel satisfies FuelSource {
     ensures result == value
     { value }
 }
-public machine CompactBinary::read_record<machine Plan>(slots: &mut [u64], fuel: u64, choose: bool) -> Observation
+public machine CompactBinary::read_record<machine Plan>(slots: &mut [u64], remaining_steps: u64, choose: bool) -> Observation
 requires machine Plan(context: &mut Ctx);
-requires fuel >= 0u64
+requires remaining_steps >= 0u64
 invokes FuelSource
 {
     let mut context: Ctx = Ctx { slots: slots, count: 0u64, valid: true };
-    let selected: u64 = FuelSource::produce(fuel);
+    let selected: u64 = FuelSource::produce(remaining_steps);
     Plan(&mut context);
     transition context.valid && context.count <= context.slots.len {
         true -> parse(&mut context, selected)
         false -> Observation { remaining: 99u64, fuel_left: 99u64 }
     }
-    machine parse(context: &mut Ctx, fuel: u64) -> Observation
-    requires context.count <= context.slots.len && fuel > 0u64
+    machine parse(context: &mut Ctx, remaining_steps: u64) -> Observation
+    requires context.count <= context.slots.len && remaining_steps > 0u64
     {
-        Observation { remaining: context.slots.len - context.count, fuel_left: fuel - 1u64 }
+        Observation { remaining: context.slots.len - context.count, fuel_left: remaining_steps - 1u64 }
     }
 }
 machine PlanGood(context: &mut Ctx) { context.count = context.slots.len; }

@@ -397,7 +397,7 @@ element operations rather than implicitly traversing allocator bookkeeping.
 descriptions and checked callable operations, not a second mutation mechanism.
 An invariant-preserving setter still requires valid access at invocation: an edit
 can invalidate stronger live flow facts even when the type's domain stays true.
-A fuel pause retains the activation's loans, invariant windows, and restoration
+A work-budget pause retains the activation's loans, invariant windows, and restoration
 debts; it does not permit an editor to borrow or write the affected storage.
 Detached candidates can be edited, then submitted through an operation that
 obtains access and establishes the full contract when applying them.

@@ -60,7 +60,7 @@ never fitted to observed output. `data/FROZEN.sha256` verifies all oracle inputs
 The public SDK sponsor compiled one accepted native product, retained its Terminal
 payload/provisions and published the same report through normal native custody.
 Each Terminal case had its own finite stdin cursor, isolated exit domain and
-100000000 fuel. Native subprocesses received the identical frozen stdin.
+100000000 work. Native subprocesses received the identical frozen stdin.
 All **39 cases** passed both engines: **15 valid, 24 refused**. Counts were exact;
 max absolute normalized-value error on both engines was
 **7.610484419790457347623501064E-11**, below 1e-8. Every stdout/stderr/exit byte

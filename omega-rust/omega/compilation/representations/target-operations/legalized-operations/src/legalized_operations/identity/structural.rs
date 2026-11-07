@@ -1,4 +1,4 @@
-use super::encoding::{encode_fuel, encode_ids, encode_len, encode_option};
+use super::encoding::{encode_ids, encode_len, encode_option, encode_work};
 use crate::legalized_operations::identity::structural_types::{
     encode_access, encode_entry_claim, encode_multiplicity, encode_string,
     encode_structural_argument, encode_structural_path,
@@ -28,7 +28,7 @@ pub(super) fn encode_boundary_settlement(
         &settlement.completion_claim_sources,
         &settlement.completion_receipts,
     );
-    encode_fuel(bytes, &settlement.fuel);
+    encode_work(bytes, &settlement.work);
     encode_effect(bytes, settlement.effect);
     encode_ownership_roster(bytes, &settlement.ownership);
 }

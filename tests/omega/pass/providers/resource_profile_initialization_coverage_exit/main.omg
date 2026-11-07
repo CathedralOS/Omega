@@ -16,18 +16,18 @@ machine scan_services(
     required: &BoundaryReach,
     required_index: u64,
     available_index: u64,
-    fuel: u64
+    remaining_steps: u64
 ) -> bool
-terminates by fuel
+terminates by remaining_steps
 requires required_index <= 32 && available_index <= 32 &&
-         fuel >= 1 && fuel <= 2049
+         remaining_steps >= 1 && remaining_steps <= 2049
 {
     transition {
         required_index == required.service_count -> (true)
         available_index == available.service_count -> (false)
         required_index < required.service_count &&
-        available_index < available.service_count && fuel > 1 ->
-            compare(available, required, required_index, available_index, fuel - 1)
+        available_index < available.service_count && remaining_steps > 1 ->
+            compare(available, required, required_index, available_index, remaining_steps - 1)
         _ -> (false)
     }
 
@@ -36,17 +36,17 @@ requires required_index <= 32 && available_index <= 32 &&
         required: &BoundaryReach,
         required_index: u64,
         available_index: u64,
-        fuel: u64
+        remaining_steps: u64
     ) -> bool
     requires required_index <= 31 && available_index <= 31 &&
-             fuel >= 1 && fuel <= 2049
+             remaining_steps >= 1 && remaining_steps <= 2049
     {
         transition {
-            fuel > 1 &&
+            remaining_steps > 1 &&
             available.services[available_index] == required.services[required_index] ->
-                scan_services(available, required, required_index + 1, 0, fuel - 1)
-            fuel > 1 ->
-                scan_services(available, required, required_index, available_index + 1, fuel - 1)
+                scan_services(available, required, required_index + 1, 0, remaining_steps - 1)
+            remaining_steps > 1 ->
+                scan_services(available, required, required_index, available_index + 1, remaining_steps - 1)
             _ -> (false)
         }
     }
@@ -83,16 +83,16 @@ machine cover_regions(
     reach: &BoundaryReach,
     covered: u64,
     region_index: u64,
-    fuel: u64
+    remaining_steps: u64
 ) -> bool
-terminates by fuel
+terminates by remaining_steps
 requires covered <= byte_length && region_index <= 32 &&
-         fuel >= 1 && fuel <= 128
+         remaining_steps >= 1 && remaining_steps <= 128
 {
     transition {
         covered == byte_length -> (true)
-        region_index < profile.region_count && fuel > 1 ->
-            inspect(profile, byte_length, reach, covered, region_index, fuel - 1)
+        region_index < profile.region_count && remaining_steps > 1 ->
+            inspect(profile, byte_length, reach, covered, region_index, remaining_steps - 1)
         _ -> (false)
     }
 
@@ -102,17 +102,17 @@ requires covered <= byte_length && region_index <= 32 &&
         reach: &BoundaryReach,
         covered: u64,
         region_index: u64,
-        fuel: u64
+        remaining_steps: u64
     ) -> bool
     requires covered <= byte_length && region_index <= 31 &&
-             fuel >= 1 && fuel <= 128
+             remaining_steps >= 1 && remaining_steps <= 128
     {
         let region: &ResourceRegion = &profile.regions[region_index];
         transition {
             region.range.offset == covered && region.range.length > 0 &&
             has_exclusive_stable_write(region) && contains_services(&region.reach, reach) &&
-            fuel > 1 ->
-                extend(profile, byte_length, reach, covered, region_index, fuel - 1)
+            remaining_steps > 1 ->
+                extend(profile, byte_length, reach, covered, region_index, remaining_steps - 1)
             _ -> (false)
         }
     }
@@ -123,17 +123,17 @@ requires covered <= byte_length && region_index <= 32 &&
         reach: &BoundaryReach,
         covered: u64,
         region_index: u64,
-        fuel: u64
+        remaining_steps: u64
     ) -> bool
     requires covered <= byte_length && region_index <= 31 &&
-             fuel >= 1 && fuel <= 128
+             remaining_steps >= 1 && remaining_steps <= 128
     {
         let length: u64 = profile.regions[region_index].range.length;
         let remaining: u64 = byte_length - covered;
         transition {
             length >= remaining -> (true)
-            length < remaining && fuel > 1 ->
-                cover_regions(profile, byte_length, reach, covered + length, region_index + 1, fuel - 1)
+            length < remaining && remaining_steps > 1 ->
+                cover_regions(profile, byte_length, reach, covered + length, region_index + 1, remaining_steps - 1)
             _ -> (false)
         }
     }
@@ -189,21 +189,21 @@ machine full_profile() -> ResourceProfile {
 machine fill_profile(
     profile: ResourceProfile,
     region_index: u64,
-    fuel: u64
+    remaining_steps: u64
 ) -> ResourceProfile
-terminates by fuel
-requires region_index <= 32 && fuel >= 1 && fuel <= 65
+terminates by remaining_steps
+requires region_index <= 32 && remaining_steps >= 1 && remaining_steps <= 65
 {
     transition {
-        region_index < 32 && fuel > 1 -> write(profile, region_index, fuel - 1)
+        region_index < 32 && remaining_steps > 1 -> write(profile, region_index, remaining_steps - 1)
         _ -> (profile)
     }
     machine write(
         profile: ResourceProfile,
         region_index: u64,
-        fuel: u64
+        remaining_steps: u64
     ) -> ResourceProfile
-    requires region_index <= 31 && fuel >= 1 && fuel <= 65
+    requires region_index <= 31 && remaining_steps >= 1 && remaining_steps <= 65
     {
         let mut updated: ResourceProfile = profile;
         updated.regions[region_index] = ResourceRegion {
@@ -215,7 +215,7 @@ requires region_index <= 32 && fuel >= 1 && fuel <= 65
             reach: all_service_keys(),
         };
         transition {
-            fuel > 1 -> fill_profile(updated, region_index + 1, fuel - 1)
+            remaining_steps > 1 -> fill_profile(updated, region_index + 1, remaining_steps - 1)
             _ -> (updated)
         }
     }

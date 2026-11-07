@@ -48,7 +48,7 @@ pub(crate) fn parse(mut arguments: impl Iterator<Item = OsString>) -> Result<Inv
         Some("run") => run::parse_arguments(arguments)
             .map(Invocation::Run)
             .map_err(|error| {
-                format!("{error}\nusage: omega run [--engine <native|terminal> | --both] [--terminal-fuel-allowance <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>")
+                format!("{error}\nusage: omega run [--engine <native|terminal> | --both] [--psi-work-budget <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>")
             }),
         Some("inspect-terminal") => inspect::parse_arguments(arguments)
             .map(Invocation::InspectTerminal)

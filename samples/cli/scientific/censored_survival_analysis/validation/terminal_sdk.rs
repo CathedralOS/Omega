@@ -79,7 +79,7 @@ fn run() {
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
             provider_proposal: None,
-            fuel_allowance: 100_000_000,
+            work_budget: 100_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(Cursor::new(input))),
             clock: Some(TerminalClockSnapshot::capture_host_epoch().unwrap()),
