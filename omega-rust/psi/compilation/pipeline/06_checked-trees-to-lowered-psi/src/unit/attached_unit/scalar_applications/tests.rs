@@ -85,6 +85,7 @@ fn checked_with_scope(program: typed_trees::TypedTrees) -> CheckedTrees {
             .push(checked_trees::MachineContractPlan {
                 machine: machine.symbol,
                 closed_scalar_values: Default::default(),
+                restored_declaration_predicates: Vec::new(),
                 crash: checked_trees::CrashPlan::default().with_checked_body_summary(Some(
                     checked_trees::CheckedBodyCrashSummary::new(
                         machine.symbol,

@@ -258,6 +258,7 @@ pub(crate) fn build_published_crash_plan(
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
     operators: &checked_trees::CheckedOperatorFacts,
+    declaration_predicates: &[validation::DeclarationPredicateRow],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Result<checked_trees::CrashPlan, diagnostics::Diagnostic> {
     let mut runtime_membership_subjects = Vec::new();
@@ -265,6 +266,7 @@ pub(crate) fn build_published_crash_plan(
         program,
         machine,
         operators,
+        declaration_predicates,
         exact_integer_casts,
         &mut runtime_membership_subjects,
     );
@@ -299,6 +301,7 @@ fn build_structural_runtime_requirements(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     operators: &checked_trees::CheckedOperatorFacts,
+    declaration_predicates: &[validation::DeclarationPredicateRow],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     subjects: &mut Vec<checked_trees::CheckedRuntimeMembershipSubject>,
 ) -> Option<Vec<checked_trees::CheckedBooleanExpression>> {
@@ -382,9 +385,9 @@ fn build_structural_runtime_requirements(
     // establishes at the call and the root installation at program entry.
     // Replay splits this derived tail off before rejoining authored clauses.
     requirements.extend(
-        validation::machine_declaration_predicates(program, operators, machine)
-            .into_iter()
-            .map(|row| row.predicate),
+        declaration_predicates
+            .iter()
+            .map(|row| row.predicate.clone()),
     );
     Some(requirements)
 }

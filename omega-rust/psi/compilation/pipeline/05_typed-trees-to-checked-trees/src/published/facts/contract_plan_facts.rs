@@ -208,12 +208,18 @@ pub(crate) fn build_contract_plans(
                     // machine's Nth parameter encodes as P<N>, so RENAMES never change
                     // the identity (the substitutable contract is positional).
                     let parameter_names = machine_entry_parameter_names(program, machine);
+                    // One spelling of the declaration predicate roster serves the
+                    // runtime requirement package and the rows a return restores,
+                    // which lowering publishes without spelling them again.
+                    let declaration_predicates =
+                        validation::machine_declaration_predicates(program, operators, machine);
                     let crash = build_published_crash_plan(
                         program,
                         machine,
                         &parameter_names,
                         &content_conservation,
                         operators,
+                        &declaration_predicates,
                         exact_integer_casts,
                     )
                     .map_err(|diagnostic| vec![diagnostic])?
@@ -271,6 +277,11 @@ pub(crate) fn build_contract_plans(
                         machine: machine.symbol,
                         closed_scalar_values,
                         crash,
+                        restored_declaration_predicates: declaration_predicates
+                            .into_iter()
+                            .filter(|row| row.restored_on_return)
+                            .map(|row| row.predicate)
+                            .collect(),
                         // No consumer observes these construction coordinates. Family
                         // envelopes settle before each final contract identity is minted.
                         report_fingerprint: 0,
