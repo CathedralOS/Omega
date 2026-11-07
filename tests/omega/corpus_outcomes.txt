@@ -1503,7 +1503,7 @@ fail/borrows/nested_array_reference_call_stale_index rejected 1931ms expected @c
 	cannot prove index `external` is within length 2 in exercise::entry
 fail/borrows/nested_array_shared_view_write rejected 655ms expected @ccdb99ca2214
 	machine `store` state `entry` assignment cannot write `slots` because it is not mutable in this state (if `slots` is undeclared -- a typo -- no such field or local exists)
-fail/borrows/nested_byte_field_capture_breaks_utf8 rejected 761ms expected @7b9a72614daf
+fail/borrows/nested_byte_field_capture_breaks_utf8 rejected 6352ms expected @8ade856e00f6
 	cannot prove requires contract for call consume from write: main.line in [u8; N]::Utf8 (invalidated by prior mutation of main.line[1]; main.line is part of [u8; N]::Utf8) in state `entry`
 	cannot prove default-domain field requirement for return from write at statement 2: main.line requires [u8; N]::Utf8
 fail/borrows/nested_byte_field_capture_stale_carrier rejected 709ms expected @7b9a72614daf
@@ -1776,7 +1776,8 @@ fail/borrows/returned_reference_overwritten_integer_formal rejected 1928ms expec
 	statement 2 mutates `values[1]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/returned_reference_overwritten_integer_local rejected 2293ms expected @ccdb99ca2214
 	statement 2 mutates `values[1]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/returned_reference_unselected_lifetime_source_write rejected 1716ms expected @ccdb99ca2214
+fail/borrows/returned_reference_unselected_lifetime_source_write rejected 6299ms expected @8ade856e00f6
+	statement 3 mutates `retained.value` while local borrow `retained_parent` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 	statement 3 mutates `retained.value` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/returned_review_cannot_escape_local_backing rejected 2764ms expected @ccdb99ca2214
 	machine `escape` returns a view borrowing the local `header`, which does not outlive the call; return a view of storage that outlives the invocation instead
@@ -4821,7 +4822,7 @@ fail/domains/qualified_fixed_byte_array_utf8_split rejected 2116ms expected @ccd
 	cannot prove default-domain field requirement for return from mutate at statement 2: buffer.bytes requires [u8; N]::Utf8
 fail/domains/qualified_fixed_byte_array_utf8_stale rejected 2337ms expected @ccdb99ca2214
 	cannot prove default-domain field requirement for return from mutate at statement 4: buffer.bytes requires [u8; N]::Utf8
-fail/domains/qualified_fixed_byte_array_view_element_missing_membership rejected 1584ms expected @ccdb99ca2214
+fail/domains/qualified_fixed_byte_array_view_element_missing_membership rejected 6312ms expected @8ade856e00f6
 	cannot prove default-domain field requirement for return from copy, state entry, at statement 1: item.name.storage requires [u8; N]::Ascii
 fail/domains/qualified_fixed_byte_array_write_only_invalid rejected 2127ms expected @ccdb99ca2214
 	cannot prove default-domain field requirement for return from fill at statement 2: buffer.bytes requires [u8; N]::Utf8
@@ -19666,8 +19667,7 @@ pass/borrows/runtime_conditional_returned_descriptor_exit checked 7081ms check-t
 pass/borrows/runtime_constructed_reference_array_restoration_exit checked 71881ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_copied_byte_distinct_epochs_exit checked 6291ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_copied_byte_predicate_snapshot_exit checked 6070ms check-target:macos_arm64 @911f6617ba9e
-pass/borrows/runtime_copied_range_record_domains_exit rejected 4063ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "qualification storage has an unsupported collection window", gap: None })
+pass/borrows/runtime_copied_range_record_domains_exit checked 8042ms check-target:macos_arm64 @8ade856e00f6
 pass/borrows/runtime_copied_reference_conditional_nominal_backing_exit checked 12711ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/borrows/runtime_copied_reference_conditional_structural_result_exit checked 10478ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/borrows/runtime_copyable_carrier_retirement_exit checked 3730ms check-target:macos_arm64 @ccdb99ca2214
@@ -19695,8 +19695,7 @@ pass/borrows/runtime_formed_child_descriptor_replacement_exit checked 3577ms che
 pass/borrows/runtime_forwarded_indexed_reference_exit checked 3970ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 17815ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_forwarded_reference_array_bounded_read_exit checked 56012ms check-target:macos_arm64 @911f6617ba9e
-pass/borrows/runtime_forwarded_view_field_domain_exit rejected 55794ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "qualification storage has an unsupported collection window", gap: None })
+pass/borrows/runtime_forwarded_view_field_domain_exit checked 115104ms check-target:macos_arm64 @8ade856e00f6
 pass/borrows/runtime_guard_descriptor_replacement_exit checked 3386ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_guarded_local_byte_loan_exit checked 3171ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_held_descriptor_replacement_exit checked 3807ms check-target:macos_arm64 @ccdb99ca2214
@@ -19717,8 +19716,7 @@ pass/borrows/runtime_initialized_computed_case_copy_order_exit checked 18235ms c
 pass/borrows/runtime_literal_view_inclusive_range_exit checked 4168ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_local_reference_backing_state_exit checked 7608ms check-target:macos_arm64 @b45dc4f7989c
 pass/borrows/runtime_match_payload_parent_disjoint_exit checked 3833ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_measured_range_record_domains_exit rejected 3976ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "qualification storage has an unsupported collection window", gap: None })
+pass/borrows/runtime_measured_range_record_domains_exit checked 8134ms check-target:macos_arm64 @8ade856e00f6
 pass/borrows/runtime_mixed_byte_view_reference_result_exit checked 3221ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_mixed_static_dynamic_loan_header_exit checked 3400ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_multidimensional_reference_result_exit checked 3804ms check-target:macos_arm64 @ccdb99ca2214
@@ -28353,8 +28351,7 @@ run/domains/qualified_fixed_byte_array_forwarding_exit rejected 2742ms check-tar
 	cannot prove requires contract for call returned from main: qualified.bytes in [u8; N]::Ascii (invalidated by prior mutation of qualified.bytes[0]; qualified.bytes is part of [u8; N]::Ascii) in state `entry`
 	cannot prove requires contract for call length from main: qualified.bytes in [u8; N]::Ascii (invalidated by prior mutation of qualified.bytes[0]; qualified.bytes is part of [u8; N]::Ascii) in state `entry`
 	cannot prove requires contract for call erase from main: qualified.bytes in [u8; N]::Ascii (invalidated by prior mutation of qualified.bytes[0]; qualified.bytes is part of [u8; N]::Ascii) in state `entry`
-run/domains/qualified_fixed_byte_array_generic_view_return_exit rejected 3316ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "qualification storage has an unsupported collection window", gap: None })
+run/domains/qualified_fixed_byte_array_generic_view_return_exit checked 9165ms check-target:macos_arm64 @071034107c35
 run/domains/qualified_fixed_byte_array_geometry_exit rejected 2806ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call length from main: qualified.bytes in [u8; N]::Ascii (invalidated by prior mutation of qualified.bytes; qualified.bytes is part of [u8; N]::Ascii) in state `entry`
 	cannot prove requires contract for call erase from main: qualified.bytes in [u8; N]::Ascii (invalidated by prior mutation of qualified.bytes; qualified.bytes is part of [u8; N]::Ascii) in state `entry`

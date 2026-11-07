@@ -17,6 +17,15 @@ impl Checker<'_> {
         source: PlaceId,
         aliases: &[(ValueId, ValueId)],
     ) -> bool {
+        self.element_view_custody(view, source, aliases).is_ok()
+    }
+
+    pub(super) fn element_view_custody(
+        &self,
+        view: &TargetElementView,
+        source: PlaceId,
+        aliases: &[(ValueId, ValueId)],
+    ) -> Result<(), &'static str> {
         self.element_view_access(
             view,
             source,
@@ -31,14 +40,14 @@ impl Checker<'_> {
         source: PlaceId,
         aliases: &[(ValueId, ValueId)],
         requested: terminal_psi::StructuralAccess,
-    ) -> bool {
+    ) -> Result<(), &'static str> {
         use terminal_psi::StructuralAccess as Access;
         let Some(actual) = optimization_unit_semantics::structural_place_backing_access(
             self.optimized,
             source,
             self.types.iter(),
         ) else {
-            return false;
+            return Err("view destination has no admitted backing access");
         };
         if !matches!(
             (actual, requested),
@@ -47,10 +56,10 @@ impl Checker<'_> {
                 Access::SharedBorrow
             ) | (Access::MutableBorrow, Access::MutableBorrow)
         ) {
-            return false;
+            return Err("view destination backing cannot supply requested access");
         }
         let access = |access| access == actual;
-        match view {
+        let valid = match view {
             TargetElementView::Result {
                 psi_operation,
                 place,
@@ -148,7 +157,7 @@ impl Checker<'_> {
                             .then_some((argument, *expected_region))
                     })
                 else {
-                    return false;
+                    return Err("view result does not match an exact declared establishment");
                 };
                 let backing = match established_source {
                     // An incoming parameter lends its exact entrance placement.
@@ -191,61 +200,71 @@ impl Checker<'_> {
                     }
                     _ => false,
                 };
-                *place == source
-                    && access(argument.access)
-                    && backing
-                    && optimization_unit_semantics::descriptor_argument_accessible(
-                        self.optimized,
-                        argument,
-                        self.types,
-                        argument.access,
-                    )
-                    && match (region, expected_region) {
-                        (
-                            target_operations::TargetElementViewRegion::WholeCollection,
-                            terminal_psi::ElementViewRegion::WholeCollection,
-                        ) => true,
-                        (
-                            target_operations::TargetElementViewRegion::WholeRepresentation {
-                                source_length,
-                                obligation,
-                            },
-                            terminal_psi::ElementViewRegion::WholeRepresentation {
-                                source_length: expected_length,
-                                obligation: expected_obligation,
-                            },
-                        ) => {
-                            *source_length == expected_length && *obligation == expected_obligation
-                        }
-                        (
-                            target_operations::TargetElementViewRegion::RepresentationBytes {
-                                start,
-                                end,
-                                obligation,
-                            },
-                            terminal_psi::ElementViewRegion::RepresentationBytes {
-                                start: expected_start,
-                                end: expected_end,
-                                obligation: expected_obligation,
-                            },
-                        ) => {
-                            *obligation == expected_obligation
-                                && self.integer_source(start, expected_start, aliases)
-                                && self.integer_source(end, expected_end, aliases)
-                        }
-                        _ => false,
+                if *place != source {
+                    return Err("view custody names another destination");
+                }
+                if !access(argument.access) {
+                    return Err("view backing access differs from its source loan");
+                }
+                if !backing {
+                    return Err("view backing does not match a preceding producer or parameter");
+                }
+                if !optimization_unit_semantics::descriptor_argument_accessible(
+                    self.optimized,
+                    argument,
+                    self.types,
+                    argument.access,
+                ) {
+                    return Err("view source projection has no admitted descriptor access");
+                }
+                let matching_region = match (region, expected_region) {
+                    (
+                        target_operations::TargetElementViewRegion::WholeCollection,
+                        terminal_psi::ElementViewRegion::WholeCollection,
+                    ) => true,
+                    (
+                        target_operations::TargetElementViewRegion::WholeRepresentation {
+                            source_length,
+                            obligation,
+                        },
+                        terminal_psi::ElementViewRegion::WholeRepresentation {
+                            source_length: expected_length,
+                            obligation: expected_obligation,
+                        },
+                    ) => *source_length == expected_length && *obligation == expected_obligation,
+                    (
+                        target_operations::TargetElementViewRegion::RepresentationBytes {
+                            start,
+                            end,
+                            obligation,
+                        },
+                        terminal_psi::ElementViewRegion::RepresentationBytes {
+                            start: expected_start,
+                            end: expected_end,
+                            obligation: expected_obligation,
+                        },
+                    ) => {
+                        *obligation == expected_obligation
+                            && self.integer_source(start, expected_start, aliases)
+                            && self.integer_source(end, expected_end, aliases)
                     }
-                    && self.established_element_window(
-                        *root_structural_type,
-                        &argument.path,
-                        *element,
-                        *source_byte_offset,
-                        indices,
-                        *extent,
-                        *element_stride,
-                        expected_region,
-                        argument.access,
-                    )
+                    _ => false,
+                };
+                if !matching_region {
+                    return Err("view region differs from its establishment");
+                }
+                self.established_element_window(
+                    *root_structural_type,
+                    &argument.path,
+                    *element,
+                    *source_byte_offset,
+                    indices,
+                    *extent,
+                    *element_stride,
+                    expected_region,
+                    argument.access,
+                )?;
+                true
             }
             TargetElementView::Subslice {
                 psi_operation,
@@ -319,7 +338,10 @@ impl Checker<'_> {
                         && self.integer_source(end, *expected_end, aliases)
                     })
             }
-        }
+        };
+        valid
+            .then_some(())
+            .ok_or("view descriptor differs from its declared source")
     }
 
     /// An owned arrival lends its storage; an address join lends the referent
@@ -354,6 +376,9 @@ impl Checker<'_> {
         // plain referent. Classify the actual arrival's descriptor role and
         // permission, uniformly for byte and element carriers; shape alone
         // cannot authorize a stored descriptor's backing.
+        // Owned storage and admitted address joins retain their field
+        // predicates. The descriptor role below independently restricts its
+        // roster to element memberships; those facts grant no backing access.
         let descriptor_carrier =
             terminal_semantics::view_descriptor_parameter(parameter, self.types.iter());
         let backing = parameter.access == terminal_psi::StructuralAccess::Owned
@@ -373,10 +398,6 @@ impl Checker<'_> {
         backing
             && parameter.structural_type == root_structural_type
             && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-            && parameter
-                .projected_qualifications
-                .iter()
-                .all(|row| row.is_element_membership())
             && self.optimized.structural_places.iter().any(|declaration| {
                 declaration.id == place
                     && declaration.kind
@@ -456,7 +477,7 @@ impl Checker<'_> {
         element_stride: u32,
         region: terminal_psi::ElementViewRegion,
         access: terminal_psi::StructuralAccess,
-    ) -> bool {
+    ) -> Result<(), &'static str> {
         // A borrowed byte view carries a `FixedRange` window over the
         // fixed array its collection path names: the window bounds the array and
         // its width is the descriptor's extent.
@@ -471,13 +492,13 @@ impl Checker<'_> {
         let Some(projected) =
             projected_collection(root_structural_type, collection_path, self.types)
         else {
-            return false;
+            return Err("view source collection projection is unresolved");
         };
         let collection = projected.shape;
         let offset = projected.offset;
         let elements = projected.elements;
         if !super::unit::runtime_indices_rejoin(indices, &elements, self.available.unwrap_or(&[])) {
-            return false;
+            return Err("view runtime selectors do not rejoin available sources");
         }
         let Some(geometry) = terminal_semantics::element_view_shape_region_geometry(
             self.types.iter(),
@@ -486,12 +507,12 @@ impl Checker<'_> {
             region,
             access,
         ) else {
-            return false;
+            return Err("view source has no matching element-region geometry");
         };
         if region == terminal_psi::ElementViewRegion::WholeCollection
             && !typed_collection_layout_matches(&collection, element, access, self.types)
         {
-            return false;
+            return Err("view collection and element layouts disagree");
         }
         let backing = match geometry {
             terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing) => backing,
@@ -501,7 +522,7 @@ impl Checker<'_> {
                 target: target_layout,
             } => {
                 if byte_window.is_some() || access != terminal_psi::StructuralAccess::SharedBorrow {
-                    return false;
+                    return Err("representation view has an unsupported source window or access");
                 }
                 let Some(length_scale) = crate::structural_inputs::structural_reference_input::whole_representation_length_scale(
                     &collection,
@@ -510,16 +531,18 @@ impl Checker<'_> {
                     &target_layout,
                     self.types,
                 ) else {
-                    return false;
+                    return Err("representation view has no matching source and target length scale");
                 };
                 match backing.extent {
                     terminal_semantics::CollectionExtent::Fixed(count) => {
                         if count.checked_mul(length_scale).is_none() {
-                            return false;
+                            return Err("representation view length multiplication overflows");
                         }
                     }
                     terminal_semantics::CollectionExtent::StoredLength => {}
-                    terminal_semantics::CollectionExtent::LiveLength { .. } => return false,
+                    terminal_semantics::CollectionExtent::LiveLength { .. } => {
+                        return Err("representation view source has an unsupported live extent");
+                    }
                 }
                 backing
             }
@@ -538,41 +561,45 @@ impl Checker<'_> {
                             .is_none_or(|(offset, _)| u64::from(offset) != leaf.offset)
                     })
                 {
-                    return false;
+                    return Err(
+                        "representation byte view has a mismatched element layout or source window",
+                    );
                 }
-                return extent == target_operations::TargetViewExtent::Fixed(byte_extent)
-                    && offset == source_byte_offset;
+                return (extent == target_operations::TargetViewExtent::Fixed(byte_extent)
+                    && offset == source_byte_offset)
+                    .then_some(())
+                    .ok_or("representation byte view extent or offset differs from its source");
             }
         };
         if backing.storage == terminal_semantics::CollectionStorage::Borrowed
             && byte_window.is_some()
         {
-            return false;
+            return Err("borrowed collection cannot supply a static inline window");
         }
         match (byte_window, backing.extent) {
             (Some((start, end)), terminal_semantics::CollectionExtent::Fixed(length)) => {
                 if !(start <= end && end <= length)
                     || extent != target_operations::TargetViewExtent::Fixed(end - start)
                 {
-                    return false;
+                    return Err("view static window has invalid bounds or extent");
                 }
             }
             // A live carrier's count is dynamic; a static window cannot
             // bound it at establishment.
-            (Some(_), _) => return false,
+            (Some(_), _) => return Err("view static window has no fixed source extent"),
             (None, terminal_semantics::CollectionExtent::Fixed(length)) => {
                 if extent != target_operations::TargetViewExtent::Fixed(length) {
-                    return false;
+                    return Err("view fixed extent differs from its source collection");
                 }
             }
             (None, terminal_semantics::CollectionExtent::LiveLength { .. }) => {
                 if extent != target_operations::TargetViewExtent::LiveLength {
-                    return false;
+                    return Err("view live extent differs from its source collection");
                 }
             }
             (None, terminal_semantics::CollectionExtent::StoredLength) => {
                 if extent != target_operations::TargetViewExtent::StoredLength {
-                    return false;
+                    return Err("view stored extent differs from its source descriptor");
                 }
             }
         }
@@ -585,7 +612,7 @@ impl Checker<'_> {
                     )
                 })
         else {
-            return false;
+            return Err("view element stride cannot be reconstructed");
         };
         let window_start = byte_window.map_or(0, |(start, _)| start);
         // An owned byte carrier's live-length word precedes its viewed
@@ -595,7 +622,7 @@ impl Checker<'_> {
             terminal_semantics::CollectionExtent::Fixed(_)
             | terminal_semantics::CollectionExtent::StoredLength => 0,
         };
-        stride != 0
+        (stride != 0
             && stride == element_stride
             && window_start
                 .checked_mul(u64::from(stride))
@@ -604,6 +631,8 @@ impl Checker<'_> {
                         .checked_add(leading)
                         .and_then(|bytes| bytes.checked_add(window_offset))
                 })
-                == Some(u64::from(source_byte_offset))
+                == Some(u64::from(source_byte_offset)))
+        .then_some(())
+        .ok_or("view element stride or selected byte offset differs from its source")
     }
 }

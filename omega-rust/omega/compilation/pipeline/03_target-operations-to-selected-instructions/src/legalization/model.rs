@@ -90,6 +90,14 @@ pub enum LegalizationError {
         operation: Option<semantic_vocabulary::OperationId>,
         site: optimization_core::CompilerCheckSite,
     },
+    /// Preserve the exact failed element-view custody relation, without
+    /// serializing the view, source graph or complete qualification roster.
+    ElementViewCustody {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+        place: semantic_vocabulary::PlaceId,
+        reason: &'static str,
+    },
     /// Preserve the failed descriptor origin reconstruction boundary.
     DescriptorCallOrigins {
         machine: semantic_vocabulary::MachineId,

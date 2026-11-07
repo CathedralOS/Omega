@@ -356,6 +356,7 @@ fn collect_suppliers(
         active,
         &mut suppliers,
         parents,
+        &mut permission_sources::PermissionFailures::default(),
     ) {
         return false;
     }

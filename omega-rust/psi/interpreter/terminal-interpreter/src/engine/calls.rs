@@ -239,7 +239,11 @@ impl<'artifact> TerminalExecution<'artifact> {
         dispatched_operation!(operation => CallStructural {
             callee, ref structural_arguments, ref claim_transfers, ..
         });
-        let result = operation.result.structural().cloned().ok_or(malformed())?;
+        let result = operation.result.structural().cloned().ok_or(
+            TerminalInterpretError::VerifiedOperationContractInvalid {
+                reason: "structural call operation has no structural result",
+            },
+        )?;
         let prepared_arguments =
             self.prepare_structural_call_arguments(callee, structural_arguments)?;
         self.begin_structural_result_call(
@@ -261,7 +265,11 @@ impl<'artifact> TerminalExecution<'artifact> {
         dispatched_operation!(operation => CallStructuralWithScalarArguments {
             callee, ref arguments, ref structural_arguments, ref claim_transfers, ..
         });
-        let result = operation.result.structural().cloned().ok_or(malformed())?;
+        let result = operation.result.structural().cloned().ok_or(
+            TerminalInterpretError::VerifiedOperationContractInvalid {
+                reason: "structural call operation has no structural result",
+            },
+        )?;
         let (scalar_arguments, prepared_arguments) =
             self.resolve_call_arguments(callee, arguments, structural_arguments)?;
         self.begin_structural_result_call(

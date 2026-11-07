@@ -615,6 +615,48 @@ pub fn project_type_reference_from_segments(
     project_type_reference_from_segment_iter(program, current, segments)
 }
 
+/// Select the declared leaf of a pointwise field qualification. This reads
+/// type metadata only: finite extents stay unchanged and introduce no address,
+/// membership, access, or executable bounds evidence. A terminal window needs
+/// its own carrier and an unknown extent cannot select a field declaration.
+pub fn qualification_storage_type_reference(
+    program: &dyn crate::CheckingInput,
+    root: TypeReferenceHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<TypeReferenceHandle> {
+    if !root.is_valid() {
+        return None;
+    }
+    let mut projection = ProjectionTypeCursor::new(root);
+    for (ordinal, segment) in segments.iter().enumerate() {
+        match segment {
+            facts::PlaceSegment::FixedRange { start, end }
+                if *segment != crate::field_domains::WHOLE_ELEMENT_EXTENT =>
+            {
+                let current = projection.normalize(program);
+                let length = crate::fixed_array_type_length(program, current)?;
+                if ordinal + 1 == segments.len() || start > end || *end > length {
+                    return None;
+                }
+                projection.current =
+                    indexed_element_type_reference(program, current, &projection.substitutions)?;
+            }
+            facts::PlaceSegment::OpaqueRange => return None,
+            facts::PlaceSegment::Index { expression }
+                if !expression.is_valid()
+                    || matches!(
+                        program.expression_table.expression(*expression),
+                        typed_trees::expression::ExpressionNode::Range(_)
+                    ) =>
+            {
+                return None;
+            }
+            _ => projection.advance(program, segment)?,
+        }
+    }
+    Some(projection.normalize(program))
+}
+
 /// Project only through the value's owned storage. A stored reference is a
 /// copied descriptor boundary; its referee belongs to a separate live epoch.
 /// Keep the same scoped generic environment across the complete projection.
