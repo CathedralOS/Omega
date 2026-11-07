@@ -201,7 +201,7 @@ fn execute(
     directory: &Path,
     selection: &Selection,
     target: &str,
-    control_plan: Option<&Path>,
+    control_plan: Option<&runtime_controls::ControlPlan>,
 ) -> Result<(), String> {
     let source = producer::source_identity(root)?;
     execution::write_json(&directory.join("source-before.json"), &source)?;
@@ -367,11 +367,22 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             }
             i += 1;
         }
+        let control_plan = control_plan
+            .map(|path| {
+                runtime_controls::ControlPlan::read(if path.is_absolute() {
+                    path
+                } else {
+                    root.join(path)
+                })
+            })
+            .transpose()?;
         let count = selection.checking.len()
             + selection.runtime.len()
             + selection.samples.len()
-            + if control_plan.is_some() { 6 } else { 0 };
-        if count == 0 || count > 200 {
+            + control_plan
+                .as_ref()
+                .map_or(0, runtime_controls::ControlPlan::observation_count);
+        if count == 0 || count > corpus::SELECTION_BUDGET {
             return Err(
                 "request 1 through 200 exact programs before preparing a producer".to_owned(),
             );
@@ -444,21 +455,14 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             .map_err(|e| format!("reserve new output {}: {e}", directory.display()))?;
         execution::write_json(
             &directory.join("request.json"),
-            &json!({"target": target, "selection": selection, "runtime_controls": control_plan}),
+            &json!({"target": target, "selection": selection, "runtime_controls": control_plan.as_ref().map(|input| &input.path)}),
         )?;
-        let control_plan = control_plan.map(|path| {
-            if path.is_absolute() {
-                path
-            } else {
-                root.join(path)
-            }
-        });
         let outcome = execute(
             &root,
             &directory,
             &selection,
             &target,
-            control_plan.as_deref(),
+            control_plan.as_ref(),
         );
         execution::write_json(
             &directory.join("summary.json"),

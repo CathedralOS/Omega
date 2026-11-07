@@ -9,7 +9,7 @@ use crate::{execution, producer};
 
 use crate::repo_root;
 
-const SELECTION_BUDGET: usize = 200;
+pub(crate) const SELECTION_BUDGET: usize = 200;
 const REGRESSION_PREFIX: &str = "regressed-from:";
 
 #[derive(Debug, Clone, PartialEq, Eq)]

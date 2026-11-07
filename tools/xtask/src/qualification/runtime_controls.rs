@@ -22,6 +22,7 @@ struct Replacement {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ControlledSource {
+    fixture: String,
     path: String,
     good_sha256: String,
     weak_sha256: String,
@@ -34,11 +35,42 @@ struct ControlledSource {
 #[serde(deny_unknown_fields)]
 struct Plan {
     schema: u32,
-    fixtures: [String; 3],
-    files: [ControlledSource; 6],
+    fixtures: Vec<String>,
+    files: Vec<ControlledSource>,
+}
+
+pub(super) struct ControlPlan {
+    definition: Plan,
+    bytes: Vec<u8>,
+    pub(super) path: PathBuf,
+}
+
+impl ControlPlan {
+    pub(super) fn read(path: PathBuf) -> Result<Self, String> {
+        let bytes = fs::read(&path).map_err(|e| format!("read runtime control plan: {e}"))?;
+        let definition: Plan =
+            serde_json::from_slice(&bytes).map_err(|e| format!("runtime control plan: {e}"))?;
+        if definition.schema != 1
+            || definition.fixtures.is_empty()
+            || definition.files.is_empty()
+            || definition.fixtures.len() > corpus::SELECTION_BUDGET
+            || definition.files.len() > corpus::SELECTION_BUDGET
+        {
+            return Err("control plan needs a supported schema and a bounded nonempty source/fixture roster".to_owned());
+        }
+        Ok(Self {
+            definition,
+            bytes,
+            path,
+        })
+    }
+    pub(super) fn observation_count(&self) -> usize {
+        self.definition.fixtures.len() * 2
+    }
 }
 
 struct Snapshot {
+    fixture: String,
     relative: String,
     path: PathBuf,
     original: Vec<u8>,
@@ -54,11 +86,12 @@ struct Snapshot {
 
 pub(super) struct Replay {
     root: PathBuf,
-    baseline_revision: serde_json::Value,
+    baseline: serde_json::Value,
     directory: PathBuf,
     fixtures: Vec<String>,
     files: Vec<Snapshot>,
     active: bool,
+    current_phase: &'static str,
     restored: bool,
     restore_attempts: usize,
 }
@@ -73,7 +106,6 @@ fn replaced(input: &[u8], replacements: &[Replacement]) -> Result<Vec<u8>, Strin
     for replacement in replacements {
         if replacement.before.is_empty()
             || replacement.occurrences == 0
-            || replacement.occurrences > 6
             || text.matches(&replacement.before).count() != replacement.occurrences
         {
             return Err(
@@ -103,24 +135,47 @@ fn mode(metadata: &fs::Metadata) -> serde_json::Value {
     }
 }
 
+fn permissions_match(left: &fs::Permissions, right: &fs::Permissions) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        left.mode() == right.mode()
+    }
+    #[cfg(not(unix))]
+    {
+        left.readonly() == right.readonly()
+    }
+}
+
+fn exact_main_path(path: &str) -> bool {
+    !path.contains('\\')
+        && !path.split('/').any(|part| matches!(part, "" | "." | ".."))
+        && Path::new(path)
+            .file_name()
+            .is_some_and(|name| name == "main.omg")
+        && Path::new(path)
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+        && (path.starts_with("samples/cli/facts/") || path.starts_with("tests/omega/pass/"))
+}
+
 impl Replay {
     pub(super) fn prepare(
         root: &Path,
-        plan_path: &Path,
+        input: &ControlPlan,
         directory: &Path,
         runtime: &[String],
         target: &str,
     ) -> Result<Self, String> {
-        let plan_bytes =
-            fs::read(plan_path).map_err(|e| format!("read runtime control plan: {e}"))?;
-        let plan: Plan = serde_json::from_slice(&plan_bytes)
-            .map_err(|e| format!("runtime control plan: {e}"))?;
-        if plan.schema != 1 {
-            return Err("unknown runtime control plan schema".to_owned());
-        }
+        let plan = &input.definition;
         let fixtures: BTreeSet<_> = plan.fixtures.iter().cloned().collect();
-        if fixtures.len() != 3 || !fixtures.iter().all(|fixture| runtime.contains(fixture)) {
-            return Err("all three control fixtures must be distinct and included in the good runtime selection".to_owned());
+        if fixtures.len() != plan.fixtures.len()
+            || !fixtures.iter().all(|fixture| runtime.contains(fixture))
+        {
+            return Err(
+                "all control fixtures must be distinct and included in the good runtime selection"
+                    .to_owned(),
+            );
         }
         for fixture in &fixtures {
             let source = root.join("tests/omega").join(fixture);
@@ -134,24 +189,28 @@ impl Replay {
             }
         }
         fs::create_dir_all(directory).map_err(|e| e.to_string())?;
-        fs::write(directory.join("plan.json"), &plan_bytes).map_err(|e| e.to_string())?;
+        fs::write(directory.join("plan.json"), &input.bytes).map_err(|e| e.to_string())?;
         let canonical = fs::canonicalize(root).map_err(|e| e.to_string())?;
         let mut seen = BTreeSet::new();
         let mut files = Vec::new();
         let mut manifest = Vec::new();
-        for item in plan.files {
+        for item in &plan.files {
             let relative = Path::new(&item.path);
-            if !seen.insert(item.path.clone())
-                || relative.file_name().is_none_or(|name| name != "main.omg")
-                || relative
-                    .components()
-                    .any(|component| !matches!(component, Component::Normal(_)))
-                || !(item.path.starts_with("samples/cli/facts/")
-                    || item.path.starts_with("tests/omega/pass/"))
+            if !fixtures.contains(&item.fixture)
+                || !seen.insert(item.path.clone())
+                || !exact_main_path(&item.path)
             {
                 return Err(format!(
                     "control path is outside the declared existing main sources: {}",
                     item.path
+                ));
+            }
+            if item.path.starts_with("tests/omega/")
+                && item.path != format!("tests/omega/{}/main.omg", item.fixture)
+            {
+                return Err(format!(
+                    "canonical control main does not belong to {}",
+                    item.fixture
                 ));
             }
             let path = root.join(relative);
@@ -188,18 +247,19 @@ impl Replay {
                     item.path
                 ));
             }
-            manifest.push(json!({"path": item.path, "good_sha256": item.good_sha256, "weak_sha256": item.weak_sha256,
+            manifest.push(json!({"fixture": item.fixture, "path": item.path, "good_sha256": item.good_sha256, "weak_sha256": item.weak_sha256,
                 "strong_sha256": item.strong_sha256, "mode": mode(&metadata), "accessed_unix_nanos": nanos(metadata.accessed().map_err(|e| e.to_string())?)?,
                 "modified_unix_nanos": nanos(metadata.modified().map_err(|e| e.to_string())?)?}));
             files.push(Snapshot {
-                relative: item.path,
+                fixture: item.fixture.clone(),
+                relative: item.path.clone(),
                 path,
                 original,
                 weak,
                 strong,
-                sha256: item.good_sha256,
-                weak_sha256: item.weak_sha256,
-                strong_sha256: item.strong_sha256,
+                sha256: item.good_sha256.clone(),
+                weak_sha256: item.weak_sha256.clone(),
+                strong_sha256: item.strong_sha256.clone(),
                 permissions: metadata.permissions(),
                 accessed: metadata.accessed().map_err(|e| e.to_string())?,
                 modified: metadata.modified().map_err(|e| e.to_string())?,
@@ -214,79 +274,79 @@ impl Replay {
             .iter()
             .map(|fixture| format!("tests/omega/{fixture}/main.omg"))
             .collect();
-        if source_paths != expected
-            || files
-                .iter()
-                .filter(|file| file.relative.starts_with("samples/cli/facts/"))
-                .count()
-                != 3
-        {
-            return Err("control sources must contain exactly the three corpus entries and their three fact mirrors".to_owned());
-        }
-        for fixture in &expected {
-            let entry = files
-                .iter()
-                .find(|file| &file.relative == fixture)
-                .ok_or("control source missing")?;
-            if files
-                .iter()
-                .filter(|file| {
-                    file.relative.starts_with("samples/")
-                        && file.original == entry.original
-                        && file.weak == entry.weak
-                        && file.strong == entry.strong
-                })
-                .count()
-                != 1
-            {
-                return Err(format!(
-                    "control mirror does not match all three source phases: {fixture}"
-                ));
-            }
+        if source_paths != expected {
+            return Err(
+                "control sources must include every declared canonical fixture main".to_owned(),
+            );
         }
         execution::write_json(
             &directory.join("source-backup.json"),
             &json!({"source": crate::producer::source_identity(root)?, "plan_sha256": execution::digest(&directory.join("plan.json"))?, "files": manifest,
-            "recovery": "Original bytes are under sources/good. Restore the six declared paths with their recorded permissions and accessed/modified times."}),
+            "recovery": "Original bytes are under sources/good. Restore the declared paths with their recorded permissions and accessed/modified times."}),
         )?;
         Ok(Self {
             root: root.to_path_buf(),
-            baseline_revision: crate::producer::source_identity(root)?["revision"].clone(),
+            baseline: crate::producer::source_identity(root)?,
             directory: directory.to_path_buf(),
             fixtures: fixtures.into_iter().collect(),
             files,
             active: false,
+            current_phase: "good",
             restored: false,
             restore_attempts: 0,
         })
     }
 
+    fn preserve_input(&self, file: &Snapshot, reason: &str) -> Result<(), String> {
+        let destination = self
+            .directory
+            .join("divergences")
+            .join(reason)
+            .join(&file.relative);
+        fs::create_dir_all(
+            destination
+                .parent()
+                .ok_or("divergent source has no parent")?,
+        )
+        .map_err(|e| e.to_string())?;
+        match fs::symlink_metadata(&file.path) {
+            Ok(metadata) if metadata.file_type().is_file() => {
+                let bytes = fs::read(&file.path).map_err(|e| e.to_string())?;
+                fs::write(&destination, &bytes)
+                    .map_err(|e| format!("preserve divergent source {}: {e}", file.relative))?;
+                execution::write_json(
+                    &destination.with_extension("metadata.json"),
+                    &json!({"source_path": file.path,
+                    "sha256": execution::digest(&destination)?, "mode": mode(&metadata),
+                    "accessed_unix_nanos": nanos(metadata.accessed().map_err(|e| e.to_string())?)?,
+                    "modified_unix_nanos": nanos(metadata.modified().map_err(|e| e.to_string())?)?}),
+                )
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => execution::write_json(
+                &destination.with_extension("metadata.json"),
+                &json!({"source_path": file.path, "missing": true}),
+            ),
+            Ok(_) => Err(format!(
+                "control source changed file kind; original backup retained and current path left intact: {}",
+                file.relative
+            )),
+            Err(error) => Err(format!("read divergent source {}: {error}", file.relative)),
+        }
+    }
+
     fn source_manifest(&self, phase: &str, point: &str) -> Result<(), String> {
         let current = crate::producer::source_identity(&self.root)?;
-        if current["revision"] != self.baseline_revision
+        let mut errors = Vec::new();
+        if current["revision"] != self.baseline["revision"]
+            || current["tree"] != self.baseline["tree"]
             || current["tracked_changes"]
                 .as_str()
                 .is_none_or(|text| text.lines().any(|line| line.starts_with("??")))
         {
-            return Err("source revision or untracked inputs changed during controls".to_owned());
+            errors.push("source revision or untracked inputs changed during controls".to_owned());
         }
-        let mut sources = Vec::new();
-        for file in &self.files {
-            let actual = execution::digest(&file.path)?;
-            let expected = if phase == "strong" {
-                &file.strong_sha256
-            } else {
-                &file.weak_sha256
-            };
-            sources.push(
-                json!({"path": file.relative, "sha256": actual, "expected_sha256": expected}),
-            );
-            if actual != *expected {
-                return Err(format!(
-                    "{phase} source changed at {point}: {}",
-                    file.relative
-                ));
-            }
+        if phase == "good" && current != self.baseline {
+            errors.push("good source identity changed before runtime control mutation".to_owned());
         }
         let output = Command::new("git")
             .args(["diff", "--name-only", "-z", "HEAD"])
@@ -307,26 +367,57 @@ impl Replay {
                     .map_err(|e| e.to_string())
             })
             .collect::<Result<_, _>>()?;
-        if changed
-            != self
-                .files
+        let expected_changes = if phase == "good" {
+            BTreeSet::new()
+        } else {
+            self.files
                 .iter()
                 .map(|file| file.relative.clone())
                 .collect()
-        {
-            return Err("source changes exceed the exact six control inputs".to_owned());
+        };
+        if changed != expected_changes {
+            errors.push("source changes exceed the declared current control phase".to_owned());
+        }
+        let mut sources = Vec::new();
+        for file in &self.files {
+            let actual = execution::digest(&file.path);
+            let expected = match phase {
+                "good" => &file.sha256,
+                "weak" => &file.weak_sha256,
+                "strong" => &file.strong_sha256,
+                _ => return Err("unknown control source phase".to_owned()),
+            };
+            let metadata = fs::symlink_metadata(&file.path);
+            let permissions_changed = metadata.as_ref().map_or(true, |value| {
+                !permissions_match(&value.permissions(), &file.permissions)
+            });
+            if actual.as_ref().map_or(true, |value| value != expected) || permissions_changed {
+                self.preserve_input(file, &format!("{phase}-{point}"))?;
+                errors.push(format!(
+                    "{phase} source changed at {point}: {}",
+                    file.relative
+                ));
+            }
+            sources.push(json!({"fixture": file.fixture, "path": file.relative, "sha256": actual.as_ref().ok(), "expected_sha256": expected, "error": actual.as_ref().err(), "mode": metadata.as_ref().ok().map(mode)}));
         }
         execution::write_json(
             &self.directory.join(format!("{phase}-{point}-inputs.json")),
-            &json!({"source": crate::producer::source_identity(&self.root)?, "files": sources}),
-        )
+            &json!({"source": current, "files": sources, "errors": errors}),
+        )?;
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.join("; "))
+        }
     }
 
     pub(super) fn run(&mut self, producer: &Producer, target: &str) -> Result<(), String> {
         let result = (|| {
             for (phase, strong) in [("weak", false), ("strong", true)] {
                 producer.verify()?;
+                self.source_manifest(self.current_phase, "before-mutation")?;
                 self.active = true;
+                self.current_phase = phase;
                 for file in &self.files {
                     fs::write(&file.path, if strong { &file.strong } else { &file.weak })
                         .map_err(|e| e.to_string())?;
@@ -350,19 +441,32 @@ impl Replay {
                 execution::write_json(&self.directory.join(format!("{phase}-rows.json")), &rows)?;
                 producer.verify()?;
                 self.source_manifest(phase, "after")?;
+                let mut verdicts = Vec::new();
+                let mut failures = Vec::new();
                 for row in &rows {
-                    if strong {
-                        if !strong_trap(row, target)
-                            || super::validate_record(row, &self.root, target, true).is_ok()
-                        {
-                            return Err(format!(
-                                "{} did not check/build and reach both intended Traps under its unchanged exit-0 oracle",
-                                row.fixture
-                            ));
-                        }
+                    let authored = super::validate_record(row, &self.root, target, true);
+                    let satisfied = if strong {
+                        strong_trap(row, target) && authored.is_err()
                     } else {
-                        super::validate_record(row, &self.root, target, true)?;
+                        authored.is_ok()
+                    };
+                    verdicts.push(json!({"fixture": row.fixture, "control_satisfied": satisfied,
+                        "authored_exit_0_satisfied": authored.is_ok(), "authored_oracle_error": authored.as_ref().err(),
+                        "expected_control": if strong { "checked/built; native Trap and Psi trapped" } else { "checked/built; native 0 and Psi 0" },
+                        "golden_recording": false}));
+                    if !satisfied {
+                        failures.push(format!(
+                            "{} did not satisfy the {phase} runtime control",
+                            row.fixture
+                        ));
                     }
+                }
+                execution::write_json(
+                    &self.directory.join(format!("{phase}-verdicts.json")),
+                    &verdicts,
+                )?;
+                if !failures.is_empty() {
+                    return Err(failures.join("; "));
                 }
             }
             Ok(())
@@ -386,6 +490,25 @@ impl Replay {
         let mut errors = Vec::new();
         for file in &self.files {
             let result = (|| {
+                let expected = match self.current_phase {
+                    "weak" => &file.weak,
+                    "strong" => &file.strong,
+                    _ => &file.original,
+                };
+                if fs::read(&file.path)
+                    .as_ref()
+                    .map_or(true, |bytes| bytes != expected)
+                    || fs::symlink_metadata(&file.path)
+                        .as_ref()
+                        .map_or(true, |value| {
+                            !permissions_match(&value.permissions(), &file.permissions)
+                        })
+                {
+                    self.preserve_input(
+                        file,
+                        &format!("before-restore-{}", self.restore_attempts),
+                    )?;
+                }
                 if file.path.exists() {
                     fs::set_permissions(&file.path, file.permissions.clone())
                         .map_err(|e| e.to_string())?;
@@ -500,10 +623,11 @@ mod tests {
         let sha256 = execution::digest(&path).unwrap();
         let make = || Replay {
             root: directory.clone(),
-            baseline_revision: json!("test"),
+            baseline: json!({"revision": "test"}),
             directory: directory.clone(),
             fixtures: Vec::new(),
             files: vec![Snapshot {
+                fixture: "pass/a/b".to_owned(),
                 relative: "main.omg".to_owned(),
                 path: path.clone(),
                 original: b"original".to_vec(),
@@ -517,6 +641,7 @@ mod tests {
                 modified: metadata.modified().unwrap(),
             }],
             active: true,
+            current_phase: "weak",
             restored: false,
             restore_attempts: 0,
         };
@@ -537,6 +662,102 @@ mod tests {
         });
         assert!(caught.is_err());
         assert_eq!(fs::read(&path).unwrap(), b"original");
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn raw_control_paths_cannot_hide_aliases_through_normalization() {
+        assert!(exact_main_path("samples/cli/facts/row/main.omg"));
+        for path in [
+            "samples/cli/facts/row/./main.omg",
+            "samples/cli/facts/row//main.omg",
+            "samples/cli/facts/row/../main.omg",
+            "samples/cli/facts/row\\main.omg",
+        ] {
+            assert!(!exact_main_path(path), "{path}");
+        }
+    }
+
+    #[test]
+    fn source_changes_during_good_observations_are_preserved_without_overwrite() {
+        let directory = std::env::temp_dir().join(format!(
+            "omega-control-change-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let root = directory.join("repo");
+        let evidence = directory.join("evidence");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&evidence).unwrap();
+        let path = root.join("main.omg");
+        fs::write(&path, b"original").unwrap();
+        for args in [
+            vec!["init", "-q"],
+            vec!["add", "main.omg"],
+            vec![
+                "-c",
+                "user.name=Control",
+                "-c",
+                "user.email=control@example.invalid",
+                "commit",
+                "-qm",
+                "baseline",
+            ],
+        ] {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(&root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        }
+        let metadata = fs::metadata(&path).unwrap();
+        let mut replay = Replay {
+            root: root.clone(),
+            baseline: crate::producer::source_identity(&root).unwrap(),
+            directory: evidence.clone(),
+            fixtures: Vec::new(),
+            files: vec![Snapshot {
+                fixture: "pass/a/b".to_owned(),
+                relative: "main.omg".to_owned(),
+                path: path.clone(),
+                original: b"original".to_vec(),
+                weak: b"weak".to_vec(),
+                strong: b"strong".to_vec(),
+                sha256: execution::digest(&path).unwrap(),
+                weak_sha256: String::new(),
+                strong_sha256: String::new(),
+                permissions: metadata.permissions(),
+                accessed: metadata.accessed().unwrap(),
+                modified: metadata.modified().unwrap(),
+            }],
+            active: false,
+            current_phase: "good",
+            restored: false,
+            restore_attempts: 0,
+        };
+        fs::write(&path, b"unexpected edit").unwrap();
+        assert!(replay.source_manifest("good", "before-mutation").is_err());
+        assert_eq!(
+            fs::read(evidence.join("divergences/good-before-mutation/main.omg")).unwrap(),
+            b"unexpected edit"
+        );
+        replay.restore().unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"unexpected edit");
+        replay.active = true;
+        replay.current_phase = "weak";
+        replay.restore().unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"original");
+        assert_eq!(
+            fs::read(evidence.join("divergences/before-restore-1/main.omg")).unwrap(),
+            b"unexpected edit"
+        );
+        drop(replay);
         fs::remove_dir_all(directory).unwrap();
     }
 

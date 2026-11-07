@@ -175,7 +175,11 @@ outside golden recording. Exact source substitutions and all six original files
 are checked before compiler preparation. Backups retain original bytes, modes and
 access/modified times; restoration also runs on ordinary errors and unwinding.
 A hard interruption leaves the complete backup and recovery metadata in the
-retained output directory. Each phase records its own actual source hashes.
+retained output directory. Source is authenticated again immediately before each
+change, and unexpected edits are preserved before restoration. Each plan source
+explicitly names its fixture or mirror association. Each phase records its actual
+source hashes and separates the intended control outcome from the authored
+exit-0 oracle. Each control adds two executions to the 200-program budget.
 
 ### Optimized validation compilers
 
