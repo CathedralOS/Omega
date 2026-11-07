@@ -1,3 +1,6 @@
+// Bounded recovery for domain alias atoms, establishment routes, and carry permissions.
+// `establishment_route` requires at least 42 bytes per route (tag + nominal owner tag/digest + empty path length); requirement variants additionally carry a second nominal.
+
 use super::super::{Error, identity::nominal, reader::Reader};
 use crate::record::{PackageReviewDomainAliasAtom, PackageReviewDomainEstablishmentRoute};
 
@@ -10,8 +13,6 @@ pub(in crate::encoding::recovery) fn alias_atom(
     }))
 }
 
-/// Minimum route size is tag + nominal owner tag/digest + empty path length:
-/// 42 bytes. Requirement variants additionally carry a second nominal.
 pub(in crate::encoding::recovery) fn establishment_route(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDomainEstablishmentRoute, Error> {

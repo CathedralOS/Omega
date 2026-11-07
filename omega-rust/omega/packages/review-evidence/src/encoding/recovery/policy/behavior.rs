@@ -1,3 +1,5 @@
+// Bounded recovery for synchronous invocation summaries.
+
 use super::{Error, identity::nominal, reader::Reader};
 use crate::record::PackageReviewSynchronousInvocation;
 

@@ -662,7 +662,7 @@ fn capture_preserves_source(
         }
         if !crate::flow::operand_observations_agree(
             program,
-            &facts.flow,
+            facts.flow.view(),
             capture,
             invocation,
             &place,
@@ -752,7 +752,7 @@ fn reference_construction_preserves_source(
         )?;
         if !crate::flow::operand_observations_agree(
             program,
-            &facts.flow,
+            facts.flow.view(),
             capture,
             invocation,
             &place,
@@ -762,7 +762,13 @@ fn reference_construction_preserves_source(
     }
     for place in super::super::capture_coordinates::borrowed_bindings(program, capture, remaining)?
     {
-        if !crate::flow::operand_bindings_agree(program, &facts.flow, capture, invocation, &place) {
+        if !crate::flow::operand_bindings_agree(
+            program,
+            facts.flow.view(),
+            capture,
+            invocation,
+            &place,
+        ) {
             return Some(false);
         }
     }

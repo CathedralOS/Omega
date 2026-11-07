@@ -1,3 +1,5 @@
+// Bounded recovery for package keys, nominal identities, operator coordinates, signature parameters, and target contexts.
+
 use super::{Error, reader::Reader};
 use crate::record::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewOperatorCoordinate,
@@ -52,8 +54,6 @@ pub(in crate::encoding::recovery) fn operator_coordinate(
     })
 }
 
-/// Every parameter list of a recovered signature decodes the same element
-/// record; the shape lives beside its `type_identity` field decoder.
 pub(in crate::encoding::recovery) fn signature_parameter(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewSignatureParameter, Error> {

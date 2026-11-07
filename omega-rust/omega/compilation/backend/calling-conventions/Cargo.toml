@@ -16,3 +16,4 @@ arena = { path = "../../../../psi/foundation/arena" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 target = { path = "../target" }
+language-semantics = { path = "../../../../psi/foundation/language-semantics" }

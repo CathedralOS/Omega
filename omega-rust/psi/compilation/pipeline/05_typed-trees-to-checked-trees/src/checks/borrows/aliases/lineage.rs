@@ -21,7 +21,7 @@ pub(in crate::checks::borrows) fn formation_lineage(
     handle: Handle<BorrowLoanFact>,
 ) -> Option<Vec<Handle<BorrowLoanFact>>> {
     descriptor_lineage(
-        facts,
+        facts.view(),
         loan_occurrences,
         state,
         handle,
@@ -94,7 +94,7 @@ fn retained_input_terminal(
 }
 
 pub(in crate::checks::borrows) fn retained_lineage(
-    facts: &checked_trees::CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     loan_occurrences: &LoanOccurrences<'_>,
     state: &StateBorrowFact,
     handle: Handle<BorrowLoanFact>,
@@ -115,7 +115,7 @@ enum LineagePurpose {
 }
 
 fn descriptor_lineage(
-    facts: &checked_trees::CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     loan_occurrences: &LoanOccurrences<'_>,
     state: &StateBorrowFact,
     handle: Handle<BorrowLoanFact>,

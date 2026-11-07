@@ -248,6 +248,7 @@ pub enum RelocationFreeObjectDecodeError {
     UnknownImageFieldEncoding(u8),
     UnknownImageAddressReference(u8),
     InvalidPlace,
+    InvalidPrivateFunction,
     InvalidCallbackDestination,
     LengthOverflow,
     InvalidObject(RelocationFreeObjectError),
@@ -627,6 +628,10 @@ fn decode_image_address(
     let block = SelectedBlockId(cursor.u32()?);
     let instruction = SelectedInstructionId(cursor.u32()?);
     let reference = match cursor.byte()? {
+        4 => selected_instructions::SelectedImageAddressReference::PrivateFunction {
+            identity: function_identity::MachineFunctionIdentity::from_bytes(cursor.array()?)
+                .ok_or(RelocationFreeObjectDecodeError::InvalidPrivateFunction)?,
+        },
         3 => selected_instructions::SelectedImageAddressReference::RetainedEntryStorageStart,
         0 => selected_instructions::SelectedImageAddressReference::ByteLiteral {
             operation: OperationId::new(cursor.u64()?)

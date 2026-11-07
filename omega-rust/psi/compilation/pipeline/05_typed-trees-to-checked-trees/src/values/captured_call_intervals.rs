@@ -34,7 +34,7 @@ impl<'a> CapturedCallIntervals<'a> {
             return None;
         }
         let (operands, receiver_offset) =
-            crate::flow::captured_call_operands(program, flow, state, call)?;
+            crate::flow::captured_call_operands(program, flow.view(), state, call)?;
         let arguments = crate::shared::call_formals::arguments_aligned_to_formals(
             program,
             call.target_symbol,

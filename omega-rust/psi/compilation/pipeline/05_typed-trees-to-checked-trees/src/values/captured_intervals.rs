@@ -42,7 +42,7 @@ impl<'a> CapturedIntegerIntervals<'a> {
     ) -> Option<IntegerRange> {
         let values = crate::flow::captured_operand_values(
             self.program,
-            self.flow,
+            self.flow.view(),
             self.semantic,
             self.state,
             operand,
@@ -65,14 +65,18 @@ impl<'a> CapturedIntegerIntervals<'a> {
                     value.observation,
                     value.observation_type,
                     &value.observation_projection,
-                    crate::flow::captured_observation_places(self.program, self.flow, &value),
+                    crate::flow::captured_observation_places(
+                        self.program,
+                        self.flow.view(),
+                        &value,
+                    ),
                     invocation,
                 ),
                 (
                     value.operand,
                     value.type_reference,
                     &value.projection,
-                    crate::flow::captured_value_places(self.program, self.flow, &value),
+                    crate::flow::captured_value_places(self.program, self.flow.view(), &value),
                     value.producer_invocation(invocation),
                 ),
             ] {

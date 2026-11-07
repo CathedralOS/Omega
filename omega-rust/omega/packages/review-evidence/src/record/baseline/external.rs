@@ -1,4 +1,10 @@
-//! One exact executable binding and full surface per external callable.
+// Validates that each external callable has one exact executable binding and a
+// matching public or private-external callable surface.
+//
+// The checked external owner admits one exact realization edge per machine;
+// full-row ordering alone would permit conflicting bindings for the same
+// callable coordinate, so we reject adjacent duplicate callable coordinates.
+
 use crate::record::PackagePolicyBaseline;
 use crate::record::PackagePolicyCallableRole;
 use crate::record::PackagePolicyExternalRequirement;
@@ -6,8 +12,6 @@ use crate::record::PackageReviewCallableSupply;
 
 impl PackagePolicyBaseline {
     pub(super) fn validate_external_associations(&self) -> Result<(), &'static str> {
-        // The checked external owner admits one exact realization edge per
-        // machine. Full-row ordering alone would permit conflicting bindings.
         if self
             .external_supplies
             .windows(2)

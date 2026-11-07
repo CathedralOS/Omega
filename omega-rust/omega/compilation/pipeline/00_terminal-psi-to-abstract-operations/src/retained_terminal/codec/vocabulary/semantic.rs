@@ -196,3 +196,10 @@ record_variants!(terminal_psi::TerminalAccessLifecycleOperation {
     2 => View,
     3 => Relocate,
 });
+
+record_variants!(language_core::static_interrupts::StaticInterruptOperation {
+    0 => Install,
+    1 => Context,
+    2 => BeginCompletion,
+    3 => FinishCompletion,
+});

@@ -1,7 +1,8 @@
-//! Top-level requirement associations retain machine overload identity.
-//! Checked bodies are revalidated against their requirement; external leaves
-//! retain separate executable-supply findings. Neither association chooses a
-//! provider: selected-provider policy independently replays that decision.
+// Top-level requirement realization projection and selected-provider external supply
+// validation. Top-level requirement associations retain machine overload identity:
+// checked bodies are revalidated against their requirement and external leaves retain
+// separate executable-supply findings, while selected-provider policy independently
+// replays provider selection.
 
 use super::super::semantics::declarations::top_level_requirement_identity;
 use super::external_supply::external_binding_matches_provider_binding;

@@ -1,4 +1,6 @@
-//! Capture private and unused native choices as explicit acceptance/audit rows.
+// Package-wide native binding inventory projection capturing private and unused
+// native Build choices as explicit acceptance and audit rows.
+
 use crate::capture::EvidenceOption;
 use crate::capture::providers::policy::bindings::project_native;
 use crate::capture::{PackageReviewInput, semantics::services};

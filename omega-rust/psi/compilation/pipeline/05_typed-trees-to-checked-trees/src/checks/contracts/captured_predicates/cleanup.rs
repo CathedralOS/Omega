@@ -132,7 +132,7 @@ pub(crate) fn cleanup_predicates(
         }
         let Some(mut values) = crate::flow::captured_operand_values(
             program,
-            &facts.flow,
+            facts.flow.view(),
             &facts.semantic,
             state,
             operand,
@@ -143,7 +143,7 @@ pub(crate) fn cleanup_predicates(
         };
         for captured in values.drain(..) {
             let observed =
-                crate::flow::captured_observation_places(program, &facts.flow, &captured);
+                crate::flow::captured_observation_places(program, facts.flow.view(), &captured);
             let observed = observed.as_deref().and_then(|places| {
                 if let [place] = places {
                     Some(&place.projected)

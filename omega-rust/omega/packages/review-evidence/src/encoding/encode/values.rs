@@ -1,4 +1,4 @@
-//! Canonical semantic-value encoders, grouped by the value families they encode.
+// Canonical semantic-value encoders grouped by the value families they encode.
 
 pub(super) mod conformance_policy;
 pub(super) mod contracts;

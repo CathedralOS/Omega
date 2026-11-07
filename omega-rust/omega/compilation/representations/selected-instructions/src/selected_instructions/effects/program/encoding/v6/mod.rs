@@ -79,5 +79,5 @@ const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
 // Version 43 retains single-attempt atomic forms and their separate outcome output.
 // Earlier decoders must not interpret a single attempt as strong compare-exchange.
 // Version 44 combines those atomic outcomes with fixed-width descriptor writes.
-// Baseline AArch64 fetch/swap and strong compare-exchange retain retry work.
-const VERSION: u32 = 47;
+// Atomic retry work, installed termination and activation-base forms.
+const VERSION: u32 = 49;

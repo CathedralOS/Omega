@@ -58,7 +58,7 @@ pub(super) fn place_paths_overlap(
 /// exclusion at the exact source path and operand cut, including projections.
 fn source_outputs_are_attributed(
     program: &dyn validation::CheckingInput,
-    facts: &checked_trees::CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     statement: usize,

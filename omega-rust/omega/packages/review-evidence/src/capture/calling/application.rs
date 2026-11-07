@@ -1,4 +1,6 @@
-//! Rejoin checked source custody before discarding realization-only receipts.
+// Complete published calling-application policy projection, rejoining checked source
+// custody and replaying the validated application before discarding realization-only
+// receipts.
 
 mod native;
 pub(crate) mod signature;
@@ -12,8 +14,6 @@ use crate::record::{PackagePolicyCallingPlan, PackagePolicyPhysicalCallingContra
 use diagnostics::Diagnostic;
 use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
 
-/// Capture the complete published calling application. This is inert policy,
-/// not a validator certificate and not a replacement for fresh compilation.
 pub(crate) fn project_checked_calling_policy(
     projection: &mut SignatureProjection<'_>,
     realization: &BoundaryCallingPlanRealization,

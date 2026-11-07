@@ -1,3 +1,5 @@
+// Public API policy shape declarations for traits, requirements, conformances, domains, operators, and data.
+
 use crate::record::{
     PackagePolicyCrashRoute, PackagePolicyTermination, PackagePolicyTypeParameter,
     PackageReviewCallableContract, PackageReviewConformanceBound, PackageReviewContractFact,

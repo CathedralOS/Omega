@@ -22,6 +22,14 @@ pub fn encode_terminator(
     encode_successor: impl Fn(&mut Vec<u8>, &SelectedSuccessor),
 ) {
     match terminator {
+        SelectedTerminator::OperationInvokeNoNormal {
+            instruction,
+            operation,
+        } => {
+            bytes.push(9);
+            encode_instruction(bytes, instruction);
+            crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+        }
         SelectedTerminator::InvokeNoNormal {
             instruction,
             psi_edge,

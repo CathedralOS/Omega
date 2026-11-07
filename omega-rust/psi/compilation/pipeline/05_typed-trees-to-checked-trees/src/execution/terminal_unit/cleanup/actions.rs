@@ -169,7 +169,7 @@ pub(super) fn disposition_actions(
     };
     let selected = crate::flow::selected_cleanup_leaves(program, facts, disposition)
         .ok_or("cleanup cannot select its remaining owned leaves")?;
-    let case_evidence = crate::flow::CleanupCaseEvidence::new(program, facts, disposition)
+    let case_evidence = crate::flow::CleanupCaseEvidence::new(program, facts.view(), disposition)
         .ok_or("cleanup has invalid occurrence case evidence")?;
     let case_reachability = |segments: &[facts::PlaceSegment]| case_evidence.reachability(segments);
     let place = validation::CanonicalPlace {

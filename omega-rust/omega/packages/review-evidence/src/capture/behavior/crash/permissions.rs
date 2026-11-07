@@ -1,4 +1,4 @@
-//! Projection of crash predicates and permission-frontier claims.
+// Projection of canonical crash predicate identities into `PackageReviewCrashPredicate`.
 
 use crate::record::PackageReviewCrashPredicate;
 

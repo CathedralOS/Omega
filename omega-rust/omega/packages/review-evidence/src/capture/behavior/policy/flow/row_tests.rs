@@ -1,3 +1,7 @@
+// Unit tests verifying that indexed capability flow rows match linear searches across
+// duplicate machine IDs, repeated states in one machine, invalid target states,
+// whole-table replacement, and cleared envelope/reach rosters.
+
 use super::{FlowRows, exactly_one};
 use checked_trees::{
     CheckFacts, CheckedMachineResourceEnvelopes, CheckedTrees, MachineContractCommitment,
@@ -137,15 +141,11 @@ fn capability_rows_match_original_searches_with_duplicates_generations_and_repla
     ]);
     compare(&input, &keys);
     let rows = FlowRows::new(&input);
-    // Repeated states in one machine count once; duplicate machine IDs do not
-    // collapse distinct owner rows. Invalid target states never gain an owner.
     assert_eq!(rows.state_owners(s).count(), 2);
     assert_eq!(rows.machines.get(&a).unwrap().len(), 2);
     assert_eq!(rows.state_owners(invalid).count(), 0);
     drop(rows);
     let retained = input.clone();
-    // A fresh request sees arbitrary whole-table replacement, even when its
-    // dimensions and local mutation counts equal those of a retained input.
     input = program(&[
         (c, vec![newer, newer]),
         (a, vec![s]),
@@ -154,8 +154,6 @@ fn capability_rows_match_original_searches_with_duplicates_generations_and_repla
     ]);
     compare(&input, &keys);
     compare(&retained, &keys);
-    // Independent missing/duplicate envelope and reach rosters preserve the
-    // same exactly_one diagnostic, independently of machine row availability.
     input.facts.contract_plans.realized_envelopes.clear();
     input.facts.service_reaches.root_machines = Default::default();
     compare(&input, &keys);

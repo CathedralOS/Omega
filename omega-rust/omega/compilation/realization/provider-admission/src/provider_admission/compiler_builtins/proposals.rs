@@ -156,7 +156,8 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
             // declaration and lifecycle contract, never from a Build intrinsic row.
             Some(
                 CompilerIntrinsicExecutionIdentity::AccessLifecycle(_)
-                | CompilerIntrinsicExecutionIdentity::EmptyRunRelease,
+                | CompilerIntrinsicExecutionIdentity::EmptyRunRelease
+                | CompilerIntrinsicExecutionIdentity::StaticInterrupt(_),
             ) => super::TerminalCompilerBuiltinSettlement::NoNativeBoundaryRealization,
             Some(identity) => {
                 match super::SettledCompilerBuiltin::from_identity(identity, boundary.id, format) {

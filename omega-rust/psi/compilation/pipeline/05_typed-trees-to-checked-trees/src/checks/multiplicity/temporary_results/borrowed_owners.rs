@@ -4,15 +4,15 @@
 use super::super::owned_cleanup::claim_receipts;
 use super::owners::{TemporaryConsumption, TemporaryOwner};
 use super::{
-    CheckFacts, FlowPermissionEventFact, HandleSpan, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionProvenance,
+    FlowPermissionEventFact, HandleSpan, Multiplicity, PermissionAccess, PermissionClaimIdentity,
+    PermissionEventKind, PermissionProvenance,
 };
 use diagnostics::Diagnostic;
 use language_semantics::PermissionEventSource;
 
 pub(in crate::checks::multiplicity) fn append_borrow(
     program: &dyn ::validation::CheckingInput,
-    facts: &mut CheckFacts,
+    facts: &mut checked_trees::CheckFactsWalk<'_>,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     consumer: PermissionEventSource,

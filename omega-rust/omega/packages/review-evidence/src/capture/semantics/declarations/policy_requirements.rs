@@ -1,4 +1,4 @@
-//! Normalized policy coordinates remain separate from compiler replay names.
+// Normalized policy requirement coordinates kept separate from compiler replay names.
 
 use super::{provider_requirement_identity, provider_requirement_schema};
 use crate::capture::EvidenceOption;

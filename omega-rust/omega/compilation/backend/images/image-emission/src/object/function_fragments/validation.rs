@@ -59,6 +59,16 @@ fn validate(
     super::implementation_tables::validate(source, artifact)?;
     super::native_code_layouts::validate(source, artifact)?;
     super::image_residence::validate(source, artifact)?;
+    let private_identities = super::private_addresses::identities(
+        &artifact.foreign_calls,
+        &text.unresolved_image_addresses,
+        text.psi,
+    )?;
+    let private_address_records = super::private_addresses::validate(
+        &private_identities,
+        &text.unresolved_image_addresses,
+        artifact,
+    )?;
     let table_count = artifact
         .implementation_table_pool
         .as_ref()
@@ -90,11 +100,11 @@ fn validate(
         || artifact.relocations.target != text.target
         || artifact.x86_feature_profile.is_some()
         || artifact.port_effects != super::port_effects::produce(source)?
-        || layout.function_symbols.len() != callback_reference_count(artifact)
+        || layout.function_symbols.len() != private_identities.len()
         || layout.sections.len() != 1 + usize::from(table_count + native_count != 0)
         || layout.symbols.len()
             != text.functions.len()
-                + callback_reference_count(artifact)
+                + private_identities.len()
                 + usize::from(pool.is_some())
                 + table_count
                 + native_count
@@ -269,26 +279,12 @@ fn validate(
         private_offset = private_offset.checked_add(length).ok_or(Error::Overflow)?;
     }
     super::structural::validate_settlements(source, &artifact.boundary_settlements)?;
-    super::imports::validate(source, artifact)?;
+    super::imports::validate(source, artifact, private_address_records)?;
     if let Some(binding) = artifact.hosted_receiver_binding() {
         crate::entries::hosted_receiver::validate_binding(artifact, binding)
             .map_err(|_| Error::Mismatch("hosted receiver binding differs from replayed object"))?;
     }
     Ok(())
-}
-
-fn callback_reference_count(artifact: &ObjectArtifact) -> usize {
-    let mut references = Vec::new();
-    for callback in artifact
-        .foreign_calls
-        .iter()
-        .flat_map(|call| &call.callback_addresses)
-    {
-        if !references.contains(&callback.target.callback_function) {
-            references.push(callback.target.callback_function);
-        }
-    }
-    references.len()
 }
 
 fn empty_unsupported_records(function: &ObjectFunction) -> bool {

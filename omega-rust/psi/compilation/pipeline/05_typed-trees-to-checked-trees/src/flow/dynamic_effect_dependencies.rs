@@ -147,7 +147,7 @@ fn selected_implementations(
             }
         }
         let Some(predecessors) =
-            super::completed_values::predecessors(program, facts, value, projection)
+            super::completed_values::predecessors(program, facts.view(), value, projection)
         else {
             return returned_implementations(program, facts, selections, value, projection, active);
         };

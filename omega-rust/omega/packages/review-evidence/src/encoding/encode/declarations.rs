@@ -1,9 +1,4 @@
-//! Canonical encoders for declaration-shaped evidence.
-//!
-//! The map follows the persisted evidence families: conformance identity,
-//! dependency and trust rows, trait surfaces, semantic domains, and concrete
-//! data/type machinery. Each leaf owns the exact byte order and tags for its
-//! family; this entrance keeps their established crate-local call surface.
+// Canonical encoders for declaration-shaped evidence: conformance bounds, dependency and trust rows, trait surfaces, semantic domains, and concrete data/type machinery.
 
 mod conformances;
 mod data;

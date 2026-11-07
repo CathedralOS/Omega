@@ -167,6 +167,7 @@ impl ComponentPublication {
                 &produced.provider_proposals,
                 &request,
                 &accepted_permissions,
+                &[],
             )
         });
         let retained = produced.prepare(request)?;

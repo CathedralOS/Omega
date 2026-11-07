@@ -255,7 +255,7 @@ fn project_terminal_native_body(
         &request.boundaries.calling_applications,
     )
     .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let callback_occurrences =
+    let mut callback_occurrences =
         project_callback_occurrences(&callback_placements, artifact, &selected, &checked_adapters)?;
     // Native placement is derived from canonical applications and target plans.
     // The same route handles newly produced and reloaded Terminal artifacts.
@@ -264,8 +264,6 @@ fn project_terminal_native_body(
             &callback_placements,
             &callback_occurrences,
         )?;
-    backend_plan::validate_callback_thunk_joins(artifact.view(), &callback_occurrences)
-        .map_err(|message| vec![Diagnostic::error(message)])?;
     let boundary_application_coverage = request.boundaries.settle(artifact, &selected)?;
     let comparisons = crate::settlement::comparison_settlement::settle_comparison_occurrences(
         terminal_module,
@@ -287,6 +285,35 @@ fn project_terminal_native_body(
         request.external_bindings,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
+    let installed_placements =
+        crate::settlement::callback_settlement::settle_installed_callback_placements(
+            terminal_module,
+            target_profile,
+            Some(&targets),
+            &request.boundaries.calling_applications,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let mut installed_interrupts = Vec::with_capacity(installed_placements.len());
+    for (ordinal, placement) in installed_placements.into_iter().enumerate() {
+        let placement_index = callback_placements
+            .len()
+            .checked_add(ordinal)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "installed callback placement index overflow",
+                )]
+            })?;
+        let occurrence = callback_occurrence(placement_index, &placement, artifact)?;
+        installed_interrupts.push(crate::InstalledInterruptNativeEntryProposal {
+            operation: occurrence.terminal_operation(),
+            placement_index,
+            callback_function: occurrence.callback_thunk_identity(),
+            placement,
+        });
+        callback_occurrences.push(occurrence);
+    }
+    backend_plan::validate_callback_thunk_joins(artifact.view(), &callback_occurrences)
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     Ok(TerminalNativeBodyProposal {
         providers: TerminalNativeProviders {
             direct_boundary_leaves: bind_direct_boundary_leaves(
@@ -303,6 +330,7 @@ fn project_terminal_native_body(
         },
         occurrences: TerminalNativeOccurrences {
             callbacks: callback_occurrences,
+            installed_interrupts,
             callback_arguments,
             ieee_float_comparisons: comparisons.ieee_float,
             integer_comparisons: comparisons.integer,
@@ -478,41 +506,58 @@ fn project_callback_occurrences(
     let occurrences = callback_placements
         .iter()
         .enumerate()
-        .filter(|(_, placement)| module.callback_applications.binary_search_by_key(
-            &placement.application_index, |row| row.application_index).is_ok())
         .map(|(placement_index, placement)| {
-            let application = module.callback_applications.binary_search_by_key(
-                &placement.application_index, |row| row.application_index
-            ).ok().map(|ordinal| &module.callback_applications[ordinal])
-                .ok_or_else(|| vec![Diagnostic::error(format!(
-                    "callback placement {placement_index} has no Terminal application",
-                ))])?;
-            if application.static_machine_ordinal != placement.static_machine_ordinal
-                || application.requirement != placement.canonical_requirement_overload
-                || application.body.contract != placement.contract_commitment
-            {
-                return Err(vec![Diagnostic::error("callback placement disagrees with its checked Terminal application")]);
-            }
-            let callback_thunk_identity =
-                function_identity::MachineFunctionIdentity::callback_thunk(caller.identity(), placement_index)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(format!(
-                            "callback placement {placement_index} cannot derive one valid callback-thunk identity",
-                        ))]
-                    })?;
-            let callback_thunk_artifact = crate::TerminalCallbackThunkArtifact::for_application(
-                std::sync::Arc::clone(artifact), placement.application_index,
-            ).map_err(|reason| vec![Diagnostic::error(reason)])?;
-            Ok(crate::TerminalCallbackOccurrenceProposal::new(
-                placement_index,
-                placement.application_index,
-                application.registrar,
-                callback_thunk_identity,
-                callback_thunk_artifact,
-                placement.boundary_entry_plan.clone(),
-                placement.entry_parameters.clone(),
-            ))
+            callback_occurrence(placement_index, placement, artifact)
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
     Ok(occurrences)
+}
+
+/// Body custody is shared by foreign registrations and installed entries;
+/// their destination and authority checks remain with their respective owners.
+fn callback_occurrence(
+    placement_index: usize,
+    placement: &backend_plan::NativeCallbackPlacement,
+    artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+) -> Result<crate::TerminalCallbackOccurrenceProposal, Vec<Diagnostic>> {
+    let caller = artifact.view();
+    let module = caller.module();
+    let application = module
+        .callback_application(placement.application_index)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "callback placement {placement_index} has no Terminal application",
+            ))]
+        })?;
+    if application.static_machine_ordinal != placement.static_machine_ordinal
+        || application.requirement != placement.canonical_requirement_overload
+        || application.body.contract != placement.contract_commitment
+    {
+        return Err(vec![Diagnostic::error(
+            "callback placement disagrees with its checked Terminal application",
+        )]);
+    }
+    let callback_thunk_identity = function_identity::MachineFunctionIdentity::callback_thunk(
+        caller.identity(),
+        placement_index,
+    )
+    .ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "callback placement {placement_index} cannot derive one valid callback-thunk identity",
+        ))]
+    })?;
+    let callback_thunk_artifact = crate::TerminalCallbackThunkArtifact::for_application(
+        std::sync::Arc::clone(artifact),
+        placement.application_index,
+    )
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    Ok(crate::TerminalCallbackOccurrenceProposal::new(
+        placement_index,
+        placement.application_index,
+        application.registrar,
+        callback_thunk_identity,
+        callback_thunk_artifact,
+        placement.boundary_entry_plan.clone(),
+        placement.entry_parameters.clone(),
+    ))
 }

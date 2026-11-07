@@ -1,3 +1,6 @@
+// Zero-allocation lexical scanner and escape decoder for named-text policy framing.
+// `quoted` borrows the encoded field slice so counting and decoding can each traverse it without allocating a temporary unescaped string.
+
 use crate::encoding::PackagePolicyRecoveryError as Error;
 
 pub(in crate::encoding::recovery) struct Tokens<'text> {
@@ -48,8 +51,6 @@ impl<'text> Tokens<'text> {
         self.remaining.is_empty()
     }
 
-    /// Borrow the encoded field. Counting and decoding can each traverse it
-    /// without allocating a temporary unescaped string.
     pub(in crate::encoding::recovery) fn quoted(&mut self) -> Result<&'text [u8], Error> {
         self.whitespace();
         if self.remaining.first() != Some(&b'"') {

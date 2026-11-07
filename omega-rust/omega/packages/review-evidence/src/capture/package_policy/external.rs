@@ -1,4 +1,5 @@
-//! All authored executable supplies, independently of public visibility or use.
+// Package-wide external executable-supply projection across all authored external
+// realizations owned by the reviewed package, independent of public visibility or use.
 
 use crate::capture::PackageReviewInput;
 use crate::capture::callables::project_checked_external_supply_policy;

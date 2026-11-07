@@ -539,6 +539,11 @@ pub(crate) fn encode_unchecked(
 ) -> Result<Vec<u8>, X86_64SelectedFormEncodingError> {
     let mut bytes = Vec::new();
     match kind {
+        Kind::InstalledInterruptCpuCheck { .. }
+        | Kind::InstalledInterruptTaskCommit { .. }
+        | Kind::InstalledInterruptTablePublication { .. } => {
+            return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+        }
         Kind::RegisterAccess { operation } => {
             return super::register_access::encode(operation, registers);
         }
@@ -556,6 +561,7 @@ pub(crate) fn encode_unchecked(
         }
         Kind::AtomicFence => bytes.extend_from_slice(&[0x0f, 0xae, 0xf0]),
         Kind::Crash => bytes.extend_from_slice(&[0x0f, 0x0b]),
+        Kind::PrivilegedCrash => bytes.extend_from_slice(&crate::PRIVILEGED_STOP_BYTES),
         Kind::MaterializeI64 { value } if alternative.variant == 1 => {
             // The dependency-breaking zero idiom realizes exactly zero; any
             // other value has no three-byte form and names the wrong variant.

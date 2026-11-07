@@ -31,7 +31,7 @@ pub struct ComponentNativeExport<'input> {
     candidate: &'input terminal_psi::ProviderCandidateConformance,
     calling_application: &'input BoundaryCallingApplication,
     body: image_emission::ObjectArtifact,
-    entry_bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
+    entry_bridge: image_emission::CallableEntryTransport,
     runtime: native_artifact::TerminalCallableRuntimeProvisions,
     authority: AdmittedNativeCallableAuthority,
 }
@@ -169,6 +169,7 @@ pub fn emit_component_exports<'input>(
             &settlements,
             request.terminal_authority_policy,
             request.receiving_permissions,
+            &[],
         );
         admission.entry = entry;
         let admitted = admit_prepared_native_realization(input, artifact, &admission)?;

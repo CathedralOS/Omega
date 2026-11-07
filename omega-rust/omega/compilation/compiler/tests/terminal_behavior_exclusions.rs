@@ -74,7 +74,8 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
     };
     let source_checks = counters::product_source_check_count();
     let publications = counters::terminal_production_count();
-    let builds = counters::build_execution_count();
+    let builds = counters::source_build_execution_count();
+    let suppliers = counters::provider_defaults_execution_count();
     let reports = compile(&profiles)
         .into_iter()
         .map(|(profile, result)| (profile, result.expect("calling policy admits the target")))
@@ -90,9 +91,14 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
         "policy activation must not compile a second code catalog"
     );
     assert_eq!(
-        counters::build_execution_count() - builds,
+        counters::source_build_execution_count() - builds,
         1,
         "target selection must not replay Build effects"
+    );
+    assert_eq!(
+        counters::provider_defaults_execution_count() - suppliers,
+        1,
+        "both targets share one provider-default supplier activation"
     );
     assert_eq!(reports.len(), 2);
     let first = reports[0]
@@ -116,7 +122,8 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
     let refused = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
     let source_checks = counters::product_source_check_count();
     let publications = counters::terminal_production_count();
-    let builds = counters::build_execution_count();
+    let builds = counters::source_build_execution_count();
+    let suppliers = counters::provider_defaults_execution_count();
     let mut mixed = compile(&[refused, profiles[0]]).into_iter();
     assert_eq!(
         counters::product_source_check_count() - source_checks,
@@ -129,9 +136,14 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
         "the surviving target publishes code once"
     );
     assert_eq!(
-        counters::build_execution_count() - builds,
+        counters::source_build_execution_count() - builds,
         1,
         "a refused target cannot replay Build effects"
+    );
+    assert_eq!(
+        counters::provider_defaults_execution_count() - suppliers,
+        1,
+        "a refused sibling target must not replay the provider-default supplier"
     );
     let (profile, failed) = mixed.next().expect("first target outcome");
     assert_eq!(profile, refused);

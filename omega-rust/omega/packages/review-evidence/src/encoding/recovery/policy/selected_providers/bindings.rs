@@ -1,3 +1,6 @@
+// Bounded recovery for selected-provider bindings and table-field storage.
+// Provider-binding tag `0` carried the retired string-backed import bootstrap; recovery rejects it as `RetiredVocabulary` rather than reinterpreting two authored strings as a physical locator.
+
 use super::{Error, Reader, nominal, package};
 use crate::encoding::recovery::policy::external::{locator, producer};
 use crate::record::{PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall};
@@ -19,9 +22,6 @@ pub(in crate::encoding::recovery) fn binding(
 ) -> Result<PackagePolicyProviderBinding, Error> {
     use PackagePolicyProviderBinding as Binding;
     Ok(super::super::tag!(reader => {
-        // Tag 0 carried the retired string-backed import bootstrap. A row
-        // that still uses it is a stale artifact: reject it by name rather
-        // than reinterpreting two authored strings as a physical locator.
         0 => return Err(Error::RetiredVocabulary),
         1 => Binding::Syscall {
             number: reader.i64()?,

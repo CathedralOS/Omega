@@ -1,3 +1,5 @@
+// Encoder membership-observer mode for traversing nominal and type identities across a package policy baseline.
+
 use super::{Encoder, PackageReviewEncodingError};
 use crate::encoding::encode::membership::{Observer, PackagePolicyMembershipError};
 
@@ -5,9 +7,6 @@ impl<'identity> Encoder<'identity> {
     pub(in crate::encoding::encode) fn policy_membership(
         observer: &'identity mut dyn Observer,
     ) -> Self {
-        // usize::MAX collapses to the shared policy recovery byte ceiling.
-        // Membership re-encodes the canonical baseline, so a package with
-        // hundreds of nominal identities can exceed any smaller bound.
         Self {
             membership: Some(observer),
             ..Self::policy_bounded(usize::MAX)

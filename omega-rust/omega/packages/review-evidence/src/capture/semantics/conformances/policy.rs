@@ -1,4 +1,14 @@
-//! Policy projection from exact retained selections, including private slots.
+/*
+We project conformance policy from exact retained selections, including private
+callback layout slots.
+
+This component retains the complete source-qualified conformance meaning
+without historical report or commitment fields. Lifetime ordinals refer to the
+explicitly supplied containing telescope; unbound names are rejected. Retained
+trees are bounded and reclassified against the original checked declaration
+telescope before temporary type references are synthesized in local projection
+storage.
+*/
 
 use super::policy_arguments::{argument_context, argument_type_reference, rejected};
 use super::policy_callables::{callable_identity, caller_binder_identity};
@@ -18,12 +28,6 @@ use typed_trees::typed_trees::{ClosedConformanceApplication, ClosedConformanceCo
 use validation::CheckingProjection;
 use validation::conformance_applications::close_conformance_application;
 
-/// Retain the complete source-qualified conformance meaning without historical
-/// report/commitment fields. This component is inert, not complete package
-/// policy, a proof reconstruction, or acceptance. Private declarations remain
-/// eligible: callback layout slots need not be part of the public API.
-/// Lifetime ordinals refer to the explicitly supplied containing telescope;
-/// the containing policy must retain that context. An unbound name is rejected.
 pub(crate) fn project_checked_conformance_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     application: &ClosedConformanceApplication,
@@ -67,7 +71,6 @@ pub(crate) fn project_checked_conformance_policy<'a>(
         &mut binders,
         0,
     )?;
-    // Bound retained trees before reclosure clones or recursively renders them.
     validate_retained_application(compilation, application)?;
     let lifetime_substitutions = declaration
         .lifetime_parameters
@@ -80,9 +83,6 @@ pub(crate) fn project_checked_conformance_policy<'a>(
                 .map(Identifier::generated),
         )
         .collect::<Vec<_>>();
-    // Reclosure above checks the retained selection against the original.
-    // Temporary references below need only local typed storage, not a mutable
-    // copy of its proof facts, build results, or source-consumption evidence.
     let mut instantiated = CheckingProjection::new(compilation.checking_input);
     let mut substitutions = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(application.arguments.iter()) {
@@ -235,8 +235,6 @@ fn validate_retained_application(
         evidence_projection: None,
         symbol: application.declaration,
     };
-    // This reclassifies retained arguments against the same checked declaration
-    // telescope. It executes no source code and consumes no proof certificate.
     let closed = close_conformance_application(compilation.checking_input, &selected)
         .map_err(|diagnostic| vec![diagnostic])?;
     if closed.declaration != application.declaration

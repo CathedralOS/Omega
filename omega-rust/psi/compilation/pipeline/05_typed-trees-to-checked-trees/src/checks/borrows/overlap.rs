@@ -18,7 +18,7 @@ use crate::flow::expressions;
 /// Borrow only these fields so recording cleanup invocations stays independent.
 #[derive(Clone, Copy)]
 pub(crate) struct StorageSelectorFacts<'facts> {
-    pub flow: &'facts checked_trees::FlowFacts,
+    pub flow: checked_trees::FlowFactsRef<'facts>,
     pub semantic: &'facts facts::FactPlan,
 }
 
@@ -58,7 +58,7 @@ pub(crate) fn captured_storage_index(
 /// context-free spatial judgment; current mutable selector facts cannot do so.
 pub(crate) fn captured_storage_paths_are_disjoint(
     program: &dyn ::validation::CheckingInput,
-    facts: &checked_trees::CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     state: &checked_trees::FlowStateFact,
     contexts: &[(usize, Vec<facts::FactContextHandle>)],
     left: &[facts::PlaceSegment],
@@ -66,8 +66,8 @@ pub(crate) fn captured_storage_paths_are_disjoint(
 ) -> bool {
     let mut lookup = Some(validation::ImmutableBoundLookup::new(program));
     let captures = StorageSelectorFacts {
-        flow: &facts.flow,
-        semantic: &facts.semantic,
+        flow: facts.flow,
+        semantic: facts.semantic,
     };
     let Some(frames) = validation::CallFrameResolver::new(program) else {
         return false;

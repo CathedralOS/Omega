@@ -14,40 +14,10 @@ use crate::{
     ObjectArtifact, ObjectForeignCall, ObjectFunction, derive_normalized_foreign_call_custody,
 };
 
-pub(super) fn declare_callbacks(
-    calls: &[ObjectForeignCall],
-    object: &mut ObjectPlan,
-    psi: terminal_psi::TerminalPsiIdentity,
-) -> Result<(), Error> {
-    for callback in calls.iter().flat_map(|call| &call.callback_addresses) {
-        let identity = callback.target.callback_function;
-        if identity.caller() != psi {
-            return Err(Error::Mismatch(
-                "callback reference escaped its caller namespace",
-            ));
-        }
-        if object_function_reference(object, identity).is_some() {
-            continue;
-        }
-        let name = identity.private_symbol().ok_or(Error::Mismatch(
-            "callback reference has no caller-scoped function identity",
-        ))?;
-        let symbol = object.layout.symbols.insert(SymbolPlan {
-            name,
-            kind: SymbolKind::Function,
-            ..SymbolPlan::default()
-        });
-        object
-            .layout
-            .function_symbols
-            .insert(object_file::FunctionSymbolPlan { identity, symbol });
-    }
-    Ok(())
-}
 use machine_code::{CallbackAddressEncoding, NormalizedForeignCallResolutionKind};
 use object_file::{
     ObjectPlan, RelocationKind, RelocationPlan, RelocationRecord, SectionKind,
-    StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolPlan, SymbolSection,
+    StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolSection,
     invocation_relocation_origin, normalized_import_symbol_name, object_function_reference,
     object_symbol_handle_by_import_locator,
 };
@@ -163,6 +133,7 @@ pub(super) fn publish(
 pub(super) fn validate(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     artifact: &ObjectArtifact,
+    private_address_records: usize,
 ) -> Result<(), Error> {
     let calls = derive_normalized_foreign_call_custody(source).map_err(Error::ForeignCalls)?;
     let import_calls = calls
@@ -207,7 +178,7 @@ pub(super) fn validate(
         observation_records +=
             super::native_code_layouts::records(pool, &artifact.functions)?.len();
     }
-    let expected_records = expected_records + observation_records;
+    let expected_records = expected_records + observation_records + private_address_records;
     if artifact.foreign_calls != calls
         || artifact.relocations.record_count() != expected_records
         || fields.len() != import_calls.len()

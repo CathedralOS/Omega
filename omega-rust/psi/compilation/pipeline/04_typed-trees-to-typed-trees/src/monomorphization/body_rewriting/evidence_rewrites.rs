@@ -55,12 +55,16 @@ pub(crate) fn rewrite_index_algebra(
     {
         return;
     }
-    let authority = expressions_of_mut(program).index_expression_authority_mut(expression);
+    let mut authority = expressions_of(program)
+        .index_expression_authority(expression)
+        .expect("index expression authority was checked")
+        .clone();
     let Some(operation) = &mut authority.operation else {
         return;
     };
     if let Some(application) = &mut operation.application {
         super::machine_arguments::substitute_forwarded_machine_arguments(
+            expressions_of_mut(program),
             std::slice::from_mut(application),
             static_rewrites,
             &[],
@@ -72,6 +76,7 @@ pub(crate) fn rewrite_index_algebra(
     {
         operation.apply_provider(&rewrite.argument, rewrite.alias.as_str());
     }
+    *expressions_of_mut(program).index_expression_authority_mut(expression) = authority;
 }
 
 pub(crate) struct EvidenceRequirementRewrite {

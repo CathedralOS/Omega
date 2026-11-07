@@ -25,7 +25,7 @@ use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep};
 use crate::flow::FlowOwnershipEventSource;
 use crate::flow::expressions;
 use crate::published::places::place_at;
-use checked_trees::{CheckFacts, FlowPermissionEventFact};
+use checked_trees::FlowPermissionEventFact;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, PermissionProvenance,
@@ -77,7 +77,7 @@ pub(crate) struct ObservedCustody {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn evaluate_statement_permissions(
     program: &dyn ::validation::CheckingInput,
-    facts: &mut CheckFacts,
+    facts: &mut checked_trees::CheckFactsWalk<'_>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     moves: &[crate::flow::DiscoveredMoveEvent],
@@ -263,7 +263,7 @@ pub(crate) fn evaluate_statement_permissions(
     let mut binding_changes = Vec::new();
     let mut source_completions = copy_source_completions(
         program,
-        facts,
+        facts.view(),
         machine_symbol,
         state_symbol,
         statement_index,
@@ -273,7 +273,7 @@ pub(crate) fn evaluate_statement_permissions(
     );
     observed_completions::append(
         program,
-        facts,
+        facts.view(),
         machine_symbol,
         state_symbol,
         statement_index,
@@ -492,7 +492,7 @@ pub(crate) fn evaluate_statement_permissions(
                 };
                 projected_affine::append_transfer(
                     program,
-                    facts,
+                    facts.view(),
                     machine_symbol,
                     state_symbol,
                     event,
@@ -825,7 +825,7 @@ pub(crate) fn evaluate_statement_permissions(
                 );
                 if !completed_receiving_values(
                     program,
-                    facts,
+                    facts.view(),
                     machine_symbol,
                     state_symbol,
                     statement_index,
@@ -900,7 +900,7 @@ pub(crate) fn evaluate_statement_permissions(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn complete_statement_permissions(
     program: &dyn validation::CheckingInput,
-    facts: &mut CheckFacts,
+    facts: &mut checked_trees::CheckFactsWalk<'_>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -941,7 +941,7 @@ pub(crate) fn complete_statement_permissions(
         None,
         places,
         remaining,
-        &mut facts.flow.ownership,
+        facts.flow.ownership,
         permission_events,
         cleanup_dispositions,
     )?;
@@ -1015,7 +1015,7 @@ pub(crate) fn complete_statement_permissions(
     }
     for (expression, source) in completed_receiving_values(
         program,
-        facts,
+        facts.view(),
         machine_symbol,
         state_symbol,
         statement_index,
@@ -1111,7 +1111,7 @@ pub(crate) fn complete_statement_permissions(
 #[allow(clippy::too_many_arguments)]
 fn complete_body_custody(
     program: &dyn validation::CheckingInput,
-    facts: &mut CheckFacts,
+    facts: &mut checked_trees::CheckFactsWalk<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -1178,7 +1178,7 @@ struct SourceCompletion {
 /// loans stored inside it continue through the independently copied carrier.
 fn copy_source_completions(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
@@ -1337,7 +1337,7 @@ fn copy_source_completions(
 #[allow(clippy::too_many_arguments)]
 fn establish_targets(
     program: &dyn ::validation::CheckingInput,
-    facts: &mut CheckFacts,
+    facts: &mut checked_trees::CheckFactsWalk<'_>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,

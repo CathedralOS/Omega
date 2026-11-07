@@ -107,7 +107,7 @@ fn stable_copies(
             })
             || !crate::flow::operand_entry_origin_is_stable(
                 program,
-                &facts.flow,
+                facts.flow.view(),
                 invocation,
                 &destination,
             )
@@ -130,7 +130,7 @@ fn stable_copies(
                     |place| {
                         crate::flow::operand_observations_agree(
                             program,
-                            &facts.flow,
+                            facts.flow.view(),
                             stored,
                             invocation,
                             &place,

@@ -6,8 +6,8 @@
 //! but a transported judgment must hold for every selected possibility.
 
 use arena::Handle;
+use checked_trees::FlowOperandFact;
 use checked_trees::FlowStatementFact;
-use checked_trees::{CheckFacts, FlowOperandFact};
 use facts::PlaceSegment;
 
 /// The actual completions before a value join, rather than its intersected
@@ -41,14 +41,14 @@ pub fn terminal_alternatives(
 
 pub fn predecessors(
     program: &dyn crate::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     value: Handle<FlowOperandFact>,
     projection: &[PlaceSegment],
 ) -> Option<Vec<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>> {
     predecessors_in_flow(
         program,
-        &facts.flow,
-        &facts.semantic,
+        facts.flow,
+        facts.semantic,
         value,
         projection,
         super::StoredObservation::Contents,
@@ -60,13 +60,13 @@ pub fn predecessors(
 /// observations retain the existing detached-value rule.
 pub fn predecessors_in_flow(
     program: &dyn crate::CheckingInput,
-    flow: &checked_trees::FlowFacts,
+    flow: checked_trees::FlowFactsRef<'_>,
     _semantic: &facts::FactPlan,
     value: Handle<FlowOperandFact>,
     projection: &[PlaceSegment],
     observation: super::StoredObservation,
 ) -> Option<Vec<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>> {
-    predecessors_in_control(program, &flow.control, value, projection, observation, None)
+    predecessors_in_control(program, flow.control, value, projection, observation, None)
 }
 
 /// The same predecessor law while a state's flow is still being built. Only
