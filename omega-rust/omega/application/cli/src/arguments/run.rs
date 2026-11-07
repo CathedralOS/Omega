@@ -1,18 +1,21 @@
+// Parse arguments for `omega run`.
+//
+// `--both` is a differential comparison request (native vs. Terminal Psi), not
+// a third engine name, so combining `--engine` with `--both` is rejected up
+// front. Case runs (`--inputs` or `--input` paired with `--outputs`) always
+// execute on the host and therefore reject `--target`.
+
 use crate::execution::ExecutionSelection;
 
 pub(crate) struct RunArguments {
-    /// Native unless `--engine terminal` or the `--both` comparison was named.
-    pub(crate) selection: ExecutionSelection,
+    pub(crate) selection: ExecutionSelection, // Native unless --engine terminal or --both was named.
     pub(crate) terminal_fuel_allowance: Option<std::num::NonZeroU64>,
     pub(crate) private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub(crate) keep: bool,
     pub(crate) target_name: Option<String>,
-    /// A directory of `*.stdin` cases run against one compilation.
-    pub(crate) inputs: Option<std::path::PathBuf>,
-    /// Explicit case files (`--input`, repeatable), named by file stem.
-    pub(crate) input_files: Vec<std::path::PathBuf>,
-    /// Where each case's streams and `results.tsv` are written.
-    pub(crate) outputs: Option<std::path::PathBuf>,
+    pub(crate) inputs: Option<std::path::PathBuf>, // Directory of *.stdin cases run against one compilation.
+    pub(crate) input_files: Vec<std::path::PathBuf>, // Explicit case files (--input, repeatable), named by file stem.
+    pub(crate) outputs: Option<std::path::PathBuf>, // Where each case's streams and results.tsv are written.
     pub(crate) main_path: std::path::PathBuf,
 }
 
@@ -115,8 +118,6 @@ pub(super) fn parse_arguments(
                 });
             }
             Some("--input") => {
-                // A missing path must not swallow --both and silently turn a
-                // compared case run into native-only execution.
                 let file = super::option_value(&mut arguments).ok_or("--input requires a file")?;
                 input_files.push(std::path::PathBuf::from(file));
             }
@@ -166,8 +167,6 @@ pub(super) fn parse_arguments(
             }
         }
     }
-    // `--both` is a comparison request, not a third engine; naming an engine
-    // beside it would leave one of the two compared executions unexplained.
     let selection = match (engine, both) {
         (Some(_), true) => {
             return Err("--engine and --both are mutually exclusive: --both already runs native and Terminal".into());

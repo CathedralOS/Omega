@@ -1,5 +1,35 @@
-//! Execute a package-admitted review pass dependency-first. Policy chooses the
-//! passes and admits exact reuse; Build owns compiler calls and continuations.
+/*
+
+Execute a dependency-first package review pass (`execute_pass`).
+
+`package_manager` plans the review occurrences and decides which cached review
+records are reusable; this module drives the compiler over the occurrences that
+still need work (`round.admit_occurrence`).
+
+Why `execute_pass` loops over rounds (`fresh_components`, `recovered`, `pending_builds`):
+A cached review record for an independent component dependency is sufficient to
+report that dependency's own policy findings, but it may not retain the
+in-memory `IndependentComponentDescription` needed when a downstream consumer
+has to be compiled in the same pass. When `component_descriptions` hits a
+cached dependency that lacks its description, it returns
+`CompileResolvedPackageReviewsError::ComponentDescriptionNotRetained`. We then:
+1. Stash the waiting consumer's prepared `PackageBuild` in `pending_builds` so
+   we do not re-prepare its product from scratch on the next round (verified by
+   matching `entry`, `snapshot`, and `package_inputs()`).
+2. Keep the already-completed review results from the interrupted round in
+   `recovered` (`round.into_retained()`).
+3. Insert `(component, purpose)` into `fresh_components` and start a new round
+   so `plan.begin_round` forces that component to compile and publish its
+   description before the waiting consumer resumes.
+
+When a reviewed occurrence produces a cacheable result (`round.retain`), we
+attempt `source.publish_component().ok()` before `cache_write.store(component)`.
+A component-publication failure there is left as `None` (a cache miss for future
+component consumers) because a package that is never consumed as an independent
+component does not need a component description; if a consumer later demands it,
+`component_descriptions` will surface the exact compilation diagnostic.
+
+*/
 
 use compiler::PackageBuild;
 use diagnostics::Diagnostic;
@@ -17,10 +47,6 @@ struct PendingReviewBuild {
     snapshot: Option<package_compilation::BuildSnapshotRequest>,
 }
 
-/// A demanded cache record may lack an executable component description.
-/// Refresh that dependency while retaining completed reviews and the waiting
-/// consumer's Build. Each restart adds a newly demanded occurrence; exact
-/// input comparisons decide what work still applies after that refresh.
 pub(crate) fn execute_pass(
     plan: PackageReviewPass<'_>,
     compiler: &mut compiler::CompilationSession,
@@ -147,9 +173,6 @@ fn complete_occurrence(
         .review_package_build(build, maximum_policy_canonical_bytes)
         .map_err(|failure| completion.review_failure(failure))?;
     if let Some(cache_write) = round.retain(completion, product, inputs)? {
-        // Policy has accepted the review and admitted a usable cache write.
-        // Optional publication failure stays a miss; an actual consumer will
-        // diagnose a failed demand through component_descriptions.
         let component = match cache_write.component_source() {
             Some(source) => source.publish_component().ok(),
             None => None,
