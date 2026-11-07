@@ -63,7 +63,6 @@ pub fn parameter_expression_result_type_reference(
             ExpressionOwner::Declaration {
                 owner_symbol,
                 place_type: &|_| None,
-                telescope: None,
             },
             expression,
             &mut Vec::new(),
@@ -78,49 +77,71 @@ pub fn parameter_expression_result_type_reference(
         let next = u32::try_from(telescopes.len()).ok()?;
         Some(*telescopes.entry((owner_symbol, roster)).or_insert(next))
     });
-    let place_type = |expression| {
-        crate::reserved_result_place(program, expression)
-            .filter(|place| place.machine_symbol == owner_symbol)
-            .map(|place| place.type_reference)
-            .or_else(|| {
-                crate::value_custody::places::parameter_scoped_type_reference(
-                    program,
-                    owner_symbol,
-                    parameters,
-                    expression,
-                )
-            })
-            .or_else(|| {
-                // Static value binders retain their declaration's carrier;
-                // supplied values must not guess the operand's meaning.
-                let symbol = crate::queries::expression_traversal::single_segment_name_symbol(
-                    program, expression,
-                )?;
-                if let Some(reference) =
-                    crate::value_custody::places::declaration_type_reference(program, symbol)
-                {
-                    return Some(reference);
-                }
-                let parameter = program.data_type_parameter_by_symbol(symbol)?;
-                match parameter.kind {
-                    typed_trees::data::TypeParameterKind::Const { type_reference }
-                    | typed_trees::data::TypeParameterKind::Value { type_reference } => {
-                        Some(type_reference)
-                    }
-                    _ => None,
-                }
-            })
+    let Some(telescope) = telescope else {
+        let place_type =
+            |expression| telescope_place_type(program, owner_symbol, parameters, expression);
+        return result_type(
+            program,
+            ExpressionOwner::Declaration {
+                owner_symbol,
+                place_type: &place_type,
+            },
+            expression,
+            &mut Vec::new(),
+        );
     };
     result_type(
         program,
-        ExpressionOwner::Declaration {
+        ExpressionOwner::Telescope {
             owner_symbol,
-            place_type: &place_type,
+            parameters,
             telescope,
         },
         expression,
         &mut Vec::new(),
     )
+}
+
+/// A parameter telescope's place types: a function of the owner and each
+/// parameter's symbol and type only, which is exactly what its interned id
+/// records, so a result memoized under the id is the result for this roster.
+fn telescope_place_type(
+    program: &dyn crate::CheckingInput,
+    owner_symbol: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    crate::reserved_result_place(program, expression)
+        .filter(|place| place.machine_symbol == owner_symbol)
+        .map(|place| place.type_reference)
+        .or_else(|| {
+            crate::value_custody::places::parameter_scoped_type_reference(
+                program,
+                owner_symbol,
+                parameters,
+                expression,
+            )
+        })
+        .or_else(|| {
+            // Static value binders retain their declaration's carrier;
+            // supplied values must not guess the operand's meaning.
+            let symbol = crate::queries::expression_traversal::single_segment_name_symbol(
+                program, expression,
+            )?;
+            if let Some(reference) =
+                crate::value_custody::places::declaration_type_reference(program, symbol)
+            {
+                return Some(reference);
+            }
+            let parameter = program.data_type_parameter_by_symbol(symbol)?;
+            match parameter.kind {
+                typed_trees::data::TypeParameterKind::Const { type_reference }
+                | typed_trees::data::TypeParameterKind::Value { type_reference } => {
+                    Some(type_reference)
+                }
+                _ => None,
+            }
+        })
 }
 
 /// Constructors retain their own carrier independently of a callable scope.
@@ -170,7 +191,6 @@ pub(crate) fn declaration_expression_result_type_reference(
         ExpressionOwner::Declaration {
             owner_symbol,
             place_type,
-            telescope: None,
         },
         expression,
         &mut Vec::new(),
@@ -203,9 +223,14 @@ enum ExpressionOwner<'program> {
     Declaration {
         owner_symbol: symbols::SymbolHandle,
         place_type: &'program dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
-        /// The interned parameter telescope `place_type` reads, when the
-        /// callback is that pure function of it; other callbacks stay unkeyed.
-        telescope: Option<u32>,
+    },
+    /// An abstract callable's declaration telescope. Its place types come from
+    /// `telescope_place_type` over these parameters, never from a caller's
+    /// callback, so results are memoized under the interned `telescope` id.
+    Telescope {
+        owner_symbol: symbols::SymbolHandle,
+        parameters: &'program [typed_trees::signature::StateParameter],
+        telescope: u32,
     },
 }
 
@@ -221,7 +246,9 @@ impl ExpressionOwner<'_> {
         match self {
             Self::State { machine, .. } => machine.symbol,
             Self::Domain(domain) => domain.symbol,
-            Self::Declaration { owner_symbol, .. } => owner_symbol,
+            Self::Declaration { owner_symbol, .. } | Self::Telescope { owner_symbol, .. } => {
+                owner_symbol
+            }
         }
     }
 }
@@ -245,10 +272,9 @@ fn result_type(
                     expression,
                 )?,
             ),
-            ExpressionOwner::Declaration {
-                telescope: Some(telescope),
-                ..
-            } => ResultTypeMemoKey::Telescope((telescope, expression)),
+            ExpressionOwner::Telescope { telescope, .. } => {
+                ResultTypeMemoKey::Telescope((telescope, expression))
+            }
             _ => return None,
         };
         Some((memos, key))
@@ -387,6 +413,7 @@ fn result_type(
                 .map(|signature| signature.return_type)
                 .or_else(|| match owner {
                     ExpressionOwner::Declaration { owner_symbol, .. }
+                    | ExpressionOwner::Telescope { owner_symbol, .. }
                         if call.target_symbol.is_valid() =>
                     {
                         let parent = program.symbols.get(owner_symbol).parent;
@@ -698,6 +725,11 @@ fn result_type(
         }
         _ => match owner {
             ExpressionOwner::Declaration { place_type, .. } => place_type(expression),
+            ExpressionOwner::Telescope {
+                owner_symbol,
+                parameters,
+                ..
+            } => telescope_place_type(program, owner_symbol, parameters, expression),
             ExpressionOwner::State { machine, state } => {
                 crate::value_custody::places::declared_place_type_raw(
                     program,
