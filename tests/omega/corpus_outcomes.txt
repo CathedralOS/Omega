@@ -16693,8 +16693,9 @@ fail/proofs/linear_result_not_repeatable_denotation rejected 6299ms expected @ee
 	specification call `mint` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
 fail/proofs/machine_parameterized_runtime_data_rejected rejected 736ms expected @ccdb99ca2214
 	data `RuntimeCallback` is parameterized by a static machine but has a runtime layout; `<machine ...>` on data is reserved for proof-only families (recursive data has no layout)
-fail/proofs/mathematical_constrained_scalar_formal rejected 908ms expected @ccdb99ca2214
-	mathematical type `i64[1 constraint]` cannot be a borrow, constraint or dynamic trait
+fail/proofs/mathematical_constrained_scalar_formal rejected 1563ms expected @49d35679280f
+	cannot compile admitted project: checked compilation failed for package `mathematical_constrained_scalar_formal` with 1 diagnostic(s)
+	  error: /home/runner/work/Omega/Omega/tests/omega/fail/proofs/mathematical_constrained_scalar_formal/main.omg:2:20: type brackets are retired; express scalar bounds in the owning data or machine `requires` clause, result `ensures` clause, or the value's established facts
 fail/proofs/mathematical_distinct_qualified_argument rejected 368ms expected @ccdb99ca2214
 	invalid mathematical application `meter_identity(value)`: mathematical argument does not preserve its declared carrier and policy
 fail/proofs/mathematical_function_argument_carrier rejected 294ms expected @ccdb99ca2214
