@@ -93,6 +93,16 @@ pub(super) struct FileModeArguments {
     pub handle: ScalarSubject,
 }
 
+pub(super) struct FileTransferArguments {
+    pub caller: Caller,
+    pub handle: ScalarSubject,
+}
+
+pub(super) struct FilePathQueryArguments {
+    pub caller: Caller,
+    pub capacities: BTreeSet<u32>,
+}
+
 impl<'a, 'module> HandleArgumentValues<'a, 'module> {
     pub(super) fn derive(inputs: &'a WindowsHandleInputs<'module>) -> Result<Self, String> {
         Self::from_origins(&inputs.origins, &inputs.natives)
@@ -345,6 +355,51 @@ impl<'a, 'module> HandleArgumentValues<'a, 'module> {
         Ok(FileModeArguments {
             caller: input.call.caller,
             handle,
+        })
+    }
+
+    pub(super) fn transfer(&self, caller: Caller) -> Result<FileTransferArguments, String> {
+        let input = self
+            .natives
+            .get(&caller)
+            .ok_or("native transfer argument query has no original admitted call")?;
+        if !matches!(
+            input.reviewed.contract,
+            WindowsHandleContract::ReadFile | WindowsHandleContract::WriteFile
+        ) {
+            return Err("file transfer arguments change their reviewed API".into());
+        }
+        self.exact(input, 3, IntegerSign::Unsigned, 64, 0)?;
+        let handle = input
+            .scalars
+            .get(&0)
+            .ok_or("file transfer has no original handle operand")?
+            .clone();
+        Ok(FileTransferArguments {
+            caller: input.call.caller,
+            handle,
+        })
+    }
+
+    pub(super) fn path_query(&self, caller: Caller) -> Result<FilePathQueryArguments, String> {
+        let input = self
+            .natives
+            .get(&caller)
+            .ok_or("native path argument query has no original admitted call")?;
+        if input.reviewed.contract != WindowsHandleContract::QueryFinalPath {
+            return Err("file path arguments change their reviewed API".into());
+        }
+        let capacities = self
+            .words(input, 2, IntegerSign::Unsigned, 32)?
+            .into_iter()
+            .map(|value| {
+                u32::try_from(value)
+                    .map_err(|_| "file path capacity exceeds its physical word".into())
+            })
+            .collect::<Result<BTreeSet<_>, String>>()?;
+        Ok(FilePathQueryArguments {
+            caller: input.call.caller,
+            capacities,
         })
     }
 }

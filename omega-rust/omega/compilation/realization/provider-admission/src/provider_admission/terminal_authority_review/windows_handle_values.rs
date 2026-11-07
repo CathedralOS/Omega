@@ -623,23 +623,8 @@ impl<'a> HandleValueReader<'a> {
             .iter()
             .position(|parameter| parameter.place == entry.root)
             .ok_or("captured handle projection is not rooted at a signature formal")?;
-        let (place, path) = match call.arguments {
-            RuntimeArguments::Explicit { structural, .. } => {
-                let actual = structural.get(parameter).ok_or(
-                    "captured handle projection has no matching actual structural argument",
-                )?;
-                (actual.place, actual.path.as_slice())
-            }
-            RuntimeArguments::Cleanup(cleanup) => {
-                let formal = &machine.structural_parameters[parameter];
-                if !formal.is_cleanup_receiver(cleanup) {
-                    return Err(
-                        "captured handle projection changes the nominal cleanup receiver".into(),
-                    );
-                }
-                (cleanup.place, cleanup.path.as_slice())
-            }
-        };
+        let actual = call.storage_actual(machine, parameter)?;
+        let (place, path) = (actual.place, actual.path);
         let caller = self
             .calls
             .machine(call.caller.machine)

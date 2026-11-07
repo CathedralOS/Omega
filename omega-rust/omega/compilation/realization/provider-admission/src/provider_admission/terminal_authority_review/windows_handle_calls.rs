@@ -70,6 +70,59 @@ pub(super) struct RuntimeCall<'a> {
     pub normal_return: bool,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct RuntimeStorageActual<'a> {
+    pub place: semantic_vocabulary::PlaceId,
+    pub path: &'a [terminal_psi::StructuralPathSegment],
+    pub access: terminal_psi::StructuralAccess,
+}
+
+impl<'a> RuntimeCall<'a> {
+    /// Reuse the admitted call's own positional arguments. A nominal cleanup
+    /// has only its canonically checked receiver, never an invented ordinal
+    /// or a second expression which could select different storage.
+    pub(super) fn storage_actual(
+        self,
+        callee: &TerminalMachine,
+        parameter: usize,
+    ) -> Result<RuntimeStorageActual<'a>, String> {
+        if !matches!(self.target, CallTarget::Machine(actual) if actual == callee.id) {
+            return Err("handle storage actual belongs to another selected callee".into());
+        }
+        let formal = callee
+            .structural_parameters
+            .get(parameter)
+            .ok_or("handle storage actual has no original callee formal")?;
+        match self.arguments {
+            RuntimeArguments::Explicit { structural, .. } => {
+                let actual = structural
+                    .get(parameter)
+                    .ok_or("handle storage formal omits its actual argument")?;
+                if structural.len() != callee.structural_parameters.len()
+                    || actual.access != formal.access
+                {
+                    return Err("handle storage call changes its formal count or access".into());
+                }
+                Ok(RuntimeStorageActual {
+                    place: actual.place,
+                    path: &actual.path,
+                    access: actual.access,
+                })
+            }
+            RuntimeArguments::Cleanup(cleanup) => {
+                if !formal.is_cleanup_receiver(cleanup) || callee.structural_parameters.len() != 1 {
+                    return Err("handle storage call changes its nominal cleanup receiver".into());
+                }
+                Ok(RuntimeStorageActual {
+                    place: cleanup.place,
+                    path: &cleanup.path,
+                    access: formal.access,
+                })
+            }
+        }
+    }
+}
+
 pub(super) struct HandleCallGraph<'a> {
     pub entry: MachineId,
     machines: IdTable<MachineId, Option<&'a TerminalMachine>>,

@@ -1,4 +1,4 @@
-//! Resolve handle-bearing bytes through the actual captured reference view.
+//! Find the actual bytes a captured reference points to.
 //!
 //! Logical field names do not establish disjoint bytes. The existing selected
 //! storage-geometry owner supplies the original backing interval, including
@@ -200,6 +200,75 @@ pub(super) struct HandleStorageGeometry<'a> {
 }
 
 impl<'a> HandleStorageGeometry<'a> {
+    pub(super) fn location(
+        &self,
+        place: PlaceId,
+        path: &[terminal_psi::StructuralPathSegment],
+    ) -> Result<DescriptorLocation, String> {
+        let root = self.place_type(&DescriptorLocation::whole(place))?;
+        terminal_semantics::descriptor_lifetimes::descriptor_location(
+            &self.module.structural_types,
+            place,
+            root,
+            path,
+            None,
+        )
+        .ok_or_else(|| {
+            format!("handle argument {place:?}/{path:?} has no exact storage coordinate")
+        })
+    }
+
+    pub(super) fn carrier(
+        &self,
+        location: &DescriptorLocation,
+    ) -> Result<Option<StructuralTypeId>, String> {
+        let root = self.place_type(location)?;
+        if location.path.is_empty() {
+            return Ok(Some(root));
+        }
+        Ok(
+            terminal_semantics::descriptor_lifetimes::descriptor_location_type(
+                &self.module.structural_types,
+                root,
+                &location.path,
+            ),
+        )
+    }
+
+    /// A runtime-selected write can touch any member of its first collection.
+    /// Return that containing interval, not a guessed element address. The
+    /// caller must retain old dependencies and invalidate exact overlapping
+    /// words, because this is a possible write rather than a full replacement.
+    pub(super) fn possible_write(
+        &self,
+        query: &terminal_semantics::descriptor_lifetimes::DescriptorContentsQuery,
+        references: &HandleReferences,
+    ) -> Result<HandleStorageRange, String> {
+        use terminal_semantics::descriptor_lifetimes::DescriptorContentsStep;
+        let mut location = DescriptorLocation::whole(query.root);
+        for step in &query.steps {
+            match step {
+                DescriptorContentsStep::Address(segment) => location.path.push(segment.clone()),
+                DescriptorContentsStep::AnyElement { .. } => {
+                    let carrier = self.carrier(&location)?.and_then(|carrier| {
+                        terminal_psi::find_structural_type(&self.module.structural_types, carrier)
+                    });
+                    if !matches!(
+                        carrier.map(|carrier| &carrier.shape),
+                        Some(StructuralTypeShape::FixedArray { .. })
+                    ) {
+                        return Err(
+                            "handle may-write collection has no captured contiguous backing".into(),
+                        );
+                    }
+                    break;
+                }
+            }
+        }
+        self.resolve(&location, references)
+            .map(|(range, _, _)| range)
+    }
+
     pub(super) fn new(
         module: &'a TerminalModule,
         body: &'a TerminalMachine,
