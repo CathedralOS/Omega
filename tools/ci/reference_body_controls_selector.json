@@ -1,0 +1,236 @@
+{
+  "kind": "Exactly six nonignored aggregate-byte Sem controls, each selected by its full name",
+  "source": "2d0f2e8fae1dffa910f88c315a15193e6630c16d",
+  "expected_total_passes": 6,
+  "owner_source_map_sha256": "29201154fcc84e943dbdc97ba1261099e81199e22eca9d95b3cdbfd8d22a69ee",
+  "groups": [
+    {
+      "package": "terminal-semantics",
+      "filter": "descriptors::descriptor_results::payload_history::normal_calls::tests::aggregate_byte_dependencies::projected_inline_byte_rule_survives_an_ordinary_sibling_write",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "descriptors::descriptor_results::payload_history::normal_calls::tests::aggregate_byte_dependencies::projected_inline_byte_rule_survives_an_ordinary_sibling_write"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests/aggregate_byte_dependencies.rs",
+          "sha256": "e956655a62b2b5d5adfe9658b3214ecefc9946b27de06f077a7230d518ca19a6"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests.rs",
+          "sha256": "87f0ce247bdeba07856a355596212d2fe94acc8803d453c79c0ed54cc1b19b0a"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls.rs",
+          "sha256": "3764fda36069d9096a77071b285cc08f67d20bad84ffebd2103e2c267f3a8b5f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history.rs",
+          "sha256": "4d126e534cc46c734a6d4fd64657c00eaab457c7d6e465891206b05c51253d3f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml",
+          "sha256": "971a5ef96616c40c8283caa70e38bcd57f138989f19befd591eea61aca7fab3e"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/domain_preservation.rs",
+          "sha256": "bbd6a078520cd0bb7e7eb23d101288c96af3eb3de037be24ad0426a043c67520"
+        }
+      ]
+    },
+    {
+      "package": "terminal-semantics",
+      "filter": "descriptors::descriptor_results::payload_history::normal_calls::tests::aggregate_byte_dependencies::projected_aggregate_byte_view_rule_needs_backing_separation",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "descriptors::descriptor_results::payload_history::normal_calls::tests::aggregate_byte_dependencies::projected_aggregate_byte_view_rule_needs_backing_separation"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests/aggregate_byte_dependencies.rs",
+          "sha256": "e956655a62b2b5d5adfe9658b3214ecefc9946b27de06f077a7230d518ca19a6"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests.rs",
+          "sha256": "87f0ce247bdeba07856a355596212d2fe94acc8803d453c79c0ed54cc1b19b0a"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls.rs",
+          "sha256": "3764fda36069d9096a77071b285cc08f67d20bad84ffebd2103e2c267f3a8b5f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history.rs",
+          "sha256": "4d126e534cc46c734a6d4fd64657c00eaab457c7d6e465891206b05c51253d3f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml",
+          "sha256": "971a5ef96616c40c8283caa70e38bcd57f138989f19befd591eea61aca7fab3e"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/domain_preservation.rs",
+          "sha256": "bbd6a078520cd0bb7e7eb23d101288c96af3eb3de037be24ad0426a043c67520"
+        }
+      ]
+    },
+    {
+      "package": "terminal-semantics",
+      "filter": "descriptors::descriptor_results::payload_history::normal_calls::tests::aggregate_byte_dependencies::unused_borrowed_view_does_not_taint_an_inline_only_aggregate_rule",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "descriptors::descriptor_results::payload_history::normal_calls::tests::aggregate_byte_dependencies::unused_borrowed_view_does_not_taint_an_inline_only_aggregate_rule"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests/aggregate_byte_dependencies.rs",
+          "sha256": "e956655a62b2b5d5adfe9658b3214ecefc9946b27de06f077a7230d518ca19a6"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests.rs",
+          "sha256": "87f0ce247bdeba07856a355596212d2fe94acc8803d453c79c0ed54cc1b19b0a"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls.rs",
+          "sha256": "3764fda36069d9096a77071b285cc08f67d20bad84ffebd2103e2c267f3a8b5f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history.rs",
+          "sha256": "4d126e534cc46c734a6d4fd64657c00eaab457c7d6e465891206b05c51253d3f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml",
+          "sha256": "971a5ef96616c40c8283caa70e38bcd57f138989f19befd591eea61aca7fab3e"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/domain_preservation.rs",
+          "sha256": "bbd6a078520cd0bb7e7eb23d101288c96af3eb3de037be24ad0426a043c67520"
+        }
+      ]
+    },
+    {
+      "package": "terminal-semantics",
+      "filter": "descriptors::descriptor_results::payload_history::normal_calls::tests::aggregate_byte_dependencies::opaque_inline_subject_keeps_its_held_duty_across_a_sibling_write",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "descriptors::descriptor_results::payload_history::normal_calls::tests::aggregate_byte_dependencies::opaque_inline_subject_keeps_its_held_duty_across_a_sibling_write"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests/aggregate_byte_dependencies.rs",
+          "sha256": "e956655a62b2b5d5adfe9658b3214ecefc9946b27de06f077a7230d518ca19a6"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests.rs",
+          "sha256": "87f0ce247bdeba07856a355596212d2fe94acc8803d453c79c0ed54cc1b19b0a"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls.rs",
+          "sha256": "3764fda36069d9096a77071b285cc08f67d20bad84ffebd2103e2c267f3a8b5f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history.rs",
+          "sha256": "4d126e534cc46c734a6d4fd64657c00eaab457c7d6e465891206b05c51253d3f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml",
+          "sha256": "971a5ef96616c40c8283caa70e38bcd57f138989f19befd591eea61aca7fab3e"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/domain_preservation.rs",
+          "sha256": "bbd6a078520cd0bb7e7eb23d101288c96af3eb3de037be24ad0426a043c67520"
+        }
+      ]
+    },
+    {
+      "package": "terminal-semantics",
+      "filter": "descriptors::descriptor_results::payload_history::normal_calls::tests::aggregate_byte_dependencies::bounded_owned_byte_label_keeps_its_held_duty_across_a_sibling_write",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "descriptors::descriptor_results::payload_history::normal_calls::tests::aggregate_byte_dependencies::bounded_owned_byte_label_keeps_its_held_duty_across_a_sibling_write"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests/aggregate_byte_dependencies.rs",
+          "sha256": "e956655a62b2b5d5adfe9658b3214ecefc9946b27de06f077a7230d518ca19a6"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests.rs",
+          "sha256": "87f0ce247bdeba07856a355596212d2fe94acc8803d453c79c0ed54cc1b19b0a"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls.rs",
+          "sha256": "3764fda36069d9096a77071b285cc08f67d20bad84ffebd2103e2c267f3a8b5f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history.rs",
+          "sha256": "4d126e534cc46c734a6d4fd64657c00eaab457c7d6e465891206b05c51253d3f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml",
+          "sha256": "971a5ef96616c40c8283caa70e38bcd57f138989f19befd591eea61aca7fab3e"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/domain_preservation.rs",
+          "sha256": "bbd6a078520cd0bb7e7eb23d101288c96af3eb3de037be24ad0426a043c67520"
+        }
+      ]
+    },
+    {
+      "package": "terminal-semantics",
+      "filter": "descriptors::descriptor_results::payload_history::normal_calls::tests::aggregate_byte_dependencies::owned_byte_rule_with_unused_shared_view_survives_a_sibling_write",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "descriptors::descriptor_results::payload_history::normal_calls::tests::aggregate_byte_dependencies::owned_byte_rule_with_unused_shared_view_survives_a_sibling_write"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests/aggregate_byte_dependencies.rs",
+          "sha256": "e956655a62b2b5d5adfe9658b3214ecefc9946b27de06f077a7230d518ca19a6"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests.rs",
+          "sha256": "87f0ce247bdeba07856a355596212d2fe94acc8803d453c79c0ed54cc1b19b0a"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls.rs",
+          "sha256": "3764fda36069d9096a77071b285cc08f67d20bad84ffebd2103e2c267f3a8b5f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history.rs",
+          "sha256": "4d126e534cc46c734a6d4fd64657c00eaab457c7d6e465891206b05c51253d3f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml",
+          "sha256": "971a5ef96616c40c8283caa70e38bcd57f138989f19befd591eea61aca7fab3e"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/domain_preservation.rs",
+          "sha256": "bbd6a078520cd0bb7e7eb23d101288c96af3eb3de037be24ad0426a043c67520"
+        }
+      ]
+    }
+  ]
+}
