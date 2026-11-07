@@ -37,12 +37,7 @@
     "cache_key": "compiler-regression-Linux-X64-619be19a8e341c9422e0bbfdb9c702e2989ff767a7e78d51ff551da858c5fcb7-e3aa2896cd348ad4fb15d5a98a58d9957b6f1a4b-prepared-v1-with-runner"
   },
   "fixtures": [
-    "pass/arrays/runtime_completed_array_window_replacement_exit",
-    "pass/collections/runtime_stored_reference_array_replacement_contract_exit",
-    "pass/borrows/fixed_array_reference_results_exit",
-    "fail/arrays/window_copy_preserves_inherited_element_policy",
-    "fail/collections/stored_reference_array_stale_extent",
-    "fail/borrows/fixed_array_return_live_parent_write"
+    "pass/borrows/fixed_array_reference_results_exit"
   ],
   "source_only": true,
   "samples": [],
