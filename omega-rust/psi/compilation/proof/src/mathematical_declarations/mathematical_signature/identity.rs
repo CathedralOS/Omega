@@ -335,12 +335,12 @@ impl Elaborator<'_> {
                 .map(|position| self.identity_emissions[position].clone())
                 .collect::<Vec<_>>();
             for row in rows {
-                let mut actuals = operands.clone();
-                actuals[static_arity + ordinal] = row.value;
+                let mut kernel_operands = operands.clone();
+                kernel_operands[static_arity + ordinal] = row.value;
                 let value = self.instantiate_identity_requirement(
                     application.abstraction,
                     &levels,
-                    &actuals,
+                    &kernel_operands,
                 )?;
                 let mut row = row;
                 row.source_scopes
