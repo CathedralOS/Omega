@@ -84,6 +84,7 @@ pub use match_dispatch::{validate_match_coverage, validate_match_dispatch};
 pub use result_type::{
     arithmetic_result_type_reference, expression_result_type_reference,
     join_result_type_references, parameter_expression_result_type_reference,
+    parameter_expression_result_type_reference_in_scope,
 };
 
 pub(crate) use delivered_types::report_delivered_type_mismatch;

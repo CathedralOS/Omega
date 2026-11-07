@@ -890,8 +890,9 @@ pub struct CheckingMemos {
             Option<typed_trees::types::TypeReferenceHandle>,
         >,
     >,
-    /// A parameter telescope's place types are a function of its owner and
-    /// each parameter's symbol and type, so equal rosters share one dense id.
+    /// A parameter telescope's principal results depend on its owner,
+    /// formal roster and exact supplying application, including phantom
+    /// operands of nullary calls. Equal complete contexts share one dense id.
     /// Proof intake rebuilds the same roster for every observed value; without
     /// the id, a deep `||`/`&&` predicate retypes each subtree at every node.
     pub(crate) parameter_telescopes: Mutex<
@@ -902,6 +903,7 @@ pub struct CheckingMemos {
                     symbols::SymbolHandle,
                     typed_trees::types::TypeReferenceHandle,
                 )>,
+                Option<typed_trees::trait_definition::RetainedTraitScope>,
             ),
             u32,
         >,

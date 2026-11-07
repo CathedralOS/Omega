@@ -426,7 +426,7 @@ fn contract_occurrence_owner(
     }
     let mut owner = None;
     let (mut nodes, mut seen) = (Vec::new(), ContractNodeSet::default());
-    for (callable, return_type, parameters, contract) in callable_contract_scopes(program) {
+    for (callable, return_type, parameters, _, contract) in callable_contract_scopes(program) {
         contract_nodes(program, contract, &mut nodes, &mut seen);
         if !seen.contains(&expression) || !seen.contains(&root) {
             continue;
@@ -470,15 +470,6 @@ pub(crate) fn source_contract_parameters(
     Some(program.state_parameters.span_or_empty(parameters))
 }
 
-/// Source contracts retain the exact formal telescope of every live authored
-/// or applied signature. A prepared view has fresh symbols and substituted
-/// carriers; its declaring template cannot supply those bindings.
-pub(crate) fn retained_callable_signatures(
-    program: &dyn crate::CheckingInput,
-) -> impl Iterator<Item = &typed_trees::signature::StateSignature> {
-    retained_callable_contracts(program).map(|contract| contract.signature)
-}
-
 /// Preserve the supplying scope alongside each exact copied telescope.
 pub(crate) fn retained_callable_contracts(
     program: &dyn crate::CheckingInput,
@@ -518,6 +509,7 @@ pub fn callable_contract_scopes(
         symbols::SymbolHandle,
         TypeReferenceHandle,
         arena::HandleSpan<StateParameter>,
+        Option<typed_trees::trait_definition::RetainedTraitScope>,
         &SignatureContract,
     ),
 > + '_ {
@@ -527,14 +519,17 @@ pub fn callable_contract_scopes(
             machine.symbol,
             entry.return_type,
             entry.parameters,
+            None,
             program.machine_contracts(machine),
         ))
     });
-    let requirements = retained_callable_signatures(program).map(|signature| {
+    let requirements = retained_callable_contracts(program).map(|scope| {
+        let signature = scope.signature;
         (
             signature.symbol,
             signature.return_type,
             signature.parameters,
+            scope.trait_scope,
             program.state_signature_contracts(signature),
         )
     });
@@ -543,14 +538,15 @@ pub fn callable_contract_scopes(
             operator.symbol,
             operator.return_type,
             operator.parameters,
+            None,
             program.operator_contracts(operator),
         )
     });
     machines.chain(operators).chain(requirements).flat_map(
-        |(callable, return_type, parameters, contracts)| {
+        |(callable, return_type, parameters, trait_scope, contracts)| {
             contracts
                 .iter()
-                .map(move |contract| (callable, return_type, parameters, contract))
+                .map(move |contract| (callable, return_type, parameters, trait_scope, contract))
         },
     )
 }
@@ -719,7 +715,7 @@ impl ContractOccurrenceIndex {
         let mut contracts = Vec::new();
         let mut containing = symbols::SymbolKeyMap::<ExpressionHandle, Vec<u32>>::default();
         let (mut nodes, mut seen) = (Vec::new(), ContractNodeSet::default());
-        for (callable, return_type, parameters, contract) in callable_contract_scopes(program) {
+        for (callable, return_type, parameters, _, contract) in callable_contract_scopes(program) {
             let position =
                 u32::try_from(contracts.len()).expect("callable contract position overflow");
             contract_nodes(program, contract, &mut nodes, &mut seen);
