@@ -128,9 +128,7 @@ impl ActivationPaths {
                             .or_default()
                             .push(source);
                     }
-                    OriginEdgeRole::Operand
-                    | OriginEdgeRole::Stored
-                    | OriginEdgeRole::Arrival { .. } => {
+                    OriginEdgeRole::Operand | OriginEdgeRole::Stored | OriginEdgeRole::Arrival => {
                         pending.insert(
                             (node, source),
                             BalancedDerivation::Local {

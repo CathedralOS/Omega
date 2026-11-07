@@ -195,22 +195,22 @@ impl<'a> Reviewer<'a> {
                 let mechanism = self
                     .context
                     .exact_mechanism(boundary, &selected_row.binding)?;
-                if self.checked_handles.is_none() {
-                    if let Some(checked) = super::windows_handle_replay::checked_calls(
+                if self.checked_handles.is_none()
+                    && let Some(checked) = super::windows_handle_replay::checked_calls(
                         self.artifact,
                         &self.context,
                         boundary,
-                    )? {
-                        let mut rows = self.context.physical_policy.explicit_rows().to_vec();
-                        rows.extend_from_slice(checked.physical_rows());
-                        self.context.physical_policy = std::borrow::Cow::Owned(
-                            crate::provider_admission::terminal_authority_policy_with_rows(rows)
-                                .map_err(|reason| {
-                                    format!("checked handle physical policy conflicts: {reason:?}")
-                                })?,
-                        );
-                        self.checked_handles = Some(checked);
-                    }
+                    )?
+                {
+                    let mut rows = self.context.physical_policy.explicit_rows().to_vec();
+                    rows.extend_from_slice(checked.physical_rows());
+                    self.context.physical_policy = std::borrow::Cow::Owned(
+                        crate::provider_admission::terminal_authority_policy_with_rows(rows)
+                            .map_err(|reason| {
+                                format!("checked handle physical policy conflicts: {reason:?}")
+                            })?,
+                    );
+                    self.checked_handles = Some(checked);
                 }
                 let schema = selected_plan.schema_identity_digest();
                 let requirement = selected_plan

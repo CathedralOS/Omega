@@ -71,7 +71,7 @@ pub(super) enum ScalarDefinition {
     /// The requested payload is inactive at this exact cut. It is no value;
     /// replay must match the caller's actual selected-case guard before it can
     /// exclude this returning alternative.
-    InactiveCase(DescriptorCasePredicate),
+    InactiveCase,
     Stored(Vec<StoredScalarSource>),
     Arrivals(Vec<ScalarArrival>),
     CallResult(Caller),
@@ -80,7 +80,6 @@ pub(super) enum ScalarDefinition {
 #[derive(Clone, Debug)]
 pub(super) struct ScalarArrival {
     pub predecessor: DescriptorPosition,
-    pub successor_ordinal: usize,
     pub value: CapturedScalarOperand,
 }
 
@@ -546,12 +545,11 @@ impl<'a> HandleValueReader<'a> {
         }
         let mut arrivals = Vec::new();
         for (position, edges) in &self.scalar_captures(identity)?.arrivals {
-            for (successor_ordinal, bindings) in edges.iter().enumerate() {
+            for bindings in edges {
                 for (parameter, term) in bindings {
                     if *parameter == value {
                         arrivals.push(ScalarArrival {
                             predecessor: *position,
-                            successor_ordinal,
                             value: term.clone(),
                         });
                     }
@@ -762,7 +760,7 @@ impl<'a> HandleValueReader<'a> {
                 .case_feasibility(identity, position, &predicate)
                 == FlowFeasibility::ProvedImpossible
             {
-                return Ok(ScalarDefinition::InactiveCase(predicate));
+                return Ok(ScalarDefinition::InactiveCase);
             }
         }
         let history = self

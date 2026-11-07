@@ -648,7 +648,7 @@ impl<'a> HandleStorageGeometry<'a> {
             if stride == 0 {
                 return Err("handle representation view has no nonzero element width".into());
             }
-            if source.range.byte_length() % stride != 0 {
+            if !source.range.byte_length().is_multiple_of(stride) {
                 return Err(
                     "handle representation view does not tile its original captured bytes".into(),
                 );

@@ -221,6 +221,7 @@ pub(super) struct CapturedHandleRegion {
     regions: Vec<(RelativeHandleRange, BTreeSet<HandleInstance>)>,
 }
 
+#[cfg(test)]
 impl CapturedHandleRegion {
     pub(super) fn dependencies(&self) -> BTreeSet<HandleInstance> {
         self.cells
@@ -416,6 +417,7 @@ impl HandleAliases {
     /// nonzero represented offset or a footprint that does not cover the whole
     /// original scalar. Old untouched bits remain dependencies. No partial
     /// write can retain or establish one exact HANDLE, including a constant.
+    #[cfg(test)]
     pub(super) fn write_partial_word(
         &mut self,
         home: HandleStorageRange,

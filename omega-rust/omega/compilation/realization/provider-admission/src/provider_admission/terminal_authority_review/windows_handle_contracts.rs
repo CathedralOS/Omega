@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 
 use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueLocation, ValueShape};
 use semantic_vocabulary::{BoundaryMachineId, IntegerSign, ScalarType, StructuralTypeId};
-use target_operations::{NormalizedForeignCallBinding, NormalizedForeignCallMechanism};
+use target_operations::NormalizedForeignCallMechanism;
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, StructuralAccess,
     StructuralFieldType, StructuralRecordStorage, StructuralTypeShape,
@@ -208,10 +208,10 @@ fn reviewed_apis() -> &'static [ReviewedApi] {
 pub(super) struct ReviewedHandleCall<'a> {
     pub contract: WindowsHandleContract,
     pub declaration: &'a BoundaryMachineDeclaration,
-    pub binding: &'a NormalizedForeignCallBinding,
 }
 
-/// Borrow the actual admitted execution, including its full entry plan. A
+/// Check the actual admitted execution, including its full entry plan. Replay
+/// retains the original operand declaration and reviewed API protocol; a
 /// commitment alone cannot say which source operand reaches an API slot.
 pub(super) fn reviewed_call<'a>(
     context: &'a ReviewContext<'_>,
@@ -248,7 +248,6 @@ pub(super) fn reviewed_call<'a>(
         return Ok(Some(ReviewedHandleCall {
             contract: WindowsHandleContract::NoHandleIntervention,
             declaration,
-            binding,
         }));
     }
     let Some(api) = reviewed_apis()
@@ -273,7 +272,6 @@ pub(super) fn reviewed_call<'a>(
     Ok(Some(ReviewedHandleCall {
         contract: api.contract,
         declaration,
-        binding,
     }))
 }
 

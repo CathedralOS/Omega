@@ -44,6 +44,9 @@ pub(super) enum ScalarSubject {
     },
 }
 
+// The balanced-transport controls retain these labels. Production argument
+// propagation joins every source; actual lifetime replay owns matched frames.
+#[cfg(test)]
 #[derive(Clone, Debug)]
 pub(super) enum OriginEdgeRole {
     Operand,
@@ -59,14 +62,12 @@ pub(super) enum OriginEdgeRole {
         callee: MachineId,
         position: DescriptorPosition,
     },
-    Arrival {
-        predecessor: DescriptorPosition,
-        successor_ordinal: usize,
-    },
+    Arrival,
 }
 
 #[derive(Clone, Debug)]
 pub(super) struct OriginEdge {
+    #[cfg(test)]
     pub role: OriginEdgeRole,
     pub source: ScalarSubject,
 }
@@ -81,19 +82,13 @@ pub(super) enum OriginKind {
         caller: Caller,
         boundary: semantic_vocabulary::BoundaryMachineId,
     },
-    NativeOutput {
-        caller: Caller,
-        parameter: usize,
-    },
-    IntrinsicReturn {
-        caller: Caller,
-        execution: effects::CompilerIntrinsicExecutionIdentity,
-    },
+    NativeOutput,
+    IntrinsicReturn,
     /// Inputs or observations with no derived identity remain explicit unknowns.
     /// No consumer may interpret their absent edges as empty physical reach.
     ExternalInput,
-    OpaqueObservation(ScalarTerm),
-    InactiveCase(terminal_semantics::descriptor_results::DescriptorCasePredicate),
+    OpaqueObservation,
+    InactiveCase,
 }
 
 #[derive(Clone, Debug)]
@@ -151,10 +146,7 @@ impl HandleOrigins {
                 ScalarSubject::NativeOutput { caller, parameter } => {
                     reader.require_native_output(*caller, *parameter)?;
                     OriginEquation {
-                        kind: OriginKind::NativeOutput {
-                            caller: *caller,
-                            parameter: *parameter,
-                        },
+                        kind: OriginKind::NativeOutput,
                         sources: Vec::new(),
                     }
                 }
@@ -178,6 +170,7 @@ fn definition_equation(
         ScalarDefinition::Parameter(parameter) => {
             for call in calls.callers.get(identity).into_iter().flatten() {
                 sources.push(OriginEdge {
+                    #[cfg(test)]
                     role: OriginEdgeRole::Actual {
                         caller: call.caller,
                         callee: identity,
@@ -198,6 +191,7 @@ fn definition_equation(
         ScalarDefinition::EntryStorage(entry) => {
             for call in calls.callers.get(identity).into_iter().flatten() {
                 sources.push(OriginEdge {
+                    #[cfg(test)]
                     role: OriginEdgeRole::Actual {
                         caller: call.caller,
                         callee: identity,
@@ -219,6 +213,7 @@ fn definition_equation(
         ScalarDefinition::BorrowedEntry(entry) => {
             for call in calls.callers.get(identity).into_iter().flatten() {
                 sources.push(OriginEdge {
+                    #[cfg(test)]
                     role: OriginEdgeRole::Actual {
                         caller: call.caller,
                         callee: identity,
@@ -237,13 +232,14 @@ fn definition_equation(
                 });
             }
         }
-        ScalarDefinition::InactiveCase(predicate) => {
+        ScalarDefinition::InactiveCase => {
             return Ok(OriginEquation {
-                kind: OriginKind::InactiveCase(predicate),
+                kind: OriginKind::InactiveCase,
                 sources,
             });
         }
         ScalarDefinition::Expression(value) => sources.push(OriginEdge {
+            #[cfg(test)]
             role: OriginEdgeRole::Operand,
             source: ScalarSubject::Expression {
                 machine: identity,
@@ -252,6 +248,7 @@ fn definition_equation(
             },
         }),
         ScalarDefinition::CallResult(caller) => sources.push(OriginEdge {
+            #[cfg(test)]
             role: OriginEdgeRole::Operand,
             source: ScalarSubject::CallResult {
                 caller,
@@ -261,10 +258,8 @@ fn definition_equation(
         ScalarDefinition::Arrivals(arrivals) => {
             for arrival in arrivals {
                 sources.push(OriginEdge {
-                    role: OriginEdgeRole::Arrival {
-                        predecessor: arrival.predecessor,
-                        successor_ordinal: arrival.successor_ordinal,
-                    },
+                    #[cfg(test)]
+                    role: OriginEdgeRole::Arrival,
                     source: match arrival.value {
                         terminal_semantics::descriptor_results::CapturedScalarOperand::Value {
                             id,
@@ -307,6 +302,7 @@ fn definition_equation(
                     },
                 };
                 sources.push(OriginEdge {
+                    #[cfg(test)]
                     role: OriginEdgeRole::Stored,
                     source,
                 });
@@ -354,6 +350,7 @@ fn result_equation(
             CallTarget::Machine(callee) => {
                 for returned in reader.returns(callee, projection)? {
                     sources.push(OriginEdge {
+                        #[cfg(test)]
                         role: OriginEdgeRole::Returned {
                             caller,
                             callee,
@@ -379,7 +376,7 @@ fn result_equation(
                     sources,
                 });
             }
-            CallTarget::Intrinsic(execution) if alternatives.len() == 1 && projection.is_none() => {
+            CallTarget::Intrinsic(_) if alternatives.len() == 1 && projection.is_none() => {
                 let super::windows_handle_calls::RuntimeArguments::Explicit { scalar, structural } =
                     call.arguments
                 else {
@@ -389,6 +386,7 @@ fn result_equation(
                     return Err("intrinsic scalar result requires an unsupported structural operand interpretation".into());
                 }
                 sources.extend(scalar.iter().map(|value| OriginEdge {
+                    #[cfg(test)]
                     role: OriginEdgeRole::Operand,
                     source: ScalarSubject::Value {
                         machine: caller.machine,
@@ -396,7 +394,7 @@ fn result_equation(
                     },
                 }));
                 return Ok(OriginEquation {
-                    kind: OriginKind::IntrinsicReturn { caller, execution },
+                    kind: OriginKind::IntrinsicReturn,
                     sources,
                 });
             }
@@ -459,7 +457,7 @@ fn expression_equation(
                 .collect::<Option<Vec<_>>>();
             let Some(path) = path else {
                 return Ok(OriginEquation {
-                    kind: OriginKind::OpaqueObservation(value.clone()),
+                    kind: OriginKind::OpaqueObservation,
                     sources: Vec::new(),
                 });
             };
@@ -486,6 +484,7 @@ fn expression_equation(
         return Ok(OriginEquation {
             kind: OriginKind::Alternatives,
             sources: vec![OriginEdge {
+                #[cfg(test)]
                 role: OriginEdgeRole::Operand,
                 source,
             }],
@@ -497,7 +496,7 @@ fn expression_equation(
         ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) | ScalarTerm::IeeeFloatLiteral(_)
     );
     let kind = if operands.is_empty() && !literal {
-        OriginKind::OpaqueObservation(value.clone())
+        OriginKind::OpaqueObservation
     } else {
         OriginKind::Expression(value.clone())
     };
@@ -506,6 +505,7 @@ fn expression_equation(
         sources: operands
             .into_iter()
             .map(|operand| OriginEdge {
+                #[cfg(test)]
                 role: OriginEdgeRole::Operand,
                 source: ScalarSubject::Expression {
                     machine,

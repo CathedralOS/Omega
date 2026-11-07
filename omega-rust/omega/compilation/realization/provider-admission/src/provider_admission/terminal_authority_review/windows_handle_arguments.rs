@@ -80,7 +80,6 @@ pub(super) struct HandleArgumentValues<'a, 'module> {
 pub(super) struct FileAcquisitionArguments {
     pub caller: Caller,
     pub flags: BTreeSet<u32>,
-    pub sharing: BTreeSet<u32>,
 }
 
 pub(super) struct FileDuplicateArguments {
@@ -217,11 +216,11 @@ impl<'a, 'module> HandleArgumentValues<'a, 'module> {
                         ArgumentValues::literal(ArgumentAtom::CurrentProcess)
                     } else { ArgumentValues::Unknown }
                 }
-                OriginKind::NativeOutput { .. }
-                | OriginKind::IntrinsicReturn { .. }
+                OriginKind::NativeOutput
+                | OriginKind::IntrinsicReturn
                 | OriginKind::ExternalInput
-                | OriginKind::OpaqueObservation(_)
-                | OriginKind::InactiveCase(_) => ArgumentValues::Unknown,
+                | OriginKind::OpaqueObservation
+                | OriginKind::InactiveCase => ArgumentValues::Unknown,
             };
                 if values[ordinal].join(&incoming) {
                     for &dependent in &dependents[ordinal] {
@@ -344,19 +343,18 @@ impl<'a, 'module> HandleArgumentValues<'a, 'module> {
                     .map_err(|_| "file acquisition flags exceed their physical word".into())
             })
             .collect::<Result<BTreeSet<_>, String>>()?;
-        let sharing = self
-            .words(input, 2, IntegerSign::Unsigned, 32)?
+        self.words(input, 2, IntegerSign::Unsigned, 32)?
             .into_iter()
-            .map(|value| {
-                u32::try_from(value).map_err(|_| "file sharing exceeds its physical word".into())
-            })
-            .collect::<Result<BTreeSet<_>, String>>()?;
-        // Retain full actual flags and sharing. Do not remove read/write/delete
-        // sharing or pretend unrelated delete-pending objects cannot exist.
+            .try_for_each(|value| {
+                u32::try_from(value)
+                    .map(|_| ())
+                    .map_err(|_| "file sharing exceeds its physical word".to_owned())
+            })?;
+        // Validate the complete sharing word without imposing a new mask.
+        // The actual read/write/delete sharing argument stays unchanged.
         Ok(FileAcquisitionArguments {
             caller: input.call.caller,
             flags,
-            sharing,
         })
     }
 

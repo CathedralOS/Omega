@@ -1702,21 +1702,19 @@ impl CanonicalHandleState {
             _ => None,
         };
         let mut stores = Vec::new();
-        if let Some(writes) = prepared.operands.writes.get(&position) {
+        if let Some(Ok(writes)) = prepared.operands.writes.get(&position) {
             // An unresolved exact writer is still handled below by the
             // canonical bounded may-write roster. It cannot produce an exact
             // alias from a guessed element or preserve an overlapping old one.
-            if let Ok(writes) = writes {
-                for (destination, operand) in writes {
-                    let ScalarTerm::Value { id, .. } = operand else {
-                        return Err("canonical scalar writer is not its evaluated operand".into());
-                    };
-                    let value = self.scalar(*id, position, &prepared.expressions)?;
-                    let selected =
-                        geometry.scalar(destination, &self.references, value.word.scalar_type())?;
-                    self.observe(selected.address_dependencies.iter().copied(), occurrence)?;
-                    stores.push(CapturedStore::Scalar(selected, value));
-                }
+            for (destination, operand) in writes {
+                let ScalarTerm::Value { id, .. } = operand else {
+                    return Err("canonical scalar writer is not its evaluated operand".into());
+                };
+                let value = self.scalar(*id, position, &prepared.expressions)?;
+                let selected =
+                    geometry.scalar(destination, &self.references, value.word.scalar_type())?;
+                self.observe(selected.address_dependencies.iter().copied(), occurrence)?;
+                stores.push(CapturedStore::Scalar(selected, value));
             }
         }
         if let Some(captured) = prepared.resident_transfers.get(&position) {
@@ -2372,15 +2370,13 @@ impl CanonicalHandleState {
             }
             if let (ScalarTerm::Value { id: left, .. }, ScalarTerm::Value { id: right, .. }) =
                 (left.as_ref(), right.as_ref())
-            {
-                if let (Ok(left), Ok(right)) = (
+                && let (Ok(left), Ok(right)) = (
                     self.aliases.scalar(*left)?.exact_handle(),
                     self.aliases.scalar(*right)?.exact_handle(),
-                ) {
-                    if left == right {
-                        return Ok(KnownHandleScalar::Boolean(true));
-                    }
-                }
+                )
+                && left == right
+            {
+                return Ok(KnownHandleScalar::Boolean(true));
             }
         }
         let mut instantiated = term.clone();
