@@ -31,7 +31,6 @@ pub(super) fn derive(body: &ObjectArtifact) -> Result<Option<InstalledBodyFaultP
     let current = replay.0.source().source().source().source();
     let selected = current.selected_plan();
     let physical = current.machine().machine().plan();
-    let model = current.register_environment().physical().model();
     if selected.psi != body.psi()
         || selected.entry != body.entry()
         || physical.target != body.target()
@@ -75,6 +74,14 @@ pub(super) fn derive(body: &ObjectArtifact) -> Result<Option<InstalledBodyFaultP
         execution,
         &machines,
     )?;
+    // Call allocation clobbers are permissions, not executed CPU state.
+    // The shared collector includes actual callees, decoded ordinary forms
+    // and generated frame save/restores before checking this remaining premise.
+    crate::observe_native_body_cpu_state(
+        body,
+        execution.entry().entry().inbound().state.preemption,
+    )?
+    .require_without_floating_state()?;
     let mut correlated = correlated.into_iter();
     let framed = replay.0.source().source();
     for function in &physical.functions {
@@ -114,27 +121,6 @@ pub(super) fn derive(body: &ObjectArtifact) -> Result<Option<InstalledBodyFaultP
                 };
                 if machines.binary_search(&target).is_err() {
                     return Err(fail("callee is outside the exact retained body closure"));
-                }
-            }
-            // No inferred CR0.TS/EM or floating-exception condition. A vector
-            // body needs its own admitted CPU-state premise.
-            for unit in instruction
-                .unit_uses
-                .iter()
-                .chain(&instruction.unit_defs)
-                .chain(&instruction.unit_clobbers)
-            {
-                let unit = model
-                    .unit(*unit)
-                    .ok_or_else(|| fail("physical register unit is unknown"))?;
-                if matches!(
-                    unit.kind,
-                    register_model::RegisterUnitKind::VectorLane
-                        | register_model::RegisterUnitKind::FloatingControl
-                ) {
-                    return Err(fail(
-                        "floating/vector CPU state is not established for this closure",
-                    ));
                 }
             }
             let effects = &instruction.alternative.encoded;

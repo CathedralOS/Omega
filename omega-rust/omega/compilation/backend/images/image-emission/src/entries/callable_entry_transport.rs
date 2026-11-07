@@ -3,6 +3,7 @@
 //! runtime ABI's default scalar storage, never from pointer width or debug names.
 
 mod body_footprint;
+pub use body_footprint::NativeBodyCpuState;
 
 use std::sync::Arc;
 
@@ -13,6 +14,18 @@ use machine_emission::native_entry_bridge::{
     InstalledInterruptEntryPlan, NativeEntryBridgeRequest, NativeEntryParameter,
     emit_installed_interrupt_entry_bridge, emit_native_entry_bridge,
 };
+
+/// Observe the unchanged ordinary body namespace through the same collector
+/// used by callable entry checking. This returns no CPU-state permission.
+pub fn observe_native_body_cpu_state(
+    body: &ObjectArtifact,
+    preemption: calling_conventions::Preemption,
+) -> Result<NativeBodyCpuState, Error> {
+    body_footprint::collect(
+        body.composition_source.as_deref().unwrap_or(body),
+        preemption,
+    )
+}
 
 /// A checked entry remains a checked entry when its ABI needs no adapter bytes.
 /// Keep that result beside the optional bridge rather than representing an alias
@@ -221,7 +234,9 @@ pub(crate) fn native_entry_request(
         target: body.target,
         internal: internal.clone(),
         inbound: inbound.clone(),
-        body_footprint: Some(body_footprint::collect(body, inbound.state.preemption)?),
+        body_footprint: Some(
+            body_footprint::collect(body, inbound.state.preemption)?.into_effects(),
+        ),
         parameters,
     })
 }

@@ -37,8 +37,9 @@ mod entries;
 mod image;
 mod object;
 pub use entries::callable_entry_transport::{
-    CallableEntryTransport, create_callable_entry_transport,
+    CallableEntryTransport, NativeBodyCpuState, create_callable_entry_transport,
     create_installed_private_function_object, create_private_function_object,
+    observe_native_body_cpu_state,
 };
 pub use entries::foreign_adapter::{
     NativeForeignAdapterEmissionError, NativeForeignAdapterImage, emit_native_foreign_adapter,

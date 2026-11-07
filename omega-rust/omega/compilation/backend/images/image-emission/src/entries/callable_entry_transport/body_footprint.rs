@@ -23,10 +23,64 @@ use selected_instructions::{
 use crate::{FunctionFragmentObjectArtifactError as Error, ObjectArtifact};
 use semantic_vocabulary::MachineId;
 
+/// State observed in body/callee code and generated frames, conservatively
+/// including any admitted opaque-callee ceiling. This grants no ABI allowance
+/// or installation authority. Floating control stays distinct from the
+/// ControlState class, which also contains ordinary privileged operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeBodyCpuState {
+    effects: StateEffectsEvidence,
+    generated_effects: StateEffectsEvidence,
+    floating_control: bool,
+    opaque_control: bool,
+}
+
+impl NativeBodyCpuState {
+    pub fn effects(&self) -> &StateEffectsEvidence {
+        &self.effects
+    }
+
+    /// Target-decoded direct-call transport and frame prologues/epilogues.
+    pub fn generated_effects(&self) -> &StateEffectsEvidence {
+        &self.generated_effects
+    }
+
+    pub const fn floating_control(&self) -> bool {
+        self.floating_control
+    }
+
+    pub fn require_without_floating_state(&self) -> Result<(), Error> {
+        if self.floating_control {
+            return Err(Error::Mismatch(
+                "installed body executes floating control without a CPU-state premise",
+            ));
+        }
+        if self.opaque_control {
+            return Err(Error::Mismatch(
+                "opaque callee CPU-state ceiling does not exclude floating control",
+            ));
+        }
+        if self
+            .effects
+            .machine_state()
+            .contains_all(MachineStateSet::new([MachineState::VectorRegisters]))
+        {
+            return Err(Error::Mismatch(
+                "installed body executes vector state without a CPU-state premise",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(super) fn into_effects(self) -> StateEffectsEvidence {
+        self.effects
+    }
+}
+
 pub(super) fn collect(
     body: &ObjectArtifact,
     preemption: Preemption,
-) -> Result<StateEffectsEvidence, Error> {
+) -> Result<NativeBodyCpuState, Error> {
     let replay = body.fragment_replay.as_ref().ok_or(Error::Mismatch(
         "interrupt body lacks retained emission custody",
     ))?;
@@ -51,7 +105,7 @@ pub(super) fn collect(
     )?;
     let call_effects = direct_call_effects(body.target.architecture)?;
     let mut footprint = Footprint::default();
-    let mut frame_effects = StateEffectsEvidence::new(
+    let mut generated_effects = StateEffectsEvidence::new(
         RegisterSet::default(),
         RegisterSet::default(),
         MachineStateSet::empty(),
@@ -59,6 +113,8 @@ pub(super) fn collect(
     );
     let mut visited = BTreeSet::new();
     let mut pending = vec![body.entry];
+    let mut frame_floating_control = false;
+    let mut opaque_control = false;
     while let Some(machine) = pending.pop() {
         if !visited.insert(machine) {
             continue;
@@ -79,6 +135,25 @@ pub(super) fn collect(
             .ok_or(Error::Mismatch(
                 "entry callee lacks its actual frame protocol",
             ))?;
+        let frame_layout = source
+            .frame_layout()
+            .functions
+            .iter()
+            .find(|frame| frame.machine == machine)
+            .ok_or(Error::Mismatch(
+                "entry callee lacks its actual frame layout",
+            ))?;
+        for restore in &frame_layout.unwind.restores {
+            let view = model
+                .view(restore.view)
+                .ok_or(Error::Mismatch("entry frame names unknown register view"))?;
+            for unit in view.units.iter().chain(&view.write_units) {
+                let unit = model
+                    .unit(*unit)
+                    .ok_or(Error::Mismatch("entry frame names unknown register unit"))?;
+                frame_floating_control |= unit.kind == RegisterUnitKind::FloatingControl;
+            }
+        }
         for span in [frame.prologue, frame.epilogue] {
             let bytes = span.bytes(&protocols.bytes).ok_or(Error::Mismatch(
                 "entry frame protocol has a stale byte span",
@@ -87,7 +162,7 @@ pub(super) fn collect(
                 target::Architecture::X86_64 => isa_x86_64::decode_x86_64_generated_entry(bytes, None),
                 target::Architecture::Aarch64 => isa_aarch64::decode_aarch64_generated_entry(bytes, None),
             }.map_err(|reason| Error::NativeEntryBridge(machine_emission::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(reason)))?;
-            frame_effects = frame_effects.compose(&decoded.effects);
+            generated_effects = generated_effects.compose(&decoded.effects);
         }
         // A handler promised to run with interrupts masked cannot enable
         // nested delivery, even if IRETQ would restore the original flags later.
@@ -107,7 +182,7 @@ pub(super) fn collect(
                 }
                 // The admitted target fixup owns only its direct-call form.
                 // Argument copies retain their own rows; visit the exact callee.
-                frame_effects = frame_effects.compose(&call_effects);
+                generated_effects = generated_effects.compose(&call_effects);
                 pending.push(fixup.callee);
                 continue;
             }
@@ -159,6 +234,12 @@ pub(super) fn collect(
                     .boundary_entry_plan
                     .state
                     .permitted_transitive_use;
+                opaque_control |= !ceiling
+                    .intersection(MachineStateSet::new([
+                        MachineState::ControlState,
+                        MachineState::ExtendedState,
+                    ]))
+                    .is_empty();
                 footprint.states = footprint.states.union(ceiling);
                 footprint.clobbered = footprint.clobbered.union(ceiling);
             }
@@ -212,7 +293,12 @@ pub(super) fn collect(
             }
         }
     }
-    Ok(footprint.finish(model)?.compose(&frame_effects))
+    let mut collected = footprint.finish(model)?;
+    collected.effects = collected.effects.compose(&generated_effects);
+    collected.generated_effects = generated_effects;
+    collected.floating_control |= frame_floating_control;
+    collected.opaque_control = opaque_control;
+    Ok(collected)
 }
 
 /// Join the admitted producer's complete physical order to its encoded rows.
@@ -385,13 +471,15 @@ impl Footprint {
         Ok(())
     }
 
-    fn finish(mut self, model: &PhysicalRegisterModel) -> Result<StateEffectsEvidence, Error> {
+    fn finish(mut self, model: &PhysicalRegisterModel) -> Result<NativeBodyCpuState, Error> {
         let mut registers = Vec::new();
         let mut reads = Vec::new();
+        let mut floating_control = false;
         for unit in self.units.union(&self.reads) {
             let declaration = model.unit(*unit).ok_or(Error::Mismatch(
                 "interrupt effect names unknown register unit",
             ))?;
+            floating_control |= declaration.kind == RegisterUnitKind::FloatingControl;
             let state = match declaration.kind {
                 RegisterUnitKind::IntegerLane => MachineState::GeneralRegisters,
                 RegisterUnitKind::VectorLane => MachineState::VectorRegisters,
@@ -427,12 +515,17 @@ impl Footprint {
                 }
             }
         }
-        Ok(StateEffectsEvidence::new(
-            RegisterSet::new(reads),
-            RegisterSet::new(registers),
-            self.states,
-            self.clobbered,
-        ))
+        Ok(NativeBodyCpuState {
+            effects: StateEffectsEvidence::new(
+                RegisterSet::new(reads),
+                RegisterSet::new(registers),
+                self.states,
+                self.clobbered,
+            ),
+            generated_effects: StateEffectsEvidence::empty(),
+            floating_control,
+            opaque_control: false,
+        })
     }
 }
 
@@ -543,6 +636,7 @@ mod tests {
         let result = footprint
             .finish(model)
             .unwrap()
+            .into_effects()
             .compose(&direct_call_effects(target::Architecture::X86_64).unwrap());
         assert!(result.registers().contains(MachineRegister::X86Rax));
         assert!(result.registers().contains(MachineRegister::X86Rsp));
@@ -570,6 +664,7 @@ mod tests {
         let result = footprint
             .finish(model)
             .unwrap()
+            .into_effects()
             .compose(&direct_call_effects(target::Architecture::X86_64).unwrap());
         assert!(result.registers().contains(MachineRegister::X86Xmm(3)));
         assert!(result.machine_state().contains_all(MachineStateSet::new([
@@ -588,7 +683,7 @@ mod tests {
         footprint
             .read_view(model, model.view_named("xmm5").unwrap().id)
             .unwrap();
-        let result = footprint.finish(model).unwrap();
+        let result = footprint.finish(model).unwrap().into_effects();
         assert!(
             result
                 .machine_state()
@@ -662,7 +757,7 @@ mod tests {
                     .unwrap(),
             )
             .unwrap();
-        let scalar = scalar.finish(model).unwrap();
+        let scalar = scalar.finish(model).unwrap().into_effects();
         assert!(scalar.registers().contains(MachineRegister::X86Rax));
         assert!(
             !scalar
@@ -682,6 +777,7 @@ mod tests {
             vector
                 .finish(model)
                 .unwrap()
+                .into_effects()
                 .registers()
                 .contains(MachineRegister::X86Xmm(3))
         );

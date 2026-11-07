@@ -9,6 +9,7 @@ pub(super) fn inspect(
     report: &compilation_products::CompileReport,
     fixture: &Path,
 ) -> Result<(), String> {
+    inspect_body_cpu_state(report, fixture)?;
     inspect_instruction_sources(report, fixture)?;
     let oracle = fixture.join("expected_native_entry_controls.txt");
     if !oracle.exists() {
@@ -170,6 +171,102 @@ pub(super) fn inspect(
             ));
         }
         Ok(_) => return Err("native entry accepted undeclared generated vector use".into()),
+    }
+    Ok(())
+}
+
+fn inspect_body_cpu_state(
+    report: &compilation_products::CompileReport,
+    fixture: &Path,
+) -> Result<(), String> {
+    let oracle = fixture.join("expected_native_cpu_state_controls.txt");
+    if !oracle.exists() {
+        return Ok(());
+    }
+    let expectation = std::fs::read_to_string(oracle).map_err(|error| error.to_string())?;
+    let object = report
+        .retained_native_artifact()
+        .ok_or("CPU-state controls require an actual native product")?
+        .object();
+    let observed = image_emission::observe_native_body_cpu_state(
+        object,
+        calling_conventions::Preemption::NotApplicable,
+    )
+    .map_err(|error| format!("actual body CPU-state observation: {error}"))?;
+    let vector = calling_conventions::MachineStateSet::new([
+        calling_conventions::MachineState::VectorRegisters,
+    ]);
+    match expectation.trim() {
+        "scalar calls" => {
+            let rows = object
+                .native_instruction_source_rows()
+                .ok_or("scalar CPU-state control lacks retained instruction rows")?;
+            let source = rows.frame_application.source().source();
+            let model = source.register_environment().physical().model();
+            let actual_abi_vector_clobber = source
+                .machine()
+                .machine()
+                .plan()
+                .functions
+                .iter()
+                .flat_map(|function| function.instructions())
+                .any(|instruction| {
+                    instruction.alternative.encoded.control
+                        == selected_instructions::MachineEncodedControlEffect::DirectRelativeCallV1
+                        && instruction.unit_clobbers.iter().any(|unit| {
+                            model.unit(*unit).is_some_and(|unit| {
+                                matches!(
+                                    unit.kind,
+                                    register_model::RegisterUnitKind::VectorLane
+                                        | register_model::RegisterUnitKind::FloatingControl
+                                )
+                            })
+                        })
+                });
+            if !actual_abi_vector_clobber {
+                return Err(
+                    "scalar CPU-state control needs an actual ABI vector-clobber call".into(),
+                );
+            }
+            if observed.effects().machine_state().contains_all(vector)
+                || observed
+                    .generated_effects()
+                    .machine_state()
+                    .contains_all(vector)
+                || observed.floating_control()
+            {
+                return Err("scalar body unexpectedly executes floating/vector state".into());
+            }
+            observed
+                .require_without_floating_state()
+                .map_err(|error| format!("scalar call CPU-state control: {error}"))?;
+        }
+        "floating control" => {
+            if !observed.floating_control() {
+                return Err(
+                    "floating-control witness lacks actual emitted floating-control use".into(),
+                );
+            }
+            require_instruction_refusal(
+                observed.require_without_floating_state(),
+                "installed body executes floating control without a CPU-state premise",
+            )?;
+        }
+        "vector body" => {
+            if !observed.effects().machine_state().contains_all(vector) {
+                return Err("vector CPU-state control needs actual emitted vector use".into());
+            }
+            require_instruction_refusal(
+                observed.require_without_floating_state(),
+                "installed body executes vector state without a CPU-state premise",
+            )?;
+        }
+        _ => {
+            return Err(
+                "CPU-state control oracle must say scalar calls, vector body or floating control"
+                    .into(),
+            );
+        }
     }
     Ok(())
 }
