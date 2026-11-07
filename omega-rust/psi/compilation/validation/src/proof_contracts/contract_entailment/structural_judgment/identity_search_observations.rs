@@ -15,8 +15,8 @@ impl StructuralJudge<'_> {
         detail: std::fmt::Arguments<'_>,
     ) -> bool {
         static ENABLED: OnceLock<bool> = OnceLock::new();
-        static MUL: [AtomicUsize; 4] = [const { AtomicUsize::new(0) }; 4];
-        static GAP: [AtomicUsize; 4] = [const { AtomicUsize::new(0) }; 4];
+        static MUL: [AtomicUsize; 9] = [const { AtomicUsize::new(0) }; 9];
+        static GAP: [AtomicUsize; 9] = [const { AtomicUsize::new(0) }; 9];
         if !*ENABLED.get_or_init(|| std::env::var_os("OMEGA_IDENTITY_SEARCH_TRACE").is_some()) {
             return false;
         }
@@ -36,7 +36,12 @@ impl StructuralJudge<'_> {
             "query" => (0, 2),
             "result" => (1, 2),
             "established" => (2, 12),
-            _ => (3, 32),
+            "resolved" => (3, 8),
+            "forms" => (4, 4),
+            "direct-pair" => (5, 8),
+            "edge-admission" => (6, 8),
+            "edge-pair" => (7, 12),
+            _ => (8, 4),
         };
         let event = counters[index].fetch_add(1, Ordering::Relaxed);
         if event >= limit {
