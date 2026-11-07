@@ -499,7 +499,7 @@ impl<'a> HandleStorageGeometry<'a> {
                 .ok_or("handle element has zero alignment")?,
         )
         .map(|rounded| rounded / alignment * alignment)
-        .ok_or("handle element stride overflows")
+        .ok_or("handle element stride overflows".into())
     }
 
     pub(super) fn as_elements(
