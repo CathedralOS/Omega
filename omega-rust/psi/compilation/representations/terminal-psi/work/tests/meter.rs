@@ -240,7 +240,7 @@ fn sponsor_budget_exhausts_atomically_before_execution() {
     );
     assert_eq!(
         meter.charge_operation(&operation).unwrap_err().to_string(),
-        "Work budget exhausted: 1 units used, 0 remaining; next charge requires 1 (schedule 1)"
+        "Work budget exhausted: 1 unit used, 0 remaining; next charge requires 1 (schedule 1)"
     );
     assert_eq!(meter.work_remaining(), Some(0));
     assert_eq!(meter.usage(), &usage_before);

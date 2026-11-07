@@ -327,7 +327,7 @@ fn retain_terminal_observation(
     std::fs::write(build_dir.join("terminal.stderr"), &reference.stderr)
         .map_err(RunError::ReferenceOutput)?;
     let work = format!(
-        "allowance\t{psi_work_budget}\nused\t{}\nschedule\t{:?}\n",
+        "work_budget\t{psi_work_budget}\nwork_used\t{}\nwork_schedule\t{:?}\n",
         reference.work_usage.total_units(),
         reference.work_usage.schedule(),
     );
@@ -456,7 +456,7 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
             write("terminal.stdout", &reference.stdout)?;
             write("terminal.stderr", &reference.stderr)?;
             let work = format!(
-                "allowance\t{psi_work_budget}\nused\t{}\nschedule\t{:?}\n",
+                "work_budget\t{psi_work_budget}\nwork_used\t{}\nwork_schedule\t{:?}\n",
                 reference.work_usage.total_units(),
                 reference.work_usage.schedule(),
             );

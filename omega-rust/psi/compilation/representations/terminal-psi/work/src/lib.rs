@@ -403,8 +403,9 @@ impl std::fmt::Display for WorkBudgetExhausted {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             formatter,
-            "Work budget exhausted: {} units used, {} remaining; next charge requires {} (schedule {})",
+            "Work budget exhausted: {} {} used, {} remaining; next charge requires {} (schedule {})",
             self.work_used,
+            if self.work_used == 1 { "unit" } else { "units" },
             self.remaining_units,
             self.required_units,
             self.schedule.marker()
