@@ -184,7 +184,11 @@ pub(crate) fn prepare(
             // claim to its referent; those claims were prepared separately.
             let mut fact_path =
                 validation::qualification_storage_path(&checked.typed, reference, segments)
-                    .map_err(LoweringError::Unsupported)?;
+                    .map_err(|reason| {
+                        LoweringError::qualification_storage_path(
+                            checked, coordinate, reference, segments, reason,
+                        )
+                    })?;
             let selected = validation::project_type_reference_from_segments(
                 &checked.typed,
                 reference,

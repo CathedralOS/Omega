@@ -132,6 +132,16 @@ pub enum LoweringError {
         live_places: Vec<PlaceId>,
     },
     InvalidFieldObservationStoragePath(validation::StorageObservationTypePathError),
+    /// A failed qualification projection retains its bounded source coordinate.
+    InvalidQualificationStoragePath {
+        reason: &'static str,
+        carrier: String,
+        state: String,
+        statement_index: usize,
+        call_ordinal: usize,
+        segments: Vec<facts::PlaceSegment>,
+        segment_count: usize,
+    },
     InvalidSuspensionPlan(&'static str),
     Unsupported(&'static str),
     CompilerEvaluationAdmission(String),
@@ -321,6 +331,35 @@ pub enum LoweringError {
 }
 
 impl LoweringError {
+    pub(crate) fn qualification_storage_path(
+        checked: &CheckedTrees,
+        coordinate: crate::emission::operation_emission::buffer::SourceCallCoordinate,
+        reference: typed_trees::types::TypeReferenceHandle,
+        segments: &[facts::PlaceSegment],
+        reason: &'static str,
+    ) -> Self {
+        // One failed join needs its carrier and path, not a global fact dump.
+        Self::InvalidQualificationStoragePath {
+            reason,
+            carrier: checked
+                .typed
+                .normalized_type_identity_text(reference)
+                .chars()
+                .take(256)
+                .collect(),
+            state: checked
+                .symbols
+                .display_path(coordinate.state, "::")
+                .chars()
+                .take(256)
+                .collect(),
+            statement_index: coordinate.statement_index,
+            call_ordinal: coordinate.call_ordinal,
+            segments: segments.iter().take(32).copied().collect(),
+            segment_count: segments.len(),
+        }
+    }
+
     pub(crate) fn with_source_names(mut self, checked: &CheckedTrees) -> Self {
         if let Self::DuplicateContentPartitionProducerCoordinate {
             state,

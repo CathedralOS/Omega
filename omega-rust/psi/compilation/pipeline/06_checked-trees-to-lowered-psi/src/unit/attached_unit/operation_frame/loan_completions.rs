@@ -184,7 +184,15 @@ impl OperationFrame<'_, '_> {
             };
             let mut fact_path =
                 validation::qualification_storage_path(&self.checked.typed, reference, segments)
-                    .map_err(LoweringError::Unsupported)?;
+                    .map_err(|reason| {
+                        LoweringError::qualification_storage_path(
+                            self.checked,
+                            coordinate,
+                            reference,
+                            segments,
+                            reason,
+                        )
+                    })?;
             let selected = validation::project_type_reference_from_segments(
                 &self.checked.typed,
                 reference,
