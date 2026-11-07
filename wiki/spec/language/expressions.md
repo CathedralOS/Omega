@@ -67,7 +67,7 @@ requirement application is a static
 Checking retains that slot demand, and realization rejects unless provider
 planning selects one admitted backing. No ambient source search, hidden value,
 or implicit argument insertion repairs missing or ambiguous supply. Calls obey
-the exact [suspension/blocking acknowledgement and position
+the [suspension/blocking acknowledgement and position
 rules](effects.md#call-site-acknowledgements).
 
 Machine invocations require their full ordinary argument list. Application of

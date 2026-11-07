@@ -104,7 +104,7 @@ Type indices use exact normalized type identity and are invariant:
 calls. Structurally equal const values have one semantic identity even when a
 record literal spells its fields in a different order; different values are
 different domains and cannot flow into one another implicitly. Every index is
-retained in checked and terminal identity while the carrier remains unchanged
+retained in checked and Psi identity while the carrier remains unchanged
 at runtime. Explicit qualification selects closed canonical indices or direct
 binders without runtime work. Generic-carrier families such as
 `T::Quantity<U>` and fixed-carrier families such as

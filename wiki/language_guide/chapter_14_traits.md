@@ -843,8 +843,8 @@ corresponding axis.
 
 Calls through the requirement acknowledge its statically retained operational
 envelope with `suspend` and `block`. A concrete or transparent refinement that
-statically removes one possibility removes only that call-site marker; it does
-not rewrite the base trait's published contract.
+removes one possibility makes its marker optional; retaining it creates no
+effect or warning. The base trait's published contract remains unchanged.
 
 ## Trait Parameters And Related Types
 

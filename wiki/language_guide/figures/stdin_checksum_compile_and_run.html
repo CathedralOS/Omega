@@ -194,7 +194,7 @@
     <div class="card legend">
       <h2>What is real</h2>
       <p><b>Real:</b> the source, its tokens, the states and edges, and the run's values. Sum 131 and count 2 give the result 133, matching the sample's recorded input grid.</p>
-      <p><b>Illustration:</b> every compiler stage after the tokens, and the check sequence. They show the kind of work each stage does, not the compiler's output. The order follows the pipeline: Psi, Terminal Psi, then Omega. Nothing here says the program terminates; it is not a native run.</p>
+      <p><b>Illustration:</b> every compiler stage after the tokens, and the check sequence. They show the kind of work each stage does, not the compiler's output. The order follows source checking and lowering, Psi publication, then native realization. Nothing here says the program terminates; it is not a native run.</p>
     </div>
   </aside>
 </div>
@@ -272,7 +272,7 @@ const STEPS = [
   ...EDGES.map((edge, i) => ({ lane: "psi", key: "check", name: "Check " + edge.replace("-", " → "), truth: "illus", edgeIndex: i, note: "Checking one transition: it must arrive with everything its target state needs." })),
   { lane: "psi", key: "coverage", name: "Branch coverage", truth: "illus", note: "The branch on a byte read must cover every case: a byte, and the end of input. No silent fall-through." },
   { lane: "psi", key: "lowered", name: "Lowered", truth: "illus", note: "Lowering: each state becomes a simple block with explicit edges. Target-neutral optimization happens here and may not change what was checked." },
-  { lane: "psi", key: "published", name: "Terminal Psi", boundary: true, truth: "illus", note: "The checked, lowered program is published as one immutable artifact. Everything above this line is target-neutral: the portable boundary." },
+  { lane: "psi", key: "published", name: "Psi artifact", boundary: true, truth: "illus", note: "The checked, lowered program is published as one immutable artifact. Everything above this line is target-neutral: the portable boundary." },
   { lane: "omega", key: "provider", name: "Provider", truth: "illus", note: "Omega starts from the published artifact. The Build picks a target and the provider for each service, such as the console." },
   { lane: "omega", key: "abstract", name: "Abstract ops", truth: "illus", note: "The program becomes abstract operations: read a byte, test it, add with wrapping, jump." },
   { lane: "omega", key: "target", name: "Target ops", truth: "illus", note: "Abstract operations become operations the chosen target actually has." },
@@ -357,7 +357,7 @@ const PUBLISHED = `<span class="kw">published program</span>  <span class="dim">
   fin(sum, n):     exit(sum + n)`;
 
 const kv = (rows) => `<table class="kv">${rows.map(([a, b]) => `<tr class="ok"><td class="mono">${a}</td><td>${b}</td></tr>`).join("")}</table>`;
-const TITLES = { source: "Source", tokens: "Tokens", syntax: "Syntax tree", names: "Names resolved", types: "Types attached", check: "Transition check", coverage: "Branch coverage", lowered: "Lowered program", published: "Terminal Psi", provider: "Provider selection", abstract: "Abstract operations", target: "Target operations", select: "Instruction selection", registers: "Register homes", layout: "Layout and encoding", bytes: "Machine bytes", run: "Running" };
+const TITLES = { source: "Source", tokens: "Tokens", syntax: "Syntax tree", names: "Names resolved", types: "Types attached", check: "Transition check", coverage: "Branch coverage", lowered: "Lowered program", published: "Psi artifact", provider: "Provider selection", abstract: "Abstract operations", target: "Target operations", select: "Instruction selection", registers: "Register homes", layout: "Layout and encoding", bytes: "Machine bytes", run: "Running" };
 
 function inspector(step) {
   switch (step.key) {

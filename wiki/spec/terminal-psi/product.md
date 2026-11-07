@@ -1,7 +1,9 @@
-# Terminal Psi product
+# Psi product
 
-This is the portable-product contract, independent of the implementation
-language. The [documentation index](../../README.md) lists its vocabulary subjects.
+Psi is the public name of this portable product, independent of the implementation
+language. The compiler's Terminal Psi stage produces it; that internal stage
+name is not the artifact, interpreter or CLI name. The
+[documentation index](../../README.md) lists its vocabulary subjects.
 [Boundary calls](boundary_calls.md), [byte views](byte_views.md),
 [structural access and owned byte values](structural_access.md), and
 [observations](observations.md), [calls and outcomes](calls_and_outcomes.md), and
@@ -14,11 +16,11 @@ own references. [Mathematical proof values](mathematical_values.md) and
 
 Psi owns source parsing, resolution, typing, checking, proof construction,
 expression lowering, selected target-neutral optimization, and publication of
-Terminal Psi. Omega consumes that product and owns provider selection and
+Psi. Omega consumes that product and owns provider selection and
 installation, target realization, its own optimization phases, ABI lowering,
 native emission, and execution machinery. Parsing is not an Omega backend step.
 
-Terminal Psi is immutable, self-contained, concrete, and post-instantiation.
+Psi is immutable, self-contained, concrete, and post-instantiation.
 Its meaning requires no source syntax, typed-tree arena, producer process,
 instruction selector, or generic execution machinery. Execution, proof
 questions, evidence, diagnostics, fuel, and lowering refer to the same stable
@@ -42,7 +44,7 @@ callable or an existing default root. Native emission likewise requires its
 selected executable application.
 
 Selected-composition [behavior exclusions](../build/behavior_exclusions.md)
-must not depend on optional optimization. Terminal therefore retains the
+must not depend on optional optimization. Psi therefore retains the
 pre-optimization semantic operations for each produced body: direct and boundary
 invocations, instruction service contributions, crash causes, and nominal
 cleanup calls. These are typed operation relationships, not a producer's
@@ -55,7 +57,7 @@ history covers the executable body's contributions. This structural check does
 not independently establish the producer's historical lowering correctness.
 
 Selected boundary-operator applications belong to these portable semantics.
-Each demand names its Terminal operation, exact-owner requirement identity,
+Each demand names its Psi operation, exact-owner requirement identity,
 overload coordinate and declaration-ordered closed type/constant arguments.
 Psi produces the rows before optimization; their canonical encoding participates
 in the program identity. Optimizers preserve the selected operation and its
@@ -110,14 +112,14 @@ the body's semantic proof or native ABI/resource admission.
 
 Checked callback applications retain their registrar operation, static-machine
 binder ordinal, requirement identity, published contract and selected body identity
-in Terminal Psi. A compilation-local occurrence number joins target placement
+in Psi. A compilation-local occurrence number joins target placement
 to this row and survives pruning; it is not independently authoritative. Several
 callback binders may share one registrar. Native settlement consumes these
 rows, not a parallel source-call catalog. A callback artifact's entry declaration
 must match the selected body in the caller's demand; no source-side lowering
 receipt is required. Callback body correspondence and
 target ABI/installation evidence remain separate obligations. Native callback
-function identities are scoped by the caller's canonical Terminal identity and
+function identities are scoped by the caller's canonical Psi identity and
 its retained placement ordinal. Source-arena coordinates and separately supplied
 private symbol strings are not native identity; linker names derive from that
 portable identity.
@@ -157,7 +159,7 @@ independently.
 
 ## Publication and separate consumption
 
-Compilation may stop at Terminal Psi. A later interpreter or native lowerer
+Compilation may stop at Psi. A later interpreter or native lowerer
 may consume it in a different process, on another machine, under separately
 supplied authority. The first-party source-to-native path crosses this same
 boundary; checked frontend state is not a privileged alternative input.
@@ -208,14 +210,14 @@ a portable family head. The realization target set travels beside the module in 
 exact owned build companion, and per target: profile, ProgramEntry,
 target-constrained provider plans, external-binding requirements,
 compiler-builtin proposals and pending Omega optimization selections, as rows
-keyed by target. Rows are not executable semantics inserted into Terminal,
+keyed by target. Rows are not executable semantics inserted into Psi,
 and possession does not grant realization authority.
 
 Omega selects the exact implementation through those Build provider rows, not
 through a target modifier on a source declaration. Every implementation remains
 checked independently of selection; selected ABI, import, layout, and ISA
 applicability is a realization obligation. Retained target-family rows are
-not accepted Terminal product semantics.
+not accepted Psi product semantics.
 
 An unused representation application is not a validated concrete target plan.
 [Demand-driven layout formation](../layouts/plans.md#layout-demand-and-validation)
@@ -225,7 +227,7 @@ target row remains a consumer even if it is outside the emitted target set.
 No later consumer may treat absence of an earlier demand as layout acceptance.
 
 The companion binds each target's pending selection to the complete
-build-selection identity. Terminal independently retains the Psi selection already executed.
+build-selection identity. The artifact independently retains the Psi selection already executed.
 A receiving consumer must admit the exact proposed pending selection using its
 own target catalog and local authority, or reject realization. Rejection does
 not invalidate the portable semantics. With no target companion, subsequent
@@ -233,7 +235,7 @@ physical selection belongs to the receiving authority.
 
 Source-declaration receipts may separately establish author intent, entry
 identity, provider selection, and target closure. They must rejoin the canonical
-artifact; they cannot supply executable choices absent from Terminal.
+artifact; they cannot supply executable choices absent from Psi.
 
 ## Optimization ordering
 
@@ -245,12 +247,12 @@ default compile path ([verification placement](../../../omega-rust/pipeline.md#v
 pipeline.
 
 Later Omega phases optimize their own representations while retaining the
-canonical Terminal identity. They cannot mutate the published module or
+canonical Psi identity. They cannot mutate the published module or
 reselect a Psi/checked-tree pass. Rollback may subtract a selection only at a
 phase the invocation actually executes; the report distinguishes effective
 Psi selection from pending native selection.
 
-A schema-derived semantic plan belongs in Terminal only when its carrier and
+A schema-derived semantic plan belongs in Psi only when its carrier and
 validator are representation-level or lower, contain no backend-owned types,
 and are independently reconstructible before assignment or emission.
 Assigned homes, final call placement, relocations, and emitted bytes remain

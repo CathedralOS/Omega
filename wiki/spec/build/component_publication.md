@@ -5,7 +5,7 @@ govern [interpreted components](embedding.md#replacement-and-native-equivalence)
 Native mappings and relocations below belong to the native realization, not to
 an interpreter's implementation. A source module is not automatically a component.
 
-[Terminal Psi](../terminal-psi/product.md) is the portable compilation boundary.
+[Psi](../terminal-psi/product.md) is the portable compilation boundary.
 This contract distinguishes compilation products from installed component
 publication. Writing artifact bytes for later consumption does not establish a
 running installation. The deployment requirements below apply to the installed
@@ -206,7 +206,7 @@ intent constrained by this acceptance, not independent authority to approve it.
 
 A deployment-agnostic checked capsule for one exact slot retains symbolic
 imports/exports, resource/lifecycle demands, target dependencies and the evidence
-required for its claims. A portable Psi capsule contains canonical Terminal Psi
+required for its claims. A portable Psi capsule contains canonical Psi
 and reconstructed obligations. A native-only capsule supplies independently
 checkable native evidence; any intermediate definitions needed by that evidence
 are included or exact accepted dependencies, not a missing separate Psi product.

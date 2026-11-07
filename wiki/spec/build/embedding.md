@@ -1,7 +1,7 @@
 # Embedding and interpreted components
 
 Embedding executes ordinary Omega programs through an ordinary interpreter
-library consuming [Terminal Psi](../terminal-psi/product.md). It is not another
+library consuming [Psi](../terminal-psi/product.md). It is not another
 source dialect, authority system, module system, or proof relation. This contract
 specifies the destination; [implementation tasks](../../../TASKS.md#embedding-and-interpreted-components)
 and the [interpreter implementation](../../../omega-rust/psi/interpreter/terminal-interpreter/README.md)
@@ -50,7 +50,7 @@ Native/interpreter comparison retains those exact selections rather than
 replacing them with mocks. Separately configured virtual-service tests exercise
 their declared service contracts, not the unselected real OS implementation.
 
-Under `hosted-interpreter-abi-library-dependency`, Psi owns Terminal execution
+Under `hosted-interpreter-abi-library-dependency`, Psi owns interpreted execution
 and the interface for installing and dispatching explicit host bindings.
 Target-aware host adapters live outside Psi in Omega-owned host integration;
 they reuse independent Omega ABI, locator and mechanism libraries, not compiler
@@ -81,22 +81,22 @@ that an unbound branch will not run.
 
 Named decision: `explicit-execution-engine`, ratified 2026-11-02.
 
-The CLI exposes one execution axis: `omega run --engine native|terminal`.
-Omission selects `native`; `terminal` executes Terminal Psi without emitting or
+The CLI exposes one execution axis: `omega run --engine native|psi`.
+Omission selects `native`; `psi` executes Psi without emitting or
 launching a native program image. `--both` remains a comparison request, not an
 engine name, and is mutually exclusive with an explicit `--engine` selection.
-It compares independent native and Terminal executions under the same selected
+It compares independent native and Psi executions under the same selected
 program/provider configuration.
 
-Engine selection does not select an OS target. A Terminal run still retains its
+Engine selection does not select an OS target. A Psi run still retains its
 explicit or default target environment, exact provider closure and corresponding
-host adapters. It uses the shared Terminal program/instance lifecycle, not a
+host adapters. It uses the shared Psi program/instance lifecycle, not a
 second interpreter or source evaluator. Normal package, Build and trust admission
 remain required. Missing provider or execution support reports unavailability
 before guest effects; no native fallback or replacement provider is inferred.
 
 JIT selection and automatic hot-code compilation are deferred. Neither follows
-from `--engine terminal`, and no JIT implementation is required by this decision.
+from `--engine psi`, and no JIT implementation is required by this decision.
 
 ## Imports, exports, and provider slots
 

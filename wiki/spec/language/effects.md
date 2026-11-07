@@ -316,7 +316,8 @@ its authored `suspend`/`block` markers acknowledge their upper bounds and its
 suspending calls occupy the permitted syntactic positions. This also applies
 to forwarding calls with unresolved static selections. Do not re-reject those
 markers as redundant after substitution removes a possibility. At a caller
-with known selections, markers instead match the specialized envelope exactly.
+with known selections, markers must include the specialized envelope; extra
+acknowledgements remain permitted.
 The template acknowledgement and the instantiated operational envelope are
 retained separately through checking and lowering.
 
@@ -407,15 +408,23 @@ block may_wait();
 suspend block may_do_either();
 ```
 
-The marker set must equal the statically known call envelope: `suspend` exactly
-when suspension is possible, `block` exactly when blocking is possible. In a
-generic body, use the abstract envelope under its callback requirements; at a
-closed application, use the specialized published dependency summary. Template
-markers are not rechecked for redundancy against a later specialization.
-Missing, partial, or redundant markers at the applicable checking boundary
-reject. Combined order is `suspend block`.
-A pinned transparent refinement removing an operational possibility removes its
-marker; observing a non-waiting run does not.
+The marker set must include the statically known call envelope: `suspend`
+when suspension is possible and `block` when blocking is possible. In a generic
+body, use the abstract envelope under its callback requirements; at a closed
+application, use the specialized published dependency summary. Missing or partial
+acknowledgements reject. Redundant acknowledgements are permitted without a
+warning, including after specialization or a checked refinement removes an
+operational possibility. Observing a non-waiting run cannot narrow the envelope.
+The two axes are independent: `block` cannot replace a required `suspend` or
+conversely. Combined order is `suspend block`; duplicate or reversed markers reject.
+
+Named decision: `conservative-call-acknowledgements`, ratified 2026-11-06.
+Authored markers and the checked envelope remain separate through checking and
+lowering. Effects, carry, loans, invariant-window crossings, context admission
+and continuation creation follow that envelope, not the presence of extra
+markers. Generic bodies still satisfy their callback upper bounds; a synchronous
+application cannot excuse an invalid template. Ordinary call-boundary and
+invariant obligations remain even when the envelope permits no pause.
 
 Markers acknowledge held borrows, claims, guards, and authority across possible
 pauses. They do not force execution to pause, create a task/future, change ABI or
@@ -424,14 +433,21 @@ parks an activation and requires a continuation; blocking retains its stack and
 worker. Carry policy may reject a crossing with particular live values but
 cannot rewrite the callee's envelope.
 
-A suspending call may occur only as a complete statement, simple `let`
-right-hand side, transition subject, or terminal expression, including a
+A call written with `suspend`, including a redundant acknowledgement, may occur
+only as a complete statement, simple `let` right-hand side, transition subject,
+or terminal expression, including a
 [terminal machine call in a transition arm](state_contracts.md#terminal-calls-in-transition-arms).
-Such an arm uses the exact call markers, including when its target is a nested
-machine. Nesting and later jump/frame-reuse lowering grant no exemption.
-A suspending call cannot nest inside an argument, operator, aggregate
-construction, or condition. A blocking-only call may nest because it creates
-no continuation boundary.
+Such an arm acknowledges every required effect, including when its target is a
+nested machine. Nesting and later jump/frame-reuse lowering grant no exemption.
+A `suspend`-marked call cannot nest inside an argument, operator, aggregate
+construction, or condition. A call marked only `block` may nest when its checked
+envelope permits no suspension. Keeping a redundant `suspend` reserves a legal
+suspension position; it does not promise that live values could survive a later
+change to the callee's envelope.
+
+The opt-in [source rewrite](../build/command_line.md#source-rewriting) can remove
+unnecessary markers from the checked source context. Formatting or ordinary
+compilation does not remove them.
 
 Borrowed arguments and other live loans may cross suspension under ordinary
 [loan and carry preservation](../resources/carry.md#borrows-across-suspension).
@@ -444,7 +460,8 @@ adapters retain diagnostic/audit acknowledgement metadata without invented
 source tokens. A marker cannot bypass an execution context's operational floor:
 automatic [cleanup](../../language_guide/chapter_17_drops_and_cleanup.md#cleanup-machines)
 and [hermetic semantic evaluation](evaluation.md#invocation-admission) forbid
-source suspension and blocking.
+source suspension and blocking in the checked envelope. A redundant marker alone
+does not violate that floor.
 Interpreter budget suspension is not a source `suspends` permission.
 
 Starting a task is separate: `runtime.start<M>` acknowledges only what `start`

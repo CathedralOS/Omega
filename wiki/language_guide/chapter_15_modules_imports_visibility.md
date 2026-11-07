@@ -124,7 +124,7 @@ a selected realization target. Build-only source acquisition is reusable,
 but host-generated configuration is not target evidence. The
 [scoped execution contract](../spec/build/scoped_execution.md) fixes these rules;
 [implementation tasks](../../TASKS.md) retain `STAGED-BUILD-CAPABILITIES` and
-the underlying Terminal execution work.
+the underlying Psi execution work.
 
 Targets are explicit invocation inputs. They do not change the dependency graph.
 Executable applications bind target entries with
@@ -138,7 +138,7 @@ For macOS GUI output, `Subsystem::Gui` selects the
 one bundle, with an authored application identifier supplied before signed
 native emission. Bundle production and its new identifier field remain
 implementation work; the current output is a flat executable and std requests
-foreground activation. Producing Terminal Psi alone does not need those native
+foreground activation. Producing Psi alone does not need those native
 inputs.
 
 ### Build orchestration is not semantic evaluation
