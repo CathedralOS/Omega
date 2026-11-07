@@ -99,6 +99,8 @@ impl<'program> CallFrameResolver<'program> {
         if !call.normal_return_writes_complete {
             return None;
         }
+        let target = crate::call_target_state(self.program, call.target_symbol)?;
+        let callee = self.program.machine_holding_state(target.symbol)?;
         let entries = match crate::find_call_site(
             self.program,
             machine.symbol,
@@ -131,7 +133,16 @@ impl<'program> CallFrameResolver<'program> {
                         .iter()
                         .find(|parameter| parameter.symbol == entry.parameter)?;
                     let shell = crate::reference_shell(self.program, parameter.type_reference)?;
-                    if parameter.is_mutable || !shell.access.is_exclusive() {
+                    // Mutable referent access does not replace the reference
+                    // itself. Check the destination body's descriptor identity.
+                    if !shell.access.is_exclusive()
+                        || !crate::state_reference_parameter_binding_is_stable(
+                            self.program,
+                            callee,
+                            target,
+                            parameter.symbol,
+                        )
+                    {
                         return None;
                     }
                     let [source] = entry.sources.as_slice() else {

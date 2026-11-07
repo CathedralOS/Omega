@@ -82,7 +82,6 @@ impl ReferentGoal {
             };
             let Some(parameter) = program.state_parameters(entry).iter().find(|parameter| {
                 place.root == PlaceRoot::Symbol(parameter.symbol)
-                    && !parameter.is_mutable
                     && validation::reference_shell(program, parameter.type_reference)
                         .is_some_and(|shell| shell.access.is_exclusive())
             }) else {
@@ -150,6 +149,14 @@ impl ReferentGoal {
                     let mut matches = origins.iter().filter(|(entry, _)| *entry == source);
                     let (_, destination) = matches.next()?;
                     if matches.next().is_some() {
+                        return None;
+                    }
+                    if !validation::state_reference_parameter_binding_is_stable(
+                        program,
+                        machine,
+                        state,
+                        *destination,
+                    ) {
                         return None;
                     }
                     Some(CanonicalPlace {
