@@ -400,6 +400,13 @@ mod tests {
 
         // Ordinary record elimination must reach the content field and keep
         // its canonical barrier, while still substituting the scalar sibling.
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            SymbolHandle::invalid(),
+            &[],
+            &[],
+            false,
+        );
         let marker = StructuralTerm::Variable("marker".to_owned());
         judge.intake_identity(
             constructor(
@@ -420,20 +427,10 @@ mod tests {
             ),
         );
         assert!(judge.resolve(marker).same_resolution_payload(&integer(7)));
-        assert_eq!(
-            judge
-                .captured_result_equations
-                .iter()
-                .filter(|equation| matches!(
-                    (&equation.left, &equation.right),
-                    (
-                        StructuralTerm::ContentValue { .. },
-                        StructuralTerm::ContentValue { .. }
-                    )
-                ))
-                .count(),
-            2
-        );
+        assert!(matches!(
+            judge.judge_data_identity(observe(empty(5)), observe(empty(9)), 0),
+            super::super::StructuralJudgment::Proven
+        ));
         assert!(!judge.hypotheses_contradictory);
         assert!(!matches!(
             judge.judge_explicit_identity(integer(5), integer(9), 0),
