@@ -15,6 +15,8 @@ use typed_trees::static_applications::StaticMachineBindingValue;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod operations;
+#[cfg(test)]
+mod result_recipe_tests;
 
 /// Result consumers inspect this handle without a static application scope.
 /// Rejoin only existing, independently equivalent full recipes: reference
