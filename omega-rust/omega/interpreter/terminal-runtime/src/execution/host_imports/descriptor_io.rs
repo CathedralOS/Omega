@@ -14,9 +14,10 @@
 //! actual syscall status preserves errors and partial transfers. The same
 //! transfer serves retained or discarded counts. Finite replay errors cannot
 //! manufacture Linux kernel statuses or touch arbitrary OS descriptors.
-//! Versioned Linux libc write uses the same private output and captured backing,
-//! with its own size_t/ssize_t ABI. Unsupported descriptors decline before output;
-//! this offer supplies neither libc read nor observable TLS errno state.
+//! Versioned Linux libc uses the same finite descriptor-zero input, private
+//! output and captured backing, with its own size_t/ssize_t ABI. Unsupported
+//! descriptors decline before I/O. Linux input errors refuse without a fabricated
+//! libc result or TLS errno update; successful and EOF reads leave that state alone.
 
 use std::io::Read;
 use std::sync::{Arc, Mutex};
@@ -434,7 +435,11 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                     }
                     Err(_) => {
                         return Err(TerminalEffectRejection::new(
-                            "finite input failed without an admitted raw kernel error status",
+                            if matches!(self.contract.abi, DescriptorAbi::LinuxLibc) {
+                                "finite input failed without an admitted libc errno result"
+                            } else {
+                                "finite input failed without an admitted raw kernel error status"
+                            },
                         ));
                     }
                 };
