@@ -1605,8 +1605,9 @@ impl CanonicalHandleState {
                 .collect::<BTreeSet<_>>()
         };
         let operand = |id| {
-            self.scalar(id, position, &prepared.expressions)
-                .map(|value| value.known.unsigned())
+            inputs.binary_search_by_key(&id, |(actual, _)| *actual)
+                .map(|index| inputs[index].1.known.unsigned())
+                .map_err(|_| format!("handle selector {id:?} is absent from the complete evaluated operand roster"))
         };
         let sequence = match &operation.kind {
             OperationKind::EstablishByteSequenceLiteral {
@@ -2076,18 +2077,7 @@ impl CanonicalHandleState {
         };
         let reference = if let OperationKind::EstablishReference { storage, .. } = &operation.kind {
             let offset = match storage {
-                Some(storage) => match self
-                    .scalar(storage.byte_offset, position, &prepared.expressions)?
-                    .known
-                {
-                    KnownHandleScalar::Integer(_, IntegerValue::Unsigned(value)) => {
-                        u64::try_from(value).ok()
-                    }
-                    KnownHandleScalar::Integer(_, IntegerValue::Signed(value)) => {
-                        u64::try_from(value).ok()
-                    }
-                    _ => None,
-                },
+                Some(storage) => operand(storage.byte_offset)?,
                 None => None,
             };
             Some(
