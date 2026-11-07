@@ -169,14 +169,15 @@ pub(crate) fn build_checked_value_computation_plans(
                         StatementNode::Expression(expression)
                             if statement_index + 1 == statements.len() =>
                         {
-                            builder.record_completion(*expression, &mut completions);
+                            let _ = builder.record_completion(*expression, &mut completions);
                         }
                         StatementNode::Transition(transition) => {
                             for target in transition.targets() {
                                 if let TransitionTargetNode::Value(expression) =
                                     program.statement_table.transition_target(target)
                                 {
-                                    builder.record_completion(*expression, &mut completions);
+                                    let _ =
+                                        builder.record_completion(*expression, &mut completions);
                                 }
                             }
                         }
