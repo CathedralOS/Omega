@@ -418,6 +418,7 @@ pub(in crate::execution::terminal_unit) fn expression_source(
             .any(|(_, value)| value.state == state && value.expression == expression)
             .then_some(
                 CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                    value_dependency: None,
                     expression,
                     logical_root_type_identity: None,
                 },

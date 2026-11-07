@@ -281,6 +281,7 @@ impl Builder<'_, '_> {
         Some((
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                 expression,
+                value_dependency: Some(owner),
                 logical_root_type_identity,
             },
             owner_reference,

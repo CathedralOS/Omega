@@ -370,6 +370,7 @@ impl Builder<'_, '_> {
                 .value_anchor;
             return Some(ArgumentPlan {
                 source: SourcePlan::StructuralExpression {
+                    value_dependency: None,
                     expression: anchor,
                     logical_root_type_identity: None,
                 },

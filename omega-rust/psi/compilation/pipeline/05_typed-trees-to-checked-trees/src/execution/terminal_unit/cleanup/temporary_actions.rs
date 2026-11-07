@@ -1057,6 +1057,7 @@ pub(crate) fn finalize_completion_actions(
                     call.target_symbol,
                     disposition.root,
                     CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        value_dependency: None,
                         expression,
                         logical_root_type_identity: None,
                     },
@@ -1084,6 +1085,7 @@ pub(crate) fn finalize_completion_actions(
                     let selected = super::descriptor_retirement(
                         program,
                         CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                            value_dependency: None,
                             expression: root.expression,
                             logical_root_type_identity: None,
                         },
@@ -1231,6 +1233,7 @@ fn finalize_value_completions(
             .as_expression()
             .ok_or_else(|| format!("{site}: completed root is not an expression"))?;
         let source = CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+            value_dependency: None,
             expression,
             logical_root_type_identity: None,
         };

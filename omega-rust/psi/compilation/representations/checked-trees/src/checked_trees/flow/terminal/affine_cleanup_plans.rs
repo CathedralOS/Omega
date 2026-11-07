@@ -131,6 +131,7 @@ impl Default for CheckedUnitPartialAffineDiscardPlan {
     fn default() -> Self {
         Self {
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                value_dependency: None,
                 expression: arena::Handle::invalid(),
                 logical_root_type_identity: None,
             },

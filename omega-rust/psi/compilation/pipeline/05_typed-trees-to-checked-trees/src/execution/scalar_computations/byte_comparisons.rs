@@ -139,10 +139,10 @@ impl Builder<'_, '_> {
         target: typed_trees::types::TypeReferenceHandle,
     ) -> Option<CheckedUnitStructuralArgumentPlan> {
         let value = self.structural_value(operand, target)?;
-        let ordinal = u32::try_from(self.statement_index).ok()?;
-        self.retain_structural_root(ordinal, operand, target, value);
+        self.retain_structural_value_root(value, target)?;
         Some(CheckedUnitStructuralArgumentPlan {
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                value_dependency: Some(value),
                 expression: operand,
                 logical_root_type_identity: None,
             },

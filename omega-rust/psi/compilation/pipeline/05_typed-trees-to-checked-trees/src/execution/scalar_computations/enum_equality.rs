@@ -213,6 +213,7 @@ impl Builder<'_, '_> {
                 projection_evaluations: Default::default(),
                 source:
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        value_dependency: Some(value),
                         expression,
                         logical_root_type_identity: None,
                     },
@@ -296,7 +297,7 @@ impl Builder<'_, '_> {
         Some((reference, CheckedScalarComputationStructuralArgument::Place(
             checked_trees::CheckedUnitStructuralArgumentPlan {
                 projection_evaluations: Default::default(),
-                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression, logical_root_type_identity: None },
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { value_dependency: Some(receiver), expression, logical_root_type_identity: None },
                 path: Vec::new(),
                 type_identity: validation::stored_structural_type_identity(self.program, reference, &[], &[]),
                 access: checked_trees::CheckedStructuralAccess::SharedBorrow,

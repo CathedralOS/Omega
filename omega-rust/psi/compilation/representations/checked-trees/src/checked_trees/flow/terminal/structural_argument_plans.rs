@@ -140,6 +140,10 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// sequence establishes its storage before a consumer observes it; this
     /// identity never authorizes evaluating the expression again.
     StructuralExpression {
+        /// Exact completed value retained by the producing owner. `None`
+        /// names already established storage, not a request to discover or
+        /// evaluate a producer from the expression home.
+        value_dependency: Option<crate::CheckedStructuralValueHandle>,
         expression: ExpressionHandle,
         /// A projection of this completed owner can start at its checked
         /// logical referent rather than the stored descriptor. This identity
@@ -546,6 +550,17 @@ impl CheckedUnitStructuralArgumentPlan {
 }
 
 impl CheckedUnitStructuralArgumentSourcePlan {
+    /// The completed producer selected by this argument's checking owner.
+    /// An existing storage capture has no new producer dependency.
+    pub fn structural_value_dependency(&self) -> Option<crate::CheckedStructuralValueHandle> {
+        match self {
+            Self::StructuralExpression {
+                value_dependency, ..
+            } => *value_dependency,
+            _ => None,
+        }
+    }
+
     /// Exact completed-expression namespace, independent of projection presentation.
     pub fn structural_expression(&self) -> Option<ExpressionHandle> {
         match self {

@@ -569,6 +569,7 @@ impl Builder<'_, '_> {
                             // Retirement names the whole completed owner. Its
                             // borrowed projection is only the call's presentation.
                             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                                value_dependency: argument_plan.source.structural_value_dependency(),
                                 expression: argument_plan.source.structural_expression()?,
                                 logical_root_type_identity: None,
                             },

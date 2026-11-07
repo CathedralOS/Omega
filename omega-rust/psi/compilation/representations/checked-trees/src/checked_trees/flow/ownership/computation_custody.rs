@@ -398,18 +398,15 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
     /// names exactly the members it takes; an ambiguous or missing root moves
     /// nothing here, so accounting still demands another disposition.
     fn produced(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {
-        let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression, .. } =
-            argument.source
+        let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+            value_dependency: Some(value),
+            ..
+        } = argument.source
         else {
             return 0;
         };
         let plans = &self.values.structural_values;
-        let mut roots = plans
-            .roots
-            .iter()
-            .map(|(_, root)| root)
-            .filter(|root| root.expression == expression);
-        let (Some(root), None) = (roots.next(), roots.next()) else {
+        let Some(root) = plans.root_for_value(value) else {
             return 0;
         };
         if matches!(
@@ -959,6 +956,7 @@ mod tests {
         let expression = arena::Handle::from_parts(1, 1);
         let mut argument = CheckedUnitStructuralArgumentPlan {
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                value_dependency: None,
                 expression,
                 logical_root_type_identity: None,
             },
@@ -1000,6 +998,14 @@ mod tests {
         assert_eq!(transfers.argument(&argument), 1);
         assert_eq!(transfers.constructed(root, &[], true), 1);
         assert_eq!(transfers.constructed(root, &[], false), 0);
+        if let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+            value_dependency,
+            ..
+        } = &mut argument.source
+        {
+            *value_dependency = Some(root);
+        }
+        assert_eq!(transfers.argument(&argument), 1);
         argument.access = CheckedStructuralAccess::SharedBorrow;
         assert_eq!(transfers.argument(&argument), 0);
     }
