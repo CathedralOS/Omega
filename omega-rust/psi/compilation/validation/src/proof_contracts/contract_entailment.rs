@@ -578,11 +578,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             return *verdict;
         }
         let Some(arms) = &case_arms else {
-            let judgment = structural.judge_proposition(program, fact);
-            if matches!(judgment, StructuralJudgment::Unknown) {
-                structural.trace_identity_refusal(fact, None, 0, 0, 0);
-            }
-            return judgment;
+            return structural.judge_proposition(program, fact);
         };
         let mut verdict = StructuralJudgment::Proven;
         for arm in arms {
@@ -690,17 +686,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             match bound.judge_proposition(program, fact) {
                 StructuralJudgment::Proven => {}
                 StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
-                StructuralJudgment::Unknown => {
-                    bound.trace_identity_refusal(
-                        fact,
-                        Some(arms.len()),
-                        arm.case_hypotheses.len(),
-                        arm.case_equations.len(),
-                        arm.citations.len(),
-                    );
-                    bound.trace_identity_arm_value(&arm.value);
-                    verdict = StructuralJudgment::Unknown;
-                }
+                StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
             }
         }
         verdict

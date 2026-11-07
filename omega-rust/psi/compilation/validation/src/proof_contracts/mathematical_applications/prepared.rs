@@ -111,6 +111,36 @@ pub struct PreparedConstant {
     pub meaning: PreparedConstantMeaning,
 }
 
+/// One position in an opaque source value's checked dependency telescope.
+/// Type positions remain present even when they have no structural value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PreparedSourceBindingKind {
+    Type,
+    Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct PreparedSourceBinding {
+    /// Original domain identity fences reuse across separately prepared scopes.
+    pub source_domain: TermHandle,
+    /// The same domain rebound over this dependency telescope's prefix.
+    pub domain: TermHandle,
+    pub kind: PreparedSourceBindingKind,
+    pub symbol: SymbolHandle,
+    pub source_type: TypeReferenceHandle,
+    pub expressions: Vec<ExpressionHandle>,
+}
+
+impl PreparedSourceBinding {
+    pub fn same_source_binding(&self, other: &Self) -> bool {
+        self.kind == other.kind
+            && self.source_domain == other.source_domain
+            && self.symbol == other.symbol
+            && self.source_type == other.source_type
+            && self.expressions == other.expressions
+    }
+}
+
 #[derive(Debug, Default)]
 pub enum PreparedConstantMeaning {
     /// A selected source operation with no arithmetic law in this consumer.
@@ -146,7 +176,9 @@ pub enum PreparedConstantMeaning {
     /// uses the same Int domain for several fixed integer carriers.
     SourceOperation {
         expression: ExpressionHandle,
+        owner: SymbolHandle,
         source_type: TypeReferenceHandle,
+        bindings: Vec<PreparedSourceBinding>,
     },
 }
 

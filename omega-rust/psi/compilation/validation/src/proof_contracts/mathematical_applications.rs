@@ -29,8 +29,9 @@ pub(crate) use prepared::application_spine;
 pub use prepared::{
     PreparedApplication, PreparedCapture, PreparedConstant, PreparedConstantMeaning,
     PreparedIdentityValue, PreparedIndexedTheorem, PreparedMathematicalApplications,
-    PreparedMathematicalView, PreparedSourceCarrier, PreparedSourceConstructor,
-    PreparedSourceEvidence, integer_embedding_meaning,
+    PreparedMathematicalView, PreparedSourceBinding, PreparedSourceBindingKind,
+    PreparedSourceCarrier, PreparedSourceConstructor, PreparedSourceEvidence,
+    integer_embedding_meaning,
 };
 pub use scalar_predicates::scalar_predicate;
 

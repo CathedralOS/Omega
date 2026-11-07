@@ -16,7 +16,8 @@ use super::dependencies::{free_positions, rebind_domain};
 use super::{Elaborator, ScalarCarrier};
 use validation::expression_traversal::children;
 use validation::mathematical_applications::{
-    integer_embedding_meaning, source_operations_have_same_meaning,
+    PreparedSourceBinding, PreparedSourceBindingKind, integer_embedding_meaning,
+    source_operations_have_same_meaning,
 };
 
 /// Construction-time custody of one opaque source operation. The selected
@@ -26,6 +27,7 @@ pub(super) struct SourceOperationDeclaration {
     expression: ExpressionHandle,
     owner: symbols::SymbolHandle,
     source_type: TypeReferenceHandle,
+    bindings: Vec<PreparedSourceBinding>,
     declaration: u32,
 }
 
@@ -354,6 +356,7 @@ impl<'a> Elaborator<'a> {
         );
         let mut pending = vec![handle];
         let mut seen = Vec::new();
+        let mut occurrences = Vec::new();
         while let Some(expression) = pending.pop() {
             if !expression_table(self.program).expression_is_valid(expression)
                 || seen.contains(&expression)
@@ -369,6 +372,7 @@ impl<'a> Elaborator<'a> {
                 if !dependencies.contains(position) {
                     dependencies.push(*position);
                 }
+                occurrences.push((expression, *position));
                 continue;
             }
             let node = self.program.expression_table.expression(expression);
@@ -382,9 +386,11 @@ impl<'a> Elaborator<'a> {
                     } else {
                         entry.symbol.is_none() && name.is_some_and(|name| *name == entry.name)
                     }
-                }) && !dependencies.contains(&position)
-                {
-                    dependencies.push(position);
+                }) {
+                    if !dependencies.contains(&position) {
+                        dependencies.push(position);
+                    }
+                    occurrences.push((expression, position));
                 }
             }
             children(self.program, node, |child| pending.push(child));
@@ -402,9 +408,61 @@ impl<'a> Elaborator<'a> {
         }
         dependencies.sort_unstable();
         let source_type = source_type.unwrap_or_default();
+        let mut bindings = Vec::with_capacity(dependencies.len());
+        for (index, position) in dependencies.iter().copied().enumerate() {
+            let expressions = occurrences
+                .iter()
+                .filter_map(|(expression, bound)| (*bound == position).then_some(*expression))
+                .collect::<Vec<_>>();
+            let symbol = self.scope[position]
+                .symbol
+                .or_else(|| {
+                    expressions.iter().find_map(|expression| {
+                        let ExpressionNode::Name(path) =
+                            self.program.expression_table.expression(*expression)
+                        else {
+                            return None;
+                        };
+                        path.symbol.is_valid().then_some(path.symbol)
+                    })
+                })
+                .unwrap_or_default();
+            let source_type = expressions
+                .iter()
+                .find_map(|expression| self.source_operand_type_reference(*expression))
+                .unwrap_or_default();
+            let old = self.scope[..position]
+                .iter()
+                .map(|entry| entry.domain)
+                .collect::<Vec<_>>();
+            let domain = rebind_domain(
+                &mut self.arena,
+                self.scope[position].domain,
+                &old,
+                &dependencies[..index],
+            );
+            bindings.push(PreparedSourceBinding {
+                source_domain: self.scope[position].domain,
+                domain,
+                kind: if matches!(self.arena.get(self.scope[position].domain), Term::Sort(_)) {
+                    PreparedSourceBindingKind::Type
+                } else {
+                    PreparedSourceBindingKind::Value
+                },
+                symbol,
+                source_type,
+                expressions,
+            });
+        }
         let position = match self.source_operations.iter().find(|operation| {
             operation.owner == self.source_owner
                 && operation.source_type == source_type
+                && operation.bindings.len() == bindings.len()
+                && operation
+                    .bindings
+                    .iter()
+                    .zip(&bindings)
+                    .all(|(old, new)| old.same_source_binding(new))
                 && (operation.expression == handle
                     || source_operations_have_same_meaning(
                         self.program,
@@ -415,19 +473,6 @@ impl<'a> Elaborator<'a> {
         }) {
             Some(operation) => operation.declaration,
             None => {
-                let mut domains = Vec::new();
-                for (index, position) in dependencies.iter().enumerate() {
-                    let old = self.scope[..*position]
-                        .iter()
-                        .map(|entry| entry.domain)
-                        .collect::<Vec<_>>();
-                    domains.push(rebind_domain(
-                        &mut self.arena,
-                        self.scope[*position].domain,
-                        &old,
-                        &dependencies[..index],
-                    ));
-                }
                 let old_domains = self
                     .scope
                     .iter()
@@ -435,9 +480,9 @@ impl<'a> Elaborator<'a> {
                     .collect::<Vec<_>>();
                 let mut ty =
                     rebind_domain(&mut self.arena, result_type, &old_domains, &dependencies);
-                for domain in domains.iter().rev() {
+                for binding in bindings.iter().rev() {
                     ty = self.arena.insert(Term::Pi {
-                        domain: *domain,
+                        domain: binding.domain,
                         codomain: ty,
                     });
                 }
@@ -446,13 +491,16 @@ impl<'a> Elaborator<'a> {
                     expression: handle,
                     owner: self.source_owner,
                     source_type,
+                    bindings: bindings.clone(),
                     declaration: position,
                 });
                 self.prepared.constants.append(super::PreparedConstant {
                     declaration: position,
                     meaning: super::PreparedConstantMeaning::SourceOperation {
                         expression: handle,
+                        owner: self.source_owner,
                         source_type,
+                        bindings,
                     },
                 });
                 position

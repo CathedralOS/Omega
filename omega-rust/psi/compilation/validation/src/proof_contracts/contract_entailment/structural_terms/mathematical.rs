@@ -7,7 +7,8 @@
 
 use super::StructuralTerm;
 use crate::mathematical_applications::{
-    PreparedApplication, PreparedConstantMeaning, PreparedMathematicalView,
+    PreparedApplication, PreparedConstantMeaning, PreparedMathematicalView, PreparedSourceBinding,
+    PreparedSourceBindingKind,
 };
 use numerics::literals::FloatLiteral;
 use proof_admission::{Term, TermHandle};
@@ -232,12 +233,133 @@ fn read_term(
                         StructuralTerm::boolean(false),
                     ))
                 }
+                (
+                    PreparedConstantMeaning::SourceOperation {
+                        expression,
+                        owner,
+                        source_type,
+                        bindings,
+                    },
+                    arguments,
+                ) => {
+                    match source_operation_term(
+                        program,
+                        *expression,
+                        *owner,
+                        *source_type,
+                        bindings,
+                        arguments,
+                        read,
+                    ) {
+                        Ok(value) => Some(value),
+                        Err(reason) => {
+                            if super::super::struct_trace() {
+                                eprintln!(
+                                    "source value {:?} under {:?} cannot be read: {reason}",
+                                    expression, owner
+                                );
+                            }
+                            None
+                        }
+                    }
+                }
                 // Opaque and source-selected operations have no builtin
                 // arithmetic law merely because their kernel result is Int.
                 _ => None,
             }
         }
     }
+}
+
+/// Rejoin only the producer-recorded occurrence, under its own lexical scope.
+/// The checked spine supplies the actual dependency values; observing the
+/// occurrence must never recover the producer's unsubstituted formal instead.
+fn source_operation_term(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    owner: symbols::SymbolHandle,
+    source_type: typed_trees::types::TypeReferenceHandle,
+    bindings: &[PreparedSourceBinding],
+    arguments: &[TermHandle],
+    read: impl Fn(TermHandle) -> Option<StructuralTerm>,
+) -> Result<StructuralTerm, String> {
+    if bindings.len() != arguments.len() {
+        return Err(format!(
+            "dependency arity {} differs from checked argument arity {}",
+            bindings.len(),
+            arguments.len()
+        ));
+    }
+    if !program.expression_table.expression_is_valid(expression) || !owner.is_valid() {
+        return Err("the retained source occurrence or lexical owner is unavailable".to_owned());
+    }
+    let mut values = Vec::with_capacity(bindings.len());
+    for (position, (binding, argument)) in bindings.iter().zip(arguments).enumerate() {
+        if binding.kind == PreparedSourceBindingKind::Type {
+            return Err(format!(
+                "type dependency {position} has no ordinary source type substitution"
+            ));
+        }
+        let value = read(*argument)
+            .ok_or_else(|| format!("value dependency {position} has no readable actual value"))?;
+        values.push(value);
+    }
+    let scope =
+        crate::machine_calls::calls::machine_state_by_symbol(program, owner).or_else(|| {
+            let machine = program.machine_by_symbol(owner)?;
+            Some((machine, program.machine_states(machine).first()?))
+        });
+    let mut parameters = if let Some(definition) = program
+        .mathematical_definitions()
+        .iter()
+        .find(|definition| definition.symbol == owner)
+    {
+        crate::mathematical_applications::ordinary_parameters(program, definition)
+    } else if let Some((_, state)) = scope {
+        program.state_parameters(state).to_vec()
+    } else {
+        return Err("the retained lexical owner has no declaration telescope".to_owned());
+    };
+    // Copied contract roots can use fresh formals. Their exact source types
+    // come from the producer's own dependency census, not from the Id goal.
+    for binding in bindings {
+        if binding.symbol.is_valid() && binding.source_type.is_valid() {
+            if let Some(parameter) = parameters
+                .iter_mut()
+                .find(|parameter| parameter.symbol == binding.symbol)
+            {
+                parameter.type_reference = binding.source_type;
+            } else {
+                parameters.push(typed_trees::signature::StateParameter {
+                    symbol: binding.symbol,
+                    name: program.symbols.name(binding.symbol).into(),
+                    type_reference: binding.source_type,
+                    ..Default::default()
+                });
+            }
+        }
+    }
+    let substitute = |candidate| {
+        bindings.iter().zip(&values).find_map(|(binding, value)| {
+            let same_symbol = binding.symbol.is_valid() && matches!(
+                program.expression_table.expression(candidate),
+                typed_trees::expression::ExpressionNode::Name(path) if path.symbol == binding.symbol
+            );
+            (binding.expressions.contains(&candidate) || same_symbol).then(|| value.clone())
+        })
+    };
+    let value = super::structural_term(
+        program,
+        scope.map(|(machine, state)| (machine, state, source_type)),
+        Some((owner, &parameters)),
+        expression,
+        Some(&substitute),
+    ).ok_or_else(|| "the retained occurrence has no complete selected structural value after dependency substitution".to_owned())?;
+    Ok(if source_type.is_valid() {
+        super::owned_projection_observation(program, source_type, value)
+    } else {
+        value
+    })
 }
 
 fn binary(operator: BinaryOperator, left: StructuralTerm, right: StructuralTerm) -> StructuralTerm {
