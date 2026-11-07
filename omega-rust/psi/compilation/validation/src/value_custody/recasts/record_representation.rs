@@ -493,6 +493,9 @@ pub struct RecastRecordSourceLeaf {
     pub path: Vec<RecastLeafSegment>,
     pub primitive: typed_trees::types::PrimitiveType,
     pub view_primitive: typed_trees::types::PrimitiveType,
+    /// The selected view covers the entire original cell, independently of
+    /// whether interpreting those bytes preserves a value or primitive bits.
+    pub covers_source: bool,
     /// Equal geometry alone does not preserve a scalar observation: a bit
     /// recipe or another stored interpretation can decode different values.
     pub preserves_scalar_value: bool,
@@ -632,6 +635,7 @@ fn scalar_source_leaf(
             .collect(),
         primitive: source_leaf.primitive,
         view_primitive: target_leaf.primitive,
+        covers_source: same_extent,
         preserves_primitive_bits: same_extent
             && primitive_bit_representation(source_leaf)
             && primitive_bit_representation(target_leaf),

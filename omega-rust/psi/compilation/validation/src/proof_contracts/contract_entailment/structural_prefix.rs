@@ -406,6 +406,15 @@ pub(super) fn observe_acyclic_invocation_prefix(
     machine: &Machine,
     visitor: &mut dyn StructuralPrefixVisitor,
 ) -> Option<()> {
+    observe_acyclic_invocation_prefixes(program, machine, &mut [visitor])
+}
+
+/// Share the invocation walk while each visitor retains its own exact cut.
+pub(super) fn observe_acyclic_invocation_prefixes(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    visitors: &mut [&mut dyn StructuralPrefixVisitor],
+) -> Option<()> {
     let entry = program.machine_states(machine).first()?;
     if !crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
         program, machine, entry,
@@ -415,13 +424,13 @@ pub(super) fn observe_acyclic_invocation_prefix(
     let requires = machine_requires_facts(program, machine);
     let judge = StructuralJudge::from_runtime_state_requires(program, machine, entry, &requires);
     let mut diagnostics = Vec::new();
-    recognize_structural_case_arms(
+    recognize_structural_case_arms_batched(
         program,
         machine,
         &judge,
         &crate::proof_only_classification(program),
         &mut diagnostics,
-        Some(visitor),
+        visitors,
     )?;
     diagnostics.is_empty().then_some(())
 }
