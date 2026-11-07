@@ -239,7 +239,7 @@ pub(crate) enum DecodedInstruction {
     Return,
     /// `jmp qword ptr [rip+disp32]`: the closed indirect form the import
     /// thunk emits. Not a selected instruction kind — image emission owns
-    /// its production; PCC admission owns its replay.
+    /// its production, and this decoder recognizes the emitted form.
     JumpIndirectRip {
         displacement: i32,
     },

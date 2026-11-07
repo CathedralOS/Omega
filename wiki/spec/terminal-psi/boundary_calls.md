@@ -180,6 +180,11 @@ installation still joins the exact requirement and candidate identities.
 
 ## Assumed runtime relationships
 
+These relationships are exceptional root-approved departures from the checked
+model. Ordinary programs should reject them. Lowering or provider installation
+must not invent one to carry a rejected ownership, lifetime or contract
+obligation; follow the [usage rule](../build/assumed_binding_contracts.md).
+
 A root-selected [assumed binding contract](../build/assumed_binding_contracts.md)
 is not a checked-provider conformance row. Retain the original requirement,
 the supplied requirement and selected checked implementation, exact argument/

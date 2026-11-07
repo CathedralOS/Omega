@@ -188,8 +188,22 @@ installation authority. See
 
 ## Root-Assumed Binding Contracts
 
-Ordinary provider selection requires a checked conformance. A root can instead
-explicitly assume a relationship between two compatible boundary contracts:
+**Ordinary Omega programs should reject assumed bindings outright.** Treat them
+as unavailable when implementing or advising ordinary code. Do not use them to
+bypass borrow checking, silence an unproved ordinary contract, compensate for a
+compiler limitation, or make a failing test pass. Fix the ownership model,
+proof, contract or compiler instead. A library must not ask its consumers to
+approve an assumed binding as a substitute for that work.
+
+The mechanism remains for exceptional programs deliberately exceeding the
+checked model, including some forms of self-modifying code. Such use needs an
+explicit explanation of the requirement outside that model and the guarantees
+being relinquished. A compiler rejection alone is not justification.
+
+Ordinary provider selection requires a checked conformance. The following
+examples explain the exceptional trust mechanism, not a recommended way to
+obtain writable memory. A root can explicitly assume a relationship between
+two compatible boundary contracts:
 
 ```omega
 machine build(builder: &mut Build) {
@@ -238,7 +252,9 @@ Different shapes need an ordinary checked adapter, not a same-size bit cast.
 Neither `satisfies` nor assembly gains an unchecked mode. If the root's external
 claim is false, the consumer's conditional safety guarantee no longer applies.
 
-The root may also assume a connection the checker can demonstrably refute:
+The root may also deliberately accept a connection the checker can refute.
+This illustrates loss of assurance, not a technique for repairing a failed
+contract:
 
 ```omega
 boundary trait Expected {

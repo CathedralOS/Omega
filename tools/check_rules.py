@@ -11,7 +11,7 @@ cleanup:
   added 14 reads to product_boundary.rs. The per-file counts in
   `tools/source_text_reads.txt` may only fall.
 - Psi 06 re-derivation. The 2026-10-04 owner ruling (TASKS.md, "Lowering,
-  checker, data-flow, and PCC simplification") makes Psi 06 a mechanical
+  checker, and data-flow") makes Psi 06 a mechanical
   lowering of Psi 05's plans, and omega-rust/pipeline.md forbids stages from
   reconstructing missing input facts. In the two weeks to 2026-11-01 Psi 06
   took 124 repairs in 219 commits and changed with Psi 05's execution and

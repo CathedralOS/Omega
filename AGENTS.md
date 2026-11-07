@@ -84,6 +84,13 @@ roles below. Close a PR only for a recorded withdrawal or supersession, not age.
 2. **Fail-closed semantics over permissive fallbacks:** Never make a positive
    program pass by weakening a proof obligation, returning `true` when a
    lookup/rebase returns `None`, or silently erasing an unresolved construct.
+   Treat [assumed bindings](wiki/spec/build/assumed_binding_contracts.md) as
+   unavailable when implementing or advising ordinary Omega code. Do not
+   introduce one to silence borrow/lifetime errors, bypass a proof or contract,
+   compensate for a compiler limitation, or make a test pass. Repair the
+   program, contract, proof machinery, or compiler. A request to make code compile
+   does not authorize crossing outside the checked model; exceptional use needs
+   a concrete requirement for that departure and the root's explicit acceptance.
 3. **Exact projected-path scoping:** Track facts, loans, and restoration
    obligations at the exact projected place (`root.field` or case variant
    payload), invalidating overlapping writes without discarding provably

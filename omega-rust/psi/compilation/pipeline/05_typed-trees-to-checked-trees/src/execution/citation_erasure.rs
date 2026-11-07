@@ -8,7 +8,7 @@
 //! certificates and contexts hold its handles. Retiring it here is the one
 //! erasure decision: planners skip retired rows, and statement sequencing
 //! skips the citation statement itself, so the theorem never enters a unit
-//! closure. Cited indexed induction judgments remain explicit portable proof
+//! closure. Cited indexed induction judgments remain explicit source-proof
 //! roots with their source contract and complete assumption closure. Imported
 //! conclusions do not become execution facts: executable operations still need
 //! their ordinary Terminal justification rows.

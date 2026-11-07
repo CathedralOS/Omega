@@ -421,7 +421,7 @@ each adaptation's exact occurrence; equal layout alone supplies no license. The
 source correspondence and theorem schemas are erased, while ordinary scalar
 and structural call operands retain their normal typed lanes and requirements.
 Proof-only correspondence remains available without runtime materialization.
-The retained source admission is not an independently checked PCC theorem proof.
+The retained theorem admission relies on source checking.
 Affine/linear or routed carriers, representative-sensitive observers, effectful
 behavior and applications outside the admitted correspondence remain rejected.
 Broader theorem lifting and transitive mathematical assumption closure retain

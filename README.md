@@ -548,9 +548,13 @@ flowchart LR
     psi --> interpret["Interpreter"]
 ```
 
-Psi carries proof evidence so a receiving compiler or interpreter can check its
-contracts and declared capabilities independently of the producer.
-[Follow the pipeline →](omega-rust/pipeline.md)
+Terminal Psi is the portable output of source checking. Interpreters and native
+backends consume the same program; receivers check its structure, contracts and
+authority while relying on Psi's source judgments. Development tests compare
+native execution with the Terminal interpreter using `omega run --both`.
+The compiler's transformations remain trusted; execution agreement covers the
+tested inputs and observations.
+[Follow the pipeline →](omega-rust/pipeline.md#verification-placement)
 
 The separate [bootstrap chain](bootstrap/README.md) works toward constructing
 the compiler from a small auditable starting point. It is not required to work

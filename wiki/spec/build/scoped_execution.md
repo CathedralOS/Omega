@@ -314,7 +314,9 @@ per-symbol forwarding declarations; its implementation and migration remain
 The assumed-binding operation registers a root-authorized runtime relationship
 only. Neither its implementation nor its admitted facts become build-executable;
 the [runtime-only prohibition](assumed_binding_contracts.md#runtime-only) applies
-independently of product-reference resolution.
+independently of product-reference resolution. Its presence in the operand
+examples is not a recommendation: ordinary programs should reject assumed
+bindings, and helpers must not add one to make a rejected product compile.
 
 [Test-group registration](testing.md#registration-and-discovery) selects one exact
 product requirement; its group-scoped `service` operands select ordinary

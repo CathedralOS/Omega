@@ -349,6 +349,10 @@ backing/write authority remain separate obligations. Code metadata grants no
 patch permission and does not stop other calls from inlining. See
 [code-layout queries](../spec/language/counts_and_addresses.md#native-code-layout-queries)
 and [root-assumed contracts](chapter_19_capabilities_effects_boundaries.md#root-assumed-binding-contracts).
+That exceptional route is not a fix for a rejected borrow or missing write
+authority in ordinary code. Typical programs should reject it; a deliberate
+code-modification experiment must identify its departure from the checked model
+and accept the resulting conditional guarantees.
 
 ## Calling Conventions
 

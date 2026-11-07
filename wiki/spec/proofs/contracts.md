@@ -552,6 +552,13 @@ remain conditional on it. Registration grants no ambient proposition, permits
 no malformed derivation, and cannot make its assumptions admissible for
 build-time evaluation. Ordinary mathematical axioms retain the veto above.
 
+Ordinary programs should reject this exceptional runtime relationship. A missing
+proof, borrow-checker refusal, incorrect contract or compiler limitation is a
+reason to repair the program or checker, not to request an assumed binding.
+Libraries must not transfer these ordinary implementation failures into their
+consumers' trust decisions. See the
+[exceptional-use rule](../build/assumed_binding_contracts.md).
+
 ### Admission and runtime diagnostics
 
 An admitted claim is trusted without mandatory runtime checking. Runtime

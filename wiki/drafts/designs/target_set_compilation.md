@@ -7,10 +7,9 @@ instructions: Build runs once without observing the realized target, every
 supplied ordinary implementation is checked and retained in one Terminal artifact,
 and Build provider rows select implementations per target. Target-prefixed
 machine families in the measurements below are retired migration inputs, not
-the current language model. The duplicate board item was consolidated into the pipeline owners;
-**PCC-PRODUCT-PUBLICATION** owns Terminal-only command publication. Delete this
-note when the pipeline migration closes and its historical comparisons are no
-longer useful.
+the current language model. The [current pipeline](../../../omega-rust/pipeline.md)
+owns Terminal publication and its trust boundaries. The comparisons below refer
+only to the measured revision, including its obsolete artifact formats.
 
 Measured at `c5a798a411` (2026-09-24, Windows host).
 

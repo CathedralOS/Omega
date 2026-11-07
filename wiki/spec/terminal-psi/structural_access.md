@@ -651,8 +651,8 @@ for `StructuralCaseLeafCopy`. The rule is the same for a `Case` step directly on
 the root, though producers read a root sum's payload as parameters of its
 dispatch block. Unknown, erased, truncated, and non-record carriers reject;
 consumers must not infer a path from names or layout offsets. Terminal validation
-checks the declared path, exact scalar type and access independently; it does not
-replay the retired proof-carrying-code case derivation.
+checks the declared path, exact scalar type and access independently, relying on
+source checking for the case-refutation judgment.
 
 Reading a nested field observes the original backing below that root, not a
 copied child or a new borrow. Independent validation retains the root's readable
