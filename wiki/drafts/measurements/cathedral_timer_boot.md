@@ -62,8 +62,9 @@ entry `0x3774039`. The stopped occurrence UUID is
 It checks all 33 gates, GDT/TR and encoded TSS; eight entry/pre-IRET/after-IRET
 rounds; advancing counters and timestamps; acknowledgement completion; and
 interrupted general registers, XMM registers, MXCSR and the five-word return
-frames. Seventeen phases each compare all seventeen authored guard words
-(289 comparisons). The exact wake output also appears in this occurrence.
+frames. Seventeen phases each compare seventeen table, task-state and stack
+guard words (289 comparisons), with the two context canaries checked separately.
+The exact wake output also appears in this occurrence.
 Host stops use the reviewed TCG GDB protocol, with no guest memory/register
 writes or injected delivery. Timing-sensitive success is separately retained
 by the undisturbed run.
@@ -112,7 +113,7 @@ Raw logs, plans, inputs and independent reviews stay out of Git under
 `build/native-main-integration/`, tied to the identities above. The main records
 are `native-completion-r28-r13-original-parent/{uefi-undisturbed-r1,uefi-observed-r1}`,
 `owner-homes-r28-r2/owner-backing-review.md`, the R16 saved readback, and
-`full-feature-publication-review-r1/`. Claim
-`599a808b70f94d9e8900a006d97f2cb6` retains the compiler chain. This note records
+`full-feature-publication-review-r1/`. The historical claim
+`599a808b70f94d9e8900a006d97f2cb6` records the compiler chain. This note records
 bounded kernel boot evidence; it does not qualify the normal desktop, recovery
 from fatal exceptions, multiple CPUs or physical hardware.
