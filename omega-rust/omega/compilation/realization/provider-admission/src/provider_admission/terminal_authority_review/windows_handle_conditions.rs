@@ -120,6 +120,7 @@ impl HandleFlowConditions {
         body: &TerminalMachine,
         expressions: &LocalScalarExpressions,
         captures: &mut ScalarCaptureAnalysis,
+        scalar_captures: &terminal_semantics::descriptors::descriptor_results::TerminalScalarCaptures,
     ) -> Result<Self, String> {
         if machine.id != body.id
             || expressions.identity != machine.id
@@ -203,13 +204,19 @@ impl HandleFlowConditions {
                         .get(&edge.target.0)
                         .map(Vec::as_slice)
                         .unwrap_or(&[]);
-                    let bindings = machine
-                        .payload_scalar_bindings
+                    let bindings = scalar_captures
+                        .arrivals
                         .get(&position)
                         .and_then(|edges| edges.get(ordinal))
                         .map(Vec::as_slice)
                         .unwrap_or(&[]);
-                    arrival = arrival.arrival(parameters, bindings);
+                    let values = bindings
+                        .iter()
+                        .filter_map(|(parameter, operand)| {
+                            operand.value_term().map(|actual| (*parameter, actual))
+                        })
+                        .collect::<Vec<_>>();
+                    arrival = arrival.arrival(parameters, &values);
                 }
                 let changed = match result.snapshots.get_mut(&edge.target) {
                     Some(previous) => previous.intersect(&arrival),

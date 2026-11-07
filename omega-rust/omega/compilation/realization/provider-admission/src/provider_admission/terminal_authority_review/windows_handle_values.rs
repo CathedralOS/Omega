@@ -13,9 +13,10 @@ use terminal_semantics::descriptors::descriptor_lifetimes::{
     DescriptorLocation, DescriptorPathSegment, DescriptorPosition, descriptor_location,
 };
 use terminal_semantics::descriptors::descriptor_results::{
-    DescriptorAnalysis, DescriptorCasePredicate, DescriptorContentsQuery, DescriptorMachine,
-    DescriptorPayloadTarget, FlowFeasibility, PayloadEntryScalarIdentity, PayloadMembershipHistory,
-    require_unchanged_entry_storage, unchanged_stored_projection_sources_in,
+    CapturedScalarOperand, DescriptorAnalysis, DescriptorCasePredicate, DescriptorContentsQuery,
+    DescriptorMachine, DescriptorPayloadTarget, FlowFeasibility, PayloadEntryScalarIdentity,
+    PayloadMembershipHistory, TerminalScalarCaptures, require_unchanged_entry_storage,
+    unchanged_stored_projection_sources_in,
 };
 
 use super::context::ReviewContext;
@@ -72,7 +73,7 @@ pub(super) enum ScalarDefinition {
 pub(super) struct ScalarArrival {
     pub predecessor: DescriptorPosition,
     pub successor_ordinal: usize,
-    pub value: ScalarTerm,
+    pub value: CapturedScalarOperand,
 }
 
 pub(super) struct ScalarReturn {
@@ -117,6 +118,7 @@ pub(super) struct HandleValueReader<'a> {
     graph_index: BTreeMap<MachineId, usize>,
     types: BTreeMap<MachineId, BTreeMap<ValueId, ScalarType>>,
     producers: BTreeMap<(MachineId, ValueId), ValueProducer<'a>>,
+    captured_scalars: BTreeMap<MachineId, TerminalScalarCaptures>,
     native_writes:
         BTreeMap<(MachineId, DescriptorPosition), Vec<(DescriptorLocation, StoredScalarSource)>>,
     histories: BTreeMap<MachineId, PayloadMembershipHistory<'a>>,
@@ -191,6 +193,15 @@ impl<'a> HandleValueReader<'a> {
             parameters,
             dominators: terminal_semantics::control_graph::dominators(machine),
         })
+    }
+
+    pub(super) fn scalar_captures(
+        &self,
+        identity: MachineId,
+    ) -> Result<&TerminalScalarCaptures, String> {
+        self.captured_scalars
+            .get(&identity)
+            .ok_or("scalar captures name an unreached machine".into())
     }
 
     pub(super) fn require_native_output(
@@ -322,6 +333,17 @@ impl<'a> HandleValueReader<'a> {
             }
             types.insert(identity, value_types);
         }
+        let captured_scalars = calls
+            .machines
+            .iter()
+            .map(|(&identity, machine)| {
+                TerminalScalarCaptures::new(module, machine)
+                    .map(|captures| (identity, captures))
+                    .map_err(|reason| {
+                        format!("handle scalar captures are incomplete for {identity:?}: {reason}")
+                    })
+            })
+            .collect::<Result<BTreeMap<_, _>, String>>()?;
         let mut native_writes = BTreeMap::new();
         for alternatives in calls.calls.values() {
             for call in alternatives {
@@ -394,6 +416,7 @@ impl<'a> HandleValueReader<'a> {
             types,
             producers,
             native_writes,
+            captured_scalars,
             histories: BTreeMap::new(),
             analysis: DescriptorAnalysis::with_borrowed_storage_slots(
                 &module.structural_types,
@@ -448,7 +471,7 @@ impl<'a> HandleValueReader<'a> {
             return self.read_storage(identity, position, observed);
         }
         let mut arrivals = Vec::new();
-        for (position, edges) in &descriptor.payload_scalar_bindings {
+        for (position, edges) in &self.captured_scalars[&identity].arrivals {
             for (successor_ordinal, bindings) in edges.iter().enumerate() {
                 for (parameter, term) in bindings {
                     if *parameter == value {
@@ -703,6 +726,7 @@ impl<'a> HandleValueReader<'a> {
         };
         let writers = &self.native_writes;
         let calls = &self.calls.calls;
+        let captures = &self.captured_scalars[&identity];
         let sources = unchanged_stored_projection_sources_in(
             &self.module.structural_types,
             self.graph,
@@ -711,43 +735,25 @@ impl<'a> HandleValueReader<'a> {
             position,
             observed,
             |write_position| {
-                let producer = machine
-                    .block(&write_position.0)
-                    .and_then(|block| block.operations.get(write_position.1 as usize));
-                // Completed-call equations can establish equal numeric data,
-                // but cannot authenticate a handle's producing event. Only
-                // actual constructors and stores are plain writers here;
-                // calls have the separate occurrence identities below.
-                let actual_store = producer.is_some_and(|operation| {
-                    matches!(
-                        operation.kind,
-                        OperationKind::EstablishPrimitiveLocal { .. }
-                            | OperationKind::EstablishScalarArray { .. }
-                            | OperationKind::EstablishRecord { .. }
-                            | OperationKind::EstablishScalarCase { .. }
-                            | OperationKind::EstablishStructuralCase { .. }
-                            | OperationKind::WriteOnlyPrimitiveStore { .. }
-                            | OperationKind::StructuralScalarFieldStore { .. }
-                    )
-                });
-                let mut written = if actual_store {
-                    descriptor
-                        .scalar_payload_writes
-                        .get(&write_position)
-                        .into_iter()
-                        .flatten()
-                        .map(|(location, term)| {
+                let mut written = match captures.writes.get(&write_position) {
+                    Some(Ok(rows)) => rows
+                        .iter()
+                        .map(|(location, actual)| {
                             (
                                 location.clone(),
                                 StoredScalarSource::Scalar {
                                     position: write_position,
-                                    value: term.clone(),
+                                    value: actual.clone(),
                                 },
                             )
                         })
-                        .collect::<Vec<_>>()
-                } else {
-                    Vec::new()
+                        .collect::<Vec<_>>(),
+                    // This exact writer has no producing value to offer.
+                    // The shared version owner still checks its original
+                    // invalidation footprint against the observed home; an
+                    // unrelated or later unresolved writer is not global taint.
+                    Some(Err(_)) => Vec::new(),
+                    None => Vec::new(),
                 };
                 written.extend(
                     writers

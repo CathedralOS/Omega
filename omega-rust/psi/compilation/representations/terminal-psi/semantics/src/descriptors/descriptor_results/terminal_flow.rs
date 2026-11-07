@@ -1563,6 +1563,7 @@ fn selected_effects_machine(
             if let OperationKind::SelectImplementation { table } = operation.kind {
                 return Some(crate::UnchangedScalarOrigin::Known(SelectedTable(table)));
             }
+            let selector_machine = selector_graph?.iter().find(|row| row.id == machine.id)?;
             let sources = super::unchanged_stored_scalar_sources(
                 &module.structural_types,
                 selector_graph?,
@@ -1577,50 +1578,11 @@ fn selected_effects_machine(
                     else {
                         return Vec::new();
                     };
-                    let Some(graph) = selector_graph
-                        .and_then(|graph| graph.iter().find(|row| row.id == machine.id))
-                    else {
-                        return Vec::new();
-                    };
-                    let mut writes = Vec::new();
-                    let mut write = |root, path: &[StructuralPathSegment], field, actual| {
-                        if let Some(location) = graph.place_types.get(&root).and_then(|ty| {
-                            descriptor_location(&module.structural_types, root, *ty, path, field)
-                        }) {
-                            writes.push((location, actual));
-                        }
-                    };
-                    match &operation.kind {
-                        OperationKind::EstablishPrimitiveLocal { value, .. } => {
-                            if let Some(result) = operation.result.structural() {
-                                write(result.place, &[], None, *value);
-                            }
-                        }
-                        OperationKind::WriteOnlyPrimitiveStore {
-                            destination,
-                            path,
-                            value,
-                            ..
-                        } => write(*destination, path, None, *value),
-                        OperationKind::StructuralScalarFieldStore {
-                            destination,
-                            path,
-                            field,
-                            value,
-                            ..
-                        } => write(*destination, path, Some(*field), *value),
-                        OperationKind::EstablishRecord { fields } => {
-                            if let Some(result) = operation.result.structural() {
-                                for field in fields {
-                                    if let RecordFieldValue::Scalar { value, .. } = &field.value {
-                                        write(result.place, &[], Some(field.field), *value);
-                                    }
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                    writes
+                    // Reuse the complete canonical writer roster. Unsupported
+                    // projections provide no selector provenance.
+                    super::scalar_storage_writes(module, &selector_machine.place_types, operation)
+                        .and_then(Result::ok)
+                        .unwrap_or_default()
                 },
             )?;
             return Some(crate::UnchangedScalarOrigin::Incoming(sources));

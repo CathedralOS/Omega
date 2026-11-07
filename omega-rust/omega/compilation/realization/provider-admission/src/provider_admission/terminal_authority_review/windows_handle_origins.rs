@@ -267,10 +267,17 @@ fn definition_equation(
                         predecessor: arrival.predecessor,
                         successor_ordinal: arrival.successor_ordinal,
                     },
-                    source: ScalarSubject::Expression {
-                        machine: identity,
-                        position: arrival.predecessor,
-                        value: arrival.value,
+                    source: match arrival.value {
+                        terminal_semantics::descriptors::descriptor_results::CapturedScalarOperand::Value { id, scalar_type } => ScalarSubject::Expression {
+                            machine: identity,
+                            position: arrival.predecessor,
+                            value: ScalarTerm::value(id, scalar_type),
+                        },
+                        terminal_semantics::descriptors::descriptor_results::CapturedScalarOperand::Storage(location) => ScalarSubject::Storage {
+                            machine: identity,
+                            position: arrival.predecessor,
+                            location,
+                        },
                     },
                 });
             }

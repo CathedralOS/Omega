@@ -39,6 +39,7 @@ pub(crate) use payload_history::completed_payload_contract;
 mod payload_predicates;
 mod payload_reachability;
 mod payload_versions;
+mod scalar_captures;
 mod scalar_contracts;
 pub use contents::{
     DescriptorContentsOperand, DescriptorContentsQuery, DescriptorContentsStep,
@@ -61,6 +62,8 @@ pub use payload_versions::{
     unchanged_payload_producer, unchanged_stored_projection_sources_in,
     unchanged_stored_scalar_sources, unchanged_stored_sources,
 };
+use scalar_captures::scalar_storage_writes;
+pub use scalar_captures::{CapturedScalarOperand, TerminalScalarCaptures};
 pub use scalar_contracts::{case_payload_scalar_types, instantiate_payload_scalar_guarantees};
 mod owned_shape;
 mod replay;

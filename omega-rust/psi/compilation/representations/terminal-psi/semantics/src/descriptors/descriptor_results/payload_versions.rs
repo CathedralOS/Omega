@@ -825,6 +825,54 @@ mod tests {
     }
 
     #[test]
+    fn entry_storage_refuses_overlapping_clobbers_without_tainting_other_homes_or_earlier_cuts() {
+        let (types, mut machine) = copy_graph();
+        for step in machine.flow.values_mut() {
+            step.definitions.clear();
+            step.derivations.clear();
+        }
+        let original = payload();
+        let other = DescriptorLocation::whole(semantic_vocabulary::PlaceId::new(2).unwrap());
+        let preserved = |machine: &DescriptorMachine| {
+            let graph = std::slice::from_ref(machine);
+            let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&types, graph);
+            require_unchanged_entry_storage(
+                &types,
+                graph,
+                &mut analysis,
+                machine.id,
+                position(4),
+                &DescriptorPayloadTarget::Storage(original.clone()),
+            )
+        };
+        machine.payload_invalidations.insert(
+            position(2),
+            vec![Some(super::super::DescriptorContentsQuery::from_location(
+                &other,
+            ))],
+        );
+        assert!(preserved(&machine).is_ok());
+        machine.payload_invalidations.insert(
+            position(2),
+            vec![Some(super::super::DescriptorContentsQuery::from_location(
+                &original,
+            ))],
+        );
+        assert!(preserved(&machine).is_err());
+        // An unresolved mutation is conservative on a path to this read.
+        machine
+            .payload_invalidations
+            .insert(position(2), vec![None]);
+        assert!(preserved(&machine).is_err());
+        // A later mutation cannot retrospectively replace an earlier snapshot.
+        machine.payload_invalidations.clear();
+        machine
+            .payload_invalidations
+            .insert(position(5), vec![None]);
+        assert!(preserved(&machine).is_ok());
+    }
+
+    #[test]
     fn scalar_formal_renews_on_arrival_not_between_operations_in_its_block() {
         let (_, mut machine) = copy_graph();
         let entry = position(1);

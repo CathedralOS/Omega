@@ -273,6 +273,7 @@ impl<'a> WindowsHandleInputs<'a> {
                             calls.machines[&machine.id],
                             &reader.local_expressions(machine.id)?,
                             &mut captures,
+                            reader.scalar_captures(machine.id)?,
                         )?,
                     );
                     scalar_captures.insert(machine.id, captures);
