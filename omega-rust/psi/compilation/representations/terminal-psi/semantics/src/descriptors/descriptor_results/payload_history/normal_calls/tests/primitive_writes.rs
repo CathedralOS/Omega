@@ -497,3 +497,215 @@ fn scalar_field_preservation_proves_the_whole_rule_from_each_writers_actual_valu
         "projected duties cannot use field names to separate overlapping view storage"
     );
 }
+
+#[test]
+fn untouched_projected_siblings_keep_metadata_without_assuming_pointee_separation() {
+    use semantic_vocabulary::StructuralFieldId;
+    use terminal_psi::{
+        BindingRelevance, StructuralFieldDeclaration, StructuralFieldType, StructuralRecordStorage,
+    };
+    let mut module = module(true);
+    module.machines.clear();
+    let boolean = module.structural_types[0].id;
+    let reference = module.structural_types[1].id;
+    module.structural_types.truncate(2);
+    let child = StructuralTypeId::new(3).unwrap();
+    let array = StructuralTypeId::new(4).unwrap();
+    let outer = StructuralTypeId::new(5).unwrap();
+    let first = StructuralFieldId::new(1).unwrap();
+    let second = StructuralFieldId::new(2).unwrap();
+    let leaf = StructuralFieldId::new(3).unwrap();
+    let sibling = StructuralFieldId::new(4).unwrap();
+    let first_name = TerminalIdentityIndex(40);
+    let second_name = TerminalIdentityIndex(41);
+    let leaf_name = TerminalIdentityIndex(42);
+    let sibling_name = TerminalIdentityIndex(43);
+    let field = |id, identity, field_type, inline_carrier| StructuralFieldDeclaration {
+        id,
+        identity,
+        inline_carrier,
+        relevance: BindingRelevance::Relevant,
+        field_type,
+        storage: None,
+    };
+    for (id, shape) in [
+        (
+            child,
+            StructuralTypeShape::Record {
+                storage: StructuralRecordStorage::Packed,
+                fields: vec![
+                    field(
+                        leaf,
+                        leaf_name,
+                        StructuralFieldType::Scalar(ScalarType::Boolean),
+                        Some(boolean),
+                    ),
+                    field(
+                        sibling,
+                        sibling_name,
+                        StructuralFieldType::Scalar(ScalarType::Boolean),
+                        Some(boolean),
+                    ),
+                ],
+            },
+        ),
+        (
+            array,
+            StructuralTypeShape::FixedArray {
+                element: child,
+                length: terminal_psi::ArrayExtent::Literal(2),
+            },
+        ),
+        (
+            outer,
+            StructuralTypeShape::Record {
+                storage: StructuralRecordStorage::Packed,
+                fields: vec![
+                    field(
+                        first,
+                        first_name,
+                        StructuralFieldType::Scalar(ScalarType::Boolean),
+                        Some(boolean),
+                    ),
+                    field(
+                        second,
+                        second_name,
+                        StructuralFieldType::Structural(array),
+                        None,
+                    ),
+                ],
+            },
+        ),
+    ] {
+        let mut declaration = module.structural_types[0].clone();
+        declaration.id = id;
+        declaration.identity = TerminalIdentityIndex(50 + id.get() as u32);
+        declaration.shape = shape;
+        module.structural_types.push(declaration);
+    }
+    let mut subject = vec![
+        StructuralPathSegment::Field(second_name),
+        StructuralPathSegment::AllElements,
+        StructuralPathSegment::Field(leaf_name),
+    ];
+    let domain = module.structural_domains[0].id;
+    let prior = |path| PayloadMembershipContract {
+        carrier: outer,
+        qualifications: Vec::new(),
+        projected_qualifications: vec![StructuralPathQualification { path, domain }],
+        scalar_observations: Vec::new(),
+        scalar_requirements: Vec::new(),
+    };
+    let written = [DescriptorPathSegment::Field(first)];
+    let family_write = [
+        DescriptorPathSegment::Field(second),
+        DescriptorPathSegment::FixedIndex(0),
+        DescriptorPathSegment::Field(sibling),
+    ];
+    for external_suffix in [false, true] {
+        if external_suffix {
+            let StructuralTypeShape::Record { storage, fields } =
+                &mut module.structural_types[2].shape
+            else {
+                unreachable!()
+            };
+            *storage =
+                StructuralRecordStorage::AccessView(semantic_vocabulary::AuthoredRecordStorage {
+                    byte_size: 1,
+                    byte_alignment: 1,
+                });
+            for field in fields {
+                field.storage = Some(semantic_vocabulary::AuthoredFieldStorage::Scalar {
+                    byte_offset: 0,
+                    stored_scalar: Some(ScalarType::Boolean),
+                });
+            }
+        }
+        assert_eq!(
+            crate::qualification_path_carrier(module.structural_types.iter(), outer, &subject),
+            Some(boolean),
+            "the untouched universal qualification is valid metadata",
+        );
+        assert_eq!(
+            super::super::primitive_writes::preserves_roster(
+                &module,
+                &prior(subject.clone()),
+                &written,
+                &ScalarTerm::Boolean(false),
+            ),
+            Ok(()),
+            "ordinary outer siblings remain separate without replaying the untouched suffix",
+        );
+        assert_eq!(
+            super::super::primitive_writes::preserves_roster(
+                &module,
+                &prior(subject.clone()),
+                &family_write,
+                &ScalarTerm::Boolean(false),
+            ),
+            if external_suffix {
+                Err("scalar preservation needs independently proved external record geometry")
+            } else {
+                Ok(())
+            },
+            "AllElements and FixedIndex share the element's physical field layout",
+        );
+    }
+    let StructuralTypeShape::Record { storage, fields } = &mut module.structural_types[2].shape
+    else {
+        unreachable!()
+    };
+    *storage = StructuralRecordStorage::Packed;
+    fields[0].field_type = StructuralFieldType::Structural(reference);
+    fields[0].inline_carrier = None;
+    for field in fields {
+        field.storage = None;
+    }
+    for declaration in &mut module.structural_types[2..] {
+        declaration.copyable = false;
+        declaration.descriptor_cleanup = true;
+    }
+    let descriptor_domain = StructuralDomainId::new(2).unwrap();
+    let mut declaration = module.structural_domains[0].clone();
+    declaration.id = descriptor_domain;
+    declaration.semantic_domain = DomainSemanticId::new(2).unwrap();
+    declaration.identity = TerminalIdentityIndex(61);
+    declaration.carrier = reference;
+    declaration.predicate = None;
+    module.structural_domains.push(declaration);
+    assert_eq!(
+        crate::qualification_path_carrier(module.structural_types.iter(), outer, &subject),
+        Some(reference),
+    );
+    assert_eq!(
+        super::super::primitive_writes::preserves_roster(
+            &module,
+            &PayloadMembershipContract {
+                projected_qualifications: vec![StructuralPathQualification {
+                    path: subject.clone(),
+                    domain: descriptor_domain,
+                }],
+                ..prior(Vec::new())
+            },
+            &written,
+            &ScalarTerm::Boolean(false),
+        ),
+        Err("scalar preservation needs captured referent alias evidence"),
+        "a whole reference duty cannot be reduced to its descriptor word",
+    );
+    subject.push(StructuralPathSegment::Referent);
+    assert_eq!(
+        crate::qualification_path_carrier(module.structural_types.iter(), outer, &subject),
+        Some(boolean),
+    );
+    assert_eq!(
+        super::super::primitive_writes::preserves_roster(
+            &module,
+            &prior(subject),
+            &written,
+            &ScalarTerm::Boolean(false),
+        ),
+        Err("scalar preservation needs captured referent alias evidence"),
+        "inline sibling names cannot separate an independently backed pointee",
+    );
+}

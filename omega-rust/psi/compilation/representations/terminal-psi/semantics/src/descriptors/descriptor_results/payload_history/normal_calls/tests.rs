@@ -2,6 +2,7 @@ use super::*;
 use semantic_vocabulary::{DomainSemanticId, ScalarTerm, ScalarType, StructuralDomainId};
 use terminal_psi::{StructuralDomainDeclaration, TerminalIdentityIndex};
 
+mod aggregate_byte_dependencies;
 mod incoming_stores;
 mod primitive_writes;
 mod reference_words;

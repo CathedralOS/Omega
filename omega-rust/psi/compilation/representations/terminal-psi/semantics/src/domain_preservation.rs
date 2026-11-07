@@ -17,12 +17,18 @@ use terminal_psi::{
     StructuralPathSegment, StructuralTypeDeclaration, TerminalIdentityTable,
 };
 
+#[derive(Default)]
+struct PredicateDependencies {
+    paths: Vec<Vec<Segment>>,
+    indirect_backing: bool,
+}
+
 fn term_dependencies<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     carrier: StructuralTypeId,
     subject: PlaceId,
     term: &ScalarTerm,
-    output: &mut Vec<Vec<Segment>>,
+    output: &mut PredicateDependencies,
     depth: usize,
 ) -> Option<()> {
     if depth > 256 {
@@ -51,16 +57,14 @@ fn term_dependencies<'a>(
             }
             // Fixed bytes are inline storage. A view observes indirect backing:
             // its descriptor field cannot establish disjointness from a write.
-            output.push(
-                if matches!(
-                    selected.shape,
-                    terminal_psi::StructuralTypeShape::FixedArray { .. }
-                ) {
-                    path.clone()
-                } else {
-                    Vec::new()
-                },
+            let inline = matches!(
+                selected.shape,
+                terminal_psi::StructuralTypeShape::FixedArray { .. }
             );
+            output.indirect_backing |= !inline;
+            output
+                .paths
+                .push(if inline { path.clone() } else { Vec::new() });
             return Some(());
         }
         ScalarTerm::StructuralRead {
@@ -95,7 +99,7 @@ fn term_dependencies<'a>(
     {
         return None;
     }
-    output.push(observation.1);
+    output.paths.push(observation.1);
     Some(())
 }
 
@@ -103,13 +107,13 @@ fn predicate_dependencies<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     carrier: StructuralTypeId,
     predicate: &StructuralDomainPredicate,
-) -> Option<Vec<Vec<Segment>>> {
+) -> Option<PredicateDependencies> {
     fn visit<'a>(
         types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
         carrier: StructuralTypeId,
         subject: PlaceId,
         clause: &Proposition,
-        output: &mut Vec<Vec<Segment>>,
+        output: &mut PredicateDependencies,
         depth: usize,
     ) -> Option<()> {
         if depth > 256 {
@@ -202,13 +206,13 @@ fn predicate_dependencies<'a>(
                     .iter()
                     .any(|declared| declared.id == *case)
                     .then_some(())?;
-                output.push(observed.path().to_vec());
+                output.paths.push(observed.path().to_vec());
                 Some(())
             }
             _ => None,
         }
     }
-    let mut output = Vec::new();
+    let mut output = PredicateDependencies::default();
     predicate.proposition.validate().ok()?;
     visit(
         types,
@@ -237,7 +241,8 @@ pub fn domain_predicate_observes_no_storage<'a>(
     carrier: StructuralTypeId,
     predicate: &StructuralDomainPredicate,
 ) -> bool {
-    predicate_dependencies(types, carrier, predicate).is_some_and(|paths| paths.is_empty())
+    predicate_dependencies(types, carrier, predicate)
+        .is_some_and(|dependencies| dependencies.paths.is_empty())
 }
 
 fn storage_path<'a>(
@@ -344,14 +349,50 @@ pub fn domain_write_is_disjoint<'a>(
     let Some(predicate) = &domain.predicate else {
         return false;
     };
-    let Some(mut paths) = predicate_dependencies(types.clone(), domain.carrier, predicate) else {
+    let Some(mut dependencies) = predicate_dependencies(types.clone(), domain.carrier, predicate)
+    else {
         return false;
     };
-    content_dependencies(types.clone(), identities, domain, &mut paths).is_some()
-        && paths.iter().all(|path| {
+    content_dependencies(types.clone(), identities, domain, &mut dependencies.paths).is_some()
+        && dependencies.paths.iter().all(|path| {
             storage_path(types.clone(), domain.carrier, path)
                 .is_some_and(|dependency| !structural_paths_may_overlap(&dependency, write))
         })
+}
+
+/// Inline separation can frame a whole domain only when its complete rule
+/// observes inline storage. A borrowed-byte observation retains an indirect
+/// dependency even when its descriptor sits inside an ordinary record. Unused
+/// borrowed fields do not add dependencies to a rule that does not observe them.
+/// This query supplies no membership, physical separation, or backing proof.
+pub(crate) fn domain_has_inline_storage_dependencies<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    identities: &TerminalIdentityTable,
+    domain: &StructuralDomainDeclaration,
+) -> bool {
+    if !domain.complete_predicate_theory {
+        return false;
+    }
+    let Some(predicate) = domain.predicate.as_ref() else {
+        return false;
+    };
+    let Some(mut dependencies) = predicate_dependencies(types.clone(), domain.carrier, predicate)
+    else {
+        return false;
+    };
+    if dependencies.indirect_backing {
+        return false;
+    }
+    if domain.byte_predicate.is_some()
+        && !crate::descriptors::descriptor_results::plain_owned_shape(types.clone(), domain.carrier)
+    {
+        return false;
+    }
+    content_dependencies(types.clone(), identities, domain, &mut dependencies.paths).is_some()
+        && dependencies
+            .paths
+            .iter()
+            .all(|path| storage_path(types.clone(), domain.carrier, path).is_some())
 }
 
 /// Predicate observations may expire on a write; conserved Content does not.

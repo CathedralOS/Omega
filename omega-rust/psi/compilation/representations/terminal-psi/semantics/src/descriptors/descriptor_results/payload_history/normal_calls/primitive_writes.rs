@@ -230,8 +230,15 @@ pub(super) fn preserves_roster(
     for domain in &prior.qualifications {
         preserves_domain(module, prior, *domain, written, value)?;
     }
+    if prior.projected_qualifications.is_empty() {
+        return Ok(());
+    }
+    let written_geometry = OrdinaryStoragePath::new(&module.structural_types, prior.carrier, path);
     for row in &prior.projected_qualifications {
-        if !crate::structural_paths_may_overlap(&row.path, &path) {
+        let subject_geometry =
+            OrdinaryStoragePath::new(&module.structural_types, prior.carrier, row.path.clone());
+        if !written_geometry.may_overlap(&subject_geometry)? {
+            require_inline_projected_dependencies(module, prior.carrier, row)?;
             continue;
         }
         if row.path.iter().any(|step| {
@@ -266,6 +273,42 @@ pub(super) fn preserves_roster(
         )
         .ok_or("the primitive roster duty has no complete selected contract")?;
         preserves_domain(module, &selected, row.domain, relative, value)?;
+    }
+    Ok(())
+}
+
+/// The separation proof concerns the subject's inline storage. Frame every
+/// prerequisite's predicate and conserved Content before using it to keep a
+/// projected duty; an aggregate carrier alone does not rule out borrowed data.
+fn require_inline_projected_dependencies(
+    module: &TerminalModule,
+    root: StructuralTypeId,
+    row: &terminal_psi::StructuralPathQualification,
+) -> Result<(), &'static str> {
+    let carrier =
+        crate::qualification_path_carrier(module.structural_types.iter(), root, &row.path)
+            .ok_or("the projected preservation duty has no exact carrier")?;
+    let declaration = crate::exactly_one::exactly_one(module.structural_domains.iter(), |domain| {
+        domain.id == row.domain && domain.carrier == carrier
+    })
+    .ok_or("the projected preservation duty has no unique matching declaration")?;
+    // An independently unchanged, wholly inline subject keeps its exact held
+    // duty even when that rule's definition is opaque. This preserves the same
+    // value; it does not interpret missing prerequisite metadata as no duties.
+    if plain_owned_shape(module.structural_types.iter(), carrier) {
+        return Ok(());
+    }
+    let closure = declaration
+        .required_domain_closure(&module.structural_domains)
+        .ok_or("the projected preservation duty has an incomplete prerequisite theory")?;
+    if !closure.into_iter().all(|domain| {
+        crate::domain_preservation::domain_has_inline_storage_dependencies(
+            module.structural_types.iter(),
+            &module.identities,
+            domain,
+        )
+    }) {
+        return Err("scalar preservation needs captured domain dependency evidence");
     }
     Ok(())
 }
@@ -414,20 +457,147 @@ fn after_write(
     Ok(goal)
 }
 
+/// Keep the path and its ordinary-prefix boundary together. A metadata-only
+/// suffix can remain untouched after an ordinary containing member separates
+/// the write; it need not be a runtime address. A referent is a separate alias
+/// space and cannot inherit that conclusion from inline sibling names.
+pub(super) struct OrdinaryStoragePath {
+    carrier: StructuralTypeId,
+    path: Vec<StructuralPathSegment>,
+    first_problem: Option<(usize, &'static str)>,
+    separately_backed: bool,
+}
+
+impl OrdinaryStoragePath {
+    pub(super) fn new(
+        types: &[StructuralTypeDeclaration],
+        carrier: StructuralTypeId,
+        path: Vec<StructuralPathSegment>,
+    ) -> Self {
+        let first_problem = qualification_storage_problem(types, carrier, &path);
+        let separately_backed = path.iter().enumerate().any(|(position, step)| {
+            if matches!(step, StructuralPathSegment::Referent) {
+                return true;
+            }
+            if !matches!(
+                step,
+                StructuralPathSegment::AllElements
+                    | StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::FixedRange { .. }
+                    | StructuralPathSegment::RuntimeIndex { .. }
+            ) {
+                return false;
+            }
+            let Some(container) =
+                crate::qualification_path_carrier(types.iter(), carrier, &path[..position])
+            else {
+                return true;
+            };
+            let mut declarations = types.iter().filter(|row| row.id == container);
+            let Some(declaration) = declarations.next() else {
+                return true;
+            };
+            declarations.next().is_some()
+                || !matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+        });
+        let separately_backed = separately_backed
+            || crate::qualification_path_carrier(types.iter(), carrier, &path)
+                .and_then(|id| {
+                    let mut declarations = types.iter().filter(|row| row.id == id);
+                    let declaration = declarations.next()?;
+                    declarations.next().is_none().then_some(declaration)
+                })
+                .is_some_and(|declaration| separately_backed_shape(&declaration.shape));
+        Self {
+            carrier,
+            path,
+            first_problem,
+            separately_backed,
+        }
+    }
+
+    pub(super) fn may_overlap(&self, other: &Self) -> Result<bool, &'static str> {
+        if self.carrier != other.carrier {
+            return Err("the provider write and captured subject have different carriers");
+        }
+        let separation = crate::structural::static_path::structural_path_separation_depth(
+            &self.path,
+            &other.path,
+        );
+        let relevant = separation.unwrap_or_else(|| self.path.len().min(other.path.len()));
+        for path in [self, other] {
+            if let Some((prefix, reason)) = path.first_problem
+                && prefix <= relevant
+            {
+                return Err(reason);
+            }
+        }
+        let overlaps = separation.is_none();
+        if !overlaps && (self.separately_backed || other.separately_backed) {
+            return Err("scalar preservation needs captured referent alias evidence");
+        }
+        Ok(overlaps)
+    }
+}
+
 fn require_ordinary_storage_path(
     types: &[StructuralTypeDeclaration],
     carrier: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Result<(), &'static str> {
+    ordinary_storage_problem(types, carrier, path).map_or(Ok(()), |(_, reason)| Err(reason))
+}
+
+fn ordinary_storage_problem(
+    types: &[StructuralTypeDeclaration],
+    carrier: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<(usize, &'static str)> {
+    storage_prefix_problem(path, |end| {
+        crate::runtime_structural_path_tip(types.iter(), carrier, &path[..end])
+    })
+}
+
+fn qualification_storage_problem(
+    types: &[StructuralTypeDeclaration],
+    carrier: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<(usize, &'static str)> {
+    storage_prefix_problem(path, |end| {
+        let id = crate::qualification_path_carrier(types.iter(), carrier, &path[..end])?;
+        let mut declarations = types.iter().filter(|row| row.id == id);
+        let declaration = declarations.next()?;
+        declarations.next().is_none().then_some(declaration)
+    })
+}
+
+fn separately_backed_shape(shape: &StructuralTypeShape) -> bool {
+    matches!(
+        shape,
+        StructuralTypeShape::Reference { .. }
+            | StructuralTypeShape::ElementView { .. }
+            | StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                    | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+            )
+    )
+}
+
+fn storage_prefix_problem<'types>(
+    path: &[StructuralPathSegment],
+    mut declaration: impl FnMut(usize) -> Option<&'types StructuralTypeDeclaration>,
+) -> Option<(usize, &'static str)> {
     for end in 0..=path.len() {
-        let Some(tip) = crate::runtime_structural_path_tip(types.iter(), carrier, &path[..end])
-        else {
-            if end == path.len() {
+        let Some(tip) = declaration(end) else {
+            if end == path.len() && end != 0 {
                 // A final inline scalar can lack a standalone declaration.
                 // Its exact scalar type is independently checked by the caller.
                 continue;
             }
-            return Err("the scalar preservation path has an unknown enclosing carrier");
+            return Some((
+                end,
+                "the scalar preservation path has an unknown enclosing carrier",
+            ));
         };
         if matches!(
             tip.shape,
@@ -437,8 +607,17 @@ fn require_ordinary_storage_path(
                 ..
             }
         ) {
-            return Err("scalar preservation needs independently proved external record geometry");
+            return Some((
+                end,
+                "scalar preservation needs independently proved external record geometry",
+            ));
+        }
+        if separately_backed_shape(&tip.shape) {
+            return Some((
+                end,
+                "scalar preservation needs captured referent alias evidence",
+            ));
         }
     }
-    Ok(())
+    None
 }
