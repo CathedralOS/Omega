@@ -326,6 +326,36 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &OperationBuffer,
     ) -> Result<(), LoweringError> {
+        if arguments.len() != declarations.len() {
+            return Err(LoweringError::Unsupported(
+                "cleanup capture has no exact structural roster",
+            ));
+        }
+        if arguments.is_empty() {
+            return Ok(());
+        }
+        // Capture names from every original operand before the edge changes
+        // their receiving places. A declaration cannot supply a missing source
+        // namespace, including when the actual roster is genuinely empty.
+        let mut source_names = Vec::with_capacity(arguments.len());
+        for argument in arguments.iter() {
+            source_names.push(
+                if argument.access == terminal_psi::StructuralAccess::Owned {
+                    Some(self.current_claims.source(argument)?.ok_or_else(|| {
+                        LoweringError::MissingCapturedArgumentNamespace {
+                            block: self.current,
+                            argument: argument.clone(),
+                            last_operation: operations
+                                .operations
+                                .last()
+                                .map(|operation| operation.id),
+                        }
+                    })?)
+                } else {
+                    None
+                },
+            );
+        }
         self.cleanup_emission(checked, &mut Vec::new())
             .capture_arguments(
                 identities,
@@ -338,7 +368,27 @@ impl Evaluation {
                 next_block,
                 next_edge,
                 operations,
+            )?;
+        if arguments.len() != source_names.len()
+            || arguments.len() != self.block_structural_parameters.len()
+            || arguments.iter().zip(&self.block_structural_parameters).any(
+                |(argument, parameter)| {
+                    argument.place != parameter.place
+                        || argument.access != parameter.access
+                        || !argument.path.is_empty()
+                },
             )
+        {
+            return Err(LoweringError::Unsupported(
+                "structural capture changes its completed namespace roster",
+            ));
+        }
+        for (argument, names) in arguments.iter().zip(source_names) {
+            if let Some(names) = names {
+                self.current_claims.publish(argument.place, names)?;
+            }
+        }
+        Ok(())
     }
 
     /// Flat schedules remain on the completion edge; selected schedules use
