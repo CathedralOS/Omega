@@ -37,7 +37,10 @@
     "cache_key": "compiler-regression-Linux-X64-50b337c89157d83b1de5510b630025d9bcd28107e82f67e95260cba16129ddc5-d663540513b74935b661f13a88466d5b3f8736a7-prepared-v1-with-runner"
   },
   "fixtures": [
-    "pass/recast/runtime_record_array_view_mutable_write_exit"
+    "pass/recast/runtime_offset_byte_recast_mutable_write_exit",
+    "pass/recast/runtime_record_array_view_mutable_write_exit",
+    "fail/arithmetic/call_argument_snapshot_not_current_field",
+    "fail/arithmetic/repeated_call_argument_snapshots_are_distinct"
   ],
   "source_only": true,
   "samples": [],
