@@ -12,11 +12,31 @@ use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;
 use validation::field_domains::ByteSequencePredicate;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 struct ReturnedPredicate {
     parameter: SymbolHandle,
     reference_type: TypeReferenceHandle,
     predicate: ByteSequencePredicate,
+}
+
+type StorageIdentityKey = ((u32, u32), (u32, u32));
+
+/// Opaque handles have no semantic order. Index preparation orders only their
+/// complete identities, including generations, without dereferencing them.
+fn storage_key(parameter: SymbolHandle, reference: TypeReferenceHandle) -> StorageIdentityKey {
+    (
+        (parameter.arena_index(), parameter.generation()),
+        (reference.arena_index(), reference.generation()),
+    )
+}
+
+impl ReturnedPredicate {
+    fn key(&self) -> (StorageIdentityKey, ByteSequencePredicate) {
+        (
+            storage_key(self.parameter, self.reference_type),
+            self.predicate,
+        )
+    }
 }
 
 /// Compact rows for actual producers, sorted by machine roster position.
@@ -36,7 +56,12 @@ impl NormalReturnPredicates {
     fn contains(&self, machine: usize, row: ReturnedPredicate) -> bool {
         self.rows
             .binary_search_by_key(&machine, |(position, _)| *position)
-            .is_ok_and(|position| self.rows[position].1.binary_search(&row).is_ok())
+            .is_ok_and(|position| {
+                self.rows[position]
+                    .1
+                    .binary_search_by_key(&row.key(), ReturnedPredicate::key)
+                    .is_ok()
+            })
     }
 
     /// All selected family bodies must prove the same typed formal's class.
@@ -109,7 +134,7 @@ impl NormalReturnPredicates {
             .extend(rows.iter().flat_map(|(position, values)| {
                 values.iter().map(move |value| (*position, *value))
             }));
-        discovered.sort_unstable();
+        discovered.sort_unstable_by_key(|(position, row)| (*position, row.key()));
         discovered.dedup();
         let height = 2 * (discovered.len() - self.discovered.len());
         self.discovered = discovered;
@@ -170,7 +195,7 @@ pub(super) fn dependents(
         }
     }
     for row in &mut rows {
-        row.sort_unstable();
+        row.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
         row.dedup();
     }
     rows
@@ -265,7 +290,9 @@ pub(super) fn refresh(
                     }
                     facts.push(((parameter, type_reference), fact));
                 }
-                facts.sort_unstable_by_key(|(key, _)| *key);
+                facts.sort_unstable_by_key(|((parameter, reference), _)| {
+                    storage_key(*parameter, *reference)
+                });
                 for group in facts.chunk_by(|left, right| left.0 == right.0) {
                     let (parameter, reference_type) = group[0].0;
                     let facts: Vec<_> = group.iter().map(|(_, fact)| *fact).collect();
@@ -280,10 +307,14 @@ pub(super) fn refresh(
                     }
                 }
             }
-            proved.sort_unstable();
+            proved.sort_unstable_by_key(ReturnedPredicate::key);
             proved.dedup();
             match &mut common {
-                Some(common) => common.retain(|row| proved.binary_search(row).is_ok()),
+                Some(common) => common.retain(|row| {
+                    proved
+                        .binary_search_by_key(&row.key(), ReturnedPredicate::key)
+                        .is_ok()
+                }),
                 None => common = Some(proved),
             }
         }
