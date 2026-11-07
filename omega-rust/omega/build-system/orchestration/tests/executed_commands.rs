@@ -70,7 +70,7 @@ fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
             offline: true,
             build_inputs: None,
         };
-        let before = counters::build_execution_count();
+        let before = counters::source_build_execution_count();
         let mut outcome = execute_package_command(
             PackageCommand::Update {
                 packages: Vec::new(),
@@ -80,7 +80,11 @@ fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
             &mut session,
         )
         .unwrap();
-        assert_eq!(counters::build_execution_count() - before, executions);
+        assert_eq!(
+            counters::source_build_execution_count() - before,
+            executions,
+            "{fixture}: each source runs once; the separate provider-default supplier is counted separately"
+        );
         assert_ne!(outcome.status, PackageCommandStatus::Published);
         options.targets.clear();
         for _ in 0..3 {
@@ -111,6 +115,9 @@ fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
         );
         let lock = std::fs::read(project.join("omega.lock")).unwrap();
         execute_accepted_project(&project);
+        println!(
+            "{fixture}: same-session review published; matching Pure Build executions skipped; native and Terminal exit 0"
+        );
         if fixture == "executed_dependency_source_join_exit" {
             let build = project.join("build.omg");
             let source = std::fs::read_to_string(&build).unwrap();
