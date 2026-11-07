@@ -272,7 +272,7 @@ pub(crate) fn handle_assignment<'program>(
     }
     let definite = origins.destinations.len() == 1;
     for origin in origins.destinations {
-        let coordinate = match origin.storage_coordinate(program, state) {
+        let coordinate = match origin.write_storage_coordinate(program, state) {
             Ok(coordinate) => coordinate,
             Err(reason) => {
                 diagnostics.push(Diagnostic::error(format!(
@@ -292,6 +292,7 @@ pub(crate) fn handle_assignment<'program>(
             statement_index,
             destination,
             preserves_scalar_value,
+            definite && coordinate.replaces_place,
         ) {
             Ok(stores) => stores,
             Err(reason) => {
@@ -338,6 +339,7 @@ struct FieldStore<'program> {
     definition: &'program typed_trees::data::DataDefinition,
     field: &'program typed_trees::data::DataField,
     preserves_scalar_value: bool,
+    replaces_place: bool,
 }
 
 /// The performed destination supplies the complete enclosing-owner roster.
@@ -348,6 +350,7 @@ fn field_stores<'program>(
     statement_index: usize,
     destination: crate::CanonicalPlace,
     preserves_scalar_value: bool,
+    replaces_place: bool,
 ) -> Result<Vec<FieldStore<'program>>, &'static str> {
     let mut stores = Vec::new();
     for index in (0..destination.segments.len()).rev() {
@@ -396,6 +399,7 @@ fn field_stores<'program>(
             definition,
             field,
             preserves_scalar_value,
+            replaces_place,
         });
     }
     Ok(stores)
@@ -461,7 +465,7 @@ fn handle_field_store<'program>(
     {
         return;
     }
-    let whole_field = store.destination == store.field_place;
+    let whole_field = store.replaces_place && store.destination == store.field_place;
     let field_name = store.field.name.to_string();
     // A bool view of a byte stores 0 or 1. The primitives differ, so the
     // scalar-value flag stays false, but the literal still restores a
