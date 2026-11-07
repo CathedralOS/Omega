@@ -2,6 +2,7 @@
 // Expected exit: 0
 use omega::language::core::content;
 use omega::language::core::drop;
+use omega::language::core::nat;
 
 const BASE: u64 = 10;
 const LENGTH: u64 = 48;

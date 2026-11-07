@@ -2,6 +2,7 @@
 // Expected exit: 0
 use omega::language::core::content;
 use omega::language::core::drop;
+use omega::language::core::nat;
 
 data Region [linear] dropped by drop_region { base: u64; length: u64; }
 

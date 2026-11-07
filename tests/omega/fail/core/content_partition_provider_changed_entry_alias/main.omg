@@ -29,10 +29,12 @@ public boundary trait RegionSplit {
     reaches
     requires head <= whole.remaining
     ensures
-        Owned::content(old(&whole))
-        == separate(
-            Owned::content(&result.left),
-            Owned::content(&result.right),
+        core::Identity<CountedQuantity<ByteUnit>>(
+            Owned::content(old(&whole)),
+            separate(
+                Owned::content(&result.left),
+                Owned::content(&result.right),
+            )
         );
 }
 
@@ -44,10 +46,12 @@ machine RegionSplitProvider::split(mut whole: Region in Owned, head: u64) -> Spl
 satisfies RegionSplit::split
 requires head <= whole.remaining
 ensures
-    Owned::content(old(&whole))
-    == separate(
-        Owned::content(&result.left),
-        Owned::content(&result.right),
+    core::Identity<CountedQuantity<ByteUnit>>(
+        Owned::content(old(&whole)),
+        separate(
+            Owned::content(&result.left),
+            Owned::content(&result.right),
+        )
     )
 {
     let before: u64 = whole.remaining;

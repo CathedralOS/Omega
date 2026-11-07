@@ -2,6 +2,7 @@
 // Expected rejection: the returned intervals do not establish the authored partition.
 use omega::language::core::content;
 use omega::language::core::drop;
+use omega::language::core::nat;
 
 data Region [linear] dropped by drop_region { start: u64; end: u64; }
 machine drop_region(region: &mut Region) {}
@@ -13,8 +14,11 @@ satisfies Content<Region, IntervalSet<Nat>>::project {
 data Pieces { left: Region in Owned; right: Region in Owned; }
 machine split(mut whole: Region in Owned, cut: u64) -> Pieces
 requires whole.start <= cut && cut <= whole.end
-ensures Owned::content(old(&whole)) == separate(
-    Owned::content(&result.left), Owned::content(&result.right))
+ensures core::Identity<IntervalSet<Nat>>(
+    Owned::content(old(&whole)),
+    separate(
+        Owned::content(&result.left), Owned::content(&result.right))
+)
 {
     whole.start = cut;
     let left: Region in Owned = Region { start: whole.start, end: cut };

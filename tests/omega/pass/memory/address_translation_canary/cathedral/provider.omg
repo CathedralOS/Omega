@@ -33,6 +33,8 @@ use translation::TranslationInstallObligations;
 use translation::TranslationReleaseObligations;
 use translation::Unmapped;
 use translation::UnmappedBorrowed;
+use omega::language::core::content;
+use omega::language::core::nat;
 
 public boundary trait CathedralTranslationProvider {
     // Structural-validation crossing behind `map`.
@@ -45,12 +47,14 @@ public boundary trait CathedralTranslationProvider {
     reaches
     satisfies TranslationAuthority::map
     ensures
-        separate(
-            Granted::content(&result.source),
-            Granted::content(&result.destination))
-        == separate(
-            Granted::content(old(&source)),
-            Granted::content(old(&destination)));
+        core::Identity<IntervalSet<Nat>>(
+            separate(
+                Granted::content(&result.source),
+                Granted::content(&result.destination)),
+            separate(
+                Granted::content(old(&source)),
+                Granted::content(old(&destination)))
+        );
 
     // The install-receipt crossing behind `activate`. The provider's checked
     // `CathedralPageTables::install` is the route whose stored entries this
@@ -60,12 +64,14 @@ public boundary trait CathedralTranslationProvider {
     reaches
     satisfies TranslationAuthority::activate
     ensures
-        separate(
-            Granted::content(&result.source),
-            Granted::content(&result.destination))
-        == separate(
-            Granted::content(old(&pending.source)),
-            Granted::content(old(&pending.destination)));
+        core::Identity<IntervalSet<Nat>>(
+            separate(
+                Granted::content(&result.source),
+                Granted::content(&result.destination)),
+            separate(
+                Granted::content(old(&pending.source)),
+                Granted::content(old(&pending.destination)))
+        );
 
     // The release-receipt crossing behind `unmap`, standing behind the
     // checked `CathedralPageTables::remove` that clears the leaf and
@@ -74,12 +80,14 @@ public boundary trait CathedralTranslationProvider {
     reaches
     satisfies TranslationAuthority::unmap
     ensures
-        separate(
-            Granted::content(&result.destination),
-            Granted::content(&result.source))
-        == separate(
-            Granted::content(old(&active.source)),
-            Granted::content(old(&active.destination)));
+        core::Identity<IntervalSet<Nat>>(
+            separate(
+                Granted::content(&result.destination),
+                Granted::content(&result.source)),
+            separate(
+                Granted::content(old(&active.source)),
+                Granted::content(old(&active.destination)))
+        );
 
     machine map_borrowed(
         source: &Extent in Granted,
@@ -90,22 +98,28 @@ public boundary trait CathedralTranslationProvider {
     reaches
     satisfies TranslationAuthority::map_borrowed
     ensures
-        Granted::content(&result.destination)
-        == Granted::content(old(&destination));
+        core::Identity<IntervalSet<Nat>>(
+            Granted::content(&result.destination),
+            Granted::content(old(&destination))
+        );
 
     machine activate_borrowed(pending: BorrowedMapping in Pending)
         -> BorrowedMapping
     reaches
     satisfies TranslationAuthority::activate_borrowed
     ensures
-        Granted::content(&result.destination)
-        == Granted::content(old(&pending.destination));
+        core::Identity<IntervalSet<Nat>>(
+            Granted::content(&result.destination),
+            Granted::content(old(&pending.destination))
+        );
 
     machine unmap_borrowed(active: BorrowedMapping in Installed)
         -> UnmappedBorrowed
     reaches
     satisfies TranslationAuthority::unmap_borrowed
     ensures
-        Granted::content(&result.destination)
-        == Granted::content(old(&active.destination));
+        core::Identity<IntervalSet<Nat>>(
+            Granted::content(&result.destination),
+            Granted::content(old(&active.destination))
+        );
 }

@@ -2,6 +2,7 @@
 // Numeric interval partition only: this local carrier grants no storage rights.
 use omega::language::core::content;
 use omega::language::core::drop;
+use omega::language::core::nat;
 data Region [linear] dropped by drop_region { base: addr; length: u64; }
 machine drop_region(region: &mut Region) {}
 domain Region::Owned;

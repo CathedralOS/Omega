@@ -3,6 +3,7 @@
 // Numeric custody model only; no physical backing or access is granted.
 use omega::language::core::content;
 use omega::language::core::drop;
+use omega::language::core::nat;
 data Region [linear] dropped by drop_region { base: u64; length: u64; }
 domain Region::First established by issue;
 domain Region::Second established by issue;

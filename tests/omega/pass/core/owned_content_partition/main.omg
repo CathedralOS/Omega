@@ -3,6 +3,7 @@
 // the conservation transaction must give them the parent's backing lineage.
 use omega::language::core::extent;
 use omega::language::core::content;
+use omega::language::core::nat;
 
 data Pieces {
     left: Extent in Granted;
@@ -11,8 +12,11 @@ data Pieces {
 
 machine split(whole: Extent in Granted, requested: u64) -> Pieces
 requires requested < whole.length
-ensures Granted::content(old(&whole)) == separate(
-    Granted::content(&result.left), Granted::content(&result.right))
+ensures core::Identity<IntervalSet<Nat>>(
+    Granted::content(old(&whole)),
+    separate(
+        Granted::content(&result.left), Granted::content(&result.right))
+)
 {
     let left: Extent = Extent { base: whole.base, length: requested };
     let right: Extent = Extent {

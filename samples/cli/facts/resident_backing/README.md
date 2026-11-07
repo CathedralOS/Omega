@@ -1,9 +1,22 @@
 # Resident backing survives transport
 
-Owning outcome: **BUMP-ALLOCATOR-CANARY** in `TASKS.md`.
+Current identity migration: **PROOF-KERNEL-CORE**. The existing backing and
+allocator acceptance remains owned by **BUMP-ALLOCATOR-CANARY** in `TASKS.md`.
 
 Fact: **A granted vacant extent retains actual backing through transport,
 initialization, permitted writes, and extraction.**
+
+The complete Granted/Vacant content equations now name
+`core::Identity<IntervalSet<Nat>>`, using the exact projections declared by
+core::extent. This compares canonical sets; it is not fieldwise descriptor
+identity and grants no backing, vacancy, placement or access authority. All
+existing allocation, profile, geometry, qualification, lifecycle, cleanup and
+neighbor-canary checks remain separate.
+
+This source checkpoint has preservation audits only. Integrated optimized
+checking, native/interpreter agreement, intended control refusals and clean
+corpus recording remain required. All earlier execution observations below
+retain their original source identity and do not qualify this migrated source.
 
 Each place obtains 64 actual zeroed bytes from the admitted host allocator,
 establishes Granted and Vacant independently, partitions into two 32-byte
