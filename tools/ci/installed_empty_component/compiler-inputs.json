@@ -1,0 +1,16 @@
+{
+  "schema": "omega-reviewed-compiler-input-map-v1",
+  "compiled_source": "88acbdf1f4eb3b7eecb72b7e566d2699624f6686",
+  "all_ten_compiler_input_objects": {
+    "omega-rust": "fcd65fbeb994e220e33ef3b44f681e00ae7ff9f6",
+    "source/library": "0d8f76e96537348f44a8e168d83f4d1cc46f7548",
+    "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
+    "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
+    "bootstrap": "42230c0aa7138a175590d9dd6a57d8ee71934df1",
+    "tools/benchmark": "6c1a4399e3f037c808a23ad59825e76664482e2f",
+    "Cargo.toml": "2699e0a8d0be49c789639cbd3c603521634145d9",
+    "Cargo.lock": "b98bd3266eea8729b82f99e4cad45a65b3d8a4d9",
+    "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+    ".cargo": null
+  }
+}

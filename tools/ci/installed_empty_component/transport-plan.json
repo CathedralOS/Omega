@@ -1,0 +1,242 @@
+{
+  "schema": "omega-installed-empty-transport-plan-v1",
+  "capture_run": {
+    "repository": "CathedralOS/Omega",
+    "run_id": 42320074921,
+    "job_id": 128242224242,
+    "attempt": 1
+  },
+  "capture_ci": {
+    "revision": "d49774a0be78c18440dbbd789ebea41f91b0e471",
+    "tree": "7c2a054c824f722db950dd7c01e2b6ea5cac807f"
+  },
+  "archives": {
+    "records": {
+      "kind": "github",
+      "id": 13555931831,
+      "name": "compiler-pilot-bound-full98-records-linux_x86_64-d49774a0be78c18440dbbd789ebea41f91b0e471-1",
+      "bytes": 423788,
+      "sha256": "b68fab67fce732b6e8b6e7b6565be4fc266413eafec8ee999ae9028c75153fdc",
+      "member_count": 644
+    },
+    "full": {
+      "kind": "github",
+      "id": 13555791996,
+      "name": "compiler-pilot-bound-full98-linux_x86_64-d49774a0be78c18440dbbd789ebea41f91b0e471-1",
+      "bytes": 195874627,
+      "sha256": "1398a2b411764c9c02ad5b0cd2ab210670d93bae1ecfc2f4ddb0af8b62f13a9a",
+      "member_count": 1133
+    },
+    "inputs": {
+      "kind": "repository",
+      "path": "tools/ci/frozen_controls_inputs.zip",
+      "bytes": 206773,
+      "sha256": "33a324fbe0f993a119a2cd14e54131806af915b8ab4891fceb1d47b872942a06",
+      "member_count": 270
+    }
+  },
+  "files": [
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/compiler-pilot/preparation.json",
+      "archive": "records",
+      "archive_member": "compiler-pilot/preparation.json",
+      "member": "compiler-pilot/preparation.json",
+      "sha256": "698a0a8876229cbc117fd35badc666a8b2c7afd23bcd0c52eea8c5c831749e9d",
+      "bytes": 2338,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/supplied-output-loan/ci-bound-frozen-observations/observations.json",
+      "archive": "records",
+      "archive_member": "supplied-output-loan/ci-bound-frozen-observations/observations.json",
+      "member": "supplied-output-loan/ci-bound-frozen-observations/observations.json",
+      "sha256": "1893b8509892b91b79c921463136019d3429c32089cb95eec4b9fc4d672de290",
+      "bytes": 318022,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/supplied-output-loan/ci-bound-frozen-observations/acceptance.json",
+      "archive": "records",
+      "archive_member": "supplied-output-loan/ci-bound-frozen-observations/acceptance.json",
+      "member": "supplied-output-loan/ci-bound-frozen-observations/acceptance.json",
+      "sha256": "203730a081b61ce723a8b208e8e847c2309118a5a0bdd8640df84f6e542e657d",
+      "bytes": 25871,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/compiler-pilot/bound-frozen-controls/reviewed-source-map.json",
+      "archive": "records",
+      "archive_member": "compiler-pilot/bound-frozen-controls/reviewed-source-map.json",
+      "member": "compiler-pilot/bound-frozen-controls/reviewed-source-map.json",
+      "sha256": "a14931f8beffcb6c9e977178c8d0a104b1a273a457f9dad9d2d5f2576eadaca4",
+      "bytes": 4135,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/compiler-pilot/bound-frozen-controls/prebuild-inputs.json",
+      "archive": "records",
+      "archive_member": "compiler-pilot/bound-frozen-controls/prebuild-inputs.json",
+      "member": "compiler-pilot/bound-frozen-controls/prebuild-inputs.json",
+      "sha256": "d8b91c0e15544630a32b99381139457a404cba05661d805a7474d0986492bae8",
+      "bytes": 23298,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/compiler-pilot/producer-xpd7ymr3/corpus_runner.compiler-profile.json",
+      "archive": "records",
+      "archive_member": "compiler-pilot/producer-xpd7ymr3/corpus_runner.compiler-profile.json",
+      "member": "compiler-pilot/producer-xpd7ymr3/corpus_runner.compiler-profile.json",
+      "sha256": "9d1d9b7a1f4cf5c6ecd1939fd66ed97857a6cffdb1e7427b6569a751409ee367",
+      "bytes": 9538,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/compiler-pilot/producer-xpd7ymr3/corpus_runner.verified-profile.json",
+      "archive": "records",
+      "archive_member": "compiler-pilot/producer-xpd7ymr3/corpus_runner.verified-profile.json",
+      "member": "compiler-pilot/producer-xpd7ymr3/corpus_runner.verified-profile.json",
+      "sha256": "7575cbc9da1c5ef5ac0d37740032f920bff3b288ef0557deb40de75d7817ffd7",
+      "bytes": 670,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/compiler-pilot/producer-xpd7ymr3/omega.verified-profile.json",
+      "archive": "records",
+      "archive_member": "compiler-pilot/producer-xpd7ymr3/omega.verified-profile.json",
+      "member": "compiler-pilot/producer-xpd7ymr3/omega.verified-profile.json",
+      "sha256": "dd089e56088520afb88605c5ac12da0b010487bfe5bf55c971f164e66a1a0a50",
+      "bytes": 662,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/compiler-pilot/producer-xpd7ymr3/producer.json",
+      "archive": "records",
+      "archive_member": "compiler-pilot/producer-xpd7ymr3/producer.json",
+      "member": "compiler-pilot/producer-xpd7ymr3/producer.json",
+      "sha256": "e3d3d14ea73254be57359f0350b5a6888abe5477f91778d3da8b5f4c1699f46f",
+      "bytes": 1167,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-check.stdout",
+      "archive": "records",
+      "archive_member": "supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-check.stdout",
+      "member": "supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-check.stdout",
+      "sha256": "21a364d16f8cd429e612364c4f1bebd5ef2474fa57cfe936a671b298afa9e292",
+      "bytes": 201,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-check.stderr",
+      "archive": "records",
+      "archive_member": "supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-check.stderr",
+      "member": "supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-check.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-both.stdout",
+      "archive": "records",
+      "archive_member": "supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-both.stdout",
+      "member": "supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-both.stderr",
+      "archive": "records",
+      "archive_member": "supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-both.stderr",
+      "member": "supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-both.stderr",
+      "sha256": "b336597a9f13257a069e198b15ec328f9837ec67b4261966e1f479b37dd8c97e",
+      "bytes": 70,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-inspect.stderr",
+      "archive": "records",
+      "archive_member": "supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-inspect.stderr",
+      "member": "supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-inspect.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/compiler-pilot/producer-xpd7ymr3/omega",
+      "archive": "full",
+      "archive_member": "compiler-pilot/producer-xpd7ymr3/omega",
+      "member": "compiler-pilot/producer-xpd7ymr3/omega",
+      "sha256": "c0740fc30dcfce805fc0912ccf7196606580b1e540ac388baef6dd168f8ec272",
+      "bytes": 242367040,
+      "mode": 493
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/compiler-pilot/producer-xpd7ymr3/corpus_runner",
+      "archive": "full",
+      "archive_member": "compiler-pilot/producer-xpd7ymr3/corpus_runner",
+      "member": "compiler-pilot/producer-xpd7ymr3/corpus_runner",
+      "sha256": "6ee73849ea2e7b84d3b7b36ea795f6759610a3fb525d377aeb9f576a39f2197c",
+      "bytes": 246807056,
+      "mode": 493
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-artifacts/program.oterm",
+      "archive": "full",
+      "archive_member": "supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-artifacts/program.oterm",
+      "member": "supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-artifacts/program.oterm",
+      "sha256": "733905d85a6a4766023cb2ecb6cf8315fce166e7398ffa9d3dfc8dc1eac4a58f",
+      "bytes": 8369618,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-inspect.stdout",
+      "archive": "full",
+      "archive_member": "supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-inspect.stdout",
+      "member": "supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-inspect.stdout",
+      "sha256": "fd18469ff520283dddf3f5273ec5745c5a54ca020d841f6d2536cc35518ea560",
+      "bytes": 5537265,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/supplied-output-loan/ci-bound-frozen-inputs/build/supplied-output-loan/installed-empty-snapshot-control/main.omg",
+      "archive": "inputs",
+      "archive_member": "build/supplied-output-loan/installed-empty-snapshot-control/main.omg",
+      "member": "inputs/build/supplied-output-loan/installed-empty-snapshot-control/main.omg",
+      "sha256": "4f5de7dcb8868c8760c32906917896db06c3dc327fd3ac94911d4c244e7bd45a",
+      "bytes": 1154,
+      "mode": 420
+    },
+    {
+      "locator": "/home/runner/work/Omega/Omega/build/supplied-output-loan/ci-bound-frozen-inputs/build/supplied-output-loan/installed-empty-snapshot-control/build.omg",
+      "archive": "inputs",
+      "archive_member": "build/supplied-output-loan/installed-empty-snapshot-control/build.omg",
+      "member": "inputs/build/supplied-output-loan/installed-empty-snapshot-control/build.omg",
+      "sha256": "e8cc5b78a4e0d4c3d24790f7c350fe8fabdddab5ffbc7e9d5649498c3d9e9f87",
+      "bytes": 676,
+      "mode": 420
+    }
+  ],
+  "acceptance_locator": "/home/runner/work/Omega/Omega/build/supplied-output-loan/ci-bound-frozen-observations/acceptance.json",
+  "acceptance_sha256": "203730a081b61ce723a8b208e8e847c2309118a5a0bdd8640df84f6e542e657d",
+  "full98_failures": [
+    {
+      "group": 38,
+      "name": "tests/omega/fail/borrows/supplied_output_declared_lender_corrupted_after_consumption",
+      "reason": "intended rejection missing or still unpinned",
+      "missing": [],
+      "pending": true
+    }
+  ],
+  "source_locator": "/home/runner/work/Omega/Omega/build/supplied-output-loan/ci-bound-frozen-inputs/build/supplied-output-loan/installed-empty-snapshot-control/main.omg",
+  "build_locator": "/home/runner/work/Omega/Omega/build/supplied-output-loan/ci-bound-frozen-inputs/build/supplied-output-loan/installed-empty-snapshot-control/build.omg",
+  "artifact_locator": "/home/runner/work/Omega/Omega/build/supplied-output-loan/ci-bound-frozen-observations/60-installed_empty_snapshot-artifacts/program.oterm",
+  "original_kept_locator": "/tmp/omega-probe-32762-0/program.oterm",
+  "original_kept_product_exported": false,
+  "central_directory_audit": {
+    "member_count": 1133,
+    "sha256": "427054b2a79acb903b4ca5f19a02e6b735838cfe000b4d9a092329bac3d96b5f",
+    "proof": "f54e97697f74a37c52f06cb9f6b547160d158639158c5368115df928ae00d6db"
+  },
+  "payload_authentication": "pending-cloud-preflight"
+}
