@@ -109,6 +109,43 @@ pub(crate) fn check_boundary_partition_results(
     if partition_outputs.is_empty() {
         return;
     }
+    // Private lifecycle operations have an executable, sealed outcome contract
+    // rather than an authored equation. Resolve its complete backing bijection;
+    // authentication alone does not justify a multi-owner result.
+    let lifecycle =
+        typed_trees::typed_trees::AccessExecutionDeclaration::authenticate(program, callable)
+            .ok()
+            .flatten();
+    if complete
+        && partition_outputs.iter().all(|output| {
+            // Vacancy is produced by extraction/relocation, not forwarded from
+            // the occupied source. Only an exact sealed implementation listed
+            // by the domain may perform that content-state transition. Granted
+            // has no such route and still owes the backing bijection below.
+            if lifecycle.is_some_and(|operation| program.domain_definition(output.domain.symbol)
+                .is_some_and(|domain| domain.establishment_routes.iter().any(|route|
+                    matches!(route, language_semantics::DomainEstablishmentRoute::ExactMachine { machine }
+                        if *machine == operation.template())))) {
+                return true;
+            }
+            facts
+                .qualifications
+                .content
+                .for_semantic_domain(output.domain.semantic_domain)
+                .is_some_and(|projection| {
+                    super::lifecycle_backing::lifecycle_backing_transfers(
+                        program,
+                        callable,
+                        parameters,
+                        return_type,
+                        projection,
+                    )
+                    .is_some()
+                })
+        })
+    {
+        return;
+    }
     if partition_outputs.iter().any(|source| {
         outputs
             .iter()

@@ -86,6 +86,8 @@ pub fn retain_access_lifecycle_plans(
         }
         let storage = storage_contract::check(&program, demand.callable, demand.operation)
             .map_err(|error| vec![error.with_source_span(source)])?;
+        let profile_carrier = storage_contract::profile_carrier(&program, demand.callable)
+            .map_err(|error| vec![error.with_source_span(source)])?;
         let mut placements = Vec::new();
         for target in targets {
             let retained_placement = program
@@ -150,6 +152,7 @@ pub fn retain_access_lifecycle_plans(
                     target,
                     placement,
                     storage: storage.clone(),
+                    profile_carrier,
                 });
         }
     }

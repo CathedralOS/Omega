@@ -276,7 +276,15 @@ fn append_sources(
         TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
         _ => return true,
     };
-    let Some(definition) = program.data_definition_by_symbol(definition_symbol) else {
+    // Prepared applications can own different field identities from their
+    // template (notably a generic record materialized by destructuring). Use
+    // the same applied roster as value/claim flow; reopening the template
+    // would describe a different place despite identical field spellings.
+    let Some(definition) = program
+        .data_application_definition(reference)
+        .or_else(|| program.closed_data_definition(reference))
+        .or_else(|| program.data_definition_by_symbol(definition_symbol))
+    else {
         if !borrowed
             && definition_symbol.is_valid()
             && program.symbols.get(definition_symbol).kind == SymbolKind::TypeParameter

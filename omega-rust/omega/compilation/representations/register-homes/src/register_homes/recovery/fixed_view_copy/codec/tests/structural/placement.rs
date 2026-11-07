@@ -57,11 +57,11 @@ fn catalog() -> StructuralTypeCatalog {
         operation: TerminalAccessLifecycleOperation::Initialize,
         execution: TerminalAccessLifecycleExecution::CompilerPrimitive {
             profile_type: Some(StructuralTypeId::new(8).unwrap()),
-            profile_requirement: Some(TerminalAccessProfileRequirement {
+            profile_requirements: vec![TerminalAccessProfileRequirement {
                 boundary: BoundaryMachineId::new(9).unwrap(),
                 owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(10)),
                 callable: TerminalIdentityIndex(11),
-            }),
+            }],
         },
         schema,
         image_fields: vec![StructuralFieldId::new(12).unwrap()],

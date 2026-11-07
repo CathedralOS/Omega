@@ -41,16 +41,25 @@ impl TerminalExecution<'_> {
     pub(crate) fn lifecycle_profile(
         &self,
         plan: &terminal_psi::TerminalAccessLifecyclePlan,
+        role_position: usize,
         storage: &TerminalStructuralValue,
         profile: &TerminalStructuralValue,
     ) -> Result<(ProviderStorageBinding, ValidatedResourceProfile), TerminalInterpretError> {
         let TerminalAccessLifecycleExecution::CompilerPrimitive {
             profile_type: Some(profile_type),
-            profile_requirement: Some(requirement),
+            profile_requirements,
         } = &plan.execution
         else {
             return Err(malformed());
         };
+        let operands = plan.operation.profile_operands();
+        if profile_requirements.len() != operands.len() {
+            return Err(malformed());
+        }
+        let requirement = profile_requirements
+            .get(role_position)
+            .ok_or_else(malformed)?;
+        let operand = operands.get(role_position).ok_or_else(malformed)?;
         let completion = self
             .provider_storage
             .completed_profiles
@@ -79,6 +88,18 @@ impl TerminalExecution<'_> {
                 }
             }
             terminal_psi::TerminalAccessLifecycleOperation::View => None,
+            terminal_psi::TerminalAccessLifecycleOperation::Relocate => {
+                if operand.occupied {
+                    None
+                } else {
+                    Some(
+                        plan.storage
+                            .owned_content()
+                            .map_err(TerminalInterpretError::ContentTransformationMismatch)?
+                            .0,
+                    )
+                }
+            }
         };
         if profile.structural_type != *profile_type
             || completion.result_type != *profile_type
@@ -111,6 +132,9 @@ impl TerminalExecution<'_> {
                     binding.resident == arena::Handle::default()
                 }
                 terminal_psi::TerminalAccessLifecycleOperation::View => false,
+                terminal_psi::TerminalAccessLifecycleOperation::Relocate => {
+                    !operand.occupied && binding.resident != arena::Handle::default()
+                }
             }
             || !self.is_live_provider_descriptor(&home, &binding)
         {
@@ -150,8 +174,13 @@ impl TerminalExecution<'_> {
                 .find_map(|plan| match &plan.execution {
                     TerminalAccessLifecycleExecution::CompilerPrimitive {
                         profile_type: Some(result_type),
-                        profile_requirement: Some(requirement),
-                    } if requirement.boundary == boundary => Some((plan, *result_type)),
+                        profile_requirements,
+                    } if profile_requirements
+                        .iter()
+                        .any(|requirement| requirement.boundary == boundary) =>
+                    {
+                        Some((plan, *result_type))
+                    }
                     _ => None,
                 })
         else {

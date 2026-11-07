@@ -41,6 +41,7 @@ fn boundary_execution(
             AccessLifecycleOperation::Initialize => CheckedBoundaryExecutionPlan::AccessInitialize,
             AccessLifecycleOperation::MoveOut => CheckedBoundaryExecutionPlan::AccessMoveOut,
             AccessLifecycleOperation::View => CheckedBoundaryExecutionPlan::AccessView,
+            AccessLifecycleOperation::Relocate => CheckedBoundaryExecutionPlan::AccessRelocate,
         });
     }
     if EmptyRunReleaseDeclaration::authenticate(program, machine)

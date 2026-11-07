@@ -36,7 +36,7 @@
 7 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/evidence_lowering/outcome_specific_ensures.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/evidence_lowering/proof_output_calls.rs
 7 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/float_meaning_projection.rs
-15 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/access_lifecycles.rs
+12 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/access_lifecycles.rs
 6 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/access_view_inputs.rs
 11 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/access_view_plans.rs
 19 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/conformance_applications.rs

@@ -231,6 +231,8 @@ pub fn encode_memory_access(bytes: &mut Vec<u8>, row: &crate::SelectedMemoryAcce
         SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
         SelectedMemoryAccessRole::ReadBacking => bytes.push(18),
         SelectedMemoryAccessRole::WriteBacking => bytes.push(19),
+        SelectedMemoryAccessRole::ReadBackingSpan => bytes.push(20),
+        SelectedMemoryAccessRole::WriteBackingSpan => bytes.push(21),
         SelectedMemoryAccessRole::ReadLocal { slot: value } => {
             bytes.push(17);
             local_slot(bytes, value);

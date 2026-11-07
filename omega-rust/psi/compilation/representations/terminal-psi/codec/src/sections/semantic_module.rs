@@ -163,7 +163,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Input observation lifetimes and provider application roles share this layout.
 // Layout inputs retain target-owned case-tag size and alignment.
 // Lifecycle placements retain their checked target input for installation.
-pub(crate) const FORMAT_MARKER: u16 = 250;
+// Relocation retains separate source and destination profile requirements.
+pub(crate) const FORMAT_MARKER: u16 = 251;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
