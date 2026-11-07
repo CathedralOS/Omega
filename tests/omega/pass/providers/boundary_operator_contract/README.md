@@ -1,9 +1,14 @@
-# boundary_operator_contract
+# Checked operator contracts
 
-A `boundary operator` declares a checked operator contract with its own
-requires/ensures (`ensures result == value + 0`); the satisfying provider
-restates both sides of the contract, and the caller discharges the
-requires by literal.
+The original operator/provider pair retains its checked requires and ensures,
+including renamed parameters. The second pair requires a Wrapping cast from
+`u16` to `u8`; its provider must preserve that exact arithmetic policy.
 
-Compile-checked only: no standard-library dependency and
-no `Main::exit` — run a check target, not native.
+The entry calls both operators and verifies the original result 70 and the
+Wrapping result 0 for input 256. A Saturating implementation would return 255
+and trap. All four hosted targets bind this entry and promise native/Psi exit 0;
+actual qualification remains pending.
+
+The existing negative fixture retains its original missing-contract provider
+and adds a provider that substitutes Saturating for the required Wrapping cast.
+Separate message fragments and source locations must attribute both refusals.

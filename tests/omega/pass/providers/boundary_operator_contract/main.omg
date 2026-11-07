@@ -33,3 +33,16 @@ ensures result == (input as u8 in Wrapping)
 {
     input as u8 in Wrapping
 }
+
+// Expected exit: 0
+machine main() crashes Trap {
+    let mut observed: Main = Main { out: 99 };
+    Main::main(&mut observed);
+    let wrapped: u8 = CheckedMath::low_byte(256u16);
+    transition observed.out == 70 && wrapped == 0u8 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
