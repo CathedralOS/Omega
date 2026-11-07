@@ -123,6 +123,7 @@ impl<'a> ReviewContext<'a> {
         self.mechanisms.get(&boundary).map(|row| &row.mechanism)
     }
 
+    #[cfg(test)]
     pub(super) fn foreign_binding(
         &self,
         boundary: BoundaryMachineId,
