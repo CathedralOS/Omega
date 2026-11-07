@@ -1,5 +1,7 @@
 # Local content reunion
 
+Current owning task: **PROOF-KERNEL-CORE**.
+
 One owned root may be partitioned and reconstructed from its complete live
 descendant claims; equal geometry alone supplies no ownership.
 
@@ -8,6 +10,19 @@ copies that sentence, partitions the issued root at requested counts 0, 16, and
 48, and reconstructs one region whose base is 10 and whose length is 48. Exit 0
 requires the reconstructed region to be in `Owned`. A freshly issued root of
 the same base and length does not supply that ownership.
+
+The complete content equations now state
+`core::Identity<IntervalSet<Nat>>` over canonical set elements. This preserves
+the exact projection, entry/current places and partial separation terms. It
+supplies no root occurrence, lineage or ownership identity. The original twins
+still issue a different root and drop the input; their equal geometry must not
+replace the required custody proof. Scalar bounds and runtime comparisons are
+unchanged.
+
+This source checkpoint supplies preservation audits only. Integrated optimized
+proof/native validation and meaningful routed-ownership refusals remain
+required, followed by clean corpus recording. Older observations below belong
+to their recorded source revisions and do not qualify this migrated source.
 
 Every place now calls a separately checked `merge(left, right)` whose two
 owned parameters are its complete input frontier. The merge has no parent root
@@ -21,7 +36,7 @@ without treating numeric emptiness as ownership authority. The other
 machine also composes a two-parameter wrapper, selects both call alternatives,
 and reverses the formal order in one helper.
 
-This discharges the same-owner numeric split/recombine requirement of
+The earlier row established the same-owner numeric split/recombine prerequisite of
 **EXTENT-LIBRARY-TRANSFORMS / CONSERVATION-CONTRACT**. Physical backing,
 provider issuance, cross-owner boundary custody and Cathedral remain open.
 
@@ -42,7 +57,7 @@ provider issuance, cross-owner boundary custody and Cathedral remain open.
 
 Every positive place and the root bind `ProgramEntry` for `windows_x86_64`,
 `linux_x86_64`, `macos_arm64`, and `linux_arm64`, declare `Expected exit: 0`,
-and pass `omega run --both`. Earlier qualification reported Windows native and interpreter exit 0 for the
+and must pass `omega run --both`. Earlier qualification reported Windows native and interpreter exit 0 for the
 root and all nine places. Fresh engineering runs at `ad1772d8f612` also observed
 native and Terminal exit 0 on macOS ARM64, with all nine ownership twins
 rejecting. The retained Windows report was not revalidated by those runs.
