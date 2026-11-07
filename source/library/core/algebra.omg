@@ -1,18 +1,13 @@
-// The core algebraic-structure surface.
+// Algebra traits pair total mathematical operations with checked identity laws.
+// A CommutativeSemiring<T> conformance supplies each operation and proves each
+// law for every operand admitted by the requirement's signature and premises.
 //
-// `CommutativeSemiring<T>` is the conformance a carrier's machines declare to
-// EARN the proof engine's ring canonicalization (rearrange-mode): op
-// requirements in FREE-machine shape over the explicit carrier `T` (they
-// mirror free proof machines), LAW
-// requirements carrying `ensures` (the conformance-theorem mechanism: every
-// satisfier PROVES the law it binds, checked forall-to-forall against these
-// declarations). The engine detects the licensing laws by SHAPE, never by
-// name. Identity of `add(a, b)` and `add(b, a)`, together with associativity,
-// licenses rearrangement over the bound operation. A trait declaring the
-// same shapes under other names licenses identically. When one carrier also
-// conforms commutativity + associativity for `mul` and the distributivity law,
-// the tier-2 normalizer earns the paired `(add, mul)` license and expands a
-// capped natural-coefficient polynomial form.
+// Commutativity and associativity allow the checker to reorder applications
+// of the same selected operation. With those laws for addition and
+// multiplication, plus distributivity, it can normalize bounded polynomials
+// with natural coefficients. The license comes from the checked law structure
+// and its bound operations; naming a law or using a familiar trait name does
+// not supply evidence.
 //
 // Identity laws use the slot applications themselves. Carrier satisfiers may
 // bridge those nullary applications to their constructor constants by ordinary
