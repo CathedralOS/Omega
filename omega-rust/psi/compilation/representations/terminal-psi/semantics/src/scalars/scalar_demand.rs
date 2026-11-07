@@ -259,9 +259,7 @@ impl ScalarDemand {
                 }),
         );
         definitions.sort_unstable_by_key(|(id, _, _)| *id);
-        if definitions.iter().any(|(id, _, _)| !id.is_valid())
-            || definitions.windows(2).any(|pair| pair[0].0 == pair[1].0)
-        {
+        if definitions.windows(2).any(|pair| pair[0].0 == pair[1].0) {
             return None;
         }
 
