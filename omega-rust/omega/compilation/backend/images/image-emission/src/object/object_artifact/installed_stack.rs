@@ -7,6 +7,7 @@ use installation_evidence::InstalledInterruptStackRequirement;
 mod arrival;
 mod faults;
 pub use arrival::compose as compose_installed_arrival_demands;
+pub use faults::correlate_native_instruction_sources;
 
 pub fn installed_interrupt_stack_requirement(
     private: &PrivateFunctionObject,

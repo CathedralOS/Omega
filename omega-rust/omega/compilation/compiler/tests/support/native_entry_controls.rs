@@ -9,6 +9,7 @@ pub(super) fn inspect(
     report: &compilation_products::CompileReport,
     fixture: &Path,
 ) -> Result<(), String> {
+    inspect_instruction_sources(report, fixture)?;
     let oracle = fixture.join("expected_native_entry_controls.txt");
     if !oracle.exists() {
         return Ok(());
@@ -171,4 +172,140 @@ pub(super) fn inspect(
         Ok(_) => return Err("native entry accepted undeclared generated vector use".into()),
     }
     Ok(())
+}
+
+/// The source's ordinary native object supplies both sides of this relation.
+/// Mutated copies remain plain rows; none becomes an admitted object or image.
+fn inspect_instruction_sources(
+    report: &compilation_products::CompileReport,
+    fixture: &Path,
+) -> Result<(), String> {
+    let oracle = fixture.join("expected_native_instruction_controls.txt");
+    if !oracle.exists() {
+        return Ok(());
+    }
+    if std::fs::read_to_string(oracle)
+        .map_err(|error| error.to_string())?
+        .trim()
+        != "required"
+    {
+        return Err("native instruction control oracle must say required".into());
+    }
+    let object = report
+        .retained_native_artifact()
+        .ok_or("native instruction controls require an actual native product")?
+        .object();
+    let rows = object
+        .native_instruction_source_rows()
+        .ok_or("native instruction controls require retained source rows")?;
+    use image_emission::correlate_native_instruction_sources as correlate;
+    let original = correlate(rows.selected, rows.physical.iter().copied())
+        .map_err(|error| format!("unchanged native instruction correspondence: {error:?}"))?;
+    if original.len() != rows.physical.len()
+        || !rows.physical.iter().any(|&(machine, instruction)| {
+            rows.physical
+                .iter()
+                .any(|&(other_machine, other_instruction)| {
+                    machine != other_machine && instruction == other_instruction
+                })
+        })
+    {
+        return Err(
+            "native instruction control needs repeated numbers in distinct functions".into(),
+        );
+    }
+
+    let mut duplicate_selected = rows.selected.clone();
+    let (function_index, block_index) = rows
+        .selected
+        .functions
+        .iter()
+        .enumerate()
+        .find_map(|(function_index, function)| {
+            function
+                .blocks
+                .iter()
+                .position(|block| !block.instructions.is_empty())
+                .map(|block_index| (function_index, block_index))
+        })
+        .ok_or("native instruction control needs a body instruction and terminator")?;
+    let block = &mut duplicate_selected
+        .functions
+        .get_mut(function_index)
+        .ok_or("source function disappeared")?
+        .blocks[block_index];
+    let machine = rows
+        .selected
+        .functions
+        .get(function_index)
+        .ok_or("source function disappeared")?
+        .machine;
+    let duplicate_id = rows
+        .physical
+        .iter()
+        .find_map(|&(owner, id)| (owner == machine && id != block.instructions[0].id).then_some(id))
+        .ok_or("native instruction control needs two distinct IDs in one function")?;
+    block.instructions[0].id = duplicate_id;
+    require_instruction_refusal(
+        correlate(&duplicate_selected, rows.physical.iter().copied()),
+        "installed fault analysis has duplicate selected instructions",
+    )?;
+
+    let mut duplicate_physical = rows.physical.clone();
+    duplicate_physical.push(*rows.physical.first().ok_or("physical rows are empty")?);
+    require_instruction_refusal(
+        correlate(rows.selected, duplicate_physical),
+        "installed physical instruction is duplicated",
+    )?;
+    let mut omitted = rows.physical.clone();
+    omitted.pop().ok_or("physical rows are empty")?;
+    require_instruction_refusal(
+        correlate(rows.selected, omitted),
+        "installed physical closure omits a selected instruction",
+    )?;
+
+    let owners = rows
+        .physical
+        .iter()
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    let (position, replacement) = rows
+        .physical
+        .iter()
+        .enumerate()
+        .find_map(|(position, &(machine, _))| {
+            rows.physical
+                .iter()
+                .find_map(|&(other_machine, instruction)| {
+                    (other_machine != machine && !owners.contains(&(machine, instruction)))
+                        .then_some((position, (machine, instruction)))
+                })
+        })
+        .ok_or("native instruction control needs an ID present only in another function")?;
+    let mut wrong_owner = rows.physical.clone();
+    wrong_owner[position] = replacement;
+    require_instruction_refusal(
+        correlate(rows.selected, wrong_owner),
+        "installed physical instruction has no exact selected source",
+    )?;
+    Ok(())
+}
+
+fn require_instruction_refusal<T>(
+    result: Result<T, image_emission::FunctionFragmentObjectArtifactError>,
+    expected: &str,
+) -> Result<(), String> {
+    match result {
+        Err(image_emission::FunctionFragmentObjectArtifactError::Mismatch(reason))
+            if reason == expected =>
+        {
+            Ok(())
+        }
+        Err(error) => Err(format!(
+            "native instruction control refused for another reason: {error:?}"
+        )),
+        Ok(_) => Err(format!(
+            "native instruction correspondence accepted: {expected}"
+        )),
+    }
 }

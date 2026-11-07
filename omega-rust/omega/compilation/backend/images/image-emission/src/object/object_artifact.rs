@@ -15,9 +15,9 @@ pub(crate) mod stack_demand;
 pub(crate) mod test_support;
 
 pub use carriers::{
-    ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution, ObjectForeignCall,
-    ObjectFunction, ObjectPrivateFunctionEntry, ObjectScalarCallStack, ObjectUnitCallStack,
-    PrivateFunctionObject, PrivateObjectSymbolBinding,
+    NativeInstructionSourceRows, ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution,
+    ObjectForeignCall, ObjectFunction, ObjectPrivateFunctionEntry, ObjectScalarCallStack,
+    ObjectUnitCallStack, PrivateFunctionObject, PrivateObjectSymbolBinding,
 };
 pub(crate) use carriers::{
     ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectCompilerPrivateFunction,

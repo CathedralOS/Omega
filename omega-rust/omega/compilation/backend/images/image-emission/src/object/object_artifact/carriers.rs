@@ -79,6 +79,36 @@ pub struct ObjectByteLiteralAddress {
 }
 
 impl ObjectArtifact {
+    /// Ordinary retained instruction correspondence in this object's namespace.
+    /// The copied physical coordinates are observations. They do not establish
+    /// generated transport, final bytes, fault exclusion or stack backing.
+    pub fn native_instruction_source_rows(&self) -> Option<NativeInstructionSourceRows<'_>> {
+        let source = self.composition_source.as_deref().unwrap_or(self);
+        let current = source
+            .fragment_replay
+            .as_ref()?
+            .0
+            .source()
+            .source()
+            .source()
+            .source();
+        Some(NativeInstructionSourceRows {
+            selected: current.selected_plan(),
+            physical: current
+                .machine()
+                .machine()
+                .plan()
+                .functions
+                .iter()
+                .flat_map(|function| {
+                    function
+                        .instructions()
+                        .map(move |instruction| (function.machine, instruction.instruction))
+                })
+                .collect(),
+        })
+    }
+
     pub(crate) fn installed_entry_execution(
         &self,
     ) -> Option<&provider_admission::AdmittedInstalledEntryExecution> {
@@ -269,6 +299,12 @@ impl ObjectArtifact {
     pub fn semantic_code_attribution(&self) -> &[ObjectCodeAttribution] {
         &self.semantic_code_attribution
     }
+}
+
+/// Read-only source rows, separate from an admitted native object or image.
+pub struct NativeInstructionSourceRows<'a> {
+    pub selected: &'a selected_instructions::SelectedInstructionPlan,
+    pub physical: Vec<(MachineId, selected_instructions::SelectedInstructionId)>,
 }
 
 impl installation_evidence::ObjectEvidence for ObjectArtifact {

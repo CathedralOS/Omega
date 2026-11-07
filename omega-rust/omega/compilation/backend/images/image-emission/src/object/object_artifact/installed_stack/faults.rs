@@ -4,6 +4,8 @@
 use crate::{FunctionFragmentObjectArtifactError as Error, ObjectArtifact};
 use installation_evidence::InstalledBodyFaultPremises;
 use selected_instructions::{MachineEncodedTrapBehavior as Trap, SelectedInstructionKind as Kind};
+use selected_instructions::{SelectedInstruction, SelectedInstructionId, SelectedInstructionPlan};
+use semantic_vocabulary::MachineId;
 mod ram;
 
 pub(super) fn derive(body: &ObjectArtifact) -> Result<Option<InstalledBodyFaultPremises>, Error> {
@@ -38,27 +40,14 @@ pub(super) fn derive(body: &ObjectArtifact) -> Result<Option<InstalledBodyFaultP
             "installed fault analysis changed its body or target",
         ));
     }
-    let mut instructions: Vec<_> = selected
-        .functions
-        .iter()
-        .flat_map(|function| {
-            function.blocks.iter().flat_map(move |block| {
-                block
-                    .instructions
-                    .iter()
-                    .chain(std::iter::once(
-                        selected_instructions::terminator_instruction(&block.terminator),
-                    ))
-                    .map(move |instruction| (instruction.id, function.machine, instruction))
-            })
-        })
-        .collect();
-    instructions.sort_unstable_by_key(|row| row.0);
-    if instructions.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-        return Err(Error::Mismatch(
-            "installed fault analysis has duplicate selected instructions",
-        ));
-    }
+    let correlated = correlate_native_instruction_sources(
+        selected,
+        physical.functions.iter().flat_map(|function| {
+            function
+                .instructions()
+                .map(move |instruction| (function.machine, instruction.instruction))
+        }),
+    )?;
     let mut machines: Vec<_> = selected
         .functions
         .iter()
@@ -86,20 +75,12 @@ pub(super) fn derive(body: &ObjectArtifact) -> Result<Option<InstalledBodyFaultP
         execution,
         &machines,
     )?;
-    let mut seen = vec![false; instructions.len()];
+    let mut correlated = correlated.into_iter();
     for function in &physical.functions {
         for instruction in function.instructions() {
-            let index = instructions
-                .binary_search_by_key(&instruction.instruction, |row| row.0)
-                .map_err(|_| {
-                    Error::Mismatch("installed physical instruction has no exact selected source")
-                })?;
-            let (_, machine, source) = instructions[index];
-            if std::mem::replace(&mut seen[index], true) {
-                return Err(Error::Mismatch(
-                    "installed physical instruction is duplicated",
-                ));
-            }
+            let (machine, source) = correlated.next().ok_or(Error::Mismatch(
+                "installed physical instruction has no exact selected source",
+            ))?;
             let fail = |reason: &str| Error::InstalledFaultSurface {
                 machine,
                 instruction: instruction.instruction,
@@ -192,7 +173,7 @@ pub(super) fn derive(body: &ObjectArtifact) -> Result<Option<InstalledBodyFaultP
             }
         }
     }
-    if seen.iter().any(|present| !present) {
+    if correlated.next().is_some() {
         return Err(Error::Mismatch(
             "installed physical closure omits a selected instruction",
         ));
@@ -200,4 +181,56 @@ pub(super) fn derive(body: &ObjectArtifact) -> Result<Option<InstalledBodyFaultP
     Ok(Some(InstalledBodyFaultPremises {
         physical_program_identity: physical.identity.bytes(),
     }))
+}
+
+/// Correlate ordinary physical rows with their selected sources. Instruction
+/// numbers are local to one function, including that function's terminators.
+/// These are inspection data, not code, backing or fault-exclusion admission.
+pub fn correlate_native_instruction_sources(
+    selected: &SelectedInstructionPlan,
+    physical: impl IntoIterator<Item = (MachineId, SelectedInstructionId)>,
+) -> Result<Vec<(MachineId, &SelectedInstruction)>, Error> {
+    let mut instructions: Vec<_> = selected
+        .functions
+        .iter()
+        .flat_map(|function| {
+            function.blocks.iter().flat_map(move |block| {
+                block
+                    .instructions
+                    .iter()
+                    .chain(std::iter::once(
+                        selected_instructions::terminator_instruction(&block.terminator),
+                    ))
+                    .map(move |instruction| ((function.machine, instruction.id), instruction))
+            })
+        })
+        .collect();
+    instructions.sort_unstable_by_key(|row| row.0);
+    if instructions.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(Error::Mismatch(
+            "installed fault analysis has duplicate selected instructions",
+        ));
+    }
+    let mut seen = vec![false; instructions.len()];
+    let mut correlated = Vec::with_capacity(instructions.len());
+    for owner in physical {
+        let index = instructions
+            .binary_search_by_key(&owner, |row| row.0)
+            .map_err(|_| {
+                Error::Mismatch("installed physical instruction has no exact selected source")
+            })?;
+        if std::mem::replace(&mut seen[index], true) {
+            return Err(Error::Mismatch(
+                "installed physical instruction is duplicated",
+            ));
+        }
+        let ((machine, _), source) = instructions[index];
+        correlated.push((machine, source));
+    }
+    if seen.iter().any(|present| !present) {
+        return Err(Error::Mismatch(
+            "installed physical closure omits a selected instruction",
+        ));
+    }
+    Ok(correlated)
 }

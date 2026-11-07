@@ -71,8 +71,8 @@ pub use object::object_artifact::replay::boundary::completion_receipts::completi
 pub(crate) use object::object_artifact::stack_demand::StackDemand;
 pub use object::object_artifact::stack_demand::derive_stack_demand;
 pub use object::object_artifact::{
-    ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution, ObjectForeignCall,
-    ObjectFunction, ObjectScalarCallStack, ObjectUnitCallStack,
+    NativeInstructionSourceRows, ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution,
+    ObjectForeignCall, ObjectFunction, ObjectScalarCallStack, ObjectUnitCallStack,
     derive_normalized_foreign_call_custody, durable_home_offsets,
     foreign_invocation_provenance_matches, foreign_result_operand_count, fragment_instruction_span,
     producer_instruction, scalar_call_result_producer, scalar_immediate_span,
@@ -103,6 +103,6 @@ pub use installation_record::InstallationError;
 pub use machine_code::BoundaryExecutionRecord;
 
 pub use object::object_artifact::installed_stack::{
-    compose_installed_arrival_demands, installed_interrupt_stack_requirement,
-    require_installed_root_provision,
+    compose_installed_arrival_demands, correlate_native_instruction_sources,
+    installed_interrupt_stack_requirement, require_installed_root_provision,
 };
