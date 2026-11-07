@@ -54,7 +54,7 @@
 10 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation/bindings/structural_cases.rs
 5 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation/bindings/structural_fields/case_observation.rs
 36 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation/bindings/structural_fields/mod.rs
-47 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation/bindings/structural_paths.rs
+46 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation/bindings/structural_paths.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation/bindings/view_locals.rs
 7 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation/byte_literals.rs
 23 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation/computation_graph.rs
