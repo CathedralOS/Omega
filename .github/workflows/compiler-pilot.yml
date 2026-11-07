@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   check:
     runs-on: ubuntu-24.04
@@ -17,29 +18,22 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Restore only the exact retained optimized compiler
-        id: cache
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            /tmp/ot
-          key: compiler-regression-Linux-X64-007cfa9f9b9c5d5e53ace1acb6a69af709124dce0e0b01a2858a95408d3db9ac-ba4089082c391ab225f77b8364325c1e18bdec8c
-          fail-on-cache-miss: true
-      - name: Refuse a missing exact cache
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: python -c "raise SystemExit('Exact retained cache absent; no build is permitted')"
+      - name: Recover only the original official producer artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/CathedralOS/Omega/actions/artifacts/13549815218 > "$RUNNER_TEMP/suffix-producer-artifact.json"
+          gh api repos/CathedralOS/Omega/actions/artifacts/13549815218/zip > "$RUNNER_TEMP/suffix-producer.zip"
       - name: Check only the unchanged retired-syntax negative
         run: |
           python - <<'PY'
-          import json, os, subprocess, sys, time
+          import hashlib, json, os, shutil, subprocess, sys, time, zipfile
           from pathlib import Path
           from types import SimpleNamespace
           sys.path[:0] = ['tools', 'tools/ci']
           import corpus_gate, corpus_records
-          from compiler_replay_plan import ReplayPlan, check_origin, check_inputs
-          from compiler_pilot import retained_producer
+          from compiler_replay_plan import check_origin, check_inputs
+          from compiler_pilot import CompilerProducer
           from qualification import source_inputs
           from sample_projects import Project, rejection_verdict
           from corpus_pin_audit import expected_fragments
@@ -74,8 +68,33 @@ jobs:
            'cache_key': 'compiler-regression-Linux-X64-007cfa9f9b9c5d5e53ace1acb6a69af709124dce0e0b01a2858a95408d3db9ac-ba4089082c391ab225f77b8364325c1e18bdec8c'}
           check_origin(root, expected)
           check_inputs(root, 'HEAD', expected['input_objects'])
-          plan = ReplayPlan('.github/workflows/compiler-pilot.yml', expected, (), True, (), ())
-          producer = retained_producer(output, plan)
+          metadata = json.loads((Path(os.environ['RUNNER_TEMP']) / 'suffix-producer-artifact.json').read_text())
+          archive = Path(os.environ['RUNNER_TEMP']) / 'suffix-producer.zip'
+          archive_sha = '0bd5e2ba9fb7a0857f0bd1445603f93e57309d43e4e95afed42e08e429168480'
+          assert metadata['id'] == 13549815218 and not metadata['expired']
+          assert metadata['workflow_run']['id'] == expected['origin_run']
+          assert metadata['workflow_run']['head_sha'] == expected['revision']
+          assert metadata['digest'] == 'sha256:' + archive_sha
+          assert archive.stat().st_size == metadata['size_in_bytes'] == 243380862
+          with archive.open('rb') as stream:
+              assert hashlib.file_digest(stream, 'sha256').hexdigest() == archive_sha
+          cli = Path(os.environ['RUNNER_TEMP']) / 'suffix-original-omega'
+          with zipfile.ZipFile(archive) as packed:
+              member = 'producer-q7920grn/omega'
+              assert len([info for info in packed.infolist() if info.filename == member]) == 1
+              with packed.open(member) as source, cli.open('wb') as destination:
+                  shutil.copyfileobj(source, destination)
+          cli.chmod(0o700)
+          profile = corpus_gate.require_optimized(cli)
+          assert profile['sha256'] == expected['executables']['cli']['sha256']
+          assert profile['profile'] == expected['executables']['cli']['profile']
+          revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          producer = CompilerProducer(expected['revision'], expected['tree'], expected['target'],
+              expected['toolchain'], cli, None, profile, None, revision, expected['input_objects'],
+              dict(run=expected['origin_run'], artifact_id=metadata['id'], archive_sha256=archive_sha,
+                   transport='original official producer artifact'))
+          producer.verify()
+          (output / 'artifact.json').write_text(json.dumps(metadata, indent=2) + '\n')
           (output / 'producer.json').write_text(json.dumps(producer.record(), indent=2) + '\n')
           revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
           fixture = 'fail/proofs/mathematical_constrained_scalar_formal'
@@ -128,6 +147,7 @@ jobs:
         with:
           name: suffix-pin-check-${{ github.sha }}
           path: |
+            build/suffix-pin-check/artifact.json
             build/suffix-pin-check/producer.json
             build/suffix-pin-check/invocation.json
             build/suffix-pin-check/checking.json
