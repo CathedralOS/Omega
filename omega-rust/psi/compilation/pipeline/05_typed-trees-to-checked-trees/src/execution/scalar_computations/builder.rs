@@ -61,6 +61,7 @@ pub(super) enum RootScope {
 pub(super) struct DispatchReceiver {
     pub(super) value: CheckedStructuralValueHandle,
     pub(super) type_reference: TypeReferenceHandle,
+    pub(super) access: checked_trees::CheckedStructuralAccess,
 }
 
 pub(super) struct Builder<'program, 'plans> {

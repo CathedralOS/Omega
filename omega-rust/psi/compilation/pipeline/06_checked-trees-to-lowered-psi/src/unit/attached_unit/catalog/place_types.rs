@@ -462,8 +462,14 @@ fn source_type(
             .filter(|root| root.state == state && statement == Some(root.statement_ordinal))
             .map(|root| stored_structural_identity(checked, root.type_reference)),
         Source::StructuralExpression {
+            value_dependency: None,
+            logical_root_type_identity: Some(identity),
+            ..
+        } => Some(identity),
+        Source::StructuralExpression {
             expression,
             value_dependency: None,
+            logical_root_type_identity: None,
             ..
         } => statement
             .and_then(|statement| {

@@ -130,6 +130,9 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<ValueKind> {
+        if !super::place_types::copied_place_type(self.program, expected) {
+            return None;
+        }
         if let Some(kind) = self.copied_dispatch_place(expression, expected) {
             return Some(kind);
         }
@@ -149,9 +152,8 @@ impl Builder<'_, '_> {
         Some(ValueKind::CopiedStructuralPlace { source, leaf })
     }
 
-    /// The `SharedBorrow` argument plan a borrowed leaf read produces: the
-    /// named root as a parameter/local/`self` source plus the canonical
-    /// member path, with `type_identity` naming the projected leaf.
+    /// A readable leaf keeps its named or saved home and exact projection.
+    /// Its type names the leaf; borrowing it never takes the whole receiver.
     /// The consuming operation owns selector evaluation; its expression may
     /// differ from the selected source when a recast consumes that descriptor.
     pub(in crate::execution::scalar_computations) fn borrowed_leaf_argument(
@@ -165,14 +167,57 @@ impl Builder<'_, '_> {
         Vec<(ExpressionHandle, CheckedScalarComputationHandle)>,
     )> {
         let place = self.canonical_place(expression)?;
-        let source_symbol = place.root.as_symbol()?;
+        let source_symbol = place.root.as_symbol();
         // Value planning precedes the final structural parameter roster. Its
         // dense positions change when a borrowed receiver is retained, so an
         // authored leaf must keep its symbol until binding resolves that roster.
         // StructuralLocal already represents both live locals and named formals;
         // independent source replay still checks the exact authored root.
-        let mut source = SourcePlan::StructuralLocal {
-            symbol: source_symbol,
+        let mut source = match place.root {
+            PlaceRoot::Symbol(symbol) => SourcePlan::StructuralLocal { symbol },
+            PlaceRoot::Expression(anchor) => {
+                let receiver = self
+                    .dispatch_receivers
+                    .get(&(anchor.arena_index(), anchor.generation()))?;
+                // The case view keeps the storage selected before its patterns.
+                // Copy only its admitted readable field, without making an
+                // owned value from the enclosing borrowed receiver.
+                if receiver.value.is_valid()
+                    || !matches!(
+                        receiver.access,
+                        StructuralAccess::Owned
+                            | StructuralAccess::SharedBorrow
+                            | StructuralAccess::MutableBorrow
+                    )
+                    || reference_shell(self.program, receiver.type_reference).is_some()
+                {
+                    return None;
+                }
+                let root = canonical_place_type_reference(
+                    self.program,
+                    self.state,
+                    self.statement_index,
+                    &CanonicalPlace {
+                        root: place.root,
+                        segments: Vec::new(),
+                    },
+                )?;
+                if !validation::declared_carriers_match(self.program, root, receiver.type_reference)
+                {
+                    return None;
+                }
+                SourcePlan::StructuralExpression {
+                    expression: anchor,
+                    value_dependency: None,
+                    logical_root_type_identity: Some(stored_structural_type_identity(
+                        self.program,
+                        receiver.type_reference,
+                        &[],
+                        &[],
+                    )),
+                }
+            }
+            _ => return None,
         };
         // A copied value observes its selector at this evaluation point. Use
         // the computation's scalar namespace, including captured immutable
@@ -187,6 +232,7 @@ impl Builder<'_, '_> {
         // carriers already select their own backing on indexing: only the
         // registry's Reference shape requires a separate pointer crossing.
         if !place.segments.is_empty()
+            && let Some(source_symbol) = source_symbol
             && let Some(state) = self.program.state_by_symbol(self.state)
             && let Some((_, local)) = self.program.state_local_declaration(state, source_symbol)
         {

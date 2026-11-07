@@ -240,6 +240,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             statement_index,
                             *expression,
                             *expected,
+                            |_| false,
                         )
                     })
                     .and_then(|(expression, expected)| {

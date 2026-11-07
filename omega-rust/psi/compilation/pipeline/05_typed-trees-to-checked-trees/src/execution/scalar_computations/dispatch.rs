@@ -341,6 +341,7 @@ impl Builder<'_, '_> {
                         alias,
                         checked_trees::CheckedStructuralValueHandle::invalid(),
                         reference,
+                        place.access,
                     )?;
                     return Some(checked_trees::CheckedDispatchSubject::Structural {
                         expression: dispatch.subject,
@@ -353,7 +354,7 @@ impl Builder<'_, '_> {
             let value = self.structural_value(dispatch.subject, reference)?;
             self.retained_argument_owner(value, reference)?;
             self.retain_structural_value_root(value, reference)?;
-            self.retain_dispatch_receiver(alias, value, reference)?;
+            self.retain_dispatch_receiver(alias, value, reference, CheckedStructuralAccess::Owned)?;
             return Some(checked_trees::CheckedDispatchSubject::Structural {
                 expression: dispatch.subject,
                 value,
@@ -405,10 +406,12 @@ impl Builder<'_, '_> {
         alias: ExpressionHandle,
         value: checked_trees::CheckedStructuralValueHandle,
         type_reference: typed_trees::types::TypeReferenceHandle,
+        access: CheckedStructuralAccess,
     ) -> Option<()> {
         let receiver = super::builder::DispatchReceiver {
             value,
             type_reference,
+            access,
         };
         if !alias.is_valid() {
             return Some(());
