@@ -105,7 +105,7 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
         .selection
         .as_ref()
         .map_err(|errors| format!("provider selection: {errors:?}"))?;
-    original.admit(loaded.view(), target)?;
+    let installation = original.admit(loaded.view(), target)?;
     let module = loaded.semantic_module();
     let candidate_named = |name: &str| {
         module
@@ -119,8 +119,17 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
             })
             .ok_or_else(|| format!("source fixture must retain provider {name}"))
     };
+    let alpha = candidate_named("SelectedAlpha")?.candidate;
     let alternative = candidate_named("AlternativeBeta")?;
     let quiet = candidate_named("SelectedBeta")?.candidate;
+    inspect_selected_closure(
+        &loaded,
+        target,
+        &installation,
+        alpha,
+        quiet,
+        alternative.candidate,
+    )?;
     let requirement = module
         .identities
         .text(alternative.source_requirement_identity)
@@ -187,6 +196,19 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
     let uncalled = CanonicalTerminalArtifact::from_bytes(&uncalled.to_bytes())
         .map_err(|error| format!("uncalled transport: {error:?}"))?;
     let members = terminal_installation::admit_target_machine_selections(uncalled.view(), target);
+    let profile =
+        target::TargetProfile::from_canonical_target_name(target).map_err(|error| error.message)?;
+    require_graph_error(
+        terminal_psi_to_abstract_operations::provider_admission::selected_synchronous_call_graph(
+            uncalled.view(),
+            Some(&members),
+            None,
+            Some(&installation),
+            profile,
+        ),
+        "synchronous provider graph has another provider installation",
+        "foreign provider installation",
+    )?;
     let calls = terminal_installation::SynchronousCallGraph::new(
         uncalled.semantic_module(),
         Some(&members),
@@ -258,6 +280,118 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
     }
     opaque.admit(loaded.view(), target)?;
     Ok(())
+}
+
+fn inspect_selected_closure(
+    artifact: &CanonicalTerminalArtifact,
+    target: &str,
+    installation: &terminal_installation::AdmittedProviderSelections,
+    alpha: semantic_vocabulary::MachineId,
+    beta: semantic_vocabulary::MachineId,
+    alternative: semantic_vocabulary::MachineId,
+) -> Result<(), String> {
+    use terminal_psi_to_abstract_operations::provider_admission::selected_synchronous_call_graph;
+
+    let profile =
+        target::TargetProfile::from_canonical_target_name(target).map_err(|error| error.message)?;
+    let members = terminal_installation::admit_target_machine_selections(artifact.view(), target);
+    let boundary = installation
+        .providers()
+        .find_map(|(boundary, machine)| (machine == beta).then_some(boundary))
+        .ok_or("source fixture must select the quiet Beta body")?;
+    let selected = selected_synchronous_call_graph(
+        artifact.view(),
+        Some(&members),
+        None,
+        Some(installation),
+        profile,
+    )?;
+    let closure = selected.from_root(alpha)?;
+    if selected.boundary_callee(boundary)? != Some(beta)
+        || !closure.boundaries.contains(&boundary)
+        || !closure.machines.iter().any(|body| body.id == alpha)
+        || !closure.machines.iter().any(|body| body.id == beta)
+        || closure.machines.iter().any(|body| body.id == alternative)
+    {
+        return Err(
+            "selected synchronous closure lost its exact provider edge or chose an alternative"
+                .into(),
+        );
+    }
+    let opaque =
+        selected_synchronous_call_graph(artifact.view(), Some(&members), None, None, profile)?;
+    let closure = opaque.from_root(alpha)?;
+    if opaque.boundary_callee(boundary)?.is_some()
+        || !closure.boundaries.contains(&boundary)
+        || closure
+            .machines
+            .iter()
+            .any(|body| body.id == beta || body.id == alternative)
+    {
+        return Err("unresolved synchronous closure acquired a provider body".into());
+    }
+    let other_target = match target {
+        "macos_arm64" => "linux_arm64",
+        "linux_arm64" => "macos_arm64",
+        "linux_x86_64" => "windows_x86_64",
+        _ => "linux_x86_64",
+    };
+    let other_members =
+        terminal_installation::admit_target_machine_selections(artifact.view(), other_target);
+    require_graph_error(
+        selected_synchronous_call_graph(
+            artifact.view(),
+            Some(&other_members),
+            None,
+            Some(installation),
+            profile,
+        ),
+        "synchronous provider graph has another artifact or target selection",
+        "foreign deployment selection",
+    )?;
+    require_graph_error(
+        terminal_installation::SynchronousCallGraph::new(artifact.semantic_module(), None, None)?
+            .with_boundary_calls([(boundary, beta), (boundary, beta)]),
+        "synchronous boundary call repeats a resolved boundary",
+        "duplicate resolved boundary",
+    )?;
+    for coordinates in [
+        (
+            semantic_vocabulary::BoundaryMachineId::new(u64::MAX)
+                .ok_or("absent boundary identity")?,
+            beta,
+        ),
+        (
+            boundary,
+            semantic_vocabulary::MachineId::new(u64::MAX).ok_or("absent body identity")?,
+        ),
+    ] {
+        require_graph_error(
+            terminal_installation::SynchronousCallGraph::new(
+                artifact.semantic_module(),
+                None,
+                None,
+            )?
+            .with_boundary_calls([coordinates]),
+            "synchronous boundary call names an absent boundary or body",
+            "absent resolved coordinate",
+        )?;
+    }
+    Ok(())
+}
+
+fn require_graph_error<T>(
+    result: Result<T, String>,
+    expected: &str,
+    control: &str,
+) -> Result<(), String> {
+    match result {
+        Err(reason) if reason == expected => Ok(()),
+        Err(reason) => Err(format!("{control} refused for another reason: {reason}")),
+        Ok(_) => Err(format!(
+            "{control} accepted an invalid synchronous graph join"
+        )),
+    }
 }
 
 fn require_cycle<T>(result: Result<T, String>, control: &str) -> Result<(), String> {

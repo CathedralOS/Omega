@@ -92,6 +92,7 @@ pub(super) fn admit(
     input: &NativeRealizationInput<'_>,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_, '_>,
+    installation: Option<&terminal_installation::AdmittedProviderSelections>,
     helpers: Vec<crate::AdmittedInstalledInterruptHelper>,
     entry_custody: &super::callback_entries::PreparedEntries<'_>,
 ) -> Result<AdmittedInstalledInterruptCohort, Vec<Diagnostic>> {
@@ -288,7 +289,16 @@ pub(super) fn admit(
             ));
         }
     }
-    let scopes = scopes::prepare(input, request, &admitted, &helpers, &operations).map_err(fail)?;
+    let scopes = scopes::prepare(
+        input,
+        artifact,
+        request,
+        installation,
+        &admitted,
+        &helpers,
+        &operations,
+    )
+    .map_err(fail)?;
     Ok(AdmittedInstalledInterruptCohort {
         psi: input.plan().psi,
         entries: admitted,

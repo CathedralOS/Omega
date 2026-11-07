@@ -29,6 +29,7 @@ mod run_custody;
 mod settlements;
 mod source_evaluated_bindings;
 mod static_interrupts;
+mod synchronous_calls;
 mod terminal_authority_permission_policy;
 pub mod terminal_authority_permissions;
 mod terminal_authority_policy;
@@ -52,6 +53,7 @@ pub use source_evaluated_bindings::prepare_source_evaluated_bindings;
 
 pub use request::{NativeBoundaryRealization, NativeCompilerBuiltinSettlement};
 pub use request::{NativeProviderSettlement, ProviderAdmissionRequest};
+pub use synchronous_calls::selected_synchronous_call_graph;
 pub use terminal_authority_permission_policy::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyRow,
     terminal_authority_permission_policy_with_rows,
@@ -137,11 +139,13 @@ pub fn admit_native_providers<'request>(
     let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();
     let entry_custody = callback_entries::PreparedEntries::new(input, request)
         .map_err(|reason| diagnostics::realization_error("callback entry admission", reason))?;
+    let installation = installation::admit_checked_provider_installation(input, artifact, request)?;
     let helper_associations = static_interrupts::require_helper_associations(input, request)?;
     let installed_interrupts = static_interrupts::admit(
         input,
         artifact,
         request,
+        installation.as_ref().map(|row| row.terminal_selection()),
         helper_associations,
         &entry_custody,
     )?;
@@ -157,7 +161,6 @@ pub fn admit_native_providers<'request>(
         &installed_interrupts,
         &interrupt_mechanisms,
     )?;
-    let installation = installation::admit_checked_provider_installation(input, artifact, request)?;
     let (lifecycle_settlements, lifecycle_mechanisms) =
         access_lifecycles::settle_native_lifecycles(
             input,

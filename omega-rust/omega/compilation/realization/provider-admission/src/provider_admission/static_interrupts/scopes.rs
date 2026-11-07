@@ -14,7 +14,9 @@ use terminal_psi::{OperationKind, OperationResult, StructuralAccess};
 
 pub(super) fn prepare(
     input: &NativeRealizationInput<'_>,
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_, '_>,
+    installation: Option<&terminal_installation::AdmittedProviderSelections>,
     entries: &[AdmittedInstalledInterruptEntry],
     helpers: &[crate::AdmittedInstalledInterruptHelper],
     operations: &[(semantic_vocabulary::OperationId, &terminal_psi::Operation)],
@@ -30,10 +32,14 @@ pub(super) fn prepare(
     helper_roots.sort_unstable();
     helper_roots.dedup();
 
-    let calls = terminal_installation::SynchronousCallGraph::new(
-        module,
+    let calls = super::super::selected_synchronous_call_graph(
+        artifact.view(),
         input.target_machine_selections(),
-        None,
+        input
+            .selected_program_entry_call()
+            .map(|entry| (entry.boundary(), entry.entry())),
+        installation,
+        request.profile,
     )?;
     let mut reached = input
         .plan()
