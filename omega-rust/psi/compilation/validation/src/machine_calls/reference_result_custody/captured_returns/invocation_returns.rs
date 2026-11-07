@@ -351,7 +351,7 @@ impl Captures<'_> {
         Some(output)
     }
 
-    fn checked_input_origin(
+    pub(super) fn checked_input_origin(
         &self,
         parameter: &typed_trees::signature::StateParameter,
         origin: &checked_trees::CheckedReferenceOriginSourcePlan,

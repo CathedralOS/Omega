@@ -235,7 +235,7 @@ impl Captures<'_> {
                             current,
                             relative,
                             active,
-                        )?
+                        )
                     } else {
                         self.completed_descriptor_sources(
                             state,
@@ -245,14 +245,32 @@ impl Captures<'_> {
                             relative,
                             current,
                             &mut Vec::new(),
-                        )?
+                        )
+                    };
+                    let sources = match sources {
+                        Some(sources) => sources
+                            .into_iter()
+                            .map(|source| CapturedArgumentOrigin {
+                                source,
+                                presentation: presentation.clone(),
+                                extent: ReferenceOriginExtent::Projected,
+                            })
+                            .collect(),
+                        // Exact suppliers can be intentionally absent for a
+                        // runtime-selected returned pointer. Its retained
+                        // invocation is another complete origin carrier;
+                        // neither an opaque region nor a type can replace it.
+                        None => self.invocation_argument_sources(
+                            state,
+                            reference,
+                            descriptor,
+                            relative,
+                            presentation,
+                            active,
+                            visiting,
+                        )?,
                     };
                     for source in sources {
-                        let source = CapturedArgumentOrigin {
-                            source,
-                            presentation: presentation.clone(),
-                            extent: ReferenceOriginExtent::Projected,
-                        };
                         if !output.contains(&source) {
                             output.push(source);
                         }

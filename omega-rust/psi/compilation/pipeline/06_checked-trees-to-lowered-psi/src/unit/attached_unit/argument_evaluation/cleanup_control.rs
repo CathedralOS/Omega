@@ -326,14 +326,6 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &OperationBuffer,
     ) -> Result<(), LoweringError> {
-        if arguments.len() != declarations.len() {
-            return Err(LoweringError::Unsupported(
-                "cleanup capture has no exact structural roster",
-            ));
-        }
-        if arguments.is_empty() {
-            return Ok(());
-        }
         // Capture names from every original operand before the edge changes
         // their receiving places. A declaration cannot supply a missing source
         // namespace, including when the actual roster is genuinely empty.
@@ -356,7 +348,8 @@ impl Evaluation {
                 },
             );
         }
-        self.cleanup_emission(checked, &mut Vec::new())
+        let arrivals = self
+            .cleanup_emission(checked, &mut Vec::new())
             .capture_arguments(
                 identities,
                 arguments,
@@ -369,23 +362,9 @@ impl Evaluation {
                 next_edge,
                 operations,
             )?;
-        if arguments.len() != source_names.len()
-            || arguments.len() != self.block_structural_parameters.len()
-            || arguments.iter().zip(&self.block_structural_parameters).any(
-                |(argument, parameter)| {
-                    argument.place != parameter.place
-                        || argument.access != parameter.access
-                        || !argument.path.is_empty()
-                },
-            )
-        {
-            return Err(LoweringError::Unsupported(
-                "structural capture changes its completed namespace roster",
-            ));
-        }
-        for (argument, names) in arguments.iter().zip(source_names) {
+        for (place, names) in arrivals.into_iter().zip(source_names) {
             if let Some(names) = names {
-                self.current_claims.publish(argument.place, names)?;
+                self.current_claims.publish(place, names)?;
             }
         }
         Ok(())
@@ -434,6 +413,9 @@ impl Evaluation {
 }
 
 impl CleanupEmission<'_> {
+    /// The fresh receiving places are emitted in the original argument order,
+    /// alongside the edge and its whole parameters. Namespace transport uses
+    /// this producing association rather than reconstructing it afterward.
     pub(crate) fn capture_arguments(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -446,14 +428,14 @@ impl CleanupEmission<'_> {
         next_block: &mut u64,
         next_edge: &mut u64,
         operations: &OperationBuffer,
-    ) -> Result<(), LoweringError> {
+    ) -> Result<Vec<semantic_vocabulary::PlaceId>, LoweringError> {
         if arguments.len() != declarations.len() {
             return Err(LoweringError::Unsupported(
                 "cleanup capture has no exact structural roster",
             ));
         }
         if arguments.is_empty() {
-            return Ok(());
+            return Ok(Vec::new());
         }
         let target = block_id(allocate_dense(next_block)?);
         let parameters = super::declarations(
@@ -498,9 +480,10 @@ impl CleanupEmission<'_> {
             next_edge,
             operations,
         )?;
+        let arrivals = forwarded.iter().map(|argument| argument.place).collect();
         *self.structural_parameters = captures;
         *arguments = forwarded;
-        Ok(())
+        Ok(arrivals)
     }
 
     pub(crate) fn emit(
