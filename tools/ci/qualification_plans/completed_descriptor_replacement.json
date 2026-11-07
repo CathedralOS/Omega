@@ -1,0 +1,45 @@
+{
+  "schema": "omega-compiler-pilot-plan-v1",
+  "producer": {
+    "revision": "645f21c6d94f31aaeb143f77641ce7c5d5790497",
+    "tree": "aad7a455e5529f8d8357d1febd43a26cc1f093e3",
+    "target": "linux_x86_64",
+    "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+    "input_objects": {
+      "omega-rust": "203dcfed0cc4552890234b6c9c4031f6b1d59dcc",
+      "source/library": "46754f5f6584d158e0fb077d4ed89a83afd07230",
+      "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
+      "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
+      "bootstrap": "42230c0aa7138a175590d9dd6a57d8ee71934df1",
+      "tools/benchmark": "58715a339b701d6e1efc1bf6a0916096ec4c697b",
+      "Cargo.toml": "611d634f15e9f745dc0d429fe7b26b3ec87850d9",
+      "Cargo.lock": "f12e9c233c5f667d5903546a7d85d9e6ab684f58",
+      "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+      ".cargo": "152f54b1593e9a8e1c5139fc5a4373a14bbc0701"
+    },
+    "executables": {
+      "cli": {
+        "sha256": "c5c115fd1691f330c9da185460172c1520abf28cbd3f2aa93388236551d9f939",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      },
+      "runner": {
+        "sha256": "6971fcadc4b9e18dddd93a5053e66c33997f207541be0efe98026b2cc3b6ad96",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      }
+    },
+    "origin_run": 42379270932,
+    "cache_key": "compiler-regression-Linux-X64-619be19a8e341c9422e0bbfdb9c702e2989ff767a7e78d51ff551da858c5fcb7-645f21c6d94f31aaeb143f77641ce7c5d5790497-prepared-v1-with-runner"
+  },
+  "fixtures": [],
+  "source_only": false,
+  "samples": [],
+  "cli_fixtures": [
+    "pass/collections/runtime_stored_reference_array_replacement_contract_exit"
+  ]
+}
