@@ -1,0 +1,46 @@
+{
+  "schema": "omega-compiler-pilot-plan-v1",
+  "producer": {
+    "revision": "071034107c356a871fbbceaf86799baeadd06b9c",
+    "tree": "3292c7257c4c95b3429dcd7a58a12cb478deb08a",
+    "target": "linux_x86_64",
+    "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+    "input_objects": {
+      "omega-rust": "f0664e0f364dc22ce3b6e8942ad0d4923d47dadd",
+      "source/library": "add4f8a183552903c2c1432aece58761d83b58b7",
+      "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
+      "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
+      "bootstrap": "42230c0aa7138a175590d9dd6a57d8ee71934df1",
+      "tools/benchmark": "22bb2e294131c9ad20e0475bc21c227570438f32",
+      "Cargo.toml": "2699e0a8d0be49c789639cbd3c603521634145d9",
+      "Cargo.lock": "4a3ff7451873c432739f2f5799395d207fc40bee",
+      "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+      ".cargo": "152f54b1593e9a8e1c5139fc5a4373a14bbc0701"
+    },
+    "executables": {
+      "cli": {
+        "sha256": "496e204ecfacb7689c7b8117269e663488925314ad3801601d92857f01dafc9a",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      },
+      "runner": {
+        "sha256": "87c07c005fa2307e61b52f715e1683220c630dec2bb915f491834b808430143e",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      }
+    },
+    "origin_run": 42338824785,
+    "cache_key": "compiler-regression-Linux-X64-007cfa9f9b9c5d5e53ace1acb6a69af709124dce0e0b01a2858a95408d3db9ac-071034107c356a871fbbceaf86799baeadd06b9c-prepared-v1-with-runner"
+  },
+  "fixtures": [
+    "run/domains/qualified_fixed_byte_array_captured_destination_exit",
+    "fail/domains/qualified_fixed_byte_array_captured_invalid_write"
+  ],
+  "source_only": false,
+  "samples": [],
+  "cli_fixtures": []
+}
