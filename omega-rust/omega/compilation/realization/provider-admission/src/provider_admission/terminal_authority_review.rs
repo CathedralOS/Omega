@@ -27,6 +27,7 @@ pub(crate) fn review_terminal_authority_closure(
     physical_policy: &TerminalAuthorityPolicy,
     permission_policy: Option<&TerminalAuthorityPermissionPolicy>,
     mechanisms: &[AdmittedTerminalMechanism],
+    settlements: &[crate::AdmittedBoundarySettlement<'_>],
     installed_candidates: &[terminal_psi::ProviderCandidateConformance],
     components: &[crate::provider_admission::NativeProviderSettlement<'_>],
 ) -> Result<TerminalAuthorityClosureReviewReceipt, String> {
@@ -37,6 +38,7 @@ pub(crate) fn review_terminal_authority_closure(
         physical_policy,
         permission_policy,
         mechanisms,
+        settlements,
         installed_candidates,
         components,
     )?;

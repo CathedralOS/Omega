@@ -232,6 +232,7 @@ pub fn admit_native_providers<'request>(
             effective_policy,
             request.terminal_authority_permission_policy.as_ref(),
             &mechanisms,
+            &settlements,
             installation
                 .as_ref()
                 .map(AdmittedProviderInstallation::installed_candidates)
