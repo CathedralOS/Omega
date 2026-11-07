@@ -203,11 +203,3 @@ impl FieldCarriers<'_> {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use arena::HandleSpan;
-    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
-    use typed_trees::{TypedTrees, data::DataField, name::Identifier, types::TypeReferenceNode};
-}
