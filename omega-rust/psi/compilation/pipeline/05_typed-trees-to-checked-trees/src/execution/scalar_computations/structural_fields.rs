@@ -485,7 +485,31 @@ impl Builder<'_, '_> {
             && field.root == facts::PlaceRoot::Expression(captured.expression)
         {
             captured.root
+        } else if let Some(receiver) = field.root.as_expression().and_then(|anchor| {
+            self.dispatch_receivers
+                .get(&(anchor.arena_index(), anchor.generation()))
+        }) {
+            // The dispatch has already chosen a completed value or an existing
+            // place. A field read consumes that exact role, not its supplying
+            // expression, which could move an affine field or replay a call.
+            if !validation::declared_carriers_match(
+                self.program,
+                receiver.type_reference,
+                field.type_reference,
+            ) {
+                return None;
+            }
+            receiver.value
         } else if field.receiver_value.is_valid() {
+            if field.root.as_expression().is_some_and(|anchor| {
+                matches!(self.program.expression_table.expression(anchor), ExpressionNode::SavedSubject(saved)
+                    if matches!(self.program.expression_table.value_capture(saved.capture).owner,
+                        typed_trees::expression::ValueCaptureOwner::Match))
+            }) {
+                // An unproduced Match alias cannot recover a receiver by
+                // evaluating the original subject at this later observation.
+                return None;
+            }
             let value = self.structural_value(field.receiver_value, field.type_reference)?;
             self.retain_structural_value_root(value, field.type_reference)?;
             value

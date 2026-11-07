@@ -340,6 +340,7 @@ impl Builder<'_, '_> {
                     self.retain_dispatch_receiver(
                         alias,
                         checked_trees::CheckedStructuralValueHandle::invalid(),
+                        reference,
                     )?;
                     return Some(checked_trees::CheckedDispatchSubject::Structural {
                         expression: dispatch.subject,
@@ -352,7 +353,7 @@ impl Builder<'_, '_> {
             let value = self.structural_value(dispatch.subject, reference)?;
             self.retained_argument_owner(value, reference)?;
             self.retain_structural_value_root(value, reference)?;
-            self.retain_dispatch_receiver(alias, value)?;
+            self.retain_dispatch_receiver(alias, value, reference)?;
             return Some(checked_trees::CheckedDispatchSubject::Structural {
                 expression: dispatch.subject,
                 value,
@@ -402,7 +403,12 @@ impl Builder<'_, '_> {
         &mut self,
         alias: ExpressionHandle,
         value: checked_trees::CheckedStructuralValueHandle,
+        type_reference: typed_trees::types::TypeReferenceHandle,
     ) -> Option<()> {
+        let receiver = super::builder::DispatchReceiver {
+            value,
+            type_reference,
+        };
         if !alias.is_valid() {
             return Some(());
         }
@@ -411,11 +417,11 @@ impl Builder<'_, '_> {
             .entry((alias.arena_index(), alias.generation()))
         {
             std::collections::btree_map::Entry::Vacant(entry) => {
-                entry.insert(value);
+                entry.insert(receiver);
                 Some(())
             }
             std::collections::btree_map::Entry::Occupied(entry) => {
-                (*entry.get() == value).then_some(())
+                (*entry.get() == receiver).then_some(())
             }
         }
     }

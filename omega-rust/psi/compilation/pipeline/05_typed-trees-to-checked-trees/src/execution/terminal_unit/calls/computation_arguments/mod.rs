@@ -425,7 +425,14 @@ pub(crate) fn borrowed_storage_argument(
             reference,
             CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                 expression,
-                logical_root_type_identity: None,
+                // ProjectedArgumentPath omits only the inherited root shells.
+                // Keep that checked logical root beside the completed owner;
+                // nested descriptor hops remain explicit in the suffix.
+                logical_root_type_identity: if place.segments.is_empty() {
+                    None
+                } else {
+                    Some(shapes.add_logical_type(reference, &[], &[])?)
+                },
             },
         )
     } else {

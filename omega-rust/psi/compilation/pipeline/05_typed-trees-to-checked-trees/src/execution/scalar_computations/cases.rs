@@ -156,7 +156,7 @@ impl Builder<'_, '_> {
             .dispatch_receivers
             .get(&(anchor.arena_index(), anchor.generation()))
         {
-            return Some(*value);
+            return Some(value.value);
         }
         let capture = self.program.expression_table.value_capture(saved.capture);
         if matches!(
