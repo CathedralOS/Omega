@@ -196,7 +196,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 use typed_trees::trait_definition::TraitDefinition;
 
 use crate::proof_contracts::contract_entailment::citations::{
-    collect_citation_equations, instantiated_fact_established, suggest_missing_citation,
+    collect_citation_predicates, instantiated_fact_established, suggest_missing_citation,
 };
 use crate::proof_contracts::contract_entailment::fact_mentions::{
     fact_mentions_proof_only_data, fact_mentions_zero_value,
@@ -354,9 +354,9 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     // Citations discharge their callee's requires against facts available at
     // that exact statement. Earlier citations feed later ones, preserving the
     // authored proof order without making any lemma global or implicit.
-    let citation_equations = {
+    let citation_predicates = {
         let judge_for_discharge = &structural;
-        collect_citation_equations(
+        collect_citation_predicates(
             program,
             &proof_only,
             machine,
@@ -364,8 +364,8 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             Some(judge_for_discharge),
         )
     };
-    for (left, right) in citation_equations {
-        structural.intake_equation(left, right, 0);
+    for predicate in citation_predicates {
+        structural.intake_observed_predicate(predicate, 0);
     }
     let structural = structural;
     // All body forms share the executed frontier. Restricted tag observation
@@ -400,29 +400,17 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     // this same diagnostics batch, so an unsound assumption never certifies
     // a program that compiles). Case arms of inhabited proof data are
     // reachable, so a ground refutation on any arm refutes the claim.
-    // Pre-term-ified ensures equalities, the raw material of the inductive
-    // hypothesis instantiation (only top-level `==` conjuncts serve as IH).
-    let ensures_terms: Vec<Option<(StructuralTerm, StructuralTerm)>> = ensures
+    // Preserve the relation of every IH conjunct. Its use below still owes
+    // the exact self-call's established preconditions and checked descent.
+    let ensures_terms: Vec<Option<StructuralTerm>> = ensures
         .iter()
         .map(|fact| {
-            let binary = expression_table(program).binary_node(*fact)?;
             let entry = program.machine_states(machine).first()?;
-            let parameters = program.state_parameters(entry);
-            if binary.operator != BinaryOperator::Equal
-                || !structural_terms::has_identity_equality_meaning(
-                    program,
-                    machine.symbol,
-                    parameters,
-                    *fact,
-                )
-            {
-                return None;
-            }
-            structural_terms::structural_term_pair_for_parameters(
+            structural_terms::structural_predicate_for_parameters(
                 program,
                 machine.symbol,
-                parameters,
-                binary,
+                program.state_parameters(entry),
+                *fact,
             )
         })
         .collect();
@@ -628,7 +616,10 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             }
             // Per-arm citations (N3 rung 2): the arm's sub-state facts,
             // already instantiated under this arm's environment.
-            for (left, right) in arm.citations.iter().chain(&arm.normal_guarantees) {
+            for predicate in &arm.citations {
+                bound.intake_observed_predicate(predicate.clone(), 0);
+            }
+            for (left, right) in &arm.normal_guarantees {
                 bound.intake_equation(left.clone(), right.clone(), 0);
             }
             bound.retain_data_identities_from(&arm.normal_judge);
@@ -682,12 +673,11 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 }
                 map.push((RESULT_BINDER.to_owned(), application.clone()));
                 for conjunct in &ensures_terms {
-                    let Some((left, right)) = conjunct else {
+                    let Some(predicate) = conjunct else {
                         continue;
                     };
-                    bound.intake_equation(
-                        StructuralJudge::substitute_term(left, &map),
-                        StructuralJudge::substitute_term(right, &map),
+                    bound.intake_observed_predicate(
+                        StructuralJudge::substitute_term(predicate, &map),
                         0,
                     );
                 }

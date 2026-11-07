@@ -491,6 +491,28 @@ pub(super) fn structural_term_pair(
     .then_some((left, right))
 }
 
+/// Read a formed declaration predicate without erasing its relation. Core Id
+/// retains its carrier/subjects; a selected Boolean call retains the complete
+/// application. An unsupported value or display-only term proves nothing.
+pub(super) fn structural_predicate_for_parameters(
+    program: &dyn crate::CheckingInput,
+    scope: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    expression: ExpressionHandle,
+) -> Option<StructuralTerm> {
+    structural_term(program, None, Some((scope, parameters)), expression, None).filter(
+        |predicate| {
+            predicate.is_checked_predicate()
+                || (!matches!(predicate.semantic_value(), StructuralTerm::Opaque(_))
+                    && crate::parameter_expression_result_type_reference(
+                        program, scope, parameters, expression,
+                    )
+                    .and_then(|reference| program.primitive_type_reference(reference))
+                        == Some(typed_trees::types::PrimitiveType::Bool))
+        },
+    )
+}
+
 /// Bind both sides in the declaration's own telescope before substituting
 /// actual values. Applications retain the selected result carrier and policy.
 pub(super) fn structural_term_pair_for_parameters(

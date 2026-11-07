@@ -193,7 +193,7 @@ impl RewriteTable {
         None
     }
 
-    pub(super) fn iter(&self) -> impl Iterator<Item = &(StructuralTerm, StructuralTerm)> {
+    pub(super) fn iter(&self) -> impl Iterator<Item = &(StructuralTerm, StructuralTerm)> + Clone {
         self.entries
             .iter()
             .zip(&self.meanings)

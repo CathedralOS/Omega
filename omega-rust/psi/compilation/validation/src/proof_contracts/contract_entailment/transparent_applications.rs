@@ -179,19 +179,10 @@ fn unfold_boolean(
         return;
     }
     conjuncts.push(
-        structural_term(program, None, Some((scope, parameters)), expression, None)
-            .filter(|predicate| {
-                predicate.is_checked_predicate()
-                    || (matches!(
-                        predicate.semantic_value(),
-                        StructuralTerm::Application { .. } | StructuralTerm::Variable(_)
-                    ) && crate::parameter_expression_result_type_reference(
-                        program, scope, parameters, expression,
-                    )
-                    .and_then(|reference| program.primitive_type_reference(reference))
-                        == Some(typed_trees::types::PrimitiveType::Bool))
-            })
-            .map(|predicate| StructuralJudge::substitute_term(&predicate, environment)),
+        super::structural_terms::structural_predicate_for_parameters(
+            program, scope, parameters, expression,
+        )
+        .map(|predicate| StructuralJudge::substitute_term(&predicate, environment)),
     );
 }
 

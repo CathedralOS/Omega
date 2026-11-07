@@ -19,7 +19,7 @@ use crate::proof_contracts::contract_entailment::RESULT_BINDER;
 use crate::proof_contracts::contract_entailment::law_conformance::{
     diagnostic_shape_match, display_structural_term, term_mentions_variable,
 };
-use crate::proof_contracts::contract_entailment::refuted_requires::collect_instantiated_conjuncts;
+use crate::proof_contracts::contract_entailment::refuted_requires::collect_instantiated_predicates;
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     CaseGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm,
 };
@@ -58,7 +58,7 @@ impl CitationTarget {
 
 #[derive(Clone, Default)]
 pub(super) struct CitationFacts {
-    pub(super) equations: Vec<(StructuralTerm, StructuralTerm)>,
+    pub(super) predicates: Vec<StructuralTerm>,
     cases: Vec<CaseGuarantee>,
 }
 
@@ -66,19 +66,18 @@ pub(super) struct CitationFacts {
 /// to revive its storage-dependent facts after a later write.
 #[derive(Clone, Copy, Default)]
 pub(super) struct CitationFrontier {
-    equations: usize,
+    predicates: usize,
     cases: usize,
 }
 
 impl CitationFacts {
     pub(super) fn same_resolution_payload(&self, other: &Self) -> bool {
-        self.equations.len() == other.equations.len()
-            && self.equations.iter().zip(&other.equations).all(
-                |((left, right), (other_left, other_right))| {
-                    left.same_resolution_payload(other_left)
-                        && right.same_resolution_payload(other_right)
-                },
-            )
+        self.predicates.len() == other.predicates.len()
+            && self
+                .predicates
+                .iter()
+                .zip(&other.predicates)
+                .all(|(left, right)| left.same_resolution_payload(right))
             && self.cases.len() == other.cases.len()
             && self
                 .cases
@@ -93,21 +92,21 @@ impl CitationFacts {
         frontier: &mut CitationFrontier,
     ) -> bool {
         let changed =
-            frontier.equations != self.equations.len() || frontier.cases != self.cases.len();
-        for (left, right) in &self.equations[frontier.equations..] {
-            judge.intake_equation(left.clone(), right.clone(), 0);
+            frontier.predicates != self.predicates.len() || frontier.cases != self.cases.len();
+        for predicate in &self.predicates[frontier.predicates..] {
+            judge.intake_observed_predicate(predicate.clone(), 0);
         }
         for guarantee in &self.cases[frontier.cases..] {
             judge.intake_case_guarantee(guarantee);
         }
-        frontier.equations = self.equations.len();
+        frontier.predicates = self.predicates.len();
         frontier.cases = self.cases.len();
         changed
     }
 
     pub(super) fn intake(&self, judge: &mut StructuralJudge<'_>) {
-        for (left, right) in &self.equations {
-            judge.intake_equation(left.clone(), right.clone(), 0);
+        for predicate in &self.predicates {
+            judge.intake_observed_predicate(predicate.clone(), 0);
         }
         for guarantee in &self.cases {
             judge.intake_case_guarantee(guarantee);
@@ -115,7 +114,7 @@ impl CitationFacts {
     }
 
     pub(super) fn extend(&mut self, other: Self) {
-        self.equations.extend(other.equations);
+        self.predicates.extend(other.predicates);
         self.cases.extend(other.cases);
     }
 }
@@ -229,7 +228,7 @@ pub(super) fn can_establish_citation(
 /// equations, prior citations, or induction hypotheses in `judge` (as opposed
 /// to only `judge.has_runtime_body_values()`). A requires-free citation whose
 /// ensures contain no case observations produces the exact same instantiated
-/// equations from `judge` directly without constructing a temporary `site_judge`.
+/// predicates from `judge` directly without constructing a temporary `site_judge`.
 pub(super) fn citation_needs_site_judge(
     program: &dyn crate::CheckingInput,
     target: &CitationTarget,
@@ -313,7 +312,7 @@ pub(crate) fn is_citation_statement(
 /// Statement-call CITATIONS (ch10 "Citing Proofs"; the settled proof-citation
 /// rule, 2026-07-18): `add_zero_right(b);` inside a proof body delivers
 /// the callee's proven ensures to this site, instantiated at the call's
-/// argument terms -- the equations these return feed the structural judge's
+/// argument terms -- the predicates these return feed the structural judge's
 /// hypotheses exactly like requires facts. Fact injection is the explicit
 /// default; no global rules, no pattern matching, nothing applies silently.
 ///
@@ -325,21 +324,21 @@ pub(crate) fn is_citation_statement(
 ///
 /// A requires-bearing lemma contributes facts only after its premises are
 /// established at this statement, independently of its own conclusions.
-pub(crate) fn collect_citation_equations(
+pub(crate) fn collect_citation_predicates(
     program: &dyn crate::CheckingInput,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
     judge: Option<&StructuralJudge>,
-) -> Vec<(StructuralTerm, StructuralTerm)> {
-    let mut equations = Vec::new();
+) -> Vec<StructuralTerm> {
+    let mut predicates = Vec::new();
     let mut site_judge = judge.cloned();
     // Machine level reads the ENTRY state only: sub-state citations
     // reference sub-state parameters, which have no machine-level frame --
     // they intake PER ARM in `recognize_structural_case_arms`, converted
     // under that arm's environment.
     let Some(entry) = program.machine_states(machine).first() else {
-        return equations;
+        return predicates;
     };
     // Entry-state citations may follow authored or lowering-generated `let`
     // bindings. Termify their operands under the same incremental local
@@ -430,12 +429,12 @@ pub(crate) fn collect_citation_equations(
         if let Some(judge) = &mut site_judge {
             established.intake(judge);
         }
-        equations.extend(established.equations);
+        predicates.extend(established.predicates);
     }
     if super::struct_trace() {
-        eprintln!("CITE machine={} equations={equations:?}", machine.name);
+        eprintln!("CITE machine={} predicates={predicates:?}", machine.name);
     }
-    equations
+    predicates
 }
 
 /// The failure-side HALF of the citation ergonomics (the OWNER_QUESTIONS
@@ -796,17 +795,17 @@ pub(crate) fn instantiate_citation(
         },
     ));
     for fact in &ensures_facts {
-        collect_instantiated_conjuncts(
+        collect_instantiated_predicates(
             program,
             scope,
             parameters,
             *fact,
             &map,
-            &mut established.equations,
+            &mut established.predicates,
         );
     }
     // Mathematical results keep the same selected application identity for
-    // equations and tags. A saved local's environment contains that value,
+    // predicates and tags. A saved local's environment contains that value,
     // not its storage binder. Runtime occurrences took the separate lane above.
     if !target.has_static_selection
         && let Some(judge) = judge
@@ -837,42 +836,13 @@ pub(crate) fn instantiated_fact_established(
                 StructuralJudgment::Proven
             );
     }
-    let Some(binary) = program.expression_table.binary_node(fact) else {
+    let Some(predicate) = super::structural_terms::structural_predicate_for_parameters(
+        program, scope, parameters, fact,
+    ) else {
         return false;
     };
-    match binary.operator {
-        BinaryOperator::And => {
-            crate::has_builtin_parameter_bound_expression_meaning(program, scope, parameters, fact)
-                && instantiated_fact_established(
-                    program,
-                    judge,
-                    scope,
-                    parameters,
-                    binary.left,
-                    map,
-                )
-                && instantiated_fact_established(
-                    program,
-                    judge,
-                    scope,
-                    parameters,
-                    binary.right,
-                    map,
-                )
-        }
-        BinaryOperator::Equal => {
-            let Some((left, right)) =
-                super::structural_terms::identity_equality_terms(program, scope, parameters, fact)
-            else {
-                return false;
-            };
-            let left = StructuralJudge::substitute_term(&left, map);
-            let right = StructuralJudge::substitute_term(&right, map);
-            matches!(
-                judge.judge_equation(judge.resolve(left), judge.resolve(right), 0),
-                StructuralJudgment::Proven
-            )
-        }
-        _ => false,
-    }
+    matches!(
+        judge.judge_observed_predicate(StructuralJudge::substitute_term(&predicate, map), 0),
+        StructuralJudgment::Proven
+    )
 }

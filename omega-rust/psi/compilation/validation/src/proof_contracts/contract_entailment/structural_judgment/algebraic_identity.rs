@@ -22,7 +22,7 @@ impl Eq for AlgebraAtom {}
 
 impl std::fmt::Debug for AlgebraAtom {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(formatter)
+        std::fmt::Debug::fmt(&self.0, formatter)
     }
 }
 
