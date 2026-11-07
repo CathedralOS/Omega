@@ -376,6 +376,9 @@ impl Checker<'_> {
         // plain referent. Classify the actual arrival's descriptor role and
         // permission, uniformly for byte and element carriers; shape alone
         // cannot authorize a stored descriptor's backing.
+        // Owned storage and admitted address joins retain their field
+        // predicates. The descriptor role below independently restricts its
+        // roster to element memberships; those facts grant no backing access.
         let descriptor_carrier =
             terminal_semantics::view_descriptor_parameter(parameter, self.types.iter());
         let backing = parameter.access == terminal_psi::StructuralAccess::Owned
@@ -395,14 +398,6 @@ impl Checker<'_> {
         backing
             && parameter.structural_type == root_structural_type
             && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-            // An owned record keeps its field predicates while lending an
-            // array. Borrowed descriptors retain their element-only roster;
-            // neither kind acquires backing permission from a qualification.
-            && (parameter.access == terminal_psi::StructuralAccess::Owned
-                || parameter
-                    .projected_qualifications
-                    .iter()
-                    .all(|row| row.is_element_membership()))
             && self.optimized.structural_places.iter().any(|declaration| {
                 declaration.id == place
                     && declaration.kind
