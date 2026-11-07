@@ -107,7 +107,7 @@ pub(crate) enum CheckedClaimOutcomeSource {
     },
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct ClaimIdentityAllocator {
     next_ordinal: u32,
     /// One past the highest ordinal handed out so far, kept across

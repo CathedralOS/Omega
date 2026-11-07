@@ -13,8 +13,7 @@ use super::linear_obligations::LinearPlace;
 use super::linear_validation::permission_event_statement_index;
 use crate::flow::{CapturedValueChoice, SelectionCondition, SelectionConditions};
 use checked_trees::{
-    CheckFacts, FlowOperandCompletion, FlowOperandFact, FlowPermissionEvaluation,
-    FlowStateOutgoingFact,
+    FlowOperandCompletion, FlowOperandFact, FlowPermissionEvaluation, FlowStateOutgoingFact,
 };
 use facts::PlaceSegment;
 use language_semantics::{PermissionAccess, PermissionClaimIdentity, PermissionEventKind};
@@ -101,7 +100,7 @@ impl ClaimConsumption {
 /// the selected target's complete summary instead.
 pub(crate) fn current_returned_claims(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     outgoing: &FlowStateOutgoingFact,
     conditions: &mut SelectionConditions,
 ) -> Result<Vec<ReturnedClaim>, &'static str> {
@@ -124,7 +123,7 @@ pub(crate) fn current_returned_claims(
     };
     captured_claims(
         program,
-        facts.view(),
+        facts,
         consumer,
         operand,
         ClaimObservation::Consumed,
@@ -135,7 +134,7 @@ pub(crate) fn current_returned_claims(
 
 pub(crate) fn consumed_operand_claims(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     consumer: ClaimConsumption,
     operand: arena::Handle<FlowOperandFact>,
     conditions: &mut SelectionConditions,
@@ -149,7 +148,7 @@ pub(crate) fn consumed_operand_claims(
     }
     captured_claims(
         program,
-        facts.view(),
+        facts,
         consumer,
         operand,
         ClaimObservation::Consumed,
