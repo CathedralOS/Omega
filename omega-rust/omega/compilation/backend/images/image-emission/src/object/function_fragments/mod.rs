@@ -36,7 +36,7 @@ pub enum FunctionFragmentObjectArtifactError {
     Mismatch(&'static str),
     InstalledRelativeBranches {
         machine: semantic_vocabulary::MachineId,
-        source: machine_emission::frame_application::FunctionFragmentFrameApplicationError,
+        source: machine_emission::FunctionFragmentFrameApplicationError,
     },
     InstalledFaultSurface {
         machine: semantic_vocabulary::MachineId,

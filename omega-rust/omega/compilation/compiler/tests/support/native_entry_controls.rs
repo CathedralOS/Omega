@@ -293,10 +293,10 @@ fn inspect_instruction_sources(
 }
 
 fn inspect_relative_branches(
-    framed: &machine_emission::frame_application::StagedFunctionFragmentFrameApplication,
+    framed: &machine_emission::StagedFunctionFragmentFrameApplication,
 ) -> Result<(), String> {
     use machine_code::FunctionFragmentBranchEvidence as Branch;
-    use machine_emission::frame_application::FunctionFragmentFrameApplicationError as Error;
+    use machine_emission::FunctionFragmentFrameApplicationError as Error;
     let mut observed = [false; 2];
     for function in &framed.fragments().functions {
         let rows: Vec<_> = function
