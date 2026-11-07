@@ -104,11 +104,19 @@ impl StructuralJudge<'_> {
         right: StructuralTerm,
         depth: usize,
     ) -> StructuralJudgment {
-        if self.trace_le_case(
-            "query",
-            &[("left", &left), ("right", &right)],
-            format_args!("depth={depth}"),
-        ) {
+        let diagnostic = self
+            .le_case_trace_enabled()
+            .then(|| (left.clone(), right.clone()));
+        let mut remaining = 1024;
+        let result = self.judge_identity_with_budget(left, right, depth, &mut remaining);
+        if matches!(result, StructuralJudgment::Unknown)
+            && let Some((left, right)) = diagnostic
+            && self.trace_le_case(
+                "query",
+                &[("left", &left), ("right", &right)],
+                format_args!("depth={depth} remaining={remaining} verdict={result:?}"),
+            )
+        {
             self.trace_le_case_context();
             for row in self
                 .captured_result_equations
@@ -130,13 +138,13 @@ impl StructuralJudge<'_> {
                 );
             }
         }
-        let mut remaining = 1024;
-        let result = self.judge_identity_with_budget(left, right, depth, &mut remaining);
-        self.trace_le_case(
-            "result",
-            &[],
-            format_args!("depth={depth} remaining={remaining} verdict={result:?}"),
-        );
+        if matches!(result, StructuralJudgment::Unknown) {
+            self.trace_le_case(
+                "result",
+                &[],
+                format_args!("depth={depth} remaining={remaining} verdict={result:?}"),
+            );
+        }
         result
     }
 
