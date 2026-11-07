@@ -57,28 +57,9 @@ pub fn call_sources(
     facts: &CheckFacts,
     target: SymbolHandle,
 ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-    let sources = relations::complete(program, facts, |captures| {
+    relations::complete(program, facts, |captures| {
         captures.target_sources(target, &mut Vec::new())
-    });
-    if sources.is_none() && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-        let state = crate::call_target_state(program, target);
-        eprintln!(
-            "CHECKSITE captured-return-target target={} symbol={target:?} state={:?} stored_state={} flow_state={} borrow_state={}",
-            program.symbols.name(target),
-            state.map(|state| state.symbol),
-            state.is_some_and(|state| program.state_by_symbol(state.symbol).is_some()),
-            state.is_some_and(|state| facts
-                .flow
-                .control
-                .unique_state_by_symbol(state.symbol)
-                .is_some()),
-            state.is_some_and(|state| facts
-                .borrow
-                .unique_state_borrow_by_symbol(state.symbol)
-                .is_some()),
-        );
-    }
-    sources
+    })
 }
 
 /// A terminal call has no expression-local holder. Its normal-return capture
