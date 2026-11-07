@@ -509,7 +509,8 @@ impl Elaborator<'_> {
             }
             let saved_constructor_context = std::mem::take(&mut self.source_constructor_context);
             let mut outer_parameters = Vec::new();
-            let mut lifted_declarations = Vec::new();
+            let mut lifted_declarations =
+                super::source_families::terms::ParameterAbstractions::default();
             for symbol in outer_types {
                 let domain = self
                     .arena

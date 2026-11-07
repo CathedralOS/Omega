@@ -698,6 +698,24 @@ pub(super) fn apply_description(
     }
 }
 
+/// One immutable source telescope's copies in its generated declaration
+/// fragment. Coordinates before this base cannot depend on the telescope.
+#[derive(Default)]
+pub(super) struct ParameterAbstractions {
+    parameters: Vec<(u32, TermHandle)>,
+    base: usize,
+    copies: Vec<Option<u32>>,
+}
+impl ParameterAbstractions {
+    fn get(&self, position: u32) -> Option<u32> {
+        (position as usize)
+            .checked_sub(self.base)
+            .and_then(|position| self.copies.get(position))
+            .copied()
+            .flatten()
+    }
+}
+
 /// Abstract temporary scalar assumptions without capturing existing binders.
 pub(super) fn abstract_parameters(
     arena: &mut TermArena,
@@ -705,7 +723,13 @@ pub(super) fn abstract_parameters(
     ty: TermHandle,
     parameters: &[(u32, SymbolHandle, TermHandle)],
 ) -> Result<(TermHandle, TermHandle), &'static str> {
-    abstract_parameters_with_declarations(arena, proof, ty, parameters, &[])
+    abstract_parameters_with_declarations(
+        arena,
+        proof,
+        ty,
+        parameters,
+        &ParameterAbstractions::default(),
+    )
 }
 
 fn abstract_parameters_with_declarations(
@@ -713,13 +737,13 @@ fn abstract_parameters_with_declarations(
     proof: TermHandle,
     ty: TermHandle,
     parameters: &[(u32, SymbolHandle, TermHandle)],
-    lifted: &[Option<u32>],
+    lifted: &ParameterAbstractions,
 ) -> Result<(TermHandle, TermHandle), &'static str> {
     fn go(
         arena: &mut TermArena,
         term: TermHandle,
         parameters: &[(u32, SymbolHandle, TermHandle)],
-        lifted: &[Option<u32>],
+        lifted: &ParameterAbstractions,
         depth: u32,
     ) -> Result<TermHandle, &'static str> {
         macro_rules! at {
@@ -745,9 +769,9 @@ fn abstract_parameters_with_declarations(
                         return Err("source value placeholder acquired universe arguments");
                     }
                     Term::Variable(depth + (parameters.len() - ordinal - 1) as u32)
-                } else if let Some(Some(replacement)) = lifted.get(declaration as usize) {
+                } else if let Some(replacement) = lifted.get(declaration) {
                     let mut term = arena.insert(Term::Constant {
-                        declaration: *replacement,
+                        declaration: replacement,
                         levels,
                     });
                     for ordinal in 0..parameters.len() {
@@ -1480,12 +1504,12 @@ pub(super) fn excludes_parameters(
     roots: &[TermHandle],
     parameters: &[(u32, SymbolHandle, TermHandle)],
 ) -> bool {
-    let mut seen_terms = std::collections::HashSet::new();
+    let mut seen_terms = Vec::new();
     let Some(references) = collect_constant_references(arena, roots, &mut seen_terms) else {
         return false;
     };
     let mut pending = references.into_iter().collect::<Vec<_>>();
-    let mut seen = vec![false; declarations.len()];
+    let mut seen = std::collections::HashSet::new();
     while let Some(position) = pending.pop() {
         if parameters
             .iter()
@@ -1496,7 +1520,7 @@ pub(super) fn excludes_parameters(
         let Some(declaration) = declarations.get(position as usize) else {
             return false;
         };
-        if std::mem::replace(&mut seen[position as usize], true) {
+        if !seen.insert(position) {
             continue;
         }
         let roots = std::iter::once(declaration.ty)
@@ -1519,19 +1543,29 @@ pub(super) fn abstract_parameter_closure(
     proof: TermHandle,
     ty: TermHandle,
     parameters: &[(u32, SymbolHandle, TermHandle)],
-    lifted: &mut Vec<Option<u32>>,
+    lifted: &mut ParameterAbstractions,
 ) -> Result<(TermHandle, TermHandle), &'static str> {
     if parameters.is_empty() {
         return Ok((proof, ty));
     }
     let original_len = declarations.len();
-    lifted.resize(original_len, None);
     let first = parameters
         .iter()
         .map(|(position, _, _)| *position as usize)
         .min()
         .ok_or("source telescope is empty")?;
-    let mut edges = vec![None; original_len];
+    let parameter_identities = parameters
+        .iter()
+        .map(|(position, _, domain)| (*position, *domain))
+        .collect::<Vec<_>>();
+    if lifted.parameters.is_empty() {
+        lifted.parameters = parameter_identities;
+        lifted.base = first;
+    } else if lifted.parameters != parameter_identities {
+        return Err("source theorem changed its outer telescope");
+    }
+    lifted.copies.resize(original_len - first, None);
+    let mut edges = vec![None; original_len - first];
     let mut pending = constant_references(arena, &[proof, ty])
         .ok_or("source theorem has a dummy term")?
         .into_iter()
@@ -1541,7 +1575,10 @@ pub(super) fn abstract_parameter_closure(
         if position >= original_len {
             return Err("source theorem has an unformed declaration");
         }
-        if position <= first || lifted[position].is_some() || edges[position].is_some() {
+        if position <= first
+            || lifted.get(position as u32).is_some()
+            || edges[position - first].is_some()
+        {
             continue;
         }
         let declaration = &declarations[position];
@@ -1557,17 +1594,17 @@ pub(super) fn abstract_parameter_closure(
             return Err("source theorem changed its declaration prefix");
         }
         pending.extend(references.iter().copied());
-        edges[position] = Some(references);
+        edges[position - first] = Some(references);
     }
     for position in first + 1..original_len {
-        let Some(references) = &edges[position] else {
+        let Some(references) = &edges[position - first] else {
             continue;
         };
         if !references.iter().any(|reference| {
             parameters
                 .iter()
                 .any(|(parameter, _, _)| parameter == reference)
-                || lifted[*reference as usize].is_some()
+                || lifted.get(*reference).is_some()
         }) {
             continue;
         }
@@ -1579,32 +1616,36 @@ pub(super) fn abstract_parameter_closure(
             abstract_parameters_with_declarations(arena, body, declaration.ty, parameters, lifted)?;
         let replacement = declarations.len() as u32;
         declarations.push(Declaration::definition(declaration.level_arity, ty, body));
-        lifted[position] = Some(replacement);
+        lifted.copies[position - first] = Some(replacement);
     }
     abstract_parameters_with_declarations(arena, proof, ty, parameters, lifted)
 }
 
-fn constant_references(
-    arena: &TermArena,
-    roots: &[TermHandle],
-) -> Option<std::collections::BTreeSet<u32>> {
-    collect_constant_references(arena, roots, &mut std::collections::HashSet::new())
+fn constant_references(arena: &TermArena, roots: &[TermHandle]) -> Option<Vec<u32>> {
+    collect_constant_references(arena, roots, &mut Vec::new())
 }
 
 fn collect_constant_references(
     arena: &TermArena,
     roots: &[TermHandle],
-    seen_terms: &mut std::collections::HashSet<TermHandle>,
-) -> Option<std::collections::BTreeSet<u32>> {
+    seen_terms: &mut Vec<u64>,
+) -> Option<Vec<u32>> {
     let mut pending = roots.to_vec();
-    let mut constants = std::collections::BTreeSet::new();
+    let mut constants = Vec::new();
     while let Some(term) = pending.pop() {
-        if !seen_terms.insert(term) {
+        let position = term.arena_index() as usize;
+        let word = position / 64;
+        if word >= seen_terms.len() {
+            seen_terms.resize(word + 1, 0);
+        }
+        let bit = 1u64 << (position % 64);
+        if seen_terms[word] & bit != 0 {
             continue;
         }
+        seen_terms[word] |= bit;
         match arena.get(term) {
             Term::Constant { declaration, .. } => {
-                constants.insert(declaration);
+                constants.push(declaration);
             }
             Term::Pi { domain, codomain } | Term::Sigma { domain, codomain } => {
                 pending.extend([domain, codomain])
@@ -1705,7 +1746,7 @@ mod outer_type_closure_tests {
         });
         check_signature(&mut arena, &declarations, &mut Budget::default()).unwrap();
         let parameters = [(0, parameter, sort)];
-        let mut lifted = Vec::new();
+        let mut lifted = ParameterAbstractions::default();
         let (closed, statement) = abstract_parameter_closure(
             &mut arena,
             &mut declarations,
