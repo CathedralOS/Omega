@@ -15,7 +15,16 @@ type EntryOrigin<'a> = (
     Option<InstalledInterruptEntryPlan>,
     Option<&'a installation_evidence::BootstrapEnvironmentAssumption>,
     Option<&'a provider_admission::AdmittedInstalledInterruptScope>,
+    OriginOwners<'a>,
 );
+
+#[derive(Clone, Copy)]
+struct OriginOwners<'a> {
+    entry: &'a ObjectArtifact,
+    plan: Option<&'a ObjectArtifact>,
+    assumption: Option<&'a ObjectArtifact>,
+    scope: Option<&'a ObjectArtifact>,
+}
 
 pub(crate) struct EntryOrigins<'a> {
     entries: Vec<EntryOrigin<'a>>,
@@ -43,18 +52,22 @@ impl<'a> EntryOrigins<'a> {
                     || matches!((prior.4, row.4), (Some(left), Some(right)) if left != right)
                     || matches!((prior.5, row.5), (Some(left), Some(right)) if left != right)
                 {
-                    return Err(Error::Mismatch(
-                        "private entry has conflicting original admission recipes",
-                    ));
+                    return Err(Error::PrivateEntryRecipeConflict {
+                        identity: row.0,
+                        detail: conflicting_recipes(prior, &row),
+                    });
                 }
                 if prior.5.is_none() {
                     prior.5 = row.5;
+                    prior.6.scope = row.6.scope;
                 }
                 if prior.4.is_none() {
                     prior.4 = row.4;
+                    prior.6.assumption = row.6.assumption;
                 }
                 if prior.3.is_none() {
                     prior.3 = row.3;
+                    prior.6.plan = row.6.plan;
                 }
             } else {
                 merged.push(row);
@@ -70,7 +83,7 @@ impl<'a> EntryOrigins<'a> {
             .map_err(|_| {
                 Error::Mismatch("private entry has no original admitted callback recipe")
             })?;
-        let (_, entry, installed, plan, assumption, parent_scope) = self.entries[index];
+        let (_, entry, installed, plan, assumption, parent_scope, _) = self.entries[index];
         let execution = private.body.installed_entry_execution();
         if installed != execution.is_some()
             || execution.is_some_and(|execution| {
@@ -125,7 +138,20 @@ fn collect<'a>(body: &'a ObjectArtifact, entries: &mut Vec<EntryOrigin<'a>>) -> 
         ));
     }
     for row in ordinary.callbacks() {
-        entries.push((row.callback_function, row.entry(), false, None, None, None));
+        entries.push((
+            row.callback_function,
+            row.entry(),
+            false,
+            None,
+            None,
+            None,
+            OriginOwners {
+                entry: body,
+                plan: None,
+                assumption: None,
+                scope: None,
+            },
+        ));
     }
     for row in installed.entries() {
         let mut scopes = installed
@@ -222,7 +248,75 @@ fn collect<'a>(body: &'a ObjectArtifact, entries: &mut Vec<EntryOrigin<'a>>) -> 
             plan,
             assumption,
             scope.filter(|scope| scope.context_anchor().is_some()),
+            OriginOwners {
+                entry: body,
+                plan: plan.map(|_| body),
+                assumption: assumption.map(|_| body),
+                scope: scope
+                    .filter(|scope| scope.context_anchor().is_some())
+                    .map(|_| body),
+            },
         ));
     }
     Ok(())
+}
+
+/// Report only the actual fields which stopped the merge. Both source bodies
+/// stay attached so equal local machine numbers do not hide their context.
+fn conflicting_recipes(left: &EntryOrigin<'_>, right: &EntryOrigin<'_>) -> String {
+    let mut differences = Vec::new();
+    if left.1 != right.1 {
+        differences.push(format!(
+            "callback entry: left={:?}; right={:?}",
+            left.1, right.1
+        ));
+    }
+    if left.2 != right.2 {
+        differences.push(format!(
+            "installed role: left={}; right={}",
+            left.2, right.2
+        ));
+    }
+    if matches!((left.3, right.3), (Some(a), Some(b)) if a != b) {
+        differences.push(format!(
+            "installed plan: left={:?}; right={:?}",
+            left.3, right.3
+        ));
+    }
+    if matches!((left.4, right.4), (Some(a), Some(b)) if a != b) {
+        differences.push(format!(
+            "bootstrap assumption: left={:?}; right={:?}",
+            left.4, right.4
+        ));
+    }
+    if matches!((left.5, right.5), (Some(a), Some(b)) if a != b) {
+        differences.push(format!(
+            "parent scope: left={:?}; right={:?}",
+            left.5, right.5
+        ));
+    }
+    let owner = |body: &ObjectArtifact| {
+        format!(
+            "root={:?}, psi={:?}, target={:?}, profile={:?}, installed_execution={:?}",
+            body.entry(),
+            body.psi(),
+            body.target(),
+            body.x86_feature_profile(),
+            body.installed_entry_execution().map(|execution| (
+                execution.entry().callback_function,
+                execution.scope().operation(),
+            )),
+        )
+    };
+    differences.push(format!(
+        "merged optional owners: left plan={:?}, assumption={:?}, scope={:?}; right plan={:?}, assumption={:?}, scope={:?}",
+        left.6.plan.map(owner), left.6.assumption.map(owner), left.6.scope.map(owner),
+        right.6.plan.map(owner), right.6.assumption.map(owner), right.6.scope.map(owner),
+    ));
+    format!(
+        "left source [{}]; right source [{}]; {}",
+        owner(left.6.entry),
+        owner(right.6.entry),
+        differences.join("; "),
+    )
 }

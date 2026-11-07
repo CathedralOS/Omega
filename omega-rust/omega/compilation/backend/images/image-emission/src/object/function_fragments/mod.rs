@@ -35,6 +35,10 @@ pub enum FunctionFragmentObjectArtifactError {
         operation_description: String,
     },
     Mismatch(&'static str),
+    PrivateEntryRecipeConflict {
+        identity: function_identity::MachineFunctionIdentity,
+        detail: String,
+    },
     InstalledRelativeBranches {
         machine: semantic_vocabulary::MachineId,
         source: machine_emission::FunctionFragmentFrameApplicationError,
@@ -106,6 +110,10 @@ impl std::fmt::Display for FunctionFragmentObjectArtifactError {
             Self::NativeEntryBridge(error) => write!(formatter, "native entry transport: {error}"),
             Self::PhysicalEntry(error) => error.fmt(formatter),
             Self::Unsupported(reason) | Self::Mismatch(reason) => formatter.write_str(reason),
+            Self::PrivateEntryRecipeConflict { identity, detail } => write!(
+                formatter,
+                "private entry has conflicting original admission recipes for {identity:?}: {detail}"
+            ),
             Self::InstalledRelativeBranches { machine, source } => write!(
                 formatter,
                 "installed handler {machine:?} relative control: {source}",
