@@ -229,7 +229,7 @@ pub(crate) struct PreparedCallClaimJoin {
 /// authority. Publication rederives every receipt from the current source walk;
 /// changed or missing consulted bindings force another walk before its custody
 /// observations and cleanup decisions may escape preparation.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(super) struct CallJoinPreparation {
     bindings: Vec<PreparedCallClaimJoin>,
     dependencies: Vec<ReceivingClaim>,
@@ -256,6 +256,20 @@ impl CallJoinPreparation {
             bindings: Vec::new(),
             dependencies: std::mem::take(&mut self.dependencies),
         }
+    }
+
+    /// Whether each receiver `consulted` looked up has the same binding here
+    /// as under `previous`.
+    pub(super) fn receivers_unchanged(&self, previous: &Self, consulted: &Self) -> bool {
+        consulted.dependencies.iter().all(|receiver| {
+            self.bindings
+                .iter()
+                .find(|binding| binding.receiver == *receiver)
+                == previous
+                    .bindings
+                    .iter()
+                    .find(|binding| binding.receiver == *receiver)
+        })
     }
 
     /// Record the receivers a worker consulted after these, keeping the
@@ -352,7 +366,7 @@ fn known_source(source: &CheckedClaimOutcomeSource) -> bool {
 #[allow(clippy::too_many_arguments)]
 fn state_frontiers(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     state: &typed_trees::state::State,
     events: &[FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],
@@ -611,7 +625,7 @@ struct BoundSource {
 #[allow(clippy::too_many_arguments)]
 fn bound_sources_at_call(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     statement: usize,
@@ -642,7 +656,7 @@ fn bound_sources_at_call(
         program,
         validation::call_target_symbol(program, call),
     );
-    let mut matching = crate::flow::call_flows(&facts.flow.control, flow.calls)
+    let mut matching = crate::flow::call_flows(facts.flow.control, flow.calls)
         .iter()
         .filter(|row| {
             row.statement_index == statement
@@ -704,10 +718,9 @@ fn bound_sources_at_call(
         let (source, identity) = match claim.source {
             Live(identity) => (
                 Some(
-                    returned_identity_source(state, identity, &facts.flow.ownership, events)
-                        .ok_or(
-                            "consumed caller argument has no unique entry or establishment source",
-                        )?,
+                    returned_identity_source(state, identity, facts.flow.ownership, events).ok_or(
+                        "consumed caller argument has no unique entry or establishment source",
+                    )?,
                 ),
                 identity,
             ),
@@ -744,7 +757,7 @@ fn bound_sources_at_call(
 #[allow(clippy::too_many_arguments)]
 fn expand_joined_frontier(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     state: &typed_trees::state::State,
     events: &[FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],
@@ -1028,7 +1041,7 @@ impl InactivePlaceWrites {
 
 fn derive_receipts(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     events: &[FlowPermissionEventFact],
     mut failures: Option<&mut Vec<CallClaimJoinFailure>>,
 ) -> Result<Vec<Receipt>, &'static str> {
@@ -1306,7 +1319,7 @@ fn store_source(
 
 pub(crate) fn publish_call_claim_joins(
     program: &dyn ::validation::CheckingInput,
-    facts: &mut CheckFacts,
+    facts: &mut checked_trees::CheckFactsWalk<'_>,
 ) -> Result<Vec<PreparedCallClaimJoin>, &'static str> {
     let mut events = facts
         .flow
@@ -1319,7 +1332,7 @@ pub(crate) fn publish_call_claim_joins(
     // Recursive edges are conditional on completion, not new lineage roots.
     let mut converged = false;
     for _ in 0..=events.len() {
-        let receipts = derive_receipts(program, facts, &events, None)?;
+        let receipts = derive_receipts(program, facts.view(), &events, None)?;
         let mut rewrites = Vec::new();
         for receipt in &receipts {
             let Some(provenance) = join_provenance(receipt) else {
@@ -1337,7 +1350,7 @@ pub(crate) fn publish_call_claim_joins(
                 }
             }
         }
-        if !super::apply_claim_origin_rewrites(&mut events, &mut facts.flow.ownership, &rewrites) {
+        if !super::apply_claim_origin_rewrites(&mut events, facts.flow.ownership, &rewrites) {
             converged = true;
             break;
         }
@@ -1345,7 +1358,7 @@ pub(crate) fn publish_call_claim_joins(
     if !converged {
         return Err("call-result claim joins did not converge");
     }
-    let receipts = derive_receipts(program, facts, &events, None)?;
+    let receipts = derive_receipts(program, facts.view(), &events, None)?;
     let ownership = &mut facts.flow.ownership;
     ownership.permissions_by_state.clear();
     ownership.permissions = Default::default();
@@ -1457,7 +1470,7 @@ pub(crate) fn validate_call_claim_joins(
         .map(|(_, event)| event.clone())
         .collect::<Vec<_>>();
     let mut failures = Vec::new();
-    let expected = match derive_receipts(program, facts, &events, Some(&mut failures)) {
+    let expected = match derive_receipts(program, facts.view(), &events, Some(&mut failures)) {
         Ok(receipts) => receipts,
         Err(message) => {
             diagnostics.push(Diagnostic::error(message));

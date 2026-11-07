@@ -164,7 +164,7 @@ pub(super) fn returned_partition_invocations(
         state,
     ) {
         let outgoing = facts.flow.control.outgoing.get(returned_at);
-        let claims = current_returned_claims(program, facts, outgoing, conditions);
+        let claims = current_returned_claims(program, facts.view(), outgoing, conditions);
         let returned_operand = facts.flow.control.operands.get(outgoing.returned_value);
         let alternatives = match returned_operand.completion {
             checked_trees::FlowOperandCompletion::Selected(alternatives) => facts
