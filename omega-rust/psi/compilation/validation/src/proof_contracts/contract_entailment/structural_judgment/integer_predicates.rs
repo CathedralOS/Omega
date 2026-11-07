@@ -1206,7 +1206,7 @@ impl<'program> StructuralJudge<'program> {
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn has_no_rewrites(&self) -> bool {
-        self.rewrites.iter().next().is_none()
+        self.rewrites.is_empty()
     }
 
     /// Prepare independently formed premises once, then fork their exact

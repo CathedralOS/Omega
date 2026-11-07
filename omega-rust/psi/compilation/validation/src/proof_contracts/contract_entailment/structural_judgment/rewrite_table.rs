@@ -137,6 +137,10 @@ impl RewriteTable {
         !self.potential_integer_premise_indices.is_empty()
     }
 
+    pub(super) fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
     pub(super) fn potential_integer_premises_len(&self) -> usize {
         self.potential_integer_premise_indices.len()
     }
@@ -466,6 +470,7 @@ mod tests {
         let value = StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(7));
         let mut rewrites = RewriteTable::default();
         rewrites.push_value_identity((first.clone(), value.clone()));
+        assert!(!rewrites.is_empty());
         assert!(rewrites.find(&first).is_some());
         assert!(rewrites.find(&second).is_none());
         assert_eq!(rewrites.iter().count(), 0);
