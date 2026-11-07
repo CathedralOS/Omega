@@ -82,12 +82,9 @@ pub(super) fn build_owner_environment_index(
     index
 }
 
-/// Preparation needs the lexical binders of authored contracts, but cannot
+/// Preparation needs the lexical binders of retained contracts, but cannot
 /// mint the checked fact handles installed by the checking pass above.
-pub(super) fn index_authored_contract_environments(
-    program: &dyn CheckingInput,
-    index: &mut OwnerIndex,
-) {
+pub(super) fn index_contract_environments(program: &dyn CheckingInput, index: &mut OwnerIndex) {
     let mut add_contracts = |contracts: &[typed_trees::signature::SignatureContract],
                              environment| {
         let reached = contracts

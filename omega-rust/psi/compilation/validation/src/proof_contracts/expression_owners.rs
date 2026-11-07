@@ -127,11 +127,11 @@ pub struct OwnerEnvironmentIndex {
 }
 
 impl OwnerEnvironmentIndex {
-    /// Lexical environments for authored contracts before checking publishes
+    /// Lexical environments for retained contracts before checking publishes
     /// proof facts. These roots identify binders, never checked evidence.
     pub fn for_preparation(program: &dyn crate::CheckingInput) -> Self {
         let mut owners = Self::new(program, &arena::Arena::default());
-        indexing::index_authored_contract_environments(program, &mut owners.index);
+        indexing::index_contract_environments(program, &mut owners.index);
         owners
     }
 
