@@ -69,8 +69,11 @@ may be statically selected and inlined elsewhere; no hot-swap call syntax is imp
 Publishing a conformance makes exact static evidence/strategy selectable, not
 replaceable. Selecting executable behavior, layout, cleanup, or a runtime-bearing
 row creates a concrete closure edge: changing that provider requires rebuilding
-already-built consumers. Erased proof evidence retains theorem/certificate
-dependencies without necessarily pinning runtime code. Independently updated
+already-built consumers. Erased proof contracts retain theorem, proposition and
+assumption dependencies without necessarily pinning runtime code. Incoming Psi
+must retain enough semantics to establish any required claim under
+[receiver admission](../terminal-psi/product.md#publication-and-separate-consumption);
+neither theorem provenance nor a stored conclusion proves it. Independently updated
 behavior instead crosses a stable requirement through its installed provider slot.
 
 The requested cut is checked by a least fixed point over concrete implementations,

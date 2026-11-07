@@ -468,15 +468,20 @@ Semantics-preserving code deduplication is a separate optimization, not a
 promise of this identity policy. A stronger search setting cannot change
 declaration selection or existing specialization identity.
 
-Carry each successful compatibility derivation through exact generic
-substitutions, Checked Psi, and the receiving lowering/verification interface.
-Do not rediscover a generic proof at specialization, and do not carry an
-unchecked success flag in its place. Published library artifacts retain the
-proposition, subjects, selected operations/laws, premises, and checked evidence.
-A consumer with a smaller discovery budget checks that evidence at the ordinary
-trust boundary without rerunning its producer's search. Evidence verification
-has its own resource and trust requirements; exhaustion there is a distinct
-admission outcome, not a failed rediscovery.
+Inside one compilation, retain the checked compatibility judgment through exact
+generic substitution and lowering. Specialization consumes that judgment instead
+of rediscovering the generic proof. It remains bound to its proposition, subjects,
+selected operations/laws and premises.
+
+Published Psi retains that semantic question and the definitions and dependencies
+needed to establish it, without the producer's derivation. An external consumer
+reconstructs and discharges the obligation under
+[Psi admission](../terminal-psi/product.md#publication-and-separate-consumption).
+A theorem identity or recorded success is not proof of its conclusion. A receiver
+with insufficient reasoning support or a smaller work budget may refuse admission;
+it must not report the indices mathematically unequal or silently accept the
+producer's judgment. Publication does not change canonical identity or authorize
+a different declaration selection.
 
 ### Bounded canonical index normalization
 
@@ -612,10 +617,11 @@ replayed normalizer remains trusted checker logic unless it emits a lower-level
 certificate; totality alone does not establish soundness. Normalization cites
 its exact conformance and laws and inherits their complete assumption closure.
 
-Derive the review synopsis deterministically from the checked certificate and
-its source-attribution metadata, never a second analysis of what probably
-happened. It reports certificate identity, recursive components, implicit closure
-rules, cited laws, and trust closure. The synopsis is explanatory; the complete
+Local proof checking may use a kernel certificate; this is an in-process proof
+object, not a published Psi payload. Derive the review synopsis from that checked
+object and its source-attribution metadata, never a second analysis of what
+probably happened. It reports certificate identity, recursive components, implicit
+closure rules, cited laws, and trust closure. The synopsis is explanatory; the complete
 certificate and its checked question remain authoritative.
 
 [Quotients](quotients.md) owns representative independence, selected theorem
@@ -633,7 +639,7 @@ different calculi. These source forms preserve the specified evaluation,
 erasure, assumption-tracking and verifier-obligation rules. They authorize neither
 an arbitrary checker-plugin mechanism nor retired formula-naming syntax.
 
-Certificate byte layouts, a tactic-machine API, and the remaining
+Local proof representations, a tactic-machine API, and the remaining
 Real/approximation library are separate engineering or deferred surface work;
 they are not substitutes for implementing the selected foundation. Promote any
 new semantic or trust choice they expose to the owner queue before relying on it.

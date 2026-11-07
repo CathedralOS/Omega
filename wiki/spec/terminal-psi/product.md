@@ -159,16 +159,23 @@ independently.
 
 ## Publication and separate consumption
 
+Named decision: `psi-claim-admission`, ratified 2026-11-07.
+
 Compilation may stop at Psi. A later interpreter or native lowerer
 may consume it in a different process, on another machine, under separately
-supplied authority. The first-party source-to-native path crosses this same
-boundary; checked frontend state is not a privileged alternative input.
+supplied authority. Internal compilation and external admission use the same
+semantic product. Internal stages may consume the exact immutable output of
+earlier trusted stages without repeating their checking; incoming bytes and
+caller-supplied modules must pass receiver admission. A serialized claim of prior
+checking cannot select the internal path.
 
 The portable envelope contains canonical semantics and pre-Terminal selection
-provenance, plus optional canonical debug information. It carries no proof
-evidence. Program meaning, installation decisions, and debug information have
-distinct identities. The manifest is reconstructed from the sections, not
-accepted as redundant authoritative input.
+provenance, plus optional canonical debug information. It retains contracts,
+mathematical claims, exact subjects, selected operations, assumptions and semantic
+definitions needed to check those claims. It carries no producer proof derivations.
+Program meaning, installation decisions, and debug information have distinct
+identities. The manifest is reconstructed from the sections, not accepted as
+redundant authoritative input.
 
 Nominal declarations retain their original owner and owner-local identity,
 including [content-identified anonymous roots](../build/declarations.md#default-builds-and-anonymous-owner-identity).
@@ -186,11 +193,32 @@ semantic module. Producers and
 consumers use the current pre-release vocabulary;
 stale encodings reject rather than being guessed compatible.
 
-A consumer decodes and performs ordinary structural, contract and authority
-validation before creating execution state or native realization requirements.
-A public in-memory module cannot bypass those checks. Consumption relies on
-Psi checking for the logical obligations the producer discharged; it does not
-repeat them. Failure to find a proof does not refute its conclusion.
+A receiving consumer decodes and checks structural, ownership, contract and
+authority obligations before creating execution state or native realization
+requirements. It reconstructs each required question from the artifact's
+operations, declarations and exact subjects, then discharges it using its own
+checking and proof procedures under its admitted work budget. It checks scoped
+premises, control-flow arrivals, mutations and call substitutions rather than
+accepting a producer's success flag or theorem conclusion as a premise.
+
+Missing justification, unsupported reasoning or exhausted verification resources
+prevent admission. The diagnostic distinguishes inability to prove a claim from
+refuting it. Provenance identifies the producer and subject; it does not discharge
+a logical obligation. External assumptions and provider contracts retain their
+existing explicit receiving-authority acceptance rules.
+
+Erasing a source theorem call must preserve the semantic definitions, statements,
+subjects and dependencies needed to justify every affected published obligation.
+Retaining only its conclusion or an unproved requirement is insufficient. If the
+receiver cannot establish that obligation from the retained semantics and admitted
+premises, it rejects. Checked specialization inside one compilation may reuse its
+established judgments without rediscovering the proof.
+
+The receiver may construct local proof steps and check them with the kernel;
+these are its own checking work, not transported producer derivations. Admission
+establishes the artifact's retained claims. Correspondence to the original source
+and faithful native realization remain separate compiler responsibilities, as
+specified in the [trust table](../../../omega-rust/pipeline.md#verification-placement).
 
 An authoritative vocabulary extension must define encoding, execution,
 reconstructed obligations and authorized admissions, proof rules and their

@@ -77,8 +77,8 @@ block's local, a branch-local value, a result pseudo-value, or an opaque or
 structural predicate cannot gain scope through an assertion. Storage observations
 denote current contents and remain subject to exact write invalidation; they
 are not immutable invocation-entry snapshots.
-The machine entry cannot carry a row: invocation is an implicit arrival, not an
-edge whose certificate can be supplied.
+The machine entry cannot carry a row: invocation supplies the machine's declared
+preconditions rather than an explicit control-flow edge.
 
 Every arrival proves the predicate under simultaneous destination-parameter to
 actual-argument substitution, before destination hypotheses become available.
@@ -102,10 +102,11 @@ from facts available before it executes; its result equation is available only
 after that obligation. Invariant preservation cannot use an operation's result
 to establish that same operation's safety.
 
-A termination certificate binds a well-founded relation, block ranks, and
-every derived in-component edge. Source measures normalize to this relation
-and decrease evidence; the verifier checks evidence rather than searching for
-a measure. For the natural-rank form:
+A ranking declaration binds a well-founded relation, block ranks, and every
+derived in-component edge. Source measures normalize to this relation and its
+comparisons. The receiver establishes well-foundedness and each comparison from
+retained semantics; it need not invent the author's measure. Producer proof
+derivations are omitted. For the natural-rank form:
 
 | Edge role | Required comparison |
 | --- | --- |
@@ -125,12 +126,12 @@ a climbing cursor's `MAX - index`; its arrival is the same subtraction over the
 edge's actual arguments. A rank's carrier is any fixed-width integer type: a
 signed carrier is a finite order too, and its sign enters the relation identity.
 
-One grouped control certificate covers each reconstructed component, with a
-shared well-foundedness citation and evidence for every internal edge. Rank
-bindings and comparisons enter proof-question identity separately from topology.
-Missing, surplus, reordered, or substituted evidence rejects. A rewrite changing
-topology, carried state, or decrease edges invalidates the old certificate and
-requires verification again. Ranking alone grants neither a quantitative
+One grouped control judgment covers each reconstructed component, with a shared
+well-foundedness question and comparison obligations for every internal edge.
+Rank bindings and comparisons enter proof-question identity separately from topology.
+Missing, surplus, reordered, or substituted edge claims reject. A rewrite changing
+topology, carried state, or decrease edges invalidates the old judgment and requires
+verification again. Ranking alone grants neither a quantitative
 [logical-work bound](../resources/logical_work.md) nor native realization.
 
 ## Proof-only recursion
@@ -142,8 +143,9 @@ coordinates. A strict structural-subterm path must be nonempty, resolve every
 field, and return to the component's rank type. It grants no runtime layout.
 
 The verifier reconstructs one ranking-relation identity, one well-foundedness
-question, and one decrease question per call row before checking grouped
-evidence. Component acceptance remains distinct from flat contract evidence.
+question, and one decrease question per call row, then establishes them under
+the [admission rules](product.md#publication-and-separate-consumption).
+Component acceptance remains distinct from flat contract checking.
 Source production retains the complete reachable proof-call closure and exact
 hermetic declaration identities, not frontend handles. The general citation
 rules belong to [mathematical proof contracts](../proofs/contracts.md#citation-and-induction).

@@ -609,10 +609,11 @@ apply. If an obligatory equality remains unproved, the diagnostic names the
 missing evidence or exhausted budget; it does not claim mathematical inequality.
 A checked theorem can establish equality without expanding the whole product.
 
-A generic compatibility proof travels through specialization and in published
-artifacts. Consumers check it without repeating the producer's search under a
-smaller allowance. Adding a valid law cannot invalidate an existing proof or
-change the canonical key.
+A generic compatibility judgment survives specialization inside the compilation.
+Published Psi carries the claim and the semantic information needed to check it.
+An external receiver proves that claim with its own budget; if the budget is
+insufficient, it refuses the artifact rather than assuming the claim. Adding a
+valid law leaves existing proofs valid and canonical keys unchanged.
 
 Exact declaration and conformance matching still uses canonical keys.
 Consequently, a conformance for one symbolic spelling does not automatically
