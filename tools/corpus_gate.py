@@ -589,11 +589,11 @@ def windows_safe_target_dir(target_dir: Path) -> Path:
     return base / f"omega-tgt-{digest}"
 
 
-def build_runner(root: Path = ROOT) -> Path:
-    """Build `root`'s runner via cargo/mbx message-format JSON; return its path."""
-    tool = "mbx" if shutil_which("mbx") else "cargo"
-    args = [tool, "test", "--no-run", "--message-format=json",
-            "-p", "compiler", "--test", "corpus_runner"]
+CORPUS_RUNNER_ARGUMENTS = ("-p", "compiler", "--test", "corpus_runner")
+
+
+def runner_build_environment(root: Path = ROOT) -> dict:
+    """Check and build the harness in the same worktree-owned target directory."""
     env = optimized_environment()
     if root != ROOT:
         # A compared checkout never shares this tree's target directory:
@@ -604,6 +604,14 @@ def build_runner(root: Path = ROOT) -> Path:
         safe_target = windows_safe_target_dir(configured)
         if safe_target != configured:
             env["CARGO_TARGET_DIR"] = str(safe_target)
+    return env
+
+
+def build_runner(root: Path = ROOT) -> Path:
+    """Build `root`'s runner via cargo/mbx message-format JSON; return its path."""
+    tool = "mbx" if shutil_which("mbx") else "cargo"
+    args = [tool, "test", "--no-run", "--message-format=json", *CORPUS_RUNNER_ARGUMENTS]
+    env = runner_build_environment(root)
     import build_slot
     with build_slot.hold(root):
         proc = subprocess.run(args, cwd=root, capture_output=True, text=True,

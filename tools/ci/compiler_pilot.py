@@ -371,6 +371,19 @@ def prepare_producer(output, *, need_runner=True):
     tool = "mbx" if shutil.which("mbx") else "cargo"
     arguments = [tool, "build", "--locked", "-p", "omega", "--message-format=json"]
     import build_slot
+    if need_runner:
+        # CLI checking excludes this test target. Catch harness type errors
+        # before spending time generating an optimized compiler executable.
+        check_stdout = retained / "runner-check.stdout"
+        check_stderr = retained / "runner-check.stderr"
+        with check_stdout.open("w", encoding="utf-8") as stdout, \
+                check_stderr.open("w", encoding="utf-8") as stderr, build_slot.hold(ROOT):
+            result = subprocess.run([tool, "check", "--locked", *corpus_gate.CORPUS_RUNNER_ARGUMENTS],
+                                    cwd=ROOT, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr,
+                                    text=True, env=corpus_gate.runner_build_environment(ROOT))
+        if result.returncode:
+            sys.stderr.write(check_stderr.read_text(encoding="utf-8")[-8000:])
+            raise ValueError(f"corpus harness check failed ({result.returncode}); raw check receipts retained")
     # Retain diagnostics while the compiler runs. A failed build can exhaust
     # storage or be interrupted before a later buffered-output write succeeds.
     stdout_path = retained / "cli-build.jsonl"
