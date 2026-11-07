@@ -11,9 +11,10 @@ use effects::TerminalMechanismIdentity;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, IdTable, InvocationSite, MachineId, ValueId,
 };
+use terminal_psi::control_flow::BoundaryInvocationCompletion;
 use terminal_psi::{
-    BoundaryInvocationCompletion, ModuleInvocationInputs, OperationKind, StructuralArgument,
-    TargetMachineCallable, TerminalAffineCleanupAction, TerminalMachine,
+    ModuleInvocationInputs, OperationKind, StructuralArgument, TargetMachineCallable,
+    TerminalAffineCleanupAction, TerminalMachine,
 };
 
 use super::context::ReviewContext;
@@ -225,6 +226,11 @@ impl<'a> HandleCallGraph<'a> {
                 for (edge, actions) in block.terminator.cleanup_rosters() {
                     for (ordinal, action) in actions.iter().enumerate() {
                         if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
+                            terminal_semantics::nominal_cleanup::target(
+                                context.input.module().structural_types.iter(),
+                                context.input.module().machines.iter(),
+                                cleanup,
+                            ).map_err(|reason| format!("native handle cleanup call has no canonical receiver contract: {reason}"))?;
                             graph.insert(
                                 RuntimeCall {
                                     caller: Caller {

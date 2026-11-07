@@ -8,8 +8,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{IdTable, IntegerValue, MachineId, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::{BoundaryParameterKind, OperationKind};
-use terminal_semantics::descriptors::descriptor_lifetimes::DescriptorPosition;
-use terminal_semantics::descriptors::descriptor_results::{
+use terminal_semantics::descriptor_lifetimes::DescriptorPosition;
+use terminal_semantics::descriptor_results::{
     DescriptorMachine, ScalarCaptureAnalysis, terminal_borrowed_storage_graph_from,
 };
 
@@ -134,7 +134,7 @@ impl<'a> WindowsHandleInputs<'a> {
                 value: literal,
             }),
         };
-        let conditions = self
+        let conditions: &super::windows_handle_conditions::ScalarConditions = self
             .conditions
             .get(caller.machine)
             .and_then(Option::as_ref)

@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 
 use semantic_vocabulary::{MachineId, ScalarReadProjection, ScalarTerm, ValueId};
 use terminal_psi::TerminalModule;
-use terminal_semantics::descriptors::descriptor_lifetimes::{
+use terminal_semantics::descriptor_lifetimes::{
     DescriptorLocation, DescriptorPosition, canonical_descriptor_location,
 };
 
@@ -36,9 +36,7 @@ pub(super) enum ScalarSubject {
     },
     CallResult {
         caller: Caller,
-        projection: Option<
-            Vec<terminal_semantics::descriptors::descriptor_lifetimes::DescriptorPathSegment>,
-        >,
+        projection: Option<Vec<terminal_semantics::descriptor_lifetimes::DescriptorPathSegment>>,
     },
     NativeOutput {
         caller: Caller,
@@ -95,7 +93,7 @@ pub(super) enum OriginKind {
     /// No consumer may interpret their absent edges as empty physical reach.
     ExternalInput,
     OpaqueObservation(ScalarTerm),
-    InactiveCase(terminal_semantics::descriptors::descriptor_results::DescriptorCasePredicate),
+    InactiveCase(terminal_semantics::descriptor_results::DescriptorCasePredicate),
 }
 
 #[derive(Clone, Debug)]
@@ -268,12 +266,17 @@ fn definition_equation(
                         successor_ordinal: arrival.successor_ordinal,
                     },
                     source: match arrival.value {
-                        terminal_semantics::descriptors::descriptor_results::CapturedScalarOperand::Value { id, scalar_type } => ScalarSubject::Expression {
+                        terminal_semantics::descriptor_results::CapturedScalarOperand::Value {
+                            id,
+                            scalar_type,
+                        } => ScalarSubject::Expression {
                             machine: identity,
                             position: arrival.predecessor,
                             value: ScalarTerm::value(id, scalar_type),
                         },
-                        terminal_semantics::descriptors::descriptor_results::CapturedScalarOperand::Storage(location) => ScalarSubject::Storage {
+                        terminal_semantics::descriptor_results::CapturedScalarOperand::Storage(
+                            location,
+                        ) => ScalarSubject::Storage {
                             machine: identity,
                             position: arrival.predecessor,
                             location,
@@ -333,9 +336,7 @@ fn result_equation(
     calls: &HandleCallGraph<'_>,
     reader: &HandleValueReader<'_>,
     caller: Caller,
-    projection: Option<
-        &[terminal_semantics::descriptors::descriptor_lifetimes::DescriptorPathSegment],
-    >,
+    projection: Option<&[terminal_semantics::descriptor_lifetimes::DescriptorPathSegment]>,
 ) -> Result<OriginEquation, String> {
     let alternatives = calls
         .calls

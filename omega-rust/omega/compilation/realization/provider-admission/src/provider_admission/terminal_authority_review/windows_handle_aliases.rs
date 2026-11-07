@@ -9,7 +9,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{IdTable, ScalarType, ValueId};
-use terminal_semantics::descriptors::descriptor_lifetimes::DescriptorLocation;
+use terminal_semantics::descriptor_lifetimes::DescriptorLocation;
 
 use super::windows_handle_lifetimes::HandleInstance;
 
@@ -361,7 +361,7 @@ fn overlaps(left: &DescriptorLocation, right: &DescriptorLocation) -> bool {
 mod tests {
     use super::*;
     use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId};
-    use terminal_semantics::descriptors::descriptor_lifetimes::DescriptorPathSegment;
+    use terminal_semantics::descriptor_lifetimes::DescriptorPathSegment;
 
     fn integer(sign: IntegerSign, bits: u16) -> ScalarType {
         ScalarType::Integer(IntegerType::new(sign, bits).unwrap())

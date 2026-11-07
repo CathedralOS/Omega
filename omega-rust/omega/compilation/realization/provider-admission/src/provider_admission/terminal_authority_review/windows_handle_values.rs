@@ -9,10 +9,10 @@ use std::collections::BTreeMap;
 
 use semantic_vocabulary::{BlockId, IdTable, MachineId, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::{BoundaryParameterKind, Operation, TerminalModule, Terminator};
-use terminal_semantics::descriptors::descriptor_lifetimes::{
+use terminal_semantics::descriptor_lifetimes::{
     DescriptorLocation, DescriptorPathSegment, DescriptorPosition, descriptor_location,
 };
-use terminal_semantics::descriptors::descriptor_results::{
+use terminal_semantics::descriptor_results::{
     CapturedScalarOperand, DescriptorAnalysis, DescriptorCasePredicate, DescriptorContentsQuery,
     DescriptorMachine, DescriptorPayloadTarget, FlowFeasibility, PayloadEntryScalarIdentity,
     PayloadMembershipHistory, ResidentValueCapture, ResidentValueCaptures, TerminalScalarCaptures,
@@ -253,9 +253,9 @@ impl<'a> HandleValueReader<'a> {
             .get(&(caller.machine, position))
             .is_some_and(|writes| {
                 writes.iter().any(|(_, source)| {
-                    matches!(source,
+                    matches!(*source,
                 StoredScalarSource::NativeOutput { caller: actual, parameter: slot }
-                    if *actual == caller && *slot == parameter)
+                    if actual == caller && slot == parameter)
                 })
             });
         if known {
@@ -526,7 +526,7 @@ impl<'a> HandleValueReader<'a> {
                 return Ok(ScalarDefinition::CallResult(caller));
             }
             let observed = descriptor.scalar_payload_reads.get(&position).and_then(|rows| {
-                let mut matching = rows.iter().filter(|(_, term)| matches!(term, ScalarTerm::Value { id, .. } if *id == value));
+                let mut matching = rows.iter().filter(|(_, term)| matches!(*term, ScalarTerm::Value { id, .. } if id == value));
                 let (location, _) = matching.next()?;
                 matching.next().is_none().then_some(location)
             }).ok_or_else(|| format!("handle value {identity:?}/{value:?} has no supported exact scalar origin at {position:?}"))?;
@@ -620,10 +620,7 @@ impl<'a> HandleValueReader<'a> {
             }
             RuntimeArguments::Cleanup(cleanup) => {
                 let formal = &machine.structural_parameters[parameter];
-                if cleanup.cleanup_receiver != Some(formal.place)
-                    || !formal.is_self
-                    || formal.structural_type != cleanup.structural_type
-                {
+                if !formal.is_cleanup_receiver(cleanup) {
                     return Err(
                         "captured handle projection changes the nominal cleanup receiver".into(),
                     );

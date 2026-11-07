@@ -9,7 +9,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use semantic_vocabulary::MachineId;
-use terminal_semantics::descriptors::descriptor_lifetimes::DescriptorPosition;
+use terminal_semantics::descriptor_lifetimes::DescriptorPosition;
 
 use super::windows_handle_calls::Caller;
 use super::windows_handle_origins::{HandleOrigins, OriginEdgeRole, ScalarSubject};

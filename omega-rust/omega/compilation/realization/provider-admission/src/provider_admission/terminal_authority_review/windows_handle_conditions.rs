@@ -10,8 +10,8 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use super::windows_handle_values::LocalScalarExpressions;
 use semantic_vocabulary::{IdTable, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::{TerminalMachine, Terminator};
-use terminal_semantics::descriptors::descriptor_lifetimes::DescriptorPosition;
-use terminal_semantics::descriptors::descriptor_results::{
+use terminal_semantics::descriptor_lifetimes::DescriptorPosition;
+use terminal_semantics::descriptor_results::{
     DescriptorMachine, ScalarCaptureAnalysis, ScalarCaptureFailure,
 };
 
@@ -137,7 +137,7 @@ impl HandleFlowConditions {
         body: &TerminalMachine,
         expressions: &LocalScalarExpressions,
         captures: &mut ScalarCaptureAnalysis,
-        scalar_captures: &terminal_semantics::descriptors::descriptor_results::TerminalScalarCaptures,
+        scalar_captures: &terminal_semantics::descriptor_results::TerminalScalarCaptures,
     ) -> Result<Self, String> {
         if machine.id != body.id
             || expressions.identity != machine.id
