@@ -507,10 +507,21 @@ impl CanonicalHandleState {
                 {
                     return Err("handle arrival changes its original logical scalar storage".into());
                 }
-                None if machine.geometry.carrier(source)? != Some(formal.structural_type) => {
-                    return Err(
-                        "handle arrival changes its original structural value carrier".into(),
-                    );
+                None => {
+                    let actual = machine.geometry.carrier(source)?;
+                    if actual != Some(formal.structural_type) {
+                        return Err(format!(
+                            "handle arrival changes its original structural value carrier at {:?}/{position:?} edge {ordinal} to {:?}/{:?}: source {source:?} has {actual:?} ({:?}), expected {:?} ({:?}), access {:?}, selected bytes {}",
+                            machine.body.id,
+                            target.id,
+                            formal.place,
+                            actual.and_then(|carrier| machine.geometry.carrier_identity(carrier)),
+                            formal.structural_type,
+                            machine.geometry.carrier_identity(formal.structural_type),
+                            formal.access,
+                            selected.byte_length,
+                        ));
+                    }
                 }
                 _ => {}
             }

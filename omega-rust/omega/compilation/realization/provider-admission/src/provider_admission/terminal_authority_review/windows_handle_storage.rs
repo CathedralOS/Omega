@@ -813,6 +813,12 @@ impl<'a> HandleStorageGeometry<'a> {
         )
     }
 
+    pub(super) fn carrier_identity(&self, carrier: StructuralTypeId) -> Option<&str> {
+        let declaration =
+            terminal_psi::find_structural_type(&self.module.structural_types, carrier)?;
+        self.module.identities.text(declaration.identity)
+    }
+
     /// A runtime-selected write can touch any member of its first collection.
     /// Return that containing interval, not a guessed element address. The
     /// caller must retain old dependencies and invalidate exact overlapping
