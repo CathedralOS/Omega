@@ -24,6 +24,10 @@ on:
         type: choice
         options: [all, linux_x86_64, windows_x86_64, macos_arm64, linux_arm64]
         default: all
+      qualification_controls:
+        description: Optional reviewed wrong-branch plan; include its three good runtime fixtures
+        type: string
+        default: ''
       provider_tests:
         description: Also run the existing focused Rust provider and ABI checks
         type: boolean
@@ -35,7 +39,7 @@ permissions:
 # Finish the active observation. GitHub keeps only the newest pending run, so
 # a busy main does not start one cold executable build for every queued PR.
 concurrency:
-  group: compiler-regression-${{ github.ref }}-${{ (inputs.qualification_corpus != '' || inputs.qualification_runtime != '' || inputs.qualification_samples != '') && github.run_id || 'ordinary' }}-${{ inputs.provider_tests || false }}
+  group: compiler-regression-${{ github.ref }}-${{ (inputs.qualification_corpus != '' || inputs.qualification_runtime != '' || inputs.qualification_samples != '' || inputs.qualification_controls != '') && github.run_id || 'ordinary' }}-${{ inputs.provider_tests || false }}
   cancel-in-progress: false
 
 jobs:
@@ -44,7 +48,7 @@ jobs:
       fail-fast: false
       matrix:
         runner: >-
-          ${{ (inputs.qualification_corpus != '' || inputs.qualification_runtime != '' || inputs.qualification_samples != '')
+          ${{ (inputs.qualification_corpus != '' || inputs.qualification_runtime != '' || inputs.qualification_samples != '' || inputs.qualification_controls != '')
                  && (inputs.qualification_target == 'all' && fromJSON('["ubuntu-24.04","windows-2025","macos-15","ubuntu-24.04-arm"]')
                      || fromJSON('{"linux_x86_64":["ubuntu-24.04"],"windows_x86_64":["windows-2025"],"linux_arm64":["ubuntu-24.04-arm"],"macos_arm64":["macos-15"]}')[inputs.qualification_target])
               || inputs.provider_tests && fromJSON('["ubuntu-24.04","windows-2025"]')
@@ -90,24 +94,26 @@ jobs:
         shell: bash
         run: bash tools/xtask/bootstrap-mbx.sh
       - name: Test qualification guards
-        if: inputs.qualification_corpus != '' || inputs.qualification_runtime != '' || inputs.qualification_samples != ''
+        if: inputs.qualification_corpus != '' || inputs.qualification_runtime != '' || inputs.qualification_samples != '' || inputs.qualification_controls != ''
         run: mbx test --locked -p xtask
       - name: Execute exact requested programs
-        if: inputs.qualification_corpus != '' || inputs.qualification_runtime != '' || inputs.qualification_samples != ''
+        if: inputs.qualification_corpus != '' || inputs.qualification_runtime != '' || inputs.qualification_samples != '' || inputs.qualification_controls != ''
         shell: bash
         env:
           QUALIFICATION_CORPUS: ${{ inputs.qualification_corpus }}
           QUALIFICATION_RUNTIME: ${{ inputs.qualification_runtime }}
           QUALIFICATION_SAMPLES: ${{ inputs.qualification_samples }}
+          QUALIFICATION_CONTROLS: ${{ inputs.qualification_controls }}
         run: |
           set -euo pipefail
           arguments=(qualify --output build/qualification)
           if [ -n "$QUALIFICATION_CORPUS" ]; then arguments+=(--corpus "$QUALIFICATION_CORPUS"); fi
           if [ -n "$QUALIFICATION_RUNTIME" ]; then arguments+=(--runtime "$QUALIFICATION_RUNTIME"); fi
           if [ -n "$QUALIFICATION_SAMPLES" ]; then arguments+=(--samples "$QUALIFICATION_SAMPLES"); fi
+          if [ -n "$QUALIFICATION_CONTROLS" ]; then arguments+=(--runtime-controls "$QUALIFICATION_CONTROLS"); fi
           mbx xtask "${arguments[@]}"
       - name: Execute length sample with native/Psi agreement and rejection control
-        if: ${{ inputs.qualification_corpus == '' && inputs.qualification_runtime == '' && inputs.qualification_samples == '' }}
+        if: ${{ inputs.qualification_corpus == '' && inputs.qualification_runtime == '' && inputs.qualification_samples == '' && inputs.qualification_controls == '' }}
         run: |
           mbx test --locked -p xtask samples::tests
           mbx xtask sample-gate --filter samples/cli/facts/length/local
