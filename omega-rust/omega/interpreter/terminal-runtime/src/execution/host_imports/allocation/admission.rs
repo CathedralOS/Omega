@@ -1,5 +1,6 @@
-//! Locators select known C operations; exact declarations and complete ABI
-//! applications determine whether their values can cross this particular slot.
+// Select and validate `calloc`, `free`, and `memset` foreign call bindings
+// (`select`, `validate`, `AddressLocation`), checking both bare scalar pointers
+// and single-scalar owned record envelopes (`Allocation { pointer }`).
 
 use super::{AllocationOperation, TerminalRuntimeError};
 use calling_conventions::{BoundaryCallingApplication, CallSignature, ValueShape};
@@ -35,14 +36,9 @@ pub(super) fn select(
     Ok(None)
 }
 
-/// Where the virtual address lives inside the declared boundary contract.
 pub(super) enum AddressLocation {
-    /// The address is the bare scalar parameter or result itself.
     BareScalar,
-    /// `free` consumes an owned record whose single scalar field is the address.
     OwnedArgument(Vec<Path>),
-    /// `calloc` returns an owned record whose single scalar field receives
-    /// the minted virtual address.
     RecordResult(semantic_vocabulary::StructuralTypeId, Vec<Path>),
 }
 
@@ -77,8 +73,6 @@ pub(super) fn validate(
             match &signature.result {
                 BoundaryMachineResult::Scalar(actual) if *actual == address.into() => {}
                 BoundaryMachineResult::Structural(result) => {
-                    // An address-token record such as `Allocation { pointer }`
-                    // carries the minted address in exactly one payload field.
                     let path = super::super::native_word::scalar_payload_path(
                         program,
                         result.structural_type,
@@ -121,7 +115,6 @@ pub(super) fn validate(
                 && signature.structural_parameters.is_empty()
                 && declaration.parameter_order == [BoundaryParameterKind::Scalar]
             {
-                // An ordinary raw address has no structural payload lane.
             } else {
                 let [parameter] = signature.structural_parameters.as_slice() else {
                     return Err(invalid(
