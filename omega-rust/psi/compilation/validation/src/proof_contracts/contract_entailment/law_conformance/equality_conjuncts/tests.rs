@@ -500,7 +500,7 @@ fn selected_slot_rewrite_replaces_target_and_result_carrier_before_matching() {
             ..Default::default()
         },
     );
-    f.program.push_trait(declaration);
+    f.program.push_trait_definition(declaration);
     let declaration = f
         .program
         .trait_definition_by_symbol(f.trait_symbol)
@@ -608,6 +608,31 @@ fn source_correspondence_reuses_scope_without_accepting_cycles_or_stale_handles(
             .canonical_source_value(&f.program, (f.owner, &f.parameters), conjunction, &[])
             .is_none()
     );
+    let mut shared = value;
+    for _ in 0..20 {
+        shared = f.binary(BinaryOperator::And, [shared; 2]);
+    }
+    let scope = (f.owner, f.parameters.as_slice());
+    assert!(
+        correspondence
+            .canonical_source_value(&f.program, scope, shared, &[])
+            .is_none()
+    );
+    assert!(!correspondence.matching_operation_payloads(
+        &f.program,
+        scope,
+        shared,
+        &[],
+        scope,
+        shared,
+        &[]
+    ));
+    let mut remaining_work = MAX_SOURCE_MATCH_WORK;
+    assert!(!neutral_operation_payloads(
+        &f.program,
+        shared,
+        &mut remaining_work
+    ));
 }
 
 #[test]

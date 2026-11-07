@@ -394,7 +394,7 @@ fn bound_index_operations(
         let laws = crate::proof_contracts::contract_entailment::declared_index_algebra_laws(
             program,
             trait_definition,
-            requirement.name.as_str(),
+            requirement.symbol,
         );
         // Identity evidence is the whole selected conformance, including a
         // child trait's literal connection over a parent operation. The

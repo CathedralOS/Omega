@@ -109,7 +109,10 @@ pub(crate) struct SourceCorrespondence {
 struct SourceVisit {
     epoch: u32,
     state: u8,
+    expanded_work: usize,
 }
+
+const MAX_SOURCE_MATCH_WORK: usize = 4096;
 
 impl SourceCorrespondence {
     /// Match statements under complete positional binders. Identity may reverse
@@ -206,7 +209,9 @@ impl SourceCorrespondence {
         }
         self.epoch += 1;
         let mut pending = vec![(expression, false)];
+        let mut remaining_graph_work = MAX_SOURCE_MATCH_WORK;
         while let Some((expression, completed)) = pending.pop() {
+            remaining_graph_work = remaining_graph_work.checked_sub(1)?;
             if !expression.is_valid() {
                 continue; // An absent receiver is a structural call edge.
             }
@@ -217,14 +222,30 @@ impl SourceCorrespondence {
             if self.visits.len() <= position {
                 self.visits.resize(position + 1, SourceVisit::default());
             }
-            let visit = &mut self.visits[position];
             if completed {
-                *visit = SourceVisit {
+                let mut expanded_work = 1usize;
+                crate::queries::expression_traversal::children(
+                    program,
+                    program.expression_table.expression(expression),
+                    |child| {
+                        if child.is_valid() {
+                            expanded_work = expanded_work.saturating_add(
+                                self.visits[child.arena_index() as usize].expanded_work,
+                            );
+                        }
+                    },
+                );
+                if expanded_work > MAX_SOURCE_MATCH_WORK {
+                    return None;
+                }
+                self.visits[position] = SourceVisit {
                     epoch: self.epoch,
                     state: 2,
+                    expanded_work,
                 };
                 continue;
             }
+            let visit = &mut self.visits[position];
             match (visit.epoch == self.epoch, visit.state) {
                 (true, 1) => return None,
                 (true, 2) => continue,
@@ -232,6 +253,7 @@ impl SourceCorrespondence {
                     *visit = SourceVisit {
                         epoch: self.epoch,
                         state: 1,
+                        expanded_work: 0,
                     }
                 }
             }
@@ -385,7 +407,12 @@ impl SourceCorrespondence {
         let mut pending = vec![(required, provided, 0usize)];
         let mut required_children = Vec::new();
         let mut provided_children = Vec::new();
+        let mut remaining_work = MAX_SOURCE_MATCH_WORK;
         while let Some((required, provided, depth)) = pending.pop() {
+            let Some(remaining) = remaining_work.checked_sub(1) else {
+                return false;
+            };
+            remaining_work = remaining;
             if !required.is_valid() && !provided.is_valid() {
                 continue;
             }
@@ -412,8 +439,8 @@ impl SourceCorrespondence {
                 )
             );
             if call_value_difference {
-                if !neutral_operation_payloads(program, required)
-                    || !neutral_operation_payloads(program, provided)
+                if !neutral_operation_payloads(program, required, &mut remaining_work)
+                    || !neutral_operation_payloads(program, provided, &mut remaining_work)
                 {
                     return false;
                 }
@@ -572,10 +599,15 @@ fn neutral_call_payload(call: &typed_trees::expression::TableCallExpression) -> 
 fn neutral_operation_payloads(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
+    remaining_work: &mut usize,
 ) -> bool {
     use typed_trees::expression::ExpressionNode;
     let mut pending = vec![(expression, 0usize)];
     while let Some((expression, depth)) = pending.pop() {
+        let Some(remaining) = remaining_work.checked_sub(1) else {
+            return false;
+        };
+        *remaining_work = remaining;
         if !expression.is_valid() {
             continue;
         }
