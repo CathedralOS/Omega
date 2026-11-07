@@ -98,9 +98,20 @@ impl StructuralJudge<'_> {
         right: StructuralTerm,
         depth: usize,
     ) -> StructuralJudgment {
-        if depth >= 32 || self.case_facts_only {
+        self.judge_identity_with_budget(left, right, depth, &mut 1024)
+    }
+
+    fn judge_identity_with_budget(
+        &self,
+        left: StructuralTerm,
+        right: StructuralTerm,
+        depth: usize,
+        remaining: &mut usize,
+    ) -> StructuralJudgment {
+        if depth >= 32 || self.case_facts_only || *remaining == 0 {
             return StructuralJudgment::Unknown;
         }
+        *remaining -= 1;
         let direct = self.judge_data_identity(left.clone(), right.clone(), depth + 1);
         if !matches!(direct, StructuralJudgment::Unknown) {
             return direct;
@@ -110,7 +121,41 @@ impl StructuralJudge<'_> {
         if !self.identity_value_is_available(&left) || !self.identity_value_is_available(&right) {
             return StructuralJudgment::Unknown;
         }
-        self.exact_identity_congruence(left, right, depth + 1)
+        let direct =
+            self.exact_identity_congruence(left.clone(), right.clone(), depth + 1, remaining);
+        if !matches!(direct, StructuralJudgment::Unknown) {
+            return direct;
+        }
+        // Established Id endpoints may differ only in independently checked
+        // constructor provenance inside a selected call. Resolver payload keys
+        // deliberately retain that provenance; the typed Id query rejoins it.
+        let mut left_allowance = 64;
+        let mut right_allowance = 64;
+        let left = self.data_identity_forms(left, depth + 1, &mut left_allowance);
+        let right = self.data_identity_forms(right, depth + 1, &mut right_allowance);
+        for left in &left {
+            for right in &right {
+                if *remaining == 0 {
+                    return StructuralJudgment::Unknown;
+                }
+                *remaining -= 1;
+                if self.identity_value_is_available(left)
+                    && self.identity_value_is_available(right)
+                    && matches!(
+                        self.exact_identity_congruence(
+                            left.clone(),
+                            right.clone(),
+                            depth + 1,
+                            remaining
+                        ),
+                        StructuralJudgment::Proven
+                    )
+                {
+                    return StructuralJudgment::Proven;
+                }
+            }
+        }
+        StructuralJudgment::Unknown
     }
 
     fn exact_identity_congruence(
@@ -118,12 +163,33 @@ impl StructuralJudge<'_> {
         left: StructuralTerm,
         right: StructuralTerm,
         depth: usize,
+        remaining: &mut usize,
     ) -> StructuralJudgment {
-        if depth >= 64 {
+        if depth >= 64 || *remaining == 0 {
             return StructuralJudgment::Unknown;
         }
+        *remaining -= 1;
         if left.same_resolution_payload(&right) {
             return StructuralJudgment::Proven;
+        }
+        let source_type = |value: &StructuralTerm| match value {
+            StructuralTerm::ObservedValue { observed_type, .. } => Some(*observed_type),
+            StructuralTerm::IntegerEmbedding { reference, .. } => Some(*reference),
+            StructuralTerm::Application { result_type, .. }
+            | StructuralTerm::CapturedValue { result_type, .. } => Some(*result_type),
+            StructuralTerm::IndexedValue { element_type, .. } => Some(*element_type),
+            _ => None,
+        };
+        if let (Some(left), Some(right)) = (source_type(&left), source_type(&right))
+            && (!left.is_valid()
+                || !right.is_valid()
+                || !crate::value_custody::type_references::type_references_match(
+                    self.program,
+                    left,
+                    right,
+                ))
+        {
+            return StructuralJudgment::Unknown;
         }
         // A reference's identity is its descriptor. Owned observation shells
         // retain admission but do not change the value they already observed.
@@ -155,7 +221,7 @@ impl StructuralJudge<'_> {
             right,
             StructuralTerm::ObservedValue { .. } | StructuralTerm::IntegerEmbedding { .. }
         ) {
-            return self.exact_identity_congruence(left, right, depth + 1);
+            return self.exact_identity_congruence(left, right, depth + 1, remaining);
         }
         match (&left, &right) {
             (StructuralTerm::Integer(left), StructuralTerm::Integer(right)) => {
@@ -206,7 +272,7 @@ impl StructuralJudge<'_> {
                 };
                 let mut verdict = StructuralJudgment::Proven;
                 for (left, right) in fields {
-                    match self.exact_identity_congruence(left, right, depth + 1) {
+                    match self.judge_identity_with_budget(left, right, depth + 1, remaining) {
                         StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
                         StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
                         StructuralJudgment::Proven => {}
@@ -214,17 +280,63 @@ impl StructuralJudge<'_> {
                 }
                 verdict
             }
+            (
+                StructuralTerm::Application {
+                    result_type: left_type,
+                    target: left_target,
+                    selections: left_selections,
+                    machine: left_machine,
+                    arguments: left_arguments,
+                },
+                StructuralTerm::Application {
+                    result_type: right_type,
+                    target: right_target,
+                    selections: right_selections,
+                    machine: right_machine,
+                    arguments: right_arguments,
+                },
+            ) if left_target == right_target
+                && left_machine == right_machine
+                && super::term_identity::same_static_selection_payload(
+                    left_selections,
+                    right_selections,
+                )
+                && left_type.is_valid()
+                && right_type.is_valid()
+                && crate::value_custody::type_references::type_references_match(
+                    self.program,
+                    *left_type,
+                    *right_type,
+                )
+                && left_arguments.len() == right_arguments.len()
+                && self.identity_application_arity(*left_target) == Some(left_arguments.len()) =>
+            {
+                let mut verdict = StructuralJudgment::Proven;
+                for (left, right) in left_arguments.iter().zip(right_arguments) {
+                    if !matches!(
+                        self.judge_identity_with_budget(
+                            left.clone(),
+                            right.clone(),
+                            depth + 1,
+                            remaining
+                        ),
+                        StructuralJudgment::Proven
+                    ) {
+                        verdict = StructuralJudgment::Unknown;
+                    }
+                }
+                if matches!(verdict, StructuralJudgment::Proven)
+                    || self.identity_algebra_equal(&left, &right)
+                {
+                    StructuralJudgment::Proven
+                } else {
+                    StructuralJudgment::Unknown
+                }
+            }
             _ => {
-                if self.exact_record_eta(&left, &right, depth + 1)
-                    || self.exact_record_eta(&right, &left, depth + 1)
-                    || self.licensed_algebra_equal(
-                        &left,
-                        &right,
-                        self.captured_result_equations
-                            .iter()
-                            .filter(|equation| equation.is_data_identity())
-                            .map(|equation| (&equation.left, &equation.right)),
-                    )
+                if self.exact_record_eta(&left, &right, depth + 1, remaining)
+                    || self.exact_record_eta(&right, &left, depth + 1, remaining)
+                    || self.identity_algebra_equal(&left, &right)
                 {
                     StructuralJudgment::Proven
                 } else {
@@ -234,6 +346,38 @@ impl StructuralJudge<'_> {
         }
     }
 
+    fn identity_application_arity(&self, target: symbols::SymbolHandle) -> Option<usize> {
+        if let Some(operator) = self.program.operator_definition_by_symbol(target) {
+            return Some(self.program.operator_parameters(operator).len());
+        }
+        if let Some(signature) =
+            crate::machine_calls::denotational_calls::abstract_value_call_signature(
+                self.program,
+                target,
+            )
+        {
+            return Some(self.program.state_signature_parameters(signature).len());
+        }
+        let machine =
+            super::super::structural_terms::selected_application_machine(self.program, target)?;
+        Some(
+            self.program
+                .state_parameters(self.program.machine_states(machine).first()?)
+                .len(),
+        )
+    }
+
+    fn identity_algebra_equal(&self, left: &StructuralTerm, right: &StructuralTerm) -> bool {
+        self.licensed_algebra_equal(
+            left,
+            right,
+            self.captured_result_equations
+                .iter()
+                .filter(|equation| equation.is_data_identity())
+                .map(|equation| (&equation.left, &equation.right)),
+        )
+    }
+
     /// Rebuilding every declared field from the same observed record preserves
     /// that record, including IEEE fields. Opaque field spellings grant nothing.
     fn exact_record_eta(
@@ -241,6 +385,7 @@ impl StructuralJudge<'_> {
         constructor: &StructuralTerm,
         value: &StructuralTerm,
         depth: usize,
+        remaining: &mut usize,
     ) -> bool {
         if depth >= 64 {
             return false;
@@ -331,10 +476,15 @@ impl StructuralJudge<'_> {
                 return false;
             };
             let expected = self.resolve_at(expected, depth + 1);
-            self.data_identity_is_observed(actual)
-                && self.data_identity_is_observed(&expected)
+            self.identity_value_is_available(actual)
+                && self.identity_value_is_available(&expected)
                 && matches!(
-                    self.exact_identity_congruence((*actual).clone(), expected, depth + 1),
+                    self.judge_identity_with_budget(
+                        (*actual).clone(),
+                        expected,
+                        depth + 1,
+                        remaining
+                    ),
                     StructuralJudgment::Proven
                 )
         })
