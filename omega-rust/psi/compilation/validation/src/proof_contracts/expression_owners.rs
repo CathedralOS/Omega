@@ -271,9 +271,9 @@ impl OwnerEnvironmentIndex {
                 && let Some(scope) = scope.scope(program.typed_program())
             {
                 eprintln!(
-                    "SOURCE-OWNER-TRACE supplying_trait={:?} key={:?} substitutions={:?}",
+                    "SOURCE-OWNER-TRACE supplying_trait={:?} application={:?} substitutions={:?}",
                     scope.declaration.symbol,
-                    scope.callable_contract_key(program.typed_program()),
+                    scope.application_identity(program.typed_program()),
                     scope.substitutions
                 );
             }
