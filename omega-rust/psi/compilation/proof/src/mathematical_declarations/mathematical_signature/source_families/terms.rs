@@ -193,7 +193,7 @@ pub(super) fn result_sort_level(
     declarations: &[Declaration],
     function: TermHandle,
     level_arity: u32,
-) -> Result<Level, &'static str> {
+) -> Result<Level, String> {
     let context = proof_admission::Context::with_level_arity(level_arity).with_signature(
         proof_admission::Signature::from_declarations(declarations.to_vec()),
     );
@@ -204,20 +204,20 @@ fn result_sort_level_in(
     arena: &mut TermArena,
     context: &proof_admission::Context,
     function: TermHandle,
-) -> Result<Level, &'static str> {
+) -> Result<Level, String> {
     let mut ty = proof_admission::infer_type(
         arena,
         context,
         function,
         &mut proof_admission::Budget::new(proof_admission::DEFAULT_CONVERSION_STEPS),
     )
-    .map_err(|_| "source descriptor domain fails universe inference")?;
+    .map_err(|error| format!("source descriptor domain fails universe inference: {error:?}"))?;
     while let Term::Pi { codomain, .. } = arena.get(ty) {
         ty = codomain;
     }
     match arena.get(ty) {
         Term::Sort(sort) => Ok(sort.level()),
-        _ => Err("source descriptor domain does not return a universe"),
+        _ => Err("source descriptor domain does not return a universe".to_owned()),
     }
 }
 
@@ -226,7 +226,7 @@ fn payload_sort_level(
     declarations: &[Declaration],
     cases: &[Case],
     level_arity: u32,
-) -> Result<Level, &'static str> {
+) -> Result<Level, String> {
     let context = proof_admission::Context::with_level_arity(level_arity).with_signature(
         proof_admission::Signature::from_declarations(declarations.to_vec()),
     );
@@ -651,7 +651,7 @@ pub(super) fn description(
     declarations: &[Declaration],
     type_domains: &[TermHandle],
     level_arity: u32,
-) -> Result<SourceDescription, &'static str> {
+) -> Result<SourceDescription, String> {
     let payload_level = payload_sort_level(arena, declarations, cases, level_arity)?;
 
     debug_assert_eq!(type_domains.len(), external_parameters.len());
@@ -724,7 +724,6 @@ pub(super) fn intern_description(
     parameter_domains: &[TermHandle],
     level_arity: u32,
 ) -> Result<IndexedFamily, &'static str> {
-    let parameter_count = parameter_domains.len();
     fn retain(
         arena: &mut TermArena,
         declarations: &mut Vec<Declaration>,
@@ -1075,7 +1074,7 @@ pub(super) fn induction(
     type_parameters: &[SymbolHandle],
     external_actuals: &[(SymbolHandle, TermHandle)],
     payload_lifts: &[(SymbolHandle, TermHandle)],
-) -> Result<(TermHandle, TermHandle, TermHandle, TermHandle), &'static str> {
+) -> Result<(TermHandle, TermHandle, TermHandle, TermHandle), String> {
     let level_arity = proof_admission::universe_parameter_arity(
         arena,
         &[family.index, family.carrier, invariant],
@@ -1083,7 +1082,7 @@ pub(super) fn induction(
     let payload_level = payload_sort_level(arena, declarations, cases, level_arity)?;
     let result_level = result_sort_level(arena, declarations, invariant, level_arity)?;
     if cases.len() != lemmas.len() {
-        return Err("source induction lemma roster differs from its exact cases");
+        return Err("source induction lemma roster differs from its exact cases".to_owned());
     }
     fn retain(
         arena: &mut TermArena,

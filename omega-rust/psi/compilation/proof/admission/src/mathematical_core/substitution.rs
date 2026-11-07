@@ -41,13 +41,27 @@ pub fn instantiate_levels(
 /// syntax only; the ordinary kernel judgment still checks every parameter.
 pub fn universe_parameter_arity(arena: &TermArena, roots: &[TermHandle]) -> u32 {
     let mut pending = roots.to_vec();
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = Vec::<u64>::new();
     let mut arity = 0;
     while let Some(term) = pending.pop() {
-        if !seen.insert(term) {
+        // Resolve the complete generational handle before using its dense
+        // slot. A stale sibling cannot hide the current node behind a bit.
+        // Dummy contributes no syntax; the kernel still rejects it wherever
+        // this query's result is used to form a judgment.
+        let node = arena.get(term);
+        if matches!(node, Term::Dummy) {
             continue;
         }
-        let node = arena.get(term);
+        let position = term.arena_index() as usize;
+        let word = position / 64;
+        if word >= seen.len() {
+            seen.resize(word + 1, 0);
+        }
+        let bit = 1u64 << (position % 64);
+        if seen[word] & bit != 0 {
+            continue;
+        }
+        seen[word] |= bit;
         match &node {
             Term::Sort(sort) => arity = arity.max(sort.level().parameter_arity()),
             Term::Constant { levels, .. } => {

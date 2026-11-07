@@ -7,8 +7,7 @@ use super::super::Elaborator;
 use super::terms;
 use diagnostics::Diagnostic;
 use proof_admission::{
-    Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, Level, Signature, Sort, Term,
-    TermHandle,
+    Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, Signature, Sort, Term, TermHandle,
 };
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;

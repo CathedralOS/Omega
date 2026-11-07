@@ -9,7 +9,7 @@ use super::{
 use crate::typed_expressions::{expression_table, statement_table, type_reference_table};
 use diagnostics::Diagnostic;
 use proof_admission::{
-    Level, Signature, Sort, Term, check_type, infer_sort, infer_type, judgment_assumption_closure,
+    Signature, Sort, Term, check_type, infer_sort, infer_type, judgment_assumption_closure,
     substitute,
 };
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
