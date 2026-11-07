@@ -1903,7 +1903,8 @@ public PicTimerAcknowledgement satisfies InterruptAcknowledgementCompletion {
     }
 }
 
-public machine install_bootstrap_interrupts(storage: &mut TaskStateStorage)
+public machine install_bootstrap_interrupts<machine Timer>(storage: &mut TaskStateStorage)
+requires machine Timer satisfies CathedralTimerRoot::enter;
 reaches MachineControl + PortIo + BootstrapInterruptRegistrar
 invokes BootstrapInterruptRegistrar
 crashes Trap ensures false {
@@ -1993,40 +1994,16 @@ crashes Trap ensures false {
     storage.irq_stack[513] = 0x96A5B4C3D2E1F087u64;
     let profile: ProfileArrivalFrames = fatal_frames();
     let refused: bool = BootstrapInterruptRegistrar::install<
-        FatalHandler00::enter, FatalHandler01::enter, FatalHandler02::enter, FatalHandler03::enter, FatalHandler04::enter, FatalHandler05::enter, FatalHandler06::enter, FatalHandler07::enter, FatalHandler08::enter, FatalHandler09::enter, FatalHandler10::enter, FatalHandler11::enter, FatalHandler12::enter, FatalHandler13::enter, FatalHandler14::enter, FatalHandler15::enter, FatalHandler16::enter, FatalHandler17::enter, FatalHandler18::enter, FatalHandler19::enter, FatalHandler20::enter, FatalHandler21::enter, FatalHandler22::enter, FatalHandler23::enter, FatalHandler24::enter, FatalHandler25::enter, FatalHandler26::enter, FatalHandler27::enter, FatalHandler28::enter, FatalHandler29::enter, FatalHandler30::enter, FatalHandler31::enter, BootstrapTimerHandler::enter
+        FatalHandler00::enter, FatalHandler01::enter, FatalHandler02::enter, FatalHandler03::enter, FatalHandler04::enter, FatalHandler05::enter, FatalHandler06::enter, FatalHandler07::enter, FatalHandler08::enter, FatalHandler09::enter, FatalHandler10::enter, FatalHandler11::enter, FatalHandler12::enter, FatalHandler13::enter, FatalHandler14::enter, FatalHandler15::enter, FatalHandler16::enter, FatalHandler17::enter, FatalHandler18::enter, FatalHandler19::enter, FatalHandler20::enter, FatalHandler21::enter, FatalHandler22::enter, FatalHandler23::enter, FatalHandler24::enter, FatalHandler25::enter, FatalHandler26::enter, FatalHandler27::enter, FatalHandler28::enter, FatalHandler29::enter, FatalHandler30::enter, FatalHandler31::enter, Timer
     >(&mut retained.table, storage, &context, &profile);
     crash Trap;
 }
 
-// Source-derived native-admission control only. Never execute installed CPU code here.
-public machine start()
-requires addr::Bound == 18446744073709551616 {
-    let mut storage: TaskStateStorage;
-    let activated: bool = TaskStatePreparation::activate(&mut storage);
-    transition activated {
-        true -> installed(&mut storage)
-        _ -> refused()
-    }
-    machine installed(storage: &mut TaskStateStorage)
-    requires addr::Bound == 18446744073709551616 ensures false {
-        install_bootstrap_interrupts(storage);
-        crash Trap;
-    }
-    machine refused() ensures false { crash Trap; }
-}
-
-
 // Every route forwards the very same owned Pending occurrence. There is no
 // context-view application anywhere in this fixture.
-public boundary trait ArrivalForwarding {
-    machine forward(acknowledgement: InterruptAcknowledgement in Pending)
-    reaches MachineControl + PortIo;
-}
-public CheckedArrivalForwarding satisfies ArrivalForwarding {
-    machine forward(acknowledgement: InterruptAcknowledgement in Pending)
-    reaches MachineControl + PortIo {
-        complete_installed_interrupt<PicTimerAcknowledgement::complete>(acknowledgement);
-    }
+machine forward_acknowledgement(acknowledgement: InterruptAcknowledgement in Pending)
+reaches MachineControl + PortIo {
+    complete_installed_interrupt<PicTimerAcknowledgement::complete>(acknowledgement);
 }
 trait DynamicArrivalForwarding {
     machine forward(acknowledgement: InterruptAcknowledgement in Pending)
@@ -2044,15 +2021,15 @@ public BootstrapTimerHandler satisfies CathedralTimerRoot {
         let mode: u8 = read_route(0x20u16);
         transition mode {
             0 -> direct(acknowledgement)
-            1 -> selected(acknowledgement)
+            1 -> ordinary(acknowledgement)
             2 -> dynamic(acknowledgement)
             _ -> forward_forever(acknowledgement)
         }
         machine direct(acknowledgement: InterruptAcknowledgement in Pending) {
             complete_installed_interrupt<PicTimerAcknowledgement::complete>(acknowledgement);
         }
-        machine selected(acknowledgement: InterruptAcknowledgement in Pending) {
-            ArrivalForwarding::forward(acknowledgement);
+        machine ordinary(acknowledgement: InterruptAcknowledgement in Pending) {
+            forward_acknowledgement(acknowledgement);
         }
         machine dynamic(acknowledgement: InterruptAcknowledgement in Pending) {
             let selected: dyn DynamicArrivalForwarding = DynamicArrival as dyn DynamicArrivalForwarding;
@@ -2067,7 +2044,7 @@ machine read_route(port: u16) -> u8 reaches PortIo {
 }
 machine forward_forever(acknowledgement: InterruptAcknowledgement in Pending)
 reaches MachineControl + PortIo ensures false {
-    ArrivalForwarding::forward(acknowledgement);
+    forward_acknowledgement(acknowledgement);
     transition { _ -> wait() }
     machine wait() { asm { hlt } transition { _ -> wait() } }
 }

@@ -1,15 +1,20 @@
-// The selected forwarding body calls a different exact completion, despite
-// retaining the same owned Ack type and same underlying PIC action.
-use installed::installed_interrupt_floor::ArrivalForwarding;
+use installed::installed_interrupt_floor::TaskStateStorage;
+use installed::installed_interrupt_floor::TaskStatePreparation;
+use installed::installed_interrupt_floor::install_bootstrap_interrupts;
+use installed::installed_interrupt_floor::CathedralTimerRoot;
 use installed::installed_interrupt_floor::PicTimerAcknowledgement;
-use installed::installed_interrupt_floor::start;
 use omega::language::core::interrupt;
 use omega::language::core::static_interrupt;
-public WrongArrivalForwarding satisfies ArrivalForwarding {
-    machine forward(acknowledgement: InterruptAcknowledgement in Pending)
+
+WrongTimerHandler satisfies CathedralTimerRoot {
+    machine enter(acknowledgement: InterruptAcknowledgement in Pending)
     reaches MachineControl + PortIo {
-        complete_installed_interrupt<OtherCompletion::complete>(acknowledgement);
+        wrong_completion(acknowledgement);
     }
+}
+machine wrong_completion(acknowledgement: InterruptAcknowledgement in Pending)
+reaches MachineControl + PortIo {
+    complete_installed_interrupt<OtherCompletion::complete>(acknowledgement);
 }
 OtherCompletion satisfies InterruptAcknowledgementCompletion {
     machine complete(acknowledgement: InterruptAcknowledgement)
@@ -17,4 +22,21 @@ OtherCompletion satisfies InterruptAcknowledgementCompletion {
     reaches PortIo {
         PicTimerAcknowledgement::complete(acknowledgement);
     }
+}
+
+// Source-derived native-admission control only. Never execute installed CPU code here.
+machine start()
+requires addr::Bound == 18446744073709551616 {
+    let mut storage: TaskStateStorage;
+    let activated: bool = TaskStatePreparation::activate(&mut storage);
+    transition activated {
+        true -> installed(&mut storage)
+        _ -> refused()
+    }
+    machine installed(storage: &mut TaskStateStorage)
+    requires addr::Bound == 18446744073709551616 ensures false {
+        install_bootstrap_interrupts<WrongTimerHandler::enter>(storage);
+        crash Trap;
+    }
+    machine refused() ensures false { crash Trap; }
 }
