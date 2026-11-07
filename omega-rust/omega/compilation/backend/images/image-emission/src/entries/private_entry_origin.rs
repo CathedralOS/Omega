@@ -1,6 +1,7 @@
-//! Compare an emitted private entry with the recipe sealed before emission.
-//! The original root and its private bodies retain their own admitted callback
-//! rows. Public object metadata cannot replace those rows during this audit.
+//! Generated private entries must still match their original handler and
+//! installation. A returning handler can retain only its own entry and table
+//! anchor; its sealed execution also retains the original complete parent.
+//! Final composition checks those exact original rows before publishing code.
 use crate::{
     FunctionFragmentObjectArtifactError as Error, ObjectArtifact, ObjectCompilerPrivateFunction,
 };
@@ -164,6 +165,30 @@ fn collect<'a>(body: &'a ObjectArtifact, entries: &mut Vec<EntryOrigin<'a>>) -> 
                 "private entry has duplicate installation scopes",
             ));
         }
+        // A returning handler's own facts omit the parent's fatal handlers.
+        // Use its retained complete parent only for the exact same admitted
+        // callback. Other or nested installations keep their own source scope.
+        let scope = if let Some(execution) = body.installed_entry_execution()
+            && execution.entry().callback_function == row.callback_function
+        {
+            if execution.entry() != row
+                || execution.scope().operation() != row.operation
+                || row.entry().psi() != body.psi()
+                || row.entry().target() != body.target()
+                || row.entry().machine() != body.entry()
+                || scope.is_none()
+            {
+                return Err(Error::Mismatch(
+                    "private handler changed its original installation or admitted entry",
+                ));
+            }
+            execution
+                .require_current(installed)
+                .map_err(Error::Mismatch)?;
+            Some(execution.scope())
+        } else {
+            scope
+        };
         let assumption = scope.and_then(|scope| scope.bootstrap_assumption());
         let plan = if let Some(scope) = scope.filter(|scope| scope.context_anchor().is_some()) {
             let assumption = assumption.ok_or(Error::Mismatch(

@@ -24,6 +24,28 @@ impl AdmittedInstalledEntryExecution {
         entry: &AdmittedInstalledInterruptEntry,
         current: &AdmittedInstalledInterruptCohort,
     ) -> Result<Self, &'static str> {
+        Self::check_current(&scope, entry, current)?;
+        Ok(Self {
+            scope,
+            entry: entry.clone(),
+        })
+    }
+
+    /// A private handler can retain only part of its original installation.
+    /// Check that the current records still agree with that exact parent before
+    /// using the complete installation retained by this execution.
+    pub fn require_current(
+        &self,
+        current: &AdmittedInstalledInterruptCohort,
+    ) -> Result<(), &'static str> {
+        Self::check_current(&self.scope, &self.entry, current)
+    }
+
+    fn check_current(
+        scope: &AdmittedInstalledInterruptScope,
+        entry: &AdmittedInstalledInterruptEntry,
+        current: &AdmittedInstalledInterruptCohort,
+    ) -> Result<(), &'static str> {
         if current.psi() != entry.entry().psi()
             || entry.operation != scope.operation()
             || entry.entry().target().architecture != target::Architecture::X86_64
@@ -71,10 +93,7 @@ impl AdmittedInstalledEntryExecution {
         {
             return Err("installed execution substituted its parent installation");
         }
-        Ok(Self {
-            scope,
-            entry: entry.clone(),
-        })
+        Ok(())
     }
 
     pub fn scope(&self) -> &AdmittedInstalledInterruptScope {
