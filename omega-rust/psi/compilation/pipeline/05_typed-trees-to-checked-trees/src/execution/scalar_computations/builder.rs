@@ -58,6 +58,10 @@ pub(super) enum RootScope {
 pub(super) struct Builder<'program, 'plans> {
     pub(super) program: &'program dyn ::validation::CheckingInput,
     pub(super) shapes: ShapeCollector<'program>,
+    /// The declaration index every collector over this program starts from.
+    pub(super) carriers: crate::execution::terminal_unit::types::CarrierIndex,
+    /// Which flow calls' result types admit a checked structural result.
+    pub(super) call_result_types: super::call_result_types::CallResultTypes,
     pub(super) operators: &'program CheckedOperatorFacts,
     pub(super) semantic: &'program facts::FactPlan,
     pub(super) flow: &'program FlowFacts,
