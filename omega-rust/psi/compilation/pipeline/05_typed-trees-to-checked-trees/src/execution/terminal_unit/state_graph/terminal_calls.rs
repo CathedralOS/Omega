@@ -195,37 +195,6 @@ pub(super) fn arm_call(
     // ordinary call builder checks the callee's carrier/access/multiplicity;
     // completed-call guarantees, not syntactic qualified-type equality,
     // justify the stronger receiving facts and exact returned claims.
-    let no_normal = validation::call_target_state(program, target)
-        .is_some_and(|state| validation::normal_completion_possible(program, state) == Some(false));
-    let (scalar_result, mut structural_result) = if no_normal {
-        (None, None)
-    } else {
-        match result {
-            checked_trees::CheckedControlResultPlan::Unit => (None, None),
-            checked_trees::CheckedControlResultPlan::Scalar { primitive_type } => (
-                Some(checked_trees::CheckedUnitScalarResultBindingPlan {
-                    statement_index: statement_ordinal,
-                    binding_ordinal: u32::try_from(next_scalar_binding).ok()?,
-                    primitive_type: *primitive_type,
-                }),
-                None,
-            ),
-            checked_trees::CheckedControlResultPlan::Structural(expected) => {
-                let binding = checked_structural_result_type(
-                    program,
-                    shapes,
-                    state.return_type,
-                    &machine_binders(program, machine),
-                )?;
-                if binding.type_identity != expected.type_identity
-                    || binding.multiplicity != expected.multiplicity
-                {
-                    return None;
-                }
-                (None, Some(binding))
-            }
-        }
-    };
     trace.phase("state graph: terminator: terminal call arm: occurrence");
     trace.statement(Some(statement_ordinal));
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
@@ -259,6 +228,83 @@ pub(super) fn arm_call(
     {
         return None;
     }
+    plan_call_arm(
+        program,
+        facts,
+        scalar_callees,
+        shapes,
+        machine,
+        state,
+        structural,
+        entry_claims,
+        local_results,
+        preamble,
+        result,
+        next_scalar_binding,
+        calls,
+        call,
+        target,
+        statement_ordinal,
+        trace,
+    )
+}
+
+/// The exact captured invocation owns ordinary operand preparation, result
+/// delivery and loan completion, whether selected by a statement or a Match.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn plan_call_arm(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    scalar_callees: ScalarCalleeClosure,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural: &[CheckedUnitStructuralParameterPlan],
+    entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
+    local_results: &[(
+        checked_trees::CheckedUnitStructuralResultBindingPlan,
+        facts::PlaceRoot,
+    )],
+    preamble: &[CheckedUnitEffectOperationPlan],
+    result: &checked_trees::CheckedControlResultPlan,
+    next_scalar_binding: usize,
+    calls: &[checked_trees::FlowCallFact],
+    call: &checked_trees::FlowCallFact,
+    target: symbols::SymbolHandle,
+    statement_ordinal: u32,
+    trace: &control::LocalConstructionTrace,
+) -> Option<checked_trees::CheckedConditionalReturnArm> {
+    let no_normal = validation::call_target_state(program, target)
+        .is_some_and(|state| validation::normal_completion_possible(program, state) == Some(false));
+    let (scalar_result, mut structural_result) = if no_normal {
+        (None, None)
+    } else {
+        match result {
+            checked_trees::CheckedControlResultPlan::Unit => (None, None),
+            checked_trees::CheckedControlResultPlan::Scalar { primitive_type } => (
+                Some(checked_trees::CheckedUnitScalarResultBindingPlan {
+                    statement_index: statement_ordinal,
+                    binding_ordinal: u32::try_from(next_scalar_binding).ok()?,
+                    primitive_type: *primitive_type,
+                }),
+                None,
+            ),
+            checked_trees::CheckedControlResultPlan::Structural(expected) => {
+                let binding = checked_structural_result_type(
+                    program,
+                    shapes,
+                    state.return_type,
+                    &machine_binders(program, machine),
+                )?;
+                if binding.type_identity != expected.type_identity
+                    || binding.multiplicity != expected.multiplicity
+                {
+                    return None;
+                }
+                (None, Some(binding))
+            }
+        }
+    };
     trace.phase("state graph: terminator: terminal call arm: operands");
     let mut structural_results = local_results.to_vec();
     let mut preparation = preamble.to_vec();

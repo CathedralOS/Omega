@@ -84,6 +84,14 @@ impl Builder<'_, '_> {
             _ => None,
         };
         if let Some((subject, receiver_value, case)) = known_case {
+            let receiver_value = match &subject {
+                CheckedScalarComputationStructuralArgument::Place(place)
+                    if !receiver_value.is_valid() =>
+                {
+                    self.case_subject_receiver(place)?
+                }
+                _ => receiver_value,
+            };
             let membership = self.publish_case_membership(
                 expression,
                 if unequal {

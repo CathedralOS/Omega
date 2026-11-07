@@ -26,26 +26,35 @@ pub(crate) struct ScalarReturnCleanup {
     pub(crate) exit: checked_trees::FlowClaimJoinExit,
     pub(crate) destination: CheckedScalarBranchDestination,
     pub(crate) actions: Vec<crate::unit::unit_cleanup::CleanupRegion>,
+    pub(crate) copied_payloads: Vec<checked_trees::CheckedSelectedPayloadCopy>,
 }
 
-fn completion_target(
+fn completion_target<'a>(
     destination: &CheckedScalarBranchDestination,
-    completions: &[(
+    completions: &'a [(
         CheckedScalarBranchDestination,
         usize,
         checked_trees::FlowClaimJoinExit,
+        &'a [checked_trees::CheckedSelectedPayloadCopy],
     )],
-) -> Result<(usize, checked_trees::FlowClaimJoinExit), LoweringError> {
+) -> Result<
+    (
+        usize,
+        checked_trees::FlowClaimJoinExit,
+        &'a [checked_trees::CheckedSelectedPayloadCopy],
+    ),
+    LoweringError,
+> {
     let mut selected = completions
         .iter()
-        .filter(|(source, _, _)| source == destination);
-    let (_, target, exit) = selected.next().ok_or(LoweringError::Unsupported(
+        .filter(|(source, _, _, _)| source == destination);
+    let (_, target, exit, copies) = selected.next().ok_or(LoweringError::Unsupported(
         "scalar return has no selected cleanup completion",
     ))?;
     if selected.next().is_some() {
         return unsupported("scalar return repeats its cleanup completion");
     }
-    Ok((*target, *exit))
+    Ok((*target, *exit, *copies))
 }
 
 /// Case selection is independent of the selected arm's expression. The edge
@@ -72,6 +81,7 @@ fn push_arm_target(
         CheckedScalarBranchDestination,
         usize,
         checked_trees::FlowClaimJoinExit,
+        &[checked_trees::CheckedSelectedPayloadCopy],
     )],
 ) -> Result<usize, LoweringError> {
     let CheckedScalarBranchDestination::Return {
@@ -85,10 +95,11 @@ fn push_arm_target(
     } else {
         CheckedScalarExpressionRole::Return
     };
-    let (target, exit) = completion_target(destination, completions)?;
+    let (target, exit, copies) = completion_target(destination, completions)?;
     expansion.normal_return(
         identities,
         &exit,
+        copies,
         role,
         bindings,
         source_types,
@@ -194,6 +205,7 @@ impl Evaluation {
             CheckedScalarBranchDestination,
             usize,
             checked_trees::FlowClaimJoinExit,
+            &[checked_trees::CheckedSelectedPayloadCopy],
         )],
     ) -> Result<LoweredScalarBranchTerminator, LoweringError> {
         let source = dispatches[0].source;
@@ -327,7 +339,12 @@ impl Evaluation {
                         erased_proof_arguments: self.proof_formal_forwarding(),
                     },
                 ));
-                (cleanup.destination.clone(), target, cleanup.exit)
+                (
+                    cleanup.destination.clone(),
+                    target,
+                    cleanup.exit,
+                    cleanup.copied_payloads.as_slice(),
+                )
             })
             .collect::<Vec<_>>();
         let terminator = match &control.terminator {

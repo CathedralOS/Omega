@@ -16,8 +16,10 @@ data Context { token: Token; }
 
 machine main(context: &mut Context) reaches Console {
     transition context.token {
-        Token::Integer { start as _, base: Base::Decimal, empty } -> caller_empty(context, empty)
-        _ -> bad(context, 71)
+        Token { start as _, case as operation } -> match operation {
+            Token::Integer { base: Base::Decimal, empty } -> caller_empty(context, empty)
+            _ -> bad(context, 71)
+        }
     }
 
     machine caller_empty(context: &mut Context, empty: bool) {
@@ -31,8 +33,10 @@ machine main(context: &mut Context) reaches Console {
         holder.ready = true;
         let token: Token = holder.tokens[1];
         transition token {
-            Token::Integer { start as _, base: Base::Decimal, empty: false } -> start(context, token.start, holder.ready)
-            _ -> bad(context, 73)
+            Token { start as _, case as operation } -> match operation {
+                Token::Integer { base: Base::Decimal, empty: false } -> start(context, token.start, holder.ready)
+                _ -> bad(context, 73)
+            }
         }
     }
     machine start(context: &mut Context, start: u64 in Trapping, ready: bool) {

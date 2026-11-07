@@ -180,6 +180,9 @@ pub use proof::{
 };
 pub use values::{
     CheckedArrayConstructionSource, CheckedBooleanExpression, CheckedByteSequenceOperand,
+    CheckedCompletionArm, CheckedCompletionComparison, CheckedCompletionExpression,
+    CheckedCompletionExpressionHandle, CheckedCompletionExpressionKind, CheckedCompletionPlans,
+    CheckedCompletionRefusal, CheckedCompletionRefusalReason, CheckedCompletionRoot,
     CheckedDispatchSubject, CheckedElementViewRegion, CheckedEntryIndexBound,
     CheckedEntryIndexSelector, CheckedErasedProofParameterPlan, CheckedIeeeFloatComparisonKind,
     CheckedIntegerBinaryKind, CheckedIntegerComparisonKind, CheckedIntegerMathExpression,

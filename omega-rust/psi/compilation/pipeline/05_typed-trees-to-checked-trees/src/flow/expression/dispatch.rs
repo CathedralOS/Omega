@@ -181,10 +181,9 @@ impl Execution<'_, '_, '_> {
             // Arm writes are absent on the fallthrough path. Retain their union
             // only after all alternatives, for later enclosing operands.
             let branch_prefix = self.write_prefix();
-            if !matches!(arm.pattern, MatchPattern::Destructure(_))
-                && self
-                    .changed_operand_sources(&[(dispatch.subject, subject_writes)])
-                    .is_empty()
+            if self
+                .changed_operand_sources(&[(dispatch.subject, subject_writes)])
+                .is_empty()
                 && let Ok(ordinal) = u32::try_from(ordinal)
             {
                 let source_arm = dispatch.arms.handle_at(ordinal);

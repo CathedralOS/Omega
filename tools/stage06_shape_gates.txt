@@ -185,7 +185,7 @@
 14 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/emission.rs
 16 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/emission/captured_loans.rs
 9 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/emission/conditional_return.rs
-6 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/emission/dispatch_copies.rs
+2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/emission/dispatch_copies.rs
 4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/emission/entry_rank.rs
 38 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/emission/loan_chains.rs
 13 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/emission/loan_chains/retained_homes.rs
@@ -233,7 +233,7 @@
 11 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/reference_results.rs
 20 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/scalar_applications.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/scalar_applications/proof_scope.rs
-2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/scalar_completion/control.rs
+1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/scalar_completion/control.rs
 3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/signatures.rs
 4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_returns.rs
 3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/completed_aggregate.rs

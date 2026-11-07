@@ -200,9 +200,15 @@ impl ComputationCallArguments<'_> {
             if named != expression {
                 return None;
             }
-            // Whole and projected operands name the same established home. The
-            // typed path, not name-expression syntax, selects the transferred
-            // subtree; ownership events separately supply its live claims.
+            // Noncopy saved subjects observe an existing owner. Its exact
+            // captured backing, rather than the alias used for value facts,
+            // supplies the subtree transferred by this argument.
+            let place = validation::ownership_place_from_expression_in_state(
+                program,
+                state.symbol,
+                call.statement_index,
+                expression,
+            )?;
             return storage_argument(
                 program,
                 shapes,

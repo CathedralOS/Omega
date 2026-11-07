@@ -840,6 +840,7 @@ mod index_tests {
         let capture = expressions.insert_match_subject(source);
         let head = expressions.insert(ExpressionNode::Boolean(true));
         let alias = expressions.insert(ExpressionNode::SavedSubject(TableSavedSubject {
+            component: Default::default(),
             capture,
             pattern_head: head,
         }));

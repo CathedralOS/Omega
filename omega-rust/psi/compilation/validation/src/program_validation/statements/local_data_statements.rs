@@ -284,11 +284,12 @@ pub(super) fn validate(
         // One refused store reports one reason: an access refusal already
         // explains a delivered reference of the wrong access.
         if !access_refused {
-            expression_types::report_delivered_type_mismatch(
+            expression_types::report_delivered_type_mismatch_with_component(
                 program,
                 machine.symbol,
                 local_data.initial_value,
                 local_data.type_reference,
+                program.pattern_component(local_data.initial_value),
                 &owner,
                 diagnostics,
             );

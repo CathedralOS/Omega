@@ -16,6 +16,7 @@ impl Expansion<'_> {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         exit: &checked_trees::FlowClaimJoinExit,
+        copied_payloads: &[checked_trees::CheckedSelectedPayloadCopy],
         role: CheckedScalarExpressionRole,
         bindings: &storage::ScalarBindings,
         source_types: &[QualifiedScalarType],
@@ -80,13 +81,46 @@ impl Expansion<'_> {
                 },
             ))
         };
-        self.argument(
+        let copies = super::super::branch_states::structural_values::selected_copies(
+            identities,
+            self.checked,
+            copied_payloads,
+            self.structural_types,
+        )?;
+        let target = if copies.is_empty() {
+            target
+        } else {
+            let mut completed_types = source_types.to_vec();
+            completed_types.push(source);
+            self.push(super::LoweredScalarBranchState::jumping(
+                target, Vec::new(), completed_types.clone(), &completed_types,
+                vec![crate::scalar_lowering::branch_states::prepared::LoweredScalarEffect::CompleteSnapshots {
+                    snapshots: copies.iter().map(|copy| {
+                        crate::scalar_lowering::branch_states::prepared::CompletedSnapshot::Produced(copy.value)
+                    }).collect(),
+                }],
+            ))
+        };
+        let target = self.argument(
             identities,
             &argument,
             source_types,
             target,
             &site,
             &mut Vec::new(),
-        )
+        )?;
+        if copies.is_empty() {
+            return Ok(target);
+        }
+        // This state is reached only after selection. Every snapshot completes
+        // before the return's operands; only these private homes die afterward.
+        Ok(self.push(super::LoweredScalarBranchState::jumping(
+            target, Vec::new(), source_types.to_vec(), source_types,
+            copies.into_iter().map(|copy| {
+                crate::scalar_lowering::branch_states::prepared::LoweredScalarEffect::ProduceStructuralValue {
+                    value: copy.value, structural_type: copy.structural_type,
+                }
+            }).collect(),
+        )))
     }
 }

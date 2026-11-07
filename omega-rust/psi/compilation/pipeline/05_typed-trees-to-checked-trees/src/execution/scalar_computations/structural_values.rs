@@ -12,8 +12,8 @@
 //! owned or borrowed root may supply an unrestricted child without moving it.
 //! Exact source/path replay and ordinary liveness remain downstream checks.
 use super::{
-    Builder, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType,
-    SymbolHandle, TypeReferenceNode,
+    Builder, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, SymbolHandle,
+    TypeReferenceNode,
 };
 use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::calls::byte_sequence_literal_argument;
@@ -32,7 +32,6 @@ use checked_trees::{
     CheckedScalarComputationHandle, CheckedStructuralDispatchArm, CheckedStructuralValue,
     CheckedStructuralValueHandle as ValueHandle, CheckedStructuralValueKind as ValueKind,
 };
-use typed_trees::expression::MatchPattern;
 use typed_trees::types::TypeReferenceHandle;
 use value_predicates::argument_needs_establishment;
 
@@ -941,94 +940,15 @@ impl Builder<'_, '_> {
             else {
                 return None;
             };
-            let subject = self.dispatch_subject(&dispatch)?;
-            let subject_type = match subject {
-                checked_trees::CheckedDispatchSubject::Scalar(value) => {
-                    self.push_scalar_root(
-                        CheckedScalarExpressionRole::StructuralValueSubject { expression },
-                        value,
-                    )?;
-                    Some(self.plans.nodes.get(value).primitive_type)
-                }
-                checked_trees::CheckedDispatchSubject::Structural { .. } => None,
-            };
-            let authored = self
-                .program
-                .expression_table
-                .match_arms(dispatch.arms)
-                .to_vec();
-            let mut arms = Vec::new();
-            let mut covered = false;
-            let mut boolean_coverage = [false; 2];
-            for (ordinal, arm) in authored.iter().enumerate() {
-                if subject_type.is_none()
-                    && self.structural_dispatch_arm_is_impossible(&dispatch, arm)
-                {
-                    continue;
-                }
-                let source_arm = dispatch.arms.handle_at(u32::try_from(ordinal).ok()?);
-                let mut equality_use = arena::Handle::invalid();
-                let pattern = if let Some(subject_type) = subject_type {
-                    match arm.pattern {
-                        MatchPattern::Wildcard => {
-                            covered = true;
-                            checked_trees::CheckedScalarDispatchPattern::Wildcard
-                        }
-                        MatchPattern::Value(pattern) => {
-                            if subject_type == PrimitiveType::Bool
-                                && let Some(value) =
-                                    self.program.expression_table.boolean_node(pattern)
-                            {
-                                if boolean_coverage[usize::from(*value)] {
-                                    continue;
-                                }
-                                boolean_coverage[usize::from(*value)] = true;
-                                covered = boolean_coverage == [true, true];
-                            }
-                            if matches!(subject_type, PrimitiveType::F32 | PrimitiveType::F64) {
-                                equality_use = self.comparison_use(
-                                    expression,
-                                    checked_trees::CheckedOperatorOccurrence::MatchEquality {
-                                        source_arm,
-                                    },
-                                )?;
-                            }
-                            let computation = self.expression(pattern, subject_type)?;
-                            self.plans.nodes.get_mut(computation).authored_root = pattern;
-                            self.push_scalar_root(
-                                CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
-                                computation,
-                            )?;
-                            checked_trees::CheckedScalarDispatchPattern::Value(computation)
-                        }
-                        MatchPattern::Destructure(_) => return None,
-                    }
-                } else {
-                    self.structural_dispatch_pattern(expression, &dispatch, &subject, arm.pattern)?
-                };
-                if let Some(computation) = pattern.computation()
-                    && subject_type.is_none()
-                {
-                    self.push_scalar_root(
-                        CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
-                        computation,
-                    )?;
-                }
-                let value = self.structural_value(arm.value, expected)?;
+            let (subject, prepared) = self.prepare_dispatch(expression, &dispatch)?;
+            let mut arms = Vec::with_capacity(prepared.len());
+            for arm in prepared {
                 arms.push(CheckedStructuralDispatchArm {
-                    source_arm,
-                    equality_use,
-                    pattern,
-                    value,
+                    source_arm: arm.source_arm,
+                    equality_use: arm.equality_use,
+                    pattern: arm.pattern,
+                    value: self.structural_value(arm.value, expected)?,
                 });
-                if matches!(arm.pattern, MatchPattern::Wildcard) || covered {
-                    break;
-                }
-            }
-            // Structural coverage was established by the common pattern
-            // checker, including case completeness and guarded-arm limits.
-            if (!covered && subject_type.is_some()) || arms.is_empty() {
-                return None;
             }
             ValueKind::Dispatch {
                 subject,

@@ -243,9 +243,49 @@ pub(super) fn build(
             trace,
         )?;
         return Some((
-            complete_selected_return(program, transition, arm, operations)?,
+            complete_selected_return(program, facts, machine, state, transition, arm, operations)?,
             Some(selected_exit),
         ));
+    }
+    let mut unit_completion_failure = trace.deferred_failure();
+    if result == CheckedControlResultPlan::Unit {
+        let expression = match statements.get(terminator_index)? {
+            StatementNode::Expression(expression) => Some(*expression),
+            StatementNode::Transition(transition)
+                if transition.guard == TransitionGuardNode::Always
+                    && transition.exit == TransitionExit::Ordinary
+                    && !transition.continuation.is_valid() =>
+            {
+                match program.statement_table.transition_target(transition.target) {
+                    TransitionTargetNode::Value(expression) => Some(*expression),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        let before_unit_completion = trace.mark();
+        if let Some(completion) = expression.and_then(|expression| {
+            super::unit_completions::build(
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                machine,
+                state,
+                structural,
+                entry_claims,
+                local_results,
+                operations,
+                ordinal,
+                expression,
+                trace,
+            )
+        }) {
+            return Some((TerminatorPlan::CompleteExpression { completion }, None));
+        }
+        if trace.mark() != before_unit_completion {
+            unit_completion_failure.retain();
+        }
     }
     let before_closed_sum = trace.mark();
     let closed_sum = closed_sum::build(
@@ -422,6 +462,7 @@ pub(super) fn build(
                     && transition_on_erased_dispatch_subject(program, state, when_true)
                     && transition_on_erased_dispatch_subject(program, state, when_false)
                 {
+                    unit_completion_failure.succeeded();
                     return Some(erased_proof_completion(state, statements, terminator_index));
                 }
                 trace.phase("state graph: terminator: conditional successors: guard expression");
@@ -660,6 +701,7 @@ pub(super) fn build(
                         })
                     })
                 {
+                    unit_completion_failure.succeeded();
                     return Some(erased_proof_completion(state, statements, terminator_index));
                 }
                 trace.phase("state graph: terminator: guarded jump successors: roster");
@@ -882,6 +924,7 @@ pub(super) fn build(
             }
         }
     };
+    unit_completion_failure.succeeded();
     Some((terminator, None))
 }
 
@@ -989,6 +1032,24 @@ fn guarded_return_arm(
         TransitionTargetNode::Value(expression) => *expression,
         _ => return None,
     };
+    if *result == CheckedControlResultPlan::Unit {
+        return super::unit_completions::build(
+            program,
+            facts,
+            scalar_callees,
+            shapes,
+            machine,
+            state,
+            structural,
+            entry_claims,
+            local_results,
+            operations,
+            statement_ordinal,
+            expression,
+            trace,
+        )
+        .map(checked_trees::CheckedConditionalReturnArm::Completion);
+    }
     if let CheckedControlResultPlan::Scalar { primitive_type } = result {
         let role = CheckedScalarExpressionRole::Return;
         let retained = facts
@@ -1076,6 +1137,9 @@ fn crash_arm(
 /// transaction; normal-edge cleanup still runs on the resulting terminator.
 fn complete_selected_return(
     program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     transition: &TableTransition,
     arm: checked_trees::CheckedConditionalReturnArm,
     operations: &mut Vec<OperationPlan>,
@@ -1091,7 +1155,14 @@ fn complete_selected_return(
             operations.extend(prefix.iter().cloned());
             TerminatorPlan::EvaluateNoNormal
         }
+        Arm::EvaluateUnit {
+            operations: prefix, ..
+        } => {
+            operations.extend(prefix.iter().cloned());
+            TerminatorPlan::ReturnUnit
+        }
         Arm::Crash { statement_ordinal } => TerminatorPlan::Crash { statement_ordinal },
+        Arm::Completion(completion) => TerminatorPlan::CompleteExpression { completion },
         Arm::Unit { .. } => TerminatorPlan::ReturnUnit,
         Arm::Scalar {
             statement_ordinal,
@@ -1100,6 +1171,19 @@ fn complete_selected_return(
             completion: CheckedScalarReturnPlan::Exits(CheckedUnitScalarControlPlan {
                 primitive_type,
                 terminator: CheckedScalarStateTerminator::Return { statement_ordinal },
+                selected_copies: vec![
+                    control::selected_copies::SelectedCopies::new(
+                        program,
+                        facts,
+                        machine.symbol,
+                        state,
+                    )?
+                    .for_destination(&checked_trees::CheckedScalarBranchDestination::Return {
+                        statement_ordinal,
+                        is_continuation: false,
+                    })?
+                    .1,
+                ],
             }),
         },
         Arm::Structural(operation) => {

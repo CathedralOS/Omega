@@ -50,6 +50,7 @@ pub(super) mod returns;
 mod successors;
 mod terminal_calls;
 mod terminator;
+mod unit_completions;
 
 use fused::fused_states;
 pub(super) use fused::{FusedStates, fused_target_index};
@@ -481,6 +482,13 @@ pub(super) fn build_traced(
             trace,
         )?;
         planned.push(CheckedComposedUnitControlStatePlan {
+            selected_copies: control::selected_copies::SelectedCopies::new(
+                program,
+                facts,
+                owner.symbol,
+                state,
+            )?
+            .into_rows()?,
             normal_exit_cleanups: checked_trees::CheckedNormalExitCleanups {
                 completion,
                 ..Default::default()

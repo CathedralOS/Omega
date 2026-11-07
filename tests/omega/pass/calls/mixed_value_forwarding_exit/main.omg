@@ -16,8 +16,10 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     main.message = forward(Message::Number { stamp: 23, value: 47 });
     transition main.message {
-        Message::Number { stamp as _, value } -> finish(main, value)
-        _ -> bad(main)
+        Message { stamp as _, case as operation } -> match operation {
+            Message::Number { value } -> finish(main, value)
+            _ -> bad(main)
+        }
     }
 
     machine finish(main: &mut Main, value: i32) {

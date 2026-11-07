@@ -14,6 +14,7 @@ mod checked_machine;
 mod construction_trace;
 pub(super) mod reference_captures;
 pub(in crate::execution::terminal_unit) mod scalar_arrays;
+pub(in crate::execution::terminal_unit) mod selected_copies;
 pub(super) mod statement_sequence;
 pub(super) mod structural_operands;
 

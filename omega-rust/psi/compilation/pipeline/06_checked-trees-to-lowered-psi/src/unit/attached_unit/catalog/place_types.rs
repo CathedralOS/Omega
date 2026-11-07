@@ -78,11 +78,21 @@ fn collect_scope<'plans>(
         };
         if let Terminator::Guarded { return_values, .. } = &control.terminator {
             for operation in return_values {
-                collector.operations(std::iter::once(operation), &mut namespace.clone())?;
+                collector.operations(
+                    std::iter::once(&operation.operation),
+                    &mut namespace.clone(),
+                )?;
+            }
+        }
+        if let Terminator::CompleteExpression { completion } = &control.terminator {
+            for operations in completion.expression.invocation_scopes() {
+                collector.operations(operations.iter(), &mut namespace.clone())?;
             }
         }
         for arm in control.terminator.return_arms() {
-            collector.operations(arm.operation_dependencies(), &mut namespace.clone())?;
+            for scope in arm.operation_scopes() {
+                collector.operations(scope.into_iter(), &mut namespace.clone())?;
+            }
         }
         for successor in control.successors() {
             for transfer in &successor.transfers {

@@ -404,9 +404,11 @@ impl Lower<'_> {
                 })
             }
             ProductExpressionKind::SavedSubject {
+                component,
                 capture,
                 pattern_head,
             } => Node::SavedSubject(expr::TableSavedSubject {
+                component,
                 capture: self.source_subject(capture)?,
                 pattern_head: self.expression_optional(pattern_head)?,
             }),
@@ -476,6 +478,7 @@ impl Lower<'_> {
                     .iter()
                     .map(|field| {
                         Ok(expr::TableMatchField {
+                            component: field.component,
                             member: self.identifier(field.member),
                             field_symbol: SymbolHandle::invalid(),
                             action: match field.action {

@@ -354,6 +354,14 @@ impl ExpressionTable {
         destination: ExpressionHandle,
         source: ExpressionHandle,
     ) {
+        let component = if self.direct_pattern_component(destination)
+            == Some(language_core::PatternComponent::Case)
+            || self.direct_pattern_component(source) == Some(language_core::PatternComponent::Case)
+        {
+            language_core::PatternComponent::Case
+        } else {
+            language_core::PatternComponent::Fields
+        };
         let node = self.expression(source).clone();
         let authority = self.index_expression_authority(source).cloned();
         let source_index = super::source_span_index(source);
@@ -370,6 +378,7 @@ impl ExpressionTable {
         };
         let carrier = self.constructed_value_type_reference(source);
         *self.expression_mut(destination) = node;
+        self.set_pattern_component(destination, component);
         self.set_source_span(destination, source_span);
         self.authored_selection_occurrences[destination_index] = occurrences;
         self.materialization_sources[destination_index] = materialization_source;
@@ -723,6 +732,9 @@ impl ExpressionTable {
         }
         let origin = source.table(self);
         let source_span = origin.source_span(expression);
+        let component = origin
+            .direct_pattern_component(expression)
+            .expect("copied expression retains its component row");
         let materialization_source = origin.materialization_source(expression);
         let authority = origin.index_expression_authority(expression).cloned();
         let domain_tests = origin.executable_domain_tests(expression).to_vec();
@@ -783,6 +795,7 @@ impl ExpressionTable {
                         copies,
                     );
                     self.insert(ExpressionNode::SavedSubject(super::TableSavedSubject {
+                        component: saved.component,
                         capture,
                         pattern_head,
                     }))
@@ -984,6 +997,7 @@ impl ExpressionTable {
             }
             *self.index_expression_authority_mut(copied) = authority;
         }
+        self.set_pattern_component(copied, component);
         copies.expressions.push((expression, copied));
         if materialization_source.is_valid() {
             let authored =

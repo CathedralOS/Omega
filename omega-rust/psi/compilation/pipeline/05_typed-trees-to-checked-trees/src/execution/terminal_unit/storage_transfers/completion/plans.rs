@@ -20,6 +20,7 @@ pub(super) enum Guard<'a> {
 #[derive(Clone, Copy)]
 pub(super) enum CompletionOutcome<'a> {
     Prefix,
+    Completion(&'a checked_trees::CheckedUnitCompletionPlan),
     Scalar,
     Structural(&'a CheckedUnitStructuralReturnPlan),
     Operation(&'a CheckedUnitEffectOperationPlan),
@@ -32,6 +33,7 @@ impl CompletionOutcome<'_> {
     pub(super) fn has_normal_completion(self) -> bool {
         match self {
             Self::NoNormal => false,
+            Self::Completion(plan) => plan.expression.normal_continuation,
             Self::Arm(arm) => arm.has_normal_continuation(),
             Self::Successor(successor) => successor.has_normal_caller_completion(),
             Self::Operation(operation) => operation.has_normal_continuation(),
@@ -242,6 +244,15 @@ impl<'a> ComposedCompletion<'a> {
                     outcome: CompletionOutcome::NoNormal,
                 });
             }
+            Terminator::CompleteExpression { completion } => {
+                output = direct_paths(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    CompletionOutcome::Completion(completion),
+                )?;
+            }
             Terminator::ReturnUnit
             | Terminator::ReturnScalar {
                 completion: CheckedScalarReturnPlan::Binding(_),
@@ -340,14 +351,14 @@ impl<'a> ComposedCompletion<'a> {
                     output.push(self.scalar_destination(
                         &arm.destination,
                         &guards,
-                        &return_values[index],
+                        &return_values[index].operation,
                     )?);
                 }
                 if let Some(fallback) = fallback {
                     output.push(self.scalar_destination(
                         fallback,
                         &guards,
-                        &return_values[arms.len()],
+                        &return_values[arms.len()].operation,
                     )?);
                 }
             }

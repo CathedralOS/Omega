@@ -198,6 +198,7 @@ impl Execution<'_, '_, '_> {
                 expression: payload,
                 state_symbol: self.state.symbol,
                 statement_index: self.statement_index,
+                evaluation: self.evaluation,
                 type_reference: reference,
                 storage_snapshot: self.storage_snapshot,
                 entry_origin_writes: self.entry_origin_writes,

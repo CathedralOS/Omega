@@ -387,6 +387,20 @@ fn candidates(
     state: SymbolHandle,
 ) -> Option<Vec<CheckedReturnedReferencePlan>> {
     let state = program.state_by_symbol(state)?;
+    if let Some(entries) = super::family_returns::entries(program, state)? {
+        let mut output = Vec::new();
+        for entry in entries {
+            for candidate in candidates(program, facts, entry.symbol)? {
+                if !output.contains(&candidate) {
+                    output.push(candidate);
+                    if output.len() > super::super::MAX_REFERENCE_ORIGIN_LEAVES {
+                        return None;
+                    }
+                }
+            }
+        }
+        return Some(output);
+    }
     if !crate::normal_completion_possible(program, state)? {
         return Some(Vec::new());
     }

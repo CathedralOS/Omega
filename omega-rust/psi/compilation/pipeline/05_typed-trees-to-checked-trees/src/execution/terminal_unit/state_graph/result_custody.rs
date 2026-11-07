@@ -112,7 +112,9 @@ pub(super) fn account<'calls>(
     let guarded_return_construction_uses = match terminator {
         TerminatorPlan::Guarded { return_values, .. } => return_values
             .iter()
-            .map(|value| construction_local_uses(facts, state.symbol, std::iter::once(value)))
+            .map(|value| {
+                construction_local_uses(facts, state.symbol, std::iter::once(&value.operation))
+            })
             .collect::<Option<Vec<_>>>()?,
         _ => Vec::new(),
     };
@@ -791,9 +793,10 @@ pub(super) fn account<'calls>(
                     operation,
                     terminal_local,
                 ) == 1
-                || uses
-                    .iter()
-                    .any(|(_, argument)| construction_owns_result(argument, operations.len()))
+                || (!matches!(arm, ReturnArm::Completion(_))
+                    && uses
+                        .iter()
+                        .any(|(_, argument)| construction_owns_result(argument, operations.len())))
                 || permits_disposal(arm.statement_ordinal(), false)
         };
         // With no normal exit there is no transfer/disposal owner here to
@@ -858,7 +861,7 @@ pub(super) fn account<'calls>(
                         return None;
                     };
                     let transfers = prefix_transfers
-                        + value.definite_call_transfers(
+                        + value.operation.definite_call_transfers(
                             &facts.values,
                             call_schedules,
                             operation,
@@ -904,6 +907,16 @@ pub(super) fn account<'calls>(
                         };
                         completion_owns(*transfers, *statement_ordinal, *is_continuation)
                     })
+            }
+            TerminatorPlan::CompleteExpression { completion } => {
+                !completion.expression.normal_continuation
+                    || completion.definite_call_transfers(
+                        &facts.values,
+                        call_schedules,
+                        operation,
+                        terminal_local,
+                    ) == 1
+                    || permits_disposal(Some(completion.statement_ordinal), false)
             }
             TerminatorPlan::ReturnUnit | TerminatorPlan::ReturnScalar { .. } => {
                 permits_disposal(None, false)
@@ -970,6 +983,10 @@ pub(super) fn account<'calls>(
                 // those child moves; partial moves keep residual custody.
                 let selected_case_exhausted =
                     |case: &checked_trees::CheckedClosedSumCasePlan, arm: &ReturnArm| {
+                        // A union of alternative moves cannot exhaust one selected case.
+                        if matches!(arm, ReturnArm::Completion(_)) {
+                            return false;
+                        }
                         let no_nominal_cleanup = shapes
                             .types
                             .get(&result.type_identity)

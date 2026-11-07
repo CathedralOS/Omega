@@ -214,11 +214,12 @@ pub(super) fn validate<'a, 'p>(
                 "place",
                 diagnostics,
             );
-            expression_types::report_delivered_type_mismatch(
+            expression_types::report_delivered_type_mismatch_with_component(
                 program,
                 machine.symbol,
                 value,
                 target_type,
+                program.pattern_component(assignment.target),
                 &owner,
                 diagnostics,
             );

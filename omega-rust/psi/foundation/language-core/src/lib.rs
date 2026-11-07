@@ -39,5 +39,5 @@ pub use source_semantics::{
     BindingRelevance, CallOperationalAcknowledgement, CallOperationalAcknowledgementOrigin,
     CarryAddress, CarryCpu, CarryHostThread, CarryPermission, CarryPolicy, CarrySuspension,
     DataSupplyMode, DomainClassification, DomainPredicatePresence, LocalBindingRole, Multiplicity,
-    ReferenceAccess,
+    PatternComponent, ReferenceAccess,
 };
