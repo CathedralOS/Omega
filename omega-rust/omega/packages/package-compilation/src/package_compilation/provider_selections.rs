@@ -17,24 +17,44 @@ use std::path::PathBuf;
 use symbols::RetainedDeclaration;
 
 impl PackageCompilationInputs {
-    pub(crate) fn product_selection_source_seeds(&self) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
+    pub(crate) fn product_selection_source_seeds(
+        &self,
+        loaded_sources: Option<&source::SourceMap>,
+    ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
         let mut paths = Vec::new();
         for (scope, bundle) in self.dependency_build_handoff_instances() {
             if scope != DependencyPurpose::Product {
                 continue;
             }
             self.admit_provider_activation(bundle)?;
+            let package_sliced = loaded_sources.is_some_and(|sources| {
+                sources
+                    .selected_files()
+                    .any(|file| file.package_identity == Some(bundle.package()))
+            });
             for declaration in bundle.native_declarations() {
                 let anchor =
                     self.admit_retained_product_declaration(bundle, &declaration.requirement)?;
                 if anchor.source().resolution_stratum == SourceResolutionStratum::Base {
-                    paths.push(anchor.source().path.clone());
+                    let reached = !package_sliced
+                        || declaration.dependency_alias.is_some()
+                        || loaded_sources.is_none_or(|sources| {
+                            sources
+                                .selected_files()
+                                .any(|file| file.path == anchor.source().path)
+                        });
+                    if reached {
+                        paths.push(anchor.source().path.clone());
+                    }
                 }
             }
             if let Some(defaults) = CompletedProviderDefaults::from_package(bundle)
                 .map_err(|reason| vec![Diagnostic::error(reason)])?
             {
-                paths.extend(defaults.source_seeds(ProviderDefaultsAdmission::Package(self))?);
+                paths.extend(defaults.reached_source_seeds(
+                    ProviderDefaultsAdmission::Package(self),
+                    loaded_sources,
+                )?);
             }
         }
         paths.sort();

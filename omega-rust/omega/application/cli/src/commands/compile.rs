@@ -1,13 +1,13 @@
 //! Console adapter for the project compilation operation.
 
-use super::arguments::CompileArguments;
+use crate::arguments::CompileArguments;
 use compiler::CompilerRequestOutcome;
 use orchestration::{
     BuildError, BuildRequest, BuildTargets, NativeDestination, ProjectProduct, TargetBuildOutcome,
     build,
 };
 
-pub(crate) fn compile_project_command(arguments: CompileArguments) {
+pub(crate) fn run(arguments: CompileArguments) {
     let started = arguments.timings.then(std::time::Instant::now);
     let report_file = arguments.report_file.clone();
     let target_names = arguments.target_names;
@@ -183,61 +183,44 @@ fn print_elapsed(started: std::time::Instant) {
 }
 
 fn print_outcome(outcome: &orchestration::BuildReport) {
-    if let Some(path) = &outcome.executable_path {
-        if let Some(receipt) = outcome.report.optimization_rollback_receipt() {
-            println!("optimizer rollback: {receipt}");
-        }
-        // A published macOS package reports its `.app` root; the inner
-        // executable stays reachable through `checked_native_executable_path`.
-        if let Some(package_root) = outcome.report.checked_native_package_path() {
-            println!("published macOS package to {}", package_root.display());
-        } else {
-            println!("published native output to {}", path.display());
-        }
-    } else {
+    if outcome.executable_path.is_none() {
         println!("{}", outcome.report.summary());
     }
-    if let Some(directory) = outcome
-        .report
-        .build_outputs()
-        .and_then(|outputs| outputs.published_directory())
-    {
-        println!(
-            "published completed build outputs to {}",
-            directory.display()
-        );
-    }
+    print!("{}", format_publication_lines(outcome));
 }
 
 /// Render the produced outcome as the plain-text observation `--report-file`
 /// requests: the requested product, the named target, the report summary,
 /// and every publication line the console reports.
 fn report_text(target_name: Option<&str>, outcome: &orchestration::BuildReport) -> String {
-    let mut contents = String::new();
-    contents.push_str(match outcome.executable_path.is_some() {
-        true => "product: native artifact\n",
-        false => "product: check\n",
-    });
-    match target_name {
-        Some(target) => contents.push_str(&format!("target: {target}\n")),
-        None => contents.push_str("target: host default\n"),
-    }
-    contents.push_str(&outcome.report.summary());
-    contents.push('\n');
-    if let Some(receipt) = outcome.report.optimization_rollback_receipt() {
-        contents.push_str(&format!("optimizer rollback: {receipt}\n"));
-    }
+    let product = if outcome.executable_path.is_some() {
+        "native artifact"
+    } else {
+        "check"
+    };
+    let target = target_name.unwrap_or("host default");
+    format!(
+        "product: {product}\ntarget: {target}\n{}\n{}",
+        outcome.report.summary(),
+        format_publication_lines(outcome)
+    )
+}
+
+fn format_publication_lines(outcome: &orchestration::BuildReport) -> String {
+    let mut lines = String::new();
     if let Some(path) = &outcome.executable_path {
-        match outcome.report.checked_native_package_path() {
-            Some(package_root) => {
-                contents.push_str(&format!(
-                    "published macOS package to {}\n",
-                    package_root.display()
-                ));
-            }
-            None => {
-                contents.push_str(&format!("published native output to {}\n", path.display()));
-            }
+        if let Some(receipt) = outcome.report.optimization_rollback_receipt() {
+            lines.push_str(&format!("optimizer rollback: {receipt}\n"));
+        }
+        // A published macOS package reports its `.app` root; the inner
+        // executable stays reachable through `checked_native_executable_path`.
+        if let Some(package_root) = outcome.report.checked_native_package_path() {
+            lines.push_str(&format!(
+                "published macOS package to {}\n",
+                package_root.display()
+            ));
+        } else {
+            lines.push_str(&format!("published native output to {}\n", path.display()));
         }
     }
     if let Some(directory) = outcome
@@ -245,12 +228,12 @@ fn report_text(target_name: Option<&str>, outcome: &orchestration::BuildReport) 
         .build_outputs()
         .and_then(|outputs| outputs.published_directory())
     {
-        contents.push_str(&format!(
+        lines.push_str(&format!(
             "published completed build outputs to {}\n",
             directory.display()
         ));
     }
-    contents
+    lines
 }
 
 fn write_report_or_exit(path: &std::path::Path, contents: &str) {

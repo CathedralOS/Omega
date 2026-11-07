@@ -9,7 +9,6 @@ use crate::obligations::ranges::{
     integer_range_from_constraints,
 };
 use numerics::bignum::BigInt;
-use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
 use symbols::{
     BuiltinTypeAtom, SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder,
     builtin_type_symbols,
@@ -19,33 +18,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionNode, FloatLiteral, Tabl
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
-use typed_trees::types::TypeConstraintNode;
-use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::TypeReferenceNode;
-
-/// A program carrying one builtin `Named` type reference; returns the
-/// carrier handle constraint readers resolve their declared type through.
-fn program_with_primitive(
-    atom: BuiltinTypeAtom,
-    name: &'static str,
-) -> (TypedTrees, TypeReferenceHandle) {
-    let mut builder = SymbolTableBuilder::new();
-    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-    let builtins =
-        SymbolTableBuilder::child_handles(builder.insert_children(root, builtin_type_symbols()))
-            .collect::<Vec<_>>();
-    let mut program = TypedTrees {
-        symbols: builder.finish(),
-        ..TypedTrees::default()
-    };
-    let carrier = program
-        .type_reference_table
-        .insert(TypeReferenceNode::Named {
-            symbol: builtins[atom.ordinal()],
-            name: Identifier::generated(name),
-        });
-    (program, carrier)
-}
 
 #[test]
 fn float_ranges_intersect_and_contain_with_strict_endpoints() {

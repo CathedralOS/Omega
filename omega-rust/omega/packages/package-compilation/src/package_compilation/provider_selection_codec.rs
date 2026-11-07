@@ -467,25 +467,6 @@ fn source_owner(source: &SourceFile, output: &mut Vec<u8>) {
     });
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn provider_selection_envelope_roundtrip_and_retired_version_refusal() {
-        let observation = Some([0x73; 32]);
-        let bytes = encode_package_provider_selections(&[], observation);
-        let (rows, decoded) = decode_package_provider_selections(&bytes)
-            .expect("the current provider envelope must roundtrip");
-        assert!(rows.is_empty());
-        assert_eq!(decoded, observation);
-
-        let mut previous = bytes;
-        previous[MAGIC.len() - 1] = 2;
-        assert!(decode_package_provider_selections(&previous).is_none());
-    }
-}
-
 #[cfg(unix)]
 fn encode_path(path: &Path, output: &mut Vec<u8>) {
     use std::os::unix::ffi::OsStrExt;
@@ -528,4 +509,23 @@ fn decode_path(cursor: &mut ObservationCursor<'_>) -> Option<PathBuf> {
         .map(|pair| u16::from_le_bytes(*pair))
         .collect();
     Some(std::ffi::OsString::from_wide(&words).into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn provider_selection_envelope_roundtrip_and_retired_version_refusal() {
+        let observation = Some([0x73; 32]);
+        let bytes = encode_package_provider_selections(&[], observation);
+        let (rows, decoded) = decode_package_provider_selections(&bytes)
+            .expect("the current provider envelope must roundtrip");
+        assert!(rows.is_empty());
+        assert_eq!(decoded, observation);
+
+        let mut previous = bytes;
+        previous[MAGIC.len() - 1] = 2;
+        assert!(decode_package_provider_selections(&previous).is_none());
+    }
 }

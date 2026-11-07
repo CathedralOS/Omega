@@ -1,11 +1,11 @@
 //! Shell output and exit-code policy for the reusable run operation.
 
-use super::arguments::RunArguments;
-use compiler::CompilerRequestOutcome;
-use omega::execution::{
+use crate::arguments::RunArguments;
+use crate::execution::{
     CaseRunRequest, ExecutionOutcome, ExecutionSelection, InterpreterComparison, RunError,
     RunRequest, TerminalOutcome, run_project, run_project_cases,
 };
+use compiler::CompilerRequestOutcome;
 use std::io::Write;
 
 pub(crate) fn run(arguments: RunArguments) -> ! {

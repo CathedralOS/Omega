@@ -8,6 +8,27 @@
 use super::{FramePathPrecision, FramePlaceOrigin, append_place_suffix, coordinate_storage_path};
 use crate::LocalWriteSource;
 
+/// The declaration enclosing a captured view's complete write footprint.
+/// Collection precision is absorbing in the frame: selectors below that
+/// boundary cannot identify another owner's field in the backing namespace.
+pub(super) fn captured_write_scope(source: &super::RecastSource) -> Option<crate::CanonicalPlace> {
+    source.root.is_valid().then_some(())?;
+    Some(crate::CanonicalPlace {
+        root: facts::PlaceRoot::Symbol(source.root),
+        segments: source
+            .segments
+            .iter()
+            .copied()
+            .take_while(|segment| {
+                matches!(
+                    segment,
+                    facts::PlaceSegment::Field { .. } | facts::PlaceSegment::Case { .. }
+                )
+            })
+            .collect(),
+    })
+}
+
 pub(in crate::machine_calls::calls::write_frames) fn project_write_path(
     program: &dyn crate::CheckingInput,
     origin: &FramePlaceOrigin,
@@ -109,11 +130,11 @@ pub(in crate::machine_calls::calls::write_frames) fn project_write_path(
     // The first recast captured storage before any alternate interpretation.
     // A missing leaf is not purity: retain that entire backing footprint.
     let first = &source.recasts[0];
-    if !first.root.is_valid() {
+    let Some(scope) = captured_write_scope(first) else {
         // Path-only provenance cannot select a leaf beneath the new view.
         // Keep its established storage root, covering every stored referent
         // when the ordinary origin expansion visits that carrier.
         return super::split_place_root(&origin.path).0.to_owned();
-    }
-    coordinate_storage_path(program, program.symbols.name(first.root), &first.segments).0
+    };
+    coordinate_storage_path(program, program.symbols.name(first.root), &scope.segments).0
 }

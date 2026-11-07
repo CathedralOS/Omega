@@ -250,6 +250,7 @@ pub fn compiler_intrinsic_execution_identity_bytes(
                 terminal_psi::TerminalAccessLifecycleOperation::Initialize => 0,
                 terminal_psi::TerminalAccessLifecycleOperation::MoveOut => 1,
                 terminal_psi::TerminalAccessLifecycleOperation::View => 2,
+                terminal_psi::TerminalAccessLifecycleOperation::Relocate => 3,
             };
         }
         CompilerIntrinsicExecutionIdentity::AccessorScalarAccess {

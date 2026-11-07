@@ -1,13 +1,11 @@
 use super::{
-    ConstExpressionTypeReference, ConstrainedTypeReference, ConstrainedTypeReferenceStorage,
     FixedArrayLength, FixedArrayTypeReference, FixedArrayTypeReferenceStorage,
-    GenericTypeReference, GenericTypeReferenceStorage, TypeConstraint, TypeConstraintNode,
-    TypeReference, TypeReferenceNode, TypeReferenceTable,
+    GenericTypeReference, GenericTypeReferenceStorage, TypeConstraint, TypeReference,
+    TypeReferenceNode, TypeReferenceTable,
 };
 use crate::expression::ExpressionTable;
 use crate::name::DiagnosticName;
 use arena::Arena;
-use source::{SourceId, SourceSpan, Span};
 use symbols::SymbolHandle;
 
 #[test]

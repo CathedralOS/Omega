@@ -52,17 +52,7 @@ pub fn check_source(
 ) -> compilation_products::CheckedCompileOutcome {
     let result = compiler::checked::run_on_compile_thread(|| {
         let mut prepared = compiler.begin_source_compilation(request)?;
-        let returned = loop {
-            let mut queries = prepared.product_queries();
-            let returned = crate::compile::build_execution::execute_build(
-                prepared.execution(),
-                Some(&mut queries),
-            );
-            match prepared.advance(returned)? {
-                compiler::BuildAdvance::Continue => continue,
-                compiler::BuildAdvance::Complete(returned) => break returned,
-            }
-        };
+        let returned = execute_prepared_source_build(&mut prepared)?;
         Ok::<_, CompileFailure>(compiler.complete_source_check(prepared, returned))
     });
     match result {
@@ -87,21 +77,27 @@ pub fn produce_source(
             .map_err(|failure| {
                 compiler::CompilationProductError::Production(failure.into_diagnostics())
             })?;
-        let returned = loop {
-            let mut queries = prepared.product_queries();
-            let returned = crate::compile::build_execution::execute_build(
-                prepared.execution(),
-                Some(&mut queries),
-            );
-            match prepared.advance(returned).map_err(|failure| {
-                compiler::CompilationProductError::Production(failure.into_diagnostics())
-            })? {
-                compiler::BuildAdvance::Continue => continue,
-                compiler::BuildAdvance::Complete(returned) => break returned,
-            }
-        };
+        let returned = execute_prepared_source_build(&mut prepared).map_err(|failure| {
+            compiler::CompilationProductError::Production(failure.into_diagnostics())
+        })?;
         compiler
             .complete_source_product(prepared, returned, product)
             .and_then(crate::complete_product)
     })
+}
+
+fn execute_prepared_source_build(
+    prepared: &mut compiler::SourceCompilation,
+) -> Result<Result<Option<build_settings::ReturnedBuild>, CompileFailure>, CompileFailure> {
+    loop {
+        let mut queries = prepared.product_queries();
+        let returned = crate::compile::build_execution::execute_build(
+            prepared.execution(),
+            Some(&mut queries),
+        );
+        match prepared.advance(returned)? {
+            compiler::BuildAdvance::Continue => continue,
+            compiler::BuildAdvance::Complete(returned) => return Ok(returned),
+        }
+    }
 }

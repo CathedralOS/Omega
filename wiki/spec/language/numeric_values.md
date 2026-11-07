@@ -179,7 +179,8 @@ Decimal literals and wholly anonymous arithmetic denote exact rationals.
 Anonymous integer-literal division is rational division, not truncation:
 the destination checks or rounds the completed value, never selects its
 intermediate operations. Float landing rounds once to the selected format;
-integer landing requires an integral in-range result. Mixing an already-typed
+integer landing requires an integral in-range result and explicit `as` when
+acknowledging fractional intermediates, as specified below. Mixing an already-typed
 operand with an anonymous operand first lands the latter for that typed
 operation. This introduces no runtime rational arithmetic.
 
@@ -214,19 +215,44 @@ Integer landing of a fractional final value rejects with its exact value and
 destination type. The diagnostic explains that typing an operand requests
 integer division; typing only the destination does not.
 
-If an authored anonymous calculation instead has a fractional intermediate and
-an integral final value that successfully lands as an integer, issue a
-default-on, suppressible warning. Report the fractional origin and exact final
-value, and suggest typing an operand if integer division was intended.
-For example, `(4097 / 4096) * 4096` lands as `4097`, not an alignment-down result.
-Retain that origin through simplification: cancellation cannot erase the warning.
+An authored anonymous calculation with a fractional intermediate rejects at an
+implicit integer landing, even when its final value is integral and in range.
+The diagnostic identifies the fractional origin, exact final value and integer
+destination. Suggest `as` around the complete anonymous expression to request
+exact mathematical evaluation followed by integer landing, or typing an operand
+if integer arithmetic was intended. A destination annotation alone does not
+acknowledge the fractional intermediate.
+
+`as T` applied to an anonymous expression, with an integer destination `T`,
+explicitly lands its complete operand. Evaluate that operand as exact anonymous
+arithmetic, then prove final integrality, representability and the target's
+ordinary predicate and authority obligations. Fractional intermediates inside
+that operand are acknowledged; the cast neither truncates nor retroactively
+types them. It cannot repair division by zero, a fractional final value or an
+out-of-range result. Qualified integer destinations obey the same rule.
+
+```omega
+let implicit: u32 = (5 / 2) * 2;          // Reject: explicit landing required.
+let exact: u32 = ((5 / 2) * 2) as u32;    // 5.
+let truncated: u32 = (5u32 / 2) * 2;      // 4: typed integer division.
+let fractional: u32 = (5 / 2) as u32;    // Reject: 5/2 is not integral.
+let overflow: u8 = (256 / 2 * 2) as u8;  // Reject: 256 is out of range.
+```
+
+An acknowledgement covers only the cast's operand. `as` binds more tightly
+than multiplication: `(5 / 2) * 2 as u32` casts only `2`, so multiplication
+requires `5/2` to land as `u32` and rejects. Parenthesize the entire anonymous
+calculation when that is what should land. A cast around an enclosing result
+does not bypass earlier landing boundaries at machine arguments or typed
+operations, nor make already-typed values anonymous again.
 
 The trigger is an actual fractional intermediate, not comparison with a
-hypothetical truncating evaluation. Already-typed integer division and floating
-landing do not trigger it. Suppression changes neither arithmetic nor admission;
-ordinary suppression is allowed without an expression-only restriction. This is
-an author-intent correctness warning, not a claim that a valid integral landing
-is unsound.
+hypothetical truncating evaluation. Retain its source origin through
+simplification: cancellation cannot erase the acknowledgement requirement.
+Decimal spelling grants no exemption; `5` and `5.0` denote the same number.
+Already-typed integer division and floating landing do not trigger this rule.
+Existing exact carrier coercions retain their rules. This is an admission
+error, with no warning-suppression escape.
 
 ## Arithmetic and comparisons
 

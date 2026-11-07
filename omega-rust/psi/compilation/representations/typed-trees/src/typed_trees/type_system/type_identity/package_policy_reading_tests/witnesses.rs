@@ -174,7 +174,6 @@ pub(super) fn type_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
 }
 
 pub(super) fn constraint_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
-    let n = fixture.symbol("N");
     let payload = fixture.named("Payload");
     let eight = fixture.spelled("8");
     let domain = |subject, symbol: SymbolHandle, name: &str, arguments| DomainConstraint {

@@ -42,6 +42,124 @@ fn region(offset: u64, length: u64, stable: StableCapability) -> ResourceRegion 
 }
 
 #[test]
+fn relocation_checks_later_cells_without_enumerating_the_run() {
+    let plan = plan(true);
+    let count = 1_000_000_000;
+    let occupied = count * 12;
+    let source = validate_resource_profile(
+        ResourceProfile {
+            regions: vec![region(0, occupied, StableCapability::Read)],
+        },
+        occupied,
+    )
+    .expect("source");
+    let destination = validate_resource_profile(
+        ResourceProfile {
+            regions: vec![region(0, occupied, StableCapability::ReadWrite)],
+        },
+        occupied,
+    )
+    .expect("destination");
+    crate::validate_run_relocation_resources(&plan, count, 4096, &source, &destination)
+        .expect("a billion cells with one uniform supply region");
+
+    let late_write_only = validate_resource_profile(
+        ResourceProfile {
+            regions: vec![
+                region(0, occupied - 12, StableCapability::ReadWrite),
+                region(occupied - 12, 12, StableCapability::Write),
+            ],
+        },
+        occupied,
+    )
+    .expect("late read permission removed");
+    let error =
+        crate::validate_run_relocation_resources(&plan, count, 4096, &source, &late_write_only)
+            .expect_err("the last cell still owes the declared read access");
+    assert!(error.0.contains("Stable read=true"));
+}
+
+#[test]
+fn relocation_requires_exact_windows_and_complete_source_reads() {
+    let plan = plan(false);
+    let readable = validate_resource_profile(
+        ResourceProfile {
+            regions: vec![region(0, 24, StableCapability::Read)],
+        },
+        24,
+    )
+    .expect("source");
+    let writable = validate_resource_profile(
+        ResourceProfile {
+            regions: vec![region(0, 24, StableCapability::Write)],
+        },
+        24,
+    )
+    .expect("destination");
+    crate::validate_run_relocation_resources(&plan, 2, 4096, &readable, &writable)
+        .expect("write-only destination is sufficient for inaccessible cells");
+    assert!(
+        crate::validate_run_relocation_resources(&plan, 1, 4096, &readable, &writable)
+            .expect_err("capacity is not occupied length")
+            .0
+            .contains("exact occupied")
+    );
+    assert!(
+        crate::validate_run_relocation_resources(&plan, 2, 4097, &readable, &writable)
+            .expect_err("alignment still matters")
+            .0
+            .contains("alignment")
+    );
+    assert!(
+        crate::validate_run_relocation_resources(&plan, 2, 4096, &writable, &writable)
+            .expect_err("source needs reads")
+            .0
+            .contains("Stable read")
+    );
+    assert!(
+        crate::validate_run_relocation_resources(&plan, u64::MAX, 0, &readable, &writable)
+            .expect_err("count arithmetic is checked")
+            .0
+            .contains("overflows")
+    );
+}
+
+#[test]
+fn relocation_distinguishes_no_cells_from_zero_footprint_cells() {
+    let empty = validate_resource_profile(ResourceProfile::default(), 0).expect("empty profile");
+    assert!(
+        crate::validate_run_relocation_resources(&plan(true), 0, 4096, &empty, &empty)
+            .expect("an empty run needs no view of a cell")
+            .is_none()
+    );
+    let layout = layout_plans::LayoutPlanReport {
+        schema_report_fingerprint: 71,
+        entries: Vec::new(),
+        offsets: None,
+        size: Some(0),
+        align: 8,
+    };
+    let access = AccessFields::inaccessible(&layout).expect("zero-footprint fields");
+    let zero_sized = validate_access_plan(AccessPlan {
+        layout,
+        access,
+        reach: BoundaryReach::default(),
+    })
+    .expect("zero-footprint placement");
+    assert!(
+        crate::validate_run_relocation_resources(&zero_sized, u64::MAX, 4096, &empty, &empty)
+            .expect("logical count does not enumerate zero-sized cells")
+            .is_some()
+    );
+    assert!(
+        crate::validate_run_relocation_resources(&zero_sized, 1, 4097, &empty, &empty)
+            .expect_err("zero bytes do not erase cell alignment")
+            .0
+            .contains("alignment")
+    );
+}
+
+#[test]
 fn read_only_view_supply_does_not_authorize_initialization() {
     let plan = plan(true);
     let profile = validate_resource_profile(

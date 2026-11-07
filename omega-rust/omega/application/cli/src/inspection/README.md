@@ -1,10 +1,10 @@
 # Terminal inspection
 
 [mod.rs](mod.rs) owns the reusable inspection operation;
-[cli/inspection.rs](../cli/inspection.rs) owns its text view and
-[cli/arguments/inspection.rs](../cli/arguments/inspection.rs) parses the request.
-[evidence.rs](evidence.rs) verifies the selected module before trying
-the existing fixed-work deriver. Inspection grants no execution or native authority.
+[summary.rs](summary.rs) formats the Terminal module summary;
+[commands/inspect.rs](../commands/inspect.rs) owns CLI execution and output; and
+[arguments/inspect.rs](../arguments/inspect.rs) parses the request.
+Inspection grants no execution or native authority.
 
 A root beside a `build.omg` is prepared through the package manager exactly as
 `--check` prepares it, so declared dependency aliases resolve; a standalone root

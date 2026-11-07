@@ -84,6 +84,7 @@ impl IntegerRootPlan {
 mod root_plan_tests {
     use super::*;
     use typed_trees::constant_recipes::ConstantExpressionContext;
+    use typed_trees::types::TypeReferenceHandle;
 
     #[test]
     fn constant_expression_contexts_share_legacy_folds_without_losing_owners() {
