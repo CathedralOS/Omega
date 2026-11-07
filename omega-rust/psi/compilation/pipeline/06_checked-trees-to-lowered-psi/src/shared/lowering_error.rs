@@ -40,6 +40,38 @@ pub struct SelectedCleanupEntryMismatch {
     pub sites: Vec<SelectedCleanupEntrySite>,
 }
 
+/// A checked crossing or old capture failed to join its actual emitted call.
+/// These coordinates explain an incomplete lowering association; they do not
+/// recheck source permission, choose another occurrence, or supply a plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SuspensionCallBindingMismatch {
+    pub coordinate: Option<lowered_psi::LoweredStatementCallCoordinate>,
+    pub occurrence_index: Option<usize>,
+    pub caller: Option<semantic_vocabulary::MachineId>,
+    pub operation: Option<semantic_vocabulary::OperationId>,
+    pub failure: SuspensionCallBindingFailure,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SuspensionCallBindingFailure {
+    MissingOccurrence,
+    Redirected {
+        recorded: symbols::SymbolHandle,
+        requested: symbols::SymbolHandle,
+    },
+    MissingStatementCoordinate,
+    NonContinuingSite,
+    RepeatedInvocation,
+    OperationOwnerCount {
+        actual: usize,
+    },
+    NonCallOperation,
+    UnavailableEmittedOwner,
+    CallerOccurrenceCount {
+        actual: usize,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
     TaskActivation(Vec<Diagnostic>),
@@ -102,6 +134,8 @@ pub enum LoweringError {
     InvalidBoundaryApplication(String),
     /// A checked lender request must join its exact emitted call and public row.
     InvalidLenderPreservationPlan(&'static str),
+    /// A suspension demand must keep its actual emitted caller and invocation.
+    SuspensionCallBindingMismatch(Box<SuspensionCallBindingMismatch>),
     /// A checked forwarding request must keep its source choices when emitted.
     InvalidReferenceForwardingPlan(&'static str),
     /// An actual saved-reference use can require a conditional provider proof.
@@ -377,7 +411,17 @@ impl LoweringError {
     }
 }
 
-diagnostics::debug_display!(LoweringError);
+impl std::fmt::Display for LoweringError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::SuspensionCallBindingMismatch(mismatch) => write!(
+                formatter,
+                "the compiler could not match this call to the code it generated: {mismatch:?}"
+            ),
+            _ => write!(formatter, "{self:?}"),
+        }
+    }
+}
 
 impl std::error::Error for LoweringError {}
 

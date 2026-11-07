@@ -103,7 +103,7 @@
 17 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/reborrow_restored_call_use.rs
 8 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/reborrow_restored_call_use/places.rs
 24 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/retained_borrow_custody.rs
-49 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs
+44 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs
 20 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/branch_states/call_lowering.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/branch_states/guards.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/branch_states/prepared.rs

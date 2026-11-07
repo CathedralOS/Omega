@@ -17,6 +17,10 @@ use crate::shared::direct_calls::direct_call_parts;
 use crate::shared::terminal_identities::lookup_claim_id;
 use arena::{Handle, HandleSpan};
 use terminal_psi::{TerminalSuspensionPlace, TerminalSuspensionValueType};
+
+mod call_bindings;
+use call_bindings::SourceCallBindings;
+
 pub(crate) fn retain_suspension_call_plans(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
@@ -30,7 +34,7 @@ pub(crate) fn retain_suspension_call_plans(
     }
 
     let mut plans = Vec::new();
-    let mut source_call_bindings = SourceCallBindings::default();
+    let mut source_call_bindings = None;
     // A fused recursive component lowers its member machines' states into the
     // composed Terminal machine of the component's entry, so those members are
     // not source machines of their own. Every emitted state still owes its
@@ -48,158 +52,172 @@ pub(crate) fn retain_suspension_call_plans(
                     .any(|block| block.state == crossing.state)
         })
     {
+        let source_call_bindings = source_call_bindings
+            .get_or_insert_with(|| SourceCallBindings::new(source_calls, module));
         // A fused transfer has no standalone call to bind. Other missing sites
         // remain errors at the shared required-call join.
-        if !source_calls.iter().any(|occurrence| {
-            occurrence.matches_statement(
-                crossing.state,
-                crossing.statement_index,
-                crossing.call_ordinal,
-            )
-        }) && fused_component_transfer(checked, state_blocks, crossing)
-        {
-            continue;
-        }
-        let call_binding = source_call_bindings.bind(
-            checked,
-            source_calls,
-            module,
+        let occurrences = source_call_bindings.matching(
             crossing.state,
             crossing.statement_index,
             crossing.call_ordinal,
-            crossing.target,
-        )?;
-        let call_binding = &mut source_call_bindings.calls[call_binding];
-        let occurrence = &source_calls[call_binding.occurrence_index];
-        let (machine_index, block_index, operation_index) = call_binding.location;
-        let terminal_operation = call_binding.operation;
-        let target = call_binding.target;
-
-        let mut live_values = Vec::with_capacity(crossing.live_values.len());
-        for live in &crossing.live_values {
-            let (place, value_type) = match live.origin {
-                checked_trees::SuspensionCrossingValueOrigin::Parameter { position, .. }
-                | checked_trees::SuspensionCrossingValueOrigin::Local {
-                    environment_position: position,
-                    ..
-                } => source_binding(&occurrence.frontier_before_call, position)?,
-                checked_trees::SuspensionCrossingValueOrigin::CallArgument { position } => {
-                    call_binding.argument(checked, module, position)?
-                }
-            };
-            if let TerminalSuspensionPlace::Scalar(value) = place {
-                if !scalar_value_available_before(
-                    &module.machines[machine_index],
-                    block_index,
-                    operation_index,
-                    value,
-                ) {
-                    return unsupported("suspension frontier value is unavailable at its call");
-                }
-                let source_type = checked
-                    .primitive_type_reference(live.type_reference)
-                    .ok_or(LoweringError::Unsupported(
-                        "suspension scalar frontier has no checked scalar type",
-                    ))?;
-                if TerminalSuspensionValueType::Scalar(terminal_scalar_type(source_type)?)
-                    != value_type
-                {
-                    return unsupported("suspension frontier scalar type join is inconsistent");
-                }
-            } else if let TerminalSuspensionPlace::Structural(argument) = &place
-                && !module.machines[machine_index]
-                    .structural_places
-                    .iter()
-                    .any(|declaration| declaration.id == argument.place)
-            {
-                return unsupported(
-                    "suspension structural frontier has no caller storage declaration",
-                );
+        );
+        if occurrences.is_empty() {
+            if fused_component_transfer(checked, state_blocks, crossing) {
+                continue;
             }
-            let mut claims = live
-                .claims
-                .iter()
-                .map(|identity| lookup_claim_id(&occurrence.frontier_before_call.claims, *identity))
-                .collect::<Result<Vec<_>, _>>()?;
-            claims.sort();
-            live_values.push((
-                live,
-                terminal_psi::TerminalSuspensionLiveValue {
-                    place,
-                    value_type,
-                    storage: match live.storage {
-                        checked_trees::SuspensionCrossingStorage::Parameter => {
-                            terminal_psi::TerminalSuspensionStorage::Parameter
-                        }
-                        checked_trees::SuspensionCrossingStorage::Local => {
-                            terminal_psi::TerminalSuspensionStorage::Local
-                        }
-                        checked_trees::SuspensionCrossingStorage::CallArgument => {
-                            terminal_psi::TerminalSuspensionStorage::CallArgument
-                        }
-                    },
-                    claim_count: u32::try_from(claims.len()).map_err(|_| {
-                        LoweringError::Unsupported(
-                            "suspension frontier claim count exceeds the Terminal vocabulary",
-                        )
-                    })?,
-                    claims,
-                    effective: live.effective,
-                    loans: terminal_psi::TerminalSuspensionValueLoans::Unresolved,
-                },
+            return Err(SourceCallBindings::missing_occurrence(
+                crossing.state,
+                crossing.statement_index,
+                crossing.call_ordinal,
             ));
         }
-        live_values.sort_by(|left, right| {
-            (
-                &left.1.place,
-                left.1.storage,
-                left.1.value_type,
-                left.1.effective,
-            )
-                .cmp(&(
-                    &right.1.place,
-                    right.1.storage,
-                    right.1.value_type,
-                    right.1.effective,
-                ))
-        });
-        let loans = retain_loan_graph(
-            identities,
-            checked,
-            crossing,
-            occurrence,
-            &mut live_values,
-            source_calls,
-            &mut source_call_bindings,
-            module,
-        )?;
-        let live_values = live_values
-            .into_iter()
-            .map(|(_, live)| live)
-            .collect::<Vec<_>>();
-        let crossing_id = checked_trees::canonical_suspension_crossing_id(&checked.typed, crossing)
-            .ok_or(LoweringError::Unsupported(
-                "suspension crossing identity cannot resolve its source symbols",
-            ))?;
-        // Bind the authoritative possibly-suspending demand onto the call
-        // itself: the site and plan rows below are evidence for this marker,
-        // not its source, so deleting the paired rows cannot erase the
-        // required crossing.
-        module.machines[machine_index].blocks[block_index].operations[operation_index]
-            .suspension_crossing = Some(crossing_id);
-        plans.push(terminal_psi::TerminalSuspensionCallPlan {
-            operation: terminal_operation,
-            crossing: crossing_id,
-            target,
-            effective: crossing.effective,
-            live_value_count: u32::try_from(live_values.len()).map_err(|_| {
-                LoweringError::Unsupported(
-                    "suspension live-value count exceeds the Terminal vocabulary",
+        for ordinal in occurrences {
+            let occurrence_index = source_call_bindings.occurrence_index(ordinal);
+            let call_binding = source_call_bindings.bind_occurrence(
+                checked,
+                module,
+                occurrence_index,
+                crossing.target,
+            )?;
+            let call_binding = &mut source_call_bindings.calls[call_binding];
+            let occurrence = &source_calls[call_binding.occurrence_index];
+            let (machine_index, block_index, operation_index) = call_binding.location;
+            let terminal_operation = call_binding.operation;
+            let target = call_binding.target;
+            let caller = call_binding.caller;
+
+            let mut live_values = Vec::with_capacity(crossing.live_values.len());
+            for live in &crossing.live_values {
+                let (place, value_type) = match live.origin {
+                    checked_trees::SuspensionCrossingValueOrigin::Parameter {
+                        position, ..
+                    }
+                    | checked_trees::SuspensionCrossingValueOrigin::Local {
+                        environment_position: position,
+                        ..
+                    } => source_binding(&occurrence.frontier_before_call, position)?,
+                    checked_trees::SuspensionCrossingValueOrigin::CallArgument { position } => {
+                        call_binding.argument(checked, module, crossing.target, position)?
+                    }
+                };
+                if let TerminalSuspensionPlace::Scalar(value) = place {
+                    if !scalar_value_available_before(
+                        &module.machines[machine_index],
+                        block_index,
+                        operation_index,
+                        value,
+                    ) {
+                        return unsupported("suspension frontier value is unavailable at its call");
+                    }
+                    let source_type = checked
+                        .primitive_type_reference(live.type_reference)
+                        .ok_or(LoweringError::Unsupported(
+                            "suspension scalar frontier has no checked scalar type",
+                        ))?;
+                    if TerminalSuspensionValueType::Scalar(terminal_scalar_type(source_type)?)
+                        != value_type
+                    {
+                        return unsupported("suspension frontier scalar type join is inconsistent");
+                    }
+                } else if let TerminalSuspensionPlace::Structural(argument) = &place
+                    && !module.machines[machine_index]
+                        .structural_places
+                        .iter()
+                        .any(|declaration| declaration.id == argument.place)
+                {
+                    return unsupported(
+                        "suspension structural frontier has no caller storage declaration",
+                    );
+                }
+                let mut claims = live
+                    .claims
+                    .iter()
+                    .map(|identity| {
+                        lookup_claim_id(&occurrence.frontier_before_call.claims, *identity)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                claims.sort();
+                live_values.push((
+                    live,
+                    terminal_psi::TerminalSuspensionLiveValue {
+                        place,
+                        value_type,
+                        storage: match live.storage {
+                            checked_trees::SuspensionCrossingStorage::Parameter => {
+                                terminal_psi::TerminalSuspensionStorage::Parameter
+                            }
+                            checked_trees::SuspensionCrossingStorage::Local => {
+                                terminal_psi::TerminalSuspensionStorage::Local
+                            }
+                            checked_trees::SuspensionCrossingStorage::CallArgument => {
+                                terminal_psi::TerminalSuspensionStorage::CallArgument
+                            }
+                        },
+                        claim_count: u32::try_from(claims.len()).map_err(|_| {
+                            LoweringError::Unsupported(
+                                "suspension frontier claim count exceeds the Terminal vocabulary",
+                            )
+                        })?,
+                        claims,
+                        effective: live.effective,
+                        loans: terminal_psi::TerminalSuspensionValueLoans::Unresolved,
+                    },
+                ));
+            }
+            live_values.sort_by(|left, right| {
+                (
+                    &left.1.place,
+                    left.1.storage,
+                    left.1.value_type,
+                    left.1.effective,
                 )
-            })?,
-            live_values,
-            loans,
-        });
+                    .cmp(&(
+                        &right.1.place,
+                        right.1.storage,
+                        right.1.value_type,
+                        right.1.effective,
+                    ))
+            });
+            let loans = retain_loan_graph(
+                identities,
+                checked,
+                crossing,
+                occurrence,
+                &mut live_values,
+                caller,
+                &mut *source_call_bindings,
+                module,
+            )?;
+            let live_values = live_values
+                .into_iter()
+                .map(|(_, live)| live)
+                .collect::<Vec<_>>();
+            let crossing_id =
+                checked_trees::canonical_suspension_crossing_id(&checked.typed, crossing).ok_or(
+                    LoweringError::Unsupported(
+                        "suspension crossing identity cannot resolve its source symbols",
+                    ),
+                )?;
+            // Bind the authoritative possibly-suspending demand onto the call
+            // itself: the site and plan rows below are evidence for this marker,
+            // not its source, so deleting the paired rows cannot erase the
+            // required crossing.
+            module.machines[machine_index].blocks[block_index].operations[operation_index]
+                .suspension_crossing = Some(crossing_id);
+            plans.push(terminal_psi::TerminalSuspensionCallPlan {
+                operation: terminal_operation,
+                crossing: crossing_id,
+                target,
+                effective: crossing.effective,
+                live_value_count: u32::try_from(live_values.len()).map_err(|_| {
+                    LoweringError::Unsupported(
+                        "suspension live-value count exceeds the Terminal vocabulary",
+                    )
+                })?,
+                live_values,
+                loans,
+            });
+        }
     }
     plans.sort_by_key(|plan| (plan.operation, plan.crossing));
     module.suspension_call_plan_count = u32::try_from(plans.len()).map_err(|_| {
@@ -233,8 +251,8 @@ fn retain_loan_graph(
         &checked_trees::SuspensionCrossingLiveValueFact,
         terminal_psi::TerminalSuspensionLiveValue,
     )],
-    source_calls: &[LoweredSourceCallOccurrence],
-    source_call_bindings: &mut SourceCallBindings,
+    caller: semantic_vocabulary::MachineId,
+    source_call_bindings: &mut SourceCallBindings<'_>,
     module: &TerminalModule,
 ) -> Result<terminal_psi::TerminalSuspensionLoans, LoweringError> {
     use checked_trees::{
@@ -308,9 +326,9 @@ fn retain_loan_graph(
                 let (operation, argument, path) = captured_call_leaf(
                     identities,
                     checked,
-                    source_calls,
                     source_call_bindings,
                     module,
+                    caller,
                     input.state_symbol,
                     input.call,
                     input.parameter_index,
@@ -337,9 +355,9 @@ fn retain_loan_graph(
                     let (operation, argument, path) = captured_call_leaf(
                         identities,
                         checked,
-                        source_calls,
                         source_call_bindings,
                         module,
+                        caller,
                         output.state_symbol,
                         output.call,
                         output.parameter_index,
@@ -929,214 +947,14 @@ fn scalar_value_available_before(
         && terminal_semantics::control_graph::dominators(machine).dominates(definition.id, block.id)
 }
 
-/// Each required source call keeps one connection to its emitted arguments.
-/// Current crossings and older saved inputs share that connection, so neither
-/// can accidentally read the arguments from a different invocation.
-#[derive(Default)]
-struct SourceCallBindings {
-    calls: Vec<SourceCallBinding>,
-}
-
-struct SourceCallBinding {
-    coordinate: lowered_psi::LoweredStatementCallCoordinate,
-    requested_target: symbols::SymbolHandle,
-    occurrence_index: usize,
-    location: (usize, usize, usize),
-    operation: semantic_vocabulary::OperationId,
-    target: terminal_psi::TerminalSuspensionCallTarget,
-    arguments: Vec<(
-        usize,
-        (TerminalSuspensionPlace, TerminalSuspensionValueType),
-    )>,
-}
-
-impl SourceCallBindings {
-    /// Bind only calls demanded by this lowering. Unrelated declaration and
-    /// external sites need not have an ordinary continuing call operation.
-    fn bind(
-        &mut self,
-        checked: &CheckedTrees,
-        source_calls: &[LoweredSourceCallOccurrence],
-        module: &TerminalModule,
-        state: symbols::SymbolHandle,
-        statement_index: usize,
-        call_ordinal: usize,
-        target: symbols::SymbolHandle,
-    ) -> Result<usize, LoweringError> {
-        let coordinate = lowered_psi::LoweredStatementCallCoordinate {
-            state,
-            statement_index,
-            call_ordinal,
-        };
-        if let Some(position) = self.calls.iter().position(|binding| {
-            binding.coordinate == coordinate && binding.requested_target == target
-        }) {
-            return Ok(position);
-        }
-        let mut occurrences = source_calls.iter().enumerate().filter(|(_, occurrence)| {
-            occurrence.matches_statement(state, statement_index, call_ordinal)
-        });
-        let (occurrence_index, occurrence) = occurrences.next().ok_or(
-            LoweringError::Unsupported("required source call has no emitted occurrence"),
-        )?;
-        let second_occurrence = occurrences.next();
-        if second_occurrence.is_some()
-            || owning_callable_symbol(checked, occurrence.source_target)
-                != owning_callable_symbol(checked, target)
-        {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                let matching = source_calls
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, candidate)| {
-                        candidate.matches_statement(state, statement_index, call_ordinal)
-                    })
-                    .take(8)
-                    .map(|(index, candidate)| {
-                        let mut owners = Vec::new();
-                        let mut owner_count = 0;
-                        if let Some(operation) = candidate.terminal_site.operation() {
-                            for machine in &module.machines {
-                                for block in &machine.blocks {
-                                    for (position, emitted) in block.operations.iter().enumerate() {
-                                        if emitted.id != operation {
-                                            continue;
-                                        }
-                                        owner_count += 1;
-                                        if owners.len() >= 8 {
-                                            continue;
-                                        }
-                                        let predecessors = machine
-                                            .blocks
-                                            .iter()
-                                            .flat_map(|predecessor| {
-                                                predecessor
-                                                    .terminator
-                                                    .successor_edges()
-                                                    .into_iter()
-                                                    .filter_map(move |(edge, target)| {
-                                                        (target == block.id)
-                                                            .then_some((predecessor.id, edge))
-                                                    })
-                                            })
-                                            .take(32)
-                                            .collect::<Vec<_>>();
-                                        owners.push((
-                                            machine.id,
-                                            machine.declaration.as_ref().and_then(|declaration| {
-                                                module.identities.text(declaration.callable)
-                                            }),
-                                            machine.entry,
-                                            block.id,
-                                            position,
-                                            predecessors,
-                                            &emitted.kind,
-                                        ));
-                                    }
-                                }
-                            }
-                        }
-                        (
-                            index,
-                            &candidate.source_site,
-                            &candidate.origin,
-                            &candidate.terminal_site,
-                            candidate.source_target,
-                            owner_count,
-                            owners,
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                eprintln!(
-                    "CHECKSITE required-source-call-refused coordinate={coordinate:?} requested_target={target:?} duplicate={} owner_row=(machine,callable,entry,block,index,first_32_predecessors,operation) first_8_matching=(index,source_site,origin,terminal_site,target,owner_count,first_8_owners) {matching:?}",
-                    second_occurrence.is_some(),
-                );
-            }
-            return unsupported("required source call is duplicate or redirected");
-        }
-        let operation = occurrence
-            .terminal_site
-            .operation()
-            .ok_or(LoweringError::Unsupported(
-                "required source call has no normal call operation",
-            ))?;
-        let (machine_index, block_index, operation_index, emitted) = module
-            .machines
-            .iter()
-            .enumerate()
-            .flat_map(|(machine_index, machine)| {
-                machine
-                    .blocks
-                    .iter()
-                    .enumerate()
-                    .flat_map(move |(block_index, block)| {
-                        block.operations.iter().enumerate().map(
-                            move |(operation_index, operation)| {
-                                (machine_index, block_index, operation_index, operation)
-                            },
-                        )
-                    })
-            })
-            .find(|(_, _, _, candidate)| candidate.id == operation)
-            .ok_or(LoweringError::Unsupported(
-                "required source call operation is absent",
-            ))?;
-        let terminal_target = terminal_call_target(&emitted.kind).ok_or(
-            LoweringError::Unsupported("required source call operation is not a call"),
-        )?;
-        let position = self.calls.len();
-        self.calls.push(SourceCallBinding {
-            coordinate,
-            requested_target: target,
-            occurrence_index,
-            location: (machine_index, block_index, operation_index),
-            operation,
-            target: terminal_target,
-            arguments: Vec::new(),
-        });
-        Ok(position)
-    }
-}
-
-impl SourceCallBinding {
-    /// Prepare the requested formal lane once from this call's actual operand.
-    /// Erased or otherwise unused formals do not acquire runtime obligations.
-    fn argument(
-        &mut self,
-        checked: &CheckedTrees,
-        module: &TerminalModule,
-        position: usize,
-    ) -> Result<(TerminalSuspensionPlace, TerminalSuspensionValueType), LoweringError> {
-        if let Some((_, binding)) = self
-            .arguments
-            .iter()
-            .find(|(formal, _)| *formal == position)
-        {
-            return Ok(binding.clone());
-        }
-        let (machine_index, block_index, operation_index) = self.location;
-        let operation =
-            &module.machines[machine_index].blocks[block_index].operations[operation_index];
-        let binding = call_argument_binding(
-            checked,
-            self.requested_target,
-            &operation.kind,
-            module,
-            position,
-        )?;
-        self.arguments.push((position, binding.clone()));
-        Ok(binding)
-    }
-}
-
 /// Use the arguments recorded for the original call, even when a later
 /// argument or statement replaced the variable that once supplied them.
 fn captured_call_leaf(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    source_calls: &[LoweredSourceCallOccurrence],
-    source_call_bindings: &mut SourceCallBindings,
+    source_call_bindings: &mut SourceCallBindings<'_>,
     module: &TerminalModule,
+    caller: semantic_vocabulary::MachineId,
     state: symbols::SymbolHandle,
     call: Handle<checked_trees::FlowCallFact>,
     position: usize,
@@ -1150,10 +968,10 @@ fn captured_call_leaf(
     LoweringError,
 > {
     let call = checked.facts.flow.control.calls.get(call);
-    let binding = source_call_bindings.bind(
+    let binding = source_call_bindings.bind_previous(
         checked,
-        source_calls,
         module,
+        caller,
         state,
         call.statement_index,
         call.call_ordinal,
@@ -1164,7 +982,7 @@ fn captured_call_leaf(
     let (
         TerminalSuspensionPlace::Structural(argument),
         TerminalSuspensionValueType::Structural(root),
-    ) = binding.argument(checked, module, position)?
+    ) = binding.argument(checked, module, call.target_symbol, position)?
     else {
         return unsupported("captured output/input has no structural argument");
     };
