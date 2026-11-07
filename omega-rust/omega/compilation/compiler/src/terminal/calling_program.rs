@@ -64,7 +64,6 @@ fn prepare(
 fn capture_source_preparation(
     source: &CheckedProductSource,
 ) -> Result<CallingSourcePreparation, Vec<Diagnostic>> {
-    let _profile = phase_profile::guard("omega.product.calling.prepare_source");
     CallingSourcePreparation::capture(
         &source.program,
         source

@@ -14,7 +14,6 @@ arena = { path = "../../../foundation/arena" }
 checked-trees = { path = "../../representations/checked-trees" }
 diagnostics = { path = "../../../foundation/diagnostics" }
 facts = { path = "../../representations/checked-trees/facts" }
-phase-profile = { path = "../../../foundation/phase-profile" }
 language-core = { path = "../../../foundation/language-core" }
 language-semantics = { path = "../../../foundation/language-semantics" }
 numerics = { path = "../../../foundation/numerics" }

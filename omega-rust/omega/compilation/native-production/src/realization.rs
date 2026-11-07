@@ -48,24 +48,20 @@ fn admit_realization<'request>(
     input: terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
     request: &NativeRealizationRequest<'request>,
 ) -> Result<AdmittedRealization<'request>, Vec<Diagnostic>> {
-    let admitted = phase_profile::scope("omega.native.admit_prepared_native_realization", || {
-        admit_prepared_native_realization(input, artifact, &request.admission)
-    })?;
+    let admitted = admit_prepared_native_realization(input, artifact, &request.admission)?;
     let AdmittedNativeRealization {
         input, providers, ..
     } = &admitted;
-    let entry_settlement = phase_profile::scope("omega.native.admit_executable_entry", || {
-        native_artifact::admit_executable_entry(
-            input,
-            artifact,
-            request.program_entry,
-            request.admission.providers.target(),
-        )
-    })?;
+    let entry_settlement = native_artifact::admit_executable_entry(
+        input,
+        artifact,
+        request.program_entry,
+        request.admission.providers.target(),
+    )?;
     // Capture before emission takes the installation. These are the admitted
     // rows of this same image request, not reconstructed provider-name hints.
     let entry = request.program_entry;
-    let runtime_provisions = phase_profile::scope("omega.native.capture_native_admission", || {
+    let runtime_provisions = {
         entry
             .checked_entry
             .map(|_| {
@@ -90,7 +86,7 @@ fn admit_realization<'request>(
             })
             .transpose()
             .map_err(|message| vec![Diagnostic::error(message)])
-    })?;
+    }?;
     Ok(AdmittedRealization {
         admitted,
         entry_settlement,
@@ -120,15 +116,13 @@ pub(crate) fn realize_native_artifact(
         runtime_provisions,
     } = admit_realization(&artifact, input, &request)?;
     let private_entry_ram = input.private_entry_ram().to_vec();
-    let emitted = phase_profile::scope("omega.native.emit_realization_object", || {
-        emit_realization_object(
-            input,
-            providers.installation.take(),
-            &providers.settlements,
-            entry_settlement.as_ref(),
-            &request,
-        )
-    })?;
+    let emitted = emit_realization_object(
+        input,
+        providers.installation.take(),
+        &providers.settlements,
+        entry_settlement.as_ref(),
+        &request,
+    )?;
     let runtime_provisions = runtime_provisions.map(|provisions| {
         provisions
             .with_private_entry_ram(private_entry_ram)
@@ -143,7 +137,7 @@ pub(crate) fn realize_native_artifact(
         .clone()
         .settle_elf_loader(&emitted.object, request.elf_interpreter)
         .map_err(|error| vec![error.diagnostic().clone()])?;
-    let artifact = phase_profile::scope("omega.native.emit_admitted_image", || {
+    let artifact = {
         request
             .observation
             .enter(crate::observations::NativePipelineStage::ImageEmission);
@@ -156,7 +150,7 @@ pub(crate) fn realize_native_artifact(
             providers,
             boundary_application_coverage,
         )
-    })?;
+    }?;
     Ok(RealizedNativeProduct {
         artifact,
         runtime_provisions,
@@ -183,15 +177,12 @@ pub(crate) fn admit_terminal_runtime(
         ..
     } = admit_realization(artifact, input, &request)?;
     let private_entry_ram = input.private_entry_ram().to_vec();
-    let borrowed_storage_layouts =
-        phase_profile::scope("omega.native.lower_runtime_layouts", || {
-            object_emission::lower_borrowed_storage_layouts(
-                input,
-                providers.installation.take(),
-                &providers.settlements,
-                &request,
-            )
-        })?;
+    let borrowed_storage_layouts = object_emission::lower_borrowed_storage_layouts(
+        input,
+        providers.installation.take(),
+        &providers.settlements,
+        &request,
+    )?;
     Ok(runtime_provisions.map(|provisions| {
         provisions
             .with_private_entry_ram(private_entry_ram)

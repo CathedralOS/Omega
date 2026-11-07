@@ -473,16 +473,11 @@ fn run_requirement_walk(
     // contains unsupported effects. Keep the full incoming-path analysis as
     // fallback for obligations that genuinely need an arrival substitution.
     if runtime_values && !state_prefix {
-        let local = phase_profile::scope(
-            "psi.05.check_checked_facts.check_flow_call_contracts.cap.local_prefix",
-            || {
-                super::structural_prefix::observe_runtime_state_prefix(
-                    program,
-                    machine,
-                    caller_state,
-                    &mut requirement,
-                )
-            },
+        let local = super::structural_prefix::observe_runtime_state_prefix(
+            program,
+            machine,
+            caller_state,
+            &mut requirement,
         );
         if local.is_some() && requirement.seen && requirement.proven {
             return true;
@@ -490,54 +485,43 @@ fn run_requirement_walk(
         requirement.seen = false;
         requirement.proven = true;
     }
-    let mut judge = phase_profile::scope(
-        "psi.05.check_checked_facts.check_flow_call_contracts.cap.judge_init",
-        || {
-            if state_prefix {
-                StructuralJudge::from_runtime_state_requires(
-                    program,
-                    machine,
-                    caller_state,
-                    &requires,
-                )
-            } else if runtime_values {
-                StructuralJudge::from_runtime_requires(program, machine, &requires)
-            } else if contains_case_premise(program, expression) {
-                StructuralJudge::from_case_requires(program, machine, &requires)
-            } else {
-                StructuralJudge::from_requires(program, machine, &requires, true)
-            }
-        },
-    );
+    let mut judge = {
+        if state_prefix {
+            StructuralJudge::from_runtime_state_requires(program, machine, caller_state, &requires)
+        } else if runtime_values {
+            StructuralJudge::from_runtime_requires(program, machine, &requires)
+        } else if contains_case_premise(program, expression) {
+            StructuralJudge::from_case_requires(program, machine, &requires)
+        } else {
+            StructuralJudge::from_requires(program, machine, &requires, true)
+        }
+    };
     if case_facts_only {
         judge.restrict_to_case_facts();
     }
     let mut diagnostics = Vec::new();
-    let recognized = phase_profile::scope(
-        "psi.05.check_checked_facts.check_flow_call_contracts.cap.recognize",
-        || {
-            if state_prefix {
-                recognize_structural_state_prefix(
-                    program,
-                    machine,
-                    caller_state,
-                    &judge,
-                    &classification,
-                    &mut diagnostics,
-                    &mut requirement,
-                )
-            } else {
-                recognize_structural_case_arms(
-                    program,
-                    machine,
-                    &judge,
-                    &classification,
-                    &mut diagnostics,
-                    Some(&mut requirement),
-                )
-            }
-        },
-    );
+    let recognized = {
+        if state_prefix {
+            recognize_structural_state_prefix(
+                program,
+                machine,
+                caller_state,
+                &judge,
+                &classification,
+                &mut diagnostics,
+                &mut requirement,
+            )
+        } else {
+            recognize_structural_case_arms(
+                program,
+                machine,
+                &judge,
+                &classification,
+                &mut diagnostics,
+                Some(&mut requirement),
+            )
+        }
+    };
     if super::struct_trace() {
         eprintln!(
             "STRUCT runtime-prefix completed caller={} recognized={} seen={} proven={} diagnostics={}",
@@ -641,8 +625,6 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             return;
         }
         let (program, machine, state, mut judge, environment) = observation;
-        let _s =
-            phase_profile::guard("psi.05.check_checked_facts.check_flow_call_contracts.cap.visit");
         // Runtime invocations transport only checked tag guarantees. Their saved
         // results are individual values, not mathematical applications or an IH.
         if !judge.has_runtime_body_values() {

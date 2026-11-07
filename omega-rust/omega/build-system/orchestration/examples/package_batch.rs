@@ -146,9 +146,6 @@ fn request() -> Result<Request, Box<dyn std::error::Error>> {
     if (native_evidence || compare_single_targets || run_host) && product != Product::Native {
         return Err("native observations require the native product".into());
     }
-    if native_evidence && !phase_profile::enabled() {
-        return Err("native invocation observations require OMEGA_PHASE_PROFILE=1".into());
-    }
     if rejected_through_stage.is_some() && (!native_evidence || rejected_target.is_none()) {
         return Err("a rejected native stage requires --native-evidence and --reject".into());
     }

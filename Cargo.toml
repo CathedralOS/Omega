@@ -33,7 +33,6 @@ members = [
     "omega-rust/psi/foundation/layout-plans",
     "omega-rust/psi/foundation/mutation-matrix",
     "omega-rust/psi/foundation/numerics",
-    "omega-rust/psi/foundation/phase-profile",
     "omega-rust/psi/foundation/source",
     "omega-rust/psi/foundation/source-audit",
     "omega-rust/psi/foundation/symbols",

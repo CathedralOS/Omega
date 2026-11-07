@@ -52,12 +52,6 @@ pub(crate) fn infer_checked_recursive_machine_terminations(
     machine_symbol: symbols::SymbolHandle,
     body: arena::HandleSpan<typed_trees::state::State>,
 ) -> Result<Vec<checked_trees::CheckedRuntimeRankMember>, Vec<Diagnostic>> {
-    phase_profile::count("semantic_admission.recursion.queries", 1);
-    phase_profile::checkpoint(
-        "recursive admission entered",
-        "semantic_admission.recursion.queries",
-    );
-    let _query = phase_profile::guard("semantic_admission.recursion.query");
     let program: &dyn validation::CheckingInput = checked;
     let refuse = |message: String| Err(vec![Diagnostic::error(message)]);
     let mut matching = program
@@ -73,13 +67,7 @@ pub(crate) fn infer_checked_recursive_machine_terminations(
             "recursive admission has more than one matching checked machine body".into(),
         );
     }
-    let proof_only = phase_profile::scope("semantic_admission.recursion.classification", || {
-        validation::proof_only_classification(program)
-    });
-    phase_profile::checkpoint(
-        "recursive classification complete",
-        "semantic_admission.recursion.classification",
-    );
+    let proof_only = validation::proof_only_classification(program);
     if proof_only.is_proof_machine(program, machine) {
         // Computed proof ranks need not carry a structural certificate. Keep
         // the ordinary proof judgment, with this checked program's real flow.
@@ -91,10 +79,6 @@ pub(crate) fn infer_checked_recursive_machine_terminations(
                     body: machine.states,
                 })
                 .collect::<Vec<_>>();
-        phase_profile::checkpoint(
-            "recursive proof admission complete",
-            "semantic_admission.recursion.proof.validation",
-        );
         if members.is_empty() {
             return refuse(
                 "recursive proof invocation has no ordinary checked complete component".into(),
@@ -102,24 +86,13 @@ pub(crate) fn infer_checked_recursive_machine_terminations(
         }
         return Ok(members);
     }
-    let topology = phase_profile::scope("semantic_admission.recursion.runtime.topology", || {
-        validation::prepare_runtime_rank_components(program)
-    });
-    phase_profile::checkpoint(
-        "recursive runtime topology complete",
-        "semantic_admission.recursion.runtime.topology",
-    );
+    let topology = validation::prepare_runtime_rank_components(program);
     let Some(topology) = topology else {
         return refuse("recursive invocation has no checked runtime call topology".into());
     };
     let Some(component) = topology.component_containing(position) else {
         return refuse("recursive invocation is absent from its checked runtime component".into());
     };
-    phase_profile::count(
-        "semantic_admission.recursion.runtime.members",
-        component.len() as u64,
-    );
-    let _judgments = phase_profile::guard("semantic_admission.recursion.runtime.judgments");
     let members = component
         .iter()
         .map(|position| {
@@ -176,10 +149,6 @@ pub(crate) fn infer_checked_recursive_machine_terminations(
             )));
         }
     }
-    phase_profile::checkpoint(
-        "recursive runtime judgments complete",
-        "semantic_admission.recursion.runtime.judgments",
-    );
     if diagnostics.is_empty() {
         Ok(members)
     } else {
@@ -194,8 +163,6 @@ fn admit_machine_rankings_with_topology(
     demanded: Option<&[usize]>,
 ) -> checked_trees::CheckedRankArrivalPlan {
     let mut admitted = checked_trees::CheckedRankArrivalPlan::default();
-    let selection =
-        demanded.map(|_| phase_profile::guard("semantic_admission.recursion.runtime.selection"));
     let mut components = topology
         .as_ref()
         .map(|topology| {
@@ -208,15 +175,6 @@ fn admit_machine_rankings_with_topology(
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
-    drop(selection);
-    if demanded.is_some() {
-        phase_profile::checkpoint(
-            "recursive runtime selection complete",
-            "semantic_admission.recursion.runtime.selection",
-        );
-    }
-    let judgments =
-        demanded.map(|_| phase_profile::guard("semantic_admission.recursion.runtime.judgments"));
     for (position, machine) in program.machines().iter().enumerate() {
         if demanded.is_some_and(|demanded| !demanded.contains(&position)) {
             continue;
@@ -441,13 +399,6 @@ fn admit_machine_rankings_with_topology(
                 observations,
                 diagnostic,
             });
-    }
-    drop(judgments);
-    if demanded.is_some() {
-        phase_profile::checkpoint(
-            "recursive runtime judgments complete",
-            "semantic_admission.recursion.runtime.judgments",
-        );
     }
     for component in components {
         if let Some(source) = component.source_natural {

@@ -20,15 +20,13 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
         CompileTimings::default()
     };
     let (check_workspace, base_directory) = select_base_directory(&request)?;
-    let (work, _occupancies) = phase_profile::scope("build.admit_outputs", || {
-        build_directory::admit_outputs(
-            &profiles,
-            &base_directory,
-            &request.root_path,
-            matches!(request.targets, BuildTargets::Batch(_)),
-            check_workspace.is_some(),
-        )
-    });
+    let (work, _occupancies) = build_directory::admit_outputs(
+        &profiles,
+        &base_directory,
+        &request.root_path,
+        matches!(request.targets, BuildTargets::Batch(_)),
+        check_workspace.is_some(),
+    );
     let prepared = timings
         .record_result(
             StageMeta::new("prepare", "project", "prepared sources"),
@@ -58,11 +56,9 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
     } else {
         let prepared = match prepared {
             Some(preparation) => {
-                let mut session = phase_profile::scope("build.create_session", || {
-                    crate::BuildSession::create_retained(&base_directory)
-                })
-                .map_err(|error| BuildError::BuildDirectory(error.to_string()))?;
-                let resolved = phase_profile::scope("build.resolve_sources", || {
+                let mut session = crate::BuildSession::create_retained(&base_directory)
+                    .map_err(|error| BuildError::BuildDirectory(error.to_string()))?;
+                let resolved = {
                     crate::resolve_project_sources(
                         &mut session,
                         crate::ProjectSourceRequest {
@@ -74,7 +70,7 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
                             collect_timings: request.timings,
                         },
                     )
-                });
+                };
                 let resolved = match resolved {
                     Ok(resolved) => resolved,
                     Err(error) => {

@@ -175,10 +175,6 @@ pub(super) fn select_retained_source(
     context: &SourceContext,
     observer: &mut impl crate::PsiCompilationObserver,
 ) -> Result<Option<ActivatedSource>, Vec<Diagnostic>> {
-    phase_profile::count(
-        "source_activation.candidates",
-        request.frontends.snapshots()?.len() as u64,
-    );
     let mut candidates = Vec::new();
     for source in request.frontends.snapshots()? {
         let typing = &source.typing;
@@ -187,7 +183,6 @@ pub(super) fn select_retained_source(
             continue;
         };
         if !request.sources.retains_source_storage(&previous) {
-            phase_profile::count("source_activation.coordinate_misses", 1);
             continue;
         }
         let mut activation = request.sources.as_ref().clone();
@@ -199,27 +194,16 @@ pub(super) fn select_retained_source(
         if count == 0 {
             continue;
         }
-        if let Err(reason) =
-            source_context.compatibility(context, &previous, &request.sources, &activation)
+        if source_context
+            .compatibility(context, &previous, &request.sources, &activation)
+            .is_err()
         {
-            phase_profile::count(
-                match reason {
-                    SourceReuseMiss::BuildHelperSelection => "source_activation.miss.build_helpers",
-                    SourceReuseMiss::LookupContributors => {
-                        "source_activation.miss.lookup_contributors"
-                    }
-                    SourceReuseMiss::Imports => "source_activation.miss.imports",
-                    SourceReuseMiss::ProductAliases => "source_activation.miss.product_aliases",
-                    SourceReuseMiss::DeclarationAuthority => "source_activation.miss.authority",
-                },
-                1,
-            );
             continue;
         }
         candidates.push((count, source, Arc::new(activation)));
     }
     candidates.sort_unstable_by_key(|(count, _, _)| std::cmp::Reverse(*count));
-    for (count, source, sources) in candidates {
+    for (_, source, sources) in candidates {
         let declaration_syntax = Arc::clone(&source.context.declaration_syntax);
         let (typing, pending_pre_checks) = super::SourceContinuation::complete_selected(
             source,
@@ -272,7 +256,6 @@ pub(super) fn select_retained_source(
                     .is_some_and(|span| !sources.source_is_selected(span.source_id))
             })
         {
-            phase_profile::count("source_activation.miss.reference_closure", 1);
             continue;
         }
         let mut pre_checks = pending_pre_checks
@@ -290,14 +273,9 @@ pub(super) fn select_retained_source(
                 break;
             }
         }
-        if let Some(reason) = authority_miss {
-            phase_profile::count("source_activation.miss.authority", 1);
-            if phase_profile::enabled() {
-                eprintln!("retained pending source work ignored: {reason}");
-            }
+        if authority_miss.is_some() {
             continue;
         }
-        phase_profile::count("source_activation.retained_sources", count as u64);
         return Ok(Some(ActivatedSource {
             typing,
             pre_checks,

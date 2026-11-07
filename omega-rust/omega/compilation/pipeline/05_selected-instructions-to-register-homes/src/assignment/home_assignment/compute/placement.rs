@@ -23,9 +23,7 @@ pub(crate) fn compute_function(
     if legality.virtual_registers.len() != ranges.virtual_registers.len() {
         return Err(RegisterHomeError::FunctionMismatch { function });
     }
-    let domains = phase_profile::scope("omega.05.probe_all.build_domains", || {
-        build_domains(function, legality, ranges)
-    })?;
+    let domains = build_domains(function, legality, ranges)?;
     let max_reg_id = legality
         .virtual_registers
         .iter()
@@ -40,28 +38,24 @@ pub(crate) fn compute_function(
         }
     }
     let affinities = PreparedAffinities::new(domains.len(), &domain_of, &ranges.copy_affinities);
-    let conflicts = phase_profile::scope("omega.05.probe_all.prepared_conflicts", || {
-        PreparedConflicts::new(
-            function,
-            &domains,
-            &domain_of,
-            ranges,
-            physical,
-            &affinities,
-        )
-    })?;
+    let conflicts = PreparedConflicts::new(
+        function,
+        &domains,
+        &domain_of,
+        ranges,
+        physical,
+        &affinities,
+    )?;
     if conflicts.uses_bitmasks() {
-        return phase_profile::scope("omega.05.probe_all.compute_bitmask", || {
-            compute_function_bitmask(
-                function,
-                legality,
-                &domains,
-                max_reg_id,
-                &affinities,
-                &conflicts,
-                pressure,
-            )
-        });
+        return compute_function_bitmask(
+            function,
+            legality,
+            &domains,
+            max_reg_id,
+            &affinities,
+            &conflicts,
+            pressure,
+        );
     }
     // Give neighbor and affinity queries direct membership instead of
     // searching every unrelated domain again.

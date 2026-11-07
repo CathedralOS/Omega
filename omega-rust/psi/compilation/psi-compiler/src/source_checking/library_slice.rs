@@ -62,13 +62,11 @@ pub fn library_slice_totals() -> LibrarySliceTotals {
 /// Count one freshly computed check whose program has a nonempty slice.
 pub(super) fn record_computed(key: LibrarySliceKey) {
     COMPUTED.fetch_add(1, Ordering::Relaxed);
-    phase_profile::count("psi.source.library_slices.computed", 1);
     let mut distinct = DISTINCT
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Err(position) = distinct.binary_search(&key) {
         distinct.insert(position, key);
-        phase_profile::count("psi.source.library_slices.distinct", 1);
     }
 }
 

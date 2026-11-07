@@ -135,12 +135,11 @@ pub struct SelectedCheckedSource {
 
 impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
-        let _profile = phase_profile::guard("05");
         let mut program = self.program;
         // A retained language judgment cannot bypass final application custody.
         // Reclosure also derives copy properties; callers cannot supply them.
         let representations = self.admission.representations.admit(&program)?;
-        let slice_key = phase_profile::scope("psi.source.library_slice_key", || {
+        let slice_key = {
             self.library_slice.key(
                 &program,
                 &library_slice::SliceAdmission {
@@ -151,13 +150,11 @@ impl CheckRequest<'_> {
                     wire_demands: self.admission.wire_demands,
                 },
             )
-        });
-        phase_profile::scope("psi.source.completion", || {
-            validation::source_completion::prepare_source_completion(
-                &mut program,
-                self.admission.completion,
-            )
-        })?;
+        };
+        validation::source_completion::prepare_source_completion(
+            &mut program,
+            self.admission.completion,
+        )?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
             .with_opaque_property_receipts(&representations.copy_properties)
             .with_opaque_representation_selections(&representations.selections)
@@ -172,10 +169,9 @@ impl CheckRequest<'_> {
         let layout_authority = self.admission.layout_selection_authority.as_deref();
         // A judgment whose layout evaluation saw this exact input judged the
         // program that evaluation would produce; take it before evaluating.
-        let evaluated = phase_profile::scope("psi.source.retained_layout_match", || {
-            if self.admission.layout_scopes.is_empty() {
-                return None;
-            }
+        let evaluated = if self.admission.layout_scopes.is_empty() {
+            None
+        } else {
             self.previous.iter().copied().find(|prior| {
                 prior.layout_evaluation.as_ref().is_some_and(|input| {
                     input.matches(&program, self.admission.layout_scopes, layout_authority)
@@ -183,7 +179,7 @@ impl CheckRequest<'_> {
                     .judgment
                     .judges_preparation_admission(&admission, self.admission.external_roots)
             })
-        });
+        };
         // Evaluation leaves a program without fixed-layout storage unchanged, so
         // the ordinary input match already finds its judgment. Copying the
         // whole program to compare it earlier would buy nothing.
@@ -211,7 +207,7 @@ impl CheckRequest<'_> {
             constant_entries::retain_evaluation_entries(&mut program)?;
         }
         let matching = evaluated.or_else(|| {
-            phase_profile::scope("psi.source.retained_match", || {
+            {
                 self.previous.iter().copied().find(|prior| {
                     prior.judgment.judges_preparation_input(
                         &program,
@@ -219,12 +215,10 @@ impl CheckRequest<'_> {
                         self.admission.external_roots,
                     )
                 })
-            })
+            }
         });
         let outcome = if let Some(prior) = matching {
-            phase_profile::count("psi.source.retained_match.hit", 1);
             if evaluated.is_some() {
-                phase_profile::count("psi.source.retained_layout_match.hit", 1);
                 RETAINED_LAYOUT_MATCH_HITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
             record_whole_program_reuse();
@@ -247,22 +241,17 @@ impl CheckRequest<'_> {
             if let Some(key) = slice_key {
                 library_slice::record_computed(key);
             }
-            let retained_input = phase_profile::scope("psi.source.retained_input_clone", || {
-                self.retain.then(|| (Arc::new(program.clone()), admission))
-            });
-            let (program, preparation) = phase_profile::scope("psi.04", || {
-                typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)
-            })?;
+            let retained_input = self.retain.then(|| (Arc::new(program.clone()), admission));
+            let (program, preparation) =
+                typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
             // Whole-value lifecycle demands become concrete through the same
             // specialization as ordinary calls. Add geometry only: preparation's
             // executable bodies and mathematical judgments remain unchanged.
-            let program = phase_profile::scope("psi.04.access_lifecycle_plans", || {
-                build_time_evaluation::retain_access_lifecycle_plans(
-                    program,
-                    self.admission.declarations,
-                    self.admission.layout_scopes,
-                )
-            })?;
+            let program = build_time_evaluation::retain_access_lifecycle_plans(
+                program,
+                self.admission.declarations,
+                self.admission.layout_scopes,
+            )?;
             let prior_dependency_bodies: Vec<_> = self
                 .previous
                 .iter()
@@ -279,17 +268,15 @@ impl CheckRequest<'_> {
                         .cloned()
                 })
                 .collect();
-            let outcome = phase_profile::scope("psi.05", || {
-                typed_trees_to_checked_trees::lower_typed_trees_reusing(
-                    program,
-                    preparation,
-                    retained_input,
-                    &checking,
-                    &prior_dependency_bodies,
-                    &prior_frozen_bodies,
-                    self.retain,
-                )
-            })?;
+            let outcome = typed_trees_to_checked_trees::lower_typed_trees_reusing(
+                program,
+                preparation,
+                retained_input,
+                &checking,
+                &prior_dependency_bodies,
+                &prior_frozen_bodies,
+                self.retain,
+            )?;
             (outcome, layout_evaluation)
         };
         let (outcome, layout_evaluation) = outcome;

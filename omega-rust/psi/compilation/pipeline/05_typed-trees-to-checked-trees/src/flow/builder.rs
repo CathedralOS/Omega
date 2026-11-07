@@ -121,15 +121,6 @@ pub(crate) fn build_flow_facts(
     };
 
     let groups = machine_groups(program, borrow);
-    phase_profile::count("psi.05.build_check_facts.flow.groups", groups.len() as u64);
-    phase_profile::count(
-        "psi.05.build_check_facts.flow.max_group_machines",
-        groups
-            .iter()
-            .map(|group| group.machines.len())
-            .max()
-            .unwrap_or(0) as u64,
-    );
     let mut flow = build_groups(&inputs, &groups, &new_build, semantic);
     attach_reach_summaries(program, &mut flow, service_reaches, operational);
     flow
@@ -154,11 +145,7 @@ fn build_groups<'plans>(
                         && let Some(pages) =
                             build_split_group(inputs, new_build, worker_semantic, build, group)
                     {
-                        phase_profile::count("psi.05.build_check_facts.flow.replayed_groups", 1);
                         return pages;
-                    }
-                    if group.independent_parts.len() >= 2 {
-                        phase_profile::count("psi.05.build_check_facts.flow.replay_fallbacks", 1);
                     }
                     build_group(inputs, worker_semantic, build, &group.machines);
                     (
@@ -344,7 +331,6 @@ fn converge<'plans>(
         .sum::<usize>();
     let mut pass = 0;
     while pass < pass_limit {
-        phase_profile::count("psi.05.build_check_facts.flow.inner_passes", 1);
         if pass != 0 {
             build.discard_output();
             semantic.clone_from(inputs.baseline);
@@ -448,7 +434,6 @@ fn sweep<'plans>(
                 semantic.begin_page(page);
                 paged = true;
             }
-            phase_profile::count("psi.05.build_check_facts.flow.states_visited", 1);
             // Clear before transfer: a self/back edge may dirty this state
             // again. A later destination can still run in this same sweep.
             build
