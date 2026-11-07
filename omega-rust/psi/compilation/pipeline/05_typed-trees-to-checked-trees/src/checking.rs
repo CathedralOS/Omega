@@ -590,41 +590,40 @@ fn check_program(
     // Mathematical terms remained borrowed by every source judgment. Transfer
     // their checked metadata only after the final context has been dropped.
     facts.proof.mathematical_declarations = mathematics.declarations;
-    if let Some(signature) = mathematics.signature.as_ref() {
-        let view = validation::mathematical_applications::PreparedMathematicalView {
-            arena: &signature.arena,
-            declarations: &signature.declarations,
-            applications: &mathematics.applications,
-        };
+    if mathematics.signature.is_some() {
         for (_, application) in mathematics.applications.applications.iter() {
-            let Some((carrier, _)) = view.identity_value(application.term) else {
-                continue;
-            };
-            facts
-                .proof
-                .identity_formations
-                .push(checked_trees::CheckedIdentityFormation {
-                    expression: application.expression,
-                    owner: application.owner,
-                    type_identity: carrier.type_identity,
-                    term: application.term,
-                    ty: application.ty,
-                    domains: application.domains.clone(),
-                    captures: mathematics
-                        .applications
-                        .captures
-                        .span_or_empty(application.captures)
-                        .iter()
-                        .map(|capture| {
-                            (
-                                capture.expression,
-                                typed_program.normalized_type_identity(capture.source_type),
-                            )
-                        })
-                        .collect(),
-                });
+            for value in mathematics
+                .applications
+                .identity_values
+                .span_or_empty(application.identity_values)
+            {
+                facts
+                    .proof
+                    .identity_formations
+                    .push(checked_trees::CheckedIdentityFormation {
+                        expression: application.expression,
+                        owner: application.owner,
+                        type_identity: value.type_identity,
+                        term: value.term,
+                        ty: value.ty,
+                        domains: application.domains.clone(),
+                        captures: mathematics
+                            .applications
+                            .captures
+                            .span_or_empty(application.captures)
+                            .iter()
+                            .map(|capture| {
+                                (
+                                    capture.expression,
+                                    typed_program.normalized_type_identity(capture.source_type),
+                                )
+                            })
+                            .collect(),
+                    });
+            }
         }
     }
+
     facts.proof.source_evidence_carriers = mathematics
         .applications
         .source_carriers

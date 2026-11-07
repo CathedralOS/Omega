@@ -207,13 +207,20 @@ impl StructuralJudge<'_> {
                 {
                     return StructuralJudgment::Unknown;
                 }
+                let right_by_name = right_fields
+                    .iter()
+                    .map(|(name, value)| (name.as_str(), value))
+                    .collect::<std::collections::HashMap<_, _>>();
+                if right_by_name.len() != right_fields.len() {
+                    return StructuralJudgment::Unknown;
+                }
                 let mut verdict = StructuralJudgment::Proven;
                 for (name, left) in left_fields {
-                    let Some((_, right)) = right_fields.iter().find(|(other, _)| other == name)
-                    else {
+                    let Some(right) = right_by_name.get(name.as_str()) else {
                         return StructuralJudgment::Unknown;
                     };
-                    match self.exact_identity_congruence(left.clone(), right.clone(), depth + 1) {
+                    match self.exact_identity_congruence(left.clone(), (*right).clone(), depth + 1)
+                    {
                         StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
                         StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
                         StructuralJudgment::Proven => {}
@@ -273,9 +280,15 @@ impl StructuralJudge<'_> {
         if declared.is_empty() || declared.len() != fields.len() {
             return false;
         }
+        let actual_by_name = fields
+            .iter()
+            .map(|(name, value)| (name.as_str(), value))
+            .collect::<std::collections::HashMap<_, _>>();
+        if actual_by_name.len() != fields.len() {
+            return false;
+        }
         declared.iter().all(|field| {
-            let Some((_, actual)) = fields.iter().find(|(name, _)| name == field.name.as_str())
-            else {
+            let Some(actual) = actual_by_name.get(field.name.as_str()) else {
                 return false;
             };
             let Some(expected) = super::super::observed_projections::project_declared_field(
@@ -290,7 +303,7 @@ impl StructuralJudge<'_> {
             self.data_identity_is_observed(actual)
                 && self.data_identity_is_observed(&expected)
                 && matches!(
-                    self.exact_identity_congruence(actual.clone(), expected, depth + 1),
+                    self.exact_identity_congruence((*actual).clone(), expected, depth + 1),
                     StructuralJudgment::Proven
                 )
         })

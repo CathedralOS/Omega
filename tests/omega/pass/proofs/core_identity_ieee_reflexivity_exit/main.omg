@@ -1,7 +1,18 @@
 // Expected exit: 0
 // Same resident NaNs and same-bit signed zeros have Id independently of IEEE ==.
 data FloatBox [copy] { value: f64; }
+data IdentityBox<A> { value: A; }
 let same<A: core::Type<0>>(left: A, right: A): core::Type<0> = core::Identity<A>(left, right);
+// Constructed carriers and nested wrappers keep the same source substitution.
+let same_box<A: core::Type<0>>(left: IdentityBox<A>, right: IdentityBox<A>): core::Type<0> = core::Identity<IdentityBox<A>>(left, right);
+let same_box_outer<A: core::Type<0>>(left: IdentityBox<A>, right: IdentityBox<A>): core::Type<0> = same_box<A>(left, right);
+let same_strict<A: core::Type<0>>(left: A, right: A): core::Strict<0> = core::Identity<A>(left, right);
+machine keep_constructed(value: IdentityBox<u8>) reaches terminates
+ensures same_box_outer<u8>(value, value)
+{ }
+machine keep_strict(value: f64) reaches terminates
+ensures same_strict<f64>(value, value)
+{ }
 machine keep(value: f64) reaches terminates
 ensures same<f64>(value, value)
 { }
@@ -14,6 +25,9 @@ requires same<f64>(left, right)
 machine main() crashes Trap {
     let nan: f64 = 0.0f64 / 0.0f64;
     let boxed: FloatBox = FloatBox { value: nan };
+    let narrow: IdentityBox<u8> = IdentityBox { value: 17u8 };
+    keep_constructed(narrow);
+    keep_strict(nan);
     keep(nan);
     keep_box(boxed);
     require_same(nan, nan);

@@ -80,7 +80,7 @@ fn receive_catalog(
             let Term::Lambda { body: next, .. } = decoded.arena.get(body) else {
                 return Err(fail("Id formation lost a source subject binder"));
             };
-            body = *next;
+            body = next;
         }
         let body = weak_head_normalize(&mut decoded.arena, &signature, body, budget)
             .map_err(|error| fail(&format!("Id formation reduction failed: {error:?}")))?;
@@ -181,12 +181,12 @@ pub fn verify_identity_formations(
             else {
                 return Err(fail("Id formation source telescope differs from its type"));
             };
-            if !decoded.arena.structurally_equal(*domain, *expected) {
+            if !decoded.arena.structurally_equal(domain, expected) {
                 return Err(fail("Id formation changed an exact source subject domain"));
             }
-            context.push(*domain);
-            term = *body;
-            ty = *codomain;
+            context.push(domain);
+            term = body;
+            ty = codomain;
         }
         let actual = crate::encode_mathematical_certificate(
             &decoded.arena,

@@ -16,7 +16,7 @@ use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 #[derive(Debug, Default)]
 pub struct PreparedMathematicalApplications {
     pub applications: Arena<PreparedApplication>,
-    pub identity_carriers: Arena<PreparedIdentityCarrier>,
+    pub identity_values: Arena<PreparedIdentityValue>,
     pub captures: Arena<PreparedCapture>,
     pub constants: Arena<PreparedConstant>,
     pub source_evidence: Arena<PreparedSourceEvidence>,
@@ -84,6 +84,7 @@ pub struct PreparedApplication {
     pub ty: TermHandle,
     pub domains: Vec<TermHandle>,
     pub captures: HandleSpan<PreparedCapture>,
+    pub identity_values: HandleSpan<PreparedIdentityValue>,
 }
 
 #[derive(Debug, Default)]
@@ -92,11 +93,11 @@ pub struct PreparedCapture {
     pub source_type: TypeReferenceHandle,
 }
 
-/// Source meaning of a checked type argument retained through conversion.
+/// Exact source carrier carried by one emitted checked identity value.
 #[derive(Debug, Default)]
-pub struct PreparedIdentityCarrier {
+pub struct PreparedIdentityValue {
+    pub term: TermHandle,
     pub ty: TermHandle,
-    pub source_type: TypeReferenceHandle,
     pub type_identity: typed_trees::type_identity::TypeIdentityId,
 }
 
@@ -199,8 +200,9 @@ impl<'program> PreparedMathematicalView<'program> {
     /// through transparent mathematical application and capture substitution.
     pub fn identity_value(
         self,
+        application: &PreparedApplication,
         term: TermHandle,
-    ) -> Option<(&'program PreparedIdentityCarrier, [TermHandle; 2])> {
+    ) -> Option<(&'program PreparedIdentityValue, [TermHandle; 2])> {
         let (declaration, arguments) = application_spine(self, term)?;
         if !matches!(
             self.constant(declaration)?,
@@ -208,16 +210,16 @@ impl<'program> PreparedMathematicalView<'program> {
         ) {
             return None;
         }
-        let [ty, left, right] = arguments.as_slice() else {
+        let [_ty, left, right] = arguments.as_slice() else {
             return None;
         };
         let mut matches = self
             .applications
-            .identity_carriers
+            .identity_values
+            .span_or_empty(application.identity_values)
             .iter()
-            .filter_map(|(_, row)| {
-                (row.type_identity.is_valid() && self.arena.structurally_equal(row.ty, *ty))
-                    .then_some(row)
+            .filter(|row| {
+                row.type_identity.is_valid() && self.arena.structurally_equal(row.term, term)
             });
         let carrier = matches.next()?;
         if matches.any(|other| other.type_identity != carrier.type_identity) {

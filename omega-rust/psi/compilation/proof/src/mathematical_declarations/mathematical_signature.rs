@@ -52,7 +52,7 @@ mod source_families;
 mod term_order;
 
 use crate::typed_expressions::expression_table;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use numerics::bignum::BigInt;
 use validation::mathematical_applications::{
@@ -224,6 +224,8 @@ struct Elaborator<'a> {
     prepared: PreparedMathematicalApplications,
     identity_declaration: Option<u32>,
     type_returning_declarations: Vec<SymbolHandle>,
+    identity_emissions: Vec<identity::IdentityEmission>,
+    identity_emissions_by_owner: HashMap<SymbolHandle, Vec<usize>>,
 }
 
 /// Elaborate every mathematical declaration of `program` into a kernel
@@ -288,6 +290,8 @@ pub(crate) fn check_mathematical_signature(
         prepared: PreparedMathematicalApplications::default(),
         identity_declaration: None,
         type_returning_declarations: Vec::new(),
+        identity_emissions: Vec::new(),
+        identity_emissions_by_owner: HashMap::new(),
     };
     if needs_scheme {
         let theory = proof_admission::SourceIntegerTheory::new(
@@ -595,6 +599,7 @@ impl<'a> Elaborator<'a> {
                     });
                     inputs.push(input);
                 }
+                self.transport_identity_emissions(call, callee, &inputs)?;
                 Ok(self.apply_source_inputs(handle, callee, inputs))
             }
             ExpressionNode::Integer(literal) => {
@@ -726,7 +731,16 @@ impl<'a> Elaborator<'a> {
                 ))
             })?;
         }
-        for (expression, owner, term, domains, captures) in applications {
+        let retained_constants = self.retained_application_constants();
+        for application in applications {
+            let applications::SourceApplication {
+                expression,
+                owner,
+                term,
+                domains,
+                captures,
+                emissions,
+            } = application;
             let mut context = Context::empty().with_signature(signature.clone());
             for domain in &domains {
                 infer_sort(
@@ -756,43 +770,24 @@ impl<'a> Elaborator<'a> {
             if captures.is_empty() {
                 self.retain_checked_source_application(expression, term, &context, &signature)?;
             }
-            let literals = &self.numeric_literals;
-            let embeddings = self
-                .prepared
-                .constants
-                .iter()
-                .filter_map(|(_, constant)| {
-                    matches!(
-                        constant.meaning,
-                        PreparedConstantMeaning::IntegerEmbedding { .. }
-                    )
-                    .then_some(constant.declaration)
-                })
-                .collect::<Vec<_>>();
             let term = normalization::normalize(
                 &mut self.arena,
                 &signature,
                 term,
                 &mut budget,
-                &|declaration| {
-                    literals.values().any(|position| *position == declaration)
-                        || embeddings.contains(&declaration)
-                        || self.identity_declaration == Some(declaration)
-                        || self
-                            .source_aliases
-                            .iter()
-                            .any(|alias| alias.declaration == declaration)
-                        || self
-                            .indexed_families
-                            .values()
-                            .any(|family| family.declaration == declaration)
-                },
+                &|declaration| retained_constants.contains(&declaration),
             )
             .map_err(|error| {
                 self.refuse(format!(
                     "mathematical application reduction failed: {error:?}"
                 ))
             })?;
+            let identity_values = self.prepare_identity_values(
+                &signature,
+                &context,
+                &retained_constants,
+                &emissions,
+            )?;
             let captures = self.prepared.captures.insert_many(captures);
             self.prepared.applications.append(PreparedApplication {
                 expression,
@@ -801,9 +796,9 @@ impl<'a> Elaborator<'a> {
                 ty,
                 domains,
                 captures,
+                identity_values,
             });
         }
-        self.normalize_identity_carriers(&signature)?;
         self.retain_source_evidence_aliases()?;
         self.bind_source_evidence_types(&signature)?;
         self.retain_constant_meanings();
@@ -813,6 +808,27 @@ impl<'a> Elaborator<'a> {
             authored: self.authored,
             prepared: self.prepared,
         })
+    }
+
+    fn retained_application_constants(&self) -> HashSet<u32> {
+        self.numeric_literals
+            .values()
+            .copied()
+            .chain(self.prepared.constants.iter().filter_map(|(_, row)| {
+                matches!(
+                    row.meaning,
+                    PreparedConstantMeaning::IntegerEmbedding { .. }
+                )
+                .then_some(row.declaration)
+            }))
+            .chain(self.identity_declaration)
+            .chain(self.source_aliases.iter().map(|alias| alias.declaration))
+            .chain(
+                self.indexed_families
+                    .values()
+                    .map(|family| family.declaration),
+            )
+            .collect()
     }
 
     fn retain_constant_meanings(&mut self) {

@@ -18,6 +18,15 @@ use validation::mathematical_applications::{
     MathematicalBinderKind, expression_nodes, operand_type_reference, source_generic_argument_plan,
 };
 
+pub(super) struct SourceApplication {
+    pub(super) expression: ExpressionHandle,
+    pub(super) owner: SymbolHandle,
+    pub(super) term: TermHandle,
+    pub(super) domains: Vec<TermHandle>,
+    pub(super) captures: Vec<super::PreparedCapture>,
+    pub(super) emissions: std::ops::Range<usize>,
+}
+
 impl Elaborator<'_> {
     /// Form applications demanded outside mathematical declaration bodies.
     /// The same Pi spine, prefix application and capture-avoiding kernel
@@ -25,16 +34,7 @@ impl Elaborator<'_> {
     /// fixed integer widths and arithmetic policies distinct before embedding.
     pub(super) fn source_applications(
         &mut self,
-    ) -> Result<
-        Vec<(
-            ExpressionHandle,
-            SymbolHandle,
-            proof_admission::TermHandle,
-            Vec<proof_admission::TermHandle>,
-            Vec<super::PreparedCapture>,
-        )>,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<Vec<SourceApplication>, Vec<Diagnostic>> {
         let candidate_calls = expression_table(self.program)
             .iter_expressions()
             .filter_map(|(expression, node)| {
@@ -124,14 +124,16 @@ impl Elaborator<'_> {
                     children(self.program, node, |child| pending.push(child));
                 }
             }
+            let emission_start = self.identity_emissions.len();
             let term = self.elaborate_expression(expression)?;
-            applications.push((
+            applications.push(SourceApplication {
                 expression,
-                self.source_owner,
+                owner: self.source_owner,
                 term,
-                self.scope.iter().map(|entry| entry.domain).collect(),
+                domains: self.scope.iter().map(|entry| entry.domain).collect(),
                 captures,
-            ));
+                emissions: emission_start..self.identity_emissions.len(),
+            });
         }
         self.scope.clear();
         self.captured_expressions.clear();
@@ -230,16 +232,6 @@ impl Elaborator<'_> {
                     .position(|level| level.symbol == symbol)
             {
                 constraints.push((position, term, &binder.name));
-            }
-            if matches!(slot.kind, MathematicalBinderKind::Type) {
-                let reference = if argument.type_reference.is_valid() {
-                    Some(argument.type_reference)
-                } else {
-                    type_reference_table(self.program).find_named_type_reference(argument.symbol)
-                };
-                if let Some(reference) = reference {
-                    self.retain_identity_carrier(reference, term);
-                }
             }
             terms.push(term);
             term_domains.push(domain);

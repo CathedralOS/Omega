@@ -5,10 +5,19 @@
 //! Neither formation nor the declaration body supplies a witness of the Id.
 
 use super::{Elaborator, Term, TermHandle};
+use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use proof_admission::{Budget, DEFAULT_CONVERSION_STEPS, Declaration, Level, Sort, infer_sort};
+use symbols::SymbolHandle;
+use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
+use typed_trees::type_identity::{
+    AppliedTypeIdentityScope, IndexIdentityArgument, applied_type_identity,
+};
 use typed_trees::types::TypeReferenceHandle;
+use validation::mathematical_applications::{
+    MathematicalBinderKind, PreparedIdentityValue, source_generic_argument_plan,
+};
 
 impl Elaborator<'_> {
     pub(super) fn elaborate_identity(
@@ -20,7 +29,6 @@ impl Elaborator<'_> {
             validation::mathematical_applications::identity_application(self.program, call)
                 .map_err(|reason| self.refuse(reason.to_owned()))?;
         let ty = self.elaborate_source_operand_type(application.carrier)?;
-        self.retain_identity_carrier(application.carrier, ty);
         let context = self.instantiation_context();
         let sort = infer_sort(
             &mut self.arena,
@@ -51,6 +59,7 @@ impl Elaborator<'_> {
                 argument: value,
             });
         }
+        self.record_identity_emission(term, application.carrier, self.source_owner, Vec::new());
         self.span = Some(self.program.expression_table.source_span(expression));
         Ok(term)
     }
@@ -110,58 +119,224 @@ impl Elaborator<'_> {
                 .contains(&call.target_symbol)
     }
 
-    pub(super) fn retain_identity_carrier(
+    /// Every emission keeps its source type template and exact application
+    /// scopes. The calculus value follows the same level and beta substitution
+    /// as the authored declaration; no consumer reconstructs a source carrier
+    /// from an ambiguous shared kernel type.
+    fn record_identity_emission(
         &mut self,
+        value: TermHandle,
         source_type: TypeReferenceHandle,
-        ty: TermHandle,
+        source_owner: SymbolHandle,
+        source_scopes: Vec<IdentitySourceScope>,
     ) {
-        let type_identity = self.program.normalized_type_identity(source_type);
-        if !self
-            .prepared
-            .identity_carriers
-            .iter()
-            .any(|(_, row)| row.ty == ty && row.type_identity == type_identity)
-        {
-            self.prepared.identity_carriers.append(
-                validation::mathematical_applications::PreparedIdentityCarrier {
-                    ty,
-                    source_type,
-                    type_identity,
-                },
-            );
+        let mut abstraction = value;
+        for entry in self.scope.iter().rev() {
+            abstraction = self.arena.insert(Term::Lambda {
+                domain: entry.domain,
+                body: abstraction,
+            });
         }
+        self.identity_emissions_by_owner
+            .entry(self.source_owner)
+            .or_default()
+            .push(self.identity_emissions.len());
+        self.identity_emissions.push(IdentityEmission {
+            value,
+            abstraction,
+            source_type,
+            source_owner,
+            source_scopes,
+        });
     }
 
-    pub(super) fn normalize_identity_carriers(
+    pub(super) fn transport_identity_emissions(
         &mut self,
-        signature: &proof_admission::Signature,
+        call: &TableCallExpression,
+        mut callee: TermHandle,
+        inputs: &[super::source_domains::SourceInput],
     ) -> Result<(), Vec<Diagnostic>> {
-        let mut rows = std::mem::take(&mut self.prepared.identity_carriers);
-        let handles = rows.iter().map(|(handle, _)| handle).collect::<Vec<_>>();
-        for handle in handles {
-            let row = rows.get_mut(handle);
-            row.ty = super::normalization::normalize(
-                &mut self.arena,
-                signature,
-                row.ty,
-                &mut Budget::new(DEFAULT_CONVERSION_STEPS),
-                &|declaration| {
-                    self.identity_declaration == Some(declaration)
-                        || self
-                            .source_aliases
-                            .iter()
-                            .any(|alias| alias.declaration == declaration)
-                        || self
-                            .indexed_families
-                            .values()
-                            .any(|family| family.declaration == declaration)
-                },
-            )
-            .map_err(|error| {
-                self.refuse(format!("identity carrier reduction failed: {error:?}"))
-            })?;
+        let emitted = self
+            .identity_emissions_by_owner
+            .get(&call.target_symbol)
+            .into_iter()
+            .flatten()
+            .map(|position| self.identity_emissions[*position].clone())
+            .collect::<Vec<_>>();
+        if emitted.is_empty() {
+            return Ok(());
         }
-        self.prepared.identity_carriers = rows;
+        let Some(&index) = self.authored_index.get(&call.target_symbol) else {
+            return Err(self.refuse("Id value lost its mathematical declaration owner".into()));
+        };
+        let definition = &self.program.mathematical_definitions()[index];
+        let binders = self
+            .program
+            .data_type_parameters
+            .span_or_empty(definition.binders);
+        let plan = source_generic_argument_plan(
+            self.program,
+            binders,
+            &call.machine_arguments,
+            &self.fixed_core,
+        )
+        .ok_or_else(|| {
+            self.refuse("Id value lost its checked generic application telescope".into())
+        })?;
+        let mut arguments = Vec::new();
+        for slot in plan {
+            if matches!(slot.kind, MathematicalBinderKind::Level) {
+                continue;
+            }
+            let actual = slot.argument.ok_or_else(|| {
+                self.refuse("Id application lost a supplied generic operand".into())
+            })?;
+            arguments.push((
+                slot.binder.symbol,
+                IdentitySourceArgument::Static(actual.clone()),
+            ));
+        }
+        let formals = self.program.mathematical_parameters(definition.parameters);
+        let actuals = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments);
+        if formals.len() != actuals.len() {
+            return Err(self.refuse("Id application changed its ordinary subject arity".into()));
+        }
+        arguments.extend(
+            formals.iter().zip(actuals).map(|(formal, actual)| {
+                (formal.symbol, IdentitySourceArgument::Expression(*actual))
+            }),
+        );
+        let scope = IdentitySourceScope {
+            declaration: definition.symbol,
+            arguments,
+        };
+        let mut operands = Vec::new();
+        while let Term::Apply { function, argument } = self.arena.get(callee) {
+            operands.push(argument);
+            callee = function;
+        }
+        operands.reverse();
+        operands.extend(inputs.iter().map(|input| input.term));
+        let Term::Constant { levels, .. } = self.arena.get(callee) else {
+            return Err(self.refuse("Id application has no checked constant spine".into()));
+        };
+        for row in emitted {
+            let mut value =
+                proof_admission::instantiate_levels(&mut self.arena, row.abstraction, &levels)
+                    .map_err(|level| {
+                        self.refuse(format!("Id application lost universe parameter {level}"))
+                    })?;
+            for argument in &operands {
+                value = self.arena.insert(Term::Apply {
+                    function: value,
+                    argument: *argument,
+                });
+            }
+            // New caller scopes precede the retained callee scopes: each
+            // supplied operand sees its original outer telescope once.
+            let mut scopes = Vec::with_capacity(row.source_scopes.len() + 1);
+            scopes.push(scope.clone());
+            scopes.extend(row.source_scopes);
+            self.record_identity_emission(value, row.source_type, row.source_owner, scopes);
+        }
         Ok(())
     }
+
+    pub(super) fn prepare_identity_values(
+        &mut self,
+        signature: &proof_admission::Signature,
+        context: &proof_admission::Context,
+        retained_constants: &std::collections::HashSet<u32>,
+        emissions: &std::ops::Range<usize>,
+    ) -> Result<HandleSpan<PreparedIdentityValue>, Vec<Diagnostic>> {
+        let mut values = Vec::with_capacity(emissions.len());
+        for position in emissions.clone() {
+            let row = &self.identity_emissions[position];
+            let arguments = row
+                .source_scopes
+                .iter()
+                .map(|scope| {
+                    scope
+                        .arguments
+                        .iter()
+                        .map(|(binder, actual)| {
+                            (
+                                *binder,
+                                match actual {
+                                    IdentitySourceArgument::Static(actual) => {
+                                        IndexIdentityArgument::StaticArgument(actual)
+                                    }
+                                    IdentitySourceArgument::Expression(actual) => {
+                                        IndexIdentityArgument::Expression(*actual)
+                                    }
+                                },
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            let scopes = row
+                .source_scopes
+                .iter()
+                .zip(&arguments)
+                .map(|(scope, arguments)| AppliedTypeIdentityScope {
+                    declaration: scope.declaration,
+                    arguments,
+                    lifetimes: &[],
+                })
+                .collect::<Vec<_>>();
+            let type_identity =
+                applied_type_identity(self.program, row.source_type, row.source_owner, &scopes)
+                    .ok_or_else(|| {
+                        self.refuse(
+                            "Id application lost its exact source carrier substitution".into(),
+                        )
+                    })?;
+            let term = super::normalization::normalize(
+                &mut self.arena,
+                signature,
+                row.value,
+                &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                &|declaration| retained_constants.contains(&declaration),
+            )
+            .map_err(|error| self.refuse(format!("Id value substitution failed: {error:?}")))?;
+            let ty = proof_admission::infer_type(
+                &mut self.arena,
+                context,
+                term,
+                &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+            )
+            .map_err(|error| self.refuse(format!("emitted Id value fails formation: {error:?}")))?;
+            values.push(PreparedIdentityValue {
+                term,
+                ty,
+                type_identity,
+            });
+        }
+        Ok(self.prepared.identity_values.insert_many(values))
+    }
+}
+
+#[derive(Clone)]
+pub(super) struct IdentityEmission {
+    value: TermHandle,
+    abstraction: TermHandle,
+    source_type: TypeReferenceHandle,
+    source_owner: SymbolHandle,
+    source_scopes: Vec<IdentitySourceScope>,
+}
+
+#[derive(Clone)]
+struct IdentitySourceScope {
+    declaration: SymbolHandle,
+    arguments: Vec<(SymbolHandle, IdentitySourceArgument)>,
+}
+
+#[derive(Clone)]
+enum IdentitySourceArgument {
+    Static(StaticMachineArgument),
+    Expression(ExpressionHandle),
 }

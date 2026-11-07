@@ -6,7 +6,9 @@
 //! to reread storage or to replace a selected source operation's meaning.
 
 use super::StructuralTerm;
-use crate::mathematical_applications::{PreparedConstantMeaning, PreparedMathematicalView};
+use crate::mathematical_applications::{
+    PreparedApplication, PreparedConstantMeaning, PreparedMathematicalView,
+};
 use numerics::literals::FloatLiteral;
 use proof_admission::{Term, TermHandle};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -41,12 +43,13 @@ pub(in crate::proof_contracts::contract_entailment) fn application_term(
             Some(Some(value))
         })
         .collect::<Option<Vec<_>>>()?;
-    read_term(program, view, application.term, &captures, 0)
+    read_term(program, view, application, application.term, &captures, 0)
 }
 
 fn read_term(
     program: &dyn crate::CheckingInput,
     view: PreparedMathematicalView<'_>,
+    application: &PreparedApplication,
     term: TermHandle,
     captures: &[Option<StructuralTerm>],
     depth: usize,
@@ -54,8 +57,8 @@ fn read_term(
     if depth >= 128 {
         return None;
     }
-    let read = |term| read_term(program, view, term, captures, depth + 1);
-    if let Some((carrier, [left, right])) = view.identity_value(term) {
+    let read = |term| read_term(program, view, application, term, captures, depth + 1);
+    if let Some((carrier, [left, right])) = view.identity_value(application, term) {
         return Some(StructuralTerm::Identity {
             carrier: carrier.type_identity,
             left: Box::new(read(left)?),
@@ -122,14 +125,21 @@ fn read_term(
                 // ambient assumption about a caller's runtime Boolean.
                 return Some(binary(
                     BinaryOperator::Or,
-                    read_term(program, view, zero_branch, &extended, depth + 1)?,
-                    read_term(program, view, one_branch, &extended, depth + 1)?,
+                    read_term(
+                        program,
+                        view,
+                        application,
+                        zero_branch,
+                        &extended,
+                        depth + 1,
+                    )?,
+                    read_term(program, view, application, one_branch, &extended, depth + 1)?,
                 ));
             }
             Some(binary(
                 BinaryOperator::And,
                 read(domain)?,
-                read_term(program, view, codomain, &extended, depth + 1)?,
+                read_term(program, view, application, codomain, &extended, depth + 1)?,
             ))
         }
         _ => {

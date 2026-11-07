@@ -26,7 +26,7 @@ pub use float_predicates::{MathematicalFloatPredicate, float_predicates};
 pub(crate) use prepared::application_spine;
 pub use prepared::{
     PreparedApplication, PreparedCapture, PreparedConstant, PreparedConstantMeaning,
-    PreparedIdentityCarrier, PreparedIndexedTheorem, PreparedMathematicalApplications,
+    PreparedIdentityValue, PreparedIndexedTheorem, PreparedMathematicalApplications,
     PreparedMathematicalView, PreparedSourceCarrier, PreparedSourceConstructor,
     PreparedSourceEvidence, integer_embedding_meaning,
 };
