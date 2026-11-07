@@ -28,39 +28,12 @@ impl<'program> StructuralJudge<'program> {
         // this read; an intervening receiver write forbids address replay.
         let completed_reference = if reference_contents.is_some() || scalar_read_completed {
             let declared = judge.scalar_reference_read_type(scope.0, scope.1, expression)?;
-            let result_type =
-                crate::value_custody::expression_types::readable_observation_type_reference(
-                    program, declared,
-                )?;
-            let mut observed = judge.capture_unknown_value(expression, scope)?;
-            if let StructuralTerm::CapturedValue {
-                result_type: carrier,
-                integer_range,
-                ..
-            } = &mut observed
-            {
-                // This is a performed scalar read, not a descriptor cast.
-                // A completed read retains its signed scalar carrier even when
-                // its bytes have no known equation. Only an independently
-                // supplied content value can contribute a narrower interval.
-                *carrier = result_type;
-                *integer_range = reference_contents
-                    .as_ref()
-                    .and_then(|contents| judge.completed_integer_range_recipe(contents))
-                    .map(Arc::new);
-            }
-            if let Some(contents) = reference_contents {
-                judge.assume_completed_value_equation(result_type, observed.clone(), contents);
-            }
-            if super::super::super::struct_trace() {
-                eprintln!(
-                    "STRUCT completed-reference-contents expression={expression:?} descriptor_type={declared:?} scalar_type={result_type:?} observed={observed:?}"
-                );
-            }
-            Some(
-                structural_terms::shared_inline_observation(program, declared, observed.clone())
-                    .unwrap_or(observed),
-            )
+            Some(judge.capture_completed_scalar_read(
+                expression,
+                declared,
+                scope,
+                reference_contents,
+            )?)
         } else if !receiver_changed
             && let Some(reference) = judge.scalar_reference_read_type(scope.0, scope.1, expression)
         {
@@ -564,5 +537,76 @@ impl<'program> StructuralJudge<'program> {
             }
         }
         Some(NormalReturnPath::observed(value, judge))
+    }
+}
+
+impl StructuralJudge<'_> {
+    /// Keep the read's scalar carrier without inventing its contents. Only
+    /// independent content evidence supplies an equation or tighter interval.
+    fn capture_completed_scalar_read(
+        &mut self,
+        expression: ExpressionHandle,
+        declared: TypeReferenceHandle,
+        scope: ValueScope<'_>,
+        contents: Option<StructuralTerm>,
+    ) -> Option<StructuralTerm> {
+        let program = self.program;
+        let scalar = crate::value_custody::expression_types::readable_observation_type_reference(
+            program, declared,
+        )?;
+        let mut observed = self.capture_unknown_value(expression, scope)?;
+        if let StructuralTerm::CapturedValue {
+            result_type,
+            integer_range,
+            ..
+        } = &mut observed
+        {
+            *result_type = scalar;
+            *integer_range = contents
+                .as_ref()
+                .and_then(|contents| self.completed_integer_range_recipe(contents))
+                .map(Arc::new);
+        }
+        if let Some(contents) = contents {
+            self.assume_completed_value_equation(scalar, observed.clone(), contents);
+        }
+        if super::super::super::struct_trace() {
+            eprintln!(
+                "STRUCT completed-reference-contents expression={expression:?} descriptor_type={declared:?} scalar_type={scalar:?} observed={observed:?}"
+            );
+        }
+        Some(
+            structural_terms::shared_inline_observation(program, declared, observed.clone())
+                .unwrap_or(observed),
+        )
+    }
+}
+
+impl<'program> NormalReturnPath<'program> {
+    /// A scalar consumer can read a completed descriptor without knowing the
+    /// bytes' value. The common read owner must admit the exact captured
+    /// supplier frontier before this fresh scalar event can replace it.
+    pub(super) fn complete_scalar_operand_read(
+        mut self,
+        expression: ExpressionHandle,
+        declared: TypeReferenceHandle,
+        scope: ValueScope<'_>,
+    ) -> Option<Self> {
+        let value = self.observed_value()?;
+        if structural_terms::scalar_operand_is_observed(self.judge.program, declared, value) {
+            return Some(self);
+        }
+        if !self
+            .judge
+            .frame_resolver()?
+            .completed_scalar_read(scope.0, scope.1, expression)
+        {
+            return None;
+        }
+        self.value = self
+            .judge
+            .capture_completed_scalar_read(expression, declared, scope, None)?;
+        self.source = None;
+        Some(self)
     }
 }
