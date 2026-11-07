@@ -168,7 +168,9 @@ def main():
                   capture_ci=binding['capture_ci'], capture_run=binding['capture_run'],
                   compiler_source=SOURCE, full98_accepted=False,
                   source_use_attribution='pending-independent-current-artifact-review',
-                  component_acceptance_complete=False, slot_released=False)
+                  component_acceptance_complete=False, slot_released=False,
+                  restoration_complete=False,
+                  post_source_and_restored_files_unchanged=False)
     def validate():
         require(preflight()[0] == revision, 'test source changed')
     try:
@@ -184,6 +186,7 @@ def main():
         transport.mkdir()
         CAPTURE.mkdir()
         restored = []
+        report['restored_files'] = restored
         for key, description in plan['archives'].items():
             if description['kind'] == 'github':
                 artifact_id = str(description['id'])
@@ -212,7 +215,8 @@ def main():
             restored.extend(restore(archive,
                 [row for row in plan['files'] if row['archive'] == key],
                 description['member_count']))
-        report['restored_files'] = restored
+        require(len(restored) == len(plan['files']), 'capture restoration is incomplete')
+        report['restoration_complete'] = True
         def captured(locator):
             row = binding['restored_files'][locator]
             path = CAPTURE / row['member']
@@ -264,16 +268,47 @@ def main():
     except BaseException as error:
         report['error'] = type(error).__name__ + ': ' + str(error)
     finally:
+        post_errors = []
         try:
             validate()
-            for row in plan['files']:
-                path = CAPTURE / row['member']
-                if path.exists():
-                    require(sha(path) == row['sha256'], 'restored evidence changed after failure')
-            report['post_source_and_restored_files_unchanged'] = True
+            report['post_source_unchanged'] = True
         except BaseException as error:
+            report['post_source_unchanged'] = False
+            post_errors.append(type(error).__name__ + ': ' + str(error))
+        states = []
+        for row in plan['files']:
+            path = CAPTURE / row['member']
+            state = dict(member=row['member'], expected_sha256=row['sha256'])
+            try:
+                metadata = path.lstat()
+                require(stat.S_ISREG(metadata.st_mode) and not path.is_symlink(),
+                        'restored evidence is not a regular non-symlink file')
+                require(path.resolve().is_relative_to(CAPTURE),
+                        'restored evidence escaped its capture root')
+                state['actual_sha256'] = sha(path)
+                require(state['actual_sha256'] == row['sha256'],
+                        'restored evidence changed after failure')
+                state['status'] = 'verified'
+            except FileNotFoundError:
+                state['status'] = 'missing'
+            except BaseException as error:
+                state['status'] = 'invalid'
+                state['error'] = type(error).__name__ + ': ' + str(error)
+            states.append(state)
+        report['post_restored_file_states'] = states
+        if report['restoration_complete']:
+            all_verified = (len(states) == len(plan['files'])
+                            and all(row['status'] == 'verified' for row in states))
+            if not all_verified:
+                post_errors.append('one or more completed capture files are missing or changed')
+            report['post_source_and_restored_files_unchanged'] = (
+                report['post_source_unchanged'] and all_verified)
+        else:
+            report['partial_restoration'] = True
             report['passed'] = False
-            report['post_error'] = type(error).__name__ + ': ' + str(error)
+        if post_errors:
+            report['passed'] = False
+            report['post_error'] = '; '.join(post_errors)
         (OUT / 'ci-result.json').write_text(json.dumps(report, indent=2) + '\n')
         print('INSTALLED_EMPTY_COMPONENT_OBSERVED', report['passed'], flush=True)
     return 0 if report['passed'] else 1
