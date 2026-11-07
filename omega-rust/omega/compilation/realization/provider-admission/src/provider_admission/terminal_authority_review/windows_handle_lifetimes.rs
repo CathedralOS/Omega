@@ -55,7 +55,7 @@ pub(super) struct HandleInstance(pub usize);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct FileObject(usize);
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum HandleOrigin {
     Acquired(NativeOccurrence),
     Duplicated {
@@ -64,7 +64,7 @@ enum HandleOrigin {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Handle {
     object: FileObject,
     origin: HandleOrigin,
@@ -72,7 +72,7 @@ struct Handle {
     uses: BTreeSet<HandleUseOccurrence>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct FileObjectState {
     acquisition_flags: u32,
     /// A disposition on one duplicate changes their shared file object. A
@@ -82,7 +82,7 @@ struct FileObjectState {
     escaped: Option<NativeOccurrence>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum HandleLifetimeFailure {
     InvalidActivation(&'static str),
     UnprovedOccurrence(HandleUseOccurrence),
@@ -117,13 +117,32 @@ pub(super) enum HandleLifetimeFailure {
 
 /// One returning path's exact resource history. Control-flow joins must retain
 /// every incoming ledger; choosing one branch is not a proof of one release.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct HandleLifetimes {
     handles: BTreeMap<HandleInstance, Handle>,
     objects: Vec<FileObjectState>,
 }
 
 impl HandleLifetimes {
+    pub(super) fn has_live_handles(&self) -> bool {
+        self.handles.values().any(|handle| handle.release.is_none())
+    }
+
+    pub(super) fn next_instance(&self) -> Result<HandleInstance, HandleLifetimeFailure> {
+        let next = match self.handles.last_key_value() {
+            Some((instance, _)) => {
+                instance
+                    .0
+                    .checked_add(1)
+                    .ok_or(HandleLifetimeFailure::InvalidActivation(
+                        "handle instance index overflow",
+                    ))?
+            }
+            None => 0,
+        };
+        Ok(HandleInstance(next))
+    }
+
     /// Called only on the successful, non-inheritable CreateFileW continuation
     /// after the flow reader binds the actual flags to this native occurrence.
     /// CreateFileW's result can name any supported file/device kind, including a
@@ -250,6 +269,28 @@ impl HandleLifetimes {
             .unwrap()
             .uses
             .insert(use_site);
+        Ok(())
+    }
+
+    /// One evaluated expression can depend on several resource instances.
+    /// Validate the whole read before recording any of its uses, so a stale
+    /// sibling cannot leave a partially committed observation behind.
+    pub(super) fn observe_scalars(
+        &mut self,
+        instances: &BTreeSet<HandleInstance>,
+        occurrence: ScalarOccurrence,
+    ) -> Result<(), HandleLifetimeFailure> {
+        let use_site = HandleUseOccurrence::Scalar(occurrence);
+        for &instance in instances {
+            self.require_live(instance, use_site)?;
+        }
+        for instance in instances {
+            self.handles
+                .get_mut(instance)
+                .unwrap()
+                .uses
+                .insert(use_site);
+        }
         Ok(())
     }
 
@@ -632,6 +673,27 @@ mod transition_tests {
             escaped.release_file(source, occurrence(7)),
             Err(HandleLifetimeFailure::EscapedObject { .. })
         ));
+    }
+
+    #[test]
+    fn one_stale_dependency_cannot_partially_record_an_expression_read() {
+        let live = HandleInstance(0);
+        let retired = HandleInstance(1);
+        let mut ledger = HandleLifetimes::default();
+        ledger.acquire_file(live, occurrence(1), 0).unwrap();
+        ledger.duplicate_file(live, retired, occurrence(2)).unwrap();
+        ledger.release_file(retired, occurrence(3)).unwrap();
+        let before = ledger.clone();
+        let read = ScalarOccurrence {
+            machine: MachineId::new(1).unwrap(),
+            site: ScalarUseSite::Operation(OperationId::new(4).unwrap()),
+            context: [1; 32],
+        };
+        assert!(matches!(
+            ledger.observe_scalars(&BTreeSet::from([live, retired]), read),
+            Err(HandleLifetimeFailure::UseAfterRelease { .. })
+        ));
+        assert_eq!(ledger, before);
     }
 
     #[test]

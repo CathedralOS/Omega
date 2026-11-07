@@ -15,7 +15,7 @@ use std::marker::PhantomData;
 use crate::PsiSemanticId;
 
 /// One value per identity in a contiguous run `first..first + len`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct IdTable<Id, T> {
     first: u64,
     values: Vec<T>,

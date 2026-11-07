@@ -124,6 +124,11 @@ impl<'a> ReviewContext<'a> {
     }
 
     #[cfg(test)]
+    pub(super) fn target_profile(&self) -> target::TargetProfile {
+        self.target_profile
+    }
+
+    #[cfg(test)]
     pub(super) fn foreign_binding(
         &self,
         boundary: BoundaryMachineId,

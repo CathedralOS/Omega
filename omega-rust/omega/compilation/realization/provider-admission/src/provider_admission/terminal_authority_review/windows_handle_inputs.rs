@@ -10,7 +10,8 @@ use semantic_vocabulary::{IdTable, IntegerValue, MachineId, ScalarTerm, ScalarTy
 use terminal_psi::{BoundaryParameterKind, OperationKind};
 use terminal_semantics::descriptor_lifetimes::DescriptorPosition;
 use terminal_semantics::descriptor_results::{
-    DescriptorMachine, ScalarCaptureAnalysis, terminal_borrowed_storage_graph_from,
+    DescriptorMachine, ResidentValueCaptures, ScalarCaptureAnalysis, TerminalScalarCaptures,
+    terminal_borrowed_storage_graph_from,
 };
 
 use super::context::ReviewContext;
@@ -21,7 +22,7 @@ use super::windows_handle_calls::{
 use super::windows_handle_conditions::HandleFlowConditions;
 use super::windows_handle_contracts::{ReviewedHandleCall, WindowsHandleContract, reviewed_call};
 use super::windows_handle_origins::{HandleOrigins, ScalarSubject};
-use super::windows_handle_values::HandleValueReader;
+use super::windows_handle_values::{HandleValueReader, LocalScalarExpressions};
 
 pub(super) struct NativeHandleInput<'a> {
     pub call: RuntimeCall<'a>,
@@ -29,6 +30,18 @@ pub(super) struct NativeHandleInput<'a> {
     /// Original source-level scalar parameter ordinal to its exact SSA operand.
     /// Native pointer/count expansion stays in the reviewed physical call plan.
     pub scalars: BTreeMap<usize, ScalarSubject>,
+}
+
+/// All immutable scalar rosters and the matching reusable version scratch
+/// belong to the same body and borrowed-storage graph coordinate. Replay does
+/// not rebuild a typing/capture inventory at each operation or caller edge.
+pub(super) struct PreparedHandleMachine {
+    pub storage_index: usize,
+    pub conditions: HandleFlowConditions,
+    pub expressions: LocalScalarExpressions,
+    pub operands: TerminalScalarCaptures,
+    pub resident_transfers: ResidentValueCaptures,
+    versions: ScalarCaptureAnalysis,
 }
 
 pub(super) struct WindowsHandleInputs<'a> {
@@ -41,8 +54,7 @@ pub(super) struct WindowsHandleInputs<'a> {
     pub intrinsic_calls: BTreeMap<Caller, RuntimeCall<'a>>,
     pub origins: HandleOrigins,
     pub activations: ActivationPaths,
-    pub conditions: IdTable<MachineId, Option<HandleFlowConditions>>,
-    scalar_captures: IdTable<MachineId, Option<ScalarCaptureAnalysis>>,
+    pub machines: IdTable<MachineId, Option<PreparedHandleMachine>>,
     pub close_sites: BTreeSet<Caller>,
     pub duplicate_sites: BTreeSet<Caller>,
 }
@@ -118,14 +130,13 @@ impl<'a> WindowsHandleInputs<'a> {
             u32::try_from(caller.operation_index)
                 .map_err(|_| "native result ordinal exceeds its canonical position")?,
         );
-        self.scalar_captures.get_mut(caller.machine).and_then(Option::as_mut)
-            .ok_or("native status has no prepared scalar-version context")?
-            .require(source, observation, &[status.id])
-        .map_err(|reason| {
-            format!(
-                "native success status is not this completed result at {observation:?}: {reason:?}"
-            )
-        })?;
+        let prepared = self
+            .machines
+            .get_mut(caller.machine)
+            .and_then(Option::as_mut)
+            .ok_or("native status has no prepared canonical machine")?;
+        prepared.versions.require(source, observation, &[status.id])
+            .map_err(|reason| format!("native success status is not this completed result at {observation:?}: {reason:?}"))?;
         let condition = ScalarTerm::IntegerEqual {
             scalar_type: integer_type,
             left: Box::new(ScalarTerm::value(status.id, status.scalar_type)),
@@ -134,11 +145,10 @@ impl<'a> WindowsHandleInputs<'a> {
                 value: literal,
             }),
         };
-        let conditions: &super::windows_handle_conditions::ScalarConditions = self
+        let conditions: &super::windows_handle_conditions::ScalarConditions = prepared
             .conditions
-            .get(caller.machine)
-            .and_then(Option::as_ref)
-            .and_then(|machine| machine.snapshots.get(&observation))
+            .snapshots
+            .get(&observation)
             .ok_or("native success observation has no actual reachable guard state")?;
         if !conditions.proves(&condition, polarity) {
             return Err(format!(
@@ -262,44 +272,62 @@ impl<'a> WindowsHandleInputs<'a> {
             &selected_bodies,
         )
         .map_err(|reason| format!("handle replay cannot reconstruct actual storage: {reason}"))?;
-        let (origins, conditions, scalar_captures) = {
+        let (origins, machines) = {
             let mut reader = HandleValueReader::new(context, &calls, &storage, module)?;
-            let mut conditions = Vec::new();
-            let mut scalar_captures = Vec::new();
-            for machine in &storage {
-                if calls.machine(machine.id).is_some() {
-                    let mut captures = ScalarCaptureAnalysis::new(machine).map_err(|reason| {
+            let mut machines = Vec::new();
+            for (storage_index, machine) in storage.iter().enumerate() {
+                if let Some(body) = calls.machine(machine.id) {
+                    let mut versions = ScalarCaptureAnalysis::new(machine).map_err(|reason| {
                         format!("native scalar-version context is unavailable: {reason}")
                     })?;
-                    let local_expressions = reader.local_expressions(machine.id)?;
-                    conditions.push((
+                    let expressions = reader.local_expressions(machine.id)?;
+                    let operands = reader.scalar_captures(machine.id)?;
+                    let conditions = HandleFlowConditions::derive(
+                        machine,
+                        body,
+                        &expressions,
+                        &mut versions,
+                        operands,
+                    )?;
+                    machines.push((
                         machine.id,
-                        Some(HandleFlowConditions::derive(
-                            machine,
-                            calls
-                                .machine(machine.id)
-                                .ok_or("native guard has no reached canonical body")?,
-                            &local_expressions,
-                            &mut captures,
-                            reader.scalar_captures(machine.id)?,
-                        )?),
+                        (storage_index, conditions, expressions, versions),
                     ));
-                    scalar_captures.push((machine.id, Some(captures)));
                 }
             }
-            conditions.sort_by_key(|(identity, _)| *identity);
-            scalar_captures.sort_by_key(|(identity, _)| *identity);
-            let conditions = IdTable::from_rows_with_gaps(conditions, 65_536)
-                .map_err(|reason| format!("handle condition inventory is invalid: {reason:?}"))?;
-            let scalar_captures =
-                IdTable::from_rows_with_gaps(scalar_captures, 65_536).map_err(|reason| {
-                    format!("handle scalar-version inventory is invalid: {reason:?}")
-                })?;
-            (
-                HandleOrigins::derive(module, &calls, &mut reader, roots)?,
-                conditions,
-                scalar_captures,
-            )
+            let origins = HandleOrigins::derive(module, &calls, &mut reader, roots)?;
+            let (mut operands, mut resident_transfers) = reader.into_captures();
+            machines.sort_by_key(|(identity, _)| *identity);
+            let machines = machines
+                .into_iter()
+                .map(
+                    |(identity, (storage_index, conditions, expressions, versions))| {
+                        let operands = operands
+                            .get_mut(identity)
+                            .and_then(Option::take)
+                            .ok_or("canonical replay lost its prepared scalar operand roster")?;
+                        let resident_transfers = resident_transfers
+                            .get_mut(identity)
+                            .and_then(Option::take)
+                            .ok_or("canonical replay lost its prepared resident transfer roster")?;
+                        Ok((
+                            identity,
+                            Some(PreparedHandleMachine {
+                                storage_index,
+                                conditions,
+                                expressions,
+                                operands,
+                                resident_transfers,
+                                versions,
+                            }),
+                        ))
+                    },
+                )
+                .collect::<Result<Vec<_>, String>>()?;
+            let machines = IdTable::from_rows_with_gaps(machines, 65_536).map_err(|reason| {
+                format!("handle machine replay inventory is invalid: {reason:?}")
+            })?;
+            (origins, machines)
         };
         let activations = ActivationPaths::derive(&origins)?;
         Ok(Self {
@@ -310,8 +338,7 @@ impl<'a> WindowsHandleInputs<'a> {
             intrinsic_calls,
             origins,
             activations,
-            conditions,
-            scalar_captures,
+            machines,
             close_sites,
             duplicate_sites,
         })

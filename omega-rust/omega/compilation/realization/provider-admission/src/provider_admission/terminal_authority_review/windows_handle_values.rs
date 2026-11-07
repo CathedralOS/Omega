@@ -141,6 +141,18 @@ pub(super) struct HandleValueReader<'a> {
 }
 
 impl<'a> HandleValueReader<'a> {
+    /// Finish all origin queries before handing the same prepared operand
+    /// rosters to canonical replay. Moving them avoids a second writer scan or
+    /// cloning every stored scalar and edge operand.
+    pub(super) fn into_captures(
+        self,
+    ) -> (
+        IdTable<MachineId, Option<TerminalScalarCaptures>>,
+        IdTable<MachineId, Option<ResidentValueCaptures>>,
+    ) {
+        (self.captured_scalars, self.resident_transfers)
+    }
+
     /// Immutable equations for ordinary scalar leaves. Native results and
     /// storage observations stay their original SSA binders; no call summary,
     /// current storage fact or source qualifier is substituted here.
