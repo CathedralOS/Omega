@@ -485,7 +485,13 @@ impl CanonicalHandleState {
                 .iter()
                 .flat_map(|(_, value)| value.word.dependencies().iter().copied()),
             occurrence,
-        )?;
+        ).map_err(|error| {
+            let tracked = captured.iter().zip(&scalars)
+                .filter(|(_, (_, value))| !value.word.dependencies().is_empty());
+            let count = tracked.clone().count();
+            let rows = tracked.take(8).collect::<Vec<_>>();
+            format!("handle scalar arrival from {:?}/{position:?}, successor {ordinal} to {:?}: {count} tracked bindings (first eight {rows:?}): {error}", machine.body.id, target.id)
+        })?;
         let mut structural = Vec::new();
         for (binding, formal) in edge.bindings.iter().zip(&target.structural_parameters) {
             if binding.parameter != DescriptorLocation::whole(formal.place)

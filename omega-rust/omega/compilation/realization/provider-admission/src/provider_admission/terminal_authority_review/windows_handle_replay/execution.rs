@@ -968,7 +968,26 @@ pub(super) fn derive(
         if steps > 1_048_576 {
             return Err("handle execution exceeds its bounded total replay steps".into());
         }
-        execution.step(Arc::unwrap_or_clone(work))?;
+        let activation = work.activation;
+        let position = work.control.position();
+        execution.step(Arc::unwrap_or_clone(work)).map_err(|error| {
+            // Retain the original source identity and operation only on refusal.
+            // No diagnostic value participates in replay or its resource key.
+            let body = execution.body(activation);
+            let identities = &context.input.module().identities;
+            let declaration = body.as_ref().ok().and_then(|body| body.declaration.as_ref())
+                .map(|declaration| (
+                    identities.text(declaration.machine.identity()),
+                    identities.text(declaration.state.identity()),
+                    identities.text(declaration.callable),
+                ));
+            let block = body.as_ref().ok().and_then(|body| body.block(&position.0));
+            format!(
+                "handle execution at activation {activation}, source {declaration:?}, cut {position:?}, operation {:?}, terminator {:?}: {error}",
+                block.and_then(|block| block.operations.get(position.1 as usize)),
+                block.map(|block| &block.terminator),
+            )
+        })?;
         progress.replay(
             steps,
             execution.pending.rows.len(),
