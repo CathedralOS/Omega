@@ -20307,8 +20307,7 @@ pass/calls/runtime_linear_guarded_owner_disposition_exit checked 106806ms check-
 pass/calls/runtime_linear_guarded_unit_owner_disposition_exit checked 109719ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/calls/runtime_linear_state_owner_disposition_exit checked 111878ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/calls/runtime_linear_terminal_owner_disposition_exit checked 99164ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/calls/runtime_literal_owned_operand_producers_exit rejected 3189ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "replied", reason: "resident membership home has no exact source projection", gap: None })
+pass/calls/runtime_literal_owned_operand_producers_exit checked 6766ms check-target:macos_arm64 @24f18569d55c
 pass/calls/runtime_local_case_terminal_payload_result_exit checked 4313ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_local_scalar_array_element_loan_exit checked 19264ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_loop_rotation_exit checked 16430ms check-target:macos_arm64 @ccdb99ca2214
@@ -21357,8 +21356,7 @@ pass/domains/runtime_generic_exact_issuer_exit checked 3717ms check-target:macos
 pass/domains/runtime_nested_record_membership_transport_exit checked 3101ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_primitive_receiver_explicit_domain_erasure_exit checked 11668ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_qualified_borrowed_gated_input_exit checked 3524ms check-target:macos_arm64 @ccdb99ca2214
-pass/domains/runtime_qualified_case_state_copy_exit rejected 3995ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "inspect_parameter", reason: "resident membership home has no exact source projection", gap: None })
+pass/domains/runtime_qualified_case_state_copy_exit checked 7269ms check-target:macos_arm64 @24f18569d55c
 pass/domains/runtime_qualified_ieee_field_read_exit checked 6045ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_qualified_view_field_parameter_store_exit checked 16945ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_result_domain_machine_overload_exit checked 16617ms check-target:macos_arm64 @ccdb99ca2214
