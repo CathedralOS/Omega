@@ -31,6 +31,7 @@ fn body(state: SymbolHandle) -> StatePlan {
         terminator_statement_ordinal: 0,
         statement_count: 0,
         selected_exit: None,
+        selected_copies: Vec::new(),
         normal_exit_cleanups: Default::default(),
     }
 }
