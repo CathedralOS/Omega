@@ -1998,6 +1998,8 @@ crashes Trap ensures false {
 
 // Source-derived native-admission control only. Never execute installed CPU code here.
 public machine start()
+invokes TaskStatePreparation
+invokes BootstrapInterruptRegistrar
 requires addr::Bound == 18446744073709551616 {
     let mut storage: TaskStateStorage;
     let activated: bool = TaskStatePreparation::activate(&mut storage);
