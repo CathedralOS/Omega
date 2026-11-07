@@ -13,6 +13,7 @@
 //! loads the original owner's base field through its retained source loan.
 
 mod activation_residence;
+mod incoming_calls;
 pub(in crate::object::function_fragments::source) use activation_residence::validate as validate_activation_residence;
 
 use abstract_operations::AbstractOperationPlan;
@@ -41,6 +42,7 @@ pub(in crate::object::function_fragments::source) struct BackingGeometry<'a> {
     targeted: &'a target_operations::TargetOperationPlan,
     graph: &'a [DescriptorMachine],
     analysis: DescriptorAnalysis<'a>,
+    incoming: incoming_calls::IncomingCalls,
 }
 
 /// A selected machine call whose portable graph only kept the placed formation
@@ -219,6 +221,7 @@ impl<'a> BackingGeometry<'a> {
             selected,
             targeted,
             graph,
+            incoming: incoming_calls::IncomingCalls::new(abstracted, targeted, graph),
             analysis: DescriptorAnalysis::with_reference_slots(
                 abstracted.structural_types.as_slice(),
                 graph,
@@ -351,46 +354,15 @@ impl<'a> BackingGeometry<'a> {
             // alternative must reach a real allocation, never merely a cycle.
             pending.push((machine, origin.clone()));
             let mut incoming = false;
-            for caller in &self.targeted.functions {
-                for operation in caller.graph.operations() {
-                    let operation = match operation {
-                        target_operations::TargetUnitOperation::Call {
-                            target,
-                            psi_operation,
-                            ..
-                        } if target.machine() == Some(machine) => *psi_operation,
-                        target_operations::TargetUnitOperation::CleanupCall { callee, .. }
-                            if *callee == machine =>
-                        {
-                            return Err("cleanup arrival has no reconstructed backing observation");
-                        }
-                        _ => continue,
-                    };
-                    // Census selected callers first: a boundary call must not
-                    // disappear merely because its portable graph is opaque.
-                    let caller_graph = descriptor_machine(self.graph, caller.machine)
-                        .ok_or("selected caller has no reference-origin graph")?;
-                    let mut calls = caller_graph
-                        .calls
-                        .iter()
-                        .filter(|(_, call)| call.operation == operation);
-                    let (Some((position, call)), None) = (calls.next(), calls.next()) else {
-                        return Err("selected call has no unique reference-origin observation");
-                    };
-                    if call.callee() != Some(machine) {
-                        return Err("selected target differs from the reference-origin call");
-                    }
-                    incoming = true;
-                    let alternatives = self
-                        .analysis
-                        .substitute_call_source(caller.machine, *position, &origin)
-                        .ok_or("call argument has no complete backing substitution")?;
-                    if alternatives.is_empty() {
-                        return Err("call argument has no backing alternatives");
-                    }
-                    for alternative in alternatives {
-                        self.origin(caller.machine, alternative, required, pending)?;
-                    }
+            for index in self.incoming.range(machine) {
+                // Borrow the prepared row only for substitution. Recursion then
+                // follows its owned alternatives without cloning the caller roster.
+                let (caller, alternatives) =
+                    self.incoming
+                        .substitute(index, &mut self.analysis, &origin)?;
+                incoming = true;
+                for alternative in alternatives {
+                    self.origin(caller, alternative, required, pending)?;
                 }
             }
             pending.pop();

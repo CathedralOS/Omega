@@ -115,6 +115,7 @@ impl<'a> BackingGeometry<'a> {
             selected,
             targeted,
             graph,
+            incoming: super::incoming_calls::IncomingCalls::new(abstracted, targeted, graph),
             analysis: DescriptorAnalysis::with_borrowed_storage_slots(
                 abstracted.structural_types.as_slice(),
                 graph,

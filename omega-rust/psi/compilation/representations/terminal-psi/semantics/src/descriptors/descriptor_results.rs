@@ -561,6 +561,14 @@ pub fn descriptor_machine(
     graph.iter().find(|current| current.id == id)
 }
 
+/// Borrowed pre-invocation coordinates. These describe actual storage only;
+/// they establish no invocation, normal result, permission or backing grant.
+#[derive(Clone, Copy)]
+pub struct DescriptorActualInputs<'a> {
+    pub arguments: &'a [Option<DescriptorLocation>],
+    pub argument_contents: &'a [Option<DescriptorContentsQuery>],
+}
+
 pub struct DescriptorInvocation {
     pub operation: semantic_vocabulary::OperationId,
     pub target: DescriptorInvocationTarget,
@@ -600,6 +608,13 @@ pub enum DescriptorInvocationTarget {
 }
 
 impl DescriptorInvocation {
+    pub fn actual_inputs(&self) -> DescriptorActualInputs<'_> {
+        DescriptorActualInputs {
+            arguments: &self.arguments,
+            argument_contents: &self.argument_contents,
+        }
+    }
+
     pub fn stored_effects_callee(&self) -> Option<MachineId> {
         match self.target {
             DescriptorInvocationTarget::Public {
