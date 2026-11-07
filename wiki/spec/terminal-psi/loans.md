@@ -54,8 +54,8 @@ expire after formation without retargeting an already-captured loan.
 These are source-language obligations, not a requirement to serialize successful
 comparisons and replay them inside the same compile. Under
 [verification placement](../../../omega-rust/pipeline.md#verification-placement),
-the borrow checker judges the producer's facts once. Proof-carrying artifact
-verification is removed; authored mathematics and refinement reasoning remain.
+the borrow checker judges the source facts once. Authored mathematics and
+refinement reasoning establish those facts during source checking.
 
 Logical place footprints, semantic `Content<Owner, A>` projections, and physical effect
 footprints are different subjects. Relating them requires an explicit checked

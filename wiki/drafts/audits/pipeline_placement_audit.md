@@ -1,5 +1,10 @@
 # Pipeline placement audit
 
+Historical record of the cited revisions. Superseded gates, artifact formats
+and checker names below are not current requirements or work to resume.
+Use [verification placement](../../../omega-rust/pipeline.md#verification-placement)
+and the [current task board](../../../TASKS.md) for the maintained model.
+
 Mechanical sweep at `37d18e2104` of code placement against the
 [placement and semantic ownership](../../../omega-rust/pipeline.md) table. Scope:
 which ownership bucket each retained construct sits in, not whether the

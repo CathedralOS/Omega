@@ -2,8 +2,6 @@
 
 Use [advance](.agents/skills/advance/SKILL.md) and [sample loop](AGENTS.md#the-sample-loop) (`omega run --both`).
 
-<a id="pcc-removal"></a>
-
 ### Development-health outcomes
 
 - **ITERATION-PERFORMANCE.** Restore a usable edit/build/run workflow when a bottleneck measurably obstructs development.
@@ -63,7 +61,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Move `execution_settlement.rs`, `provider_binding.rs`, `operators.rs`, opaque/const/review paths, float/FMA/GUI calls, and target capsules to Terminal Psi.
   Acceptance: two-target builds share one Terminal artifact, and `pass/float/float_computation_route_exit` passes `--both`.
 
-## Lowering, checker, data-flow, and PCC simplification
+## Lowering, checker, and data-flow
 
 - **CORE-INDEXING-CONTRACTS.** Implement [contract-gated core indexing](wiki/drafts/designs/core_indexing_contracts.md).
   Acceptance: generic sealed access proves whole contracts, retains exact Terminal evidence and passes both engines/negative controls; retire independent bounds admission.

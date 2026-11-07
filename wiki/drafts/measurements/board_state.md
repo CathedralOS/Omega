@@ -1,5 +1,10 @@
 # Board state: every open row's blocking condition
 
+Historical record of the cited revisions. Superseded gates, artifact formats
+and checker names below are not current requirements or work to resume.
+Use [verification placement](../../../omega-rust/pipeline.md#verification-placement)
+and the [current task board](../../../TASKS.md) for the maintained model.
+
 A per-row index of `TASKS.md` at `2b106d32b4`, so a worker picking up the
 board can see what is startable without reading 4,400 lines, and so a reader
 can tell "nobody has done this" from "nobody CAN do this yet".

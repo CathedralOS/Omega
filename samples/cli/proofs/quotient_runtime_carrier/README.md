@@ -25,8 +25,8 @@ The representative relation is exact record equality. Quotient formation does
 not expose fields or synthesize equality, serialization, pattern matching or
 representative extraction. The public operations retain their mathematical
 identity while executing ordinary representative calls and checked nominal
-adaptations. Theorem declarations are retained source admission, not an
-independently checked PCC theorem proof.
+adaptations. Theorem declarations retain the source checker's admission;
+consumers rely on those source judgments.
 
 The corpus companion `run/proofs/quotient_copy_paths` also exercises an identity
 cast and duplicate unused observers. Invalid controls reject false relations and

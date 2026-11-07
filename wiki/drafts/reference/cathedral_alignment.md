@@ -59,16 +59,16 @@ borrow.
 
 ### 3. Terminal Psi, proof, and resource bounds
 
-The reference interpreter, proof-carrying-code checker, and Omega lowering all
-consume the same decoded and verified terminal-Psi artifact. Psi owns source
-through this IR; Omega never reconstructs Psi from an Omega tree. Artifact
-obligations are independently reconstructed, while proof bundles only discharge
-them.
+The reference interpreter and Omega lowering consume the same Terminal Psi
+artifact. Psi owns source through this IR; Omega never reconstructs Psi from
+an Omega tree. Receivers check structural, contract and authority relationships
+and rely on Psi's source judgments. The compiler's lowering and optimization
+remain trusted under [verification placement](../../../omega-rust/pipeline.md#verification-placement).
 
-Cathedral's executable trust and hard-root accounting depend
-on the proof-certificate bridge, verifier closure, crash contract, and fixed
-logical-work/stack evidence. Diagnostic JSON and producer-owned checked trees are not
-installation evidence.
+Cathedral's executable trust and hard-root accounting depend on accepted
+producer provenance, installation and authority checks, crash contracts, and
+logical-work/stack accounting. Diagnostic JSON and producer-owned checked trees
+are not installation authority.
 
 ### 4. Calling, final footprints, and callbacks
 

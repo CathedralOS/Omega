@@ -182,9 +182,9 @@ Terminal verification and abstract lowering. That verifier checks the exact
 grouped control-cycle evidence, including slice-decrease proofs; the route does
 not require or manufacture a fixed-work ceiling. The abstract graph retains its
 cyclic edges and structural bindings, and the separately verified optimizer input
-retains the canonical Terminal module and proof bundle. Native artifact admission
-alone does not establish downstream optimization, target lowering, or publication
-support for these cycles.
+retains the canonical Terminal module and checked producer facts. Native artifact
+admission alone does not establish downstream optimization, target lowering, or
+publication support for these cycles.
 
 Whole plain owned structural block arrivals retain exact source/destination
 types, access, multiplicity, and ordered bindings. Independent current ownership

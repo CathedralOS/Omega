@@ -23,5 +23,5 @@ An open generic method schema supplies no finite dynamic dispatch roster.
 
 Native and Terminal runs use ordinary accepted Source bindings and Console
 permissions. Source risk acceptance is distinct from host execution authority;
-artifact receiving checks structural joins under ordinary producer trust and
-does not claim PCC verification.
+artifact receiving checks structural joins and relies on the producer's
+source judgments.

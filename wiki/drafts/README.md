@@ -43,9 +43,6 @@ Cross-cutting notes that outlive any single rung.
 - [Matching-logic interchange](reference/matching_logic.md): research background and
   possible proof-route comparisons; delete when superseded by a concrete design
   or no longer useful.
-- [Matching-logic slice comparison](reference/matching_logic_slice_comparison.md): measured
-  route sizes, pinned case timings, and candidate-side slice record; delete once
-  the metrics aggregation column lands and the divergence resolves.
 - [Proof-search caching](reference/proof_search_cache.md): exploratory derivation reuse;
   replace with a measured proposal or delete when no longer useful.
 - [Rust compiler completion](reference/rust_compiler_completion.md): required release
@@ -87,9 +84,9 @@ Inventories of an existing surface and what each row still owes.
 - [PoC orphan-entrance audit](audits/poc_orphan_entrance_audit.md): entrance inventory
   and caller graph for the parked spill families; delete once the park is
   disposed of — every family sequenced or deleted.
-- [Producer/checker decision sharing](audits/producer_checker_decision_sharing_audit.md):
-  every surface where a producer-written decision reaches a checker, with its
-  verdict; delete once the cluster closes and a spec section owns the table.
+- [Historical producer/checker audit](audits/producer_checker_decision_sharing_audit.md):
+  findings about the audited revision, including superseded artifact formats;
+  use the pipeline contract for current guarantees.
 - [Proposition surface retirement](audits/proposition_surface_retirement.md): every
   grammar, pipeline, library, and corpus surface the `proposition` retirement
   must drain; delete once the migration drains them.

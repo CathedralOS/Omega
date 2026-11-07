@@ -596,8 +596,8 @@ audit, not permission to execute survivors. Case claims need exact symbol-rooted
 membership and composed state-argument maps at every case segment. Joins retain
 only common polarity and substitution. Trait/boundary/static-machine calls use
 checked callable capsules, not implementation-body inference. Separately compiled
-artifact capsule input remains dependent on semantic import/export identity and
-certificate binding; local custody is not that artifact format.
+artifact capsule input depends on semantic import/export identity and accepted
+producer provenance; local custody is not that artifact format.
 
 Nominal static-machine callback rows are keyed by exact authored use and machine
 argument ordinal. They join the registration slot, selected machine/entry,
