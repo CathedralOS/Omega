@@ -1,0 +1,65 @@
+// Rejected: overwriting the promised cell retires its earlier value guarantee.
+// A disjoint field write preserves the exact guarantee of a completed borrow.
+data Amount { value: u64; }
+data Envelope { cell: Amount; marker: u64; }
+machine set(cell: &mut Amount) -> Amount
+ensures cell.value == 32, result.value == 16 {
+    cell.value = 32;
+    Amount { value: 16 }
+}
+machine consume(cell: Amount, first: Amount) -> bool
+requires cell.value == 32, first.value == 16 {
+    cell.value == 32 && first.value == 16
+}
+machine direct() -> bool {
+    let mut envelope: Envelope = Envelope { cell: Amount { value: 48 }, marker: 29 };
+    let held: &mut u64 = &mut envelope.marker;
+    let first: Amount = set(&mut envelope.cell);
+    held = 73;
+    consume(envelope.cell, first) && envelope.marker == 73
+}
+machine selected(select: bool, inner: bool) -> bool {
+    let mut envelope: Envelope = Envelope { cell: Amount { value: 48 }, marker: 29 };
+    let held: &mut u64 = &mut envelope.marker;
+    let first: Amount = match select {
+        true -> match inner {
+            true -> set(&mut envelope.cell),
+            false -> set(&mut envelope.cell),
+        },
+        false -> set(&mut envelope.cell),
+    };
+    held = 73;
+    envelope.cell.value = 31;
+    consume(envelope.cell, first) && envelope.marker == 73
+}
+machine refresh(cell: &mut Amount) -> u64
+ensures cell.value == 32, result == 0 {
+    cell.value = 32;
+    0
+}
+machine cycle(cell: &mut Amount, select: bool, count: u64) -> bool
+requires cell.value == 32
+ensures cell.value == 32 {
+    transition { _ -> again(cell, select, count) }
+    machine again(cell: &mut Amount, select: bool, count: u64) -> bool
+    requires cell.value == 32 {
+        let zero: u64 = match select { true -> refresh(cell), false -> refresh(cell) };
+        transition count == 0 { true -> complete(cell, zero) _ -> again(cell, !select, count - 1) }
+    }
+    machine complete(cell: &mut Amount, zero: u64) -> bool
+    requires cell.value == 32, zero == 0 {
+        cell.value == 32 && zero == 0
+    }
+}
+machine repeated(select: bool) -> bool {
+    let mut cell: Amount = Amount { value: 32 };
+    let correct: bool = cycle(&mut cell, select, 3);
+    correct && cell.value == 32
+}
+machine main() crashes Trap {
+    let correct: bool = direct() && selected(true, true) && selected(true, false)
+        && selected(false, true) && selected(false, false) && repeated(true) && repeated(false);
+    transition correct { true -> done() _ -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}
