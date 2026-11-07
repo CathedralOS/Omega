@@ -1095,7 +1095,7 @@ fail/borrows/captured_reference_membership_ignores_later_selector rejected 1964m
 	cannot prove requires contract for call consume from stale: held.value in u64::Positive in state `entry`
 fail/borrows/captured_state_shared_reborrow_write rejected 3222ms expected @230151eef4fe
 	machine `next` state `entry` assignment cannot write `words` because it is not mutable in this state (if `words` is undeclared -- a typo -- no such field or local exists)
-fail/borrows/captured_window_write_invalidates_backing rejected 2012ms expected @4c83ae10aefc
+fail/borrows/captured_window_write_invalidates_backing rejected 2038ms expected @ec47ae13752d
 	cannot prove default-domain field requirement for return from corrupt at statement 2: rows[0][1] requires u64::Positive
 	cannot prove default-domain field requirement for return from corrupt at statement 2: rows[1][1] requires u64::Positive
 fail/borrows/case_descriptor_scalar_sibling_keeps_live_loan rejected 2247ms expected @ccdb99ca2214
@@ -1131,7 +1131,7 @@ fail/borrows/completed_selector_join_out_of_range_destination rejected 868ms exp
 	anonymous integer value `256` does not fit destination `u8` in machine `exercise` state `entry` local `split`
 	anonymous integer value `256` does not fit destination `u8` in machine `exercise` state `entry` local `split`
 	narrowing store in machine `exercise` state `entry` local `split` may not fit `u8`: the value is not provably in range (decision 17 -- a narrowing store is a proof obligation, like exact arithmetic). Truncate explicitly with an `as` cast, or constrain the source's range.
-fail/borrows/completed_selector_join_requires_all_arms rejected 2182ms expected @4c83ae10aefc
+fail/borrows/completed_selector_join_requires_all_arms rejected 2054ms expected @ec47ae13752d
 	statement 2 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
 	statement 2 borrows `items[split..4]` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit) in machine `exercise`, state `entry`, statement 2
 	statement 3 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
@@ -1151,7 +1151,7 @@ fail/borrows/computed_shared_byte_field_window_requires_mutable rejected 7752ms 
 	machine `observe` state `entry` local `selected` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/computed_view_content_write_retires_old_scalar_fact rejected 2997ms expected @ccdb99ca2214
 	cannot prove requires contract for call false_counter from main: counter.called == false (needs fact `value == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/borrows/computed_view_store_retains_local_array_backing rejected 2047ms expected @4c83ae10aefc
+fail/borrows/computed_view_store_retains_local_array_backing rejected 2073ms expected @ec47ae13752d
 	statement 5 mutates `storage[0]` while local borrow `original` is still active (borrowed at statement 4; its last use is at statement 10)
 fail/borrows/concrete_call_before_symbolic_output_obligation rejected 1672ms expected @923ef974b33c
 	machine `concrete_first` state `entry` statement 0: operand has no complete completed call-slot relation
@@ -20192,7 +20192,7 @@ pass/calls/nested_subject_call_operand checked 2482ms @ccdb99ca2214
 pass/calls/nested_value_call_arg_compile checked 16344ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/nested_value_schedule_namespace_exit checked 3746ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/nested_where_binding checked 8422ms @911f6617ba9e
-pass/calls/nonreturning_borrowed_argument_indirect_result_exit checked 8175ms check-target:macos_arm64 @4c83ae10aefc
+pass/calls/nonreturning_borrowed_argument_indirect_result_exit checked 8205ms check-target:macos_arm64 @ec47ae13752d
 pass/calls/nonreturning_large_call_required_argument_exit checked 14809ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/nonreturning_record_constructor_prefix_exit checked 17029ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/nonreturning_record_match_normal_exit checked 19648ms check-target:macos_arm64 @ccdb99ca2214
@@ -27386,7 +27386,7 @@ pass/slices/mut_slice_establish checked 5742ms @ccdb99ca2214
 pass/slices/mutable_byte_field_range_local_initializer_exit checked 2977ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/mutable_byte_field_range_scalar_initializer_exit checked 3718ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/mutable_field_range_call_state_exit checked 4296ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/mutable_field_range_local_initializer_exit checked 3175ms check-target:macos_arm64 @ccdb99ca2214
+pass/slices/mutable_field_range_local_initializer_exit checked 2569ms check-target:macos_arm64 @ec47ae13752d
 pass/slices/mutable_field_range_scalar_initializer_exit checked 3344ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/mutable_matched_window_length checked 3389ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/narrowed_view_return checked 3120ms @ccdb99ca2214
