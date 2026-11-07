@@ -285,10 +285,22 @@ impl SourceCorrespondence {
         provided_expression: ExpressionHandle,
         provided_binders: &[(SymbolHandle, String)],
     ) -> bool {
-        if let (Some(required), Some(provided)) = (
-            self.canonical_source_value(program, required, required_expression, required_binders),
-            self.canonical_source_value(program, provided, provided_expression, provided_binders),
+        let required_key =
+            self.canonical_source_value(program, required, required_expression, required_binders);
+        let provided_key =
+            self.canonical_source_value(program, provided, provided_expression, provided_binders);
+        if !self.matching_operation_payloads(
+            program,
+            required,
+            required_expression,
+            required_binders,
+            provided,
+            provided_expression,
+            provided_binders,
         ) {
+            return false;
+        }
+        if let (Some(required), Some(provided)) = (required_key, provided_key) {
             return required == provided;
         }
         let term = |statement: (SymbolHandle, &[StateParameter]), expression| {
@@ -340,6 +352,190 @@ impl SourceCorrespondence {
             &mut bindings,
         )
     }
+    /// The shared index key intentionally omits some operation payloads. Check
+    /// those before either key correspondence or selected structural fallback.
+    /// This walks source value positions, preserving each call's source owner;
+    /// declaration namespaces are classified by the existing callable query.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn matching_operation_payloads(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        required_scope: (SymbolHandle, &[StateParameter]),
+        required: ExpressionHandle,
+        required_binders: &[(SymbolHandle, String)],
+        provided_scope: (SymbolHandle, &[StateParameter]),
+        provided: ExpressionHandle,
+        provided_binders: &[(SymbolHandle, String)],
+    ) -> bool {
+        use typed_trees::expression::ExpressionNode;
+        let type_matches = |left, right| {
+            if !program.type_reference_table.contains_type_reference(left)
+                || !program.type_reference_table.contains_type_reference(right)
+            {
+                return !left.is_valid() && !right.is_valid();
+            }
+            program.type_identity(TypeIdentityRequest {
+                binders: required_binders,
+                ..TypeIdentityRequest::ordinary(left)
+            }) == program.type_identity(TypeIdentityRequest {
+                binders: provided_binders,
+                ..TypeIdentityRequest::ordinary(right)
+            })
+        };
+        let mut pending = vec![(required, provided, 0usize)];
+        let mut required_children = Vec::new();
+        let mut provided_children = Vec::new();
+        while let Some((required, provided, depth)) = pending.pop() {
+            if !required.is_valid() && !provided.is_valid() {
+                continue;
+            }
+            if depth >= 128
+                || !program.expression_table.expression_is_valid(required)
+                || !program.expression_table.expression_is_valid(provided)
+            {
+                return false;
+            }
+            let left = program.expression_table.expression(required);
+            let right = program.expression_table.expression(provided);
+            match (left, right) {
+                (ExpressionNode::Call(left), ExpressionNode::Call(right)) => {
+                    // Proof labels are not resolved value binders in this
+                    // view. Their spelling cannot identify relevant evidence.
+                    if !left.evidence_arguments.is_empty()
+                        || !right.evidence_arguments.is_empty()
+                        || left.static_machine_parameter != right.static_machine_parameter
+                        || left.static_requirement_dispatch != right.static_requirement_dispatch
+                        || !type_matches(
+                            left.requirement_application,
+                            right.requirement_application,
+                        )
+                        || !type_matches(left.exact_coercion_target, right.exact_coercion_target)
+                        || left.quotient_operation != right.quotient_operation
+                        || left.private_layout_operation != right.private_layout_operation
+                        || left.layout_query != right.layout_query
+                        || left.native_code_layout != right.native_code_layout
+                        || left.build_selection.is_valid()
+                        || right.build_selection.is_valid()
+                        || left.operational_acknowledgement.acknowledges_suspend
+                            != right.operational_acknowledgement.acknowledges_suspend
+                        || left.operational_acknowledgement.acknowledges_block
+                            != right.operational_acknowledgement.acknowledges_block
+                    {
+                        return false;
+                    }
+                }
+                (ExpressionNode::Call(call), ExpressionNode::Binary(_))
+                | (ExpressionNode::Binary(_), ExpressionNode::Call(call)) => {
+                    if !call.evidence_arguments.is_empty()
+                        || call.static_machine_parameter.is_valid()
+                        || call.static_requirement_dispatch.is_some()
+                        || call.requirement_application.is_valid()
+                        || call.exact_coercion_target.is_valid()
+                        || call.quotient_operation.is_some()
+                        || call.private_layout_operation.is_some()
+                        || call.layout_query.is_some()
+                        || call.native_code_layout.is_some()
+                        || call.build_selection.is_valid()
+                        || call.operational_acknowledgement.acknowledges_suspend
+                        || call.operational_acknowledgement.acknowledges_block
+                    {
+                        return false;
+                    }
+                }
+                (ExpressionNode::Cast(left), ExpressionNode::Cast(right)) => {
+                    let table = &program.expression_table;
+                    let types = &program.type_reference_table;
+                    let left_arguments =
+                        types.type_reference_handles(left.semantic_domain_arguments);
+                    let right_arguments =
+                        types.type_reference_handles(right.semantic_domain_arguments);
+                    if !type_matches(left.target_type, right.target_type)
+                        || !type_matches(left.result_type, right.result_type)
+                        || table.name_path_members(left.target_label)
+                            != table.name_path_members(right.target_label)
+                        || left.domain != right.domain
+                        || table.name_path_members(left.semantic_domain)
+                            != table.name_path_members(right.semantic_domain)
+                        || left.semantic_domain_symbol != right.semantic_domain_symbol
+                        || left.semantic_domain_id != right.semantic_domain_id
+                        || left.form != right.form
+                        || left_arguments.len() != right_arguments.len()
+                        || !left_arguments
+                            .iter()
+                            .zip(right_arguments)
+                            .all(|(left, right)| type_matches(*left, *right))
+                    {
+                        return false;
+                    }
+                }
+                (ExpressionNode::Member(left), ExpressionNode::Member(right)) => {
+                    if left.member_symbol != right.member_symbol
+                        || left.case_variant != right.case_variant
+                    {
+                        return false;
+                    }
+                }
+                (ExpressionNode::StructLiteral(left), ExpressionNode::StructLiteral(right)) => {
+                    let fields = |literal: &typed_trees::expression::TableStructLiteral| {
+                        program.expression_table.struct_fields(literal.fields)
+                    };
+                    if left.type_symbol != right.type_symbol
+                        || left.case_symbol != right.case_symbol
+                        || fields(left).len() != fields(right).len()
+                        || !fields(left)
+                            .iter()
+                            .zip(fields(right))
+                            .all(|(left, right)| left.field_symbol == right.field_symbol)
+                    {
+                        return false;
+                    }
+                }
+                (ExpressionNode::Match(_), _)
+                | (_, ExpressionNode::Match(_))
+                | (ExpressionNode::Cast(_), _)
+                | (_, ExpressionNode::Cast(_))
+                | (ExpressionNode::Member(_), _)
+                | (_, ExpressionNode::Member(_))
+                | (ExpressionNode::StructLiteral(_), _)
+                | (_, ExpressionNode::StructLiteral(_))
+                | (ExpressionNode::Call(_), _)
+                | (_, ExpressionNode::Call(_)) => return false,
+                _ => {}
+            }
+            let children = |node: &ExpressionNode, owner, out: &mut Vec<ExpressionHandle>| {
+                if let ExpressionNode::Call(call) = node {
+                    if call.receiver.is_valid()
+                        && !super::super::structural_terms::static_call_receiver(
+                            program, owner, call,
+                        )
+                    {
+                        out.push(call.receiver);
+                    }
+                    out.extend_from_slice(
+                        program.expression_table.expression_handles(call.arguments),
+                    );
+                } else {
+                    crate::queries::expression_traversal::children(program, node, |child| {
+                        out.push(child)
+                    });
+                }
+            };
+            required_children.clear();
+            provided_children.clear();
+            children(left, required_scope.0, &mut required_children);
+            children(right, provided_scope.0, &mut provided_children);
+            if required_children.len() != provided_children.len() {
+                return false;
+            }
+            pending.extend(
+                required_children
+                    .iter()
+                    .zip(&provided_children)
+                    .map(|(left, right)| (*left, *right, depth + 1)),
+            );
+        }
+        true
+    }
 }
 
 /// Join the retained symbol roster to positional roles once. Sorting is
@@ -353,7 +549,7 @@ fn parameter_roles<'parameters, 'binders>(
         .iter()
         .map(|(symbol, key)| (*symbol, key.as_str()))
         .collect::<Vec<_>>();
-    by_symbol.sort_unstable_by_key(|(symbol, _)| *symbol);
+    by_symbol.sort_unstable_by_key(|(symbol, _)| (symbol.arena_index(), symbol.generation()));
     if by_symbol.windows(2).any(|pair| pair[0].0 == pair[1].0) {
         return None;
     }
@@ -364,7 +560,13 @@ fn parameter_roles<'parameters, 'binders>(
                 return None;
             }
             let position = by_symbol
-                .binary_search_by_key(&parameter.symbol, |(symbol, _)| *symbol)
+                .binary_search_by_key(
+                    &(
+                        parameter.symbol.arena_index(),
+                        parameter.symbol.generation(),
+                    ),
+                    |(symbol, _)| (symbol.arena_index(), symbol.generation()),
+                )
                 .ok()?;
             Some((by_symbol[position].1, parameter))
         })

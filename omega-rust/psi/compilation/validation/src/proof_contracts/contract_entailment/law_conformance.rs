@@ -24,7 +24,7 @@ pub use law_guarantees::{MatchedLawGuarantee, matched_machine_law_guarantees};
 pub(crate) use operator_contracts::check_operator_contract_conformance;
 pub(crate) use proposition_laws::indexed_law_binder_arguments;
 pub(crate) use slot_bindings::{
-    diagnostic_shape_match, display_structural_term, term_mentions_variable,
+    TraitOperationSlots, diagnostic_shape_match, display_structural_term, term_mentions_variable,
 };
 
 use super::{
@@ -126,11 +126,7 @@ pub(crate) fn check_law_conformance(
         .unwrap_or(entry_state.return_type);
 
     // The trait's op-slot names, and the carrier's bound machine for each.
-    let slot_names: Vec<String> = program
-        .trait_machine_signatures(trait_definition)
-        .iter()
-        .map(|signature| signature.name.as_str().to_owned())
-        .collect();
+    let slots = TraitOperationSlots::new(program, trait_definition, Some(application));
 
     // The satisfier's own PROVEN ensures conjuncts (machine-checked by this
     // engine before this point -- compiling means proven).
@@ -240,11 +236,11 @@ pub(crate) fn check_law_conformance(
         // may have several legitimate realizations (including target bodies);
         // their existence cannot make an unrelated equation ambiguous.
         let mut required_slots = Vec::new();
-        rewrite_slot_applications(program, &law_left, &slot_names, &[], &mut required_slots);
-        rewrite_slot_applications(program, &law_right, &slot_names, &[], &mut required_slots);
+        rewrite_slot_applications(program, &law_left, &slots, &[], &mut required_slots);
+        rewrite_slot_applications(program, &law_right, &slots, &[], &mut required_slots);
         let slot_bindings = carrier_slot_bindings(
             program,
-            trait_definition,
+            &slots,
             carrier,
             conformance_alias,
             &required_slots,
@@ -252,18 +248,18 @@ pub(crate) fn check_law_conformance(
         );
 
         // Resolve the law's op-slot applications to the carrier's machines.
-        let mut missing_slots: Vec<String> = Vec::new();
+        let mut missing_slots = Vec::new();
         let law_left = rewrite_slot_applications(
             program,
             &law_left,
-            &slot_names,
+            &slots,
             &slot_bindings,
             &mut missing_slots,
         );
         let law_right = rewrite_slot_applications(
             program,
             &law_right,
-            &slot_names,
+            &slots,
             &slot_bindings,
             &mut missing_slots,
         );
@@ -274,7 +270,12 @@ pub(crate) fn check_law_conformance(
         let law_left = unfold_constant_applications(program, law_left);
         let law_right = unfold_constant_applications(program, law_right);
         if !missing_slots.is_empty() {
-            missing_slots.sort();
+            missing_slots.sort_unstable_by_key(|symbol| {
+                (
+                    symbol.requirement.arena_index(),
+                    symbol.requirement.generation(),
+                )
+            });
             missing_slots.dedup();
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` satisfies `{}::{}`, whose law mentions `{}` -- but no machine \
@@ -283,7 +284,11 @@ pub(crate) fn check_law_conformance(
                 machine.name,
                 trait_definition.name,
                 requirement.name,
-                missing_slots.join("`, `"),
+                missing_slots
+                    .iter()
+                    .map(|symbol| program.symbols.display_path(symbol.requirement, "::"))
+                    .collect::<Vec<_>>()
+                    .join("`, `"),
             )));
             continue;
         }
@@ -327,27 +332,49 @@ pub(crate) fn check_law_conformance(
             };
             let proven_left = unfold_constant_applications(program, proven_left);
             let proven_right = unfold_constant_applications(program, proven_right);
-            [(&proven_left, &proven_right), (&proven_right, &proven_left)]
-                .into_iter()
-                .any(|(first, second)| {
-                    // Post-state guarantees belong to fixed invocation roles.
-                    // A permutation of mutable formals proves a different clause.
-                    let mut bindings = positional_bindings.clone();
-                    diagnostic_shape_match(
+            [
+                (&proven_left, &proven_right, proven_identity.subjects),
+                (
+                    &proven_right,
+                    &proven_left,
+                    [proven_identity.subjects[1], proven_identity.subjects[0]],
+                ),
+            ]
+            .into_iter()
+            .any(|(first, second, subjects)| {
+                if !correspondence.as_mut().is_some_and(|correspondence| {
+                    correspondence.matching_subject_payloads(
                         program,
-                        &law_left,
-                        first,
-                        &requirement_parameters,
-                        &mut bindings,
-                    ) && diagnostic_shape_match(
+                        identity.subjects[0],
+                        (machine.symbol, program.state_parameters(entry_state)),
+                        subjects[0],
+                    ) && correspondence.matching_subject_payloads(
                         program,
-                        &law_right,
-                        second,
-                        &requirement_parameters,
-                        &mut bindings,
-                    ) && bindings_are_forall_general(&bindings, &satisfier_parameters)
-                })
-                .then_some(*source)
+                        identity.subjects[1],
+                        (machine.symbol, program.state_parameters(entry_state)),
+                        subjects[1],
+                    )
+                }) {
+                    return false;
+                }
+                // Post-state guarantees belong to fixed invocation roles.
+                // A permutation of mutable formals proves a different clause.
+                let mut bindings = positional_bindings.clone();
+                diagnostic_shape_match(
+                    program,
+                    &law_left,
+                    first,
+                    &requirement_parameters,
+                    &mut bindings,
+                ) && diagnostic_shape_match(
+                    program,
+                    &law_right,
+                    second,
+                    &requirement_parameters,
+                    &mut bindings,
+                ) && bindings_are_forall_general(&bindings, &satisfier_parameters)
+            })
+            .then_some(*source)
         });
 
         if let Some(source) = matched {

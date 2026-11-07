@@ -34,6 +34,8 @@ struct Fixture {
     owner: SymbolHandle,
     impostor: SymbolHandle,
     namespace: SymbolHandle,
+    trait_symbol: SymbolHandle,
+    slot: SymbolHandle,
     entry: SymbolHandle,
     other_entry: SymbolHandle,
     generic_carrier: TypeReferenceHandle,
@@ -61,12 +63,20 @@ impl Fixture {
                     ),
                     (SymbolKind::Conformance, SymbolNameRef::Static("Selected")),
                     (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+                    (SymbolKind::Trait, SymbolNameRef::Static("Operations")),
                 ]),
         );
-        let owner = children.handle_at(u32::try_from(children.len() - 4).unwrap());
-        let impostor = children.handle_at(u32::try_from(children.len() - 3).unwrap());
-        let namespace = children.handle_at(u32::try_from(children.len() - 2).unwrap());
-        let generic = children.handle_at(u32::try_from(children.len() - 1).unwrap());
+        let owner = children.handle_at(u32::try_from(children.len() - 5).unwrap());
+        let impostor = children.handle_at(u32::try_from(children.len() - 4).unwrap());
+        let namespace = children.handle_at(u32::try_from(children.len() - 3).unwrap());
+        let generic = children.handle_at(u32::try_from(children.len() - 2).unwrap());
+        let trait_symbol = children.handle_at(u32::try_from(children.len() - 1).unwrap());
+        let slot = symbols
+            .insert_children(
+                trait_symbol,
+                [(SymbolKind::State, SymbolNameRef::Static("operation"))],
+            )
+            .handle_at(0);
         let params = symbols.insert_children(
             owner,
             [
@@ -117,6 +127,8 @@ impl Fixture {
             owner,
             impostor,
             namespace,
+            trait_symbol,
+            slot,
             entry: params.handle_at(2),
             other_entry: params.handle_at(3),
             generic_carrier,
@@ -463,7 +475,9 @@ fn comparison_namespace_keeps_both_explicit_borrowed_operands() {
 #[test]
 fn selected_slot_rewrite_replaces_target_and_result_carrier_before_matching() {
     use super::super::super::StructuralTerm;
-    use super::super::slot_bindings::{diagnostic_shape_match, rewrite_slot_applications};
+    use super::super::slot_bindings::{
+        TraitOperationSlots, diagnostic_shape_match, rewrite_slot_applications,
+    };
     let mut f = Fixture::new(BuiltinTypeAtom::U64, BuiltinTypeAtom::U16);
     let carrier = f.parameters[0].type_reference;
     f.install_machine(carrier, false);
@@ -472,8 +486,29 @@ fn selected_slot_rewrite_replaces_target_and_result_carrier_before_matching() {
         .iter()
         .map(|parameter| StructuralTerm::Variable(parameter.name.as_str().to_owned()))
         .collect::<Vec<_>>();
+    let mut declaration = typed_trees::trait_definition::TraitDefinition {
+        symbol: f.trait_symbol,
+        name: Identifier::from("Operations"),
+        ..Default::default()
+    };
+    f.program.push_trait_machine_signature(
+        &mut declaration,
+        typed_trees::signature::StateSignature {
+            symbol: f.slot,
+            name: Identifier::from("operation"),
+            return_type: f.generic_carrier,
+            ..Default::default()
+        },
+    );
+    f.program.push_trait(declaration);
+    let declaration = f
+        .program
+        .trait_definition_by_symbol(f.trait_symbol)
+        .unwrap();
+    let slots = TraitOperationSlots::new(&f.program, declaration, None);
+    let slot_key = slots.resolve(&f.program, f.slot).unwrap().0;
     let abstract_call = StructuralTerm::Application {
-        target: f.impostor,
+        target: f.slot,
         result_type: f.generic_carrier,
         selections: Vec::new(),
         machine: "operation".to_owned(),
@@ -490,8 +525,8 @@ fn selected_slot_rewrite_replaces_target_and_result_carrier_before_matching() {
     let rewritten = rewrite_slot_applications(
         &f.program,
         &abstract_call,
-        &["operation".to_owned()],
-        &[("operation".to_owned(), ("selected".to_owned(), f.entry))],
+        &slots,
+        &[(slot_key, ("selected".to_owned(), f.entry))],
         &mut missing,
     );
     assert!(missing.is_empty());
@@ -505,6 +540,21 @@ fn selected_slot_rewrite_replaces_target_and_result_carrier_before_matching() {
         &mut Vec::new()
     ));
     assert!(matches(&concrete_call));
+    let mut unrelated = abstract_call.clone();
+    let StructuralTerm::Application { target, .. } = &mut unrelated else {
+        unreachable!()
+    };
+    *target = f.other_entry;
+    let unchanged = rewrite_slot_applications(
+        &f.program,
+        &unrelated,
+        &slots,
+        &[(slot_key, ("selected".to_owned(), f.entry))],
+        &mut Vec::new(),
+    );
+    assert_eq!(unchanged, unrelated);
+    assert!(!slots.covers_term(&f.program, &unrelated));
+    assert!(slots.covers_term(&f.program, &abstract_call));
     let mut wrong_target = concrete_call.clone();
     let StructuralTerm::Application { target, .. } = &mut wrong_target else {
         unreachable!()
@@ -558,4 +608,78 @@ fn source_correspondence_reuses_scope_without_accepting_cycles_or_stale_handles(
             .canonical_source_value(&f.program, (f.owner, &f.parameters), conjunction, &[])
             .is_none()
     );
+}
+
+#[test]
+fn source_call_evidence_cannot_hide_behind_an_equal_index_key() {
+    let mut f = Fixture::new(BuiltinTypeAtom::U64, BuiltinTypeAtom::U16);
+    f.install_machine(f.boolean_carrier, false);
+    let expression = f.identity(f.parameters[0].type_reference, f.subjects);
+    let ExpressionNode::Call(call) = f.program.expression_table.expression_mut(expression) else {
+        unreachable!()
+    };
+    call.target_symbol = f.entry;
+    call.target = Identifier::from("apply");
+    call.machine_arguments = Box::new([]);
+    let mut with_evidence = f
+        .program
+        .expression_table
+        .call_node(expression)
+        .unwrap()
+        .clone();
+    with_evidence.evidence_arguments = Box::new([Identifier::from("unresolved_evidence")]);
+    let with_evidence = f
+        .program
+        .expression_table
+        .insert(ExpressionNode::Call(with_evidence));
+    let scope = (f.owner, f.parameters.as_slice());
+    let mut correspondence = SourceCorrespondence::default();
+    assert_eq!(
+        correspondence.canonical_source_value(&f.program, scope, expression, &[]),
+        correspondence.canonical_source_value(&f.program, scope, with_evidence, &[])
+    );
+    assert!(!correspondence.matching_values(
+        &f.program,
+        scope,
+        expression,
+        &[],
+        scope,
+        with_evidence,
+        &[]
+    ));
+}
+
+#[test]
+fn cast_domain_payload_cannot_hide_behind_an_equal_index_key() {
+    let mut f = Fixture::new(BuiltinTypeAtom::U64, BuiltinTypeAtom::U16);
+    let cast = f
+        .program
+        .expression_table
+        .insert_tree(&Expression::Cast(Box::new(
+            typed_trees::expression::CastExpression {
+                value: Expression::Name(NamePath::resolved(
+                    vec![f.parameters[0].name.clone()],
+                    f.parameters[0].symbol,
+                    f.parameters[0].symbol,
+                )),
+                target_type: f.parameters[0].type_reference,
+                target_label: NamePath::unresolved(vec![Identifier::from("u64")]),
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                form: language_core::cast_form::CastForm::Value,
+            },
+        )));
+    let mut other = *f.program.expression_table.cast_node(cast).unwrap();
+    other.semantic_domain_symbol = f.trait_symbol;
+    let other = f
+        .program
+        .expression_table
+        .insert(ExpressionNode::Cast(other));
+    let scope = (f.owner, f.parameters.as_slice());
+    let mut correspondence = SourceCorrespondence::default();
+    assert_eq!(
+        correspondence.canonical_source_value(&f.program, scope, cast, &[]),
+        correspondence.canonical_source_value(&f.program, scope, other, &[])
+    );
+    assert!(correspondence.matching_values(&f.program, scope, cast, &[], scope, cast, &[]));
+    assert!(!correspondence.matching_values(&f.program, scope, cast, &[], scope, other, &[]));
 }

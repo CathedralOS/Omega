@@ -150,6 +150,24 @@ impl<'program> DeclarationCorrespondence<'program> {
         })
     }
 
+    pub(super) fn matching_subject_payloads(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        required: ExpressionHandle,
+        provided_scope: (SymbolHandle, &[StateParameter]),
+        provided: ExpressionHandle,
+    ) -> bool {
+        self.source_correspondence.matching_operation_payloads(
+            program,
+            self.required_scope(),
+            required,
+            &self.requirement_binders,
+            provided_scope,
+            provided,
+            &self.provider_binders,
+        )
+    }
+
     pub(super) fn matching_conjuncts(
         &mut self,
         program: &dyn crate::CheckingInput,

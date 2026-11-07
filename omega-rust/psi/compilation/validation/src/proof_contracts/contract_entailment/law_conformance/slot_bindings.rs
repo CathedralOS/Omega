@@ -3,6 +3,104 @@
 
 use crate::proof_contracts::contract_entailment::{Diagnostic, StructuralTerm, TraitDefinition};
 
+/// Exact declaration slots of one trait application. A same-spelled callable
+/// outside this roster remains a different operation.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) struct TraitOperationSlot {
+    pub(crate) requirement: symbols::SymbolHandle,
+    application: typed_trees::type_identity::NormalizedTypeIdentity,
+}
+
+pub(crate) struct TraitOperationSlots {
+    declaring_scopes: Vec<(
+        symbols::SymbolHandle,
+        Option<typed_trees::type_identity::NormalizedTypeIdentity>,
+    )>,
+}
+
+impl TraitOperationSlots {
+    pub(crate) fn new<'program>(
+        program: &'program dyn crate::CheckingInput,
+        declaration: &'program TraitDefinition,
+        application: Option<&typed_trees::trait_definition::AppliedTraitScope<'program>>,
+    ) -> Self {
+        let abstract_scope =
+            typed_trees::trait_definition::AppliedTraitScope::abstract_scope(declaration);
+        let application = application.unwrap_or(&abstract_scope);
+        let mut declaring_scopes = Vec::new();
+        application.visit(program.typed_program(), &mut |scope| {
+            declaring_scopes.push((
+                scope.declaration.symbol,
+                scope.application_identity(program.typed_program()),
+            ));
+        });
+        Self { declaring_scopes }
+    }
+
+    pub(crate) fn resolve<'input>(
+        &self,
+        program: &'input dyn crate::CheckingInput,
+        target: symbols::SymbolHandle,
+    ) -> Option<(
+        TraitOperationSlot,
+        &'input typed_trees::signature::StateSignature,
+    )> {
+        let (owner, template, application) =
+            if let Some(closed) = program.closed_requirement_application(target) {
+                self.declaring_scopes.iter().find(|(owner, identity)| {
+                    *owner == closed.declaring_trait
+                        && *identity == Some(closed.trait_application_identity)
+                })?;
+                (
+                    closed.declaring_trait,
+                    closed.template,
+                    closed.trait_application_identity,
+                )
+            } else {
+                if !target.is_valid() {
+                    return None;
+                }
+                let owner = program.symbols.get(target).parent;
+                let mut scopes = self
+                    .declaring_scopes
+                    .iter()
+                    .filter(|(candidate, _)| *candidate == owner);
+                let application = scopes.next()?.1?;
+                if scopes.any(|(_, identity)| *identity != Some(application)) {
+                    return None;
+                }
+                (owner, target, application)
+            };
+        let declaration = program.trait_definition_by_symbol(owner)?;
+        let requirement = program.trait_machine_signature_by_symbol(declaration, template)?;
+        Some((
+            TraitOperationSlot {
+                requirement: requirement.symbol,
+                application,
+            },
+            requirement,
+        ))
+    }
+
+    pub(crate) fn covers_term(
+        &self,
+        program: &dyn crate::CheckingInput,
+        term: &StructuralTerm,
+    ) -> bool {
+        let term = term.semantic_value();
+        if let StructuralTerm::Application {
+            target, machine, ..
+        } = term
+            && !self
+                .resolve(program, *target)
+                .is_some_and(|(_, slot)| slot.name.as_str() == machine)
+        {
+            return false;
+        }
+        !term.any_child(|child| !self.covers_term(program, child))
+    }
+}
+
 /// The CARRIER's op-slot bindings: for each used requirement of the trait, the
 /// machine conforming to it whose carrier type matches. Alias preference
 /// (plural algebras): a binding sharing the checking conformance's alias
@@ -10,104 +108,113 @@ use crate::proof_contracts::contract_entailment::{Diagnostic, StructuralTerm, Tr
 /// reported.
 pub(crate) fn carrier_slot_bindings(
     program: &dyn crate::CheckingInput,
-    trait_definition: &TraitDefinition,
+    slots: &TraitOperationSlots,
     carrier: typed_trees::types::TypeReferenceHandle,
     prefer_alias: Option<&str>,
-    required_slots: &[String],
+    required_slots: &[TraitOperationSlot],
     diagnostics: &mut Vec<Diagnostic>,
-) -> Vec<(String, (String, symbols::SymbolHandle))> {
-    let mut bindings: Vec<(String, (String, symbols::SymbolHandle))> = Vec::new();
+) -> Vec<(TraitOperationSlot, (String, symbols::SymbolHandle))> {
+    let mut bindings = Vec::new();
 
-    for requirement in program.trait_machine_signatures(trait_definition) {
-        if !required_slots
-            .iter()
-            .any(|name| name == requirement.name.as_str())
-        {
+    for (trait_symbol, application_identity) in &slots.declaring_scopes {
+        let Some(trait_definition) = program.trait_definition_by_symbol(*trait_symbol) else {
             continue;
-        }
-        // (slot machine name, alias) candidates for this carrier.
-        let mut candidates: Vec<((String, symbols::SymbolHandle), Option<String>)> = Vec::new();
-        for candidate in program.machines() {
-            for conformance in program.machine_trait_conformances(candidate) {
-                if conformance.symbol != trait_definition.symbol {
-                    continue;
-                }
-                let bound_requirement = conformance
-                    .requirement
-                    .as_ref()
-                    .map(|name| name.as_str().to_owned())
-                    .or_else(|| {
-                        candidate
-                            .attached_data
-                            .is_none()
-                            .then(|| candidate.name.as_str().to_owned())
-                    });
-                if bound_requirement.as_deref() != Some(requirement.name.as_str()) {
-                    continue;
-                }
-                let Some(candidate_entry) = program.machine_states(candidate).first() else {
-                    continue;
-                };
-                let candidate_carrier = program
-                    .state_parameters(candidate_entry)
-                    .first()
-                    .map(|parameter| parameter.type_reference)
-                    .unwrap_or(candidate_entry.return_type);
-                if !crate::value_custody::type_references::type_references_match(
-                    program,
-                    candidate_carrier,
-                    carrier,
-                ) {
-                    continue;
-                }
-                candidates.push((
-                    (candidate.name.as_str().to_owned(), candidate_entry.symbol),
-                    conformance
-                        .alias
-                        .as_ref()
-                        .map(|alias| alias.as_str().to_owned()),
-                ));
-            }
-        }
-
-        if candidates.is_empty() {
-            continue; // an unbound slot only matters if a law mentions it
-        }
-        let chosen = if let Some(preferred) = candidates
-            .iter()
-            .filter(|(_, alias)| alias.as_deref() == prefer_alias)
-            .collect::<Vec<_>>()
-            .split_first()
-            .filter(|(_, rest)| rest.is_empty())
-            .map(|(first, _)| (*first).clone())
-        {
-            Some(preferred)
-        } else {
-            let unaliased: Vec<_> = candidates
-                .iter()
-                .filter(|(_, alias)| alias.is_none())
-                .collect();
-            match unaliased.as_slice() {
-                [single] => Some((*single).clone()),
-                [] if candidates.len() == 1 => Some(candidates[0].clone()),
-                _ => None,
-            }
         };
-        match chosen {
-            Some((machine_name, _)) => {
-                bindings.push((requirement.name.as_str().to_owned(), machine_name));
+        for requirement in program.trait_machine_signatures(trait_definition) {
+            let Some(application) = *application_identity else {
+                continue;
+            };
+            let slot = TraitOperationSlot {
+                requirement: requirement.symbol,
+                application,
+            };
+            if !required_slots.contains(&slot) {
+                continue;
             }
-            None => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "trait `{}` requirement `{}` has AMBIGUOUS satisfiers for this carrier -- \
+            // (slot machine name, alias) candidates for this carrier.
+            let mut candidates: Vec<((String, symbols::SymbolHandle), Option<String>)> = Vec::new();
+            for candidate in program.machines() {
+                for conformance in program.machine_trait_conformances(candidate) {
+                    if conformance.symbol != trait_definition.symbol
+                        || conformance.requirement_symbol != requirement.symbol
+                    {
+                        continue;
+                    }
+                    let selected_application =
+                        typed_trees::trait_definition::AppliedTraitScope::from_machine_conformance(
+                            program.typed_program(),
+                            candidate,
+                            conformance,
+                        )
+                        .and_then(|scope| scope.application_identity(program.typed_program()));
+                    if selected_application.is_none()
+                        || selected_application != *application_identity
+                    {
+                        continue;
+                    }
+                    let Some(candidate_entry) = program.machine_states(candidate).first() else {
+                        continue;
+                    };
+                    let candidate_carrier = program
+                        .state_parameters(candidate_entry)
+                        .first()
+                        .map(|parameter| parameter.type_reference)
+                        .unwrap_or(candidate_entry.return_type);
+                    if !crate::value_custody::type_references::type_references_match(
+                        program,
+                        candidate_carrier,
+                        carrier,
+                    ) {
+                        continue;
+                    }
+                    candidates.push((
+                        (candidate.name.as_str().to_owned(), candidate_entry.symbol),
+                        conformance
+                            .alias
+                            .as_ref()
+                            .map(|alias| alias.as_str().to_owned()),
+                    ));
+                }
+            }
+
+            if candidates.is_empty() {
+                continue; // an unbound slot only matters if a law mentions it
+            }
+            let chosen = if let Some(preferred) = candidates
+                .iter()
+                .filter(|(_, alias)| alias.as_deref() == prefer_alias)
+                .collect::<Vec<_>>()
+                .split_first()
+                .filter(|(_, rest)| rest.is_empty())
+                .map(|(first, _)| (*first).clone())
+            {
+                Some(preferred)
+            } else {
+                let unaliased: Vec<_> = candidates
+                    .iter()
+                    .filter(|(_, alias)| alias.is_none())
+                    .collect();
+                match unaliased.as_slice() {
+                    [single] => Some((*single).clone()),
+                    [] if candidates.len() == 1 => Some(candidates[0].clone()),
+                    _ => None,
+                }
+            };
+            match chosen {
+                Some((machine_name, _)) => {
+                    bindings.push((slot, machine_name));
+                }
+                None => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "trait `{}` requirement `{}` has AMBIGUOUS satisfiers for this carrier -- \
                      name the family with `as <Alias>` on each conformance so the law check \
                      (and the judge) can pick one",
-                    trait_definition.name, requirement.name,
-                )));
+                        trait_definition.name, requirement.name,
+                    )));
+                }
             }
         }
     }
-
     bindings
 }
 
@@ -117,12 +224,12 @@ pub(crate) fn carrier_slot_bindings(
 pub(crate) fn rewrite_slot_applications(
     program: &dyn crate::CheckingInput,
     term: &StructuralTerm,
-    slot_names: &[String],
-    slot_bindings: &[(String, (String, symbols::SymbolHandle))],
-    missing: &mut Vec<String>,
+    slots: &TraitOperationSlots,
+    slot_bindings: &[(TraitOperationSlot, (String, symbols::SymbolHandle))],
+    missing: &mut Vec<TraitOperationSlot>,
 ) -> StructuralTerm {
     let rewrite = |value: StructuralTerm| {
-        rewrite_slot_applications(program, &value, slot_names, slot_bindings, missing)
+        rewrite_slot_applications(program, &value, slots, slot_bindings, missing)
     };
     match term {
         StructuralTerm::Application {
@@ -135,14 +242,14 @@ pub(crate) fn rewrite_slot_applications(
             let arguments = arguments
                 .iter()
                 .map(|argument| {
-                    rewrite_slot_applications(program, argument, slot_names, slot_bindings, missing)
+                    rewrite_slot_applications(program, argument, slots, slot_bindings, missing)
                 })
                 .collect();
             let mut result_type = *result_type;
-            let (machine, target) = if slot_names.iter().any(|slot| slot == machine) {
+            let (machine, target) = if let Some((slot, _)) = slots.resolve(program, *target) {
                 match slot_bindings
                     .iter()
-                    .find(|(slot, _)| slot == machine)
+                    .find(|(requirement, _)| *requirement == slot)
                     .map(|(_, bound)| bound.clone())
                 {
                     Some(bound) => {
@@ -150,14 +257,14 @@ pub(crate) fn rewrite_slot_applications(
                         // not just its name. A generic requirement result is
                         // not the selected concrete operation's return type.
                         let Some(entry) = program.state_by_symbol(bound.1) else {
-                            missing.push(machine.clone());
+                            missing.push(slot);
                             return term.clone();
                         };
                         result_type = entry.return_type;
                         bound
                     }
                     None => {
-                        missing.push(machine.clone());
+                        missing.push(slot);
                         (machine.clone(), *target)
                     }
                 }

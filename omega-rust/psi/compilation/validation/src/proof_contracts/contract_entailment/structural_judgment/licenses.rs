@@ -4,7 +4,9 @@
 //! stores; all candidate computation and shape checking lives here.
 use super::super::{BinaryOperator, Machine, SymbolHandle, TraitDefinition, structural_term};
 use super::StructuralTerm;
-use crate::proof_contracts::contract_entailment::law_conformance::collect_equality_conjuncts;
+use crate::proof_contracts::contract_entailment::law_conformance::{
+    TraitOperationSlots, collect_equality_conjuncts,
+};
 use std::collections::HashMap;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::machine::TraitConformance;
@@ -50,6 +52,7 @@ pub(crate) struct DeclaredIndexAlgebraLaws {
 fn for_each_ensures_identity(
     program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
+    slots: &TraitOperationSlots,
     mut arm: impl FnMut(StructuralTerm, StructuralTerm),
 ) {
     // An unconditional rewrite has no premises to discharge. Reading a
@@ -89,7 +92,9 @@ fn for_each_ensures_identity(
             }) else {
                 continue;
             };
-            arm(left, right);
+            if slots.covers_term(program, &left) && slots.covers_term(program, &right) {
+                arm(left, right);
+            }
         }
     }
 }
@@ -100,13 +105,14 @@ pub(crate) fn declared_index_algebra_laws(
     requirement: &str,
 ) -> DeclaredIndexAlgebraLaws {
     let mut laws = DeclaredIndexAlgebraLaws::default();
+    let slots = TraitOperationSlots::new(program, trait_definition, None);
     for law in program.trait_machine_signatures(trait_definition) {
         let parameters = program
             .state_signature_parameters(law)
             .iter()
             .map(|parameter| parameter.name.as_str().to_owned())
             .collect::<Vec<_>>();
-        for_each_ensures_identity(program, law, |left, right| {
+        for_each_ensures_identity(program, law, &slots, |left, right| {
             if commutativity_shape(&left, &right, &parameters).as_deref() == Some(requirement) {
                 laws.commutativity.push(law.name.as_str().to_owned());
             }
@@ -184,6 +190,7 @@ pub(crate) fn literal_index_identities(
         let Some(declaration) = trees.trait_definition_by_symbol(*trait_symbol) else {
             continue;
         };
+        let slots = TraitOperationSlots::new(program, declaration, None);
         for law in trees.trait_machine_signatures(declaration) {
             if trees.state_signature_contracts(law).iter().any(|contract| {
                 contract.kind == typed_trees::signature::SignatureContractKind::Requires
@@ -222,7 +229,9 @@ pub(crate) fn literal_index_identities(
                     }) else {
                         continue;
                     };
-                    if !consistent_operation_selections(&left, &right)
+                    if !slots.covers_term(program, &left)
+                        || !slots.covers_term(program, &right)
+                        || !consistent_operation_selections(&left, &right)
                         || trees.scoped_type_identity(
                             typed_trees::type_identity::TypeIdentityRequest {
                                 substitutions,
@@ -806,6 +815,7 @@ fn algebraic_law_slots(
         .traits()
         .iter()
         .map(|trait_definition| {
+            let slots = TraitOperationSlots::new(program, trait_definition, None);
             let mut comm_laws: Vec<(String, String)> = Vec::new();
             let mut assoc_laws: Vec<(String, String)> = Vec::new();
             let mut dist_laws: Vec<(String, String, String)> = Vec::new();
@@ -815,7 +825,7 @@ fn algebraic_law_slots(
                     .iter()
                     .map(|parameter| parameter.name.as_str().to_owned())
                     .collect();
-                for_each_ensures_identity(program, requirement, |left, right| {
+                for_each_ensures_identity(program, requirement, &slots, |left, right| {
                     if let Some(op) = commutativity_shape(&left, &right, &parameters) {
                         comm_laws.push((op, requirement.name.as_str().to_owned()));
                     }
