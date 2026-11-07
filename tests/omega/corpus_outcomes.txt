@@ -20435,7 +20435,7 @@ pass/calls/value_tail_call_to_machine_exit checked 16258ms check-target:macos_ar
 pass/calls/whole_byte_array_view_loans_exit checked 18672ms check-target:macos_arm64 @ccdb99ca2214
 pass/capabilities/aarch64_hfa_import_compile checked 5391ms @ccdb99ca2214
 pass/capabilities/acquires_through_helper_return checked 3590ms check-target:macos_arm64 @ccdb99ca2214
-pass/capabilities/alternative_synchronous_provider_exit checked 6195ms check-target:macos_arm64 synchronous-provider-controls:match terminal-inspections:match @41b0ee28db4b
+pass/capabilities/alternative_synchronous_provider_exit checked 6246ms check-target:macos_arm64 synchronous-provider-controls:match terminal-inspections:match @a430170fd79b
 pass/capabilities/boundary_trait_multiple_effects checked 2256ms @ccdb99ca2214
 pass/capabilities/callback_direct_install_compile checked 20888ms check-target:linux_x86_64 @ccdb99ca2214
 pass/capabilities/derives_through_helper checked 3716ms check-target:macos_arm64 @ccdb99ca2214
