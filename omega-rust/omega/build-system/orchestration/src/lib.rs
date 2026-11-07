@@ -1,26 +1,65 @@
-#![forbid(unsafe_code)]
+/*
 
-//! Project Build orchestration independent of CLI parsing and process exits.
-//!
-//! `build.rs` owns output admission, project preparation, product requests and
-//! publication. Project compilation admits a package batch, invokes the compiler,
-//! and returns its outcomes to package-owned identity reconciliation and disposal.
-//! The flows group by subject: `project/` for one project's products and
-//! publication, `package/` for package commands and Builds, and `compile/` for
-//! the calls around the compiler.
-//! `compile/build_execution.rs` schedules dependency Builds, joins generated source and
-//! waits for demanded components before their consumers. `package/package_commands.rs`
-//! schedules admitted target reviews before package-owned publication. The
-//! review dependency loop and audit target/session lifecycle also live here.
-//! `compile/build_execution/source_resolution.rs` drives actual source requests while
-//! retaining returned invocations, sharing execution with compilation/review.
-//! `build_session.rs` retains the compiler alongside package-owned resources
-//! across those operations; package policy borrows execution, not a compiler.
-//! Ordinary CLI products consume executed discovery through package-owned
-//! Product admission. Install/update also execute their staged candidates once
-//! and retain Builds across review passes. Audit uses that same lifecycle.
-//! Readiness pauses acquire an explicitly requested dependency, produce its
-//! named checked Terminal implementation, and resume the original activation.
+Project Build orchestration and package-workflow coordinator.
+
+This crate sits between application entry points (`omega` CLI, test harnesses,
+and embedders) and the lower-level `compiler`, `native_compiler`, and
+`package_manager` crates. It owns the execution loops that step `build.omg`
+programs, resolve dependency graphs at readiness pauses, schedule multi-target
+compilation, and publish final artifacts, without printing to the console or
+exiting the process.
+
+The crate is organized into three subsystems around `build.rs` and `build_session.rs`:
+- `project/`: turns a `BuildRequest` into compiler requests (`products.rs`),
+  runs admitted package batches (`project_compilation.rs`), guards the output
+  directory against concurrent or aliased roots (`build_directory.rs`), and
+  publishes completed native artifacts (`publication.rs`).
+- `package/`: drives `omega install` and `omega update` review loops
+  (`package_commands.rs`), `omega audit packages` (`package_inspection.rs`),
+  dependency-first review passes (`package_review.rs`), and multi-package
+  compilation (`package_compilation.rs`).
+- `compile/`: steps `build.omg` activations and dependency frontiers
+  (`build_execution.rs` and `source_resolution/`), runs one-shot standalone
+  compilations (`source_compilation.rs`), and completes post-Terminal native
+  products and scalar constant demands (`native_completion.rs`).
+
+Product and target vocabulary:
+- `ProjectProduct` selects where the pipeline stops: `Check` (proof and type
+  checking only), `Terminal` (retains the canonical Terminal Psi artifact in
+  memory), `Inspection { machine }` (extracts one machine's Terminal Psi module),
+  or `Native { destination, private_entry_ram }`.
+- `NativeDestination` distinguishes `Published` (writes the executable or `.app`
+  bundle to disk), `Retained` (keeps the native product in memory so `omega run
+  --both` can run Terminal Psi comparison before publishing), and
+  `RuntimeAdmission` (stops after provider and entry admission without emitting
+  machine code, for `omega run --engine terminal`).
+- `BuildTargets` keeps target selection explicit: `Host` (the current host
+  profile), `Single` (one named profile in the root build directory), or `Batch`
+  (an explicit target set, where each target gets its own `<build_dir>/<target>`
+  subdirectory even if the set has length 1).
+- `BuildError::outcome` classifies compilation refusals through
+  `CompilerRequestOutcome::of_refusal`: only a refusal consisting entirely of
+  exceeded private provisions returns `Incomplete`; preparation, directory, and
+  publication errors always return `Reject`.
+
+*/
+
+/*
+
+Why orchestration owns the execution loop instead of `compiler` or `package_manager`:
+
+A `build.omg` program can request external packages, query product metadata, or
+pause at a provider readiness boundary while waiting for a dependency's Checked
+Terminal Psi implementation to be compiled. If `compiler` stepped `build.omg`
+directly, the compiler would have to depend on package acquisition and source
+staging; if `package_manager` owned a `CompilationSession`, package policy would
+be coupled to compiler state. Instead, `BuildSession` holds `CompilationSession`
+and `PackageBuildSession` side by side here, and `orchestration` drives the
+alternation between them.
+
+*/
+
+#![forbid(unsafe_code)]
 
 mod build;
 mod build_session;
@@ -54,10 +93,7 @@ use std::path::PathBuf;
 #[derive(Clone, Debug)]
 pub enum ProjectProduct {
     Check,
-    /// Retain the canonical Terminal artifact without native realization or
-    /// publication. Consumers may interpret, inspect, or publish it explicitly.
     Terminal,
-    /// A named machine's Terminal description, with no native realization.
     Inspection {
         machine: String,
     },
@@ -67,16 +103,11 @@ pub enum ProjectProduct {
     },
 }
 
-/// Retention transfers the in-memory product to a consumer such as `run`,
-/// which needs Terminal comparison before publication consumes the artifact.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NativeDestination {
     Retained,
     Published,
-    /// No image: the native request stops after provider and entry admission
-    /// and settles as a Terminal product carrying its runtime provisions, for
-    /// Terminal-only execution.
-    RuntimeAdmission,
+    RuntimeAdmission, // Stop after provider and entry admission without emitting a native image.
 }
 
 impl NativeDestination {
@@ -88,14 +119,11 @@ impl NativeDestination {
     }
 }
 
-/// Target identity and output placement are explicit, not inferred from an
-/// unrelated options field. A batch uses target subdirectories even if the
-/// caller's explicit set canonicalizes to one profile.
 #[derive(Clone)]
 pub enum BuildTargets {
     Host,
     Single(target::TargetProfile),
-    Batch(target::ExplicitTargetSet),
+    Batch(target::ExplicitTargetSet), // Always uses per-target subdirectories.
 }
 
 #[derive(Clone)]
@@ -106,10 +134,8 @@ pub struct BuildRequest {
     pub product: ProjectProduct,
     pub timings: bool,
     pub offline: bool,
-    /// Recheck the root under retained pins without accepted restricted grants.
-    pub verify: bool,
-    /// Enforced after transaction recovery and project discovery.
-    pub require_package_project: bool,
+    pub verify: bool, // Recheck the root under retained pins without accepted restricted grants.
+    pub require_package_project: bool, // Enforced after transaction recovery and project discovery.
     pub optimization_rollback: OptimizationRollback,
     pub build_snapshot: Option<compiler::BuildSnapshotRequest>,
 }
@@ -120,12 +146,10 @@ pub struct BuildOutcome {
     pub executable_path: Option<PathBuf>,
 }
 
-/// A check, Terminal or native outcome ready for command presentation.
 pub struct BuildReport {
     pub report: CompileReport,
     pub timings: CompileTimings,
-    /// Present only after native publication succeeds.
-    pub executable_path: Option<PathBuf>,
+    pub executable_path: Option<PathBuf>, // Present only after native publication succeeds.
 }
 
 impl BuildOutcome {
@@ -179,8 +203,6 @@ impl std::fmt::Display for BuildError {
 impl std::error::Error for BuildError {}
 
 impl BuildError {
-    /// Preserve structured compiler refusals when an execution consumer needs
-    /// their exceeded-provision classification, not just display text.
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
             Self::Diagnostics(diagnostics) => diagnostics,
@@ -188,8 +210,6 @@ impl BuildError {
         }
     }
 
-    /// Only compilation refusals consisting entirely of exceeded private
-    /// provisions are Incomplete; preparation and publication refusals reject.
     pub fn outcome(&self) -> compiler::CompilerRequestOutcome {
         match self {
             Self::Diagnostics(diagnostics) => {

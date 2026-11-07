@@ -1,3 +1,11 @@
+// Parse arguments for the default `omega [path]` and `omega --check [path]` command.
+//
+// Repeated `--target` flags are deduplicated in first-seen order because the
+// target selection is a set (`wiki/spec/build/configuration.md#exact-target-requests`).
+// Any unrecognized `--` token is rejected before the positional `root_path`
+// slot is assigned so a misspelled flag never masquerades as a missing source
+// file.
+
 use super::{option_value, parse_build_input};
 use compiler::OptimizationRollback;
 use package_compilation::BuildSourceCaptureRequest;
@@ -7,16 +15,12 @@ pub(crate) struct CompileArguments {
     pub(crate) build_dir: Option<PathBuf>,
     pub(crate) build_inputs: Option<BuildSourceCaptureRequest>,
     pub(crate) check_only: bool,
-    /// With `--check`, withhold the lock's accepted checkpoint so the root
-    /// compiles under fresh verification rather than retained acceptance.
-    pub(crate) verify: bool,
+    pub(crate) verify: bool, // With --check, withhold the lock's accepted checkpoint to force fresh verification.
     pub(crate) offline: bool,
     pub(crate) timings: bool,
     pub(crate) report_file: Option<PathBuf>,
     pub(crate) root_path: PathBuf,
-    /// Every `--target` named, in the order given, repeats removed. Empty
-    /// means none was named.
-    pub(crate) target_names: Vec<String>,
+    pub(crate) target_names: Vec<String>, // Every --target named, in first-seen order, repeats removed; empty means host default.
     pub(crate) optimization_rollback: OptimizationRollback,
 }
 
@@ -86,8 +90,6 @@ pub(super) fn parse_arguments(
             let target_name = option_value(&mut arguments)
                 .and_then(|target_name| target_name.into_string().ok())
                 .ok_or_else(|| "--target requires a UTF-8 target name".to_owned())?;
-            // The selection is a set: naming a target twice adds nothing
-            // (wiki/spec/build/configuration.md#exact-target-requests).
             if !target_names.contains(&target_name) {
                 target_names.push(target_name);
             }
@@ -113,9 +115,6 @@ pub(super) fn parse_arguments(
             continue;
         }
 
-        // Falling through would assign this as the root path, so a misspelled flag
-        // surfaced as a package-resolution failure against a directory that does not
-        // exist, rather than as a rejected option.
         if argument.to_string_lossy().starts_with("--") {
             return Err(format!(
                 "unrecognized option `{}`",

@@ -1,18 +1,35 @@
-//! The `omega` binary: read the command line, run the command on a deep-stack
-//! thread, and turn a usage or thread-start error into an exit code. Each
-//! command surface lives in `commands::{compile, run, inspect, packages}`; no
-//! compilation semantics live here.
-//!
-//! The same executable is also its own native-provider helper. When a program
-//! calls a foreign library, the runtime relaunches this binary as a child
-//! process to load it, so `main` hands that child over before parsing any
-//! arguments; it exits and never returns here.
-//!
-//! Compiler and package commands run on `compiler::checked::spawn_compile_worker`
-//! so `ON_COMPILER_WORKER` is active from the start of the command. OS main-thread
-//! stacks are small on Windows (1 MB vs. 8 MB on macOS and Linux), and nested
-//! `run_on_compile_thread` calls inside package readiness and compilation reuse
-//! that single worker inline instead of spawning a second 256 MB thread.
+/*
+
+Entry point for the `omega` binary.
+
+We read the command line, run the selected command on a dedicated compiler
+worker thread, and map any usage or thread-start failure to its process exit
+code. Each command surface lives in `commands::{compile, run, inspect, packages}`;
+no compilation or package semantics live in this file.
+
+Before we touch `std::env::args_os()`, we check whether this process was
+spawned as a native-provider helper (`run_native_provider_worker_if_requested`).
+When an Omega program loads a foreign library at runtime, `terminal_runtime`
+relaunches this same `omega` executable as a child process with an internal
+environment protocol. If that protocol is present, the helper runs the foreign
+call and exits the process directly; it never returns here.
+
+*/
+
+/*
+
+Why we spawn a worker thread at the top of the CLI (`run_with_large_stack`):
+
+Deep recursive AST, type, and proof traversals in the compiler can blow the
+operating system's default main-thread stack (1 MB on Windows, 8 MB on Linux
+and macOS). Rather than scattering ad-hoc thread spawns across individual
+compiler passes, we enter `compiler::checked::spawn_compile_worker` once here.
+That call allocates a 256 MB stack and sets the thread-local `ON_COMPILER_WORKER`
+flag, so every downstream `run_on_compile_thread` check inside package
+readiness and compilation sees that we are already on the large-stack worker
+and runs inline instead of spawning another 256 MB thread.
+
+*/
 
 mod arguments;
 mod commands;

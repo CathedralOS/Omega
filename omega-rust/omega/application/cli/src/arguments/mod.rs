@@ -1,9 +1,42 @@
-//! Parse one invocation before any compiler or package work begins.
-//!
-//! Every subcommand parser returns `Result<Option<T>, String>`: `Ok(Some(request))`
-//! for a validated command, `Ok(None)` when `--help` or `-h` was requested, and
-//! `Err(reason)` with the specific argument error before `finish_subcommand`
-//! appends the command's usage text.
+/*
+
+Command-line parser for the `omega` binary.
+
+We parse the entire invocation into an `Invocation` value before any compiler
+or package work starts. The first argument selects the command surface
+(`install`, `update`, `audit`, `run`, `inspect-terminal`, `--help`, or
+`--version`); anything else is passed to `compile::parse_arguments` with that
+first token put back at the front of the iterator, because `omega <root.omg>`
+and `omega --check <root.omg>` are the default command.
+
+Every subcommand parser in `compile`, `run`, `inspect`, `packages`, and `audit`
+returns `Result<Option<T>, String>`:
+- `Ok(Some(request))` for a complete, validated request.
+- `Ok(None)` when `--help` or `-h` was seen anywhere in the argument list.
+- `Err(reason)` with the specific problem; `finish_subcommand` appends that
+  subcommand's `USAGE` string so the caller gets both the exact mistake and the
+  synopsis.
+
+Shared value readers (`option_value`, `take_value`, `take_text`) refuse tokens
+that start with `-` or `--`. That way, if a user forgets the path after
+`--input` or `--report-file` and writes `--input --both`, we fail immediately
+on `--input` instead of quietly swallowing `--both` as a file name.
+
+*/
+
+/*
+
+Why `USAGE_ERROR_EXIT` is 64:
+
+Exit codes 0 through 3 are reserved by the compiler request contract
+(`wiki/spec/build/compiler_request.md`), where 0 is `Accept`, 1 is `Reject`,
+and 2 is `Incomplete` (a proof search that hit a resource bound without
+refuting the program). If argument errors exited with 1 or 2, a mistyped flag
+in a test harness or build script would be indistinguishable from a rejected or
+incomplete program. We use BSD `EX_USAGE` (64) so CLI usage mistakes stay
+disjoint from compiler verdicts.
+
+*/
 
 pub(crate) mod audit;
 pub(crate) mod compile;
@@ -21,11 +54,6 @@ use package_manager::operations::PackageInspectionOptions;
 use package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions};
 use std::ffi::OsString;
 
-/// Exit status for an invocation the CLI cannot parse or whose argument values
-/// it cannot accept, before any compiler or package work begins. It is BSD
-/// `EX_USAGE`, outside 0-3: those are the compile command's compiler-request
-/// halt values (`wiki/spec/build/compiler_request.md`), where 2 means
-/// `Incomplete`.
 pub(crate) const USAGE_ERROR_EXIT: u8 = 64;
 
 pub(crate) enum Invocation {

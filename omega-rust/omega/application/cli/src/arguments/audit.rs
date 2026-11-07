@@ -1,3 +1,5 @@
+// Parse arguments for `omega audit source` and `omega audit packages`.
+
 use super::{parse_build_input, set_flag, take_text, take_value};
 use package_compilation::BuildSourceCaptureRequest;
 use package_manager::operations::PackageInspectionOptions;
