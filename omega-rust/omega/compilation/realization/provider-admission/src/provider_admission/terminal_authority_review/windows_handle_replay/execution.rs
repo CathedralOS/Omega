@@ -6,6 +6,8 @@
 
 use super::*;
 use semantic_vocabulary::BlockId;
+use std::cmp::Ordering;
+use std::sync::Arc;
 use terminal_semantics::descriptor_lifetimes::DescriptorPosition;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -43,19 +45,135 @@ struct SuspendedCall {
 struct Work {
     activation: usize,
     control: Control,
-    frames: Vec<SuspendedCall>,
+    frames: Vec<Arc<SuspendedCall>>,
     state: CanonicalHandleState,
 }
 
-/// Only evaluated numeric metadata widens. The key still includes every word,
-/// byte range, reference target, case, binding, original continuation and ledger.
-/// A later unknown condition explores both edges rather than reviving a fact.
-fn forget_numbers(state: &mut CanonicalHandleState) {
-    state.constants = state
-        .constants
-        .map(|_, value| value.as_ref().map(|_| KnownHandleScalar::Unknown));
-    state.stored_constants.clear();
+/// Compare the same complete resource key without copying a second world.
+/// Only evaluated numeric metadata widens; initialized scalar coordinates,
+/// resource histories, pointer targets and every suspended caller stay exact.
+fn compare_resources(left: &CanonicalHandleState, right: &CanonicalHandleState) -> Ordering {
+    let CanonicalHandleState {
+        ledger: left_ledger,
+        aliases: left_aliases,
+        references: left_references,
+        cases: left_cases,
+        constants: left_constants,
+        stored_constants: _, // The previous key cleared this numeric map.
+        bindings: left_bindings,
+    } = left;
+    let CanonicalHandleState {
+        ledger: right_ledger,
+        aliases: right_aliases,
+        references: right_references,
+        cases: right_cases,
+        constants: right_constants,
+        stored_constants: _,
+        bindings: right_bindings,
+    } = right;
+    (left_ledger, left_aliases, left_references, left_cases)
+        .cmp(&(right_ledger, right_aliases, right_references, right_cases))
+        .then_with(|| {
+            left_constants
+                .iter()
+                .map(|(id, value)| (id, value.is_some()))
+                .cmp(
+                    right_constants
+                        .iter()
+                        .map(|(id, value)| (id, value.is_some())),
+                )
+        })
+        .then_with(|| left_bindings.cmp(right_bindings))
 }
+
+fn compare_suspended(left: &Arc<SuspendedCall>, right: &Arc<SuspendedCall>) -> Ordering {
+    if Arc::ptr_eq(left, right) {
+        return Ordering::Equal;
+    }
+    let SuspendedCall {
+        frame: left,
+        continuation: left_continuation,
+    } = left.as_ref();
+    let SuspendedCall {
+        frame: right,
+        continuation: right_continuation,
+    } = right.as_ref();
+    let HandleReplayFrame {
+        invocation: left_invocation,
+        activation: left_activation,
+        caller: left_caller,
+        mutable_outputs: left_outputs,
+        normal_return: left_normal,
+        receiving: left_receiving,
+    } = left;
+    let HandleReplayFrame {
+        invocation: right_invocation,
+        activation: right_activation,
+        caller: right_caller,
+        mutable_outputs: right_outputs,
+        normal_return: right_normal,
+        receiving: right_receiving,
+    } = right;
+    (left_invocation, left_activation)
+        .cmp(&(right_invocation, right_activation))
+        .then_with(|| compare_resources(left_caller, right_caller))
+        .then_with(|| {
+            (left_outputs, left_normal, left_receiving, left_continuation).cmp(&(
+                right_outputs,
+                right_normal,
+                right_receiving,
+                right_continuation,
+            ))
+        })
+}
+
+#[derive(Clone)]
+struct ResourceWork(Arc<Work>);
+
+impl Ord for ResourceWork {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if Arc::ptr_eq(&self.0, &other.0) {
+            return Ordering::Equal;
+        }
+        let Work {
+            activation: left_activation,
+            control: left_control,
+            frames: left_frames,
+            state: left_state,
+        } = self.0.as_ref();
+        let Work {
+            activation: right_activation,
+            control: right_control,
+            frames: right_frames,
+            state: right_state,
+        } = other.0.as_ref();
+        (left_activation, left_control)
+            .cmp(&(right_activation, right_control))
+            .then_with(|| {
+                left_frames
+                    .iter()
+                    .zip(right_frames)
+                    .map(|(left, right)| compare_suspended(left, right))
+                    .find(|order| *order != Ordering::Equal)
+                    .unwrap_or_else(|| left_frames.len().cmp(&right_frames.len()))
+            })
+            .then_with(|| compare_resources(left_state, right_state))
+    }
+}
+
+impl PartialOrd for ResourceWork {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for ResourceWork {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for ResourceWork {}
 
 fn join_numbers(retained: &mut CanonicalHandleState, incoming: &CanonicalHandleState) -> bool {
     let mut changed = false;
@@ -81,24 +199,27 @@ fn join_numbers(retained: &mut CanonicalHandleState, incoming: &CanonicalHandleS
 
 #[derive(Default)]
 struct Pending {
-    rows: BTreeMap<Work, Work>,
-    queue: std::collections::VecDeque<Work>,
+    rows: BTreeMap<ResourceWork, Arc<Work>>,
+    queue: std::collections::VecDeque<Arc<Work>>,
 }
 
 impl Pending {
     fn push(&mut self, work: Work) -> Result<(), String> {
-        let mut key = work.clone();
-        forget_numbers(&mut key.state);
-        for suspended in &mut key.frames {
-            forget_numbers(&mut suspended.frame.caller);
-        }
+        let work = Arc::new(work);
+        let key = ResourceWork(Arc::clone(&work));
         if let Some(retained) = self.rows.get_mut(&key) {
-            let mut changed = join_numbers(&mut retained.state, &work.state);
-            for (retained, incoming) in retained.frames.iter_mut().zip(&work.frames) {
-                changed |= join_numbers(&mut retained.frame.caller, &incoming.frame.caller);
+            let representative = Arc::make_mut(retained);
+            let mut changed = join_numbers(&mut representative.state, &work.state);
+            for (retained, incoming) in representative.frames.iter_mut().zip(&work.frames) {
+                if !Arc::ptr_eq(retained, incoming) {
+                    changed |= join_numbers(
+                        &mut Arc::make_mut(retained).frame.caller,
+                        &incoming.frame.caller,
+                    );
+                }
             }
             if changed {
-                self.queue.push_back(retained.clone());
+                self.queue.push_back(Arc::clone(retained));
             }
             return Ok(());
         }
@@ -107,7 +228,7 @@ impl Pending {
                 "handle execution exceeds its bounded distinct control and resource states".into(),
             );
         }
-        self.rows.insert(key, work.clone());
+        self.rows.insert(key, Arc::clone(&work));
         self.queue.push_back(work);
         Ok(())
     }
@@ -184,10 +305,10 @@ impl<'a, 'module> Execution<'a, 'module> {
                         })?;
                     let activation = frame.activation;
                     let mut frames = work.frames.clone();
-                    frames.push(SuspendedCall {
+                    frames.push(Arc::new(SuspendedCall {
                         frame,
                         continuation: continuation.clone(),
-                    });
+                    }));
                     let body = self.body(activation)?;
                     self.pending.push(Work {
                         activation,
@@ -442,6 +563,7 @@ impl<'a, 'module> Execution<'a, 'module> {
             }
             Completion::Return(returned) => {
                 if let Some(suspended) = work.frames.pop() {
+                    let suspended = Arc::unwrap_or_clone(suspended);
                     work.activation = suspended.frame.invocation.parent;
                     work.state = work.state.resume_after_cleanup(
                         suspended.frame,
@@ -789,7 +911,7 @@ pub(super) fn derive(
         if steps > 1_048_576 {
             return Err("handle execution exceeds its bounded total replay steps".into());
         }
-        execution.step(work)?;
+        execution.step(Arc::unwrap_or_clone(work))?;
         progress.replay(
             steps,
             execution.pending.rows.len(),
@@ -820,4 +942,260 @@ pub(super) fn derive(
     Ok(CheckedHandleExecution {
         occurrences: execution.occurrences,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::super::windows_handle_lifetimes::HandleInstance;
+    use super::super::super::windows_handle_storage::CapturedHandleReference;
+    use super::*;
+    use semantic_vocabulary::{BoundaryMachineId, ContractId, IntegerSign, OperationId, PlaceId};
+
+    fn integer(value: u128) -> KnownHandleScalar {
+        KnownHandleScalar::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            IntegerValue::Unsigned(value),
+        )
+    }
+
+    fn home(place: u64) -> HandleStorageRange {
+        HandleStorageRange::new(
+            HandleStorageBacking {
+                owner: HandleStorageOwner::Activation(0),
+                place: PlaceId::new(place).unwrap(),
+            },
+            0,
+            8,
+        )
+        .unwrap()
+    }
+
+    fn occurrence(operation: u64) -> NativeOccurrence {
+        NativeOccurrence {
+            machine: MachineId::new(1).unwrap(),
+            site: InvocationSite::Operation(OperationId::new(operation).unwrap()),
+            context: [1; 32],
+            boundary: BoundaryMachineId::new(1).unwrap(),
+        }
+    }
+
+    fn state() -> CanonicalHandleState {
+        let body = terminal_psi::TerminalMachine {
+            assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
+            id: MachineId::new(1).unwrap(),
+            declaration: None,
+            attachment: None,
+            nominal_cleanup_subject: None,
+            parameters: Vec::new(),
+            parameter_order: Vec::new(),
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: terminal_psi::TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            block_entry_claims: Vec::new(),
+            loan_completions: Vec::new(),
+            declared_service_reach: Vec::new(),
+            closed_reach_application: None,
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(1).unwrap(),
+            blocks: Vec::new(),
+            contract: terminal_psi::MachineContract::empty(ContractId::new(1).unwrap()),
+        };
+        let value = ValueId::new(5).unwrap();
+        let later = ValueId::new(8).unwrap();
+        let mut aliases = HandleAliases::with_scalar_namespace([value, later]).unwrap();
+        aliases
+            .define_scalar(
+                value,
+                HandleWordAliases::untracked(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                )),
+            )
+            .unwrap();
+        CanonicalHandleState {
+            ledger: HandleLifetimes::default(),
+            aliases,
+            references: HandleReferences::default(),
+            cases: BTreeMap::new(),
+            constants: IdTable::from_rows_with_gaps([(value, Some(integer(1))), (later, None)], 4)
+                .unwrap(),
+            stored_constants: BTreeMap::from([(home(1), integer(1))]),
+            bindings: HandleStorageBindings::new(&body).unwrap(),
+        }
+    }
+
+    fn work() -> Work {
+        Work {
+            activation: 1,
+            control: Control::Position((BlockId::new(2).unwrap(), 0)),
+            frames: vec![Arc::new(SuspendedCall {
+                frame: HandleReplayFrame {
+                    invocation: HandleReplayInvocation {
+                        parent: 0,
+                        caller: Caller {
+                            machine: MachineId::new(1).unwrap(),
+                            block: BlockId::new(1).unwrap(),
+                            operation_index: 0,
+                            site: CallSite::Invocation(InvocationSite::Operation(
+                                OperationId::new(1).unwrap(),
+                            )),
+                        },
+                        callee: MachineId::new(2).unwrap(),
+                    },
+                    activation: 1,
+                    caller: state(),
+                    mutable_outputs: Vec::new(),
+                    normal_return: true,
+                    receiving: Some(terminal_psi::OperationResult::Unit),
+                },
+                continuation: Control::Position((BlockId::new(1).unwrap(), 1)),
+            })],
+            state: state(),
+        }
+    }
+
+    // The former production key is retained only as the equivalence oracle.
+    fn old_key(mut work: Work) -> Work {
+        fn forget(state: &mut CanonicalHandleState) {
+            state.constants = state
+                .constants
+                .map(|_, value| value.as_ref().map(|_| KnownHandleScalar::Unknown));
+            state.stored_constants.clear();
+        }
+        forget(&mut work.state);
+        for suspended in &mut work.frames {
+            forget(&mut Arc::make_mut(suspended).frame.caller);
+        }
+        work
+    }
+
+    #[test]
+    fn resource_keys_preserve_the_original_numeric_widening_equivalence() {
+        let base = work();
+        let id = ValueId::new(5).unwrap();
+        let mut variants = vec![base.clone()];
+        let mut numeric = base.clone();
+        *numeric.state.constants.get_mut(id).unwrap() = Some(integer(2));
+        numeric.state.stored_constants.clear();
+        *Arc::make_mut(&mut numeric.frames[0])
+            .frame
+            .caller
+            .constants
+            .get_mut(id)
+            .unwrap() = Some(integer(3));
+        variants.push(numeric);
+        let mut missing = base.clone();
+        *missing.state.constants.get_mut(id).unwrap() = None;
+        variants.push(missing);
+        let mut sibling = base.clone();
+        Arc::make_mut(&mut sibling.frames[0])
+            .frame
+            .invocation
+            .caller
+            .site = CallSite::Invocation(InvocationSite::Operation(OperationId::new(2).unwrap()));
+        variants.push(sibling);
+        let mut continuation = base.clone();
+        Arc::make_mut(&mut continuation.frames[0]).continuation =
+            Control::Position((BlockId::new(3).unwrap(), 0));
+        variants.push(continuation);
+        let mut acquired = base.clone();
+        acquired
+            .state
+            .ledger
+            .acquire_file(HandleInstance(0), occurrence(1), 0)
+            .unwrap();
+        variants.push(acquired.clone());
+        acquired
+            .state
+            .aliases
+            .define_scalar(
+                id,
+                HandleWordAliases::acquired(
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+                    HandleInstance(0),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        variants.push(acquired.clone());
+        acquired
+            .state
+            .ledger
+            .release_file(HandleInstance(0), occurrence(2))
+            .unwrap();
+        variants.push(acquired);
+        for target in [2, 3] {
+            let mut pointer = base.clone();
+            pointer.state.references.replace(
+                home(1),
+                CapturedHandleReference {
+                    referent: StructuralTypeId::new(1).unwrap(),
+                    range: home(target),
+                    stored_scalar: None,
+                    dependencies: BTreeSet::new(),
+                },
+            );
+            variants.push(pointer);
+        }
+        for left in &variants {
+            for right in &variants {
+                let actual =
+                    ResourceWork(Arc::new(left.clone())) == ResourceWork(Arc::new(right.clone()));
+                assert_eq!(actual, old_key(left.clone()) == old_key(right.clone()));
+            }
+        }
+        assert_eq!(
+            compare_resources(&variants[0].state, &variants[1].state),
+            Ordering::Equal
+        );
+        for changed in &variants[2..] {
+            assert!(
+                ResourceWork(Arc::new(base.clone())) != ResourceWork(Arc::new(changed.clone()))
+            );
+        }
+    }
+
+    #[test]
+    fn pending_shares_saved_worlds_and_widens_a_separate_representative() {
+        let original = work();
+        let caller = Arc::clone(&original.frames[0]);
+        let mut pending = Pending::default();
+        pending.push(original.clone()).unwrap();
+        let (key, representative) = pending.rows.first_key_value().unwrap();
+        assert!(Arc::ptr_eq(&key.0, representative));
+        assert!(Arc::ptr_eq(representative, pending.queue.front().unwrap()));
+        assert!(Arc::ptr_eq(&representative.frames[0], &caller));
+        let id = ValueId::new(5).unwrap();
+        let mut incoming = original;
+        *incoming.state.constants.get_mut(id).unwrap() = Some(integer(2));
+        *Arc::make_mut(&mut incoming.frames[0])
+            .frame
+            .caller
+            .constants
+            .get_mut(id)
+            .unwrap() = Some(integer(3));
+        pending.push(incoming).unwrap();
+        assert_eq!(pending.rows.len(), 1);
+        assert_eq!(pending.queue.len(), 2);
+        let (key, representative) = pending.rows.first_key_value().unwrap();
+        assert!(!Arc::ptr_eq(&key.0, representative));
+        assert_eq!(key.0.state.constants.get(id), Some(&Some(integer(1))));
+        assert_eq!(
+            representative.state.constants.get(id),
+            Some(&Some(KnownHandleScalar::Unknown))
+        );
+        assert_eq!(
+            representative.frames[0].frame.caller.constants.get(id),
+            Some(&Some(KnownHandleScalar::Unknown))
+        );
+        assert_eq!(
+            caller.frame.caller.constants.get(id),
+            Some(&Some(integer(1)))
+        );
+        assert!(Arc::ptr_eq(representative, pending.queue.back().unwrap()));
+    }
 }
