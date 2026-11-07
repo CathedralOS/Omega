@@ -23,7 +23,7 @@ terminates by a
 machine plus_assoc(a: Peano, b: Peano, c: Peano) -> Peano
 terminates by a
 ensures
-    (plus(plus(a, b), c)) == (plus(a, plus(b, c)))
+    core::Identity<Peano>((plus(plus(a, b), c)), (plus(a, plus(b, c))))
 {
     transition a {
         Peano::Zero -> Peano::Zero
@@ -37,7 +37,7 @@ ensures
 machine needs_rearrange(a: Peano, b: Peano, c: Peano) -> Peano
 terminates by a
 ensures
-    (plus(b, plus(a, c))) == (plus(a, plus(b, c)))
+    core::Identity<Peano>((plus(b, plus(a, c))), (plus(a, plus(b, c))))
 {
     transition a {
         Peano::Zero -> Peano::Zero
