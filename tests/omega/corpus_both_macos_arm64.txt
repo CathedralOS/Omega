@@ -3255,7 +3255,7 @@ pass/facts/data_where_standing_predicate_helper_through_other_state_exit built 3
 pass/facts/data_where_standing_predicate_helper_through_parameter_exit built 3532ms exit:0 interpreter-exit:0 interpreter:agrees @9f6a475e7bc2
 pass/facts/data_where_standing_predicate_helper_through_target_body_exit built 2666ms exit:0 interpreter-exit:0 interpreter:agrees @9f6a475e7bc2
 pass/facts/data_where_standing_root_exit built 1677ms exit:0 interpreter-exit:0 interpreter:agrees @fdf827e3c460
-pass/facts/data_where_standing_through_call_result_exit built 1674ms exit:0 interpreter-exit:0 interpreter:agrees @fdf827e3c460
+pass/facts/data_where_standing_through_call_result_exit built 2856ms exit:0 interpreter-exit:0 interpreter:agrees @563a0d1cc67a
 pass/facts/data_where_standing_through_const_name_exit built 8332ms exit:0 interpreter-exit:0 interpreter:agrees @fdf827e3c460
 pass/facts/data_where_standing_through_field_exit built 1772ms exit:0 interpreter-exit:0 interpreter:agrees @fdf827e3c460
 pass/facts/data_where_standing_through_local_exit built 1664ms exit:0 interpreter-exit:0 interpreter:agrees @fdf827e3c460
@@ -6030,3 +6030,4 @@ pass/borrow/runtime_write_only_boundary_satisfier_exit built 3229ms exit:0 inter
 pass/recast/non_owning_erasure_checked_write_exit built 3059ms exit:0 interpreter-exit:0 interpreter:agrees @1f01fe627c9b
 pass/providers/opaque_write_only_checked_alternative rejected 2978ms expected native-rejection:match @1f01fe627c9b
 	opaque native provider for `named-callable(path(nominal\\(package-owner\\(32:022ee875fc99b747ac0df8ee125dbbfafecd3221b4839d4cc6d46242a17a5aca\\)\\,path\\(ErasedWrite::write\\)\\)),parameters(parameter\\(mutable\\(yes\\)\\,const\\(no\\)\\,ref-write\\(constrained\\(named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:022ee875fc99b747ac0df8ee125dbbfafecd3221b4839d4cc6d46242a17a5aca\\\\\\)\\\\\\,path\\\\\\(Storage\\\\\\)\\\\\\)\\)\\)\\,declared-domain\\(name\\(package:022ee875fc99b747ac0df8ee125dbbfafecd3221b4839d4cc6d46242a17a5aca:product::Storage::Issued\\)\\)\\)\\)\\)),result-dispatch())` requires an admitted write-only non-observation judgment bound to its exact selected implementation and receipt
+pass/proofs/reviewed_mathematical_data_contract_exit built 3476ms exit:0 interpreter-exit:0 interpreter:agrees @563a0d1cc67a

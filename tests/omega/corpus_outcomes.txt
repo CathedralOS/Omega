@@ -6619,14 +6619,14 @@ fail/facts/case_where_equality_data_predicate_arithmetic_before_restore_rejected
 	exact arithmetic in machine `main` state `entry` local `unsafe_delta` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_where_equality_data_predicate_nested_payload_carriage_rejected rejected 2260ms expected @911f6617ba9e
 	exact arithmetic in machine `pair_width` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_nested_subject_domain_rejected rejected 707ms expected @911f6617ba9e
-	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot form named-domain membership: the logical data subject's own default domain is still pending admission", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 345, end: 349 } }), resolved_location: None })
+fail/facts/case_where_equality_data_predicate_nested_subject_domain_rejected rejected 910ms expected @563a0d1cc67a
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot form named-domain membership: the logical data subject's own default domain is still pending admission", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(32), span: Span { start: 345, end: 349 } }), resolved_location: None })
 fail/facts/case_where_equality_data_predicate_partial_call_rejected rejected 2070ms expected @911f6617ba9e
 	cannot prove requires contract for specification call `needs_equal` in data `Interval` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
 	exact arithmetic in machine `width` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_payload_stale_rejected rejected 2442ms expected @911f6617ba9e
+fail/facts/case_where_equality_data_predicate_payload_stale_rejected rejected 2056ms expected @563a0d1cc67a
 	machine `main` state `entry` statement 2: the next whole-value read of `point` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	data `Interval`'s default domain is still FALSE at a call: the invariant window opened on `point` must close first -- restore the `requires` facts before this consumption point (ch11)
+	cannot complete a call at statement 3 in machine `main` state `entry`: this write left the `requires` facts of `point` (data `Interval`) unproved; restore them first
 fail/facts/case_where_equality_data_predicate_through_call_result_rejected rejected 1154ms expected @ccdb99ca2214
 	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_where_equality_data_predicate_through_const_name_rejected rejected 1235ms expected @ccdb99ca2214
@@ -7507,7 +7507,7 @@ fail/facts/data_where_standing_mutable_recast_through_parameter_rejected rejecte
 	argument `counter` for state `inspect::entry`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
 fail/facts/data_where_standing_mutable_recast_through_target_body_rejected rejected 659ms expected @f78c2623a68c
 	argument `counter` for state `inspect`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
-fail/facts/data_where_standing_mutable_snapshot_bound rejected 2832ms expected @f78c2623a68c
+fail/facts/data_where_standing_mutable_snapshot_bound rejected 2197ms expected @563a0d1cc67a
 	cannot prove requires contract for call require_bound from fill: saved <= 60 (needs fact `value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/data_where_standing_nested_borrowed_field_call_result rejected 10634ms expected @4606e707a322+wt
 	data `Counter` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
@@ -7601,8 +7601,8 @@ fail/facts/data_where_standing_shared_record_replacement rejected 2115ms expecte
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/facts/data_where_standing_shared_record_with_array rejected 2108ms expected @f78c2623a68c
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/data_where_standing_through_call_result_rejected rejected 1707ms expected @ccdb99ca2214
-	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_through_call_result_rejected rejected 2206ms expected @563a0d1cc67a
+	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `i32`.
 fail/facts/data_where_standing_through_const_name_rejected rejected 2575ms expected @ccdb99ca2214
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_through_field_rejected rejected 1363ms expected @ccdb99ca2214
@@ -7624,7 +7624,7 @@ fail/facts/data_where_standing_through_target_body_rejected rejected 1514ms expe
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_write_only_call_result rejected 4182ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_call_result_unrestored_window rejected 4732ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
+fail/facts/data_where_standing_write_only_call_result_unrestored_window rejected 2050ms expected @563a0d1cc67a
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/facts/data_where_standing_write_only_const_name rejected 6230ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
@@ -17069,7 +17069,7 @@ fail/proofs/returned_reference_unproven_result_guarantee rejected 1795ms expecte
 	cannot prove ensures contract for exit from wrap_disjunctive at statement 0: result.identity == 19
 	cannot prove ensures contract for exit from wrap_rebound_scalar at statement 2: result.value == 19
 	cannot prove ensures contract for exit from wrap_mutated_scalar at statement 1: result.value == 19
-fail/proofs/reviewed_mathematical_data_contract_rejected rejected 733ms expected @2949992b6aa5
+fail/proofs/reviewed_mathematical_data_contract_rejected rejected 2058ms expected @563a0d1cc67a
 	data `Bounded` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/proofs/rhs_mutation_retires_bound_dependency rejected 2249ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from wrong at statement 1: bounds.count <= bounds.limit; no exact incoming reference origin for bounds
@@ -22618,7 +22618,7 @@ pass/facts/data_where_standing_recast_owner_restoration checked 4531ms check-tar
 pass/facts/data_where_standing_root_exit checked 6116ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_shared_record_replacement checked 3701ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_shared_record_with_array checked 3856ms check-target:macos_arm64 @f78c2623a68c
-pass/facts/data_where_standing_through_call_result_exit checked 5198ms check-target:macos_arm64 @911f6617ba9e
+pass/facts/data_where_standing_through_call_result_exit checked 2872ms check-target:macos_arm64 @563a0d1cc67a
 pass/facts/data_where_standing_through_const_name_exit checked 7191ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_through_field_exit checked 6921ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_through_local_exit checked 6674ms check-target:macos_arm64 @911f6617ba9e
@@ -26912,7 +26912,7 @@ pass/proofs/quotient_symbolic_endpoint checked 6854ms @d352d5e8e77e
 pass/proofs/recursive_terminal_erased_evidence checked 2610ms @ccdb99ca2214
 pass/proofs/representation_agreement_corrupt_decode_traps checked 10879ms check-target:macos_arm64 @e97ed21415d9
 pass/proofs/requires_bridge_telescope checked 3084ms @ccdb99ca2214
-pass/proofs/reviewed_mathematical_data_contract_exit checked 3510ms check-target:macos_arm64 @2949992b6aa5
+pass/proofs/reviewed_mathematical_data_contract_exit checked 3431ms check-target:macos_arm64 @563a0d1cc67a
 pass/proofs/ring_full_polynomial_compile checked 11534ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/ring_law_conformance checked 12155ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/runtime_byte_predicate_state_contract_exit checked 12017ms check-target:macos_arm64 @ccdb99ca2214
@@ -28476,3 +28476,5 @@ run/traits/static_implementation_method_arguments checked 11135ms check-target:m
 run/traits/target_scoped_map_method_arguments checked 6166ms check-target:macos_arm64 terminal-inspections:match @f6273e83f99c
 run/variant_decimal_runtime_division checked 10069ms check-target:linux_x86_64 @ccdb99ca2214
 run/variant_record_normalization_repeats checked 305495ms check-target:linux_x86_64 @e1cfe02f1a9b
+fail/domains/private_constructor_unguarded_arrival rejected 1878ms expected @563a0d1cc67a
+	data `Bounded` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
