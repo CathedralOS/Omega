@@ -2,7 +2,8 @@
 //! They use the ordinary copied-value producer and expression-root namespace;
 //! no live storage read may substitute the former source after sibling effects.
 
-use super::super::{CheckedComposedUnitControlStatePlan, CheckedTrees, catalogs};
+use super::super::super::{CheckedTrees, catalogs};
+use super::super::CheckedComposedUnitControlStatePlan;
 use super::StateGraphEmission;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::shared::checked_facts::{flow_facts, value_facts};
