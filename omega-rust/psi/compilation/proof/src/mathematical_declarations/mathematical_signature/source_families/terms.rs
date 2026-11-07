@@ -1707,7 +1707,7 @@ mod induction_tests {
         )
         .unwrap();
         assert_eq!(described.payload_lifts.len(), 1);
-        assert_eq!(described.family.levels[1], Level::Parameter(0));
+        assert_eq!(described.family.levels[1].parameter_arity(), 1);
         let family =
             intern_description(&mut arena, &mut declarations, described.family, &[], 1).unwrap();
 
@@ -1801,6 +1801,7 @@ mod induction_tests {
         let signature = check_signature(&mut arena, &declarations, &mut Budget::default()).unwrap();
         let context = Context::with_level_arity(1).with_signature(signature.clone());
         for (term, ty) in [
+            (family.carrier, sort),
             (label, family.carrier),
             (constructor, constructor_type),
             (step, step_type),
