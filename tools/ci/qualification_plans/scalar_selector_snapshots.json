@@ -37,9 +37,13 @@
     "cache_key": "compiler-regression-Linux-X64-50b337c89157d83b1de5510b630025d9bcd28107e82f67e95260cba16129ddc5-7a71b2c1f2d4a49a23f2bcd0790aa16daafce68e-prepared-v1-with-runner"
   },
   "fixtures": [
-    "pass/proofs/scalar_field_snapshot_selector_writes_payload"
+    "pass/proofs/scalar_field_snapshot_selector_writes_payload",
+    "fail/proofs/scalar_field_snapshot_after_selector_write",
+    "fail/proofs/scalar_field_snapshot_selector_replaces_collection",
+    "run/domains/qualified_fixed_byte_array_captured_destination_exit",
+    "fail/domains/qualified_fixed_byte_array_captured_invalid_write"
   ],
-  "source_only": false,
+  "source_only": true,
   "samples": [],
   "cli_fixtures": []
 }
