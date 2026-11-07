@@ -33,10 +33,13 @@ pub enum ProofRuleFoundation {
     TrustedAdmission,
     /// A rule resting on a classically-only principle — excluded middle,
     /// double-negation elimination, proof by contradiction, choice, or a
-    /// decision procedure over an undecidable relation. Nothing maps here:
-    /// the proposition language has no negation connective, so these forms
-    /// are currently unexpressible, and any rule that could express one
-    /// must be reclassified here first.
+    /// decision procedure over an undecidable relation. Negation is definable
+    /// as implication to Falsehood, so classical formulas are expressible.
+    /// No rule is classified here: acceptance requires a checked derivation
+    /// under recorded premises, not merely a well-formed classical goal.
+    /// Decidable instances may have constructive proofs; a supplied classical
+    /// premise remains a dependency. Classification is a review inventory,
+    /// not a soundness proof of the implementations.
     Classical,
 }
 

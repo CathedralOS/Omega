@@ -6,10 +6,7 @@ replace runtime trait selectors; state remains ordinary explicit arguments.
 
 Ratified 2026-11-06 together with [some packages](some_packages.md). All `dyn`
 source forms, including captured `dyn Trait<_>`, are retired. Static traits,
-named conformances, proof laws and `machine F` generic binders remain. The
-[migration plan](../../drafts/designs/machine_values_some.md) tracks compiler
-delivery; examples here define the target language, not current implementation
-coverage. Anonymous bodies and capture syntax remain a separate proposal.
+named conformances, proof laws and `machine F` generic binders remain. Anonymous bodies and capture syntax remain a separate proposal.
 
 ## Callable types and construction
 

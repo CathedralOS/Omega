@@ -129,8 +129,5 @@ compare the exact semantic `i32` status. A host exposing fewer status bits does
 not authorize truncation of that trace; physical presentation belongs to the
 target contract.
 
-This is the required contract.
-[PROCESS-EXIT-CONTRACT](../../../TASKS.md#process-exit-contract) tracks source
-authority, provider conformance, survivor contracts and product-source parity.
 General completion annotations, separately named terminal effects, thread exit,
 reboot, and arbitrary process killing are outside this decision.

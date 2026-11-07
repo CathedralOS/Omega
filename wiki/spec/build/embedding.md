@@ -385,7 +385,7 @@ not native timing or actual hardware correctness.
 Assembly-bearing startup additionally exercises a device-interaction sequence
 and a processor idle/external-entry sequence against the selected environment,
 with authority, persistent state and once-only effects preserved across fuel
-pauses. This is required implementation work, not a remaining owner decision.
+pauses.
 Do not replace the exercised OS sequence with a host routine, demand assembly
 removal, or report support for unimplemented instructions. Generic embedding and
 component work need not wait for complete Cathedral instruction coverage.

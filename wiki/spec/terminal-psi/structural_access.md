@@ -112,10 +112,10 @@ precedes any renewed parent use, and shared backing stays frozen until the
 complete shared cohort ends. Formation, release, and successful return commit
 only after their fuel charge.
 
-The current executable slice retains whole mutable primitive references,
-mutable references to plain records, and record-contained reference leaves
-through ordinary calls and returns. A plain record referent contains no nested
-permission carriers. A projected formal origin retains its complete static
+Ordinary calls and returns must retain whole mutable primitive references,
+mutable references to plain records, record-contained reference leaves and their
+origins. A plain record referent contains no nested permission carriers.
+A projected formal origin retains its complete static
 field/fixed-index path. A whole mutable plain-record result may choose among
 static paths below one mutably borrowed parameter. Each return must establish
 a declared origin, and the union across reachable returns must exactly cover
@@ -212,8 +212,7 @@ lowers to a `RuntimeIndex` with an obligation against the same view's dominating
 `ElementViewLength` observation. Checking rejects replacing that
 segment with an obligation-free `FixedIndex`. Copying preserves the readable
 source and its loan; it creates only the unrestricted result. Fixed-array
-selectors remain statically bounded by their declarations. The current producer
-supports this copy through a root element view, not a nested view descriptor.
+selectors remain statically bounded by their declarations.
 Whole-element extraction and replacement through an exclusive root view select
 the element the same way and open its
 [restoration window](ownership.md#borrowed-storage-restoration) on the view's
@@ -405,9 +404,8 @@ custody is established. Zero provisioning checks the actual carrier-correct zero
 against the complete predicate using the existing checked predicate denotation;
 unknown truth rejects. A zero-selected sum checks only its selected payload.
 This is structural validity, not nominal or routed domain-membership authority.
-The source producer currently projects closed Boolean combinations of supported
-scalar comparisons and exact interval shells. Unsupported source predicates,
-indexed theory, and establishment routes are not silently reduced to raw storage.
+Source predicates, indexed theory and establishment routes must retain their
+complete evidence; unsupported forms are not silently reduced to raw storage.
 
 ## Complete structural array construction
 
@@ -903,8 +901,5 @@ access/shape mismatches, overlapping exclusive arguments, and stale or
 substituted receiving plans. Interpreter-only or encoding checks do not replace
 native caller-observation controls on both Linux architectures.
 
-Current source and native limits belong beside
-[Terminal production](../../../omega-rust/psi/compilation/psi-compiler/terminal-production/README.md#structural-access-and-stores)
-and [ABI lowering](../../../omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/README.md).
 Unsupported forms reject; bounded implementation support does not redefine
 reference semantics.

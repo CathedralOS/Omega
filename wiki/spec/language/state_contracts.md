@@ -51,10 +51,6 @@ blocks carry entry/exit assertions under [checked assembly](assembly.md#contract
 an enclosing callable machine's postcondition still applies at normal completion.
 No assertion becomes an admission or overrides the instruction catalog.
 
-This is the accepted source contract. `REQUIRES-UNIFICATION` in [TASKS.md](../../../TASKS.md)
-tracks both producers, repository and customer source migration, and deletion of
-the retired grammar and compatibility paths.
-
 ## Machine header delimiters
 
 Named decision: `machine-clause-delimiters`, confirmed 2026-10-30.
@@ -280,6 +276,3 @@ targets and inputs; an empty write summary alone does not prove repeatability.
 
 Source proof search may be incomplete. Failure to infer an invariant, normalize
 a term, or prove a supported implication grants no fact and is not a refutation.
-Current algorithms and support limits belong beside
-[checking](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md)
-and [validation](../../../omega-rust/psi/compilation/validation/README.md).

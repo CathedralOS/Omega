@@ -10,7 +10,6 @@ from static `const Count: u32`. Bodies are checked against their declared
 requirements; a concrete selection cannot silently strengthen the generic API.
 Runtime indices follow [dependent-value rules](dependent_values.md), not
 const-generic substitution. Lifetime binders follow [lifetimes](lifetimes.md).
-These are source contracts; normalization limits belong beside [source resolution](../../../omega-rust/psi/compilation/pipeline/README.md#value-generic-staging).
 
 Requirement spelling follows [unified requirement clauses](state_contracts.md#requirement-clauses);
 the spelling does not merge static admission with runtime entry obligations or
@@ -152,10 +151,6 @@ application and expansion provenance for diagnostics, serialization and replay
 without treating the alias spelling as a distinct semantic or ABI key.
 This facility does not introduce first-class higher-kinded arguments or ambient
 conformance search.
-
-The source spelling and semantics are ratified; parser, resolution, retained
-identity and end-to-end implementation remain tracked by
-`LIBRARY-REPRESENTATION-FAMILIES` in [TASKS.md](../../../TASKS.md).
 
 ## Closed applications and canonical identity
 
@@ -339,8 +334,7 @@ requires
 
 `TinyBytes<u64::AtMost<256>>` binds Capacity to 256 without constructing a dummy
 Length value. The array has a static extent and length remains an ordinary
-runtime field. This illustrates the settled inference contract, not current
-parser or compiler support. Ordinary initialization and invariant checking
+runtime field. Ordinary initialization and invariant checking
 remain required. A general element-owning vector also needs its initialized
 prefix and element-disposition protocol; the equation does not supply those.
 

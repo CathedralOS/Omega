@@ -353,6 +353,3 @@ does not escape or mutate compiler state out of band.
 The [selection result contract](reflection.md#selection-evaluation-and-retained-results)
 requires independent resolution, coverage, access, and requirement validation.
 Choosing a static declaration is not manufacturing proof or a runtime callable.
-
-The [implementation note](../../../omega-rust/psi/compilation/build-time-evaluation/README.md)
-records the narrower currently supported admission and materialization paths.

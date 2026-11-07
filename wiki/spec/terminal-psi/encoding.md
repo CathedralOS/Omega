@@ -34,16 +34,11 @@ old encodings reject through the stale-marker rule rather than being accepted
 as a compatibility dialect. Access, multiplicity, qualifications and custody
 remain independently checked for every ordinary parameter.
 
-`STATIC-MACHINE-MIGRATION` tracks completion of the coordinated producer,
-codec and consumer migration. These byte layouts do not claim that
-the remaining consumer migration or end-to-end validation is complete.
-
-The same distinction applies to legacy runtime conformance selectors.
+Legacy runtime conformance selectors are not callable-package evidence.
 [Machine values](../language/machine_values.md) and [some packages](../language/some_packages.md)
-replace source `dyn`; static named conformances remain. The current wire table
-still records `SelectImplementation` (109), `CallDynamic` (110), and section 25
-during the coordinated migration. These are legacy implementation forms, not
-authorization to retain source `dyn` or silently decode them as runtime callable
+replace source `dyn`; static named conformances remain. `SelectImplementation`
+(109), `CallDynamic` (110), and section 25 describe legacy wire forms. They do not
+authorize source `dyn` and must not be silently decoded as runtime callable
 and package evidence. Earlier instance-bearing tags 48, 49, 52, 53, 54 and
 suspension targets 3 and 4 remain unassigned and reject.
 
@@ -165,11 +160,10 @@ completion instead. Erasure retains the existing strict subset rule.
 
 ### Retained scalar conditions and application scope
 
-The reference compiler's target-closure migration retains scalar applications,
-captured integer and Boolean conditions, and their declaration scope before the folded
-constant table. These rows are outstanding requirements, not successful proof
-or execution authority. The migration's unresolved-execution fences remain
-until a receiving target can discharge the complete requirements.
+Scalar applications, captured integer and Boolean conditions, and their
+declaration scope precede the folded constant table. These rows are requirements,
+not successful proof or execution authority. A receiving target must discharge
+the complete requirements before execution.
 
 The condition section encodes counted integer-range rows, counted predicate
 rows, then counted completion rows:
@@ -201,7 +195,7 @@ handles; every child precedes its parent. Integer payloads use the canonical
 sign/magnitude encoding also used by bound steps.
 
 Ingress checks every operand's kind and requires a Boolean root, including
-operands that selective evaluation may skip. Observations currently denote
+operands that selective evaluation may skip. Observations denote
 integers; Boolean constants and combinations retain their selected builtin
 meaning. Evaluation shares the ordinary scalar-predicate evaluator and cannot
 establish formation by short-circuiting. Recipe equality retains both independent
@@ -504,7 +498,6 @@ An empty path observes the whole byte descriptor; a nonempty path observes its
 exact byte field. The term has Boolean type and supplies no assertion that its
 predicate holds.
 
-
 A scalar-read projection is a tag followed by its payload: `1` selects a field
 id, `2` a fixed `u64` index, `3` a case id, and `4` a recursively encoded scalar
 index term. Tag `5` is `Referent`, has no payload, and crosses one readable
@@ -520,7 +513,6 @@ carriers, excluding addresses; they do not become static geometry. The exact
 root declaration and each selected member or element determine the leaf type.
 Selector terms participate in ordinary depth limits, value substitution and
 structural-root substitution. A term supplies no bounds, access or truth evidence.
-
 
 ## Integer math terms
 
@@ -2059,8 +2051,8 @@ Both forms require every exact internal call occurrence and one common rank type
 
 ### Closed conformance applications
 
-Implementation migration: the `optional subject identity` below is retired
-semantic state. The replacement identity is the named implementation, its
+The legacy `optional subject identity` below is not part of conformance
+identity. The replacement identity is the named implementation, its
 complete telescope and trait application, rows, laws and callable identities.
 Do not infer a subject from the first type argument or emit a permanent empty
 subject field as the new representation.
@@ -2451,7 +2443,7 @@ installation record can describe one.
 Register events with service authority retain operation tag 121, followed by
 the nonzero `ServiceId`, the `u16` catalog operation identity and its declared
 scalar input IDs. Tag 126 encodes a register observation without service
-authority, followed by the catalog identity and declared input IDs. The current
+authority, followed by the catalog identity and declared input IDs. The
 no-authority observation is exactly `SystemRead(Rflags)`, whose semantics are
 the x86 PUSHFQ image. Both decoding and structural admission reject a tag whose
 service presence differs from the catalog. Target and environment admission

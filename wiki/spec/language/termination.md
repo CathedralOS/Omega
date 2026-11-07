@@ -157,8 +157,7 @@ callee ranking, return/cleanup, and composed resources. An ordinary outer call
 may have a frame; iterations add no frames. A standalone ranked entry or widened
 parameter count does not prove composed call support. Preserve exact projection,
 callee identity, referent, and caller-visible writes through verification and
-native replay. The [native implementation note](../../../omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md#ranked-native-admission)
-tracks that bounded entrance.
+native replay.
 
 ## Opaque progress profiles
 
@@ -225,8 +224,7 @@ evidence, not a still-forming contract summary as proof of itself. Source
 nesting neither supplies an induction hypothesis nor bypasses strict descent
 when a recursive contract is cited as proof.
 Reference identity may transport an existing live qualification, never establish
-a missing or invalidated one. Bounded source-certificate support remains beside
-[checked progress](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md#flow-ranges-and-progress).
+a missing or invalidated one.
 
 ## Composition and limits
 

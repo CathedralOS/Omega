@@ -8,7 +8,7 @@ choices can therefore inhabit one array or growable container.
 Ratified 2026-11-06 with [runtime machine values](machine_values.md). This replaces
 captured `dyn` and its compiler-derived global roster. The spelling `some` is a
 data binder, not visibility, an inference hole, a universal type, or a runtime
-type object. Compiler delivery belongs to the [migration plan](../../drafts/designs/machine_values_some.md).
+type object.
 
 ## Declaration and construction
 

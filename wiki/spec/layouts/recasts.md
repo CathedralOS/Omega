@@ -162,6 +162,3 @@ requires explicit [access establishment](../resources/access.md) through legitim
 underlying authority, with independent layout, observation and custody checks.
 Detached snapshots may be recast under their own ordinary contracts; they do not
 erase restrictions still governing the source storage.
-
-The [implementation note](../../../omega-rust/psi/compilation/validation/recasts.md)
-records supported shapes and source positions separately from this contract.

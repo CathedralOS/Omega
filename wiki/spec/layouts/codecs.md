@@ -103,8 +103,7 @@ realization and schema. Differential probes over selected values and malformed
 frames are regression checks, not a general agreement argument. Reporting their
 finite scope does not qualify the realization as `Derived`. Without sufficient
 agreement evidence, a generated realization remains `Admitted`, naming the
-compiler as the trusted party. Preserving-codec realizations remain
-implementation work.
+compiler as the trusted party.
 
 ## Boundary establishment
 
@@ -128,8 +127,6 @@ representation application or names the implementation explicitly. Domain
 qualification does not choose storage geometry or encoding policy.
 Adding an unrelated import or conformance cannot change candidate meaning;
 third-party conformances are callable by name, not visible-conformance search.
-Generic selection, reflection specialization and library-authored realizations
-remain implementation work; the requirements above are the accepted contract.
 
 Durability and self-description are properties of the normalized plan and its
 consuming API contract, not semantic domains on arbitrary bytes. A durable

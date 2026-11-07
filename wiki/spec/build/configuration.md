@@ -105,9 +105,6 @@ it or charging the producer's historical search to that allowance. Verification
 has its own resource and trust admission. A local cached search still follows
 the ordinary usage-receipt accounting rules; it is not a way to evade a grant.
 
-Source/Build integration, serialization and evidence obligations are specified
-in the [migration acceptance](../../drafts/designs/index_identity.md).
-
 ## ELF executable loader selection
 
 The `elf-interpreter-declaration-surface` decision uses ordinary build-owned

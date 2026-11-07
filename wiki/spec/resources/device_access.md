@@ -69,8 +69,7 @@ admission is not proof of those internal steps. The checked-driver composition
 surface still requires a concrete driver and admitted role-specific signatures.
 Provisional structural row constructors establish no event, Stable view,
 completion, or lowering authority. Missing/extra/duplicate/drifted provider
-coverage rejects without consuming retry custody. [TASKS.md](../../../TASKS.md)
-owns that implementation work.
+coverage rejects without consuming retry custody.
 
 ## Shared-memory IPC
 

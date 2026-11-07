@@ -204,9 +204,7 @@ diagnostic text, fingerprints, or a later source scan.
 Generated declarations use their real authored derivation origin. Compiler-
 derived facts carry a closed reason and no invented source location. Canonical
 sorting keeps semantic rows and explanatory custody paired. Missing, duplicate,
-or contradictory required custody rejects. The current source roles and
-cross-representation joins are documented
-[beside capture](../../../omega-rust/omega/packages/review-evidence/capture.md).
+or contradictory required custody rejects.
 
 ## Distinct evidence roles
 
