@@ -6,6 +6,7 @@
 //! or turn an asserted digest into evidence. Close candidates remain provisional
 //! until every continuation has established preservation and absence of later use.
 
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{BoundaryMachineId, EdgeId, InvocationSite, MachineId, OperationId};
@@ -124,6 +125,67 @@ pub(super) struct HandleLifetimes {
 }
 
 impl HandleLifetimes {
+    /// Current resource state determines whether execution can continue.
+    /// Past uses are retained separately and unioned only at equal states;
+    /// their membership never grants permission or changes a lifetime check.
+    pub(super) fn compare_resource_state(&self, other: &Self) -> Ordering {
+        let Self {
+            handles: left,
+            objects: left_objects,
+        } = self;
+        let Self {
+            handles: right,
+            objects: right_objects,
+        } = other;
+        fn resource<'a>(
+            (instance, handle): (&'a HandleInstance, &'a Handle),
+        ) -> (
+            &'a HandleInstance,
+            &'a FileObject,
+            &'a HandleOrigin,
+            &'a Option<NativeOccurrence>,
+        ) {
+            let Handle {
+                object,
+                origin,
+                release,
+                uses: _,
+            } = handle;
+            (instance, object, origin, release)
+        }
+        left.iter()
+            .map(resource)
+            .cmp(right.iter().map(resource))
+            .then_with(|| left_objects.cmp(right_objects))
+    }
+
+    /// Keep every completed occurrence from both predecessors. A different
+    /// acquired generation, retirement or object state cannot join, and a
+    /// refusal leaves the original ledger unchanged.
+    pub(super) fn merge_use_history(
+        &mut self,
+        incoming: &Self,
+    ) -> Result<bool, HandleLifetimeFailure> {
+        if self.compare_resource_state(incoming) != Ordering::Equal {
+            return Err(HandleLifetimeFailure::InvalidActivation(
+                "handle history join changes its current resource state",
+            ));
+        }
+        let mut changed = false;
+        for (instance, observed) in &incoming.handles {
+            let retained =
+                self.handles
+                    .get_mut(instance)
+                    .ok_or(HandleLifetimeFailure::InvalidActivation(
+                        "handle history join lost an instance",
+                    ))?;
+            let before = retained.uses.len();
+            retained.uses.extend(observed.uses.iter().copied());
+            changed |= retained.uses.len() != before;
+        }
+        Ok(changed)
+    }
+
     #[cfg(test)]
     pub(super) fn has_live_handles(&self) -> bool {
         self.handles.values().any(|handle| handle.release.is_none())
@@ -529,6 +591,76 @@ mod transition_tests {
             context: [1; 32],
             boundary: BoundaryMachineId::new(1).unwrap(),
         }
+    }
+
+    #[test]
+    fn windows_handle_history_join_retains_every_use_and_refuses_lifecycle_changes() {
+        let instance = HandleInstance(0);
+        let mut base = HandleLifetimes::default();
+        base.acquire_file(instance, occurrence(1), 0).unwrap();
+        let mut left = base.clone();
+        left.preserve(instance, occurrence(2)).unwrap();
+        let mut right = base.clone();
+        right.preserve(instance, occurrence(3)).unwrap();
+        assert_ne!(left, right);
+        assert_eq!(left.compare_resource_state(&right), Ordering::Equal);
+        let old_right = right.clone();
+        let mut expected = left.clone();
+        expected.preserve(instance, occurrence(3)).unwrap();
+        assert!(left.merge_use_history(&right).unwrap());
+        assert_eq!(left, expected);
+        assert_eq!(right, old_right);
+        assert!(!left.merge_use_history(&right).unwrap());
+        let site = ScalarOccurrence {
+            machine: MachineId::new(1).unwrap(),
+            site: ScalarUseSite::Edge(EdgeId::new(1).unwrap()),
+            context: [1; 32],
+        };
+        assert!(matches!(
+            left.returning_path(site, &[]),
+            Err(HandleLifetimeFailure::MissingRelease { .. })
+        ));
+
+        let mut retired = right.clone();
+        retired.release_file(instance, occurrence(4)).unwrap();
+        let mut other_origin = HandleLifetimes::default();
+        other_origin
+            .acquire_file(instance, occurrence(5), 0)
+            .unwrap();
+        let mut other_flags = HandleLifetimes::default();
+        other_flags
+            .acquire_file(instance, occurrence(1), 0x4000_0080)
+            .unwrap();
+        let mut duplicated = right.clone();
+        duplicated
+            .duplicate_file(instance, HandleInstance(1), occurrence(6))
+            .unwrap();
+        let mut escaped = right.clone();
+        escaped.escape(instance, occurrence(7)).unwrap();
+        let mut deletion = right.clone();
+        deletion.attach_deletion(instance, occurrence(8)).unwrap();
+        for different in [
+            &retired,
+            &other_origin,
+            &other_flags,
+            &duplicated,
+            &escaped,
+            &deletion,
+        ] {
+            let before = left.clone();
+            assert_ne!(left.compare_resource_state(different), Ordering::Equal);
+            assert!(left.merge_use_history(different).is_err());
+            assert_eq!(left, before, "refused join is atomic");
+        }
+        let mut closed = left.clone();
+        closed.release_file(instance, occurrence(4)).unwrap();
+        assert!(closed.merge_use_history(&retired).is_ok());
+        let before = closed.clone();
+        assert!(matches!(
+            closed.observe_scalar(instance, site),
+            Err(HandleLifetimeFailure::UseAfterRelease { .. })
+        ));
+        assert_eq!(closed, before);
     }
 
     #[test]

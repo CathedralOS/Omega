@@ -51,8 +51,9 @@ struct Work {
 }
 
 /// Compare the same complete resource key without copying a second world.
-/// Only evaluated numeric metadata widens; initialized scalar coordinates,
-/// resource histories, pointer targets and every suspended caller stay exact.
+/// Only evaluated numeric metadata widens. Past-use sets are unioned at an
+/// otherwise identical state; generations, retirement, initialized coordinates,
+/// pointer targets and every suspended caller keep their exact identities.
 fn compare_resources(left: &CanonicalHandleState, right: &CanonicalHandleState) -> Ordering {
     let CanonicalHandleState {
         ledger: left_ledger,
@@ -72,8 +73,15 @@ fn compare_resources(left: &CanonicalHandleState, right: &CanonicalHandleState) 
         stored_constants: _,
         bindings: right_bindings,
     } = right;
-    (left_ledger, left_aliases, left_references, left_cases)
-        .cmp(&(right_ledger, right_aliases, right_references, right_cases))
+    left_ledger
+        .compare_resource_state(right_ledger)
+        .then_with(|| {
+            (left_aliases, left_references, left_cases).cmp(&(
+                right_aliases,
+                right_references,
+                right_cases,
+            ))
+        })
         .then_with(|| {
             left_constants
                 .iter()
@@ -216,13 +224,24 @@ impl Pending {
         let key = ResourceWork(Arc::clone(&work));
         if let Some(retained) = self.rows.get_mut(&key) {
             let representative = Arc::make_mut(retained);
-            let mut changed = join_numbers(&mut representative.state, &work.state);
+            let mut changed = representative
+                .state
+                .ledger
+                .merge_use_history(&work.state.ledger)
+                .map_err(|reason| {
+                    format!("handle state join changes resource custody: {reason:?}")
+                })?;
+            changed |= join_numbers(&mut representative.state, &work.state);
             for (retained, incoming) in representative.frames.iter_mut().zip(&work.frames) {
                 if !Arc::ptr_eq(retained, incoming) {
-                    changed |= join_numbers(
-                        &mut Arc::make_mut(retained).frame.caller,
-                        &incoming.frame.caller,
-                    );
+                    let caller = &mut Arc::make_mut(retained).frame.caller;
+                    changed |= caller
+                        .ledger
+                        .merge_use_history(&incoming.frame.caller.ledger)
+                        .map_err(|reason| {
+                            format!("handle caller join changes resource custody: {reason:?}")
+                        })?;
+                    changed |= join_numbers(caller, &incoming.frame.caller);
                 }
             }
             if changed {
@@ -1254,6 +1273,103 @@ mod tests {
                 ResourceWork(Arc::new(base.clone())) != ResourceWork(Arc::new(changed.clone()))
             );
         }
+    }
+
+    #[test]
+    fn windows_handle_history_join_propagates_current_and_suspended_uses_without_merging_other_state()
+     {
+        let instance = HandleInstance(0);
+        let mut original = work();
+        original
+            .state
+            .ledger
+            .acquire_file(instance, occurrence(1), 0)
+            .unwrap();
+        Arc::make_mut(&mut original.frames[0]).frame.caller.ledger = original.state.ledger.clone();
+        let mut incoming = original.clone();
+        incoming
+            .state
+            .ledger
+            .preserve(instance, occurrence(2))
+            .unwrap();
+        Arc::make_mut(&mut incoming.frames[0])
+            .frame
+            .caller
+            .ledger
+            .preserve(instance, occurrence(3))
+            .unwrap();
+        assert!(
+            ResourceWork(Arc::new(original.clone())) == ResourceWork(Arc::new(incoming.clone()))
+        );
+        let mut pending = Pending::default();
+        pending.push(original.clone()).unwrap();
+        pending.push(incoming.clone()).unwrap();
+        assert_eq!(pending.rows.len(), 1);
+        assert_eq!(
+            pending.queue.len(),
+            2,
+            "new history must reach every later successor"
+        );
+        let (key, representative) = pending.rows.first_key_value().unwrap();
+        assert_eq!(key.0.state.ledger, original.state.ledger);
+        assert_eq!(
+            pending.queue.front().unwrap().state.ledger,
+            original.state.ledger
+        );
+        assert_eq!(representative.state.ledger, incoming.state.ledger);
+        assert_eq!(
+            representative.frames[0].frame.caller.ledger,
+            incoming.frames[0].frame.caller.ledger
+        );
+        assert_eq!(
+            key.0.frames[0].frame.caller.ledger,
+            original.frames[0].frame.caller.ledger
+        );
+        pending.push(incoming.clone()).unwrap();
+        assert_eq!(
+            pending.queue.len(),
+            2,
+            "an identical history cannot cause another replay"
+        );
+        let mut next = incoming.clone();
+        next.state.ledger.preserve(instance, occurrence(4)).unwrap();
+        pending.push(next.clone()).unwrap();
+        assert_eq!(pending.rows.len(), 1);
+        assert_eq!(pending.queue.len(), 3);
+        assert_eq!(
+            pending.queue.back().unwrap().state.ledger,
+            next.state.ledger
+        );
+        let mut retired = original.clone();
+        retired
+            .state
+            .ledger
+            .release_file(instance, occurrence(5))
+            .unwrap();
+        assert!(ResourceWork(Arc::new(original.clone())) != ResourceWork(Arc::new(retired)));
+        let mut sibling = original.clone();
+        Arc::make_mut(&mut sibling.frames[0])
+            .frame
+            .invocation
+            .caller
+            .site = CallSite::Invocation(InvocationSite::Operation(OperationId::new(9).unwrap()));
+        assert!(ResourceWork(Arc::new(original.clone())) != ResourceWork(Arc::new(sibling)));
+        let mut case = original.clone();
+        case.state.cases.insert(
+            home(1),
+            CapturedCaseTag {
+                carrier: StructuralTypeId::new(1).unwrap(),
+                case: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
+            },
+        );
+        assert!(ResourceWork(Arc::new(original.clone())) != ResourceWork(Arc::new(case)));
+        let mut unevaluated = original.clone();
+        *unevaluated
+            .state
+            .constants
+            .get_mut(ValueId::new(5).unwrap())
+            .unwrap() = None;
+        assert!(ResourceWork(Arc::new(original)) != ResourceWork(Arc::new(unevaluated)));
     }
 
     #[test]
