@@ -1,0 +1,11 @@
+// An ordinary same-named comparison supplies no kernel identity evidence.
+machine Identity<T>(left: T, right: T) -> bool reaches terminates { true }
+machine require_identity(left: u8, right: u8)
+requires core::Identity<u8>(left, right)
+{ }
+machine forged(left: u8, right: u8)
+requires Identity<u8>(left, right)
+{
+    require_identity(left, right);
+}
+machine main() { forged(0u8, 1u8); }
