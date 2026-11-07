@@ -197,6 +197,78 @@ fn inspect_body_cpu_state(
         calling_conventions::MachineState::VectorRegisters,
     ]);
     match expectation.trim() {
+        "msr reads" => {
+            let rows = object
+                .native_instruction_source_rows()
+                .ok_or("MSR control lacks actual retained instruction rows")?;
+            let mut selectors = std::collections::BTreeSet::new();
+            let mut first = None;
+            for function in &rows.selected.functions {
+                for instruction in function.instructions() {
+                    match instruction.kind {
+                        selected_instructions::SelectedInstructionKind::RegisterAccess {
+                            operation: selected_instructions::RegisterOperation::ModelSpecificRead,
+                        } => {
+                            let selector = image_emission::observe_native_constant_operand(
+                                object,
+                                function.machine,
+                                instruction.id,
+                                0,
+                            )
+                            .map_err(|error| format!("actual MSR selector: {error}"))?
+                            .ok_or("actual MSR selector is not constant")?;
+                            selectors.insert(selector);
+                            first.get_or_insert((function.machine, instruction.id));
+                        }
+                        selected_instructions::SelectedInstructionKind::RegisterAccess {
+                            operation: selected_instructions::RegisterOperation::ModelSpecificWrite,
+                        } => return Err("read-only MSR control contains a write".into()),
+                        _ => {}
+                    }
+                }
+            }
+            if selectors != std::collections::BTreeSet::from([0x277, 0xc000_0080]) {
+                return Err(format!(
+                    "MSR control has different actual selectors: {selectors:?}"
+                ));
+            }
+            let control = calling_conventions::MachineStateSet::new([
+                calling_conventions::MachineState::ControlState,
+            ]);
+            if !observed.effects().machine_state().contains_all(control)
+                || !observed
+                    .effects()
+                    .clobbered_state()
+                    .intersection(control)
+                    .is_empty()
+            {
+                return Err("MSR reads must use ControlState without clobbering it".into());
+            }
+            let (machine, instruction) =
+                first.ok_or("MSR control has no actual read occurrence")?;
+            for (owner, selected, operand) in [
+                (
+                    semantic_vocabulary::MachineId::new(u64::MAX).unwrap(),
+                    instruction,
+                    0,
+                ),
+                (
+                    machine,
+                    selected_instructions::SelectedInstructionId(u32::MAX),
+                    0,
+                ),
+                (machine, instruction, 1),
+            ] {
+                if image_emission::observe_native_constant_operand(object, owner, selected, operand)
+                    .is_ok()
+                {
+                    return Err(
+                        "constant operand accepted a wrong owner, occurrence or result operand"
+                            .into(),
+                    );
+                }
+            }
+        }
         "scalar calls" => {
             let rows = object
                 .native_instruction_source_rows()
@@ -267,7 +339,7 @@ fn inspect_body_cpu_state(
         }
         _ => {
             return Err(
-                "CPU-state control oracle must say scalar calls, vector body or floating control"
+                "CPU-state control oracle must say msr reads, scalar calls, vector body or floating control"
                     .into(),
             );
         }

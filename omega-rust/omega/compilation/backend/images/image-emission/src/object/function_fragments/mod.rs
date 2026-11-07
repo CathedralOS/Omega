@@ -15,6 +15,7 @@ mod production;
 pub(crate) mod replay;
 pub(crate) mod reporting;
 mod source;
+pub(crate) use source::selected_constant_operand;
 mod structural;
 pub(crate) mod validation;
 

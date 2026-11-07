@@ -16,6 +16,8 @@ pub(crate) fn encoder_resolved(
     }
 }
 mod cursor;
+mod model_specific_state;
+pub use model_specific_state::x86_64_model_specific_register_state;
 mod fma;
 mod frame_protocol;
 mod generated_entry;

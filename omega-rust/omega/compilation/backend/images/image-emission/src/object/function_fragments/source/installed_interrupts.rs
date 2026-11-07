@@ -27,6 +27,48 @@ use guards::{Contract, EntryInput};
 use inputs::Inputs;
 use writes::Writes;
 
+/// Recover an operand at its actual selected use, including private spill flow.
+/// Provenance identifies the source operation; it does not supply a value.
+pub(super) fn selected_constant_operand(
+    function: &SelectedFunction,
+    instruction: SelectedInstructionId,
+    operand: u16,
+) -> Result<Option<u64>, Error> {
+    let row = unique(
+        function
+            .blocks
+            .iter()
+            .flat_map(|block| {
+                block.instructions.iter().chain(std::iter::once(
+                    selected_instructions::terminator_instruction(&block.terminator),
+                ))
+            })
+            .filter(|row| row.id == instruction),
+        "constant operand has no unique function-local instruction",
+    )?;
+    // Scalar operation selection retains exactly its own logical operation.
+    let [operation] = row.provenance.operations.as_slice() else {
+        return Err(Error::Mismatch(
+            "constant operand lost its exact source operation",
+        ));
+    };
+    if row
+        .operand(operand)
+        .is_none_or(|value| value.access != register_model::RegisterOperandAccess::Use)
+    {
+        return Err(Error::Mismatch(
+            "constant query does not name a selected input operand",
+        ));
+    }
+    let graph = Graph::new(function, *operation)?;
+    let mut values = expressions::Expressions::new(function, &graph)?;
+    let expression = values.input(row, operand)?;
+    Ok(match expression.word() {
+        Word::Constant(value) => Some(*value),
+        _ => None,
+    })
+}
+
 fn unique<'a, T>(
     mut rows: impl Iterator<Item = &'a T>,
     reason: &'static str,

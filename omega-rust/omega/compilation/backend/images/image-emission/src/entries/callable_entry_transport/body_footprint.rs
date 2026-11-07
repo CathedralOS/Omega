@@ -281,13 +281,47 @@ pub(super) fn collect(
                             .union(MachineStateSet::new([MachineState::ControlState]));
                     }
                 }
-                // A dynamic MSR selector can affect several architectural state
-                // classes. The current emitted row does not retain that summary.
                 MachineAlternativeFamily::ModelSpecificRead
                 | MachineAlternativeFamily::ModelSpecificWrite => {
-                    return Err(Error::Unsupported(
-                        "interrupt MSR access lacks architectural state footprint",
-                    ));
+                    if body.target.architecture != target::Architecture::X86_64 {
+                        return Err(Error::Unsupported(
+                            "MSR architectural state requires x86-64",
+                        ));
+                    }
+                    let instruction = selected
+                        .instructions()
+                        .find(|instruction| instruction.id == row.instruction)
+                        .ok_or(Error::Mismatch(
+                            "MSR row has no function-local selected instruction",
+                        ))?;
+                    let expected =
+                        if row.alternative.family == MachineAlternativeFamily::ModelSpecificRead {
+                            selected_instructions::RegisterOperation::ModelSpecificRead
+                        } else {
+                            selected_instructions::RegisterOperation::ModelSpecificWrite
+                        };
+                    if instruction.kind
+                        != (selected_instructions::SelectedInstructionKind::RegisterAccess {
+                            operation: expected,
+                        })
+                    {
+                        return Err(Error::Mismatch("MSR row and selected operation disagree"));
+                    }
+                    let selector = crate::object::function_fragments::selected_constant_operand(
+                        &replay.0,
+                        machine,
+                        row.instruction,
+                        0,
+                    )?
+                    .and_then(|value| u32::try_from(value).ok());
+                    let architectural =
+                        isa_x86_64::x86_64_model_specific_register_state(expected, selector)
+                            .map_err(Error::Unsupported)?;
+                    // The encoded row above already contributes all transport
+                    // effects. Add only the target's architectural state use.
+                    footprint.states = footprint.states.union(architectural.machine_state());
+                    footprint.clobbered =
+                        footprint.clobbered.union(architectural.clobbered_state());
                 }
                 _ => {}
             }

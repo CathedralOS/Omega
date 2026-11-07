@@ -27,6 +27,26 @@ pub fn observe_native_body_cpu_state(
     )
 }
 
+/// Read an input constant at an exact original-body instruction occurrence.
+/// This is inspection data, not an allocation or execution permission.
+pub fn observe_native_constant_operand(
+    body: &ObjectArtifact,
+    machine: semantic_vocabulary::MachineId,
+    instruction: selected_instructions::SelectedInstructionId,
+    operand: u16,
+) -> Result<Option<u64>, Error> {
+    let body = body.composition_source.as_deref().unwrap_or(body);
+    let replay = body.fragment_replay.as_ref().ok_or(Error::Mismatch(
+        "constant operand requires retained native source",
+    ))?;
+    crate::object::function_fragments::selected_constant_operand(
+        &replay.0,
+        machine,
+        instruction,
+        operand,
+    )
+}
+
 /// A checked entry remains a checked entry when its ABI needs no adapter bytes.
 /// Keep that result beside the optional bridge rather than representing an alias
 /// as the absence of state and body correspondence evidence.

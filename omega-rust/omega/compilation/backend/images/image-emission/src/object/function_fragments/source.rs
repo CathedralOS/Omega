@@ -6,6 +6,26 @@ mod installed_interrupts;
 mod privileged_termination;
 mod static_interrupts;
 
+/// Query only the selected function retained by this admitted object source.
+pub(crate) fn selected_constant_operand(
+    source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
+    machine: semantic_vocabulary::MachineId,
+    instruction: selected_instructions::SelectedInstructionId,
+    operand: u16,
+) -> Result<Option<u64>, super::Error> {
+    let function = source
+        .source()
+        .source()
+        .source()
+        .source()
+        .selected_plan()
+        .function(machine)
+        .ok_or(super::Error::Mismatch(
+            "constant operand has no retained function",
+        ))?;
+    installed_interrupts::selected_constant_operand(function, instruction, operand)
+}
+
 use super::Error;
 use abstract_operations::{
     AbstractAtomicEvent, AbstractFunction, AbstractFunctionResult, AbstractOperation,
