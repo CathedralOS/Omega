@@ -1664,6 +1664,220 @@ mod induction_tests {
     }
 
     #[test]
+    fn lifted_constructor_projection_and_induction_compute_at_a_generalized_level() {
+        let mut arena = TermArena::new();
+        let mut declarations = indexed_scheme(&mut arena);
+        let sort = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+        let carrier_position = declarations.len() as u32;
+        declarations.push(Declaration::assumption(1, sort));
+        let carrier = arena.insert(Term::Constant {
+            declaration: carrier_position,
+            levels: vec![Level::Parameter(0)],
+        });
+        let two = arena.insert(Term::Two);
+        let zero = arena.insert(Term::TwoZero);
+        let one = arena.insert(Term::TwoOne);
+        let mut terms = SourceTerms::default();
+        let unit = terms.unit().term(&mut arena, &mut Vec::new()).unwrap();
+        let unit_value = terms
+            .unit_value()
+            .term(&mut arena, &mut Vec::new())
+            .unwrap();
+        let fields = [81, 82].map(SymbolHandle::from_arena_index);
+        let cases = [(fields[0], carrier), (fields[1], two)]
+            .into_iter()
+            .map(|(field, domain)| Case {
+                payload: vec![(field, domain)],
+                constraints: lam(Key::Source(field), S::Closed(domain), S::Closed(unit))
+                    .term(&mut arena, &mut Vec::new())
+                    .unwrap(),
+                child_indices: vec![],
+            })
+            .collect::<Vec<_>>();
+        let described = description(
+            &mut arena,
+            &[],
+            &[],
+            &cases,
+            &[],
+            &[],
+            &mut declarations,
+            &[],
+            1,
+        )
+        .unwrap();
+        assert_eq!(described.payload_lifts.len(), 1);
+        assert_eq!(described.family.levels[1], Level::Parameter(0));
+        let family =
+            intern_description(&mut arena, &mut declarations, described.family, &[], 1).unwrap();
+
+        // Build the low branch in the same high-level descriptor. The extra
+        // component is generated from the retained plan, without an A value.
+        let payload = arena.insert(Term::Pair {
+            first: one,
+            second: unit_value,
+        });
+        let payload = lift_payload(&mut arena, &described.payload_lifts, payload).unwrap();
+        let label = arena.insert(Term::Pair {
+            first: one,
+            second: payload,
+        });
+        let projected = arena.insert(Term::Snd { pair: label });
+        let projected = arena.insert(Term::Snd { pair: projected });
+        let projected = arena.insert(Term::Fst { pair: projected });
+        let children = constructor_children(&mut arena, &family, label, &[]).unwrap();
+        let constructor = family.sup(&mut arena, label, children);
+        let index = arena.insert(Term::Apply {
+            function: family.out,
+            argument: label,
+        });
+        let constructor_type = family.indexed_w(&mut arena, index);
+
+        // The result itself lives at the generalized level. Returning the
+        // low branch's actual field makes dropping the padding incorrectly
+        // observable in the derived computation, rather than just formation.
+        let (result_unit, result_witness) = terms.level_unit(S::Closed(carrier));
+        let result_unit = result_unit.term(&mut arena, &mut Vec::new()).unwrap();
+        let result_witness = result_witness.term(&mut arena, &mut Vec::new()).unwrap();
+        let result_type = arena.insert(Term::Sigma {
+            domain: result_unit,
+            codomain: two,
+        });
+        let invariant = arena.insert(Term::Lambda {
+            domain: family.index,
+            body: result_type,
+        });
+        let invariant = intern_invariant(
+            &mut arena,
+            &mut declarations,
+            &family,
+            invariant,
+            Level::Parameter(0),
+        );
+        let mut lemmas = Vec::new();
+        for (ordinal, case) in cases.iter().enumerate() {
+            let (field, domain) = case.payload[0];
+            let value = if ordinal == 0 {
+                S::Closed(zero)
+            } else {
+                S::Var(Key::Source(field))
+            };
+            let predicate = terms.fresh();
+            let body = lam(
+                Key::Source(field),
+                S::Closed(domain),
+                lam(
+                    predicate,
+                    S::Closed(unit),
+                    pair(S::Closed(result_witness), value),
+                ),
+            )
+            .term(&mut arena, &mut Vec::new())
+            .unwrap();
+            let context = Context::with_level_arity(1)
+                .with_signature(Signature::from_declarations(declarations.clone()));
+            let ty = infer_type(&mut arena, &context, body, &mut Budget::default()).unwrap();
+            let declaration = declarations.len() as u32;
+            declarations.push(Declaration::definition(1, ty, body));
+            lemmas.push(arena.insert(Term::Constant {
+                declaration,
+                levels: vec![Level::Parameter(0)],
+            }));
+        }
+        let (theorem, theorem_type, step, step_type) = induction(
+            &mut arena,
+            &family,
+            &[],
+            &[],
+            &cases,
+            invariant,
+            &lemmas,
+            &mut declarations,
+            &[],
+            &[],
+            &described.payload_lifts,
+        )
+        .unwrap();
+        let signature = check_signature(&mut arena, &declarations, &mut Budget::default()).unwrap();
+        let context = Context::with_level_arity(1).with_signature(signature.clone());
+        for (term, ty) in [
+            (label, family.carrier),
+            (constructor, constructor_type),
+            (step, step_type),
+            (theorem, theorem_type),
+        ] {
+            check_type(&mut arena, &context, term, ty, &mut Budget::default()).unwrap();
+        }
+        assert!(
+            proof_admission::convertible(
+                &mut arena,
+                &context,
+                projected,
+                one,
+                two,
+                &mut Budget::default()
+            )
+            .unwrap()
+        );
+        let at_index = arena.insert(Term::Apply {
+            function: theorem,
+            argument: index,
+        });
+        let computed = arena.insert(Term::Apply {
+            function: at_index,
+            argument: constructor,
+        });
+        let expected = arena.insert(Term::Pair {
+            first: result_witness,
+            second: one,
+        });
+        let wrong_result = arena.insert(Term::Pair {
+            first: result_witness,
+            second: zero,
+        });
+        check_type(
+            &mut arena,
+            &context,
+            computed,
+            result_type,
+            &mut Budget::default(),
+        )
+        .unwrap();
+        assert!(
+            proof_admission::convertible(
+                &mut arena,
+                &context,
+                computed,
+                expected,
+                result_type,
+                &mut Budget::default()
+            )
+            .unwrap()
+        );
+        assert!(
+            !proof_admission::convertible(
+                &mut arena,
+                &context,
+                computed,
+                wrong_result,
+                result_type,
+                &mut Budget::default()
+            )
+            .unwrap()
+        );
+        assert!(
+            check_type(
+                &mut arena,
+                &Context::empty().with_signature(signature),
+                theorem,
+                theorem_type,
+                &mut Budget::default(),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn source_case_abstraction_preserves_bound_proof_variables_and_dependency_closure() {
         let mut arena = TermArena::new();
         let two = arena.insert(Term::Two);

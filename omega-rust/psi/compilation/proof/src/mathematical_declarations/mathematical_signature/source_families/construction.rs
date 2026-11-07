@@ -276,7 +276,10 @@ impl Elaborator<'_> {
         domain: TermHandle,
     ) -> TermHandle {
         let position = self.declarations.len() as u32;
-        self.declarations.push(Declaration::assumption(0, domain));
+        self.declarations.push(Declaration::assumption(
+            proof_admission::universe_parameter_arity(&self.arena, &[domain]),
+            domain,
+        ));
         let term = self.constant(position);
         self.source_constructor_context
             .parameters
