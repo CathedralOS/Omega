@@ -3,11 +3,10 @@ machine build(builder: &mut Build) {
     Build::application(builder, "installed_arrival_wrong_controller");
     builder.freestanding = true;
     Build::depend_as(builder, "std", Source::Path { location: "../../../../../source/library/std" });
-    Build::depend_as(builder, "installed", Source::Path { location: "../../../packages/uefi-storage-entry" });
-    Build::select_representation<InterruptAcknowledgement, installed::installed_interrupt_floor::CathedralAcknowledgementRepresentation>(builder);
+    Build::select_representation<InterruptAcknowledgement, CathedralAcknowledgementRepresentation>(builder);
     Build::select_representation<StaticInterruptCompletionPermit, StaticInterruptCompletionPermitRepresentation>(builder);
-    Build::select_provider<installed::installed_interrupt_floor::BootstrapInterruptRegistrar, installed::installed_interrupt_floor::CheckedBootstrapInterruptRegistrar>(builder, linux_x86_64);
-    Build::select_provider<installed::installed_interrupt_floor::TaskStatePreparation, installed::installed_interrupt_floor::BootstrapTaskStatePreparation>(builder, linux_x86_64);
+    Build::select_provider<BootstrapInterruptRegistrar, CheckedBootstrapInterruptRegistrar>(builder, linux_x86_64);
+    Build::select_provider<TaskStatePreparation, BootstrapTaskStatePreparation>(builder, linux_x86_64);
     Build::accept_boundary<TaskRegisterControl>(builder);
     Build::select_provider<TaskRegisterControl, X86TaskRegisterControl>(builder, linux_x86_64);
     Build::bind(builder, linux_x86_64::ProgramEntry, start);

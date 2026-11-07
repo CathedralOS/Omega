@@ -2,10 +2,9 @@ A timer handler must acknowledge an interrupt through the completion operation
 chosen for its installation. This program deliberately chooses another
 operation, even though it delegates to the same PIC action.
 
-This root reuses the complete 33-entry floor from the explicitly imported
-uefi-storage-entry::installed_interrupt_floor module and changes only the static
-timer-handler selection. That handler forwards the unchanged Pending Ack to an
-ordinary helper selecting another exact completion. The installation still
-selects PicTimerAcknowledgement::complete. Native admission must report that the
-helper selects another installation's controller, before conditions are checked.
-No installation assumptions or runtime authority are supplied.
+This Application copies the complete 33-entry floor from its sibling. Its main
+source differs in exactly one operand: the dynamic forwarding body chooses
+OtherCompletion::complete. Scope still selects PicTimerAcknowledgement::complete,
+and the two roots retain the same direct, ordinary-helper and nonreturning
+paths. Native admission must report another installation controller before
+conditions are checked. No installation conditions or runtime authority exist.
