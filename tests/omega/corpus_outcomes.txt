@@ -8634,6 +8634,11 @@ fail/facts/fixed_layout_reference_readback_through_target_body_wrong_region_reje
 	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
 	machine `update$specialized$e79fe363183e2bf6$0$4922` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
 	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_wrong_policy_rejected rejected 7255ms expected @596e7e7c86f5
+	construction of `Readback` field `pointer` expects reference `&LayoutStorage<Payload, PayloadLayout<Marker>>`, but the source does not supply its carrier and access
+	construction of `Readback` field `pointer` expects reference `&LayoutStorage<Payload, PayloadLayout<7>>`, but the source does not supply its carrier and access
+	machine `update` state `entry` local `loaded` expects `&LayoutStorage<Payload, PayloadLayout<8>>`, but the value is delivered as `&LayoutStorage<Payload, PayloadLayout<Marker>>`
+	machine `update$specialized$e79fe363183e2bf6$0$4871` state `entry` local `loaded` expects `&LayoutStorage<Payload, PayloadLayout<8>>`, but the value is delivered as `&LayoutStorage<Payload, PayloadLayout<7>>`
 fail/facts/fixed_layout_reference_readback_wrong_region_rejected rejected 9954ms expected @bc53b23707f6
 	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
 	machine `update$specialized$e79fe363183e2bf6$0$4863` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
