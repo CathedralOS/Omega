@@ -869,12 +869,12 @@ impl ArrivalWalk<'_, '_> {
         expression: ExpressionHandle,
         environment: &mut ValueEnvironment,
     ) {
-        self.cross_writes(
-            source,
-            environment,
-            self.frames
-                .and_then(|frames| frames.expression_may_write_paths(self.machine, expression)),
-        );
+        self.cross_writes(source, environment, self.expression_writes(expression));
+    }
+
+    fn expression_writes(&self, expression: ExpressionHandle) -> Option<Vec<String>> {
+        self.frames
+            .and_then(|frames| frames.expression_may_write_paths(self.machine, expression))
     }
 
     fn should_arrive(&self, symbol: SymbolHandle) -> bool {
@@ -1597,6 +1597,8 @@ impl ArrivalWalk<'_, '_> {
         match expression_table(self.program).expression(expression) {
             ExpressionNode::Match(dispatch) => {
                 self.expression(source, dispatch.subject, environment);
+                let mut prefix = super::super::evaluated_writes::EvaluatedWritePrefix::default();
+                prefix.extend(self.expression_writes(dispatch.subject));
                 let mut remaining = environment.clone();
                 let mut joined: Option<ValueEnvironment> = None;
                 let mut boolean_values = [false; 2];
@@ -1617,6 +1619,7 @@ impl ArrivalWalk<'_, '_> {
                     };
                     if let Some(pattern) = pattern {
                         self.expression(source, pattern, &mut remaining);
+                        prefix.extend(self.expression_writes(pattern));
                     }
                     let mut selected = super::super::dispatch_environments::dispatch_arm_context(
                         expression,
@@ -1633,13 +1636,7 @@ impl ArrivalWalk<'_, '_> {
                                 selected,
                                 selection,
                             );
-                            // A completed comparison is not a fresh source read.
-                            // Keep only consequences that survive both the
-                            // subject and this pattern's actual write frames.
-                            self.expression_effects(source, dispatch.subject, selected);
-                            if let Some(pattern) = pattern {
-                                self.expression_effects(source, pattern, selected);
-                            }
+                            selected.invalidate_call_prefix(self.program, Some(source), &prefix);
                         },
                     );
                     self.expression(source, arm.value, &mut selected);

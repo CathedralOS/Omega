@@ -53,6 +53,7 @@ mod call_result_measures;
 pub use call_result_measures::normal_return_length_collection;
 mod cast_ranges;
 mod dispatch_environments;
+mod evaluated_writes;
 pub(crate) use dispatch_environments::dispatch_arm_environments;
 pub(in crate::proof_contracts) use dispatch_environments::{
     DispatchCondition, DispatchSelection, dispatch_arm_contexts,
