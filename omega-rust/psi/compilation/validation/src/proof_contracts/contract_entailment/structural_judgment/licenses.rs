@@ -7,7 +7,6 @@ use super::StructuralTerm;
 use crate::proof_contracts::contract_entailment::law_conformance::{
     TraitOperationSlots, collect_equality_conjuncts,
 };
-use std::collections::HashMap;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
@@ -620,14 +619,81 @@ pub(super) fn term_uses_application(term: &StructuralTerm, op: &SymbolHandle) ->
         || term.any_child(|child| term_uses_application(child, op))
 }
 
+/// Each requirement symbol owns one carrier group. The source declaration is
+/// validated before its dense slot is read, and the retained full handle and
+/// trait prevent a reused generation from selecting another declaration.
+#[derive(Default)]
+struct SlotCarriers {
+    requirements: Vec<Option<SlotCarrierGroup>>,
+}
+
+struct SlotCarrierGroup {
+    requirement: SymbolHandle,
+    declaring_trait: SymbolHandle,
+    rows: Vec<(TypeReferenceHandle, SymbolHandle)>,
+}
+
+impl SlotCarriers {
+    fn insert(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        declaring_trait: SymbolHandle,
+        requirement: SymbolHandle,
+        carrier: TypeReferenceHandle,
+        entry: SymbolHandle,
+    ) {
+        if !requirement.is_valid() {
+            return;
+        }
+        program.symbols.get(requirement);
+        let Some(declaration) = program.trait_definition_by_symbol(declaring_trait) else {
+            return;
+        };
+        if program
+            .trait_machine_signature_by_symbol(declaration, requirement)
+            .is_none()
+        {
+            return;
+        }
+        let position = requirement.arena_index() as usize;
+        if self.requirements.len() <= position {
+            self.requirements.resize_with(position + 1, || None);
+        }
+        let group = self.requirements[position].get_or_insert_with(|| SlotCarrierGroup {
+            requirement,
+            declaring_trait,
+            rows: Vec::new(),
+        });
+        if group.requirement == requirement && group.declaring_trait == declaring_trait {
+            group.rows.push((carrier, entry));
+        }
+    }
+
+    fn get(
+        &self,
+        program: &dyn crate::CheckingInput,
+        declaring_trait: SymbolHandle,
+        requirement: SymbolHandle,
+    ) -> Option<&[(TypeReferenceHandle, SymbolHandle)]> {
+        if !requirement.is_valid() {
+            return None;
+        }
+        program.symbols.get(requirement);
+        let group = self
+            .requirements
+            .get(requirement.arena_index() as usize)?
+            .as_ref()?;
+        (group.requirement == requirement && group.declaring_trait == declaring_trait)
+            .then_some(group.rows.as_slice())
+    }
+}
+
 /// The (trait symbol, requirement symbol) -> conforming (carrier, entry
 /// symbol) index: conformances are fixed for the build, so both the per-law
 /// slot membership test and each candidate scan read this instead of
 /// re-walking every machine and conformance per license.
-fn conformance_slot_carriers_uncached(
-    program: &dyn crate::CheckingInput,
-) -> HashMap<(SymbolHandle, SymbolHandle), Vec<(TypeReferenceHandle, SymbolHandle)>> {
-    let mut slot_carriers = HashMap::new();
+fn conformance_slot_carriers_uncached(program: &dyn crate::CheckingInput) -> SlotCarriers {
+    let mut slot_carriers = SlotCarriers::default();
     for candidate in program.machines() {
         for conformance in program.machine_trait_conformances(candidate) {
             if !conformance.requirement_symbol.is_valid() {
@@ -636,10 +702,13 @@ fn conformance_slot_carriers_uncached(
             let Some((candidate_entry, carrier)) = entry_carrier(program, candidate) else {
                 continue;
             };
-            slot_carriers
-                .entry((conformance.symbol, conformance.requirement_symbol))
-                .or_insert_with(Vec::new)
-                .push((carrier, candidate_entry.symbol));
+            slot_carriers.insert(
+                program,
+                conformance.symbol,
+                conformance.requirement_symbol,
+                carrier,
+                candidate_entry.symbol,
+            );
         }
     }
     slot_carriers
@@ -850,7 +919,7 @@ fn algebraic_law_slots(
 }
 
 fn ring_license_candidates(
-    slot_carriers: &HashMap<(SymbolHandle, SymbolHandle), Vec<(TypeReferenceHandle, SymbolHandle)>>,
+    slot_carriers: &SlotCarriers,
     program: &dyn crate::CheckingInput,
 ) -> Vec<RingCandidate> {
     let mut candidates = Vec::new();
@@ -866,7 +935,8 @@ fn ring_license_candidates(
             // Every machine the slot index lists under the op slot is a
             // candidate license -- the index already resolved each machine's
             // carrier and entry state, which this scan used to rebuild.
-            let Some(rows) = slot_carriers.get(&(program.symbols.get(*op_slot).parent, *op_slot))
+            let Some(rows) =
+                slot_carriers.get(program, program.symbols.get(*op_slot).parent, *op_slot)
             else {
                 continue;
             };
@@ -908,14 +978,14 @@ fn ring_license_candidates(
 /// `.is_some()`. Law-slot membership and op-slot lookups share this one
 /// traversal.
 fn slot_satisfier(
-    slot_carriers: &HashMap<(SymbolHandle, SymbolHandle), Vec<(TypeReferenceHandle, SymbolHandle)>>,
+    slot_carriers: &SlotCarriers,
     program: &dyn crate::CheckingInput,
     trait_symbol: SymbolHandle,
     requirement: SymbolHandle,
     carrier: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     slot_carriers
-        .get(&(trait_symbol, requirement))
+        .get(program, trait_symbol, requirement)
         .and_then(|rows| {
             rows.iter().find_map(|(candidate_carrier, entry_symbol)| {
                 crate::value_custody::type_references::type_references_match(
@@ -1024,7 +1094,7 @@ fn distributivity_shape(
 /// that conformed ALL FIVE law slots. Same no-circularity rule: the judged
 /// machine binding ANY involved law slot gets nothing from this trait.
 fn semiring_license_candidates(
-    slot_carriers: &HashMap<(SymbolHandle, SymbolHandle), Vec<(TypeReferenceHandle, SymbolHandle)>>,
+    slot_carriers: &SlotCarriers,
     program: &dyn crate::CheckingInput,
 ) -> Vec<SemiringCandidate> {
     let mut candidates = Vec::new();
@@ -1048,7 +1118,8 @@ fn semiring_license_candidates(
             // paired mul satisfier exists. The index already resolved each
             // machine's carrier and entry state, which this scan used to
             // rebuild.
-            let Some(rows) = slot_carriers.get(&(program.symbols.get(*add_op).parent, *add_op))
+            let Some(rows) =
+                slot_carriers.get(program, program.symbols.get(*add_op).parent, *add_op)
             else {
                 continue;
             };

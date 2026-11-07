@@ -95,7 +95,7 @@ impl Fixture {
                 .type_reference_table
                 .insert(TypeReferenceNode::Named {
                     symbol: children.handle_at(atom.ordinal() as u32),
-                    name: Identifier::from(atom.name()),
+                    name: Identifier::from(atom.symbol_name()),
                 })
         };
         let carrier = type_reference(carrier);
