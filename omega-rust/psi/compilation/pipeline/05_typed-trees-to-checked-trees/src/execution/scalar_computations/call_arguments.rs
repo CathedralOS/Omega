@@ -485,7 +485,7 @@ impl Builder<'_, '_> {
                 ),
             }
         };
-        let (expression, owner_type, mut path, projection_evaluations) =
+        let (source, owner_type, mut path, projection_evaluations) =
             self.retained_argument_owner(value, producer_type)?;
         // The owned-value contract cannot manufacture a
         // reference. A descriptor instead retains the
@@ -529,9 +529,7 @@ impl Builder<'_, '_> {
         }
         let argument_plan = checked_trees::CheckedUnitStructuralArgumentPlan {
             projection_evaluations,
-            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                expression,
-            },
+            source,
             path,
             type_identity: selected_identity,
             access,
@@ -553,7 +551,7 @@ impl Builder<'_, '_> {
                     self.machine,
                     self.state,
                     self.flow.control.calls.get(source_call),
-                    expression,
+                    argument_plan.source.structural_expression()?,
                     owner_type,
                 )?;
             }
@@ -568,7 +566,12 @@ impl Builder<'_, '_> {
                 | language_semantics::Multiplicity::Linear => {
                     discards = Some(vec![
                         checked_trees::CheckedNormalCleanupAction::RetireHome {
-                            source: argument_plan.source.clone(),
+                            // Retirement names the whole completed owner. Its
+                            // borrowed projection is only the call's presentation.
+                            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                                expression: argument_plan.source.structural_expression()?,
+                                logical_root_type_identity: None,
+                            },
                             type_identity: validation::stored_structural_type_identity(
                                 self.program,
                                 owner_type,

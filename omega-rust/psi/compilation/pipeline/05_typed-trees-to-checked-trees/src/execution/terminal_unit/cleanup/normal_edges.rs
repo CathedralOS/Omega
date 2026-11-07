@@ -417,7 +417,10 @@ pub(in crate::execution::terminal_unit) fn expression_source(
             .iter()
             .any(|(_, value)| value.state == state && value.expression == expression)
             .then_some(
-                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
+                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                    expression,
+                    logical_root_type_identity: None,
+                },
             );
     };
     if matching.next().is_some() {

@@ -373,7 +373,10 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
                 binding_ordinal: result.binding_ordinal,
             }
         } else {
-            SourcePlan::StructuralExpression { expression }
+            SourcePlan::StructuralExpression {
+                expression,
+                logical_root_type_identity: None,
+            }
         };
         completion_phase("normal completion: owner prior continuation");
         if operations.iter().flat_map(OperationPlan::with_value_calls).any(|operation| matches!(operation,

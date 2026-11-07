@@ -250,6 +250,7 @@ pub(crate) fn retain_shapes(
                 ComputationKind::Dispatch { subject, arms, .. } => {
                     pending.extend(subject.scalar_operands(&plans.operands));
                     if let checked_trees::CheckedDispatchSubject::Structural { value, .. } = subject
+                        && value.is_valid()
                     {
                         retain_operand!(
                             structural_values.nodes.get(*value).type_reference,
@@ -322,8 +323,7 @@ pub(crate) fn retain_shapes(
                             argument,
                         ) = argument
                             && let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                                expression,
-                            } = argument.source
+                                expression, .. } = argument.source
                         {
                             // A saved home is an alias of a completed subject,
                             // not another producer root. Its catalog dependency

@@ -219,13 +219,13 @@ impl Builder<'_, '_> {
         value: ValueHandle,
         reference: TypeReferenceHandle,
     ) -> Option<(
-        ExpressionHandle,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan,
         TypeReferenceHandle,
         Vec<checked_trees::CheckedUnitStructuralPathSegment>,
         arena::HandleSpan<checked_trees::CheckedScalarComputationHandle>,
     )> {
         let node = self.structural_values.nodes.get(value);
-        let (owner, path, projection_evaluations) = match &node.kind {
+        let (owner, path, projection_evaluations, logical_root_type_identity) = match &node.kind {
             // A noncopy selection retains its containing owner. A selected
             // copy owns an independent completed value, just as a whole-value
             // cast owns its checked memberships; using its source occurrence
@@ -235,9 +235,17 @@ impl Builder<'_, '_> {
                 path,
                 projection_evaluations,
                 copies_selected_value: false,
+                logical_root_type_identity,
                 ..
-            } if !path.is_empty() => (*source, path.clone(), *projection_evaluations),
-            _ => (value, Vec::new(), Default::default()),
+            } if !path.is_empty() => (
+                *source,
+                path.clone(),
+                *projection_evaluations,
+                logical_root_type_identity
+                    .is_valid()
+                    .then_some(*logical_root_type_identity),
+            ),
+            _ => (value, Vec::new(), Default::default(), None),
         };
         let owner_node = self.structural_values.nodes.get(owner);
         let expression = owner_node.expression;
@@ -270,7 +278,15 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        Some((expression, owner_reference, path, projection_evaluations))
+        Some((
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression,
+                logical_root_type_identity,
+            },
+            owner_reference,
+            path,
+            projection_evaluations,
+        ))
     }
 
     /// Authenticate a completed handle before using the common ordinary root

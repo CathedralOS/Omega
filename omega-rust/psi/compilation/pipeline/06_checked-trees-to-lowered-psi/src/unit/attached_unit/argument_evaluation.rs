@@ -537,6 +537,7 @@ impl Evaluation {
                     }
                     CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                         expression,
+                        ..
                     } => facts::PlaceRoot::Expression(expression),
                     _ => return unsupported("value storage source has no storage identity"),
                 };
@@ -609,6 +610,7 @@ impl Evaluation {
     ) -> Result<StructuralValueStorage, LoweringError> {
         if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
             expression,
+            ..
         } = *source
         {
             let root = facts::PlaceRoot::Expression(expression);
@@ -638,7 +640,7 @@ impl Evaluation {
         use checked_trees::CheckedUnitStructuralArgumentSourcePlan as Source;
         let root = match *source {
             Source::StructuralLocal { symbol } => Some(facts::PlaceRoot::Symbol(symbol)),
-            Source::StructuralExpression { expression } => {
+            Source::StructuralExpression { expression, .. } => {
                 Some(facts::PlaceRoot::Expression(expression))
             }
             _ => None,

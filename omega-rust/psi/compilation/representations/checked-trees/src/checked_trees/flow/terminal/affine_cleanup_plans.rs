@@ -132,6 +132,7 @@ impl Default for CheckedUnitPartialAffineDiscardPlan {
         Self {
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                 expression: arena::Handle::invalid(),
+                logical_root_type_identity: None,
             },
             path: Vec::new(),
             type_identity: TypeIdentityId::default(),

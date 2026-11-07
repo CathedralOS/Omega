@@ -404,6 +404,7 @@ pub(crate) fn structural_arguments_for_types(
                 projection_evaluations,
                 source: SourcePlan::StructuralExpression {
                     expression: owner_expression,
+                    logical_root_type_identity: None,
                 },
                 path,
                 type_identity: if descriptor.is_some() {
@@ -1450,7 +1451,7 @@ pub(crate) fn computed_call_claim_transfers(
             continue;
         }
         let root = match argument.source {
-            SourcePlan::StructuralExpression { expression } => {
+            SourcePlan::StructuralExpression { expression, .. } => {
                 facts::PlaceRoot::Expression(expression)
             }
             _ => place_at(program, state, call.statement_index, *expression)?.root,

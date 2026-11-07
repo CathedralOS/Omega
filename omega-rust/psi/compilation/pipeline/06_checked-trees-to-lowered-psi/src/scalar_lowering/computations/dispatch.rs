@@ -45,6 +45,8 @@ impl Expansion<'_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: typed_trees::expression::ExpressionHandle,
         subject: checked_trees::CheckedStructuralValueHandle,
+        subject_expression: checked_trees::expression::ExpressionHandle,
+        place: checked_trees::CheckedUnitStructuralArgumentPlan,
         alias: typed_trees::expression::ExpressionHandle,
         arms: arena::HandleSpan<CheckedScalarDispatchArm>,
         result_type: QualifiedScalarType,
@@ -53,8 +55,37 @@ impl Expansion<'_> {
         site: &Site<'_>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
-        let request =
-            ValueRequest::prepare(identities, self.checked, subject, self.structural_types)?;
+        #[derive(Clone, Copy)]
+        enum SubjectRequest {
+            Value(ValueRequest),
+            Place {
+                reserved: semantic_vocabulary::PlaceId,
+                structural_type: semantic_vocabulary::StructuralTypeId,
+            },
+        }
+        let request = if subject.is_valid() {
+            SubjectRequest::Value(ValueRequest::prepare(
+                identities,
+                self.checked,
+                subject,
+                self.structural_types,
+            )?)
+        } else {
+            SubjectRequest::Place {
+                reserved: crate::shared::terminal_identities::place_id(
+                    crate::shared::terminal_identities::allocate_dense(self.next_place)?,
+                ),
+                structural_type:
+                    crate::shared::terminal_identities::structural_declaration_by_identity(
+                        self.structural_types,
+                        identities,
+                        self.checked,
+                        place.type_identity,
+                        "dispatch subject has no checked carrier",
+                    )?
+                    .id,
+            }
+        };
         let arms = value_facts(self.checked)
             .scalar_computations
             .dispatch_arms
@@ -67,19 +98,40 @@ impl Expansion<'_> {
         // Predicates and the selected arm share this subject. Its private
         // snapshot ends only after the arm has captured its scalar result,
         // before the outer continuation can retire any borrowed backing.
-        let target = if self.has_established_value(subject) {
-            target
-        } else {
+        let target = if let SubjectRequest::Value(request) = request
+            && !self.has_established_value(subject)
+        {
             let mut completed_types = input_types.to_vec();
             completed_types.push(result_type);
             request.complete_snapshot(self.checked, &completed_types, target, self)?
+        } else {
+            target
         };
         let prefix = self.established_values.len();
         // This is a dependency available on every selected path. Its producer
         // is scheduled below, before the first predicate, not replayed by an
         // observation. The common emitter binds the real completed home.
-        self.established_values
-            .push(super::EstablishedValue::Produced { root: subject });
+        if subject.is_valid() {
+            self.established_values
+                .push(super::EstablishedValue::Produced { root: subject });
+        }
+        let bindings = match request {
+            SubjectRequest::Place {
+                reserved,
+                structural_type,
+            } => Some(site.bindings.clone().with_dispatch_subject(
+                alias,
+                reserved,
+                structural_type,
+            )?),
+            SubjectRequest::Value(_) => None,
+        };
+        let site = &Site {
+            state: site.state,
+            statement: site.statement,
+            bindings: bindings.as_ref().unwrap_or(site.bindings),
+        };
+
         let lowered = (|| {
             let mut continuation = None;
             for (position, arm) in arms.iter().enumerate().rev() {
@@ -167,7 +219,16 @@ impl Expansion<'_> {
             ))
         })();
         self.established_values.truncate(prefix);
-        Ok(request.finish_with_alias(alias, input_types, lowered?, self))
+        let lowered = lowered?;
+        Ok(match request {
+            SubjectRequest::Value(request) => request.finish_with_alias(alias, input_types, lowered, self),
+            SubjectRequest::Place { reserved, .. } => self.push(LoweredScalarBranchState::jumping(
+                lowered, Vec::new(), input_types.to_vec(), input_types,
+                vec![crate::scalar_lowering::branch_states::prepared::LoweredScalarEffect::CaptureDispatchSubject {
+                    expression: subject_expression, source: place, alias, place: reserved, statement: site.statement,
+                }],
+            )),
+        })
     }
 }
 
@@ -187,11 +248,18 @@ impl Expansion<'_> {
     ) -> Result<usize, LoweringError> {
         let subject = match subject {
             checked_trees::CheckedDispatchSubject::Scalar(subject) => subject,
-            checked_trees::CheckedDispatchSubject::Structural { value, alias, .. } => {
+            checked_trees::CheckedDispatchSubject::Structural {
+                expression: subject_expression,
+                value,
+                place,
+                alias,
+            } => {
                 return self.structural_dispatch(
                     identities,
                     expression,
                     value,
+                    subject_expression,
+                    place,
                     alias,
                     arms,
                     result_type,

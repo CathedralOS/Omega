@@ -21,7 +21,7 @@ pub(crate) struct Slot {
 
 pub(crate) fn expression(argument: &CheckedUnitStructuralArgumentPlan) -> Option<ExpressionHandle> {
     match argument.source {
-        Source::StructuralExpression { expression } => Some(expression),
+        Source::StructuralExpression { expression, .. } => Some(expression),
         _ => None,
     }
 }

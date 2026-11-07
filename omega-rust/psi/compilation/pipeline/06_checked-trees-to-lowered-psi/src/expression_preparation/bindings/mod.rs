@@ -1170,6 +1170,27 @@ impl ScalarBindings {
         self
     }
 
+    /// Bind geometry for a subject capture scheduled before this private
+    /// expansion. The emitting owner must establish this exact borrowed home
+    /// before any child executes; this row confers no ownership or facts.
+    pub(crate) fn with_dispatch_subject(
+        mut self,
+        alias: checked_trees::expression::ExpressionHandle,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    ) -> Result<Self, LoweringError> {
+        retain_completed_structural_homes(
+            &mut self.structural_locals,
+            &[StructuralLocalBinding {
+                result_binding_ordinal: None,
+                root: facts::PlaceRoot::Expression(alias),
+                argument: StructuralArgument::whole(place, StructuralAccess::SharedBorrow),
+                structural_type,
+            }],
+        )?;
+        Ok(self)
+    }
+
     /// Resolve the exact primitive endpoint of an already source-validated loan.
     /// A local reference owns a carrier, not a new primitive home: its retained
     /// `Referent` projection reaches the viewed type while the reference keeps

@@ -200,6 +200,7 @@ fn bind_expression(
                     })
                 }
                 checked_trees::CheckedDispatchSubject::Structural {
+                    expression,
                     value,
                     place,
                     alias,
@@ -232,6 +233,7 @@ fn bind_expression(
                     }
                     CheckedUnitCompletionKind::Selection(
                         CheckedUnitCompletionSelection::Structural {
+                            expression: *expression,
                             value: *value,
                             place: place.clone(),
                             alias: *alias,

@@ -145,6 +145,7 @@ impl Builder<'_, '_> {
         Some(CheckedUnitStructuralArgumentPlan {
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                 expression: operand,
+                logical_root_type_identity: None,
             },
             path: Vec::new(),
             projection_evaluations: Default::default(),

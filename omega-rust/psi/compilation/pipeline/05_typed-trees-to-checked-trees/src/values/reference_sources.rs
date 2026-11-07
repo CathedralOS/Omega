@@ -294,7 +294,10 @@ pub(crate) fn capture_source(
         // The value owner must establish this producer before lending it.
         // Its captured path and storage interpretation are otherwise the same
         // as a named home's; source spelling does not select another planner.
-        facts::PlaceRoot::Expression(expression) => SourcePlan::StructuralExpression { expression },
+        facts::PlaceRoot::Expression(expression) => SourcePlan::StructuralExpression {
+            expression,
+            logical_root_type_identity: None,
+        },
         facts::PlaceRoot::Symbol(root) => {
             if let Some(parameter) = program.state_parameter_by_symbol(state, root) {
                 if parameter.is_const || parameter.relevance.is_erased() {

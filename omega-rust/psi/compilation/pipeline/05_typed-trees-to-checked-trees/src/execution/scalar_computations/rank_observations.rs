@@ -213,6 +213,7 @@ pub(super) fn record(
                 structural_values,
                 statement_nodes_start,
                 root_scope: super::builder::RootScope::RankObservation,
+                dispatch_receivers: Default::default(),
                 scalar_occurrences: Vec::new(),
                 integer_occurrences: Vec::new(),
             };

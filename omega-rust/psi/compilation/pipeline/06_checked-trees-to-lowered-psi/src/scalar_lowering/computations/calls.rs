@@ -319,7 +319,7 @@ impl Expansion<'_> {
                     }).ok_or(LoweringError::Unsupported(
                         "computed value has no reserved argument home",
                     ))?;
-                    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } = argument.source
+                    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression, .. } = argument.source
                         && self.checked.facts.executable_bindings.expression(expression).is_saved()
                         && !self.established_values.iter().any(|value| matches!(value,
                             EstablishedValue::Produced { root } if *root == slot.root))

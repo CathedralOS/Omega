@@ -64,6 +64,7 @@ impl Builder<'_, '_> {
             self.program.saved_value_source(saved)?;
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                 expression,
+                logical_root_type_identity: None,
             }
         } else {
             let root = place.root.as_symbol()?;
@@ -141,6 +142,7 @@ impl Builder<'_, '_> {
     ) -> Option<checked_trees::CheckedStructuralValueHandle> {
         let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
             expression: anchor,
+            ..
         } = subject.source
         else {
             return Some(checked_trees::CheckedStructuralValueHandle::invalid());
@@ -150,6 +152,21 @@ impl Builder<'_, '_> {
         else {
             return None;
         };
+        if let Some(value) = self
+            .dispatch_receivers
+            .get(&(anchor.arena_index(), anchor.generation()))
+        {
+            return Some(*value);
+        }
+        let capture = self.program.expression_table.value_capture(saved.capture);
+        if matches!(
+            capture.owner,
+            typed_trees::expression::ValueCaptureOwner::Match
+        ) {
+            // Match production must publish the exact value/place association
+            // before its patterns. Replaying its initializer cannot supply it.
+            return None;
+        }
         let source = self.program.saved_value_source(saved)?;
         let machine = self.program.machine_by_symbol(self.machine)?;
         let state = self.program.state_in_machine(machine, self.state)?;

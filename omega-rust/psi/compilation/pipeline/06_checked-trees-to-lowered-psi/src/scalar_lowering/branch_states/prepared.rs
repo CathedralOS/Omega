@@ -378,6 +378,14 @@ pub(crate) enum LoweredScalarEffect {
         value: checked_trees::CheckedStructuralValueHandle,
         structural_type: StructuralTypeId,
     },
+    /// Capture a checked existing subject before its ordered pattern operands.
+    CaptureDispatchSubject {
+        expression: checked_trees::expression::ExpressionHandle,
+        source: checked_trees::CheckedUnitStructuralArgumentPlan,
+        alias: checked_trees::expression::ExpressionHandle,
+        place: PlaceId,
+        statement: u32,
+    },
     /// Publish another lexical name for an already completed value. This
     /// creates no storage or ownership and never repeats its producer.
     BindCompletedValueAlias {

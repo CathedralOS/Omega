@@ -139,7 +139,13 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// An already evaluated structural expression. The enclosing operation
     /// sequence establishes its storage before a consumer observes it; this
     /// identity never authorizes evaluating the expression again.
-    StructuralExpression { expression: ExpressionHandle },
+    StructuralExpression {
+        expression: ExpressionHandle,
+        /// A projection of this completed owner can start at its checked
+        /// logical referent rather than the stored descriptor. This identity
+        /// comes from the value producer; it never authorizes an owned move.
+        logical_root_type_identity: Option<TypeIdentityId>,
+    },
     /// Dense declaration ordinal in the caller's checked trivial-affine-local
     /// table. This source is always the exact whole local.
     TrivialAffineLocal { declaration_ordinal: u32 },
@@ -430,9 +436,9 @@ impl CheckedUnitStructuralArgumentPlan {
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { symbol, .. } => {
                 Some(facts::PlaceRoot::Symbol(symbol))
             }
-            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
-                Some(facts::PlaceRoot::Expression(expression))
-            }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression, ..
+            } => Some(facts::PlaceRoot::Expression(expression)),
             _ => None,
         }
     }
@@ -514,14 +520,18 @@ impl CheckedUnitStructuralArgumentPlan {
         }
     }
 
-    /// The logical root before a borrowed local's projection, not its final
-    /// argument type or the possibly reference-shaped published home.
+    /// The logical root before a borrowed projection of a local or completed
+    /// expression, distinct from its final type and published descriptor.
     pub fn borrowed_root_type_identity(&self) -> Option<TypeIdentityId> {
         match &self.source {
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
                 root_type_identity,
                 ..
             } => Some(*root_type_identity),
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                logical_root_type_identity,
+                ..
+            } => *logical_root_type_identity,
             _ => None,
         }
     }
@@ -530,6 +540,16 @@ impl CheckedUnitStructuralArgumentPlan {
     pub fn byte_sequence_literal(&self) -> Option<&[u8]> {
         match &self.source {
             CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } => Some(bytes),
+            _ => None,
+        }
+    }
+}
+
+impl CheckedUnitStructuralArgumentSourcePlan {
+    /// Exact completed-expression namespace, independent of projection presentation.
+    pub fn structural_expression(&self) -> Option<ExpressionHandle> {
+        match self {
+            Self::StructuralExpression { expression, .. } => Some(*expression),
             _ => None,
         }
     }

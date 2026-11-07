@@ -36,9 +36,10 @@ impl Query<'_> {
             checked_trees::CheckedDispatchSubject::Scalar(value) => {
                 scope.completed_computations.push(value)
             }
-            checked_trees::CheckedDispatchSubject::Structural { value, .. } => {
+            checked_trees::CheckedDispatchSubject::Structural { value, .. } if value.is_valid() => {
                 scope.established_values.push(value)
             }
+            checked_trees::CheckedDispatchSubject::Structural { .. } => {}
         }
         let mut prefixes = Vec::new();
         for (pattern, _) in node.arms() {

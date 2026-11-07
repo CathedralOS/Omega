@@ -423,7 +423,10 @@ pub(crate) fn borrowed_storage_argument(
         )?;
         (
             reference,
-            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression,
+                logical_root_type_identity: None,
+            },
         )
     } else {
         let symbol = place.root.as_symbol()?;

@@ -18,42 +18,12 @@ impl Emission<'_, '_, '_> {
         expression: checked_trees::expression::ExpressionHandle,
         source: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
-        if !matches!(
-            source.access,
-            checked_trees::CheckedStructuralAccess::SharedBorrow
-                | checked_trees::CheckedStructuralAccess::MutableBorrow
-        ) {
-            return super::unsupported("storage projection requires readable source custody");
-        }
-        let authored = crate::shared::declarations::state_declaration(self.checked, self.state)?;
-        let bindings = self.structural_bindings();
-        let parameters = self.checked.state_parameters(authored.1);
-        let home = bindings.borrowed_structural_home(source, parameters)?;
-        let root = bindings
-            .structural_argument_type(&home)
-            .ok_or(LoweringError::Unsupported(
-                "readable projection lost its published root type",
-            ))?;
-        let prepared =
-            crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
-                identities,
-                self.checked,
-                source,
-                root,
-                bindings.structural_declarations(),
-            )?;
-        let prepared = home.path.into_iter().map(
-            crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
-        ).chain(prepared).collect::<Vec<_>>();
-        self.complete_projection(
-            identities,
-            expression,
-            home.place,
-            prepared,
-            crate::expression_preparation::bindings::structural_paths::terminal_access(
-                source.access,
-            ),
-        )
+        let completed = self
+            .projection_emission()
+            .readable_place_argument(identities, expression, source)?;
+        let argument = completed.argument.clone();
+        self.completed_projections.push(completed);
+        Ok(argument)
     }
 
     /// Only root views have a length observation in the receiving projection
@@ -106,5 +76,61 @@ impl Emission<'_, '_, '_> {
             self.operations,
         );
         Ok(path)
+    }
+}
+
+impl super::completed_projection::ProjectionEmission<'_, '_, '_> {
+    pub(crate) fn readable_place_argument(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: checked_trees::expression::ExpressionHandle,
+        source: &CheckedUnitStructuralArgumentPlan,
+    ) -> Result<super::completed_projection::CompletedProjection, LoweringError> {
+        if !matches!(
+            source.access,
+            checked_trees::CheckedStructuralAccess::SharedBorrow
+                | checked_trees::CheckedStructuralAccess::MutableBorrow
+        ) {
+            return crate::shared::lowering_error::unsupported(
+                "storage projection requires readable source custody",
+            );
+        }
+        let authored = crate::shared::declarations::state_declaration(
+            self.environment.checked,
+            self.environment.state,
+        )?;
+        let bindings = crate::expression_preparation::bindings::ScalarBindings::new(
+            self.values.iter().map(|value| value.scalar_type),
+        )
+        .with_structural_parameters(&self.evaluation.structural_parameters)
+        .with_structural_locals(&self.evaluation.structural_locals)
+        .with_structural_observations(self.environment.structural_types);
+        let parameters = self.environment.checked.state_parameters(authored.1);
+        let home = bindings.borrowed_structural_home(source, parameters)?;
+        let root = bindings
+            .structural_argument_type(&home)
+            .ok_or(LoweringError::Unsupported(
+                "readable projection lost its published root type",
+            ))?;
+        let prepared =
+            crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
+                identities,
+                self.environment.checked,
+                source,
+                root,
+                bindings.structural_declarations(),
+            )?;
+        let prepared = home.path.into_iter().map(
+            crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
+        ).chain(prepared).collect::<Vec<_>>();
+        self.complete_projection(
+            identities,
+            expression,
+            home.place,
+            prepared,
+            crate::expression_preparation::bindings::structural_paths::terminal_access(
+                source.access,
+            ),
+        )
     }
 }

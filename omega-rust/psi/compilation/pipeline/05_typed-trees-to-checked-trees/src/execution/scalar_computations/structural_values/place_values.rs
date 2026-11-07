@@ -369,7 +369,10 @@ impl Builder<'_, '_> {
                 .value_capture(saved.capture)
                 .value_anchor;
             return Some(ArgumentPlan {
-                source: SourcePlan::StructuralExpression { expression: anchor },
+                source: SourcePlan::StructuralExpression {
+                    expression: anchor,
+                    logical_root_type_identity: None,
+                },
                 path: Vec::new(),
                 projection_evaluations: Default::default(),
                 type_identity: stored_structural_type_identity(self.program, expected, &[], &[]),

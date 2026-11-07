@@ -158,11 +158,15 @@ impl StateGraphEmission<'_, '_> {
                 (Some(arms.as_slice()), None)
             }
             Selection::Structural {
-                value, alias, arms, ..
+                expression: subject_expression,
+                value,
+                alias,
+                place,
+                arms,
             } => {
-                let request = crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(
+                let request = value.is_valid().then(|| crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(
                     identities, checked, *value, &self.catalogs.structural_types,
-                )?;
+                )).transpose()?;
                 StateFrame::new(checked, owner, state, &self.state_erased[position]).evaluate(
                     self.catalogs,
                     parameters,
@@ -178,21 +182,25 @@ impl StateGraphEmission<'_, '_> {
                     },
                     |frame| {
                         let (mut environment, emission) = frame.split();
-                        environment.produce_value(
-                            identities,
-                            *value,
-                            request.structural_type,
-                            emission.evaluation,
-                            emission.values,
-                            emission.next_value,
-                            emission.next_block,
-                            emission.next_edge,
-                            emission.calls,
-                            emission.operations,
-                        )
+                        if let Some(request) = request {
+                            environment.produce_value(
+                                identities, *value, request.structural_type,
+                                emission.evaluation, emission.values, emission.next_value,
+                                emission.next_block, emission.next_edge, emission.calls, emission.operations,
+                            )
+                        } else {
+                            let captured = crate::shared::terminal_identities::place_id(allocate_dense(environment.next_place)?);
+                            crate::unit::attached_unit::structural_values::emission::completed_projection::ProjectionEmission {
+                                statement: plan.statement_ordinal,
+                                environment: &mut environment, calls: emission.calls,
+                                evaluation: emission.evaluation, values: emission.values,
+                                next_value: emission.next_value, next_block: emission.next_block,
+                                next_edge: emission.next_edge, operations: emission.operations,
+                            }.capture_subject(identities, *subject_expression, place, *alias, captured)
+                        }
                     },
                 )?;
-                if operations.invocation_completion.is_none() {
+                if value.is_valid() && operations.invocation_completion.is_none() {
                     current.bind_completed_value_alias(*value, *alias, operations)?;
                     current.completed_operand_scope.push(*value);
                 }

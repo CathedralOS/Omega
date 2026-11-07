@@ -305,13 +305,6 @@ impl Builder<'_, '_> {
         if let Some(reference) =
             validation::structural_match_subject_type(self.program, machine, state, dispatch)
         {
-            // Dispatch always needs an evaluated subject node, including an
-            // existing place. Argument retention deliberately returns absence
-            // when direct storage transport needs no temporary; that is not a
-            // refusal to observe the same completed place in a match.
-            let value = self.structural_value(dispatch.subject, reference)?;
-            self.retained_argument_owner(value, reference)?;
-            self.retain_structural_value_root(value, reference)?;
             let alias = if dispatch.capture.is_valid() {
                 expressions(self.program)
                     .value_capture(dispatch.capture)
@@ -319,7 +312,49 @@ impl Builder<'_, '_> {
             } else {
                 ExpressionHandle::invalid()
             };
+            // A source-checked place is observed under its existing custody.
+            // Copy captures and stored descriptors keep their independent value
+            // producer; neither path can turn an affine referent into an owner.
+            if !self.uses_captured_dispatch_value(dispatch.subject)
+                && validation::reference_shell(self.program, reference).is_none()
+                && let Some(place) = self.canonical_place(dispatch.subject)
+            {
+                let place = if place.root.as_symbol().is_some() {
+                    Some(
+                        self.borrowed_leaf_argument(dispatch.subject, reference, dispatch.subject)?
+                            .0,
+                    )
+                } else {
+                    self.readable_case_subject(dispatch.subject, self.statement_index)
+                        .map(|(_, place)| place)
+                };
+                if let Some(place) = place {
+                    // Even a tag-only selection captures its endpoint once.
+                    // With no lexical binding the exact subject occurrence is
+                    // its private completed-expression name.
+                    let alias = if alias.is_valid() {
+                        alias
+                    } else {
+                        dispatch.subject
+                    };
+                    self.retain_dispatch_receiver(
+                        alias,
+                        checked_trees::CheckedStructuralValueHandle::invalid(),
+                    )?;
+                    return Some(checked_trees::CheckedDispatchSubject::Structural {
+                        expression: dispatch.subject,
+                        value: checked_trees::CheckedStructuralValueHandle::invalid(),
+                        alias,
+                        place,
+                    });
+                }
+            }
+            let value = self.structural_value(dispatch.subject, reference)?;
+            self.retained_argument_owner(value, reference)?;
+            self.retain_structural_value_root(value, reference)?;
+            self.retain_dispatch_receiver(alias, value)?;
             return Some(checked_trees::CheckedDispatchSubject::Structural {
+                expression: dispatch.subject,
                 value,
                 alias,
                 place: CheckedUnitStructuralArgumentPlan {
@@ -330,6 +365,7 @@ impl Builder<'_, '_> {
                         } else {
                             dispatch.subject
                         },
+                        logical_root_type_identity: None,
                     },
                     path: Vec::new(),
                     type_identity: validation::stored_structural_type_identity(
@@ -360,6 +396,28 @@ impl Builder<'_, '_> {
             self.expression(dispatch.subject, PrimitiveType::Bool)?
         };
         Some(checked_trees::CheckedDispatchSubject::Scalar(subject))
+    }
+
+    fn retain_dispatch_receiver(
+        &mut self,
+        alias: ExpressionHandle,
+        value: checked_trees::CheckedStructuralValueHandle,
+    ) -> Option<()> {
+        if !alias.is_valid() {
+            return Some(());
+        }
+        match self
+            .dispatch_receivers
+            .entry((alias.arena_index(), alias.generation()))
+        {
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(value);
+                Some(())
+            }
+            std::collections::btree_map::Entry::Occupied(entry) => {
+                (*entry.get() == value).then_some(())
+            }
+        }
     }
 
     fn structural_subject_dispatch(
@@ -505,6 +563,7 @@ impl Builder<'_, '_> {
         let checked_trees::CheckedDispatchSubject::Structural {
             place,
             value: receiver,
+            alias,
             ..
         } = subject
         else {
@@ -533,7 +592,20 @@ impl Builder<'_, '_> {
                     expression,
                     ExpressionHandle::invalid(),
                     *receiver,
-                    CheckedScalarComputationStructuralArgument::Place(place.clone()),
+                    CheckedScalarComputationStructuralArgument::Place(if receiver.is_valid() {
+                        place.clone()
+                    } else {
+                        CheckedUnitStructuralArgumentPlan {
+                            source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                                expression: *alias,
+                                logical_root_type_identity: None,
+                            },
+                            path: Vec::new(),
+                            projection_evaluations: Default::default(),
+                            type_identity: place.type_identity,
+                            access: place.access,
+                        }
+                    }),
                     case,
                 )
             }

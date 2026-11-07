@@ -94,7 +94,10 @@ impl Builder<'_, '_> {
                 receiver_value,
                 subject: CheckedUnitStructuralArgumentPlan {
                     projection_evaluations: Default::default(),
-                    source: SourcePlan::StructuralExpression { expression },
+                    source: SourcePlan::StructuralExpression {
+                        expression,
+                        logical_root_type_identity: None,
+                    },
                     path: observation.path,
                     type_identity: validation::stored_structural_type_identity(
                         self.program,
@@ -229,6 +232,7 @@ impl Builder<'_, '_> {
         }
         let source = SourcePlan::StructuralExpression {
             expression: receiver.expression,
+            logical_root_type_identity: None,
         };
         let Some(actions) = crate::execution::terminal_unit::cleanup::descriptor_retirement(
             self.program,
@@ -490,9 +494,10 @@ impl Builder<'_, '_> {
         };
         let source = match field.root {
             facts::PlaceRoot::Symbol(symbol) => self.structural_source(symbol),
-            facts::PlaceRoot::Expression(expression) => {
-                SourcePlan::StructuralExpression { expression }
-            }
+            facts::PlaceRoot::Expression(expression) => SourcePlan::StructuralExpression {
+                expression,
+                logical_root_type_identity: None,
+            },
             _ => return None,
         };
         Some(self.insert(

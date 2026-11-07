@@ -305,6 +305,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn prepare_
                     projection_evaluations: Default::default(),
                     source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                         expression,
+                        logical_root_type_identity: None,
                     },
                     path: Vec::new(),
                     type_identity: shapes.add_type(owner.row.disposed_type, &[], &[])?,

@@ -1727,7 +1727,10 @@ fn record_leaf_loan_groups(
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
         }
         facts::PlaceRoot::Expression(expression) => {
-            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression,
+                logical_root_type_identity: None,
+            }
         }
         _ => return None,
     };

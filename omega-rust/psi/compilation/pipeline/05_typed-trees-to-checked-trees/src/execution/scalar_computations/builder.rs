@@ -81,6 +81,11 @@ pub(super) struct Builder<'program, 'plans> {
     pub(super) locals: &'program [ScalarLocal],
     pub(super) plans: &'plans mut CheckedScalarComputationPlans,
     pub(super) structural_values: &'plans mut checked_trees::CheckedStructuralValuePlans,
+    /// Produced subject associations for this statement's sparse generational
+    /// expression subset. A zero value retains existing storage; it is not an
+    /// absent producer. No global expression interval is allocated here.
+    pub(super) dispatch_receivers:
+        std::collections::BTreeMap<(u32, u32), CheckedStructuralValueHandle>,
     pub(super) statement_nodes_start: usize,
     pub(super) root_scope: RootScope,
     /// A normalized source operand is one evaluation. Retain that identity for

@@ -383,9 +383,10 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                     self.local.is_valid() && symbol == self.local
                 }
-                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
-                    self.expression.is_valid() && expression == self.expression
-                }
+                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                    expression,
+                    ..
+                } => self.expression.is_valid() && expression == self.expression,
                 _ => false,
             };
         usize::from(whole_owner)
@@ -397,7 +398,7 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
     /// names exactly the members it takes; an ambiguous or missing root moves
     /// nothing here, so accounting still demands another disposition.
     fn produced(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {
-        let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
+        let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression, .. } =
             argument.source
         else {
             return 0;
@@ -587,9 +588,10 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
             crate::CheckedDispatchSubject::Scalar(value) => {
                 scope.completed_computations.push(value)
             }
-            crate::CheckedDispatchSubject::Structural { value, .. } => {
+            crate::CheckedDispatchSubject::Structural { value, .. } if value.is_valid() => {
                 scope.established_values.push(value)
             }
+            crate::CheckedDispatchSubject::Structural { .. } => {}
         }
         let mut prefix = 0;
         let mut minimum = None;
@@ -956,7 +958,10 @@ mod tests {
     fn place_identity_does_not_reenter_production_or_double_count_transfer() {
         let expression = arena::Handle::from_parts(1, 1);
         let mut argument = CheckedUnitStructuralArgumentPlan {
-            source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression,
+                logical_root_type_identity: None,
+            },
             ..Default::default()
         };
         let mut values = CheckedValueFacts::default();

@@ -820,6 +820,7 @@ pub enum CheckedUnitCompletionSelection {
         arms: Vec<CheckedUnitScalarCompletionArm>,
     },
     Structural {
+        expression: typed_trees::expression::ExpressionHandle,
         value: crate::CheckedStructuralValueHandle,
         place: crate::CheckedUnitStructuralArgumentPlan,
         alias: typed_trees::expression::ExpressionHandle,
@@ -868,11 +869,13 @@ impl CheckedUnitCompletionExpression {
                 crate::CheckedDispatchSubject::Scalar(*subject)
             }
             CheckedUnitCompletionSelection::Structural {
+                expression,
                 value,
                 place,
                 alias,
                 ..
             } => crate::CheckedDispatchSubject::Structural {
+                expression: *expression,
                 value: *value,
                 place: place.clone(),
                 alias: *alias,

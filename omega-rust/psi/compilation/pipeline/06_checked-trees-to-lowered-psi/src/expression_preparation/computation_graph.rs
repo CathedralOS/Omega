@@ -678,8 +678,10 @@ pub(crate) fn produced_value_root<'checked>(
     source_call: arena::Handle<checked_trees::FlowCallFact>,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
 ) -> Result<&'checked checked_trees::CheckedStructuralValueRoot, LoweringError> {
-    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
-        argument.source
+    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+        expression,
+        ..
+    } = argument.source
     else {
         return unsupported("computed structural operand has no produced expression");
     };
