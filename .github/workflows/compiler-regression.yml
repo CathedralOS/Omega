@@ -102,7 +102,9 @@ jobs:
             ${{ runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
       - name: Execute length sample with native/Psi agreement and rejection control
         if: ${{ !inputs.cleanup && !inputs.foreign_records && !inputs.runtime_value_generics }}
-        run: cargo xtask sample-gate --filter samples/cli/facts/length/local
+        run: |
+          cargo test --locked -p xtask samples::tests
+          cargo xtask sample-gate --filter samples/cli/facts/length/local
       - name: Check native provider frames and retained mapped homes
         if: ${{ inputs.foreign_records && !inputs.foreign_records_only }}
         run: cargo test --locked -p native-compiler -p machine-emission -p native-provider-runtime
