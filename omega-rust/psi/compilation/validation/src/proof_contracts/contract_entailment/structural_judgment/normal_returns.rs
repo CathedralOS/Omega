@@ -494,8 +494,19 @@ impl<'program> StructuralJudge<'program> {
         if depth >= 64 {
             return value;
         }
-        let value = match value {
-            StructuralTerm::Projection { subject, path } => {
+        let owned = super::super::structural_terms::owned_observation_type(self.program, &value);
+        let value = match (value, owned) {
+            (StructuralTerm::ObservedValue { value, .. }, Some(reference)) => {
+                // Following a saved copy must not add another observation of
+                // the same owned carrier. Reuse its idempotent constructor
+                // after resolving the saved contents.
+                super::super::structural_terms::owned_projection_observation(
+                    self.program,
+                    reference,
+                    self.completed_value_identity_at(*value, depth + 1, equations.clone()),
+                )
+            }
+            (StructuralTerm::Projection { subject, path }, _) => {
                 let subject =
                     self.completed_value_identity_at(*subject, depth + 1, equations.clone());
                 path.split('.')
@@ -512,7 +523,7 @@ impl<'program> StructuralJudge<'program> {
                         path,
                     })
             }
-            other => other.map_children(|child| {
+            (other, _) => other.map_children(|child| {
                 self.completed_value_identity_at(child, depth + 1, equations.clone())
             }),
         };
