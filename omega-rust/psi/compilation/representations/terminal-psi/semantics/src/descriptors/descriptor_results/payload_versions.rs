@@ -336,8 +336,23 @@ pub fn unchanged_stored_scalar_sources(
     graph: &[DescriptorMachine],
     identity: MachineId,
     value: ValueId,
-    mut actual_writes: impl FnMut(DescriptorPosition) -> Vec<(DescriptorLocation, ValueId)>,
+    actual_writes: impl FnMut(DescriptorPosition) -> Vec<(DescriptorLocation, ValueId)>,
 ) -> Option<Vec<ValueId>> {
+    unchanged_stored_sources(types, graph, identity, value, actual_writes)
+}
+
+/// The same storage-version transport for an independently authenticated
+/// producer identity. Native output arguments, for example, have an exact call
+/// occurrence and output slot but no scalar SSA result. They must not acquire
+/// a fabricated ValueId. The consumer authenticates each writer and identity;
+/// this reader proves only the unchanged original storage at the scalar read.
+pub fn unchanged_stored_sources<Source: Ord>(
+    types: &[StructuralTypeDeclaration],
+    graph: &[DescriptorMachine],
+    identity: MachineId,
+    value: ValueId,
+    mut actual_writes: impl FnMut(DescriptorPosition) -> Vec<(DescriptorLocation, Source)>,
+) -> Option<Vec<Source>> {
     let machine = descriptor_machine(graph, identity)?;
     let mut reads = machine
         .scalar_payload_reads
@@ -502,6 +517,43 @@ mod tests {
             normal_exits: vec![position(5)],
         };
         (types, machine)
+    }
+
+    #[test]
+    fn opaque_output_identity_needs_unchanged_actual_storage() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, ScalarTerm, ScalarType};
+
+        #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+        struct NativeOutput(DescriptorPosition, u32);
+
+        let (types, mut machine) = copy_graph();
+        let identity = machine.id;
+        let read = ValueId::new(7).unwrap();
+        machine.scalar_payload_reads.insert(
+            position(5),
+            vec![(
+                payload(),
+                ScalarTerm::value(
+                    read,
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+                ),
+            )],
+        );
+        let mut graph = vec![machine];
+        let observe = |graph: &[DescriptorMachine]| {
+            unchanged_stored_sources(&types, graph, identity, read, |writer_position| {
+                if writer_position == position(2) {
+                    vec![(payload(), NativeOutput(writer_position, 3))]
+                } else {
+                    Vec::new()
+                }
+            })
+        };
+        assert_eq!(observe(&graph), Some(vec![NativeOutput(position(2), 3)]));
+        // A later opaque write cannot be replaced with an equal asserted
+        // output identity. It destroys the original storage-version proof.
+        graph[0].unresolved_contents_writes.insert(position(4));
+        assert!(observe(&graph).is_none());
     }
 
     #[test]

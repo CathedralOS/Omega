@@ -57,7 +57,7 @@ pub use payload_predicates::{
 pub use payload_versions::{
     ProducedPayloadVersion, require_completed_scalar_capture, require_unchanged_observed_storage,
     require_unchanged_produced_payload, unchanged_payload_producer,
-    unchanged_stored_scalar_sources,
+    unchanged_stored_scalar_sources, unchanged_stored_sources,
 };
 pub use scalar_contracts::{case_payload_scalar_types, instantiate_payload_scalar_guarantees};
 mod owned_shape;
