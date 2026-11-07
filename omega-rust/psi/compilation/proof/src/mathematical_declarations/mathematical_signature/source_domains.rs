@@ -34,6 +34,7 @@ pub(super) struct SourceInput {
 
 pub(super) struct SourceInvocation {
     pub expression: ExpressionHandle,
+    pub owner: symbols::SymbolHandle,
     pub span: Option<source::SourceSpan>,
     pub formation: SourceFormation,
     pub domains: Vec<TermHandle>,
@@ -88,6 +89,7 @@ impl Elaborator<'_> {
         }
         self.source_invocations.push(SourceInvocation {
             expression,
+            owner: self.source_owner,
             span: if expression.is_valid() {
                 Some(self.program.expression_table.source_span(expression))
             } else {
@@ -277,6 +279,7 @@ impl Elaborator<'_> {
         };
         self.source_invocations.push(SourceInvocation {
             expression,
+            owner: self.source_owner,
             span: Some(self.program.expression_table.source_span(expression)),
             formation: SourceFormation::Result {
                 expected,
@@ -367,8 +370,8 @@ impl Elaborator<'_> {
                 |context, domain| context.extend(*domain),
             );
             let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
-            let (callee, inputs) = match invocation.formation {
-                SourceFormation::Application { callee, inputs } => (callee, inputs),
+            let (callee, inputs) = match &invocation.formation {
+                SourceFormation::Application { callee, inputs } => (*callee, inputs),
                 SourceFormation::Result { expected, actual } => {
                     let domain = match actual.domain {
                         Some(domain) => domain,
@@ -383,11 +386,17 @@ impl Elaborator<'_> {
                     if !self.source_domains_correspond(
                         signature,
                         &context,
-                        expected,
+                        *expected,
                         domain,
                         Some(actual.expression),
                         &mut budget,
                     )? {
+                        self.trace_source_domain_mismatch(
+                            &invocation,
+                            *expected,
+                            domain,
+                            actual.term,
+                        );
                         return Err(self.source_domain_error(
                             invocation.expression,
                             "mathematical result does not preserve its declared carrier and policy"
@@ -426,6 +435,7 @@ impl Elaborator<'_> {
                     input.expression.is_valid().then_some(input.expression),
                     &mut budget,
                 )? {
+                    self.trace_source_domain_mismatch(&invocation, domain, actual, input.term);
                     return Err(self.source_domain_error(
                         invocation.expression,
                         "mathematical argument does not preserve its declared carrier and policy"
@@ -436,6 +446,94 @@ impl Elaborator<'_> {
             }
         }
         Ok(())
+    }
+
+    // Temporary, bounded metadata for the retained result-domain refusal.
+    // It prints only after conversion has refused and grants no evidence.
+    fn trace_source_domain_mismatch(
+        &self,
+        invocation: &SourceInvocation,
+        expected: TermHandle,
+        actual: TermHandle,
+        value: TermHandle,
+    ) {
+        eprintln!(
+            "SOURCE-DOMAIN-TRACE owner={:?} path={} expression={:?} level_arity={} domains={} value={:?}",
+            invocation.owner,
+            self.program.symbols.display_path(invocation.owner, "::"),
+            invocation.expression,
+            invocation.level_arity,
+            invocation.domains.len(),
+            self.arena.get(value),
+        );
+        for (position, domain) in invocation.domains.iter().take(32).enumerate() {
+            eprintln!(
+                "SOURCE-DOMAIN-TRACE domain[{position}]={domain:?} {:?}",
+                self.arena.get(*domain),
+            );
+        }
+        if let Some(reference) =
+            validation::mathematical_applications::operand_type_reference_in_declaration(
+                self.program,
+                invocation.owner,
+                invocation.expression,
+            )
+        {
+            eprintln!(
+                "SOURCE-DOMAIN-TRACE source_reference={reference:?} {:?}",
+                self.program.type_reference_table.type_reference(reference),
+            );
+        }
+        let mut pending = vec![("expected", expected), ("actual", actual)];
+        let mut seen = Vec::new();
+        while let Some((side, handle)) = pending.pop() {
+            if seen.contains(&handle) {
+                continue;
+            }
+            if seen.len() == 32 {
+                eprintln!("SOURCE-DOMAIN-TRACE term limit reached");
+                break;
+            }
+            seen.push(handle);
+            let node = self.arena.get(handle);
+            eprintln!("SOURCE-DOMAIN-TRACE {side} {handle:?} {node:?}");
+            match node {
+                Term::Apply { function, argument } => {
+                    pending.push((side, function));
+                    pending.push((side, argument));
+                }
+                Term::Constant { declaration, .. } => {
+                    if let Some(row) = self.declarations.get(declaration as usize) {
+                        eprintln!(
+                            "SOURCE-DOMAIN-TRACE declaration={declaration} arity={} ty={:?} body={:?}",
+                            row.level_arity,
+                            self.arena.get(row.ty),
+                            row.body.map(|body| self.arena.get(body)),
+                        );
+                    }
+                    for (symbol, position) in &self.carriers {
+                        if *position == declaration {
+                            eprintln!(
+                                "SOURCE-DOMAIN-TRACE carrier={symbol:?} path={}",
+                                self.program.symbols.display_path(*symbol, "::"),
+                            );
+                        }
+                    }
+                    for alias in &self.source_aliases {
+                        if alias.declaration == declaration {
+                            eprintln!(
+                                "SOURCE-DOMAIN-TRACE alias={:?} {:?}",
+                                alias.reference,
+                                self.program
+                                    .type_reference_table
+                                    .type_reference(alias.reference),
+                            );
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 
     fn source_domain_head(
