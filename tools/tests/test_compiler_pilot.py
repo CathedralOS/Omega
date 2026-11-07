@@ -917,11 +917,18 @@ class CompilerPilotTests(unittest.TestCase):
             baseline.parent.mkdir(parents=True)
             original = b"existing matching-host observations\n"
             baseline.write_bytes(original)
+            output = root / "output"
+            output.mkdir()
             with patch.object(pilot, "ROOT", root):
-                self.assertEqual(pilot.observation_golden(
-                    root / "absent-output", both=True, target="linux_arm64"), baseline)
+                recorded = pilot.observation_golden(output, both=True, target="linux_arm64")
+            self.assertEqual(recorded, output / "recorded-corpus_both_linux_arm64.txt")
+            self.assertNotEqual(recorded, baseline)
+            self.assertEqual(recorded.read_bytes(), original)
             self.assertEqual(baseline.read_bytes(), original)
-            self.assertFalse((root / "absent-output").exists())
+            # Recording can change its private copy without changing the
+            # published observations that other callers still depend on.
+            recorded.write_bytes(b"recorded current-source observations\n")
+            self.assertEqual(baseline.read_bytes(), original)
 
     def report(self, both=False):
         fixtures = pilot.POSITIVES if both else pilot.POSITIVES + pilot.NEGATIVES

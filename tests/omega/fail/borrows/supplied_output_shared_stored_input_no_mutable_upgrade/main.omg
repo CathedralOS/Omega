@@ -1,6 +1,5 @@
 // A read-only borrow of a container cannot provide a writable reference to its cell.
 // Fact: A loan transported into a record before a possible suspension keeps its original backing, so the record reads 73 after the call.
-// Expected exit: 0
 public boundary trait Scheduler { machine park() reaches suspends; }
 public Immediate satisfies Scheduler { machine park() {} }
 public data Cell { value: i32; }

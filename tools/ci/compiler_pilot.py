@@ -198,7 +198,9 @@ def observation_golden(output, *, both, target):
     name = f"corpus_both_{target}.txt" if both else "corpus_outcomes.txt"
     published = ROOT / "tests/omega" / name
     if published.is_file():
-        return published
+        recorded = output / ("recorded-" + name)
+        shutil.copyfile(published, recorded)
+        return recorded
     if not both or not target:
         raise ValueError("source checking requires its published corpus baseline")
     # A first matching-host observation has no historical rows to compare.
@@ -472,7 +474,7 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
     def corpus(name, fixtures, both=False):
         report_path = output / f"{name}.json"
         arguments = [sys.executable, "tools/corpus_gate.py", "--runner", str(retained),
-                     "--filter", ",".join(fixtures), "--json", str(report_path),
+                     "--record", "--filter", ",".join(fixtures), "--json", str(report_path),
                      "--golden", str(observation_golden(
                          output, both=both, target=summary["target"]))]
         if both:

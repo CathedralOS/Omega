@@ -91,7 +91,17 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
         env:
           OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_fixtures; import os; print(select_fixtures(os.environ['OMEGA_COMPILER_PILOT_FIXTURES']))"
+        run: >-
+          python -c "from tools.ci.compiler_pilot import select_fixtures; import os;
+          from pathlib import Path; import corpus_gate;
+          from tools.ci import compiler_source_export;
+          selected=select_fixtures(os.environ['OMEGA_COMPILER_PILOT_FIXTURES']);
+          revision=corpus_gate.git_out('rev-parse', 'HEAD');
+          compiler_source_export.export(Path('build/compiler-pilot'), (revision,));
+          stamp=corpus_gate.measurement_stamp(Path('build/compiler-pilot/recorded-corpus_outcomes.txt'));
+          assert stamp and not stamp.endswith('+wt'), 'recording needs clean committed source';
+          problem=corpus_gate.stamp_provenance_problem(stamp, selected[0]+selected[1]);
+          assert problem is None, problem; print(selected, stamp)"
       - name: Validate exact fact sample selection before building
         if: github.event_name == 'workflow_dispatch' && inputs.samples != ''
         env:
@@ -232,6 +242,10 @@ jobs:
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         with:
           name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/*.json
+          path: |
+            build/compiler-pilot/*.json
+            build/compiler-pilot/recorded-corpus_*.txt
+            build/compiler-pilot/initial-corpus_*.txt
+            build/corpus-source/*.bundle
           if-no-files-found: warn
           retention-days: 7
