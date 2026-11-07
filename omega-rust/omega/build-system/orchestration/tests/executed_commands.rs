@@ -1,6 +1,7 @@
-//! Real command transactions use executed declarations and retain each Build
-//! across review passes and targets. Run these with nextest's process isolation:
-//! the execution counter measures the complete invocation.
+//! Targets share each source's Build result; a fresh session also runs the
+//! separate core-default supplier once. Unchanged Pure results survive review
+//! resumes. Run each test in its own process so unrelated invocations cannot
+//! affect either counter.
 
 use artifacts::compile_timings::counters;
 use orchestration::{
@@ -353,16 +354,22 @@ fn publish_candidate(project: &Path, command: PackageCommand, executions: u64) -
         build_inputs: None,
     };
     let mut session = BuildSession::create(&project.join("build/package-manager")).unwrap();
-    let before = counters::build_execution_count();
+    let before = counters::source_build_execution_count();
+    let suppliers = counters::provider_defaults_execution_count();
     let kind = match command {
         PackageCommand::Install { .. } => PackageCommandKind::Install,
         _ => PackageCommandKind::Update,
     };
     let mut outcome = execute_package_command(command, options.clone(), &mut session).unwrap();
     assert_eq!(
-        counters::build_execution_count() - before,
+        counters::source_build_execution_count() - before,
         executions,
         "review passes and two targets must not replay Build"
+    );
+    assert_eq!(
+        counters::provider_defaults_execution_count() - suppliers,
+        1,
+        "a fresh session executes the separate provider-default supplier once"
     );
     for _ in 0..3 {
         if outcome.status == PackageCommandStatus::Published {
@@ -386,17 +393,25 @@ fn publish_candidate(project: &Path, command: PackageCommand, executions: u64) -
         }
         accept_decisions(&outcome.review_paths);
         options.targets.clear();
-        let before = counters::build_execution_count();
+        let before = counters::source_build_execution_count();
+        let suppliers = counters::provider_defaults_execution_count();
         outcome = execute_package_command(
             PackageCommand::Resume { kind },
             options.clone(),
             &mut session,
         )
         .unwrap();
+        // These fixtures have output-free Pure Builds. Accepting a review
+        // changes the decision, while their exact Build inputs stay unchanged.
         assert_eq!(
-            counters::build_execution_count() - before,
-            executions,
-            "one new resume attempt executes each source once"
+            counters::source_build_execution_count() - before,
+            0,
+            "an unchanged Pure source result must survive same-session resume"
+        );
+        assert_eq!(
+            counters::provider_defaults_execution_count() - suppliers,
+            0,
+            "resuming the same session must reuse its completed provider defaults"
         );
     }
     assert_eq!(outcome.status, PackageCommandStatus::Published);
@@ -433,7 +448,8 @@ fn compile_accepted_project(project: &Path, executions: u64) {
         },
     ] {
         let check_only = matches!(product, ProjectProduct::Check);
-        let before = counters::build_execution_count();
+        let before = counters::source_build_execution_count();
+        let suppliers = counters::provider_defaults_execution_count();
         let outcomes = build(BuildRequest {
             root_path: project.join("main.omg"),
             build_directory: Some(project.join("build/sdk")),
@@ -447,7 +463,15 @@ fn compile_accepted_project(project: &Path, executions: u64) {
             build_snapshot: None,
         })
         .unwrap();
-        assert_eq!(counters::build_execution_count() - before, executions);
+        assert_eq!(
+            counters::source_build_execution_count() - before,
+            executions
+        );
+        assert_eq!(
+            counters::provider_defaults_execution_count() - suppliers,
+            1,
+            "a fresh product session executes its provider-default supplier once"
+        );
         assert_eq!(
             outcomes
                 .iter()
@@ -488,14 +512,20 @@ fn audit_with_options(
         project.join("build/package-manager/proposal"),
     ];
     let before: Vec<_> = files.iter().map(std::fs::read).collect();
-    let builds = counters::build_execution_count();
+    let builds = counters::source_build_execution_count();
+    let suppliers = counters::provider_defaults_execution_count();
     let outcome = inspect_packages(options).unwrap();
     if let Some(executions) = executions {
         assert_eq!(
-            counters::build_execution_count() - builds,
+            counters::source_build_execution_count() - builds,
             executions,
             "two-target inspection must not replay Build: {}",
             outcome.report
+        );
+        assert_eq!(
+            counters::provider_defaults_execution_count() - suppliers,
+            1,
+            "a fresh inspection session executes its provider-default supplier once"
         );
     }
     for (file, before) in files.iter().zip(before) {
