@@ -148,6 +148,3 @@ external roots with reach/stack/nesting/version pins, instruction footprints,
 and remaining authority debts. Installed-ledger snapshots are not guessed
 build tables. [Executable installation](executable_installation.md) owns boot
 authentication, AP artifacts, visibility, and quiescence independently.
-
-The [UEFI migration note](../../drafts/designs/uefi_bootstrap_migration.md)
-records the current bounded entrances without claiming complete boot execution.

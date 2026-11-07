@@ -72,9 +72,7 @@ Generic returned views require the complete instantiated frontier and its
 result-to-input relation. A template-dependent frontier is not an empty one;
 discarding the result cannot excuse missing call admission. General outlives
 syntax and broader multiple-source result relations are not supplied by the
-single-source elision rule. Current source-checker restrictions are recorded
-[beside checking](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md#lifetime-source-correspondence),
-not additional permissions to omit unresolved loans.
+single-source elision rule. Unresolved loans cannot be omitted.
 
 ## Carried-loan transport
 

@@ -555,10 +555,6 @@ tapered precision. Hardware integration additionally needs selected supported
 lowerings. Posit carriers and their extended format vocabulary remain future
 work, not permission to rebind `f32`.
 
-The [numeric implementation note](../../../omega-rust/psi/foundation/numerics/README.md)
-and [float realization note](../../drafts/reference/float_realization.md)
-record current support separately from these language contracts.
-
 ## Collection bounds
 
 Scalar indexing and range windows have separate bounds obligations. Each nested

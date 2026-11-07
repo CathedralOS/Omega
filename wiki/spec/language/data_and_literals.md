@@ -239,7 +239,7 @@ or confusable-name heuristics cannot change tokenization.
 visibility modifier or an alternative spelling of an ordinary type argument.
 The retired `dyn` spelling has no source type or conversion form.
 
-The current profile has no Unicode identifiers or raw-payload literal form.
+This profile has no Unicode identifiers or raw-payload literal form.
 Those require separately specified byte/identifier rules, not host-language
 syntax reuse.
 

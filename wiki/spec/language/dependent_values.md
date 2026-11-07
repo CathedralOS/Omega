@@ -224,10 +224,6 @@ routes, provenance, access and cleanup policies remain separate obligations;
 unfolding a predicate cannot manufacture them. Unaffected facts remain available
 under the exact mutation frame; invalidated facts require new evidence.
 
-The accepted behavior and implementation acceptance are tracked under
-**DOMAIN-ACCESS-AUTHORITY** in [TASKS.md](../../../TASKS.md) and the
-[repair-facts plan](../../drafts/designs/invariant_repair_facts.md).
-
 ### Collection invariants
 
 For `per-element-array-bounds`, use an ordinary pure, total, terminating

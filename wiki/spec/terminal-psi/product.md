@@ -1,6 +1,6 @@
 # Terminal Psi product
 
-This is the current portable-product contract, independent of the implementation
+This is the portable-product contract, independent of the implementation
 language. The [documentation index](../../README.md) lists its vocabulary subjects.
 [Boundary calls](boundary_calls.md), [byte views](byte_views.md),
 [structural access and owned byte values](structural_access.md), and
@@ -9,8 +9,6 @@ language. The [documentation index](../../README.md) lists its vocabulary subjec
 own references. [Mathematical proof values](mathematical_values.md) and
 [integer certificates](integer_certificates.md) define their proof vocabulary.
 [Structural predicates](structural_predicates.md) defines path and aggregate terms.
-Implementation coverage is not implied by a specified
-contract; unfinished integration belongs on the [execution board](../../../TASKS.md).
 
 ## Semantic boundary
 

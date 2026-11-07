@@ -73,5 +73,3 @@ path-conditioned crash site, checked against the published same-cause ceiling.
 
 This predicate vocabulary grants no ownership/content-transfer effect. Such
 effects require the separate [custody contract](../resources/content_custody.md).
-Source and runtime limits remain beside
-[Terminal production](../../../omega-rust/psi/compilation/psi-compiler/terminal-production/README.md#structural-predicate-production).

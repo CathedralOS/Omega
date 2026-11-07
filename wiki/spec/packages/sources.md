@@ -124,7 +124,7 @@ and foreign-review snapshots retain their independent persistence requirements.
 
 ## Reconciliation and updates
 
-The current resolver performs no semantic-version solving. Requests for one key
+Resolution does not perform semantic-version solving. Requests for one key
 that select the same immutable instance deduplicate despite different authored
 selectors. Different resolutions reject with all conflicting dependency paths;
 there is no guessed compatibility relation. Multiple simultaneous instances per
