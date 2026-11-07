@@ -99,12 +99,13 @@ proofs. Larger discovery can establish more compatibility; it cannot rename
 types, merge declarations, alter canonical matching, or change specialization
 keys. The resulting proof record and artifact bytes need not be identical.
 
-Published compatibility claims retain their semantic definitions and dependencies.
-External [Psi admission](../terminal-psi/product.md#publication-and-separate-consumption)
-establishes them under the receiver's own policy. A smaller allowance may prevent
-admission; it neither refutes the claim nor changes its identity. Charge receiving
-work rather than historical producer search. Internal specialization reuses checked
-judgments, and local cached search follows ordinary usage-receipt accounting.
+Published compatibility judgments retain their exact subjects and dependencies.
+Under [Psi admission](../terminal-psi/product.md#publication-and-separate-consumption),
+a host-authorized consumer reuses judgments from the trusted producer's exact
+artifact without rediscovering them. A smaller discovery allowance cannot invalidate
+that reuse. Loading and preparation have separate resource limits; exhaustion
+there reports resource refusal rather than failed theorem discovery. Local cached
+search follows ordinary usage-receipt accounting.
 
 ## ELF executable loader selection
 

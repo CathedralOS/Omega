@@ -9,19 +9,22 @@ facts. See the [product](product.md), [encoding](encoding.md), and
 
 ## Establishing facts on receipt
 
-An incoming artifact supplies the semantic statements and definitions from which
-the receiver reconstructs its obligations. Each premise must follow from checked
-operation semantics, established arrival predicates, checked contracts or an
-explicitly admitted external assumption. A producer's theorem name, success flag
-or asserted conclusion does not establish a premise.
+The [product admission contract](product.md#publication-and-separate-consumption)
+determines whether producer-established judgments may be reused. A trusted
+producer's exact artifact retains their subjects, substitutions and assumption
+dependencies. Later stages preserve the validity conditions below; a theorem
+name or success flag supplied by an untrusted artifact grants no premise.
 
-Erasing a source proof preserves the semantic definitions, subjects and dependencies
-needed to establish every affected published obligation. The receiver may construct
-local proofs and check them with the mathematical kernel. Missing justification,
-unsupported reasoning and exhausted proof work refuse admission under the
-[product contract](product.md#publication-and-separate-consumption). Within a
-trusted compilation, later stages may reuse judgments from checked immutable
-outputs while preserving their exact subjects and validity conditions.
+Receipt requires neither rediscovery of source theorems nor replay of carried
+certificates. The local kernel remains part of source proving. Canonical proof
+encoding alone does not establish the encoded judgment or its correspondence to
+an executable operation.
+
+Interpreter operation checks use actual values, storage and permissions even
+for trusted artifacts. Untrusted interpretation, when admitted under the
+containment contract, cannot use asserted facts to skip those checks or gain
+host authority. It does not establish arbitrary logical claims. Optimization
+and native lowering may consume producer judgments only from trusted input.
 
 ## Premise availability
 

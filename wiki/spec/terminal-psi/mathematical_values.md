@@ -9,12 +9,12 @@ for general evidence; they are not an independent general calculus. Retain exact
 declaration/encoding correspondence and assumed-law dependencies. A valid encoded
 term alone does not establish that it represents the artifact's required question.
 
-Publication retains these semantic values, types and definitions independently
-of the producer's proof derivations. A receiver uses them to reconstruct and
-establish the artifact's claims under
-[Psi admission](product.md#publication-and-separate-consumption). Removing a
-derivation must preserve any mathematical value or definition needed for that
-judgment.
+Publication retains these semantic values, types, definitions and exact subjects.
+Reuse of established mathematical judgments follows
+[Psi admission](product.md#publication-and-separate-consumption). Existing
+certificate-bearing encodings remain canonical data; they grant no proof or
+execution authority merely by being present. Receipt requires no theorem search
+or kernel replay.
 
 ## Integer terms
 

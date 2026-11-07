@@ -303,16 +303,17 @@ decision. Linking an already-built dependency does not charge its historical
 production cost.
 
 Published proof-only contracts retain their propositions, exact subjects,
-selected conformances, premises and necessary semantic definitions. They ship
-no producer derivations. External [Psi admission](../terminal-psi/product.md#publication-and-separate-consumption)
-establishes their required claims under the consumer's work policy, including
-compatibility between differently written indices. A smaller budget may prevent
-admission while leaving the claim's meaning unchanged. Within a trusted compile,
-specialization reuses the checked judgment. Ordinary theorem contracts and named
-witness/law bundles follow [proof contracts](../proofs/contracts.md); a cache does
-not turn erased evidence into runtime values. The separate
+selected conformances, premises and semantic dependencies. A host-authorized
+consumer of a trusted producer's exact artifact reuses the established judgment
+under [Psi admission](../terminal-psi/product.md#publication-and-separate-consumption).
+This includes compatibility of differently written indices: the consumer need
+not repeat proof discovery, and a smaller discovery budget cannot invalidate
+reuse. Loading and preparation retain their separate resource admission. Ordinary
+theorem contracts and named witness/law bundles follow
+[proof contracts](../proofs/contracts.md); a cache does not turn erased evidence
+into runtime values. The separate
 [proof-search-cache draft](../../drafts/reference/proof_search_cache.md) explores
-untrusted search reuse, not a replacement admission route.
+local search reuse, not a replacement admission route.
 
 ## Trait bodies and generators
 

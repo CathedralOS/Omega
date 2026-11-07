@@ -549,10 +549,12 @@ flowchart LR
     psi --> interpret["Interpreter"]
 ```
 
-Psi is the portable output of source checking. Its admission contract requires
-incoming artifacts to establish their retained contracts and ownership claims
-before execution or native lowering; installation also checks the receiving
-authority. Internal compilation reuses its checked judgments. Development tests compare
+Psi is the portable output of source checking. Consumers reuse a trusted
+producer's checked judgments for the exact artifact; the interpreter enforces
+operation safety and installed host permissions. Execution admission and the
+requirements for future untrusted interpretation are defined in the
+[product contract](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption).
+Development tests compare
 native execution with the Psi interpreter using `omega run --both`.
 The compiler's transformations remain trusted; execution agreement covers the
 tested inputs and observations.

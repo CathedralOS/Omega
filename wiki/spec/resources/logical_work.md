@@ -60,15 +60,30 @@ account, with its resource bounds/receipts, and charge before admitted work.
 An increased expansion allowance does not waive another work or storage limit.
 Missing proof or exhausted resources cannot establish a negative proposition.
 
-A successful compatibility judgment remains available through exact generic
-substitution inside its trusted compilation. External Psi admission reconstructs
-the required claims from retained semantics and proves them under its own granted
-work and storage budgets. Charge that receiving work, not historical producer
-search. A smaller receiver budget can prevent admission without changing any
-semantic identity or refuting the claim. Neither a producer work receipt nor a
-reported success grants a fact. Local cached work remains subject to
+A successful compatibility judgment survives exact generic substitution. A
+host-authorized consumer of the trusted producer's exact artifact reuses it
+without repeating proof discovery. A smaller receiving discovery budget cannot
+invalidate that reuse. Neither a work receipt nor a success flag establishes
+producer trust. Local cached work follows
 [usage-record accounting](../language/evaluation.md#result-caching-and-published-evidence).
-Report receiver exhaustion, unsupported reasoning and a refuted claim distinctly.
+
+## Loading and interpreter checks
+
+External loading and preparation have a host-granted aggregate work budget,
+separate from source proof-discovery limits and executed-program work. Charge
+parsing, canonicalization, structural validation and execution preparation before
+the work, including descriptor and entailment analysis. Per-query limits remain
+useful but do not replace the aggregate budget. Report exhaustion as a resource
+refusal, distinct from malformed input, unsupported semantics or a false predicate.
+
+Interpreter dispatch retains concrete safety and closed actual-value checks,
+with accounted work limits. Static declaration analysis belongs to preparation;
+repeated execution adds no proof search or scans over whole declaration tables.
+Ordinary traversal of runtime data still consumes its normal work. The operation
+schedule alone is not a bound on all implementation or host-service cost.
+Installed adapters enforce host-work quotas and outstanding-resource limits;
+a guest work meter cannot preempt a synchronous host call or reclaim storage
+still held by a provider. See [embedding](../build/embedding.md#loading-and-preparation).
 
 ## Composition and charged work
 

@@ -130,13 +130,13 @@ The [proof admission kernel](../proof/admission/README.md) keeps its local proof
 objects and checkers. They do not imply that every source automation route uses
 the kernel or that every foundation feature is implemented.
 
-The theorem-citation erasure above must be audited under
-[PSI-CLAIM-ADMISSION](../../../../wiki/drafts/designs/psi_claim_admission.md).
-Its declaration roster does not establish arbitrary omitted theorem conclusions.
-Preserve enough semantic information to justify affected published obligations;
-neither a source-checked flag nor a retained but unproved requirement can replace
-receiver checking. The migration removes transported derivations and integrates
-incoming-Psi admission while preserving the local kernel and bounded automation.
+The theorem-citation erasure above must preserve the exact subject, assumptions
+and dependencies of a judgment reused from a trusted producer. A declaration
+roster does not itself establish an omitted theorem conclusion. The
+[Psi admission and preparation plan](../../../../wiki/drafts/designs/psi_claim_admission.md)
+requires explicit host trust for execution, keeps concrete interpreter checks,
+and moves static descriptor/entailment work out of dispatch. It does not require
+receivers to rediscover source proofs or remove the local kernel or proof codec.
 
 ## Arithmetic and arrival analysis
 
