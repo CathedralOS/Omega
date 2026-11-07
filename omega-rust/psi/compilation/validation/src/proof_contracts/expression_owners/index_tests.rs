@@ -361,3 +361,288 @@ fn indexed_owners_match_raw_rosters_targets_and_refusals_for_exact_worlds() {
         Some(targets[0])
     );
 }
+
+#[test]
+fn preparation_retains_fresh_applied_signature_and_parameter_scopes() {
+    use typed_trees::data::TypeParameter;
+    use typed_trees::signature::{SignatureContract, SignatureContractKind, StateSignature};
+    use typed_trees::trait_definition::{Conformance, TraitDefinition};
+    use typed_trees::types::TypeConstraintNode;
+
+    let mut symbols = SymbolTableBuilder::default();
+    let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = symbols.insert_children(
+        root,
+        [
+            (SymbolKind::Trait, SymbolNameRef::Static("Other")),
+            (SymbolKind::Trait, SymbolNameRef::Static("Generic")),
+            (SymbolKind::Conformance, SymbolNameRef::Static("UnitView")),
+        ],
+    );
+    let other = declarations.handle_at(0);
+    let generic = declarations.handle_at(1);
+    let implementation = declarations.handle_at(2);
+    let other_law = symbols
+        .insert_children(other, [(SymbolKind::Machine, SymbolNameRef::Static("law"))])
+        .handle_at(0);
+    let other_value = symbols
+        .insert_children(
+            other_law,
+            [(SymbolKind::Parameter, SymbolNameRef::Static("value"))],
+        )
+        .handle_at(0);
+    let members = symbols.insert_children(
+        generic,
+        [
+            (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+            (SymbolKind::Machine, SymbolNameRef::Static("predicate")),
+            (SymbolKind::Machine, SymbolNameRef::Static("law")),
+        ],
+    );
+    let t = members.handle_at(0);
+    let predicate = members.handle_at(1);
+    let law = members.handle_at(2);
+    let predicate_value = symbols
+        .insert_children(
+            predicate,
+            [(SymbolKind::Parameter, SymbolNameRef::Static("value"))],
+        )
+        .handle_at(0);
+    let parameters = symbols.insert_children(
+        law,
+        [
+            (SymbolKind::Parameter, SymbolNameRef::Static("value")),
+            (SymbolKind::Parameter, SymbolNameRef::Static("limit")),
+            (SymbolKind::Parameter, SymbolNameRef::Static("amount")),
+        ],
+    );
+    let mut program = TypedTrees {
+        symbols: symbols.finish(),
+        ..Default::default()
+    };
+    let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+    let boolean = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::from("bool"),
+        });
+    let integer = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::from("u64"),
+        });
+    let formal = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: t,
+            name: Identifier::from("T"),
+        });
+    let unresolved_value =
+        || Expression::Name(NamePath::unresolved(vec![Identifier::from("value")]));
+    let other_root = program.expression_table.insert_tree(&unresolved_value());
+    let mut other_signature = StateSignature {
+        symbol: other_law,
+        name: Identifier::from("law"),
+        ..Default::default()
+    };
+    program.push_state_signature_parameter(
+        &mut other_signature,
+        StateParameter {
+            symbol: other_value,
+            name: Identifier::from("value"),
+            type_reference: boolean,
+            ..Default::default()
+        },
+    );
+    let facts = program
+        .proof_facts
+        .insert_many([ProofFact::Expression(other_root)]);
+    program.push_state_signature_contract(
+        &mut other_signature,
+        SignatureContract {
+            kind: SignatureContractKind::Ensures,
+            facts,
+            ..Default::default()
+        },
+    );
+    let mut other_definition = TraitDefinition {
+        symbol: other,
+        name: Identifier::from("Other"),
+        ..Default::default()
+    };
+    program.push_trait_machine_signature(&mut other_definition, other_signature);
+    program.push_trait_definition(other_definition);
+
+    let root = program
+        .expression_table
+        .insert_tree(&Expression::Call(Box::new(CallExpression {
+            authored_call_selection: None,
+            authored_call_binding: None,
+            exact_coercion_target: Default::default(),
+            requirement_application: Default::default(),
+            receiver: None,
+            target_symbol: predicate,
+            target: Identifier::from("predicate"),
+            arguments: vec![unresolved_value()].into(),
+            evidence_arguments: Vec::new().into(),
+            operational_acknowledgement: Default::default(),
+        })));
+    let limit = program
+        .expression_table
+        .insert_tree(&Expression::Name(NamePath::resolved(
+            vec![Identifier::from("limit")],
+            parameters.handle_at(1),
+            parameters.handle_at(1),
+        )));
+    let constraints =
+        program
+            .type_reference_table
+            .insert_constraints([TypeConstraintNode::Range {
+                minimum: limit,
+                maximum: limit,
+                end_inclusive: true,
+            }]);
+    let bounded = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Constrained {
+            base_type: integer,
+            constraints,
+        });
+    let mut signature = StateSignature {
+        symbol: law,
+        name: Identifier::from("law"),
+        ..Default::default()
+    };
+    for (position, (name, type_reference)) in
+        [("value", formal), ("limit", integer), ("amount", bounded)]
+            .into_iter()
+            .enumerate()
+    {
+        program.push_state_signature_parameter(
+            &mut signature,
+            StateParameter {
+                symbol: parameters.handle_at(position as u32),
+                name: Identifier::from(name),
+                type_reference,
+                ..Default::default()
+            },
+        );
+    }
+    let facts = program
+        .proof_facts
+        .insert_many([ProofFact::Expression(root)]);
+    program.push_state_signature_contract(
+        &mut signature,
+        SignatureContract {
+            kind: SignatureContractKind::Ensures,
+            facts,
+            ..Default::default()
+        },
+    );
+    let type_parameters = program.data_type_parameters.insert_many([TypeParameter {
+        symbol: t,
+        name: Identifier::from("T"),
+        ..Default::default()
+    }]);
+    let mut definition = TraitDefinition {
+        symbol: generic,
+        name: Identifier::from("Generic"),
+        type_parameters,
+        ..Default::default()
+    };
+    let mut predicate_signature = StateSignature {
+        symbol: predicate,
+        name: Identifier::from("predicate"),
+        return_type: boolean,
+        ..Default::default()
+    };
+    program.push_state_signature_parameter(
+        &mut predicate_signature,
+        StateParameter {
+            symbol: predicate_value,
+            name: Identifier::from("value"),
+            type_reference: formal,
+            ..Default::default()
+        },
+    );
+    program.push_trait_machine_signature(&mut definition, predicate_signature);
+    program.push_trait_machine_signature(&mut definition, signature);
+    program.push_trait_definition(definition);
+    let arguments = program
+        .type_reference_table
+        .insert_type_reference_handles([unit]);
+    program.push_conformance(Conformance {
+        symbol: implementation,
+        trait_name: Identifier::from("Generic"),
+        trait_symbol: generic,
+        arguments,
+        ..Default::default()
+    });
+    program.prepare_applied_callable_signatures().unwrap();
+    let applied = program
+        .prepared_callable_signatures()
+        .find(|signature| signature.symbol == law)
+        .unwrap();
+    let actuals = program.state_signature_parameters(applied);
+    assert_ne!(actuals[0].symbol, parameters.handle_at(0));
+    assert_ne!(actuals[0].symbol, other_value);
+    assert_eq!(
+        program.normalized_type_identity(actuals[0].type_reference),
+        program.normalized_type_identity(unit)
+    );
+    let contract = &program.state_signature_contracts(applied)[0];
+    let applied_root = program.proof_facts.span_or_empty(contract.facts)[0]
+        .as_expression()
+        .copied()
+        .unwrap();
+    assert_ne!(applied_root, root);
+    let call = program.expression_table.call_node(applied_root).unwrap();
+    let value = program.expression_table.expression_handles(call.arguments)[0];
+    let TypeReferenceNode::Constrained { constraints, .. } = program
+        .type_reference_table
+        .type_reference(actuals[2].type_reference)
+    else {
+        panic!("prepared parameter lost its complete constraint");
+    };
+    let TypeConstraintNode::Range { maximum, .. } =
+        program.type_reference_table.constraints(*constraints)[0]
+    else {
+        panic!("prepared parameter lost its range");
+    };
+    let facts = Arena::default();
+    let owners = OwnerEnvironmentIndex::for_preparation(&program);
+    assert_eq!(
+        source_declaration_owner(&program, applied_root, &owners),
+        Some(law)
+    );
+    let infer = |owner, expression| {
+        checked_expression_type_reference_from_exact_owner(
+            &program,
+            &facts,
+            owner,
+            expression,
+            Some(&owners),
+        )
+        .map(|reference| program.normalized_type_identity(reference))
+    };
+    assert_eq!(
+        infer(applied_root, value),
+        Some(program.normalized_type_identity(unit))
+    );
+    assert_ne!(
+        infer(applied_root, value),
+        Some(program.normalized_type_identity(boolean))
+    );
+    assert_eq!(
+        infer(other_root, other_root),
+        Some(program.normalized_type_identity(boolean))
+    );
+    assert_eq!(
+        infer(maximum, maximum),
+        Some(program.normalized_type_identity(integer))
+    );
+    assert!(owners.containing_contract_facts(applied_root).is_empty());
+    assert!(owners.containing_contract_facts(maximum).is_empty());
+}
