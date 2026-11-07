@@ -130,19 +130,21 @@ pub(in crate::machine_calls::calls::write_frames::stored_calls) fn assignment_ad
         Some(facts::PlaceSegment::FixedRange { start, end }) => Some((*start, *end)),
         _ => None,
     };
-    let actual =
-        crate::expression_result_type_reference(program, machine, state, target.expression)
-            .ok_or("destination has no checked result type")?;
-    if window.is_none()
-        && program.normalized_type_identity(actual) != program.normalized_type_identity(receiving)
-    {
-        cursor
-            .reference_access()
-            .ok_or("destination result is not a reference to its receiving cell")?;
-        descriptor = Some((target, place.segments.len()));
-        cursor
-            .enter_referee()
-            .ok_or("destination result has no reference backing")?;
+    // The prepared receiving array below owns a window's type; its range
+    // expression need not produce an independently typed value.
+    if window.is_none() {
+        let actual =
+            crate::expression_result_type_reference(program, machine, state, target.expression)
+                .ok_or("destination has no checked result type")?;
+        if program.normalized_type_identity(actual) != program.normalized_type_identity(receiving) {
+            cursor
+                .reference_access()
+                .ok_or("destination result is not a reference to its receiving cell")?;
+            descriptor = Some((target, place.segments.len()));
+            cursor
+                .enter_referee()
+                .ok_or("destination result has no reference backing")?;
+        }
     }
     if !matches_receiving(cursor, window, receiving) {
         return Err("destination projection changes its receiving storage type");
