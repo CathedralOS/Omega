@@ -1440,7 +1440,7 @@ fn recognize_structural_state_leaves_from<'a>(
                 // This observes callee entry before the statement completes or
                 // imports its guarantees. Hoisted calls and authored locals own
                 // the same ordered operation entries as terminal calls.
-                call_entries::observe_calls(
+                call_entries::observe_statement(
                     program,
                     machine,
                     invocation,
@@ -1450,7 +1450,6 @@ fn recognize_structural_state_leaves_from<'a>(
                     states,
                     state,
                     statement_index,
-                    call_entries::CallEntryScope::Statement,
                     parameter_names,
                     &environment,
                     &case_hypotheses,
@@ -2280,32 +2279,6 @@ fn recognize_structural_state_leaves_from<'a>(
                     }
                 } else {
                     if !visitors.is_empty() && matches!(target, TransitionTargetNode::Value(_)) {
-                        // Selected value targets can contain ordinary calls,
-                        // including calls below a Match. Observe their actual
-                        // entries before importing any completion guarantees.
-                        call_entries::observe_calls(
-                            program,
-                            machine,
-                            invocation,
-                            judge,
-                            classification,
-                            diagnostics,
-                            states,
-                            state,
-                            statement_index,
-                            call_entries::CallEntryScope::SelectedTarget(transition.source_target?),
-                            parameter_names,
-                            &branch_environment,
-                            &branch_hypotheses,
-                            &branch_equations,
-                            &pending_citations,
-                            path,
-                            arrivals,
-                            frame_id,
-                            fresh,
-                            visitors,
-                            &established_guarantees,
-                        )?;
                         continue;
                     }
                     let mut branch_judge =

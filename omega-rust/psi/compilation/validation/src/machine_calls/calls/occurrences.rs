@@ -29,13 +29,6 @@ pub enum CallSite<'program> {
     },
 }
 
-/// One source call and the transition operand lane which owns its ordinal.
-/// Guard and ordinary statement calls retain the empty target.
-pub(crate) struct StatementCallOccurrence<'program> {
-    pub(crate) site: CallSite<'program>,
-    pub(crate) transition_target: typed_trees::statement::TransitionTargetHandle,
-}
-
 impl<'program> CallSite<'program> {
     pub fn authored_application(
         &self,
@@ -244,24 +237,6 @@ pub fn collect_call_sites_in_statement<'program>(
     };
     let mut traversal = CallSiteTraversal::collecting(program, machine, state, &mut collected);
     let _ = find_call_site_in_statement(&mut traversal, statement);
-    collected
-}
-
-/// Retain call/target association during the same ordinal-producing walk.
-/// Queries that inspect a complete statement must not rediscover its lane by
-/// walking the statement again for each call.
-pub(crate) fn collect_statement_call_occurrences<'program>(
-    program: &'program dyn crate::CheckingInput,
-    machine: &'program typed_trees::machine::Machine,
-    state: &'program typed_trees::state::State,
-    statement_index: usize,
-) -> Vec<StatementCallOccurrence<'program>> {
-    let mut collected = Vec::new();
-    if let Some(statement) = program.statement_table.statement_at(state, statement_index) {
-        let mut traversal =
-            CallSiteTraversal::collecting_occurrences(program, machine, state, &mut collected);
-        let _ = find_call_site_in_statement(&mut traversal, statement);
-    }
     collected
 }
 

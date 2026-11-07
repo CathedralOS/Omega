@@ -1,10 +1,3 @@
-//! Call ordinals and their owning target lanes come from one traversal.
-
-enum CollectedCalls<'program, 'query> {
-    Sites(&'query mut Vec<super::super::CallSite<'program>>),
-    Occurrences(&'query mut Vec<super::super::StatementCallOccurrence<'program>>),
-}
-
 // Callers select one statement before entering traversal. Ordinals belong to
 // that walk; source statement coordinates remain on the authored call facts.
 pub(in crate::machine_calls::calls::occurrences) struct CallSiteTraversal<'program, 'ordinal> {
@@ -19,8 +12,7 @@ pub(in crate::machine_calls::calls::occurrences) struct CallSiteTraversal<'progr
     /// Selection ancestry does not change call ordinals or lookup membership.
     conditional: bool,
     pub(in crate::machine_calls::calls::occurrences) matched_conditionally: bool,
-    collected: Option<CollectedCalls<'program, 'ordinal>>,
-    transition_target: typed_trees::statement::TransitionTargetHandle,
+    pub(super) collected: Option<&'ordinal mut Vec<super::super::CallSite<'program>>>,
     /// Normalization preserves a DAG's authored expression handles. A second
     /// edge to one call is not a second authored invocation or ordinal.
     expressions: Vec<typed_trees::expression::ExpressionHandle>,
@@ -40,7 +32,6 @@ impl<'program> CallSiteTraversal<'program, '_> {
             target_call_ordinal,
             current_ordinal: 0,
             collected: None,
-            transition_target: Default::default(),
             conditional: false,
             matched_conditionally: false,
             expressions: Vec::new(),
@@ -61,23 +52,11 @@ impl<'program> CallSiteTraversal<'program, '_> {
             state,
             target_call_ordinal: usize::MAX,
             current_ordinal: 0,
-            collected: Some(CollectedCalls::Sites(collected)),
-            transition_target: Default::default(),
+            collected: Some(collected),
             conditional: false,
             matched_conditionally: false,
             expressions: Vec::new(),
         }
-    }
-
-    pub(in crate::machine_calls::calls::occurrences) fn collecting_occurrences<'ordinal>(
-        program: &'program dyn crate::CheckingInput,
-        machine: &'program typed_trees::machine::Machine,
-        state: &'program typed_trees::state::State,
-        collected: &'ordinal mut Vec<super::super::StatementCallOccurrence<'program>>,
-    ) -> CallSiteTraversal<'program, 'ordinal> {
-        let mut traversal = Self::new(program, machine, state, usize::MAX);
-        traversal.collected = Some(CollectedCalls::Occurrences(collected));
-        traversal
     }
 
     /// Site admission shared by every traversal arm: collect mode records the
@@ -92,16 +71,8 @@ impl<'program> CallSiteTraversal<'program, '_> {
             }
             self.expressions.push(expression);
         }
-        if let Some(collected) = self.collected.as_mut() {
-            match collected {
-                CollectedCalls::Sites(collected) => collected.push(site),
-                CollectedCalls::Occurrences(collected) => {
-                    collected.push(super::super::StatementCallOccurrence {
-                        site,
-                        transition_target: self.transition_target,
-                    })
-                }
-            }
+        if let Some(collected) = self.collected.as_deref_mut() {
+            collected.push(site);
             self.advance_call_ordinal();
             return None;
         }
@@ -123,18 +94,6 @@ impl<'program> CallSiteTraversal<'program, '_> {
         self.conditional = true;
         let result = visit(self);
         self.conditional = enclosing;
-        result
-    }
-
-    pub(super) fn selected_target(
-        &mut self,
-        target: typed_trees::statement::TransitionTargetHandle,
-        visit: impl FnOnce(&mut Self) -> Option<super::super::CallSite<'program>>,
-    ) -> Option<super::super::CallSite<'program>> {
-        let enclosing = self.transition_target;
-        self.transition_target = target;
-        let result = self.selected(visit);
-        self.transition_target = enclosing;
         result
     }
 
