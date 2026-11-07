@@ -102,8 +102,8 @@ mod domain;
 mod mutation;
 
 // What a call reads through its receiver: the borrow checks compare it with the
-// same call's exclusive argument loans beside whole `&mut` receivers. A jump's
-// argument loans cover less of its successor's run than a call's (`jump_loans`).
+// same call's exclusive argument loans beside whole `&mut` receivers. Terminal
+// carrier transport retains each child's own held footprint (`jump_loans`).
 mod jump_loans;
 mod receiver_reads;
 
@@ -264,3 +264,5 @@ pub(crate) use value_origins::value_origin_matches_call_return;
 
 mod local_jump;
 pub(crate) use local_jump::{LocalJump, local_jump};
+mod terminal_invocation;
+pub(crate) use terminal_invocation::terminal_invocation;

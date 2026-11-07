@@ -1204,7 +1204,7 @@ fail/borrows/copied_scalar_field_without_restriction rejected 826ms expected @86
 	cannot prove requires contract for call bounded from selected: limits.value <= 5 (needs fact `value <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/copied_shared_descendant_keeps_owner rejected 2618ms expected @ccdb99ca2214
 	state `drop$specialized$9b3577554a1251b5$0` receives an owned value while local borrow `views` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
-fail/borrows/cyclic_arrival_duplicates_exclusive_reference rejected 2182ms expected @ccdb99ca2214
+fail/borrows/cyclic_arrival_duplicates_exclusive_reference rejected 3925ms expected @5c3171ba11d9
 	state `spin` receives `sibling` as mutable more than once
 fail/borrows/dependent_window_region_retains_backing rejected 19952ms expected @8f0aaf5506a1+wt
 	a completed copied argument retains backing storage overlapping a staged exclusive loan in machine `main`, state `entry`, statement 4
@@ -1546,7 +1546,7 @@ fail/borrows/nested_machine_unit_output_unwritten_branch_rejected rejected 16507
 	statement 5 reads `old.canary` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/borrows/nested_owned_call_backing_keeps_input_loan rejected 5114ms expected regressed-from:checked @accfac32d2bd
 	statement 3 mutates `second.payload` while local borrow `__hoist_27` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/borrows/nested_parent_forwarding_overlapping_child rejected 2518ms expected @ccdb99ca2214
+fail/borrows/nested_parent_forwarding_overlapping_child rejected 3906ms expected @5c3171ba11d9
 	state `observe` receives `counter.count` as mutable while its mutable receiver reads `counter.count`
 fail/borrows/nested_reference_call_stale_index rejected 1879ms expected @ccdb99ca2214
 	cannot prove index `external` is within length 2 in exercise::entry
@@ -2073,6 +2073,8 @@ fail/borrows/terminal_case_retained_observation rejected 1079ms expected @49e92b
 	state `finish` receives `pool` as both mutable and read-only
 	state `finish` receives `pool` as both mutable and read-only
 	state `finish` receives `pool` while local borrow `__transition_subject#11` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/borrows/terminal_parent_keeps_uncarried_child rejected 4418ms expected @5c3171ba11d9
+	state `read_parent` receives `main` while local borrow `pending` is still active
 fail/borrows/terminal_static_callback_requires_public_field_guarantee rejected 3440ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from apply at statement 0: result.sibling.len == source.sibling.len
 fail/borrows/terminal_static_callback_result_does_not_restore_entry_contents rejected 8186ms expected @e9afae5fccb7
@@ -19675,8 +19677,7 @@ pass/borrows/runtime_copied_range_record_domains_exit checked 8042ms check-targe
 pass/borrows/runtime_copied_reference_conditional_nominal_backing_exit checked 12711ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/borrows/runtime_copied_reference_conditional_structural_result_exit checked 10478ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/borrows/runtime_copyable_carrier_retirement_exit checked 3730ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_cyclic_field_loan_release_exit rejected 17364ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::update::snapshot", reason: "captured state loan requires invocation carrier arrival", gap: None })
+pass/borrows/runtime_cyclic_field_loan_release_exit checked 15418ms check-target:macos_arm64 @5c3171ba11d9
 pass/borrows/runtime_dependent_callback_window_byte_exit checked 8511ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_dependent_forwarded_window_exit checked 7982ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_dependent_window_byte_payload_exit checked 19900ms check-target:macos_arm64 @911f6617ba9e
