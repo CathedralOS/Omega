@@ -912,7 +912,7 @@ pub(in crate::flow) fn append_match_pattern_context(
     if let FactPayload::MatchPattern {
         expression,
         arm,
-        matched: true,
+        matched,
     } = payload
         && let Some(dispatch) = program.expression_table.match_node(expression)
         && let Some((machine_position, state_position)) =
@@ -937,6 +937,9 @@ pub(in crate::flow) fn append_match_pattern_context(
             dispatch,
             source_arm.pattern,
         ) && case.is_valid()
+            // Success selects the case even for a guarded pattern. Failure
+            // excludes it only when the whole pattern tests that case alone.
+            && (matched || validation::structural_match_pattern_is_total(program, source_arm.pattern))
         {
             let alias = if dispatch.capture.is_valid() {
                 expressions(program)
@@ -960,7 +963,7 @@ pub(in crate::flow) fn append_match_pattern_context(
                 &[],
                 FactPayload::CaseValue {
                     variant: case,
-                    value: true,
+                    value: matched,
                 },
                 point,
                 FactOrigin::TransitionGuard,
@@ -994,7 +997,7 @@ pub(in crate::flow) fn append_match_pattern_context(
                     &[],
                     FactPayload::CaseValue {
                         variant: case,
-                        value: true,
+                        value: matched,
                     },
                     point,
                     FactOrigin::TransitionGuard,
