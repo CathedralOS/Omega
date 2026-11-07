@@ -20,6 +20,7 @@ pub(crate) struct LocalConstructionTrace {
     state: Cell<Option<SymbolHandle>>,
     statement_index: Cell<Option<u32>>,
     declined_step: Cell<Option<DeclinedStep>>,
+    result_custody: Cell<Option<ResultCustodyFailure>>,
 }
 
 /// One position of the trace, so a builder that set a statement aside for a
@@ -28,6 +29,18 @@ pub(crate) struct LocalConstructionTrace {
 pub(crate) struct TraceMark {
     phase: &'static str,
     statement_index: Option<u32>,
+    result_custody: Option<ResultCustodyFailure>,
+}
+
+/// Counts from the actual failed result join, not a second custody analysis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ResultCustodyFailure {
+    pub(crate) binding: u32,
+    pub(crate) local: SymbolHandle,
+    pub(crate) producer_operation: usize,
+    /// Implicit exit, call, cleanup, construction, reference and view owners.
+    pub(crate) dispositions: [usize; 6],
+    pub(crate) normal_caller_completion: bool,
 }
 
 /// A declined attempt belongs to one complete authored trace position.
@@ -81,6 +94,7 @@ impl LocalConstructionTrace {
     /// Enter a phase; the statement position resets with it.
     pub(crate) fn phase(&self, phase: &'static str) {
         self.declined_step.set(None);
+        self.result_custody.set(None);
         self.phase.set(phase);
         self.statement_index.set(None);
     }
@@ -90,6 +104,7 @@ impl LocalConstructionTrace {
         TraceMark {
             phase: self.phase.get(),
             statement_index: self.statement_index.get(),
+            result_custody: self.result_custody.get(),
         }
     }
 
@@ -98,6 +113,7 @@ impl LocalConstructionTrace {
         self.declined_step.set(None);
         self.phase.set(mark.phase);
         self.statement_index.set(mark.statement_index);
+        self.result_custody.set(mark.result_custody);
     }
 
     pub(crate) fn decline_mark(&self) -> DeclineMark {
@@ -122,6 +138,7 @@ impl LocalConstructionTrace {
     pub(crate) fn statement(&self, index: Option<u32>) {
         self.declined_step.set(None);
         self.statement_index.set(index);
+        self.result_custody.set(None);
     }
 
     /// The authored state a multi-state builder is planning; it persists
@@ -130,6 +147,11 @@ impl LocalConstructionTrace {
     pub(crate) fn state(&self, state: Option<SymbolHandle>) {
         self.declined_step.set(None);
         self.state.set(state);
+        self.result_custody.set(None);
+    }
+
+    pub(crate) fn result_custody_failure(&self, failure: ResultCustodyFailure) {
+        self.result_custody.set(Some(failure));
     }
 
     /// The gap at the last marked position. A statement mark without a state
@@ -157,6 +179,19 @@ impl LocalConstructionTrace {
                 step.phase,
             )),
             _ => std::borrow::Cow::Borrowed(self.phase.get()),
+        };
+        let phase = match self.result_custody.get() {
+            Some(failure) => {
+                let [implicit, call, cleanup, construction, reference, view] = failure.dispositions;
+                std::borrow::Cow::Owned(format!(
+                    "{phase}; result home {} local {:?}, producer operation {}, normal caller completion {}; dispositions: implicit={implicit}, call={call}, cleanup={cleanup}, construction={construction}, reference={reference}, view={view}",
+                    failure.binding,
+                    failure.local,
+                    failure.producer_operation,
+                    failure.normal_caller_completion,
+                ))
+            }
+            None => phase,
         };
         plan_gap(
             program,

@@ -29,7 +29,7 @@ pub(crate) use call_results::{
     bind_scalar_call_result, bind_structural_call_result, checked_structural_result_type,
 };
 pub(crate) use checked_machine::build_checked_machine_residual_parts;
-pub(crate) use construction_trace::LocalConstructionTrace;
+pub(crate) use construction_trace::{LocalConstructionTrace, ResultCustodyFailure};
 
 use super::{
     CheckFacts, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,

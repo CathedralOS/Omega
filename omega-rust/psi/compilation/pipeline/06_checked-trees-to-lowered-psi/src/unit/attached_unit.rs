@@ -494,6 +494,12 @@ pub(crate) fn lower_unit_closure(
                 reason,
                 gap: None,
             },
+            LoweringError::InvalidArgumentProjection(mut failure) => {
+                failure
+                    .machine
+                    .get_or_insert_with(|| checked.symbols.display_path(plan.machine, "::"));
+                LoweringError::InvalidArgumentProjection(failure)
+            }
             error => error,
         };
         let parameters = &signature.parameters;

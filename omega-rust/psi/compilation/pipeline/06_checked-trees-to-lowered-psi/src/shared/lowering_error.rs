@@ -40,6 +40,30 @@ pub struct SelectedCleanupEntryMismatch {
     pub sites: Vec<SelectedCleanupEntrySite>,
 }
 
+/// Bounded context from the exact rejected projection step. It retains no
+/// declaration graph or literal bytes and grants no alternate address path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArgumentProjectionFailure {
+    pub reason: &'static str,
+    pub machine: Option<String>,
+    pub root: semantic_vocabulary::StructuralTypeId,
+    pub selected_type: Option<semantic_vocabulary::StructuralTypeId>,
+    pub selected_carrier: &'static str,
+    pub failed_step: usize,
+    pub segments: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    pub segment_count: usize,
+    pub source_root: Option<facts::PlaceRoot>,
+    pub source_parameter: Option<u32>,
+    pub source_result: Option<u32>,
+    pub published_root: Option<semantic_vocabulary::StructuralTypeId>,
+    pub argument_type: Option<typed_trees::type_identity::TypeIdentityId>,
+    pub logical_root: Option<typed_trees::type_identity::TypeIdentityId>,
+    pub root_reference_hops: u32,
+    pub access: Option<checked_trees::CheckedStructuralAccess>,
+    pub operation_file: &'static str,
+    pub operation_line: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
     TaskActivation(Vec<Diagnostic>),
@@ -146,6 +170,7 @@ pub enum LoweringError {
     InvalidCallMembershipSource(&'static str),
     InvalidSuspensionPlan(&'static str),
     Unsupported(&'static str),
+    InvalidArgumentProjection(Box<ArgumentProjectionFailure>),
     CompilerEvaluationAdmission(String),
     /// Preserve the two actual descriptor shapes at a failed state-owner join.
     CapturedLoanDescriptorMismatch {
@@ -433,6 +458,12 @@ pub(crate) fn unit_machine_plan_error<'a>(
                 .terminal_unit_effects
                 .gap_diagnostic(symbol, &checked.symbols),
         },
+        LoweringError::InvalidArgumentProjection(mut failure) => {
+            failure
+                .machine
+                .get_or_insert_with(|| machine_name.to_owned());
+            LoweringError::InvalidArgumentProjection(failure)
+        }
         error => error,
     }
 }

@@ -909,14 +909,16 @@ pub(super) fn account<'calls>(
                     })
             }
             TerminatorPlan::CompleteExpression { completion } => {
-                !completion.expression.normal_continuation
-                    || completion.definite_call_transfers(
+                // A selection that cannot return supplies no normal disposal.
+                // Earlier transfers and releases keep their own counts.
+                completion.expression.normal_continuation
+                    && (completion.definite_call_transfers(
                         &facts.values,
                         call_schedules,
                         operation,
                         terminal_local,
                     ) == 1
-                    || permits_disposal(Some(completion.statement_ordinal), false)
+                        || permits_disposal(Some(completion.statement_ordinal), false))
             }
             TerminatorPlan::ReturnUnit | TerminatorPlan::ReturnScalar { .. } => {
                 permits_disposal(None, false)
@@ -1217,6 +1219,20 @@ pub(super) fn account<'calls>(
                 "state graph: structural result has duplicate dispositions"
             });
             trace.statement(Some(result.statement_index));
+            trace.result_custody_failure(control::ResultCustodyFailure {
+                binding: result.binding_ordinal,
+                local: result_local,
+                producer_operation: producer_index,
+                dispositions: [
+                    usize::from(implicit_disposition),
+                    call_transfers,
+                    cleanup_discards,
+                    construction_transfers,
+                    reference_releases,
+                    independent_view_releases,
+                ],
+                normal_caller_completion: has_normal_caller_completion,
+            });
             return None;
         }
         if returning_view_disposal {
