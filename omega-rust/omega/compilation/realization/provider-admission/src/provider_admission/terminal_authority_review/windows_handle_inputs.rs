@@ -6,20 +6,17 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{IdTable, IntegerValue, MachineId, ScalarTerm, ScalarType, ValueId};
-use terminal_psi::{BoundaryParameterKind, OperationKind};
-use terminal_semantics::descriptor_lifetimes::DescriptorPosition;
+use semantic_vocabulary::{IdTable, MachineId};
+use terminal_psi::BoundaryParameterKind;
 use terminal_semantics::descriptor_results::{
-    DescriptorMachine, ResidentValueCaptures, ScalarCaptureAnalysis, TerminalScalarCaptures,
+    DescriptorMachine, ResidentValueCaptures, TerminalScalarCaptures,
     terminal_borrowed_storage_graph_from,
 };
 
 use super::context::ReviewContext;
-use super::windows_handle_activations::ActivationPaths;
 use super::windows_handle_calls::{
     CallTarget, Caller, HandleCallGraph, RuntimeArguments, RuntimeCall,
 };
-use super::windows_handle_conditions::HandleFlowConditions;
 use super::windows_handle_contracts::{ReviewedHandleCall, WindowsHandleContract, reviewed_call};
 use super::windows_handle_origins::{HandleOrigins, ScalarSubject};
 use super::windows_handle_values::{HandleValueReader, LocalScalarExpressions};
@@ -32,16 +29,14 @@ pub(super) struct NativeHandleInput<'a> {
     pub scalars: BTreeMap<usize, ScalarSubject>,
 }
 
-/// All immutable scalar rosters and the matching reusable version scratch
-/// belong to the same body and borrowed-storage graph coordinate. Replay does
+/// Immutable scalar rosters belong to the same body and borrowed-storage
+/// graph coordinate. Replay does
 /// not rebuild a typing/capture inventory at each operation or caller edge.
 pub(super) struct PreparedHandleMachine {
     pub storage_index: usize,
-    pub conditions: HandleFlowConditions,
     pub expressions: LocalScalarExpressions,
     pub operands: TerminalScalarCaptures,
     pub resident_transfers: ResidentValueCaptures,
-    versions: ScalarCaptureAnalysis,
 }
 
 pub(super) struct WindowsHandleInputs<'a> {
@@ -53,117 +48,12 @@ pub(super) struct WindowsHandleInputs<'a> {
     pub opaque_calls: BTreeMap<Caller, RuntimeCall<'a>>,
     pub intrinsic_calls: BTreeMap<Caller, RuntimeCall<'a>>,
     pub origins: HandleOrigins,
-    pub activations: ActivationPaths,
     pub machines: IdTable<MachineId, Option<PreparedHandleMachine>>,
     pub close_sites: BTreeSet<Caller>,
     pub duplicate_sites: BTreeSet<Caller>,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub(super) enum NativeSuccessRequirement {
-    DuplicateNonzero,
-    ModeStatusZero,
-    FileNotInvalid,
-}
-
-pub(super) struct NativeSuccessProof {
-    caller: Caller,
-    observation: DescriptorPosition,
-    status: ValueId,
-    requirement: NativeSuccessRequirement,
-}
-
 impl<'a> WindowsHandleInputs<'a> {
-    /// Prove success from a taken canonical guard after this exact native
-    /// result. The same immutable owner supplies body, graph and conditions;
-    /// no external receipt, caller-provided status or goal seeds the proof.
-    pub(super) fn native_success_before(
-        &mut self,
-        caller: Caller,
-        observation: DescriptorPosition,
-        requirement: NativeSuccessRequirement,
-    ) -> Result<NativeSuccessProof, String> {
-        let input = self
-            .natives
-            .get(&caller)
-            .ok_or("native success query has no reviewed original call")?;
-        let expected = match requirement {
-            NativeSuccessRequirement::DuplicateNonzero => WindowsHandleContract::DuplicateHandle,
-            NativeSuccessRequirement::ModeStatusZero => WindowsHandleContract::QueryFileMode,
-            NativeSuccessRequirement::FileNotInvalid => WindowsHandleContract::CreateFile,
-        };
-        if input.reviewed.contract != expected {
-            return Err("native success query changes the reviewed API result protocol".into());
-        }
-        let machine = self
-            .calls
-            .machine(caller.machine)
-            .ok_or("native result has no reached canonical body")?;
-        let operation = machine
-            .block(&caller.block)
-            .and_then(|block| block.operations.get(caller.operation_index))
-            .ok_or("native success query lost its original result operation")?;
-        if !matches!(&operation.kind, OperationKind::BoundaryCall { boundary, .. } if Some(*boundary) == input.call.boundary)
-            || caller.site
-                != super::windows_handle_calls::CallSite::Invocation(
-                    semantic_vocabulary::InvocationSite::Operation(operation.id),
-                )
-        {
-            return Err("native success query substitutes its original boundary occurrence".into());
-        }
-        let status = operation
-            .result
-            .scalar_ref()
-            .ok_or("native success query has no actual scalar result")?;
-        let ScalarType::Integer(integer_type) = status.scalar_type else {
-            return Err("native success status has a noninteger carrier".into());
-        };
-        let (literal, polarity) = match requirement {
-            NativeSuccessRequirement::DuplicateNonzero => (0, false),
-            NativeSuccessRequirement::ModeStatusZero => (0, true),
-            NativeSuccessRequirement::FileNotInvalid => (-1, false),
-        };
-        let literal = IntegerValue::for_sign(integer_type.sign(), literal)
-            .map_err(|_| "native success sentinel does not fit its admitted result carrier")?;
-        let source = (
-            caller.block,
-            u32::try_from(caller.operation_index)
-                .map_err(|_| "native result ordinal exceeds its canonical position")?,
-        );
-        let prepared = self
-            .machines
-            .get_mut(caller.machine)
-            .and_then(Option::as_mut)
-            .ok_or("native status has no prepared canonical machine")?;
-        prepared.versions.require(source, observation, &[status.id])
-            .map_err(|reason| format!("native success status is not this completed result at {observation:?}: {reason:?}"))?;
-        let condition = ScalarTerm::IntegerEqual {
-            scalar_type: integer_type,
-            left: Box::new(ScalarTerm::value(status.id, status.scalar_type)),
-            right: Box::new(ScalarTerm::Integer {
-                scalar_type: integer_type,
-                value: literal,
-            }),
-        };
-        let conditions: &super::windows_handle_conditions::ScalarConditions = prepared
-            .conditions
-            .snapshots
-            .get(&observation)
-            .ok_or("native success observation has no actual reachable guard state")?;
-        if !conditions.proves(&condition, polarity) {
-            return Err(format!(
-                "native {:?} at {caller:?} has no proved success guard before {observation:?}",
-                input.reviewed.contract
-            ));
-        }
-        Ok(NativeSuccessProof {
-            caller,
-            observation,
-            status: status.id,
-            requirement,
-        })
-    }
-
     pub(super) fn prepare(context: &'a ReviewContext<'_>) -> Result<Self, String> {
         let calls = HandleCallGraph::new(context)?;
         let module = context.input.module();
@@ -276,60 +166,39 @@ impl<'a> WindowsHandleInputs<'a> {
             let mut reader = HandleValueReader::new(context, &calls, &storage, module)?;
             let mut machines = Vec::new();
             for (storage_index, machine) in storage.iter().enumerate() {
-                if let Some(body) = calls.machine(machine.id) {
-                    let mut versions = ScalarCaptureAnalysis::new(machine).map_err(|reason| {
-                        format!("native scalar-version context is unavailable: {reason}")
-                    })?;
-                    let expressions = reader.local_expressions(machine.id)?;
-                    let operands = reader.scalar_captures(machine.id)?;
-                    let conditions = HandleFlowConditions::derive(
-                        machine,
-                        body,
-                        &expressions,
-                        &mut versions,
-                        operands,
-                    )?;
-                    machines.push((
-                        machine.id,
-                        (storage_index, conditions, expressions, versions),
-                    ));
-                }
+                let expressions = reader.local_expressions(machine.id)?;
+                machines.push((machine.id, (storage_index, expressions)));
             }
             let origins = HandleOrigins::derive(module, &calls, &mut reader, roots)?;
             let (mut operands, mut resident_transfers) = reader.into_captures();
             machines.sort_by_key(|(identity, _)| *identity);
             let machines = machines
                 .into_iter()
-                .map(
-                    |(identity, (storage_index, conditions, expressions, versions))| {
-                        let operands = operands
-                            .get_mut(identity)
-                            .and_then(Option::take)
-                            .ok_or("canonical replay lost its prepared scalar operand roster")?;
-                        let resident_transfers = resident_transfers
-                            .get_mut(identity)
-                            .and_then(Option::take)
-                            .ok_or("canonical replay lost its prepared resident transfer roster")?;
-                        Ok((
-                            identity,
-                            Some(PreparedHandleMachine {
-                                storage_index,
-                                conditions,
-                                expressions,
-                                operands,
-                                resident_transfers,
-                                versions,
-                            }),
-                        ))
-                    },
-                )
+                .map(|(identity, (storage_index, expressions))| {
+                    let operands = operands
+                        .get_mut(identity)
+                        .and_then(Option::take)
+                        .ok_or("canonical replay lost its prepared scalar operand roster")?;
+                    let resident_transfers = resident_transfers
+                        .get_mut(identity)
+                        .and_then(Option::take)
+                        .ok_or("canonical replay lost its prepared resident transfer roster")?;
+                    Ok((
+                        identity,
+                        Some(PreparedHandleMachine {
+                            storage_index,
+                            expressions,
+                            operands,
+                            resident_transfers,
+                        }),
+                    ))
+                })
                 .collect::<Result<Vec<_>, String>>()?;
             let machines = IdTable::from_rows_with_gaps(machines, 65_536).map_err(|reason| {
                 format!("handle machine replay inventory is invalid: {reason:?}")
             })?;
             (origins, machines)
         };
-        let activations = ActivationPaths::derive(&origins)?;
         Ok(Self {
             calls,
             storage,
@@ -337,7 +206,6 @@ impl<'a> WindowsHandleInputs<'a> {
             opaque_calls,
             intrinsic_calls,
             origins,
-            activations,
             machines,
             close_sites,
             duplicate_sites,

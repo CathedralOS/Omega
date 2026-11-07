@@ -1,5 +1,6 @@
 //! Exact source, selection, mechanism, and installed-candidate lookup context.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use effects::{
@@ -24,7 +25,7 @@ pub(super) struct ReviewContext<'a> {
     pub(super) boundaries:
         BTreeMap<BoundaryMachineId, &'a terminal_psi::BoundaryMachineDeclaration>,
     pub(super) selected: &'a SelectedProviderPlanFacts,
-    pub(super) physical_policy: &'a TerminalAuthorityPolicy,
+    pub(super) physical_policy: Cow<'a, TerminalAuthorityPolicy>,
     /// The explicitly supplied receiving permission policy, or `None` when the
     /// review makes no receiver-admission claim. `None` is not deny-all or
     /// allow-all: leaves then record classification and exercised authority
@@ -107,7 +108,7 @@ impl<'a> ReviewContext<'a> {
             graph,
             boundaries,
             selected,
-            physical_policy,
+            physical_policy: Cow::Borrowed(physical_policy),
             permission_policy,
             mechanisms: mechanism_map,
             installed_candidates,
@@ -123,12 +124,10 @@ impl<'a> ReviewContext<'a> {
         self.mechanisms.get(&boundary).map(|row| &row.mechanism)
     }
 
-    #[cfg(test)]
     pub(super) fn target_profile(&self) -> target::TargetProfile {
         self.target_profile
     }
 
-    #[cfg(test)]
     pub(super) fn foreign_binding(
         &self,
         boundary: BoundaryMachineId,

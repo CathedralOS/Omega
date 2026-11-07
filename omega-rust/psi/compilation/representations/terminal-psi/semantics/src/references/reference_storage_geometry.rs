@@ -1169,6 +1169,9 @@ mod tests {
                     case_tag_byte_alignment: tag_size,
                 }));
             let sum = geometry.sum_layout(identity(1)).unwrap();
+            assert_eq!(sum.tag_byte_offset, 0);
+            assert_eq!(sum.tag.byte_size, tag_size);
+            assert_eq!(sum.tag.byte_alignment, tag_size);
             assert_eq!(sum.common_field_offsets, vec![common]);
             assert_eq!(
                 sum.case_field_offsets,

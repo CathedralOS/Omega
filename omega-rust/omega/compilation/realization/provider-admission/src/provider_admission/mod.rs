@@ -254,7 +254,7 @@ pub fn admit_native_providers<'request>(
                 .collect(),
         },
         executions,
-        terminal_authority_policy_identity: effective_policy.identity(),
+        terminal_authority_policy_identity: terminal_authority_closure_review.physical_policy(),
         terminal_authority_permission_policy_identity: request
             .terminal_authority_permission_policy
             .as_ref()

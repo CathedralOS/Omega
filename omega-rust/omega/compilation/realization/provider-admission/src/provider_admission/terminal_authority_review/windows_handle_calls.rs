@@ -130,7 +130,6 @@ pub(super) struct HandleCallGraph<'a> {
     machines: IdTable<MachineId, Option<&'a TerminalMachine>>,
     pub calls: BTreeMap<Caller, Vec<RuntimeCall<'a>>>,
     pub callers: IdTable<MachineId, Vec<RuntimeCall<'a>>>,
-    callees: IdTable<MachineId, Vec<MachineId>>,
 }
 
 impl<'a> HandleCallGraph<'a> {
@@ -141,7 +140,6 @@ impl<'a> HandleCallGraph<'a> {
             machines: IdTable::default(),
             calls: BTreeMap::new(),
             callers: IdTable::default(),
-            callees: IdTable::default(),
         };
         let mut pending = vec![entry];
         let mut machine_namespace = context
@@ -320,7 +318,6 @@ impl<'a> HandleCallGraph<'a> {
         graph.machines = IdTable::from_rows_with_gaps(machines, 65_536)
             .map_err(|reason| format!("native handle machine inventory is invalid: {reason:?}"))?;
         graph.callers = graph.machines.map(|_, _| Vec::new());
-        graph.callees = graph.machines.map(|_, _| Vec::new());
         for alternatives in graph.calls.values() {
             for call in alternatives {
                 if let CallTarget::Machine(callee) = call.target {
@@ -329,22 +326,8 @@ impl<'a> HandleCallGraph<'a> {
                         .get_mut(callee)
                         .ok_or("native handle callee has no prepared machine coordinate")?
                         .push(*call);
-                    graph
-                        .callees
-                        .get_mut(call.caller.machine)
-                        .ok_or("native handle caller has no prepared machine coordinate")?
-                        .push(callee);
                 }
             }
-        }
-        let identities = graph.callees.keys().collect::<Vec<_>>();
-        for identity in identities {
-            let targets = graph
-                .callees
-                .get_mut(identity)
-                .ok_or("native handle callee table lost its coordinate")?;
-            targets.sort_unstable();
-            targets.dedup();
         }
         Ok(graph)
     }
@@ -364,66 +347,6 @@ impl<'a> HandleCallGraph<'a> {
         if let CallTarget::Machine(machine) = call.target {
             pending.push(machine);
         }
-    }
-
-    /// Reachable machine cycles are explicit. A safety summary may establish
-    /// a preserved formal invariant across them; it cannot assume that a
-    /// recursive caller has no effects merely because expansion revisited it.
-    pub(super) fn components(&self) -> Vec<Vec<MachineId>> {
-        let mut completed = Vec::new();
-        let mut visited = self.machines.map(|_, _| false);
-        for (root, _) in self.machines() {
-            let mut pending = vec![(root, false)];
-            while let Some((machine, returning)) = pending.pop() {
-                if returning {
-                    completed.push(machine);
-                } else if !std::mem::replace(
-                    visited
-                        .get_mut(machine)
-                        .expect("reached machine coordinate"),
-                    true,
-                ) {
-                    pending.push((machine, true));
-                    pending.extend(
-                        self.callees
-                            .get(machine)
-                            .into_iter()
-                            .flatten()
-                            .rev()
-                            .map(|callee| (*callee, false)),
-                    );
-                }
-            }
-        }
-        visited = self.machines.map(|_, _| false);
-        let mut components = Vec::new();
-        while let Some(root) = completed.pop() {
-            if visited.get(root).copied().unwrap_or(false) {
-                continue;
-            }
-            let mut component = Vec::new();
-            let mut pending = vec![root];
-            while let Some(machine) = pending.pop() {
-                if !std::mem::replace(
-                    visited
-                        .get_mut(machine)
-                        .expect("reached machine coordinate"),
-                    true,
-                ) {
-                    component.push(machine);
-                    pending.extend(
-                        self.callers
-                            .get(machine)
-                            .into_iter()
-                            .flatten()
-                            .map(|call| call.caller.machine),
-                    );
-                }
-            }
-            component.sort();
-            components.push(component);
-        }
-        components
     }
 }
 

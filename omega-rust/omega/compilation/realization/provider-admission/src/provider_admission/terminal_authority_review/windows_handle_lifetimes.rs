@@ -124,6 +124,7 @@ pub(super) struct HandleLifetimes {
 }
 
 impl HandleLifetimes {
+    #[cfg(test)]
     pub(super) fn has_live_handles(&self) -> bool {
         self.handles.values().any(|handle| handle.release.is_none())
     }
@@ -257,6 +258,7 @@ impl HandleLifetimes {
     /// when no second foreign call is made. Repeated loop observations of the
     /// same live input are a set of static obligations, not growing execution
     /// logs; acquisitions and retirement retain their separate transitions.
+    #[cfg(test)]
     pub(super) fn observe_scalar(
         &mut self,
         instance: HandleInstance,
@@ -297,6 +299,7 @@ impl HandleLifetimes {
     /// A copied integer escaping checked custody invalidates the shared object
     /// assumption for all duplicates. The reader propagates this to all normal
     /// continuations; a later close cannot recover the lost private history.
+    #[cfg(test)]
     pub(super) fn escape(
         &mut self,
         instance: HandleInstance,
@@ -308,6 +311,7 @@ impl HandleLifetimes {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(super) fn attach_deletion(
         &mut self,
         instance: HandleInstance,

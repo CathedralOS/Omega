@@ -7,33 +7,23 @@ mod operations;
 pub(crate) mod reachability;
 mod reviewer;
 
-// Compile the checked-flow controls while the production replay is being wired.
-// These modules cannot yet supply a narrowed authority row in ordinary review.
+// Receiver admission derives constrained file-handle occurrences from the
+// retained executable graph. The permission table is an independent input.
 #[cfg(test)]
 mod windows_handle_activations;
-#[cfg(test)]
 mod windows_handle_aliases;
-#[cfg(test)]
 mod windows_handle_arguments;
-#[cfg(test)]
 mod windows_handle_calls;
 #[cfg(test)]
 mod windows_handle_conditions;
-#[cfg(test)]
 mod windows_handle_contracts;
-#[cfg(test)]
 mod windows_handle_inputs;
-#[cfg(test)]
 mod windows_handle_lifetimes;
-#[cfg(test)]
 mod windows_handle_origins;
 #[cfg(test)]
 mod windows_handle_paths;
-#[cfg(test)]
 mod windows_handle_replay;
-#[cfg(test)]
 mod windows_handle_storage;
-#[cfg(test)]
 mod windows_handle_values;
 
 use effects::{SelectedProviderPlanFacts, TerminalAuthorityClosureReviewReceipt};
@@ -74,19 +64,19 @@ pub(crate) fn review_terminal_authority_closure(
     let root_edges = context
         .graph
         .reachable_authority_edges(input.plan().entry)?;
-    let mut reviewer = Reviewer::new(context);
+    let mut reviewer = Reviewer::new(context, terminal_artifact_identity);
     for instruction in root_edges.checked_operations {
         reviewer.admit_program_root(instruction)?;
     }
     for boundary in root_edges.boundaries {
         reviewer.expand_boundary(boundary)?;
     }
-    let (leaves, leaf_identities) = reviewer.into_leaves();
+    let (leaves, leaf_identities, physical_identity) = reviewer.into_leaves();
     TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
         terminal_artifact_identity,
         target_profile.native_target(),
         selected.identity_digest(),
-        physical_policy.identity(),
+        physical_identity,
         permission_policy.map(|policy| policy.identity()),
         leaves,
         &leaf_identities,

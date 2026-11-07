@@ -234,12 +234,6 @@ impl CapturedHandleRegion {
             .copied()
             .collect()
     }
-
-    pub(super) fn discard_exact_addresses(&mut self) {
-        for (_, word) in &mut self.cells {
-            word.exact = None;
-        }
-    }
 }
 
 /// Sparse resident contents. Exact cells retain complete word identities;
@@ -320,6 +314,7 @@ impl HandleAliases {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(super) fn assign_scalars(
         &mut self,
         assignments: &[(ValueId, ValueId)],
@@ -528,6 +523,7 @@ impl HandleAliases {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(super) fn copy_region(
         &mut self,
         source: &HandleStorageRange,

@@ -93,6 +93,7 @@ impl CapturedHandleSequence {
 /// retained. Reading bits through a noninteger or narrow codec loses exact
 /// identity before any later widening of the logical value.
 pub(super) struct HandleScalarStorage {
+    pub address_dependencies: BTreeSet<HandleInstance>,
     pub range: HandleStorageRange,
     pub stored_scalar: ScalarType,
     pub logical_scalar: ScalarType,
@@ -106,6 +107,7 @@ pub(super) enum HandleScalarSelection {
     Family {
         location: DescriptorLocation,
         range: HandleStorageRange,
+        dependencies: BTreeSet<HandleInstance>,
     },
 }
 
@@ -121,6 +123,7 @@ pub(super) struct HandlePointerSlot {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct CapturedHandleStorage {
+    pub address_dependencies: BTreeSet<HandleInstance>,
     pub range: HandleStorageRange,
     pub stored_scalar: Option<ScalarType>,
 }
@@ -198,9 +201,20 @@ impl HandleStorageBindings {
 
 impl HandleScalarStorage {
     pub(super) fn read(&self, aliases: &HandleAliases) -> HandleWordAliases {
-        aliases
+        let word = aliases
             .stored_word(&self.range, self.stored_scalar)
-            .represented_as(self.logical_scalar)
+            .represented_as(self.logical_scalar);
+        if self.address_dependencies.is_empty() {
+            word
+        } else {
+            HandleWordAliases::derived_from_dependencies(
+                self.logical_scalar,
+                word.dependencies()
+                    .iter()
+                    .chain(&self.address_dependencies)
+                    .copied(),
+            )
+        }
     }
 }
 
@@ -316,6 +330,45 @@ pub(super) struct HandleStorageGeometry<'a> {
 }
 
 impl<'a> HandleStorageGeometry<'a> {
+    /// Select only the actual discriminator bytes. A neighboring payload may
+    /// retain an old HANDLE without making a tag observation read that value.
+    pub(super) fn case_tag(
+        &self,
+        location: &DescriptorLocation,
+        references: &HandleReferences,
+    ) -> Result<(HandleStorageRange, BTreeSet<HandleInstance>), String> {
+        let (range, _, codec, address_dependencies) = self.resolve(location, references)?;
+        let carrier = self
+            .carrier(location)?
+            .ok_or("handle case observation has no original sum carrier")?;
+        let mut geometry =
+            ReferenceStorageGeometry::new(self.module.structural_types.iter(), |application| {
+                Err(StorageGeometryError::UnresolvedExtent(application))
+            })
+            .with_target_carriers(Some(runtime_abi::target_carrier_layout(
+                self.profile.native_target(),
+            )))
+            .with_record_storage(layout::TerminalRecordStorage {
+                module: self.module,
+                target: self.profile,
+            });
+        let sum = geometry.sum_layout(carrier).map_err(|reason| {
+            format!("handle case tag has no closed selected geometry: {reason:?}")
+        })?;
+        if codec.is_some() || range.byte_length() != sum.storage.byte_size {
+            return Err("handle case tag changes its complete selected sum backing".into());
+        }
+        let start = range
+            .byte_offset()
+            .checked_add(sum.tag_byte_offset)
+            .ok_or("handle case tag offset overflows its actual backing")?;
+        let tag = HandleStorageRange::new(range.backing(), start, sum.tag.byte_size)?;
+        if sum.tag.byte_size == 0 || !range.contains(&tag) {
+            return Err("handle case tag exceeds its complete selected sum backing".into());
+        }
+        Ok((tag, address_dependencies))
+    }
+
     pub(super) fn source_context(&self) -> (semantic_vocabulary::MachineId, usize) {
         (self.body.id, self.activation)
     }
@@ -533,8 +586,10 @@ impl<'a> HandleStorageGeometry<'a> {
                             return Err("unknown handle element cannot select a resident reference's pointee".into());
                         }
                         let source = self.location(place, &selected)?;
+                        let captured = self.sequence(&source, references)?;
                         return Ok(HandleScalarSelection::Family {
-                            range: self.sequence(&source, references)?.range,
+                            range: captured.range,
+                            dependencies: captured.dependencies,
                             location: source,
                         });
                     }
@@ -653,7 +708,7 @@ impl<'a> HandleStorageGeometry<'a> {
         location: &DescriptorLocation,
         references: &HandleReferences,
     ) -> Result<CapturedHandleSequence, String> {
-        let (range, selected, _) = self.resolve(location, references)?;
+        let (range, selected, _, address_dependencies) = self.resolve(location, references)?;
         if self.carrier(location)?.is_none() {
             if !matches!(
                 self.inline_byte_carrier(location)?,
@@ -667,7 +722,9 @@ impl<'a> HandleStorageGeometry<'a> {
             if captured.element.is_some() || captured.stride != 1 {
                 return Err("inline byte descriptor changes its original byte carrier".into());
             }
-            return Ok(captured.clone());
+            let mut captured = captured.clone();
+            captured.dependencies.extend(address_dependencies);
+            return Ok(captured);
         }
         let carrier = self
             .carrier(location)?
@@ -684,10 +741,10 @@ impl<'a> HandleStorageGeometry<'a> {
                 let mut zero = location.clone();
                 zero.path.push(DescriptorPathSegment::FixedIndex(0));
                 let stride = if length >= 2 {
-                    let (first, _, _) = self.resolve(&zero, references)?;
+                    let (first, _, _, _) = self.resolve(&zero, references)?;
                     let mut second = location.clone();
                     second.path.push(DescriptorPathSegment::FixedIndex(1));
-                    let (second, _, _) = self.resolve(&second, references)?;
+                    let (second, _, _, _) = self.resolve(&second, references)?;
                     second
                         .byte_offset()
                         .checked_sub(first.byte_offset())
@@ -706,14 +763,16 @@ impl<'a> HandleStorageGeometry<'a> {
                     stride,
                     length: Some(length),
                     precise: true,
-                    dependencies: BTreeSet::new(),
+                    dependencies: address_dependencies,
                 })
             }
             StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::ElementView { .. } => {
-                references
+                let mut captured = references
                     .sequence(&range)
                     .cloned()
-                    .ok_or("handle descriptor has no captured data window".into())
+                    .ok_or("handle descriptor has no captured data window")?;
+                captured.dependencies.extend(address_dependencies);
+                Ok(captured)
             }
             _ => Err("handle data window is not an original collection or descriptor".into()),
         }
@@ -762,7 +821,7 @@ impl<'a> HandleStorageGeometry<'a> {
         &self,
         query: &terminal_semantics::descriptor_lifetimes::DescriptorContentsQuery,
         references: &HandleReferences,
-    ) -> Result<HandleStorageRange, String> {
+    ) -> Result<(HandleStorageRange, BTreeSet<HandleInstance>), String> {
         use terminal_semantics::descriptor_lifetimes::DescriptorContentsStep;
         let mut location = DescriptorLocation::whole(query.root);
         for (ordinal, step) in query.steps.iter().enumerate() {
@@ -780,12 +839,13 @@ impl<'a> HandleStorageGeometry<'a> {
                                 .into(),
                         );
                     }
-                    return Ok(self.sequence(&location, references)?.range);
+                    let captured = self.sequence(&location, references)?;
+                    return Ok((captured.range, captured.dependencies));
                 }
             }
         }
         self.resolve(&location, references)
-            .map(|(range, _, _)| range)
+            .map(|(range, _, _, dependencies)| (range, dependencies))
     }
 
     pub(super) fn new(
@@ -859,6 +919,7 @@ impl<'a> HandleStorageGeometry<'a> {
             HandleStorageRange,
             ReferenceStorageRegion,
             Option<ScalarType>,
+            BTreeSet<HandleInstance>,
         ),
         String,
     > {
@@ -910,14 +971,14 @@ impl<'a> HandleStorageGeometry<'a> {
             if !captured.range.contains(&range) {
                 return Err("handle element projection exceeds its actual data window".into());
             }
-            return Ok((range, selected, None));
+            return Ok((range, selected, None, captured.dependencies));
         }
         if let Some(referent) = last_referent {
             let slot = DescriptorLocation {
                 root: location.root,
                 path: location.path[..referent].to_vec(),
             };
-            let (slot_range, _, _) = self.resolve(&slot, references)?;
+            let (slot_range, _, _, mut address_dependencies) = self.resolve(&slot, references)?;
             let captured = references.get(&slot_range).ok_or_else(|| {
                 format!(
                     "handle storage reference {:?}/{slot:?} has no current captured backing",
@@ -949,7 +1010,13 @@ impl<'a> HandleStorageGeometry<'a> {
                     "handle reference projection exceeds its actual captured backing".into(),
                 );
             }
-            return Ok((range, selected, captured.stored_scalar));
+            address_dependencies.extend(&captured.dependencies);
+            return Ok((
+                range,
+                selected,
+                captured.stored_scalar,
+                address_dependencies,
+            ));
         }
         let selected = self.region(self.place_type(location)?, &location.path)?;
         if let Some(captured) = self.bindings.get(location.root)? {
@@ -978,7 +1045,12 @@ impl<'a> HandleStorageGeometry<'a> {
                     "borrowed handle storage projection exceeds its captured actual bytes".into(),
                 );
             }
-            return Ok((range, selected, captured.stored_scalar));
+            return Ok((
+                range,
+                selected,
+                captured.stored_scalar,
+                captured.address_dependencies.clone(),
+            ));
         }
         let backing = HandleStorageBacking {
             owner: HandleStorageOwner::Activation(self.activation),
@@ -988,6 +1060,7 @@ impl<'a> HandleStorageGeometry<'a> {
             HandleStorageRange::new(backing, selected.byte_offset, selected.byte_length)?,
             selected,
             None,
+            BTreeSet::new(),
         ))
     }
 
@@ -997,7 +1070,7 @@ impl<'a> HandleStorageGeometry<'a> {
         references: &HandleReferences,
         expected: ScalarType,
     ) -> Result<HandleScalarStorage, String> {
-        let (range, selected, codec) = self.resolve(location, references)?;
+        let (range, selected, codec, address_dependencies) = self.resolve(location, references)?;
         let scalar = selected
             .scalar
             .ok_or("handle scalar observation selects an aggregate region")?;
@@ -1005,6 +1078,7 @@ impl<'a> HandleStorageGeometry<'a> {
             return Err("handle scalar observation changes its original logical carrier".into());
         }
         Ok(HandleScalarStorage {
+            address_dependencies,
             range,
             logical_scalar: scalar.logical_scalar,
             stored_scalar: codec.unwrap_or(scalar.stored_scalar),
@@ -1019,7 +1093,8 @@ impl<'a> HandleStorageGeometry<'a> {
         operation: &Operation,
         references: &HandleReferences,
         evaluated_offset: Option<u64>,
-        dependencies: BTreeSet<HandleInstance>,
+        mut dependencies: BTreeSet<HandleInstance>,
+        mut require_active: impl FnMut(&DescriptorLocation) -> Result<(), String>,
     ) -> Result<(HandleStorageRange, CapturedHandleReference), String> {
         let OperationKind::EstablishReference { source, storage } = &operation.kind else {
             return Err("handle reference capture is not its actual reference formation".into());
@@ -1059,7 +1134,10 @@ impl<'a> HandleStorageGeometry<'a> {
             None,
         )
         .ok_or("handle reference source has no exact captured coordinate")?;
-        let (backing, _, inherited_codec) = self.resolve(&source, references)?;
+        require_active(&source)?;
+        let (backing, _, inherited_codec, address_dependencies) =
+            self.resolve(&source, references)?;
+        dependencies.extend(address_dependencies);
         let referred = self.region(referent, &[])?;
         let (offset, stored_scalar) = match storage {
             Some(storage) => (
@@ -1093,7 +1171,8 @@ impl<'a> HandleStorageGeometry<'a> {
                 "captured handle reference exceeds its original source byte interval".into(),
             );
         }
-        let (carrier, _, _) = self.resolve(&DescriptorLocation::whole(result.place), references)?;
+        let (carrier, _, _, _) =
+            self.resolve(&DescriptorLocation::whole(result.place), references)?;
         Ok((
             carrier,
             CapturedHandleReference {
@@ -1120,6 +1199,50 @@ mod tests {
             length,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn scalar_read_through_a_retired_handle_derived_address_keeps_its_use() {
+        use super::super::windows_handle_lifetimes::{
+            HandleInstance, HandleLifetimes, NativeOccurrence, ScalarOccurrence, ScalarUseSite,
+        };
+        use semantic_vocabulary::{
+            BoundaryMachineId, IntegerSign, IntegerType, InvocationSite, MachineId, OperationId,
+        };
+        let native = |operation| NativeOccurrence {
+            machine: MachineId::new(1).unwrap(),
+            site: InvocationSite::Operation(OperationId::new(operation).unwrap()),
+            context: [1; 32],
+            boundary: BoundaryMachineId::new(1).unwrap(),
+        };
+        let handle = HandleInstance(0);
+        let mut ledger = HandleLifetimes::default();
+        ledger.acquire_file(handle, native(1), 0).unwrap();
+        ledger.release_file(handle, native(2)).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let selected = HandleScalarStorage {
+            range: range(3, 0, 8),
+            stored_scalar: scalar_type,
+            logical_scalar: scalar_type,
+            address_dependencies: BTreeSet::from([handle]),
+        };
+        // The pointee contains no HANDLE. Its captured address still carries
+        // the retired instance, independently of current pointee contents.
+        let word = selected.read(&HandleAliases::default());
+        assert_eq!(word.dependencies(), &BTreeSet::from([handle]));
+        assert!(word.exact_handle().is_err());
+        assert!(
+            ledger
+                .observe_scalars(
+                    word.dependencies(),
+                    ScalarOccurrence {
+                        machine: MachineId::new(1).unwrap(),
+                        site: ScalarUseSite::Operation(OperationId::new(3).unwrap()),
+                        context: [1; 32],
+                    }
+                )
+                .is_err()
+        );
     }
 
     #[test]

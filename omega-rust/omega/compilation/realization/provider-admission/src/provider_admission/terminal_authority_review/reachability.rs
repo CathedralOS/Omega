@@ -37,12 +37,10 @@ pub(crate) struct AuthorityGraph<'a> {
 }
 
 impl<'a> AuthorityGraph<'a> {
-    #[cfg(test)]
     pub(super) fn machine(&self, identity: MachineId) -> Option<&'a terminal_psi::TerminalMachine> {
         self.calls.machine(identity)
     }
 
-    #[cfg(test)]
     pub(super) fn dynamic_callees(
         &self,
         interface: u32,

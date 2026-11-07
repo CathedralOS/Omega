@@ -26,19 +26,23 @@ enum LeafKey {
 
 pub(super) struct Reviewer<'a> {
     context: ReviewContext<'a>,
+    artifact: [u8; 32],
+    checked_handles: Option<super::windows_handle_replay::CheckedHandleCalls>,
     expanded: BTreeSet<BoundaryMachineId>,
     leaves: BTreeMap<LeafKey, TerminalAuthorityClosureLeaf>,
     identities: terminal_psi::TerminalIdentityTableBuilder,
 }
 
 impl<'a> Reviewer<'a> {
-    pub(super) fn new(context: ReviewContext<'a>) -> Self {
+    pub(super) fn new(context: ReviewContext<'a>, artifact: [u8; 32]) -> Self {
         Self {
             // Provider-side requirement text can be absent from the plan's
             // table, so leaves mint into a review-local copy of it rather
             // than resolving through `index_of`.
             identities: context.input.plan().identities.clone().into_builder(),
             context,
+            artifact,
+            checked_handles: None,
             expanded: BTreeSet::new(),
             leaves: BTreeMap::new(),
         }
@@ -49,8 +53,13 @@ impl<'a> Reviewer<'a> {
     ) -> (
         Vec<TerminalAuthorityClosureLeaf>,
         terminal_psi::TerminalIdentityTable,
+        effects::TerminalAuthorityPolicyIdentity,
     ) {
-        (self.leaves.into_values().collect(), self.identities.build())
+        (
+            self.leaves.into_values().collect(),
+            self.identities.build(),
+            self.context.physical_policy.identity(),
+        )
     }
 
     pub(super) fn expand_boundary(&mut self, boundary: BoundaryMachineId) -> Result<(), String> {
@@ -186,16 +195,49 @@ impl<'a> Reviewer<'a> {
                 let mechanism = self
                     .context
                     .exact_mechanism(boundary, &selected_row.binding)?;
+                if self.checked_handles.is_none() {
+                    if let Some(checked) = super::windows_handle_replay::checked_calls(
+                        self.artifact,
+                        &self.context,
+                        boundary,
+                    )? {
+                        let mut rows = self.context.physical_policy.explicit_rows().to_vec();
+                        rows.extend_from_slice(checked.physical_rows());
+                        self.context.physical_policy = std::borrow::Cow::Owned(
+                            crate::provider_admission::terminal_authority_policy_with_rows(rows)
+                                .map_err(|reason| {
+                                    format!("checked handle physical policy conflicts: {reason:?}")
+                                })?,
+                        );
+                        self.checked_handles = Some(checked);
+                    }
+                }
                 let schema = selected_plan.schema_identity_digest();
-                self.admit_leaf(
-                    schema,
-                    selected_plan
-                        .identities
-                        .text(selected_row.requirement_identity),
-                    selected_plan.identity_digest(),
-                    mechanism,
-                    TerminalAuthorityClosureLeafOrigin::SelectedBoundary,
-                )?;
+                let requirement = selected_plan
+                    .identities
+                    .text(selected_row.requirement_identity);
+                let provider_plan = selected_plan.identity_digest();
+                if let Some(checked) = self
+                    .checked_handles
+                    .as_ref()
+                    .and_then(|checked| checked.for_boundary(boundary))
+                {
+                    let leaves = checked
+                        .iter()
+                        .map(|leaf| (leaf.mechanism, leaf.origin))
+                        .collect::<Vec<_>>();
+                    for (mechanism, origin) in leaves {
+                        self.admit_leaf(schema, requirement, provider_plan, mechanism, origin)?;
+                    }
+                } else {
+                    self.admit_leaf(
+                        schema,
+                        requirement,
+                        provider_plan,
+                        mechanism,
+                        TerminalAuthorityClosureLeafOrigin::SelectedBoundary,
+                    )?;
+                }
             }
             ProviderBinding::VtableSlot { .. } => {
                 return Err(format!(
