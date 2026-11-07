@@ -313,7 +313,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
     call: &checked_trees::FlowCallFact,
     calls: &[checked_trees::FlowCallFact],
     predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
-    mut selected: Option<&mut super::SelectedInvocationAccounting>,
+    selected: Option<&mut super::SelectedInvocationAccounting>,
 ) -> Option<()> {
     if facts.flow.control.is_retired(state, call)
         || !match selected.as_deref() {
@@ -413,7 +413,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         }
         // Release the borrowed common prefix before joining branch-local work.
         let calls = consumed.calls;
-        return selected.as_deref_mut()?.account(facts, call, &calls);
+        return selected?.account(facts, call, &calls);
     }
     let scheduled_subject = |candidate: &checked_trees::FlowCallFact| {
         scheduled_dispatch_subject(
@@ -625,9 +625,7 @@ fn scheduled_owner_count(
             candidate.statement_index == planned.coordinate.statement_index as usize
                 && candidate.call_ordinal == planned.coordinate.call_ordinal as usize
         });
-        let Some(prior) = occurrences.next() else {
-            return None;
-        };
+        let prior = occurrences.next()?;
         if occurrences.next().is_some() || facts.flow.control.is_retired(state.symbol, prior) {
             return None;
         }
@@ -640,17 +638,15 @@ fn scheduled_owner_count(
         }
         // Scalar operand invocations execute in the preceding call's retained
         // computation roots rather than as separate structural operations.
-        let Some(site) = validation::find_call_site(
+        let site = validation::find_call_site(
             program,
             machine.symbol,
             state.symbol,
             prior.statement_index,
             prior.call_ordinal,
-        ) else {
-            return None;
-        };
+        )?;
         let mut consumed = super::CallOccurrenceLedger::default();
-        if collect_argument_calls(
+        collect_argument_calls(
             program,
             facts,
             machine.symbol,
@@ -659,11 +655,7 @@ fn scheduled_owner_count(
             validation::call_site_argument_expressions(program, &site),
             calls,
             &mut consumed,
-        )
-        .is_none()
-        {
-            return None;
-        }
+        )?;
         if consumed
             .iter()
             .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), producer))
