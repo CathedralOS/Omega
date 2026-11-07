@@ -478,6 +478,24 @@ impl StructuralJudge<'_> {
         self.activate_conditional_guarantees();
     }
 
+    /// Read a case value already carried by an owned or checked shared inline
+    /// observation. No resolution or case-hypothesis search happens here.
+    pub(super) fn observed_case_value<'value>(
+        &self,
+        subject: &'value StructuralTerm,
+    ) -> Option<&'value StructuralTerm> {
+        if matches!(subject, StructuralTerm::ObservedValue { .. }) {
+            if structural_terms::owned_observation_type(self.program, subject).is_none()
+                && structural_terms::shared_inline_observation_type(self.program, subject).is_none()
+            {
+                return None;
+            }
+            Some(subject.semantic_value())
+        } else {
+            Some(subject)
+        }
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn judge_case(
         &self,
         subject: StructuralTerm,
@@ -487,20 +505,10 @@ impl StructuralJudge<'_> {
         let Some(subject) = self.resolve_case_subject(subject, 0) else {
             return StructuralJudgment::Unknown;
         };
-        // Checked inline observations retain this value's case identity.
-        // A reference descriptor without an observed referent has no such tag.
-        let subject = if matches!(&subject, StructuralTerm::ObservedValue { .. }) {
-            if structural_terms::owned_observation_type(self.program, &subject).is_none()
-                && structural_terms::shared_inline_observation_type(self.program, &subject)
-                    .is_none()
-            {
-                return StructuralJudgment::Unknown;
-            }
-            subject.into_semantic_value()
-        } else {
-            subject
+        let Some(subject) = self.observed_case_value(&subject) else {
+            return StructuralJudgment::Unknown;
         };
-        if let StructuralTerm::Constructor { identity, .. } = &subject {
+        if let StructuralTerm::Constructor { identity, .. } = subject {
             return match identity.matches_case(self.program, data_symbol, case_symbol) {
                 Some(true) => StructuralJudgment::Proven,
                 Some(false) => StructuralJudgment::Refuted,
@@ -525,7 +533,7 @@ impl StructuralJudge<'_> {
         let mut excluded = Vec::new();
         for fact in self.case_facts.iter() {
             if fact.data == data_symbol
-                && self.resolve_case_subject(fact.subject.clone(), 0).as_ref() == Some(&subject)
+                && self.resolve_case_subject(fact.subject.clone(), 0).as_ref() == Some(subject)
             {
                 if fact.holds {
                     return if fact.case == case_symbol {

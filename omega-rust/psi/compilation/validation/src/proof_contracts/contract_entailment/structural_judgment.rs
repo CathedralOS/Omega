@@ -2483,28 +2483,14 @@ impl<'program> StructuralJudge<'program> {
                             .iter()
                             .position(|(name, _)| name == &subject_name)?;
                         let local_subject;
-                        let mut subject_term = if position < parameter_count {
+                        let subject_term = if position < parameter_count {
                             &environment[position].1
                         } else {
                             local_subject = specification
                                 .resolve_at(environment[position].1.clone(), depth + 1);
                             &local_subject
                         };
-                        // Completed owned observations retain the same known
-                        // constructor. Inspect that value without another
-                        // resolution; references and canonical content keep
-                        // their independent descriptor/algebra boundaries.
-                        while let StructuralTerm::ObservedValue { value, .. } = subject_term {
-                            if super::structural_terms::owned_observation_type(
-                                program,
-                                subject_term,
-                            )
-                            .is_none()
-                            {
-                                break;
-                            }
-                            subject_term = value;
-                        }
+                        let subject_term = specification.observed_case_value(subject_term)?;
                         let StructuralTerm::Constructor { identity, .. } = subject_term else {
                             // The matched argument is not (yet) a constructor:
                             // arm selection is undecidable, no unfold.
