@@ -1,6 +1,7 @@
 # Dense owned runs
 
 Named decision: `typed-run-custody`, ratified 2026-11-02.
+Cell-transfer surface: `typed-run-cell-transfer-surface`, ratified 2026-11-07.
 
 A growable collection must own a runtime number of values without inserting a
 tag beside every element. `Run<P, T>` supplies that storage contract: contiguous
@@ -67,14 +68,13 @@ The checked transformations are:
 | Merge | Concatenate compatible ordered runs with adjacent backing, retaining all custody. |
 | Relocate | Transfer the cells and their obligations into compatible vacant backing, leaving the source vacant. |
 
-Initialize, extract and relocate have compiler-realized custody semantics.
-Split and merge are ordinary library machines whose contracts and bodies prove
-the typed-cell partition/concatenation. Byte conservation, count equations and
-per-child geometry are necessary but do not alone prove custody preservation.
-Zero-sized splits partition logical positions and counts, not just byte ranges.
-No operation duplicates cells or silently swaps the association between a cell
-and its obligations. Live loans prevent consuming transformations that would
-invalidate them.
+Initialize, extract, split, merge and relocate have compiler-realized custody
+semantics. The exact core declarations supply the cell-transfer rules; callers
+prove their ordinary contracts. Byte conservation, count equations and per-child
+geometry remain necessary but do not alone prove custody preservation. Zero-sized
+splits partition logical positions and counts, even when all byte boundaries
+coincide. Each actual cell keeps its obligations. Live loans prevent consuming
+transformations that would invalidate them.
 
 Rejection/failure paths account for every input and every established output;
 failed initialization cannot lose the input value or its backing. A partial
@@ -86,6 +86,47 @@ ordinary RAM with movable elements and a valid disjoint destination it may lower
 to a bulk memory copy, with no element cleanup during the move. Other placements
 need permitted element operations; a policy does not promise that movement is
 available. Pinned elements cannot gain mobility by entering a run.
+
+## Split and merge contracts
+
+`Run::split<P, T>` and `Run::merge<P, T>` are public, bodyless compiler-supplied
+core machines admitted through the [sealed catalog](../language/machines.md#supply).
+Their exact declaration identities and signatures own the trusted rules below.
+Matching a helper's name or adding it to `established by` grants no primitive
+semantics. `Live<P, T>` includes both declarations among its authorized
+establishment routes, alongside its existing empty, initialization and relocation
+routes.
+
+| Primitive | Caller obligations | Custody result |
+| --- | --- | --- |
+| `Run::split<P, T>(run, cut)` | Own a live run and prove `cut <= run.count`, with the backing partition and outstanding loans valid. | Consume `run`; return `RunParts<P, T>` with live `left` and `right` fields owning exactly its prefix and suffix. Their counts are `cut` and the input count minus `cut`. |
+| `Run::merge<P, T>(left, right)` | Own both live runs; prove compatible placement, backing and carry obligations, valid backing adjacency, and that the combined count fits `u64`. | Consume both inputs; return one live run containing the actual left cells followed by the actual right cells, with their combined count and backing. |
+
+Both operations are total when their preconditions hold. Bounds, adjacency and
+compatibility are `requires` obligations; a caller with runtime inputs can branch
+to establish them. Neither operation has a rejection outcome, a `Role` parameter,
+a resource-profile argument or a provider lookup. They partition or join existing
+ownership without accessing payloads, allocating storage or relocating elements.
+They need no supply-selecting wrapper.
+
+For example, splitting and rejoining transfers the original ownership throughout:
+
+```omega
+let parts: RunParts<P, T> = Run::split<P, T>(run, cut);
+let whole: Run<P, T> in Live<P, T> =
+    Run::merge<P, T>(parts.left, parts.right);
+```
+
+At each call, the consumed inputs become unavailable. The compiler tracks the
+resulting cell ranges and retained obligations symbolically through ordinary
+ownership flow, call contracts and joins. It does not enumerate the runtime
+count or maintain a runtime registry of runs.
+
+Cuts at zero and at the full count produce an authorized empty partition and
+the unchanged occupied subsequence. Empty means zero cells. A zero-byte run with
+a positive count remains occupied: merging it preserves argument order and every
+cell's custody, and releasing its backing still requires disposition of those
+cells. Equal addresses never substitute for this ordered transfer.
 
 ## Views, mutation and release
 
@@ -119,6 +160,12 @@ The payload is dense: no per-element tag, runtime custody table, occupancy bitma
 or hidden ownership update is required. Custody evidence is erased. Descriptor
 storage does not grow with the element count. Actual payload data, counters,
 allocator metadata and cleanup effects retain their ordinary costs.
+
+Each split or merge performs constant runtime work independent of element count:
+descriptor arithmetic only, with no per-element access or custody walk in native
+emission or the interpreter. This also applies to each split used by a consuming
+traversal. Required cleanup of `n` elements may take `n` cleanup calls; splitting
+off each next cell must not add a scan of the remaining run.
 
 An authored disposal traversal may consume one cell and retain a smaller run at
 each iteration. The compiler checks that transition and its loop invariant

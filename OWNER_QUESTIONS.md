@@ -67,49 +67,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - How does an ordinary Run split or merge express its cell transfer?
-
-Decision name: `typed-run-cell-transfer-surface`.
-
-**Customer.** Dense `Vec<T>` must append, remove and move owned elements without
-per-element tags. Its live storage needs ordered split/merge, including zero-sized
-elements that still owe cleanup.
-
-**Gap.** [Typed runs](wiki/spec/resources/typed_runs.md#retained-custody-and-transformations)
-requires ordinary checked split/merge bodies to prove a typed-cell transfer, and
-explicitly says byte/count equations are insufficient. The
-[content contract surface](wiki/spec/resources/content_custody.md#source-conservation-contracts)
-provides interval and quantity projections with `old` and `separate`, but no
-projection or operation naming a run's ordered cells. The compiler-owned ordered
-custody summary is ratified; the question is how an ordinary authored body
-requests its transformation, not how Psi represents it.
-
-For example, two zero-footprint runs have identical byte geometry whether merged
-as left-then-right or right-then-left. Their count sum and granted-byte equations
-cannot state that ordering. Recognizing a helper name or adding it to
-`established by` would not check the promised transfer.
-
-**Audit.** `core/run.omg` has empty/singleton operations but no split/merge;
-there is no implemented ordered-cell contract surface to reuse. Ordinary vacant
-extent transformations conserve intervals, not occupied values. The local merge
-experiment supplies geometry and count equations but no cell-transfer proof;
-its rejection is not evidence that those equations should suffice.
-
-**Options.**
-
-- Keep split/merge ordinary bodies and add a proof-only way to name, partition
-  and concatenate opaque cell sequences. It exposes no contained resources and
-  carries no runtime metadata, but adds an authored proof surface.
-- Make split/merge compiler-realized custody operations, alongside initialize,
-  extract and relocate, with ordinary library wrappers. The compiler checks
-  exact inputs, partition index, placement compatibility and retained obligations.
-  This changes the explicit ordinary-body decision, but adds no sequence-proof
-  syntax. **Recommended for the smaller public mechanism.**
-
-Neither option changes dense payloads, allocator ownership or the requirement to
-transfer actual cells rather than recreate authority from their type and count.
-
-### Q2 - Can one Build call select one provider for many slots or targets?
+### Q1 - Can one Build call select one provider for many slots or targets?
 
 Decision name: `bulk-provider-selection`.
 

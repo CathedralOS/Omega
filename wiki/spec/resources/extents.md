@@ -25,9 +25,11 @@ Zero-filled storage establishes neither `Granted` nor a linear debt;
 [general resource mechanisms](content_custody.md#library-resources-and-language-mechanisms),
 not a language primitive. This document states the contracts extent APIs must
 express and establish; it does not grant extra semantics from the carrier's
-name. Library split, merge and compatibility policy use ordinary declarations
-and checked contracts. OS mapping, allocation and reclamation policy stays with
-the owning library or provider.
+name. Vacant-extent split, merge and compatibility policy use ordinary
+declarations and checked contracts. Splitting or merging occupied
+[typed runs](typed_runs.md#split-and-merge-contracts) also transfers ordered cell
+custody through sealed core primitives. OS mapping, allocation and reclamation
+policy stays with the owning library or provider.
 
 The transparent geometry obligation is the proposition
 `embed(base) + embed(length) <= addr::Bound`, using unbounded proof `Int` and

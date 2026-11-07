@@ -105,6 +105,18 @@ one allocation: [ T | T | T | T ][ vacant capacity ]
                  live run: 4
 ```
 
+Push and pop operate at the boundary between those two regions:
+
+```text
+push: take one vacant cell -> initialize it -> merge it onto the live run
+pop:  split off the last live cell -> extract it -> return its vacant storage
+```
+
+Initialization can reject. Push then joins the returned vacant cell back onto
+the spare tail and returns the original value to its caller. The live elements
+stay intact. Core supplies the checked run split/merge operations; the vector
+library handles allocation, capacity, growth and this recovery path.
+
 There is no tag or ownership table beside each element. Each live value retains
 its own obligations: four tasks can own four different resources. Pop transfers
 one actual task out; release must account for every remaining task before the
@@ -122,7 +134,8 @@ reading `&[f32 in Km]` as `&[f32]` follows qualification erasure. Writing throug
 an unqualified mutable view must preserve or restore the original predicates
 before returning it. Casting does not discard access restrictions.
 
-Swaps move data, pop updates the count, and disposal runs required cleanup.
+Splitting and merging runs take constant runtime work: they update descriptors.
+Swaps move data, and disposal runs required cleanup for each element that needs it.
 The compiler checks the repeated custody transformation symbolically; it does
 not demand per-element runtime bookkeeping. See [dense owned runs](../spec/resources/typed_runs.md)
 for the complete contract and the distinction from single-value resident storage.
