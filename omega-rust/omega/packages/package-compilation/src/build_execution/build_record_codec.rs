@@ -1,13 +1,9 @@
-//! Wire codec for the build-execution records a retained compiled review
-//! carries: the evaluation usage the sponsor observed, the restricted build
-//! requests the authority projection issued, and the observation summary the
-//! activation produced.
-//!
-//! These values were produced by checked machinery before they entered a
-//! retained review record, so recovery validates shape (enum tags, nonzero
-//! identities, canonical paths) without re-running admission. Anything
-//! malformed or unexpected fails the decode and the caller treats the record
-//! as absent.
+// Wire codec for persisted build-execution records in the compiled-review
+// cache: `BuildEvaluationUsage` (`BEU\x01`), `BuildObservationSummary`, and
+// `RestrictedBuildRequest`. Decoders validate structural invariants (enum tags,
+// nonzero handle identities, canonical relative paths, and usage ceilings) and
+// return `None` on any malformation so callers treat corrupt cache entries as
+// misses.
 
 use crate::reuse::review_record_encoding::{
     declaration_kind_tag, encode_optional, recover_declaration_kind, recover_optional,
@@ -23,7 +19,6 @@ use evaluation_accounting::{
 };
 use semantic_vocabulary::FuelScheduleIdentity;
 
-// Untagged legacy usage had no way to distinguish two engines' schedule 1.
 const EVALUATION_USAGE_MAGIC: &[u8; 4] = b"BEU\x01";
 
 use super::observations::{
@@ -42,7 +37,6 @@ use build_output::{
 };
 use semantic_vocabulary::PackageKeyIdentity;
 
-/// Encode the evaluation-usage record a retained review carries.
 pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec<u8>) {
     out.extend_from_slice(EVALUATION_USAGE_MAGIC);
     match usage.measurement {
@@ -92,7 +86,6 @@ pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec
     }
 }
 
-/// Recover a retained evaluation-usage record.
 pub fn recover_build_evaluation_usage(cursor: &mut Cursor) -> Option<BuildEvaluationUsage> {
     if cursor.bytes(4)? != EVALUATION_USAGE_MAGIC {
         return None;
@@ -348,7 +341,6 @@ fn recover_attempt(cursor: &mut Cursor) -> Option<BuildFilesystemOperationAttemp
     })
 }
 
-/// Encode the observation summary a retained review carries.
 pub fn encode_observation_summary(summary: &BuildObservationSummary, out: &mut Vec<u8>) {
     crate::codec_bytes::push_encoded(out, summary.schema_version().to_le_bytes());
     out.push(summary.filesystem_host_observed() as u8);
@@ -422,8 +414,6 @@ pub fn encode_observation_summary(summary: &BuildObservationSummary, out: &mut V
     push_framed(out, summary.build_log());
 }
 
-/// Recover a retained observation summary. A malformed record yields `None`
-/// so the caller treats the cache entry as absent.
 pub fn recover_observation_summary(cursor: &mut Cursor) -> Option<BuildObservationSummary> {
     let schema_version = cursor.u32()?;
     let filesystem_host_observed = match cursor.u8()? {
@@ -610,7 +600,6 @@ fn recover_grant(cursor: &mut Cursor) -> Option<RestrictedBuildGrant> {
     ))
 }
 
-/// Encode one restricted build request.
 pub fn encode_restricted_build_request(request: &RestrictedBuildRequest, out: &mut Vec<u8>) {
     out.push(match request.operation() {
         RestrictedBuildOperation::ScopedFilesystemExecution => 0,
@@ -663,7 +652,6 @@ pub fn encode_restricted_build_request(request: &RestrictedBuildRequest, out: &m
     }
 }
 
-/// Recover one restricted build request.
 pub fn recover_restricted_build_request(cursor: &mut Cursor) -> Option<RestrictedBuildRequest> {
     let operation = match cursor.u8()? {
         0 => RestrictedBuildOperation::ScopedFilesystemExecution,

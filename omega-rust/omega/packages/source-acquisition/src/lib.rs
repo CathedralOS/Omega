@@ -1,13 +1,33 @@
+/*
+We establish package-source identity and acquire hostile local and Git sources
+into immutable, capability-custodied snapshots.
+
+`identity` names immutable package sources (`SourceLineage`,
+`ImmutableSourceResolution`, and canonical digests), `tree` owns source-neutral
+capability-relative traversal and content hashing, and `local` and `git` acquire
+hostile source trees under shared `snapshot` and `custody` machinery. We stop at
+immutable source custody; package declarations, dependency graph construction,
+review, and admission belong to `package-manager`.
+*/
+
+/*
+Hostile source trees on a developer machine or remote Git transport can mutate
+mid-read, traverse symlinks outside the package root, or tamper with shared cache
+directories. By routing every acquisition through capability-rooted directory
+handles, bounded process execution, and read-only published snapshots verified
+against domain-separated digests, we ensure downstream compilation and review
+consume a fixed byte-for-byte source tree.
+*/
+
+/*
+- Capability-rooted directory custody: `custody`, `storage`, `source_resolver`
+- Source lineage and object digests: `identity`
+- Bounded tree capture and hashing: `tree`, `snapshot`
+- Local and Git acquisition pipelines: `local`, `git`, `observations`
+*/
+
 #![forbid(unsafe_code)]
 #![cfg_attr(windows, feature(windows_by_handle))]
-
-//! Package-source identity and hostile source acquisition.
-//!
-//! [`identity`] names immutable package sources, [`tree`] owns source-neutral
-//! traversal and results, and [`local`] and [`git`] acquire hostile source
-//! under shared snapshot and custody owners. This crate stops at immutable
-//! source custody; package declarations, graph construction, review, and
-//! admission belong to `package-manager`.
 
 mod custody;
 pub(crate) use optimization_core::digest_encoder;

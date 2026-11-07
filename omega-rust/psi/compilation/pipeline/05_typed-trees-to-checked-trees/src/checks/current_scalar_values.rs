@@ -84,17 +84,17 @@ struct Binding {
 enum LengthSubject {
     Storage(SymbolHandle),
     Result(SymbolHandle),
-    /// One captured slice field, identified by its complete declaration path.
+    /// One captured descriptor, identified by its complete static storage path.
     /// The owner is the current storage binding, not the source producer.
     Field {
         owner: SymbolHandle,
-        path: Vec<SymbolHandle>,
+        path: Vec<facts::PlaceSegment>,
     },
     /// One slice field of the value returned from this machine. The owner is
     /// the machine, and `result.field.len` reads this observation.
     ResultField {
         owner: SymbolHandle,
-        path: Vec<SymbolHandle>,
+        path: Vec<facts::PlaceSegment>,
     },
 }
 
@@ -129,10 +129,7 @@ fn length_place(subject: &LengthSubject) -> Option<validation::CanonicalPlace> {
         }),
         LengthSubject::Field { owner, path } => Some(validation::CanonicalPlace {
             root: facts::PlaceRoot::Symbol(*owner),
-            segments: path
-                .iter()
-                .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
-                .collect(),
+            segments: path.clone(),
         }),
         LengthSubject::Result(_) | LengthSubject::ResultField { .. } => None,
     }
@@ -658,6 +655,17 @@ impl<'program> CurrentScalarValues<'program> {
                         && let Some((owner, path)) = field_storage_path(program, assignment.target)
                     {
                         values.replace_conditions(owner, &path, conditions);
+                    }
+                    if target_remains_current
+                        && validation::value_has_builtin_coordinates(
+                            program,
+                            machine,
+                            state,
+                            assignment.target,
+                        )
+                        && let Some((owner, path)) =
+                            descriptor_storage_path(program, assignment.target)
+                    {
                         values.replace_record_fields(owner, &path, fields);
                     }
                     if let Some(value) = stored_value {
@@ -1183,8 +1191,9 @@ impl<'program> CurrentScalarValues<'program> {
             program.expression_table.expression(expression),
             ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
         ) {
-            if let Some(value) = length_occurrence(program, expression, &self.lengths)
-                .and_then(|length| length.value.clone())
+            if let Some(value) =
+                length_occurrence(program, machine, state, expression, &self.lengths)
+                    .and_then(|length| length.value.clone())
             {
                 return Some(value);
             }
@@ -1710,6 +1719,37 @@ fn field_storage_path(
     Some((owner, declaration_field_path(&place.segments)?))
 }
 
+/// Descriptor observations may name fixed array cells as well as fields.
+/// Runtime selectors still need their own captured-value association and cannot
+/// become a persistent declaration coordinate through this static adapter.
+fn descriptor_storage_path(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>)> {
+    let mut receiver = expression;
+    loop {
+        match program.expression_table.expression(receiver) {
+            ExpressionNode::Name(_) => break,
+            ExpressionNode::Member(member) => receiver = member.receiver,
+            ExpressionNode::Indexed(indexed) => receiver = indexed.collection,
+            // A representation cast may retain bytes while changing element
+            // units. Its formed descriptor owns a separate extent observation.
+            _ => return None,
+        }
+    }
+    let place = validation::canonical_place_from_expression(program, expression)?;
+    let owner = place.root.as_symbol()?;
+    static_descriptor_path(&place.segments).then_some((owner, place.segments))
+}
+
+fn static_descriptor_path(path: &[facts::PlaceSegment]) -> bool {
+    path.iter().all(|segment| match segment {
+        facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
+        facts::PlaceSegment::FixedIndex { .. } => true,
+        _ => false,
+    })
+}
+
 fn declaration_field_path(segments: &[facts::PlaceSegment]) -> Option<Vec<SymbolHandle>> {
     segments
         .iter()
@@ -1723,25 +1763,28 @@ fn declaration_field_path(segments: &[facts::PlaceSegment]) -> Option<Vec<Symbol
 /// The fixed length a `collection.len` occurrence reads, if it reads one.
 fn length_occurrence<'lengths>(
     program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
     expression: ExpressionHandle,
     lengths: &'lengths [Length],
 ) -> Option<&'lengths Length> {
     let member = program.expression_table.member_node(expression)?;
+    if !validation::value_has_builtin_coordinates(program, machine, state, member.receiver) {
+        return None;
+    }
     if let Some(length) = lengths.iter().find(|length| {
         if length.value.is_none() {
             return false;
         }
         match &length.subject {
-            LengthSubject::Field { owner, path } => field_storage_path(program, member.receiver)
-                .is_some_and(|(actual_owner, actual_path)| {
-                    actual_owner == *owner && actual_path == *path
-                }),
+            LengthSubject::Field { owner, path } => {
+                descriptor_storage_path(program, member.receiver).is_some_and(
+                    |(actual_owner, actual_path)| actual_owner == *owner && actual_path == *path,
+                )
+            }
             LengthSubject::ResultField { owner, path } => {
-                validation::reserved_result_place(program, member.receiver).is_some_and(|place| {
-                    place.machine_symbol == *owner
-                        && declaration_field_path(&place.segments)
-                            .is_some_and(|actual| actual == *path)
-                })
+                validation::reserved_result_place(program, member.receiver)
+                    .is_some_and(|place| place.machine_symbol == *owner && place.segments == *path)
             }
             _ => false,
         }
@@ -2068,7 +2111,7 @@ fn admitted(
             }),
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             result_scalar_field_occurrence(occurrence, expression).is_some()
-                || length_occurrence(program, expression, lengths).is_some()
+                || length_occurrence(program, machine, state, expression, lengths).is_some()
                 || scalar_field_occurrence(occurrence, expression, bindings, fields).is_some()
                 || field_occurrence(program, machine, state, expression).is_some()
                 || literal_window_length(program, expression).is_some()
@@ -2191,7 +2234,7 @@ fn scoped_operations(
             ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
                 let value = result_scalar_field_occurrence(occurrence, expression)
                     .or_else(|| {
-                        length_occurrence(program, expression, lengths)
+                        length_occurrence(program, machine, state, expression, lengths)
                             .and_then(|length| length.value.clone())
                             .map(carrier_bounded_length)
                     })

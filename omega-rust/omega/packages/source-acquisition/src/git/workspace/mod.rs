@@ -1,4 +1,5 @@
-//! Syntax-neutral coordination for selecting one declared Git workspace member.
+// Syntax-neutral coordination types and planner trait for selecting and
+// projecting one declared Git workspace member.
 
 mod workspace_declaration;
 

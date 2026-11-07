@@ -1,4 +1,15 @@
-//! Filesystem custody shared by local snapshots and Git cache entries.
+/*
+Private cache staging (`PendingCacheEntry`, `ProvisionalCacheDirectory`) and
+atomic directory publication (`publish_cache_directory_from_open_parent`).
+
+`publish_cache_directory_from_open_parent` invokes `on_renamed` immediately
+after renaming the staged directory so retained-stage owners retarget drop
+cleanup to the published name before any post-rename verification or `fsync` can
+fail. On Linux, `synchronize_directory` reopens `.` as a readable handle because
+capability directory handles use `O_PATH`. `PendingCacheEntry::create` names
+stages `.git-stage-<pid>-<seq>` without repeating the 64-byte cache identity so
+canonical cache roots stay within Windows child-process path limits.
+*/
 
 use super::lock::verify_retained_cache_parent_path;
 use super::platform::{
@@ -133,9 +144,6 @@ pub(crate) fn publish_cache_directory_from_open_parent(
     directory
         .rename(staged_name, directory, publication_name)
         .at(&publication_path)?;
-    // Retained-stage owners must retarget cleanup before any fallible work
-    // after the rename. A later identity or durability failure must remove the
-    // publication, not leave it behind under its new name.
     on_renamed();
     let published_metadata = directory
         .symlink_metadata(publication_name)
@@ -154,8 +162,6 @@ pub(crate) fn publish_cache_directory_from_open_parent(
 }
 
 #[cfg(unix)]
-/// Directory handles are opened with `O_PATH` on Linux; reopen a readable
-/// handle so `fsync` applies.
 pub(crate) fn synchronize_directory(directory: &CapabilityDirectory) -> std::io::Result<()> {
     directory.open(".")?.into_std().sync_all()
 }
@@ -198,10 +204,6 @@ impl PendingCacheEntry {
         })?;
         for _ in 0..128 {
             let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-            // The retained parent lock and process-local sequence provide the
-            // staging identity. Repeating the 64-byte cache identity here adds
-            // no custody and can push otherwise valid canonical cache roots
-            // beyond Windows' child-process path limits before Git runs.
             let stage_name =
                 OsString::from(format!(".git-stage-{}-{sequence}", std::process::id()));
             let root = cache_dir.join(&stage_name);

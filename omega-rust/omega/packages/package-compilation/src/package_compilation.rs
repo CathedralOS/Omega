@@ -1,12 +1,34 @@
-//! Constructs the package graph and validates inputs before compilation.
-//! Build metadata derives from retained source or sealed physical capture in
-//! `source_snapshot`; source queries consume the invocation's shared view.
-//!
-//! The carriers a caller binds live in `bindings`; `construction` builds
-//! and revalidates the reconciled graph; `dependency_graph` answers edge,
-//! closure, and cycle questions over it; `build_handoffs` attaches the
-//! complete source and Product-selection handoffs of dependency builds; `errors` names
-//! every construction and attachment rejection.
+/*
+Reconciled package dependency graph, source-routing custody, and per-target
+compilation attachments.
+
+We construct and validate `PackageCompilationInputs`, the closed package input
+contract consumed by package-aware compilation. We split compilation inputs
+into two parts:
+1. `PackageCompilationSourceInputs` (`Arc`-shared across target forks), which
+   holds the root identity and role, canonical package roots, captured source
+   trees, `Build::Source` metadata, and requester-scoped `Product` / `Build`
+   dependency alias maps.
+2. `PackageCompilationTargetInputs`, which holds the checked activation purpose,
+   dependency `PackageBuildHandoff` bundles, accepted semantic bindings,
+   independent component descriptions, and optional product retention coordinates.
+*/
+
+/*
+Separating target-independent source routing from per-target attachments lets
+us share one immutable Psi 00/01 parse checkpoint across target compilations
+without ever reusing a checkpoint across divergent package graphs or permitting
+target attachments to bypass closure and custody validation when rejoined via
+`PackageCompilationInputs::from_parts`.
+*/
+
+/*
+The caller-supplied binding carriers live in `bindings.rs`; `construction.rs`
+validates and canonicalizes the package graph; `dependency_graph.rs` computes
+reachable closures and cycle checks; `build_handoffs.rs`, `provider_selections.rs`,
+`provider_defaults.rs`, and `native_bindings.rs` attach and admit dependency
+Build outputs; and `errors.rs` defines `PackageCompilationInputError`.
+*/
 
 mod bindings;
 mod build_handoffs;
@@ -41,19 +63,12 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// Closed, requester-scoped package bindings accepted by package-aware
-/// compilation. Construction validates the complete graph and canonicalizes
-/// all source roots before the compiler can consume it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageCompilationInputs {
     source: Arc<PackageCompilationSourceInputs>,
     target: PackageCompilationTargetInputs,
 }
 
-/// Checked activation purpose and exact-target attachments, independent of
-/// the shared source graph.
-/// These maps remain private and are revalidated when joined to another source
-/// graph. An empty value represents no attached target-specific inputs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageCompilationTargetInputs {
     purpose: DependencyPurpose,
@@ -66,9 +81,6 @@ pub struct PackageCompilationTargetInputs {
     native_product_retention: Option<CompilerProductRetention>,
 }
 
-/// Optional compiler-private storage coordinates selected after ordinary
-/// package admission. The key binds compiler, source closure and snapshot;
-/// carrying it grants no checking, provider or execution authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompilerProductRetention {
     directory: PathBuf,
@@ -108,15 +120,6 @@ impl Default for PackageCompilationTargetInputs {
     }
 }
 
-/// Shared target-independent package inputs used
-/// while source roots and ordinary imports are discovered.
-///
-/// This is not a durable package identity: it deliberately retains source
-/// routing, immutable captured bytes and canonical build-visible metadata. Checkpoint equality
-/// prevents a compiler source checkpoint prepared from one package graph from
-/// being reused with a child whose source-routing inputs differ. Exact-target
-/// generated sources and accepted semantic bindings are excluded because they
-/// join only after that shared checkpoint forks.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PackageCompilationSourceInputs {
     filesystem: source::SourceFileSystem,
@@ -126,8 +129,6 @@ pub struct PackageCompilationSourceInputs {
     dependency_acquisitions: Vec<PackageDependencyAcquisition>,
 }
 
-/// A package-owned acquisition for an exact, purpose-local dependency request.
-/// The request is inert data, not an issued execution receipt or a host grant.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PackageDependencyAcquisition {
     pub request_ordinal: usize,
@@ -135,12 +136,6 @@ pub struct PackageDependencyAcquisition {
     pub package: PackageKeyIdentity,
 }
 
-/// Source custody and requester-local routing owned by one package identity.
-///
-/// `dependencies` and `build_dependencies` are distinct scopes: the same alias
-/// may bind different packages in each. Only the compilation root may hold
-/// build-scope edges — the compiled program executes exactly one package's
-/// build entry, and dependency build files never join it.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct PackageCompilationSourceRecord {
     source_root: PathBuf,
@@ -149,7 +144,7 @@ struct PackageCompilationSourceRecord {
     captured_source: Option<Arc<source::CapturedSourceTree>>,
     captured_build_source: Option<build_output::CapturedBuildSourceInput>,
     dependencies: BTreeMap<String, PackageKeyIdentity>,
-    build_dependencies: BTreeMap<String, PackageKeyIdentity>,
+    build_dependencies: BTreeMap<String, PackageKeyIdentity>, // Only the compilation root may hold build-scope edges.
 }
 
 impl PackageCompilationInputs {
@@ -187,9 +182,6 @@ impl PackageCompilationInputs {
         Ok(())
     }
 
-    /// Retain source acquisition's exact requests and selected package custody.
-    /// A later Build must issue these same values before the sources can settle
-    /// its ledger. Merely supplying an alias graph is not that evidence.
     pub fn with_dependency_acquisitions(
         mut self,
         acquisitions: Vec<PackageDependencyAcquisition>,
@@ -243,8 +235,6 @@ impl PackageCompilationInputs {
         &self.source.dependency_acquisitions
     }
 
-    /// Admit the purpose and generated-source attachments of one compiler
-    /// occurrence, whether supplied initially or acquired during its Build.
     pub fn validate_execution_context(
         &self,
         selected_target: Option<target::TargetProfile>,
@@ -270,8 +260,6 @@ impl PackageCompilationInputs {
             .map_err(diagnostics)
     }
 
-    /// Retain the original root bytes when final ownership joins. Executed
-    /// request settlement is checked by the Build continuation before assembly.
     pub(crate) fn validate_unbound_source_join(
         &self,
         root: &Path,
@@ -342,14 +330,11 @@ impl PackageCompilationInputs {
             .map(|(identity, record)| (*identity, record.source_root.as_path()))
     }
 
-    /// Share the exact target-independent source-routing inputs. Equality remains
-    /// structural; pointer identity is not a source receipt or admission verdict.
     #[doc(hidden)]
     pub fn source_inputs(&self) -> Arc<PackageCompilationSourceInputs> {
         Arc::clone(&self.source)
     }
 
-    /// Separate shared source ownership from this invocation's target attachments.
     pub fn into_parts(
         self,
     ) -> (
@@ -359,9 +344,6 @@ impl PackageCompilationInputs {
         (self.source, self.target)
     }
 
-    /// Rejoin target attachments only after checking their association to the
-    /// supplied source graph. Nonempty generated inputs must cover every
-    /// dependency; the unattached empty target state remains valid.
     pub fn from_parts(
         source: Arc<PackageCompilationSourceInputs>,
         target: PackageCompilationTargetInputs,
@@ -396,9 +378,6 @@ impl PackageCompilationInputs {
         Ok(inputs)
     }
 
-    /// Select this root's checked role without duplicating its acquired source
-    /// graph. Changing roles never relabels retained outputs: reattachment must
-    /// still supply the exact dependency instances the new role requires.
     pub fn with_compilation_purpose(
         self,
         purpose: DependencyPurpose,
@@ -412,10 +391,6 @@ impl PackageCompilationInputs {
         self.target.purpose
     }
 
-    /// Request semantic-role proposals during package review. A proposal fixes
-    /// the contract being reviewed before its schema and provider commitments
-    /// are derived; it grants no native binding or terminal authority. Ordinary
-    /// compilation uses only the explicitly supplied accepted bindings.
     pub fn with_semantic_role_discovery(mut self, enabled: bool) -> Self {
         self.target.semantic_role_discovery = enabled;
         self
@@ -425,9 +400,6 @@ impl PackageCompilationInputs {
         self.target.semantic_role_discovery
     }
 
-    /// Attach the complete consumer-policy semantic bindings admitted for this
-    /// compile request. These rows neither enter nor widen the dependency
-    /// graph; every bound package must already be in the exact closure.
     pub fn with_accepted_semantic_bindings(
         mut self,
         bindings: Vec<AcceptedSemanticBinding>,
@@ -468,12 +440,6 @@ impl PackageCompilationInputs {
         self.target.accepted_semantic_bindings.values()
     }
 
-    /// Attach the component descriptions published for this root's
-    /// independently composed dependencies. Each description names one
-    /// dependency in the exact closure, never the root; the set need not
-    /// cover every dependency because only an `Independent` selection
-    /// consumes one, and settlement rejects a selection left without its
-    /// description rather than treating the edge as fused.
     pub fn with_independent_component_descriptions(
         mut self,
         descriptions: Vec<IndependentComponentDescription>,
@@ -512,8 +478,6 @@ impl PackageCompilationInputs {
         }
     }
 
-    /// The attached component descriptions in package-identity order. They
-    /// are unverified bytes until build settlement admits them.
     pub fn independent_component_descriptions(
         &self,
     ) -> impl Iterator<Item = &IndependentComponentDescription> {

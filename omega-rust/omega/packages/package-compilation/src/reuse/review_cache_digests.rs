@@ -1,13 +1,9 @@
-//! Content digests over review-pass inputs for the persisted compiled-review
-//! cache.
-//!
-//! An in-session carry compares `PackageCompilationInputs` and
-//! `BuildSnapshotRequest` structurally, which includes checkout-absolute
-//! roots; the persisted key instead digests each package's content-authenticated
-//! commitment plus every semantic attachment a compile reads. Physical roots
-//! deliberately stay out: equal content under a moved checkout is the same
-//! compilation input. The digest binds semantics only — custody and
-//! consumption are still re-verified on every hit by the carrying pass.
+// Content digests over review-pass compilation inputs (`review_cache_inputs_digest`),
+// build snapshot requests (`review_cache_snapshot_digest`), and generated build
+// handoffs (`package_build_handoff_digest`) for the persisted compiled-review
+// cache. Physical checkout roots stay out of these digests so identical content
+// under a moved checkout produces the same key, while custody and consumption
+// commitments are still re-verified on every hit.
 
 use crate::digest_encoder::DomainDigestEncoder;
 use crate::reuse::review_record_encoding::{
@@ -24,19 +20,12 @@ use filesystem_authority::CanonicalFilesystemMetadataIndex;
 const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x04";
 const SNAPSHOT_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-SNAPSHOT\x01";
 
-/// Commit the current activation's own generated outputs as well as the
-/// dependency bundles already covered by `review_cache_inputs_digest`.
 pub fn package_build_handoff_digest(bundle: &PackageBuildHandoff) -> [u8; 32] {
     let mut digest = DomainDigestEncoder::new(b"omega-package-build-products-v4\0");
     hash_generated_bundle(&mut digest, bundle);
     digest.finish()
 }
 
-/// Content digest of the complete compilation inputs a review pass reads:
-/// the shared source graph's canonical names, authenticated content
-/// commitments, and reconciled edge maps, plus the checked target's purpose,
-/// generated-source bundles, accepted semantic bindings, and independent
-/// component descriptions.
 pub fn review_cache_inputs_digest(inputs: &PackageCompilationInputs) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(INPUTS_DIGEST_DOMAIN);
     digest.raw(&inputs.root().digest());
@@ -78,8 +67,6 @@ pub fn review_cache_inputs_digest(inputs: &PackageCompilationInputs) -> [u8; 32]
     digest.finish()
 }
 
-/// Content digest of one build snapshot request: the declared required
-/// outputs, the capture view, and every named input's authenticated content.
 pub fn review_cache_snapshot_digest(snapshot: &BuildSnapshotRequest) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(SNAPSHOT_DIGEST_DOMAIN);
     digest.u64(snapshot.required_outputs().len() as u64);

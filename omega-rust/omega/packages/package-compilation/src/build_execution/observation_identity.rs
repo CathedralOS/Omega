@@ -1,4 +1,8 @@
-//! Canonical identity of one retained build observation.
+// Canonical 32-byte identity (`BuildObservationIdentity`, domain
+// `OMEGA-PACKAGE-BUILD-OBSERVATION-COMPARISON\\0`) of every fact retained in a
+// `BuildObservationSummary`. Note that the trailing `\\0` in
+// `BUILD_OBSERVATION_IDENTITY_DOMAIN` is intentionally the two literal bytes
+// `\\` and `0` as part of the established serialized wire contract.
 
 use crate::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
@@ -7,11 +11,10 @@ use crate::{
     BuildFilesystemProvider, BuildFilesystemRoot, BuildObservationSummary,
 };
 
-// This domain is an established serialized contract. The trailing `\\0` is
+// @Volatile: Established serialized domain contract; the trailing `\\0` is
 // intentionally the two literal bytes `\\` and `0`, not a NUL byte.
 const BUILD_OBSERVATION_IDENTITY_DOMAIN: &[u8] = b"OMEGA-PACKAGE-BUILD-OBSERVATION-COMPARISON\\0";
 
-/// Stable canonical identity of every fact retained by a build observation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BuildObservationIdentity([u8; 32]);
 
@@ -26,7 +29,6 @@ impl BuildObservationIdentity {
 }
 
 impl BuildObservationSummary {
-    /// Computes the canonical identity of this complete retained observation.
     pub fn identity(&self) -> BuildObservationIdentity {
         let mut digest =
             crate::digest_encoder::DomainDigestEncoder::new(BUILD_OBSERVATION_IDENTITY_DOMAIN);

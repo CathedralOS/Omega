@@ -1,7 +1,11 @@
-//! A live Source directory bound during admission, before consent or execution.
-//!
-//! Descendants are opened relative to that retained directory, never by joining
-//! an ambient path. Replacing the original root name cannot retarget a grant.
+// Capability-bound live `Source` directory (`LiveBuildSource`) opened during admission.
+//
+// Descendants are opened relative to the retained `cap_std::fs::Dir` handle using
+// `open_dir_nofollow` and `FollowSymlinks::No` rather than joining ambient paths,
+// so renaming or symlinking the root or any intermediate directory after admission
+// cannot retarget a live `Source` read outside the admitted directory tree.
+// Pointer equality on `Arc<Dir>` ensures two independent live-root admissions
+// never compare equal or exchange filesystem effects.
 
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt, OpenOptionsSyncExt};
 use cap_std::fs::{Dir, OpenOptions};

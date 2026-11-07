@@ -1,4 +1,13 @@
-//! Shared fixture construction for owner-local package-source tests.
+/*
+Shared fixture construction for owner-local package-source tests.
+
+`temp_root_at` pairs the system clock with a monotonic atomic counter so
+parallel fixtures never share a directory, and avoids `canonicalize()` on
+Windows because Git for Windows does not consistently accept the verbatim
+`\\?\` prefix through configuration variables and `-C`. `remove_fixture` tears
+down the source tree first and then makes the published read-only storage base
+writable before removal.
+*/
 
 use crate::PrimaryGitChoices;
 use crate::SourceResolver;
@@ -30,18 +39,12 @@ pub(crate) fn temp_root(name: &str) -> PathBuf {
 }
 
 fn temp_root_at(name: &str, stamp: u128) -> PathBuf {
-    // Clock resolution is not uniqueness: parallel fixtures can observe the
-    // same timestamp and must never share a directory or its cleanup.
     static NEXT_ROOT: AtomicU64 = AtomicU64::new(0);
     let ordinal = NEXT_ROOT.fetch_add(1, Ordering::Relaxed);
     #[cfg(not(windows))]
     let temporary_directory = std::env::temp_dir()
         .canonicalize()
         .expect("canonicalize test temporary directory");
-    // Windows canonicalization introduces a `\\?\` spelling. The resolver
-    // accepts that spelling, but fixture Git processes also receive these
-    // paths through configuration variables and `-C`, where Git for Windows
-    // does not consistently accept the verbatim prefix.
     #[cfg(windows)]
     let temporary_directory = std::env::temp_dir();
     temporary_directory.join(format!(
@@ -50,8 +53,6 @@ fn temp_root_at(name: &str, stamp: u128) -> PathBuf {
     ))
 }
 
-/// Tear down one fixture: its source tree first, then the retained storage
-/// base, whose published custody is read-only until released.
 pub(crate) fn remove_fixture(source_root: &Path, storage_base: &Path) {
     let _ = std::fs::remove_dir_all(source_root);
     make_tree_owner_writable(storage_base);
@@ -77,8 +78,6 @@ pub(crate) fn resolve_git_source_from_hardened_base(
     resolve_git_source(request, &storage, limits)
 }
 
-/// Create one Git source fixture and prime the cache lane its request resolves
-/// into, returning the repository, cache base, and request.
 pub(crate) fn primed_git_cache(stem: &str) -> (PathBuf, PathBuf, GitSourceRequest) {
     let (repository, _) = create_git_source(&format!("{stem}-source"));
     let cache = temp_root(&format!("{stem}-cache"));

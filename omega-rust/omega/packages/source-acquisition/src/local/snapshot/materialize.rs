@@ -1,4 +1,13 @@
-//! Write and verify captured bytes through the shared snapshot publisher.
+// Materialization of captured local-source bytes into a read-only published
+// snapshot directory.
+//
+// `materialize_pending_local_snapshot` writes every captured directory, file,
+// and symlink into a staging directory, re-captures the materialized tree to
+// confirm its identity matches the captured tree, and performs one final
+// `verify_live_source_unchanged` check before writing metadata so a concurrent
+// edit to the live checkout never leaves a durable snapshot of a transient tree
+// state. On Windows, we explicitly drop the open `source_directory` handle
+// before `pending.publish` so the OS permits the atomic directory rename.
 
 use super::ResolvedLocalSource;
 use super::{same_source_identity, verify_live_source_unchanged};
@@ -124,11 +133,6 @@ fn materialize_pending_local_snapshot(
             "staged source does not match the captured local tree",
         ));
     }
-    // The one surviving live-tree comparison. A publication is a durable
-    // artifact later invocations reuse by content identity, so an edit landing
-    // between the capture and this write would leave a snapshot of a tree
-    // state that never finished existing. The staging tree is removed and the
-    // resolution rejects instead.
     verify_live_source_unchanged(expected_live, limits)?;
 
     write_snapshot_file_from_open_root(
@@ -144,9 +148,6 @@ fn materialize_pending_local_snapshot(
         pending.directory()?,
         &pending.root,
     )?;
-    // Windows will not rename the retained stage while a descendant directory
-    // handle remains open. Verification is complete, so release it before the
-    // atomic publication rename.
     drop(source_directory);
     pending.publish(snapshots, publication)?;
     verify_local_snapshot(publication, identity, limits)
