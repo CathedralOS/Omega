@@ -393,7 +393,7 @@ fail/arrays/borrowed_array_call_argument_wrong_extent rejected 763ms expected @c
 	argument `receipts` for state `entry` expects `&[Receipt; 2]`, got `array literal`
 fail/arrays/qualified_array_literal_rejects_element_policy_conversion rejected 868ms expected @ccdb99ca2214
 	store in array literal element of type `u32` implicitly converts `u32 in Saturating` to `u32 in Wrapping` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Wrapping`)
-fail/arrays/window_copy_preserves_inherited_element_policy rejected 913ms expected @ccdb99ca2214
+fail/arrays/window_copy_preserves_inherited_element_policy rejected 3348ms expected @645f21c6d94f
 	array window replacement source must preserve the complete destination element type, including its qualifications
 fail/asm/arm_subs_invented_clobber rejected 43ms expected @0af7c594a1c0
 	tests/omega/fail/asm/arm_subs_invented_clobber/main.omg:1:90: asm `clobbers` must exactly match the realized instruction contract: not clobbered `x2`
@@ -790,17 +790,13 @@ fail/borrow/captured_window_replacement_loan_keeps_loan rejected 2315ms expected
 	state `replaced` receives `windows[0].values` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
 	state `unchanged` receives `windows[1].values` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
 	statement 6 mutates `replacement[0].value` while local borrow `windows` is still active (borrowed at statement 5; its last use is at statement 7)
-fail/borrow/captured_window_sibling_loan_keeps_loan rejected 2173ms expected @ccdb99ca2214
-	state `replaced` receives `windows[0].values` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	state `unchanged` receives `windows[1].values` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+fail/borrow/captured_window_sibling_loan_keeps_loan rejected 4586ms expected @44270c513cfd
 	statement 6 mutates `neighbor[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 7)
-fail/borrow/captured_window_unknown_slot_keeps_loan rejected 2748ms expected @ccdb99ca2214
-	state `replaced` receives `windows[0].values` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	state `unchanged` receives `windows[1].values` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+fail/borrow/captured_window_unknown_slot_keeps_loan rejected 4299ms expected @44270c513cfd
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-	statement 6 borrows `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 borrows `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6) in machine `through_result`, state `entry`, statement 6
 	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/borrow/captured_window_write_through_keeps_loan rejected 2528ms expected @ccdb99ca2214
+fail/borrow/captured_window_write_through_keeps_loan rejected 4308ms expected @44270c513cfd
 	statement 3 mutates `original.value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 4)
 fail/borrow/captured_window_wrong_slot_keeps_loan rejected 2667ms expected @ccdb99ca2214
 	state `replaced` receives `windows[0].values` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
@@ -3049,7 +3045,7 @@ fail/collections/stored_reference_array_owned_record_empty rejected 2551ms expec
 	cannot prove requires contract for call observe from main: bundle.windows[0].len == 1 (needs fact `bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/collections/stored_reference_array_sibling_extent rejected 2529ms expected @ccdb99ca2214
 	cannot prove requires contract for call observe from main: windows[0].len == windows[1].len (needs fact `windows[0].len == windows[1].len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/collections/stored_reference_array_stale_extent rejected 2744ms expected @ccdb99ca2214
+fail/collections/stored_reference_array_stale_extent rejected 5130ms expected @645f21c6d94f
 	cannot prove requires contract for call observe from main: windows[0].len == 1 && saved == 1 (needs fact `windows[0].len == 1 && saved == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/collections/typed_run_relocation_stable rejected 4674ms expected @3d4c787d6167
 	run relocation requires address: movable for the retained element type
@@ -19332,12 +19328,7 @@ pass/arrays/local_record_array_guard_exit checked 4099ms check-target:macos_arm6
 pass/arrays/qualified_array_literal checked 3607ms @ccdb99ca2214
 pass/arrays/qualified_array_literal_retains_element_policy_exit checked 3807ms check-target:macos_arm64 @ccdb99ca2214
 pass/arrays/record_array_literal checked 3914ms @ccdb99ca2214
-pass/arrays/runtime_completed_array_window_replacement_exit rejected 12490ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	statement 1 cannot resolve the complete borrowed destination of `values[1..3]`: the stored descriptor has no current value source
-	statement 11 cannot resolve the complete borrowed destination of `nested[__hoist_27]`: the stored descriptor has no retained loan occurrence
-	statement 15 cannot resolve the complete borrowed destination of `tokens[1..3]`: the stored descriptor has no current value source
-	statement 17 reads `main.old_middle.value` while local borrow `tokens` is still active (borrowed at statement 13; its last use is at statement 18)
-	statement 17 reads `main.old_last.value` while local borrow `tokens` is still active (borrowed at statement 13; its last use is at statement 18)
+pass/arrays/runtime_completed_array_window_replacement_exit checked 11814ms check-target:macos_arm64 @f276c27aaaba
 pass/arrays/runtime_computed_float_element_store_exit checked 21097ms check-target:macos_arm64 @ccdb99ca2214
 pass/arrays/runtime_index_recast checked 3653ms @ccdb99ca2214
 pass/arrays/subject_field_where_index checked 6459ms @911f6617ba9e
@@ -20618,8 +20609,7 @@ pass/collections/runtime_signed_element_offset_read_exit checked 17193ms check-t
 pass/collections/runtime_slice_record_copy_exit checked 65175ms check-target:macos_arm64 @911f6617ba9e
 pass/collections/runtime_state_indexed_scalar_field_store_exit checked 6503ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/runtime_stored_reference_array_owned_record_contract_exit checked 3396ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/runtime_stored_reference_array_replacement_contract_exit rejected 3988ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "value storage local is not established", gap: None })
+pass/collections/runtime_stored_reference_array_replacement_contract_exit checked 7370ms check-target:macos_arm64 @645f21c6d94f
 pass/collections/runtime_three_indexed_record_float_read_exit checked 17197ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/runtime_vec_u32_growth_exit checked 28335ms check-target:macos_arm64 @e9afae5fccb7
 pass/collections/runtime_view_element_structural_replacement_exit checked 2994ms check-target:macos_arm64 @ccdb99ca2214
