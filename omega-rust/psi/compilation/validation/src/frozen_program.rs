@@ -365,10 +365,29 @@ impl<'program> CheckingContext<'program> {
         }
     }
 
-    /// Attach validation's expression intervals, once, before the checks that
-    /// read them run. Like the storage graph, they change no memoized answer.
-    pub fn attach_expression_intervals(&self, intervals: Arc<[crate::ExpressionInterval]>) {
-        let _ = self.expression_intervals.set(intervals);
+    /// Attach validation's expression intervals before the checks that read
+    /// them run. Case-evidence normalization and range queries read them, so
+    /// an answer memoized before they existed may differ: like every other
+    /// input change, this makes a new context that keeps only the pure typed-tree
+    /// indexes. The earlier context stays valid for what was built from it.
+    pub fn clone_with_expression_intervals(
+        &self,
+        intervals: Arc<[crate::ExpressionInterval]>,
+    ) -> CheckingContext<'program> {
+        CheckingContext {
+            defer_layout_geometry: self.defer_layout_geometry,
+            program: self.program,
+            external_roots: self.external_roots,
+            retained_borrows: self.retained_borrows.clone(),
+            finalized_selections: self.finalized_selections,
+            prepared_effects: self.prepared_effects,
+            storage_graph: self.storage_graph.clone(),
+            expression_intervals: OnceLock::from(intervals),
+            prepared_mathematics: self.prepared_mathematics,
+            opaque_selections: self.opaque_selections,
+            memos: Arc::new(self.memos.clone_typed_tree_memos()),
+            call_frame_tables: self.call_frame_tables.clone(),
+        }
     }
 
     /// Switch to the ownership-complete execution graph. Effects participate
