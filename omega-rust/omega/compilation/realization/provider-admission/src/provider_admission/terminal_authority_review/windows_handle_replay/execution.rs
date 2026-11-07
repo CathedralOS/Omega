@@ -5,7 +5,7 @@
 //! retirement histories never join by selecting one convenient predecessor.
 
 use super::*;
-use semantic_vocabulary::BlockId;
+use semantic_vocabulary::{BlockId, BoundaryMachineId};
 use std::cmp::Ordering;
 use std::sync::Arc;
 use terminal_semantics::descriptor_lifetimes::DescriptorPosition;
@@ -242,6 +242,7 @@ impl Pending {
 
 pub(super) struct CheckedHandleExecution {
     pub occurrences: BTreeMap<NativeOccurrence, WindowsHandleContract>,
+    pub external_completions: BTreeSet<(ScalarOccurrence, BoundaryMachineId)>,
 }
 
 struct Execution<'a, 'module> {
@@ -253,6 +254,7 @@ struct Execution<'a, 'module> {
     pending: Pending,
     occurrences: BTreeMap<NativeOccurrence, WindowsHandleContract>,
     completed: usize,
+    external_completions: BTreeSet<(ScalarOccurrence, BoundaryMachineId)>,
 }
 
 impl<'a, 'module> Execution<'a, 'module> {
@@ -323,10 +325,21 @@ impl<'a, 'module> Execution<'a, 'module> {
                         state,
                     })?;
                 }
-                CallTarget::Boundary(_) => {
+                CallTarget::Boundary(boundary) => {
+                    if let Some(declaration) = self.inputs.external_calls.get(&caller) {
+                        if declaration.completion
+                            != terminal_psi::BoundaryCompletion::External(
+                                semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+                            )
+                        {
+                            return Err("process exit lost its prepared admitted completion".into());
+                        }
+                        self.process_exit(work.clone(), *call)?;
+                        continue;
+                    }
                     let input = self.inputs.natives.get(&caller).ok_or_else(|| {
                         if self.inputs.opaque_calls.contains_key(&caller) {
-                            format!("handle execution has no preserving contract for boundary call {caller:?}")
+                            format!("handle execution has no preserving contract for boundary call {caller:?}, boundary {boundary:?}, declaration {:?}, mechanism {:?}", self.context.boundaries.get(&boundary), self.context.mechanism(boundary))
                         } else {
                             format!("handle execution lost its original boundary call {caller:?}")
                         }
@@ -408,7 +421,7 @@ impl<'a, 'module> Execution<'a, 'module> {
                             "handle intrinsic lost its prepared original call roster".into()
                         );
                     }
-                    self.intrinsic(work.clone(), *call, execution, continuation.clone())?;
+                    self.intrinsic(work.clone(), *call, execution)?;
                 }
             }
         }
@@ -417,10 +430,9 @@ impl<'a, 'module> Execution<'a, 'module> {
 
     fn intrinsic(
         &mut self,
-        mut work: Work,
+        work: Work,
         call: RuntimeCall<'_>,
         execution: effects::CompilerIntrinsicExecutionIdentity,
-        _continuation: Control,
     ) -> Result<(), String> {
         // External completion never supplies a fabricated ordinary return.
         // The original admitted mechanism, call kind and terminator must agree.
@@ -431,6 +443,14 @@ impl<'a, 'module> Execution<'a, 'module> {
                 "handle execution has no value/storage contract for intrinsic {execution:?}"
             ));
         }
+        self.process_exit(work, call)
+    }
+
+    fn process_exit(&mut self, mut work: Work, call: RuntimeCall<'_>) -> Result<(), String> {
+        // This explicit canonical outcome has no normal successor or release
+        // receipt. It remains conditional on the runtime's independently
+        // delegated containing-domain authority; this replay grants none.
+        // Ordinary returns still check every acquired handle below.
         let CallSite::Invocation(InvocationSite::ExternalCompletion(edge)) = call.caller.site
         else {
             return Err("process exit has no original external-completion occurrence".into());
@@ -448,7 +468,26 @@ impl<'a, 'module> Execution<'a, 'module> {
         else {
             return Err("process exit substitutes another original terminator".into());
         };
-        if *actual != edge
+        let RuntimeArguments::Explicit { scalar, structural } = call.arguments else {
+            return Err("process exit substitutes implicit cleanup operands".into());
+        };
+        if scalar != arguments.as_slice()
+            || structural != structural_arguments.as_slice()
+            || call.caller.machine != body.id
+            || call.caller.operation_index != block.operations.len()
+        {
+            return Err("process exit substitutes its original caller/operand occurrence".into());
+        }
+        let declaration = self
+            .context
+            .input
+            .module()
+            .boundary_machine(*boundary)
+            .ok_or("process exit lost its original Terminal declaration")?;
+        if call.normal_return
+            || call.receiving.is_some()
+            || declaration.completion != terminal_psi::BoundaryCompletion::External(*kind)
+            || *actual != edge
             || call.boundary != Some(*boundary)
             || !structural_arguments.is_empty()
             || arguments.len() != 1
@@ -471,24 +510,11 @@ impl<'a, 'module> Execution<'a, 'module> {
         let value =
             work.state
                 .scalar(arguments[0], work.control.position(), &prepared.expressions)?;
-        work.state
-            .observe(value.word.dependencies().iter().copied(), occurrence)?;
-        let i32_type = ScalarType::Integer(
-            IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32).map_err(|reason| {
-                format!("process exit has no supported status carrier: {reason:?}")
-            })?,
-        );
-        if value.word.scalar_type() != i32_type || !value.word.dependencies().is_empty() {
-            return Err(
-                "process exit changes its status carrier or exposes tracked handle bits".into(),
-            );
-        }
-        work.state
-            .ledger
-            .returning_path(occurrence, &[])
-            .map_err(|reason| {
-                format!("process exit retains an unproved handle lifetime: {reason:?}")
-            })?;
+        work.state.observe_process_exit_status(&value, occurrence)?;
+        // Do not close, erase or mark abandoned handles as released. There is
+        // no continuation to receive this state, and earlier/later ordinary
+        // returning alternatives keep their separate unchanged ledgers.
+        self.external_completions.insert((occurrence, *boundary));
         self.completed += 1;
         Ok(())
     }
@@ -853,6 +879,29 @@ impl<'a, 'module> Execution<'a, 'module> {
     }
 }
 
+impl CanonicalHandleState {
+    /// Reading the explicit exit status still observes its exact live value.
+    /// Ending this path does not dispose of any handle in the retained ledger.
+    fn observe_process_exit_status(
+        &mut self,
+        value: &CapturedHandleScalar,
+        occurrence: ScalarOccurrence,
+    ) -> Result<(), String> {
+        self.observe(value.word.dependencies().iter().copied(), occurrence)?;
+        let i32_type = ScalarType::Integer(
+            IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32).map_err(|reason| {
+                format!("process exit has no supported status carrier: {reason:?}")
+            })?,
+        );
+        if value.word.scalar_type() != i32_type || !value.word.dependencies().is_empty() {
+            return Err(
+                "process exit changes its status carrier or exposes tracked handle bits".into(),
+            );
+        }
+        Ok(())
+    }
+}
+
 pub(super) fn derive(
     artifact: [u8; 32],
     context: &ReviewContext<'_>,
@@ -903,6 +952,7 @@ pub(super) fn derive(
         pending: Pending::default(),
         occurrences: BTreeMap::new(),
         completed: 0,
+        external_completions: BTreeSet::new(),
     };
     execution.pending.push(Work {
         activation: 0,
@@ -947,6 +997,7 @@ pub(super) fn derive(
     }
     Ok(CheckedHandleExecution {
         occurrences: execution.occurrences,
+        external_completions: execution.external_completions,
     })
 }
 
@@ -1064,6 +1115,43 @@ mod tests {
             })],
             state: state(),
         }
+    }
+
+    #[test]
+    fn windows_handle_process_exit_status_creates_no_release_receipt() {
+        let mut active = state();
+        let instance = HandleInstance(0);
+        active
+            .ledger
+            .acquire_file(instance, occurrence(1), 0)
+            .unwrap();
+        let site = ScalarOccurrence {
+            machine: MachineId::new(1).unwrap(),
+            site: ScalarUseSite::Edge(EdgeId::new(2).unwrap()),
+            context: [1; 32],
+        };
+        let status_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+        let status = CapturedHandleScalar {
+            word: HandleWordAliases::untracked(status_type),
+            known: KnownHandleScalar::Unknown,
+        };
+        let before = active.ledger.clone();
+        active.observe_process_exit_status(&status, site).unwrap();
+        assert_eq!(active.ledger, before);
+        // An ordinary return still owes close, even after that status read.
+        assert!(active.ledger.returning_path(site, &[]).is_err());
+        active.ledger.release_file(instance, occurrence(3)).unwrap();
+        active.ledger.returning_path(site, &[]).unwrap();
+        // No authority to read retired handle bits is supplied by exit.
+        let retired_status = CapturedHandleScalar {
+            word: HandleWordAliases::derived_from_dependencies(status_type, [instance]),
+            known: KnownHandleScalar::Unknown,
+        };
+        assert!(
+            active
+                .observe_process_exit_status(&retired_status, site)
+                .is_err()
+        );
     }
 
     // The former production key is retained only as the equivalence oracle.

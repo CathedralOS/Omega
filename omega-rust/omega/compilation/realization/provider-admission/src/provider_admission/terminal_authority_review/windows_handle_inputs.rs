@@ -18,7 +18,9 @@ use super::windows_handle_arguments::closed_argument_roots;
 use super::windows_handle_calls::{
     CallTarget, Caller, HandleCallGraph, RuntimeArguments, RuntimeCall,
 };
-use super::windows_handle_contracts::{ReviewedHandleCall, WindowsHandleContract, reviewed_call};
+use super::windows_handle_contracts::{
+    ReviewedHandleCall, WindowsHandleContract, reviewed_call, reviewed_process_exit,
+};
 use super::windows_handle_origins::{HandleOrigins, ScalarSubject};
 use super::windows_handle_values::{HandleValueReader, LocalScalarExpressions};
 
@@ -96,6 +98,9 @@ pub(super) struct WindowsHandleInputs<'a> {
     /// Unknown native executions remain intervening calls even with no handle
     /// operand. Absence of a passed integer is not a preservation contract.
     pub opaque_calls: BTreeMap<Caller, RuntimeCall<'a>>,
+    /// Exact original foreign calls whose admitted requirement ends the domain.
+    /// This retains a demand, not runtime delegation or a release receipt.
+    pub external_calls: BTreeMap<Caller, &'a terminal_psi::BoundaryMachineDeclaration>,
     pub intrinsic_calls: BTreeMap<Caller, RuntimeCall<'a>>,
     pub origins: HandleOrigins,
     pub machines: IdTable<MachineId, Option<PreparedHandleMachine>>,
@@ -115,6 +120,7 @@ impl<'a> WindowsHandleInputs<'a> {
         let mut selected_bodies = Vec::new();
         let mut natives = BTreeMap::new();
         let mut opaque_calls = BTreeMap::new();
+        let mut external_calls = BTreeMap::new();
         let mut intrinsic_calls = BTreeMap::new();
         let mut roots = Vec::new();
         let mut close_sites = BTreeSet::new();
@@ -129,6 +135,19 @@ impl<'a> WindowsHandleInputs<'a> {
                         selected_bodies.push((boundary, callee));
                     }
                     CallTarget::Boundary(boundary) => {
+                        if !call.normal_return
+                            && let Some(declaration) = reviewed_process_exit(context, boundary)?
+                        {
+                            if call.receiving.is_some()
+                                || external_calls.insert(call.caller, declaration).is_some()
+                            {
+                                return Err(format!(
+                                    "process exit {:?} substitutes a normal or competing call",
+                                    call.caller
+                                ));
+                            }
+                            continue;
+                        }
                         let Some(reviewed) = reviewed_call(context, boundary)? else {
                             if opaque_calls.insert(call.caller, call).is_some() {
                                 return Err(format!(
@@ -258,6 +277,7 @@ impl<'a> WindowsHandleInputs<'a> {
             storage,
             natives,
             opaque_calls,
+            external_calls,
             intrinsic_calls,
             origins,
             machines,

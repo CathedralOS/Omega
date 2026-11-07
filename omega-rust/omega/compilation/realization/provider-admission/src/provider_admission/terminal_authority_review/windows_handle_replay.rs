@@ -2673,7 +2673,11 @@ pub(super) fn checked_calls(
     // and unrecorded disposition changes through an externally obtained alias.
     // Ordinary concurrent namespace deletion remains allowed. No inherited or
     // source-exposed handle alias is silently covered by this premise.
-    let mut proof = DomainDigestEncoder::new(b"omega.windows.file-handle.all-returning-paths.v1\0");
+    // Explicit canonical process exit is conditional on the entry/runtime's
+    // independently delegated domain authority and crossing premises. It has
+    // no normal continuation and supplies no ordinary-release receipt. The
+    // ordinary entry return bridge cannot use this rule to hide a live handle.
+    let mut proof = DomainDigestEncoder::new(b"omega.windows.file-handle.all-returning-paths.v2\0");
     proof.raw(&artifact);
     proof.bytes(context.selected.identity_digest().as_bytes());
     proof.bytes(b"sdk-create-duplicate-synchronous-transfer-close;class16-length4-nonretention;closed-process-no-handle-or-disposition-injection-v1");
@@ -2696,6 +2700,21 @@ pub(super) fn checked_calls(
             WindowsHandleContract::CurrentProcess => 7,
             WindowsHandleContract::NoHandleIntervention => 8,
         });
+    }
+    proof.bytes(b"explicit-process-exit-requires-independent-containing-domain-delegation-and-crossing-admission;no-disposition-receipt-v1");
+    proof.len(checked.external_completions.len());
+    for (occurrence, boundary) in &checked.external_completions {
+        proof.u64(occurrence.machine.get());
+        let ScalarUseSite::Edge(edge) = occurrence.site else {
+            return Err("external completion has no exact original edge".into());
+        };
+        proof.u64(edge.get());
+        proof.raw(&occurrence.context);
+        proof.u64(boundary.get());
+        let mechanism = context
+            .mechanism(*boundary)
+            .ok_or("external completion lost its admitted physical execution")?;
+        proof.bytes(&effects::terminal_mechanism_identity_bytes(*mechanism));
     }
     let complete_proof = proof.finish();
     let mut completed = Vec::new();

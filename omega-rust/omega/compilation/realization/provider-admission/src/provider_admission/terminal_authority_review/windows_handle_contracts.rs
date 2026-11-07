@@ -217,33 +217,14 @@ pub(super) fn reviewed_call<'a>(
     context: &'a ReviewContext<'_>,
     boundary: BoundaryMachineId,
 ) -> Result<Option<ReviewedHandleCall<'a>>, String> {
-    let Some(binding) = context.foreign_binding(boundary) else {
+    let Some(ReviewedWindowsImport {
+        locator,
+        declaration,
+        binding,
+    }) = original_windows_import(context, boundary)?
+    else {
         return Ok(None);
     };
-    let NormalizedForeignCallMechanism::Import { locator, .. } = &binding.mechanism else {
-        return Ok(None);
-    };
-    if locator.target() != target::TargetProfile::WindowsX64 {
-        return Ok(None);
-    }
-    let actual = crate::provider_admission::terminal_authority_policy::normalized_foreign_terminal_mechanism(
-        locator, &binding.boundary_entry_plan,
-    )?;
-    if context.mechanism(boundary) != Some(&actual) {
-        return Err(format!(
-            "Windows handle call {boundary:?} substitutes its complete admitted foreign key"
-        ));
-    }
-    let calling_boundary = crate::selected_calling_boundary(
-        context.input.module(),
-        context.input.target_machine_selections(),
-        boundary,
-    )?;
-    let declaration = context
-        .input
-        .module()
-        .boundary_machine(calling_boundary)
-        .ok_or_else(|| format!("Windows handle call {boundary:?} lost its admitted declaration"))?;
     if no_handle_intervention(locator.identity_digest()) {
         return Ok(Some(ReviewedHandleCall {
             contract: WindowsHandleContract::NoHandleIntervention,
@@ -272,6 +253,160 @@ pub(super) fn reviewed_call<'a>(
     Ok(Some(ReviewedHandleCall {
         contract: api.contract,
         declaration,
+    }))
+}
+
+/// This is a process-ending outcome, not a preserving handle operation. The
+/// retained declaration and selected schema must already promise external
+/// completion; an ExitProcess locator alone cannot abandon caller obligations.
+/// Runtime still owes authority for this exact containing process domain.
+pub(super) fn reviewed_process_exit<'a>(
+    context: &'a ReviewContext<'_>,
+    boundary: BoundaryMachineId,
+) -> Result<Option<&'a BoundaryMachineDeclaration>, String> {
+    let Some(ReviewedWindowsImport {
+        locator,
+        declaration,
+        binding,
+    }) = original_windows_import(context, boundary)?
+    else {
+        return Ok(None);
+    };
+    if !matches!(
+        declaration.completion,
+        terminal_psi::BoundaryCompletion::External(
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit
+        )
+    ) {
+        return Ok(None);
+    }
+    let requirement = binding
+        .requirement_identity(context.selected.identities())
+        .ok_or("process exit lost its original selected requirement identity")?;
+    let (plan, _, _) = context.selected_requirement(requirement)?;
+    let receiving = context
+        .input
+        .module()
+        .boundary_machine(boundary)
+        .ok_or("process exit lost its original receiving declaration")?;
+    let receiving_identity = context
+        .input
+        .module()
+        .identities
+        .text(receiving.identity)
+        .ok_or("process exit lost its original receiving identity")?;
+    if !context.selected.selected_row_matches_requirement(
+        receiving_identity,
+        requirement,
+        binding.provider_plan_report_identity(),
+    ) || !super::super::compiler_builtins::boundary_contract_matches_selected_schema(
+        declaration,
+        plan,
+        requirement,
+    ) {
+        return Err(format!(
+            "process exit {boundary:?} substitutes its exact admitted requirement completion"
+        ));
+    }
+    if !process_exit_physical_matches(locator, declaration, &binding.boundary_entry_plan.call)? {
+        return Err(format!(
+            "process exit {boundary:?} changes its admitted declaration/Windows ABI: identity={receiving_identity}, declaration={declaration:?}, call={:?}",
+            binding.boundary_entry_plan.call,
+        ));
+    }
+    Ok(Some(declaration))
+}
+
+fn process_exit_physical_matches(
+    locator: &target::NormalizedForeignLocator,
+    declaration: &BoundaryMachineDeclaration,
+    call: &CallPlan,
+) -> Result<bool, String> {
+    let exit = target::normalize_foreign_locator(
+        target::ForeignLocatorCandidate::PeByName {
+            library: b"kernel32.dll".to_vec(),
+            export: b"ExitProcess".to_vec(),
+        },
+        target::TargetProfile::WindowsX64,
+    )
+    .map_err(|reason| format!("process exit locator is unsupported: {reason:?}"))?;
+    let expected = calling_conventions::evaluate_call_plan(
+        CallingPolicy::MicrosoftX64,
+        &CallSignature {
+            parameters: vec![ValueShape::integer(4, 4)],
+            result: None,
+        },
+    )
+    .map_err(|reason| reason.to_string())?;
+    Ok(locator.identity_digest() == exit.identity_digest()
+        && process_exit_signature(declaration)
+        && *call == expected)
+}
+
+fn process_exit_signature(declaration: &BoundaryMachineDeclaration) -> bool {
+    declaration.role == terminal_psi::BoundaryDeclarationRole::Callable
+        && declaration.has_valid_parameter_order()
+        && declaration.parameter_order == [BoundaryParameterKind::Scalar]
+        && declaration.scalar_parameters.len() == 1
+        && integer_matches(declaration.scalar_parameters[0], IntegerSign::Signed, 32)
+        && declaration.structural_parameters.is_empty()
+        && declaration.result.is_unit()
+        && matches!(
+            declaration.completion,
+            terminal_psi::BoundaryCompletion::External(
+                semantic_vocabulary::ExternalCompletionKind::ProcessExit
+            )
+        )
+        && declaration.crash_routes.is_empty()
+        && declaration.scalar_ensures.is_empty()
+        && declaration.normal_qualifications.is_empty()
+        && declaration.content_guarantees.is_empty()
+        && declaration.program_local_root_introductions.is_empty()
+}
+
+/// Reuse the actual settled import and complete normalized key. In particular,
+/// a checked/pre-narrowed mechanism cannot stand in for its original execution.
+struct ReviewedWindowsImport<'a> {
+    locator: &'a target::NormalizedForeignLocator,
+    declaration: &'a BoundaryMachineDeclaration,
+    binding: &'a target_operations::NormalizedForeignCallBinding,
+}
+
+fn original_windows_import<'a>(
+    context: &'a ReviewContext<'_>,
+    boundary: BoundaryMachineId,
+) -> Result<Option<ReviewedWindowsImport<'a>>, String> {
+    let Some(binding) = context.foreign_binding(boundary) else {
+        return Ok(None);
+    };
+    let NormalizedForeignCallMechanism::Import { locator, .. } = &binding.mechanism else {
+        return Ok(None);
+    };
+    if locator.target() != target::TargetProfile::WindowsX64 {
+        return Ok(None);
+    }
+    let actual = crate::provider_admission::terminal_authority_policy::normalized_foreign_terminal_mechanism(
+        locator, &binding.boundary_entry_plan,
+    )?;
+    if context.mechanism(boundary) != Some(&actual) {
+        return Err(format!(
+            "Windows handle call {boundary:?} substitutes its complete admitted foreign key"
+        ));
+    }
+    let calling_boundary = crate::selected_calling_boundary(
+        context.input.module(),
+        context.input.target_machine_selections(),
+        boundary,
+    )?;
+    let declaration = context
+        .input
+        .module()
+        .boundary_machine(calling_boundary)
+        .ok_or_else(|| format!("Windows handle call {boundary:?} lost its admitted declaration"))?;
+    Ok(Some(ReviewedWindowsImport {
+        locator,
+        declaration,
+        binding,
     }))
 }
 
@@ -407,4 +542,87 @@ fn expected_call(api: &ReviewedApi) -> Result<CallPlan, String> {
         plan.parameters[1].locations.push(location);
     }
     Ok(plan)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind, IntegerType};
+    use terminal_psi::{
+        BoundaryDeclarationRole, NominalDeclarationIdentity, TerminalIdentityIndex,
+    };
+
+    fn declaration() -> BoundaryMachineDeclaration {
+        BoundaryMachineDeclaration {
+            id: BoundaryMachineId::new(1).unwrap(),
+            declaration: None,
+            numeric_intrinsic: None,
+            role: BoundaryDeclarationRole::Callable,
+            kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
+            completion: BoundaryCompletion::External(ExternalCompletionKind::ProcessExit),
+            unconditional_termination: false,
+            identity: TerminalIdentityIndex::ABSENT,
+            owner: NominalDeclarationIdentity::new(TerminalIdentityIndex::ABSENT),
+            attachment: None,
+            parameter_order: vec![BoundaryParameterKind::Scalar],
+            scalar_parameters: vec![ScalarType::Integer(
+                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+            )],
+            crash_routes: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: BoundaryMachineResult::Unit,
+            result_reference_regions: Vec::new(),
+            requires: Vec::new(),
+            normal_qualifications: Vec::new(),
+            scalar_domain_requirements: Vec::new(),
+            scalar_requires: Vec::new(),
+            scalar_ensures: Vec::new(),
+            reference_outputs: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            fixed_service_reach: Vec::new(),
+            owning_service: None,
+            published_service_ceiling: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn windows_handle_process_exit_requires_external_declaration_and_exact_windows_abi() {
+        // This control tests representation/ABI only. The production caller
+        // separately rejoins admitted source completion and selected schema;
+        // these deliberately absent identities cannot supply that custody.
+        let mut declaration = declaration();
+        let locator = |export: &[u8]| {
+            target::normalize_foreign_locator(
+                target::ForeignLocatorCandidate::PeByName {
+                    library: b"kernel32.dll".to_vec(),
+                    export: export.to_vec(),
+                },
+                target::TargetProfile::WindowsX64,
+            )
+            .unwrap()
+        };
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(4, 4)],
+            result: None,
+        };
+        let call = calling_conventions::evaluate_call_plan(CallingPolicy::MicrosoftX64, &signature)
+            .unwrap();
+        let exit = locator(b"ExitProcess");
+        assert!(process_exit_physical_matches(&exit, &declaration, &call).unwrap());
+        assert!(
+            !process_exit_physical_matches(&locator(b"CloseHandle"), &declaration, &call).unwrap()
+        );
+        let mut returns = signature.clone();
+        returns.result = Some(ValueShape::integer(4, 4));
+        let returns =
+            calling_conventions::evaluate_call_plan(CallingPolicy::MicrosoftX64, &returns).unwrap();
+        assert!(!process_exit_physical_matches(&exit, &declaration, &returns).unwrap());
+        declaration.completion = BoundaryCompletion::NormalReturn;
+        assert!(!process_exit_physical_matches(&exit, &declaration, &call).unwrap());
+        declaration.completion = BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
+        declaration.scalar_parameters[0] =
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+        assert!(!process_exit_physical_matches(&exit, &declaration, &call).unwrap());
+    }
 }
