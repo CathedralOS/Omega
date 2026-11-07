@@ -73,6 +73,8 @@ pub struct CheckedSourceTransition {
     pub statement_index: usize,
     /// Exact flow-outgoing coordinate of the primary target.
     pub primary: TransitionTargetHandle,
+    /// Separate continuation target; invalid when the transition has none.
+    pub continuation: TransitionTargetHandle,
     /// Resolved named targets, primary then continuation. Frame traversal
     /// distinguishes intra-machine transfers from calls through its owner.
     pub named_targets: Vec<SymbolHandle>,

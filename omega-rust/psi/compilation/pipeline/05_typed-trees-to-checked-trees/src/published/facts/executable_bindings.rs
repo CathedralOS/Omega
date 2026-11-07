@@ -131,6 +131,7 @@ pub(crate) fn record(program: &dyn validation::CheckingInput) -> CheckedExecutab
                     state: state.symbol,
                     statement_index,
                     primary: transition.target,
+                    continuation: transition.continuation,
                     named_targets,
                 });
             }

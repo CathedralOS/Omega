@@ -2,6 +2,7 @@
 //! They use the ordinary copied-value producer and expression-root namespace;
 //! no live storage read may substitute the former source after sibling effects.
 
+use super::super::{CheckedComposedUnitControlStatePlan, CheckedTrees, catalogs};
 use super::StateGraphEmission;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::shared::checked_facts::{flow_facts, value_facts};
@@ -13,36 +14,105 @@ use terminal_psi::{StructuralParameterDeclaration, ValueDeclaration};
 
 /// One private copy born on this selected target. Its exact value handle
 /// distinguishes the saved owner from every authored by-value read.
-pub(super) struct CompletedCopy {
+pub(in crate::unit::attached_unit::composed_control::state_graph) struct CompletedCopy {
     binding: crate::emission::operation_emission::buffer::ComputedValueBinding,
 }
 
-impl StateGraphEmission<'_, '_> {
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn capture_dispatch_copies(
+/// Selected edges share one payload producer, after their decision and before
+/// their operands. The exact outgoing target keeps sibling captures separate.
+pub(in crate::unit::attached_unit::composed_control::state_graph) struct DispatchCopies<'a, 'c> {
+    checked: &'a CheckedTrees,
+    state: &'a CheckedComposedUnitControlStatePlan,
+    owner: symbols::SymbolHandle,
+    catalogs: &'a mut catalogs::ComposedCatalogs<'c>,
+    erased_parameters: &'a [ValueDeclaration],
+}
+
+impl<'a, 'c> DispatchCopies<'a, 'c> {
+    pub(in crate::unit::attached_unit::composed_control::state_graph) fn new(
+        checked: &'a CheckedTrees,
+        state: &'a CheckedComposedUnitControlStatePlan,
+        owner: symbols::SymbolHandle,
+        catalogs: &'a mut catalogs::ComposedCatalogs<'c>,
+        erased_parameters: &'a [ValueDeclaration],
+    ) -> Self {
+        Self {
+            checked,
+            state,
+            owner,
+            catalogs,
+            erased_parameters,
+        }
+    }
+
+    /// The checked return selects its original target, including continuation.
+    /// Neither source syntax nor the primary arm can substitute that identity.
+    pub(in crate::unit::attached_unit::composed_control::state_graph) fn capture_return(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        position: usize,
-        statement_ordinal: u32,
+        destination: &checked_trees::CheckedScalarBranchDestination,
         parameters: &[StructuralParameterDeclaration],
-        evaluation: &mut Evaluation,
-        values: &mut Vec<ValueDeclaration>,
-        next_value: &mut u64,
-        next_block: &mut u64,
-        next_edge: &mut u64,
-        operations: &mut OperationBuffer,
+        frame: FrameValues<'_>,
+        sequence: &mut crate::unit::attached_unit::composed_control::emission::OperationSequence,
+    ) -> Result<Vec<CompletedCopy>, LoweringError> {
+        let checked_trees::CheckedScalarBranchDestination::Return {
+            statement_ordinal,
+            is_continuation,
+        } = destination
+        else {
+            return unsupported("selected return has no checked return destination");
+        };
+        let Some(transition) = self
+            .checked
+            .facts
+            .executable_bindings
+            .transition(self.state.state, *statement_ordinal as usize)
+        else {
+            if *is_continuation {
+                return unsupported("selected continuation lost its checked transition");
+            }
+            // A body's final expression has no selected transition payloads.
+            return Ok(Vec::new());
+        };
+        let target = if *is_continuation {
+            transition.continuation
+        } else {
+            transition.primary
+        };
+        if !target.is_valid() {
+            return unsupported("selected return lost its exact checked target");
+        }
+        self.capture(
+            identities,
+            *statement_ordinal,
+            target,
+            parameters,
+            frame,
+            sequence,
+        )
+    }
+
+    pub(in crate::unit::attached_unit::composed_control::state_graph) fn capture(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        statement_ordinal: u32,
+        target: typed_trees::statement::TransitionTargetHandle,
+        parameters: &[StructuralParameterDeclaration],
+        frame: FrameValues<'_>,
         sequence: &mut crate::unit::attached_unit::composed_control::emission::OperationSequence,
     ) -> Result<Vec<CompletedCopy>, LoweringError> {
         let checked = self.checked;
-        let state = &self.plan.states[position];
-        let owner = self.admitted.authored[position].0.symbol;
-        let Some(transition) = checked
-            .facts
-            .executable_bindings
-            .transition(state.state, statement_ordinal as usize)
-        else {
-            return Ok(Vec::new());
-        };
+        let state = self.state;
+        let owner = self.owner;
+        let FrameValues {
+            evaluation,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            ..
+        } = frame;
         let Some(flow_state) = checked.facts.flow.control.unique_state(owner, state.state) else {
             return Ok(Vec::new());
         };
@@ -53,7 +123,7 @@ impl StateGraphEmission<'_, '_> {
             .iter()
             .filter(|outgoing| {
                 outgoing.statement_index == statement_ordinal as usize
-                    && outgoing.transition_target == transition.primary
+                    && outgoing.transition_target == target
             });
         let Some(outgoing) = outgoing_rows.next() else {
             return Ok(Vec::new());
@@ -110,7 +180,7 @@ impl StateGraphEmission<'_, '_> {
                 &self.catalogs.type_ids,
                 &stored_structural_identity(checked, root.type_reference),
             )?;
-            StateFrame::new(checked, owner, state, &self.state_erased[position]).evaluate(
+            StateFrame::new(checked, owner, state, self.erased_parameters).evaluate(
                 self.catalogs,
                 parameters,
                 sequence,
@@ -158,29 +228,90 @@ impl StateGraphEmission<'_, '_> {
         }
         Ok(completed)
     }
+}
 
-    /// Copy and DescriptorCleanup authorize this private value's normal death.
-    /// Its saved producer has only copy/read consumers; addresses still name
-    /// the original source. Name correspondence does not prove availability:
-    /// ordinary frontier settlement and canonical validation independently
-    /// require the actual whole home. No borrowed backing is disposed.
+/// Copy and DescriptorCleanup authorize only this private value's death.
+pub(in crate::unit::attached_unit::composed_control::state_graph) fn complete_dispatch_copies(
+    copies: &[CompletedCopy],
+    evaluation: &Evaluation,
+    operations: &OperationBuffer,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<crate::unit::unit_cleanup::CleanupRegion>, LoweringError> {
+    let mut regions = Vec::new();
+    for copy in copies.iter().rev() {
+        // Ordinary cleanup tracks the physical carrier's multiplicity and
+        // selected residuals. Source Copy never grants disposal of another
+        // root, a nominal hook, or a borrowed pointee.
+        regions.extend(evaluation.normal_discard_regions(
+            copy.binding.argument.place,
+            types,
+            operations,
+        )?);
+    }
+    Ok(regions)
+}
+
+impl StateGraphEmission<'_, '_> {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn capture_dispatch_copies(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        position: usize,
+        statement_ordinal: u32,
+        parameters: &[StructuralParameterDeclaration],
+        evaluation: &mut Evaluation,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+        sequence: &mut crate::unit::attached_unit::composed_control::emission::OperationSequence,
+    ) -> Result<Vec<CompletedCopy>, LoweringError> {
+        let state = &self.plan.states[position];
+        let Some(transition) = self
+            .checked
+            .facts
+            .executable_bindings
+            .transition(state.state, statement_ordinal as usize)
+        else {
+            return Ok(Vec::new());
+        };
+        DispatchCopies::new(
+            self.checked,
+            state,
+            self.admitted.authored[position].0.symbol,
+            self.catalogs,
+            &self.state_erased[position],
+        )
+        .capture(
+            identities,
+            statement_ordinal,
+            transition.primary,
+            parameters,
+            FrameValues {
+                source_value_count: values.len(),
+                evaluation,
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+            },
+            sequence,
+        )
+    }
+
     pub(super) fn complete_dispatch_copies(
         &self,
         copies: &[CompletedCopy],
         evaluation: &Evaluation,
         operations: &OperationBuffer,
     ) -> Result<Vec<crate::unit::unit_cleanup::CleanupRegion>, LoweringError> {
-        let mut regions = Vec::new();
-        for copy in copies.iter().rev() {
-            // Ordinary cleanup tracks the physical carrier's multiplicity and
-            // selected residuals. Source Copy never grants disposal of another
-            // root, a nominal hook, or a borrowed pointee.
-            regions.extend(evaluation.normal_discard_regions(
-                copy.binding.argument.place,
-                &self.catalogs.structural_types,
-                operations,
-            )?);
-        }
-        Ok(regions)
+        complete_dispatch_copies(
+            copies,
+            evaluation,
+            operations,
+            &self.catalogs.structural_types,
+        )
     }
 }
