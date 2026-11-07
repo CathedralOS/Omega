@@ -4802,7 +4802,7 @@ fail/domains/qualified_fixed_byte_array_explicit_buffer_unbounded_count rejected
 	machine `set_count` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/domains/qualified_fixed_byte_array_immutable_parameter rejected 829ms expected @ccdb99ca2214
 	machine `corrupt` state `entry` assignment cannot write `bytes` because it is not mutable in this state (if `bytes` is undeclared -- a typo -- no such field or local exists)
-fail/domains/qualified_fixed_byte_array_invalid_mutation rejected 6168ms expected regressed-from:checked @29c0122d09c2
+fail/domains/qualified_fixed_byte_array_invalid_mutation rejected 7517ms expected @e3aa2896cd34
 	cannot prove ensures contract for exit from mutate at statement 1: bytes in [u8; N]::Ascii
 fail/domains/qualified_fixed_byte_array_invalid_utf8 rejected 1658ms expected @ccdb99ca2214
 	cannot prove initializer of `bytes` in main is in domain `[u8; N]::Utf8`; an annotation cannot establish routed qualification
@@ -4816,7 +4816,7 @@ fail/domains/qualified_fixed_byte_array_nul_default rejected 967ms expected @ccd
 	machine `main` state `entry` statement 1: reading `bytes` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `[u8; 2][in NoNul]`
 fail/domains/qualified_fixed_byte_array_shared_local_write rejected 2629ms expected @ccdb99ca2214
 	statement 2 mutates `bytes[0]` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/domains/qualified_fixed_byte_array_short_assignment rejected 124ms expected @ccdb99ca2214
+fail/domains/qualified_fixed_byte_array_short_assignment rejected 2564ms expected @e3aa2896cd34
 	quoted byte literal has 1 source byte(s), but owned fixed byte array `[u8; 2][1 constraint]` requires exactly 2; fixed-array literal copying neither truncates nor pads
 fail/domains/qualified_fixed_byte_array_short_literal rejected 152ms expected @ccdb99ca2214
 	quoted byte literal has 3 source byte(s), but owned fixed byte array `[u8; 4][1 constraint]` requires exactly 4; fixed-array literal copying neither truncates nor pads
@@ -4832,13 +4832,13 @@ fail/domains/qualified_fixed_byte_array_write_only_invalid rejected 2127ms expec
 	cannot prove default-domain field requirement for return from fill at statement 2: buffer.bytes requires [u8; N]::Utf8
 fail/domains/qualified_fixed_byte_array_write_only_predicate rejected 819ms expected @ccdb99ca2214
 	machine `inspect` state `entry` reads write-only parameter `bytes`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/domains/qualified_fixed_byte_array_write_only_read rejected 913ms expected @ccdb99ca2214
+fail/domains/qualified_fixed_byte_array_write_only_read rejected 4051ms expected @e3aa2896cd34
 	machine `observe` state `entry` reads through index projection of write-only parameter `buffer`; `&write` permits admitted fixed-array element replacement but never observation
 fail/domains/qualified_fixed_byte_array_write_only_split rejected 2299ms expected @ccdb99ca2214
 	cannot prove default-domain field requirement for return from fill at statement 2: buffer.bytes requires [u8; N]::Utf8
 fail/domains/qualified_fixed_vec_byte_view_overflow rejected 14511ms expected @ccdb99ca2214
 	cannot prove requires contract for call live from main: vector.length <= 8 (needs fact `vector.length <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/domains/qualified_input_domain_is_not_a_return_promise rejected 11328ms expected @ee4db530ba1e
+fail/domains/qualified_input_domain_is_not_a_return_promise rejected 6784ms expected @e3aa2896cd34
 	cannot prove ensures contract for exit from corrupt at statement 1: value in [u16; N]::Terminated
 fail/domains/qualified_mutable_invalid_field rejected 795ms expected @ccdb99ca2214
 	machine `main` state `entry` statement 1: reading `packet.<whole value>` crosses an open default-domain invariant window before data `Packet` is established: the zeroed representation is not yet a `Packet` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
@@ -21332,7 +21332,7 @@ pass/domains/qualified_fixed_byte_array_ensured_mutation_exit checked 9763ms che
 pass/domains/qualified_fixed_byte_array_ensured_no_nul_store_exit checked 9366ms check-target:macos_arm64 @c0f1dbfc2dfd
 pass/domains/qualified_fixed_byte_field_loan_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/qualified_mutable_field_exit checked 3221ms check-target:macos_arm64 @ccdb99ca2214
-pass/domains/qualified_mutable_scalar_input_domain_expires checked 15689ms check-target:macos_arm64 @ee4db530ba1e
+pass/domains/qualified_mutable_scalar_input_domain_expires checked 9043ms check-target:macos_arm64 @e3aa2896cd34
 pass/domains/qualified_owned_array_scalar_control_exit checked 3635ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/qualified_record_capture_after_mutation checked 2597ms @ccdb99ca2214
 pass/domains/qualified_record_capture_before_mutation checked 2404ms @ccdb99ca2214
@@ -28345,15 +28345,9 @@ run/domains/qualified_explicit_utf8_buffer_exit checked 5036ms check-target:maco
 run/domains/qualified_fixed_byte_array_captured_destination_exit checked 5473ms check-target:macos_arm64 @7a71b2c1f2d4
 run/domains/qualified_fixed_byte_array_carrier_exit checked 3370ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/qualified_fixed_byte_array_explicit_buffer_count_exit checked 5747ms check-target:macos_arm64 @911f6617ba9e
-run/domains/qualified_fixed_byte_array_forwarding_exit rejected 2742ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call length from forward: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii) in state `entry`
-	cannot prove requires contract for call returned from main: qualified.bytes in [u8; N]::Ascii (invalidated by prior mutation of qualified.bytes[0]; qualified.bytes is part of [u8; N]::Ascii) in state `entry`
-	cannot prove requires contract for call length from main: qualified.bytes in [u8; N]::Ascii (invalidated by prior mutation of qualified.bytes[0]; qualified.bytes is part of [u8; N]::Ascii) in state `entry`
-	cannot prove requires contract for call erase from main: qualified.bytes in [u8; N]::Ascii (invalidated by prior mutation of qualified.bytes[0]; qualified.bytes is part of [u8; N]::Ascii) in state `entry`
+run/domains/qualified_fixed_byte_array_forwarding_exit checked 11325ms check-target:macos_arm64 @e3aa2896cd34
 run/domains/qualified_fixed_byte_array_generic_view_return_exit checked 9165ms check-target:macos_arm64 @071034107c35
-run/domains/qualified_fixed_byte_array_geometry_exit rejected 2806ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call length from main: qualified.bytes in [u8; N]::Ascii (invalidated by prior mutation of qualified.bytes; qualified.bytes is part of [u8; N]::Ascii) in state `entry`
-	cannot prove requires contract for call erase from main: qualified.bytes in [u8; N]::Ascii (invalidated by prior mutation of qualified.bytes; qualified.bytes is part of [u8; N]::Ascii) in state `entry`
+run/domains/qualified_fixed_byte_array_geometry_exit checked 9339ms check-target:macos_arm64 @e3aa2896cd34
 run/domains/qualified_fixed_byte_array_nested_zero_exit checked 2806ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/qualified_fixed_byte_array_optimized_exit checked 3034ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/qualified_fixed_byte_array_owned_parameter_exit checked 2925ms check-target:macos_arm64 @ccdb99ca2214
