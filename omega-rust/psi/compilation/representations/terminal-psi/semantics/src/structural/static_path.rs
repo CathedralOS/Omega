@@ -121,14 +121,24 @@ pub fn structural_paths_may_overlap(
     left: &[StructuralPathSegment],
     right: &[StructuralPathSegment],
 ) -> bool {
-    for (left, right) in left.iter().zip(right) {
+    structural_path_separation_depth(left, right).is_none()
+}
+
+/// The containing-prefix length at the first proved separation. Potentially
+/// overlapping selectors retain their shared dimension even when their
+/// spellings differ. This exposes the existing overlap rule's decision point.
+pub(crate) fn structural_path_separation_depth(
+    left: &[StructuralPathSegment],
+    right: &[StructuralPathSegment],
+) -> Option<usize> {
+    for (depth, (left, right)) in left.iter().zip(right).enumerate() {
         // A view changes declaration namespaces without changing the original
         // bytes. Different following field identities cannot establish alias
         // freedom. Precise geometry belongs to the admitted storage projection.
         if matches!(left, StructuralPathSegment::RepresentationView { .. })
             || matches!(right, StructuralPathSegment::RepresentationView { .. })
         {
-            return true;
+            return None;
         }
         // Variant namespaces describe the same overlay. Even different
         // runtime selectors can alias, so stop before comparing their fields.
@@ -136,7 +146,7 @@ pub fn structural_paths_may_overlap(
             (left, right)
             && left != right
         {
-            return true;
+            return None;
         }
         let overlaps = match (left, right) {
             (
@@ -184,10 +194,10 @@ pub fn structural_paths_may_overlap(
             _ => left == right,
         };
         if !overlaps {
-            return false;
+            return Some(depth);
         }
     }
-    true
+    None
 }
 /// Whether `child` is a borrow formed strictly inside the extent `parent`
 /// already loans on the same place. A receiver's own claim is the callee's
