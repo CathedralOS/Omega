@@ -1,7 +1,8 @@
 //! Transport a current exclusive-referent goal through terminal calls.
 //! Each node retains the original proposition's complete projected subjects.
-//! Leaves read only independently established current values, never entry
-//! snapshots or the postconditions of a callee being proved.
+//! Leaves read independently established current values, with the ordinary
+//! dependency checks for completed helper calls. Entry snapshots and the
+//! terminal callee's own postcondition cannot close its proof.
 
 use crate::checks::current_scalar_values::CurrentScalarValues;
 use checked_trees::{CheckFacts, FlowCallFact, FlowExitFact};

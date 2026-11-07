@@ -1,9 +1,9 @@
 //! Prove a completion property from all of its actual result producers.
 //!
 //! A terminal invocation forwards its result unchanged. Following these edges
-//! can cross machine boundaries or revisit a cycle without citing any callee's
-//! postcondition. Every finite normal completion must reach a value producer;
-//! each producer must independently establish the requested property. Unknown
+//! can cross machine boundaries or revisit a cycle without assuming that
+//! terminal callee's postcondition. Every finite normal completion must reach a
+//! value producer; each producer must independently establish the property. Unknown
 //! dispatch, missing flow and an unproved producer refuse the whole closure.
 //!
 //! Result-only properties need no input substitution. Current exclusive
@@ -76,7 +76,9 @@ pub(super) fn proves(
     let mut remaining = super::demands::TRANSPORT_WORK;
     let referent_goal =
         referents::ReferentGoal::new(program, facts, machine, *guarantee, &mut remaining);
-    let frames = validation::CallFrameResolver::new(program);
+    let frames = referent_goal
+        .as_ref()
+        .and_then(|_| validation::CallFrameResolver::new(program));
     // This answer is cached for every exit carrying this contract. Include
     // every body of the owner, even one unreachable from its entry; a proved
     // entry closure must not discharge a separately checked invalid body.
