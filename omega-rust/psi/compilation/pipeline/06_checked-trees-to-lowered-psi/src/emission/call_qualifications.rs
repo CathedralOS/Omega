@@ -66,15 +66,20 @@ pub(crate) fn declaration_represents(
         .semantic
         .place_segments
         .span_or_empty(place.segments);
-    let Some(reference) = validation::canonical_place_type_reference(
+    let Some(root_type) = validation::canonical_place_type_reference(
         &checked.typed,
         state_symbol,
         statement_index,
         &validation::CanonicalPlace {
             root: place.root,
-            segments: segments.to_vec(),
+            segments: Vec::new(),
         },
     ) else {
+        return Ok(false);
+    };
+    let Some(reference) =
+        validation::qualification_storage_type_reference(&checked.typed, root_type, segments)
+    else {
         return Ok(false);
     };
     let constraints =

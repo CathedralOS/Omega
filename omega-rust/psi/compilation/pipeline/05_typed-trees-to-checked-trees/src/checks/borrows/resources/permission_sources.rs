@@ -565,6 +565,40 @@ pub(super) fn collect(
     resolved
 }
 
+/// Match a checked projection's result presentation, without granting access.
+fn reborrow_projection_type_matches(
+    program: &dyn validation::CheckingInput,
+    source: typed_trees::types::TypeReferenceHandle,
+    projection: &[facts::PlaceSegment],
+    expected: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    let Some((selector, prefix)) = projection.split_last() else {
+        return validation::storage_origin_types_match(program, source, expected);
+    };
+    if matches!(
+        selector,
+        facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange
+    ) {
+        // A checked window returns a view, not one collection element. Its
+        // exact bounds and original permission stay in the captured suffix.
+        let expected = validation::peel_declared_constraints(program, expected);
+        let typed_trees::types::TypeReferenceNode::Slice { element_type } =
+            program.type_reference_table.type_reference(expected)
+        else {
+            return false;
+        };
+        return validation::owned_projection_type_reference(program, source, prefix)
+            .and_then(|collection| {
+                validation::collection_element_type_reference(program, collection)
+            })
+            .is_some_and(|element| {
+                validation::storage_origin_types_match(program, element, *element_type)
+            });
+    }
+    validation::owned_projection_type_reference(program, source, projection)
+        .is_some_and(|selected| validation::storage_origin_types_match(program, selected, expected))
+}
+
 /// A helper may save a narrower view of an evaluated argument. Its source
 /// path selects the original descriptor; only the separate suffix projects
 /// into that descriptor's data. Authenticate the original permission before
@@ -613,8 +647,7 @@ fn collect_reborrow_sources(
             // The producer records the last crossed descriptor, so this suffix
             // contains only owned projections. A further descriptor crossing
             // must supply its own captured source and permission instead.
-            let referee = validation::owned_projection_type_reference(program, reference.referee, &suffix)?;
-            if !validation::storage_origin_types_match(program, referee, result.referee) {
+            if !reborrow_projection_type_matches(program, reference.referee, &suffix, result.referee) {
                 return None;
             }
             selected.push((source.operand, path.to_vec(), suffix));
@@ -645,12 +678,13 @@ fn collect_reborrow_sources(
             return Some(false);
         }
         for supplier in &mut output[start..] {
-            supplier.backing.segments.extend_from_slice(&suffix);
-            if crate::flow::compose_captured_view_segments(&mut supplier.backing.segments).is_none()
-            {
+            let Some(projected) =
+                facts::project_captured_view_segments(&supplier.backing.segments, &suffix)
+            else {
                 output.truncate(before);
                 return Some(false);
-            }
+            };
+            supplier.backing.segments = projected;
         }
     }
     Some(output.len() > before)

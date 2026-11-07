@@ -651,11 +651,11 @@ pub use value_custody::places::{
     parameter_source_type_application, place_root_may_be_symbol,
     project_type_reference_from_segments, projected_statement_receiver_place,
     projected_statement_receiver_type_reference, push_field_place_segments,
-    qualification_storage_path, receiver_projections, resolve_member_symbol_from_place,
-    resolve_member_symbol_from_type_symbol, runtime_field_subject,
-    source_type_application_from_segments, state_scoped_name_symbol, storage_operand,
-    storage_place_from_expression_in_state, structural_member_identity, symbol_type_symbol,
-    unique_data_definition_by_symbol, whole_collection_view_source,
+    qualification_storage_path, qualification_storage_type_reference, receiver_projections,
+    resolve_member_symbol_from_place, resolve_member_symbol_from_type_symbol,
+    runtime_field_subject, source_type_application_from_segments, state_scoped_name_symbol,
+    storage_operand, storage_place_from_expression_in_state, structural_member_identity,
+    symbol_type_symbol, unique_data_definition_by_symbol, whole_collection_view_source,
 };
 
 /// Walk a type-reference table once into a positional row vector: row 0 is
