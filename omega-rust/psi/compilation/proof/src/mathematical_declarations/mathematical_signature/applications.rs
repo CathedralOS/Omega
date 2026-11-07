@@ -28,6 +28,7 @@ impl Elaborator<'_> {
     ) -> Result<
         Vec<(
             ExpressionHandle,
+            SymbolHandle,
             proof_admission::TermHandle,
             Vec<proof_admission::TermHandle>,
             Vec<super::PreparedCapture>,
@@ -126,6 +127,7 @@ impl Elaborator<'_> {
             let term = self.elaborate_expression(expression)?;
             applications.push((
                 expression,
+                self.source_owner,
                 term,
                 self.scope.iter().map(|entry| entry.domain).collect(),
                 captures,

@@ -25,7 +25,9 @@ use checked_trees::{
 use semantic_vocabulary::{MathematicalArgument, ProofTerm, ProofTermField, ScalarType};
 use terminal_psi::{ErasedProofFormal, StructuralResultDeclaration};
 
+mod identity_formations;
 mod indexed_theorems;
+pub(crate) use identity_formations::identity_formations;
 mod namespace;
 mod proof_scope;
 pub(crate) use indexed_theorems::indexed_theorems;

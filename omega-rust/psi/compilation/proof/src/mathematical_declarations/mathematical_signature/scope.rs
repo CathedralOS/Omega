@@ -143,6 +143,19 @@ impl<'a> Elaborator<'a> {
             return Some(self.constant(position));
         }
         let position = match self.program.symbols.get(symbol).kind {
+            // Ordinary source Type binders have the language's Type0 domain.
+            // Mathematical universe binders resolve from the scoped telescope
+            // before this branch; they never acquire an inferred Type0 sort.
+            symbols::SymbolKind::TypeParameter
+                if self
+                    .program
+                    .data_type_parameter_by_symbol(symbol)
+                    .is_some_and(|parameter| {
+                        matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                    }) =>
+            {
+                self.push_type_carrier()
+            }
             symbols::SymbolKind::BuiltinType | symbols::SymbolKind::Data => {
                 match self.program.symbols.builtin_type_atom(symbol) {
                     Some(

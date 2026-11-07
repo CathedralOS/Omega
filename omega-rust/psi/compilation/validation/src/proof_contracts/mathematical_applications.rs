@@ -129,6 +129,32 @@ pub fn result_type_reference(
     }
 }
 
+/// Complete ordinary receiving types of a mathematical call's value slots.
+/// These are formation inputs, not evidence that an actual inhabits its type.
+pub fn argument_type_references(
+    program: &dyn crate::CheckingInput,
+    call: &TableCallExpression,
+) -> Option<Vec<Option<TypeReferenceHandle>>> {
+    if is_identity_call(program, call) {
+        let application = identity_application(program, call).ok()?;
+        return Some(vec![Some(application.carrier); 2]);
+    }
+    let definition = selected_definition(program, call)?;
+    let parameters = program.mathematical_parameters(definition.parameters);
+    (parameters.len() == call.arguments.len()).then_some(())?;
+    Some(
+        parameters
+            .iter()
+            .map(|parameter| match program.mathematical_type(parameter.ty) {
+                MathematicalType::Ordinary(reference) => {
+                    applied_result_reference(program, definition, call, *reference)
+                }
+                _ => None,
+            })
+            .collect(),
+    )
+}
+
 /// Read the selected source telescope, independently of the caller's value
 /// operands. The mathematical application checker owns argument validity and
 /// universe inference; this projection only finds an existing ordinary result

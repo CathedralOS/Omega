@@ -24,6 +24,8 @@ mod closed_reach_controls;
 mod dynamic_image_controls;
 #[path = "terminal_host_provisions.rs"]
 mod host_provisions;
+#[path = "identity_formations.rs"]
+mod identity_formations;
 #[path = "indexed_family_controls.rs"]
 mod indexed_family_controls;
 #[path = "mathematical_actuals.rs"]
@@ -46,6 +48,7 @@ enum InspectionControls<'selection> {
     ConformanceApplications,
     IndexedFamily,
     MathematicalActuals,
+    IdentityFormations,
     DynamicImage,
     ClosedReach,
     ClosedReachCaptures,
@@ -121,6 +124,11 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "closed-reach-controls"] => {
                 (*machine, false, Some(InspectionControls::ClosedReach))
             }
+            [machine, "identity-formation-controls"] => (
+                *machine,
+                false,
+                Some(InspectionControls::IdentityFormations),
+            ),
             [machine, "mathematical-actuals"] => (
                 *machine,
                 false,
@@ -179,6 +187,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             conformance_controls,
             Some(
                 InspectionControls::MathematicalActuals
+                    | InspectionControls::IdentityFormations
                     | InspectionControls::IndexedFamily
                     | InspectionControls::TaskActivations
                     | InspectionControls::CallbackBodies
@@ -235,6 +244,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             .map_err(|errors| format!("inspection {machine} checking: {errors:?}"))?;
             drop(prepared);
             match conformance_controls {
+                Some(InspectionControls::IdentityFormations) => {
+                    let _artifact = identity_formations::produce(&checked, machine)?;
+                }
                 Some(InspectionControls::MathematicalActuals) => {
                     let _artifact = mathematical_actuals::produce(&checked, machine)?;
                 }

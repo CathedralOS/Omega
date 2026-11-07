@@ -79,6 +79,7 @@ pub struct PreparedSourceCarrier {
 #[derive(Debug, Default)]
 pub struct PreparedApplication {
     pub expression: ExpressionHandle,
+    pub owner: SymbolHandle,
     pub term: TermHandle,
     pub ty: TermHandle,
     pub domains: Vec<TermHandle>,

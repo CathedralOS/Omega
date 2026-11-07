@@ -18,8 +18,8 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Admitted callbacks retain an exact inbound declaration; unadmitted
-        // nominal uses can retain no entry for contextual foreign refusal.
-        133
+        // Explicit Id formation retains its checked mathematical signature
+        // and subject telescope independently of executable comparisons.
+        134
     }
 }

@@ -169,8 +169,11 @@ pub struct CheckedIndexedCitation {
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedIdentityFormation {
     pub expression: typed_trees::expression::ExpressionHandle,
+    pub owner: SymbolHandle,
     pub type_identity: TypeIdentityId,
     pub term: proof_admission::TermHandle,
     pub ty: proof_admission::TermHandle,
     pub domains: Vec<proof_admission::TermHandle>,
+    /// Source occurrences in the kernel telescope's outermost-first order.
+    pub captures: Vec<(typed_trees::expression::ExpressionHandle, TypeIdentityId)>,
 }

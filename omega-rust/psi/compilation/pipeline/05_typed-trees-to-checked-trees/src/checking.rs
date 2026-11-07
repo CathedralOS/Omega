@@ -605,10 +605,23 @@ fn check_program(
                 .identity_formations
                 .push(checked_trees::CheckedIdentityFormation {
                     expression: application.expression,
+                    owner: application.owner,
                     type_identity: carrier.type_identity,
                     term: application.term,
                     ty: application.ty,
                     domains: application.domains.clone(),
+                    captures: mathematics
+                        .applications
+                        .captures
+                        .span_or_empty(application.captures)
+                        .iter()
+                        .map(|capture| {
+                            (
+                                capture.expression,
+                                typed_program.normalized_type_identity(capture.source_type),
+                            )
+                        })
+                        .collect(),
                 });
         }
     }

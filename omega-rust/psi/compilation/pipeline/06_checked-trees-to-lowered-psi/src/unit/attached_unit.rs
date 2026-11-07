@@ -723,6 +723,8 @@ pub(crate) fn lower_unit_closure(
         crate::scalar_lowering::contracts::mathematical_carriers(checked, identities)?;
     let indexed_theorems =
         indexed_theorems(checked, identities, exact_toolchain_sources, &machine_ids)?;
+    let identity_formations =
+        crate::scalar_lowering::contracts::identity_formations(checked, identities)?;
     let (scalar_applications, source_proof_declarations) = scalar_applications.publish(
         &type_ids,
         &machine_ids,
@@ -746,6 +748,7 @@ pub(crate) fn lower_unit_closure(
             folded_constants,
             indexed_theorems,
             mathematical_carriers,
+            identity_formations,
             callback_applications: Vec::new(),
             boundary_application_candidates: Vec::new(),
             boundary_application_demands: Vec::new(),

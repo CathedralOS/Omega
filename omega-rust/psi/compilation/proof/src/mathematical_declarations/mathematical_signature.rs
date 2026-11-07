@@ -89,8 +89,6 @@ pub(crate) struct CheckedMathematicalSignature {
     /// authored declaration order.
     authored: Vec<u32>,
     prepared: PreparedMathematicalApplications,
-    identity_declaration: Option<u32>,
-    type_returning_declarations: Vec<SymbolHandle>,
 }
 
 impl CheckedMathematicalSignature {
@@ -224,6 +222,8 @@ struct Elaborator<'a> {
     integer_theory: Option<proof_admission::SourceIntegerTheory>,
     integer_multiply: Option<u32>,
     prepared: PreparedMathematicalApplications,
+    identity_declaration: Option<u32>,
+    type_returning_declarations: Vec<SymbolHandle>,
 }
 
 /// Elaborate every mathematical declaration of `program` into a kernel
@@ -726,11 +726,22 @@ impl<'a> Elaborator<'a> {
                 ))
             })?;
         }
-        for (expression, term, domains, captures) in applications {
-            let context = domains.iter().copied().fold(
-                Context::empty().with_signature(signature.clone()),
-                |context, domain| context.extend(domain),
-            );
+        for (expression, owner, term, domains, captures) in applications {
+            let mut context = Context::empty().with_signature(signature.clone());
+            for domain in &domains {
+                infer_sort(
+                    &mut self.arena,
+                    &context,
+                    *domain,
+                    &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                )
+                .map_err(|error| {
+                    self.refuse(format!(
+                        "mathematical source subject fails formation: {error:?}"
+                    ))
+                })?;
+                context = context.extend(*domain);
+            }
             let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
             let ty = proof_admission::infer_type(&mut self.arena, &context, term, &mut budget)
                 .map_err(|error| {
@@ -785,6 +796,7 @@ impl<'a> Elaborator<'a> {
             let captures = self.prepared.captures.insert_many(captures);
             self.prepared.applications.append(PreparedApplication {
                 expression,
+                owner,
                 term,
                 ty,
                 domains,
