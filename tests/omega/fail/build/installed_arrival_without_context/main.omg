@@ -1,3 +1,3 @@
 // This application uses the shared 33-entry floor without a context-view
 // application. Native admission must reach the missing startup condition.
-use installed::build::start;
+use installed::installed_interrupt_floor::start;

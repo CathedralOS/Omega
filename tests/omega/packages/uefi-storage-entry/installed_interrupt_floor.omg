@@ -1,3 +1,5 @@
+module installed_interrupt_floor;
+
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Descriptor facts retain the Cathedral port of Philipp Oppermann (2017).
 // Native admission control only: no installation assumptions and no runtime claim.
@@ -8,7 +10,7 @@ use omega::language::core::layout;
 use omega::language::core::representation;
 use omega::language::core::static_interrupt;
 use omega::language::core::task_register;
-use std::calling;
+use omega_language_std::calling;
 
 public data TaskStateSegment [copy] { reserved_1: u32; privilege_stack_table: [u64; 3]; reserved_2: u64; interrupt_stack_table: [u64; 7]; reserved_3: u64; reserved_4: u16; iomap_base: u16; }
 
@@ -2075,11 +2077,4 @@ public TimerEventLoop satisfies StaticInterruptWork<BootstrapInterruptContext> {
         transition { _ -> wait() }
         machine wait() { asm { hlt } transition { _ -> wait() } }
     }
-}
-
-// This ordinary package exports its source declarations; both application
-// roots select providers and ProgramEntry independently.
-machine build(builder: &mut Build) {
-    Build::package(builder, "installed_arrival_floor");
-    Build::depend_as(builder, "std", Source::Path { location: "../../../../source/library/std" });
 }

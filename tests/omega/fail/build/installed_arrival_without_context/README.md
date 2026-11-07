@@ -18,8 +18,8 @@ It is a positive control for those checks and an explicit refusal of physical
 installation. It does not run privileged instructions or establish any CPU,
 backing, lifetime, permission, publication or interrupt-delivery fact.
 
-The shared installed-arrival-floor package keeps these declarations in its
-ordinary build module. Both thin Application roots select their own providers.
+The existing uefi-storage-entry support package keeps these declarations in
+its explicitly imported installed_interrupt_floor module. Both thin Application roots select their own providers.
 The sibling installed_arrival_wrong_controller reuses the floor and
 replaces only the selected forwarding body. It chooses another exact completion
 contract with the same Ack type and the same underlying PIC action, which must
