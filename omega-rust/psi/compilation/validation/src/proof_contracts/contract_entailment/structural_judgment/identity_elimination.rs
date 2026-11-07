@@ -86,6 +86,11 @@ impl StructuralJudge<'_> {
     }
 
     pub(super) fn intake_identity(&mut self, left: StructuralTerm, right: StructuralTerm) {
+        self.trace_le_case(
+            "intake-original",
+            &[("left", &left), ("right", &right)],
+            format_args!(""),
+        );
         if self.case_facts_only
             || !self.identity_value_is_available(&left)
             || !self.identity_value_is_available(&right)
@@ -95,6 +100,11 @@ impl StructuralJudge<'_> {
         // Normalize before installing this premise. Its desired consequence
         // cannot supply an operand's missing formation or call admission.
         let normalized = [left.clone(), right.clone()].map(|value| self.resolve(value));
+        self.trace_le_case(
+            "intake-normalized",
+            &[("left", &normalized[0]), ("right", &normalized[1])],
+            format_args!(""),
+        );
         if !left.same_resolution_payload(&normalized[0])
             || !right.same_resolution_payload(&normalized[1])
         {
@@ -150,6 +160,11 @@ impl StructuralJudge<'_> {
         else {
             return;
         };
+        self.trace_le_case(
+            "intake-owned",
+            &[("left", &left), ("right", &right)],
+            format_args!("depth={depth} left_owned={left_owned} right_owned={right_owned}"),
+        );
         if left.same_resolution_payload(&right) {
             return;
         }
@@ -171,6 +186,11 @@ impl StructuralJudge<'_> {
             }
             if left_identity != right_identity {
                 self.hypotheses_contradictory = true;
+                self.trace_le_case(
+                    "constructor-clash",
+                    &[("left", &left), ("right", &right)],
+                    format_args!("depth={depth}"),
+                );
                 return;
             }
             let Some(fields) = self.identity_constructor_field_pairs(
