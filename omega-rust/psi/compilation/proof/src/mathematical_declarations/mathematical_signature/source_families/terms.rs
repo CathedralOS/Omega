@@ -1401,11 +1401,18 @@ mod induction_tests {
         )
         .unwrap();
 
-        assert_eq!(
-            proof_admission::infer_sort(&mut arena, &context, unit, &mut Budget::default())
-                .unwrap(),
-            Sort::Type(Level::Parameter(0).successor().unwrap())
-        );
+        let unit_sort = arena.insert(Term::Sort(Sort::Type(
+            Level::Parameter(0).successor().unwrap(),
+        )));
+        check_type(
+            &mut arena,
+            &context,
+            unit,
+            unit_sort,
+            &mut Budget::default(),
+        )
+        .unwrap();
+        assert!(check_type(&mut arena, &context, unit, higher, &mut Budget::default()).is_err());
         let lifted = lift_payload(&mut arena, &[higher], zero).unwrap();
         let expected = arena.insert(Term::Sigma {
             domain: unit,
