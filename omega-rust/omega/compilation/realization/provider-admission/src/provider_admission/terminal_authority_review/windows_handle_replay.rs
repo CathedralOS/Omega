@@ -20,16 +20,17 @@ use crate::digest_encoder::DomainDigestEncoder;
 
 use super::context::ReviewContext;
 use super::windows_handle_aliases::{
-    CapturedHandleRegion, HandleAliases, HandleStorageRange, HandleWordAliases,
+    CapturedHandleRegion, HandleAliases, HandleStorageBacking, HandleStorageOwner,
+    HandleStorageRange, HandleWordAliases,
 };
 use super::windows_handle_calls::{CallSite, CallTarget, Caller, HandleCallGraph, RuntimeCall};
-use super::windows_handle_inputs::PreparedHandleMachine;
+use super::windows_handle_inputs::{PreparedHandleMachine, WindowsHandleInputs};
 use super::windows_handle_lifetimes::{
     HandleLifetimes, NativeOccurrence, ScalarOccurrence, ScalarUseSite,
 };
 use super::windows_handle_storage::{
-    CapturedHandleReferences, HandleReferences, HandleScalarStorage, HandleStorageBindings,
-    HandleStorageGeometry,
+    CapturedHandleReferences, CapturedHandleSequence, CapturedHandleStorage, HandlePointerKind,
+    HandleReferences, HandleScalarStorage, HandleStorageBindings, HandleStorageGeometry,
 };
 use super::windows_handle_values::LocalScalarExpressions;
 
@@ -244,6 +245,14 @@ enum KnownHandleScalar {
 }
 
 impl KnownHandleScalar {
+    fn unsigned(&self) -> Option<u64> {
+        match self {
+            Self::Integer(_, IntegerValue::Unsigned(value)) => u64::try_from(*value).ok(),
+            Self::Integer(_, IntegerValue::Signed(value)) => u64::try_from(*value).ok(),
+            _ => None,
+        }
+    }
+
     fn literal(&self) -> Option<ScalarTerm> {
         match *self {
             Self::Integer(scalar_type, value) => Some(ScalarTerm::Integer { scalar_type, value }),
@@ -316,7 +325,564 @@ struct HandleMachineReplay<'a> {
     geometry: &'a HandleStorageGeometry<'a>,
 }
 
+struct HandleReplayInvocation {
+    parent: usize,
+    caller: Caller,
+    callee: MachineId,
+}
+
+/// The suspended caller is retained in full, including retired integer
+/// aliases. Returning from another sibling invocation cannot supply its state.
+struct HandleReplayFrame {
+    invocation: HandleReplayInvocation,
+    activation: usize,
+    caller: CanonicalHandleState,
+    mutable_outputs: Vec<HandleCensusRoot>,
+    normal_return: bool,
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct HandleCensusRoot {
+    storage: CapturedHandleStorage,
+    carrier: StructuralTypeId,
+}
+
+enum CapturedReturnValue {
+    Unit,
+    Scalar(CapturedHandleScalar),
+    Structural {
+        carrier: StructuralTypeId,
+        value: CapturedCallArgument,
+    },
+}
+
+struct CapturedHandleReturn {
+    activation: usize,
+    machine: MachineId,
+    edge: EdgeId,
+    value: CapturedReturnValue,
+}
+
 impl CanonicalHandleState {
+    fn capture_return(
+        &mut self,
+        activation: usize,
+        position: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+        inputs: &WindowsHandleInputs<'_>,
+        activations: &HandleReplayActivations,
+        context: &ReviewContext<'_>,
+    ) -> Result<CapturedHandleReturn, String> {
+        let scope = activations
+            .rows
+            .get(activation)
+            .ok_or("handle return has no actual activation")?;
+        let body = inputs
+            .calls
+            .machine(scope.machine)
+            .ok_or("handle return has no original body")?;
+        let block = body
+            .block(&position.0)
+            .filter(|block| block.operations.len() == position.1 as usize)
+            .ok_or("handle return is not its actual terminating cut")?;
+        let prepared = inputs
+            .machines
+            .get(body.id)
+            .and_then(Option::as_ref)
+            .ok_or("handle return has no matching prepared scalar roster")?;
+        let bindings = self.bindings.clone();
+        let geometry = HandleStorageGeometry::new(
+            context.input.module(),
+            body,
+            &inputs.storage[prepared.storage_index],
+            target::TargetProfile::WindowsX64,
+            activation,
+            &bindings,
+        )?;
+        let (edge, value) = match &block.terminator {
+            terminal_psi::Terminator::Return { edge, value, .. } => {
+                let captured = self.scalar(*value, position, &prepared.expressions)?;
+                if body
+                    .result
+                    .scalar_ref()
+                    .is_none_or(|result| result.scalar_type != captured.word.scalar_type())
+                {
+                    return Err("handle scalar return changes the body's actual result lane".into());
+                }
+                self.observe(
+                    captured.word.dependencies().iter().copied(),
+                    activations.scalar(activation, ScalarUseSite::Edge(*edge))?,
+                )?;
+                (*edge, CapturedReturnValue::Scalar(captured))
+            }
+            terminal_psi::Terminator::ReturnUnit { edge, .. } => {
+                if body.result != terminal_psi::TerminalMachineResult::Unit {
+                    return Err("handle Unit return changes the body's actual result lane".into());
+                }
+                (*edge, CapturedReturnValue::Unit)
+            }
+            terminal_psi::Terminator::ReturnStructural { edge, source, .. } => {
+                let declaration = body
+                    .result
+                    .structural()
+                    .ok_or("handle structural return changes its actual result lane")?;
+                let location = DescriptorLocation::whole(*source);
+                let (range, selected, _) = geometry.resolve(&location, &self.references)?;
+                if geometry.carrier(&location)? != Some(declaration.structural_type) {
+                    return Err(
+                        "handle structural return changes its original declared carrier".into(),
+                    );
+                }
+                self.observe(
+                    self.aliases.stored_dependencies(&range),
+                    activations.scalar(activation, ScalarUseSite::Edge(*edge))?,
+                )?;
+                let value = match selected.scalar {
+                    Some(scalar) => CapturedCallArgument::Scalar(self.read_scalar(
+                        &location,
+                        scalar.logical_scalar,
+                        &geometry,
+                    )?),
+                    None => CapturedCallArgument::Bytes(self.capture(&range)),
+                };
+                (
+                    *edge,
+                    CapturedReturnValue::Structural {
+                        carrier: declaration.structural_type,
+                        value,
+                    },
+                )
+            }
+            _ => return Err("handle normal return substitutes another original terminator".into()),
+        };
+        Ok(CapturedHandleReturn {
+            activation,
+            machine: body.id,
+            edge,
+            value,
+        })
+    }
+
+    /// Only the execution owner calls this after the captured return's entire
+    /// ordered cleanup roster has completed. Install the saved result in its
+    /// actual caller before the output census, then retire callee-local bytes.
+    fn resume_after_cleanup(
+        mut self,
+        frame: HandleReplayFrame,
+        returned: CapturedHandleReturn,
+        inputs: &WindowsHandleInputs<'_>,
+        activations: &HandleReplayActivations,
+        context: &ReviewContext<'_>,
+    ) -> Result<Self, String> {
+        if !frame.normal_return
+            || returned.activation != frame.activation
+            || returned.machine != frame.invocation.callee
+        {
+            return Err("handle return resumes a sibling invocation or another activation".into());
+        }
+        let caller = inputs
+            .calls
+            .machine(frame.invocation.caller.machine)
+            .ok_or("handle continuation lost its exact suspended caller")?;
+        let prepared = inputs
+            .machines
+            .get(caller.id)
+            .and_then(Option::as_ref)
+            .ok_or("handle continuation lost its prepared original caller")?;
+        self.aliases = self.aliases.resume_caller(&frame.caller.aliases);
+        self.constants = frame.caller.constants;
+        self.bindings = frame.caller.bindings;
+        let bindings = self.bindings.clone();
+        let geometry = HandleStorageGeometry::new(
+            context.input.module(),
+            caller,
+            &inputs.storage[prepared.storage_index],
+            target::TargetProfile::WindowsX64,
+            frame.invocation.parent,
+            &bindings,
+        )?;
+        let result = match frame.invocation.caller.site {
+            CallSite::Invocation(InvocationSite::Operation(operation)) => {
+                &caller
+                    .block(&frame.invocation.caller.block)
+                    .and_then(|block| {
+                        block
+                            .operations
+                            .get(frame.invocation.caller.operation_index)
+                    })
+                    .filter(|actual| actual.id == operation)
+                    .ok_or("handle continuation changes its original receiving operation")?
+                    .result
+            }
+            CallSite::Cleanup { .. } => &terminal_psi::OperationResult::Unit,
+            CallSite::Invocation(_) => {
+                return Err("handle continuation has no normal receiving operation".into());
+            }
+        };
+        let mut outputs = frame.mutable_outputs;
+        let mut scalar_outputs = BTreeSet::new();
+        match (result, returned.value) {
+            (terminal_psi::OperationResult::Unit, CapturedReturnValue::Unit) => {}
+            (terminal_psi::OperationResult::Scalar(result), CapturedReturnValue::Scalar(value)) => {
+                scalar_outputs.extend(value.word.dependencies());
+                self.define(result.id, value, &prepared.expressions)?;
+            }
+            (
+                terminal_psi::OperationResult::Structural(result),
+                CapturedReturnValue::Structural { carrier, value },
+            ) => {
+                if result.structural_type != carrier {
+                    return Err(
+                        "handle return changes its caller's structural result carrier".into(),
+                    );
+                }
+                let location = DescriptorLocation::whole(result.place);
+                let (range, _, codec) = geometry.resolve(&location, &self.references)?;
+                match value {
+                    CapturedCallArgument::Scalar(value) => {
+                        self.store_scalar(&location, &value, &geometry)?
+                    }
+                    CapturedCallArgument::Bytes(value) => self.install(&range, &value)?,
+                }
+                outputs.push(HandleCensusRoot {
+                    storage: CapturedHandleStorage {
+                        range,
+                        stored_scalar: codec,
+                    },
+                    carrier,
+                });
+            }
+            _ => return Err("handle return changes its actual receiving result lane".into()),
+        }
+        scalar_outputs.extend(self.output_census(outputs, &geometry, frame.activation)?);
+        self.ledger = self
+            .ledger
+            .caller_continuation(
+                &frame.caller.ledger,
+                activations.scalar(frame.activation, ScalarUseSite::Edge(returned.edge))?,
+                &scalar_outputs.into_iter().collect::<Vec<_>>(),
+            )
+            .map_err(|reason| {
+                format!("handle return violates its complete output lifetime: {reason:?}")
+            })?;
+        self.aliases.retire_activation(frame.activation);
+        self.references.retire_activation(frame.activation);
+        let owner = HandleStorageOwner::Activation(frame.activation);
+        self.cases.retain(|range, _| range.backing().owner != owner);
+        self.stored_constants
+            .retain(|range, _| range.backing().owner != owner);
+        Ok(self)
+    }
+
+    /// Follow every resident pointer in the actual outgoing typed values.
+    /// Readonly/dead local aliases are not outputs. Pointer targets are read
+    /// after cleanup, so replacing a mutable output or retiring its resource
+    /// cannot be hidden behind the return value's earlier snapshot.
+    fn output_census(
+        &self,
+        roots: impl IntoIterator<Item = HandleCensusRoot>,
+        geometry: &HandleStorageGeometry<'_>,
+        retiring: usize,
+    ) -> Result<BTreeSet<super::windows_handle_lifetimes::HandleInstance>, String> {
+        fn enqueue(
+            root: HandleCensusRoot,
+            discovered: &mut BTreeSet<HandleCensusRoot>,
+            pending: &mut Vec<HandleCensusRoot>,
+        ) -> Result<(), String> {
+            if discovered.contains(&root) {
+                return Ok(());
+            }
+            if discovered.len() >= 65_536 {
+                return Err("handle output pointer census exceeds its bounded inventory".into());
+            }
+            discovered.insert(root.clone());
+            pending.push(root);
+            Ok(())
+        }
+        let mut pending = Vec::new();
+        let mut discovered = BTreeSet::new();
+        for root in roots {
+            enqueue(root, &mut discovered, &mut pending)?;
+        }
+        let mut dependencies = BTreeSet::new();
+        while let Some(root) = pending.pop() {
+            dependencies.extend(self.aliases.stored_dependencies(&root.storage.range));
+            if root.storage.stored_scalar.is_some() {
+                if geometry.primitive_scalar(root.carrier).is_none() {
+                    return Err("handle output scalar codec hides a non-scalar carrier".into());
+                }
+                continue;
+            }
+            let slots = geometry.pointer_slots(
+                root.carrier,
+                &root.storage.range,
+                |range, carrier, case| {
+                    self.cases
+                        .get(&range)
+                        .filter(|tag| tag.carrier == carrier)
+                        .map(|tag| tag.case == case)
+                        .ok_or(
+                            "handle output pointer slot has no current active-case evidence".into(),
+                        )
+                },
+            )?;
+            for slot in slots {
+                match slot.kind {
+                    HandlePointerKind::Reference(referent) => {
+                        let captured = self
+                            .references
+                            .get(&slot.range)
+                            .ok_or("handle output reference has no captured pointee")?;
+                        if captured.referent != referent {
+                            return Err(
+                                "handle output reference changes its original referent carrier"
+                                    .into(),
+                            );
+                        }
+                        if captured.range.backing().owner
+                            == HandleStorageOwner::Activation(retiring)
+                        {
+                            return Err("handle output reference escapes its returning activation's storage".into());
+                        }
+                        dependencies.extend(&captured.dependencies);
+                        enqueue(
+                            HandleCensusRoot {
+                                storage: CapturedHandleStorage {
+                                    range: captured.range,
+                                    stored_scalar: captured.stored_scalar,
+                                },
+                                carrier: referent,
+                            },
+                            &mut discovered,
+                            &mut pending,
+                        )?;
+                    }
+                    HandlePointerKind::Sequence(element) => {
+                        let captured = self
+                            .references
+                            .sequence(&slot.range)
+                            .ok_or("handle output descriptor has no captured data window")?;
+                        if captured.element != element {
+                            return Err(
+                                "handle output descriptor changes its original element carrier"
+                                    .into(),
+                            );
+                        }
+                        if captured.range.backing().owner
+                            == HandleStorageOwner::Activation(retiring)
+                        {
+                            return Err("handle output descriptor escapes its returning activation's storage".into());
+                        }
+                        dependencies.extend(&captured.dependencies);
+                        dependencies.extend(self.aliases.stored_dependencies(&captured.range));
+                        let Some(element) = element else {
+                            continue;
+                        };
+                        if !geometry.has_pointer_slots(element, captured.range.backing().place)? {
+                            continue;
+                        }
+                        let length = captured.length.filter(|_| captured.precise).ok_or(
+                            "handle output view has no complete resident pointer selection",
+                        )?;
+                        let length = usize::try_from(length)
+                            .ok()
+                            .filter(|count| *count <= 65_536 - discovered.len())
+                            .ok_or("handle output view exceeds its bounded pointer inventory")?;
+                        for ordinal in 0..length {
+                            let range = geometry.sequence_element(captured, ordinal as u64)?;
+                            enqueue(
+                                HandleCensusRoot {
+                                    storage: CapturedHandleStorage {
+                                        range,
+                                        stored_scalar: None,
+                                    },
+                                    carrier: element,
+                                },
+                                &mut discovered,
+                                &mut pending,
+                            )?;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(dependencies)
+    }
+
+    fn enter_call(
+        mut self,
+        invocation: HandleReplayInvocation,
+        inputs: &WindowsHandleInputs<'_>,
+        activations: &mut HandleReplayActivations,
+        context: &ReviewContext<'_>,
+    ) -> Result<(HandleReplayFrame, Self), String> {
+        let (activation, call) = activations.enter(
+            invocation.parent,
+            invocation.caller,
+            invocation.callee,
+            &inputs.calls,
+        )?;
+        let caller = inputs
+            .calls
+            .machine(invocation.caller.machine)
+            .ok_or("handle call has no actual containing body")?;
+        let callee = inputs
+            .calls
+            .machine(invocation.callee)
+            .ok_or("handle call has no actual selected body")?;
+        let caller_prepared = inputs
+            .machines
+            .get(caller.id)
+            .and_then(Option::as_ref)
+            .ok_or("handle caller has no prepared operand roster")?;
+        let callee_prepared = inputs
+            .machines
+            .get(callee.id)
+            .and_then(Option::as_ref)
+            .ok_or("handle callee has no prepared operand roster")?;
+        let position = (
+            invocation.caller.block,
+            u32::try_from(invocation.caller.operation_index)
+                .map_err(|_| "handle call ordinal exceeds its canonical position")?,
+        );
+        let site = match invocation.caller.site {
+            CallSite::Invocation(InvocationSite::Operation(operation)) => {
+                ScalarUseSite::Operation(operation)
+            }
+            CallSite::Cleanup { edge, .. } => ScalarUseSite::Edge(edge),
+            CallSite::Invocation(
+                InvocationSite::InvokeNoNormal(edge) | InvocationSite::ExternalCompletion(edge),
+            ) => ScalarUseSite::Edge(edge),
+        };
+        let occurrence = activations.scalar(invocation.parent, site)?;
+        let scalar_actuals = match call.arguments {
+            super::windows_handle_calls::RuntimeArguments::Explicit { scalar, .. } => scalar,
+            super::windows_handle_calls::RuntimeArguments::Cleanup(_) => &[],
+        };
+        if scalar_actuals.len() != callee.parameters.len() {
+            return Err("handle call changes the selected body's scalar signature".into());
+        }
+        let scalar_actuals = callee
+            .parameters
+            .iter()
+            .zip(scalar_actuals)
+            .map(|(formal, actual)| {
+                let captured = self.scalar(*actual, position, &caller_prepared.expressions)?;
+                if captured.word.scalar_type() != formal.scalar_type {
+                    return Err("handle call changes an evaluated scalar's formal carrier".into());
+                }
+                Ok((formal.id, captured))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        self.observe(
+            scalar_actuals
+                .iter()
+                .flat_map(|(_, value)| value.word.dependencies().iter().copied()),
+            occurrence,
+        )?;
+        let bindings = self.bindings.clone();
+        let geometry = HandleStorageGeometry::new(
+            context.input.module(),
+            caller,
+            &inputs.storage[caller_prepared.storage_index],
+            target::TargetProfile::WindowsX64,
+            invocation.parent,
+            &bindings,
+        )?;
+        let mut next = self.enter(&callee_prepared.expressions, callee)?;
+        let mut owned = Vec::new();
+        let mut mutable_outputs = Vec::new();
+        for (ordinal, formal) in callee.structural_parameters.iter().enumerate() {
+            let actual = call.storage_actual(callee, ordinal)?;
+            let source = geometry.location(actual.place, actual.path)?;
+            let (range, selected, codec) = geometry.resolve(&source, &self.references)?;
+            match selected.scalar {
+                Some(scalar)
+                    if geometry.primitive_scalar(formal.structural_type)
+                        != Some(scalar.logical_scalar) =>
+                {
+                    return Err("handle scalar actual changes its formal logical carrier".into());
+                }
+                None if geometry.carrier(&source)? != Some(formal.structural_type) => {
+                    return Err(
+                        "handle structural actual changes its formal declared carrier".into(),
+                    );
+                }
+                _ => {}
+            }
+            if actual.access == terminal_psi::StructuralAccess::Owned {
+                let value = if let Some(scalar) = selected.scalar {
+                    CapturedCallArgument::Scalar(self.read_scalar(
+                        &source,
+                        scalar.logical_scalar,
+                        &geometry,
+                    )?)
+                } else {
+                    if geometry.carrier(&source)? != Some(formal.structural_type) {
+                        return Err(
+                            "handle owned actual changes its complete declared carrier".into()
+                        );
+                    }
+                    CapturedCallArgument::Bytes(self.capture(&range))
+                };
+                self.observe(self.aliases.stored_dependencies(&range), occurrence)?;
+                owned.push((formal.place, value));
+            } else {
+                let captured = CapturedHandleStorage {
+                    range,
+                    stored_scalar: codec,
+                };
+                next.bindings
+                    .bind(formal.place, actual.access, captured.clone())?;
+                if actual.access != terminal_psi::StructuralAccess::SharedBorrow {
+                    mutable_outputs.push(HandleCensusRoot {
+                        storage: captured,
+                        carrier: formal.structural_type,
+                    });
+                }
+            }
+        }
+        // Source arguments are all captured before any formal acquires its
+        // new value. Borrowed roots keep their actual caller-owned backing.
+        let next_bindings = next.bindings.clone();
+        let callee_geometry = HandleStorageGeometry::new(
+            context.input.module(),
+            callee,
+            &inputs.storage[callee_prepared.storage_index],
+            target::TargetProfile::WindowsX64,
+            activation,
+            &next_bindings,
+        )?;
+        for (place, value) in owned {
+            let location = DescriptorLocation::whole(place);
+            match value {
+                CapturedCallArgument::Scalar(value) => {
+                    next.store_scalar(&location, &value, &callee_geometry)?
+                }
+                CapturedCallArgument::Bytes(value) => {
+                    let (destination, _, _) =
+                        callee_geometry.resolve(&location, &next.references)?;
+                    next.install(&destination, &value)?;
+                }
+            }
+        }
+        for (formal, value) in scalar_actuals {
+            next.define(formal, value, &callee_prepared.expressions)?;
+        }
+        // Argument observations belong to the history inherited by the callee,
+        // rather than disappearing in the caller snapshot retained above.
+        next.ledger = self.ledger.clone();
+        Ok((
+            HandleReplayFrame {
+                invocation,
+                activation,
+                caller: self,
+                mutable_outputs,
+                normal_return: call.normal_return,
+            },
+            next,
+        ))
+    }
+
     /// Execute one original non-call operation. Every source is captured at
     /// its pre-operation cut before any destination is cleared. Calls have a
     /// separate matched-return owner and cannot enter this ordinary route.
@@ -384,6 +950,105 @@ impl CanonicalHandleState {
         let inputs =
             self.evaluated_operands(operation, position, &prepared.expressions, occurrence)?;
         let input_words = || inputs.iter().map(|(_, value)| value.word.clone());
+        let input_dependencies = || {
+            input_words()
+                .flat_map(|word| word.dependencies().clone())
+                .collect::<BTreeSet<_>>()
+        };
+        let operand = |id| {
+            self.scalar(id, position, &prepared.expressions)
+                .map(|value| value.known.unsigned())
+        };
+        let sequence = match &operation.kind {
+            OperationKind::EstablishByteSequenceLiteral {
+                destination, bytes, ..
+            } => {
+                let location = DescriptorLocation::whole(*destination);
+                let (slot, _, _) = geometry.resolve(&location, &self.references)?;
+                let length = u64::try_from(bytes.len())
+                    .map_err(|_| "handle literal length exceeds its actual source extent")?;
+                Some((
+                    slot,
+                    geometry.present_sequence(
+                        CapturedHandleSequence {
+                            range: HandleStorageRange::new(
+                                HandleStorageBacking {
+                                    owner: HandleStorageOwner::Literal(body.id),
+                                    place: *destination,
+                                },
+                                0,
+                                length,
+                            )?,
+                            element: None,
+                            stride: 1,
+                            length: Some(length),
+                            precise: true,
+                            dependencies: BTreeSet::new(),
+                        },
+                        &location,
+                    )?,
+                ))
+            }
+            terminal_psi::element_view_establish_pair_pattern! { destination, source, element, region } =>
+            {
+                let location = geometry.location(source.place, &source.path)?;
+                let mut captured = geometry.sequence(&location, &self.references)?;
+                let representation = match region {
+                    terminal_psi::ElementViewRegion::WholeCollection => false,
+                    terminal_psi::ElementViewRegion::WholeRepresentation {
+                        source_length, ..
+                    } => {
+                        captured = captured.subslice(
+                            Some(0),
+                            operand(*source_length)?,
+                            input_dependencies(),
+                        )?;
+                        true
+                    }
+                    terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. } => {
+                        captured.element = None;
+                        captured.stride = 1;
+                        captured.length = captured.precise.then_some(captured.range.byte_length());
+                        captured = captured.subslice(
+                            operand(*start)?,
+                            operand(*end)?,
+                            input_dependencies(),
+                        )?;
+                        true
+                    }
+                };
+                captured = geometry.as_elements(captured, *element, representation)?;
+                captured.dependencies.extend(input_dependencies());
+                let captured = geometry
+                    .present_sequence(captured, &DescriptorLocation::whole(*destination))?;
+                let (slot, _, _) =
+                    geometry.resolve(&DescriptorLocation::whole(*destination), &self.references)?;
+                Some((slot, captured))
+            }
+            OperationKind::ByteSequenceSubslice {
+                source, start, end, ..
+            }
+            | OperationKind::ElementViewSubslice {
+                source, start, end, ..
+            } => {
+                let location = geometry.location(source.place, &source.path)?;
+                let captured = geometry.sequence(&location, &self.references)?.subslice(
+                    operand(*start)?,
+                    operand(*end)?,
+                    input_dependencies(),
+                )?;
+                let result = operation
+                    .result
+                    .structural()
+                    .ok_or("handle subslice has no actual descriptor result")?;
+                let captured = geometry
+                    .present_sequence(captured, &DescriptorLocation::whole(result.place))?;
+                let (slot, _, _) =
+                    geometry.resolve(&DescriptorLocation::whole(result.place), &self.references)?;
+                Some((slot, captured))
+            }
+            _ => None,
+        };
         let mut stores = Vec::new();
         if let Some(writes) = prepared.operands.writes.get(&position) {
             // An unresolved exact writer is still handled below by the
@@ -459,7 +1124,39 @@ impl CanonicalHandleState {
                 .get(&position)
                 .map(Vec::as_slice)
                 .unwrap_or(&[]);
-            let value = if let OperationKind::StructuralCaseMembership { source, path, case } =
+            let value = if let OperationKind::ByteSequenceLength { source }
+            | OperationKind::ElementViewLength { source } = &operation.kind
+            {
+                let location = geometry.location(source.place, &source.path)?;
+                let captured = geometry.sequence(&location, &self.references)?;
+                let known = match (result.scalar_type, captured.length) {
+                    (ScalarType::Integer(integer), Some(length))
+                        if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                            && integer.bits() == 64 =>
+                    {
+                        KnownHandleScalar::Integer(
+                            integer,
+                            IntegerValue::Unsigned(u128::from(length)),
+                        )
+                    }
+                    (_, None) => KnownHandleScalar::Unknown,
+                    _ => {
+                        return Err(
+                            "handle descriptor length changes its actual count carrier".into()
+                        );
+                    }
+                };
+                CapturedHandleScalar {
+                    word: HandleWordAliases::derived(
+                        result.scalar_type,
+                        [self.aliases.stored_word(
+                            &geometry.resolve(&location, &self.references)?.0,
+                            result.scalar_type,
+                        )],
+                    ),
+                    known,
+                }
+            } else if let OperationKind::StructuralCaseMembership { source, path, case } =
                 &operation.kind
             {
                 let source = geometry.location(*source, path)?;
@@ -640,6 +1337,12 @@ impl CanonicalHandleState {
             next.aliases
                 .write_region(slot, captured.dependencies.clone());
             next.references.replace(slot, captured);
+        }
+        if let Some((slot, captured)) = sequence {
+            next.replace(&slot);
+            next.aliases
+                .write_region(slot, captured.dependencies.clone());
+            next.references.replace_sequence(slot, captured);
         }
         next.cases.extend(constructors);
         if let Some((result, value)) = scalar_result {
@@ -975,4 +1678,9 @@ impl CanonicalHandleState {
             known,
         })
     }
+}
+
+enum CapturedCallArgument {
+    Scalar(CapturedHandleScalar),
+    Bytes(CapturedMemory),
 }
