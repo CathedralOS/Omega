@@ -55,13 +55,16 @@ fn term_dependencies<'a>(
             if !crate::byte_predicate_carrier(types, selected.id) {
                 return None;
             }
-            // Fixed bytes are inline storage. A view observes indirect backing:
-            // its descriptor field cannot establish disjointness from a write.
+            // Keep the conservative footprint used by existing write queries.
+            // A borrowed view observes separate storage; an owned buffer does not.
             let inline = matches!(
                 selected.shape,
                 terminal_psi::StructuralTypeShape::FixedArray { .. }
             );
-            output.indirect_backing |= !inline;
+            output.indirect_backing |= matches!(
+                &selected.shape,
+                terminal_psi::StructuralTypeShape::ByteSequence(carrier) if carrier.is_borrowed()
+            );
             output
                 .paths
                 .push(if inline { path.clone() } else { Vec::new() });

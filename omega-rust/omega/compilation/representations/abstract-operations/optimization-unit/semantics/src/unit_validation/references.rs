@@ -724,7 +724,6 @@ pub(crate) fn validate_function_references(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     dynamic_dispatch: &TerminalDynamicDispatchCatalog,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let invalid = || catalog_mismatch(function);
     let is_reference = |structural_type| {
         types.get(&structural_type).is_some_and(|declaration| {
             matches!(
@@ -744,8 +743,8 @@ pub(crate) fn validate_function_references(
             // references under constructor permission. The root validator
             // checks memberships, multiplicity and the fresh result place;
             // ordered custody relocates the exact existing loan identities.
-            let signature =
-                structural_source_contract(function, source.place).ok_or_else(invalid)?;
+            let signature = structural_source_contract(function, source.place)
+                .ok_or_else(|| catalog_mismatch(function))?;
             if source.access != StructuralAccess::Owned
                 || signature.access != StructuralAccess::Owned
                 || terminal_semantics::canonical_static_projection(
@@ -755,7 +754,7 @@ pub(crate) fn validate_function_references(
                 )
                 .is_none_or(|(_, selected)| selected.id != result.structural_type)
             {
-                return Err(invalid());
+                return Err(catalog_mismatch(function));
             }
             continue;
         }
@@ -780,7 +779,7 @@ pub(crate) fn validate_function_references(
                 || !result.qualifications.is_empty()
                 || !result.claims.is_empty())
         {
-            return Err(invalid());
+            return Err(catalog_mismatch(function));
         }
         if is_reference(result.structural_type)
             && !matches!(
@@ -793,7 +792,7 @@ pub(crate) fn validate_function_references(
                     }
             )
         {
-            return Err(invalid());
+            return Err(catalog_mismatch(function));
         }
     }
     for parameter in function
@@ -812,7 +811,7 @@ pub(crate) fn validate_function_references(
             || function.entry_claim_declared(parameter.place)
             || function.content_entry_claim_declared(parameter.place)
         {
-            return Err(invalid());
+            return Err(catalog_mismatch(function));
         }
     }
     // A block parameter holds a moved carrier or an independent shared copy.
@@ -833,7 +832,7 @@ pub(crate) fn validate_function_references(
             || !parameter.qualifications.is_empty()
             || !constructible(types, parameter.structural_type)
         {
-            return Err(invalid());
+            return Err(catalog_mismatch(function));
         }
     }
     // A reference-bearing root crosses an edge only by owned transfer. A whole
@@ -851,7 +850,7 @@ pub(crate) fn validate_function_references(
                 && binding.argument.access != StructuralAccess::Owned
         })
     {
-        return Err(invalid());
+        return Err(catalog_mismatch(function));
     }
     let Some(result) = function.result.structural() else {
         return Ok(());
@@ -860,7 +859,7 @@ pub(crate) fn validate_function_references(
         return if result.reference_sources.is_empty() {
             Ok(())
         } else {
-            Err(invalid())
+            Err(catalog_mismatch(function))
         };
     }
     let constructible_result = match types
@@ -876,24 +875,24 @@ pub(crate) fn validate_function_references(
         && !constructible(types, result.structural_type)
         && !constructible_result
     {
-        return Err(invalid());
+        return Err(catalog_mismatch(function));
     }
     if result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
         || !result.qualifications.is_empty()
     {
-        return Err(invalid());
+        return Err(catalog_mismatch(function));
     }
     let mut paths = leaf_paths(
         types,
         result.structural_type,
         result.reference_sources.len(),
     )
-    .ok_or_else(invalid)?;
+    .ok_or_else(|| catalog_mismatch(function))?;
     // Result sources are a canonical map, not a lifecycle schedule. Constructors
     // and cleanup keep declaration order; only this interface comparison sorts.
     paths.sort();
     if paths.len() != result.reference_sources.len() {
-        return Err(invalid());
+        return Err(catalog_mismatch(function));
     }
     if result.reference_sources.iter().any(|mapping| {
         mapping.sources.len() > 1
@@ -909,13 +908,13 @@ pub(crate) fn validate_function_references(
     }
     let mut sources = BTreeMap::new();
     for (path, mapping) in paths.iter().zip(&result.reference_sources) {
-        let expected_referent =
-            leaf_referent(types, result.structural_type, path).ok_or_else(invalid)?;
+        let expected_referent = leaf_referent(types, result.structural_type, path)
+            .ok_or_else(|| catalog_mismatch(function))?;
         if mapping.path != *path
             || mapping.sources.is_empty()
             || mapping.sources.windows(2).any(|pair| pair[0] >= pair[1])
         {
-            return Err(invalid());
+            return Err(catalog_mismatch(function));
         }
         for formal in &mapping.sources {
             let terminal_psi::StructuralReferenceOrigin::Parameter(formal) = formal else {
@@ -936,11 +935,12 @@ pub(crate) fn validate_function_references(
                     ) != Some(expected_referent)
                     || !leaf_access_within(types, result.structural_type, path, *access)
                 {
-                    return Err(invalid());
+                    return Err(catalog_mismatch(function));
                 }
                 continue;
             };
-            let projected = formal_reference_source(types, function, formal).ok_or_else(invalid)?;
+            let projected = formal_reference_source(types, function, formal)
+                .ok_or_else(|| catalog_mismatch(function))?;
             // Repeated observations of borrowed ingress create independent
             // shared descendants. An owned ingress instead transfers existing
             // carrier identities, which cannot fill multiple result slots.
@@ -962,7 +962,7 @@ pub(crate) fn validate_function_references(
                     && projected.endpoint != expected_referent)
                 || !leaf_access_within(types, result.structural_type, path, formal.access)
             {
-                return Err(invalid());
+                return Err(catalog_mismatch(function));
             }
         }
     }

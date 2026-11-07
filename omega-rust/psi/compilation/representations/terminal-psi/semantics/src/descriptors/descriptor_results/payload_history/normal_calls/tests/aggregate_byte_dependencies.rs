@@ -336,3 +336,131 @@ fn bounded_owned_byte_label_keeps_its_held_duty_across_a_sibling_write() {
     ));
     assert_eq!(preserve_sibling_write(&fixture), Ok(()));
 }
+
+#[test]
+fn owned_byte_rule_with_unused_shared_view_survives_a_sibling_write() {
+    let mut fixture = fixture(ByteStorage::BoundedOwned, DomainObservation::Bytes);
+    let bytes = StructuralTypeId::new(3).unwrap();
+    let aggregate = StructuralTypeId::new(4).unwrap();
+    let outer = StructuralTypeId::new(5).unwrap();
+    let unused_view = StructuralTypeId::new(6).unwrap();
+    let unused_field = StructuralFieldId::new(5).unwrap();
+    assert!(fixture.module.structural_types.iter().all(|row| row.id != unused_view));
+    for row in &fixture.module.structural_types {
+        if let StructuralTypeShape::Record { fields, .. } = &row.shape {
+            assert!(fields.iter().all(|field| field.id != unused_field));
+        }
+    }
+
+    let mut identities = fixture.module.identities.clone().into_builder();
+    assert!(identities.index_of("UnusedSharedBytes").is_none());
+    assert!(identities.index_of("Aggregate::unused_shared_bytes").is_none());
+    let view_name = identities.intern("UnusedSharedBytes");
+    let field_name = identities.intern("Aggregate::unused_shared_bytes");
+    fixture.module.identities = identities.build();
+    fixture.module.structural_types.push(StructuralTypeDeclaration {
+        id: unused_view,
+        identity: view_name,
+        quotient_carrier: None,
+        owns_linear_claim: false,
+        no_code_affine_cleanup: true,
+        copyable: true,
+        descriptor_cleanup: true,
+        scalar_restriction: None,
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        }),
+    });
+    let aggregate_declaration = fixture
+        .module
+        .structural_types
+        .iter_mut()
+        .find(|row| row.id == aggregate)
+        .unwrap();
+    aggregate_declaration.descriptor_cleanup = true;
+    let StructuralTypeShape::Record {
+        storage: StructuralRecordStorage::Packed,
+        fields,
+    } = &mut aggregate_declaration.shape
+    else {
+        panic!("the held rule must remain on the existing packed aggregate");
+    };
+    fields.push(field(
+        unused_field.get(),
+        field_name,
+        StructuralFieldType::Structural(unused_view),
+        None,
+    ));
+    let outer_declaration = fixture
+        .module
+        .structural_types
+        .iter_mut()
+        .find(|row| row.id == outer)
+        .unwrap();
+    assert!(matches!(
+        &outer_declaration.shape,
+        StructuralTypeShape::Record {
+            storage: StructuralRecordStorage::Packed,
+            ..
+        }
+    ));
+    outer_declaration.descriptor_cleanup = true;
+
+    let types = &fixture.module.structural_types;
+    assert!(matches!(
+        &types.iter().find(|row| row.id == bytes).unwrap().shape,
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 1 })
+    ));
+    assert!(crate::byte_predicate_carrier(types.iter(), bytes));
+    assert!(crate::byte_predicate_carrier(types.iter(), unused_view));
+    assert!(!plain_owned_shape(types.iter(), aggregate));
+
+    let domain = &fixture.module.structural_domains[0];
+    assert_eq!(domain.carrier, aggregate);
+    assert!(domain.complete_predicate_theory);
+    assert!(matches!(
+        &domain.required_memberships,
+        Some(required) if required.is_empty()
+    ));
+    assert!(domain.required_memberships_are_well_formed(&fixture.module.structural_domains));
+    let closure = domain
+        .required_domain_closure(&fixture.module.structural_domains)
+        .expect("the observed rule must have a complete prerequisite closure");
+    assert_eq!(closure.len(), 1);
+    assert_eq!(closure[0].id, domain.id);
+    assert!(closure[0].complete_predicate_theory && closure[0].predicate.is_some());
+    let predicate = domain.predicate.as_ref().unwrap();
+    predicate.proposition.validate().unwrap();
+    assert!(crate::domain_predicate_is_closed(types.iter(), aggregate, predicate));
+    assert!(matches!(
+        &predicate.proposition,
+        Proposition::Equal(
+            ScalarTerm::ByteSequencePredicate {
+                predicate: ByteSequencePredicate::NoNul,
+                path,
+                ..
+            },
+            ScalarTerm::Boolean(true),
+        ) if path.as_slice() == &[Segment::Field(StructuralFieldId::new(4).unwrap())]
+    ));
+    assert!(domain.byte_predicate.is_none());
+    assert!(domain.content_projection.is_none());
+    assert!(domain.establishment_routes.is_empty());
+    assert_eq!(
+        crate::qualification_path_carrier(
+            types.iter(),
+            fixture.held.carrier,
+            &fixture.held.projected_qualifications[0].path,
+        ),
+        Some(aggregate),
+    );
+    // The older query stays conservative. The observed bytes are owned, and the
+    // unused shared view does not make their backing depend on the sibling write.
+    assert!(!crate::domain_write_is_disjoint(
+        types.iter(),
+        &fixture.module.identities,
+        domain,
+        &[StructuralPathSegment::Field(fixture.flag_name)],
+    ));
+    assert_eq!(preserve_sibling_write(&fixture), Ok(()));
+}
