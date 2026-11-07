@@ -76,15 +76,26 @@ is empty; older markers reject rather than selecting an optional dialect:
 | float entry ranges | machine id + parameter value id + minimum IEEE float value + maximum IEEE float value + `bool` maximum-inclusive flag |
 | integer entry ranges | machine id + parameter value id + integer type + minimum integer value + maximum integer value |
 
-Canonical identity-table references retain the semantic identity governed by
-[bounded index normalization](../proofs/contracts.md#bounded-canonical-index-normalization).
-Producers must agree on the canonical typed structure, selected operation and
-law authority, ordering, and encoding, including the fixed cutoff policy for
-open indices. Compiler-local handles and storage compression cannot change the
-published identity. Transported generic compatibility evidence and separately
-evaluated closed values keep their distinct obligations. This does not require
-runtime expressions to use a polynomial representation or add a new wire
-operation for distributivity.
+Canonical identity-table references retain
+[stable index identity](../proofs/contracts.md#stable-canonical-index-identity).
+Producers agree on canonical typed structure, selected operation/application,
+arithmetic policy, fixed core simplifications, ordering, and encoding. No
+expansion cutoff or caller-selected law set enters open-index key normalization.
+Compiler-local handles and compression cannot change published identity.
+
+[Compatibility evidence](../proofs/contracts.md#exact-matching-and-evidence-transport)
+retains its exact proposition, subjects, substitution and selected law authority
+separately from keys. Proof-discovery policy and usage are provenance/accounting;
+they neither rename applications nor replace the evidence. Published proofs
+are verified at trust boundaries without repeating producer search.
+Artifact bytes or cache provenance may differ with proof records while semantic
+identities remain fixed. Closed values retain their own evaluation obligations.
+
+The migration must update identity-profile provenance and evidence serialization
+together, rejecting or explicitly migrating artifacts with legacy law-sensitive
+keys rather than silently reinterpreting them. No new numeric wire tags are
+assigned by this documentation change. Distributivity requires no runtime
+polynomial representation or executable wire operation.
 
 An optional predicate is a presence Boolean, followed when present by its
 subject value id and one canonical proposition. Its domain-local subject is

@@ -1067,7 +1067,8 @@ fail/borrows/borrowed_literal_backing_keeps_input_loan rejected 6965ms expected 
 	statement 2 mutates `second.payload` while local borrow `produced` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/borrowed_reference_field_live_child_write rejected 6506ms expected @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 	statement 1 mutates `held.target.value` while local borrow `child` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
-fail/borrows/boundary_additional_input_domain_not_restored rejected 1965ms expected @ccdb99ca2214
+fail/borrows/boundary_additional_input_domain_not_restored rejected 8889ms expected @c0c5b49589b1
+	cannot prove default-domain field requirement for call replace from exercise::entry: parameter ticket requires Ticket::Issued
 	cannot prove requires contract for call read from exercise: ticket in Ticket::Issued (invalidated by prior mutation of ticket; ticket is part of Ticket::Issued) in state `entry`
 fail/borrows/boundary_argument_later_write_under_element_loan rejected 1688ms expected @ccdb99ca2214
 	state `c_strnlen` receives `bytes` as both mutable and read-only
@@ -5280,9 +5281,11 @@ fail/effects/boundary_empty_provider_hides_reach rejected 1744ms expected @ccdb9
 	machine `Provider::evaluate` state `evaluate` does not satisfy trait `Pure` machine `evaluate`: service `Read` is not allowed by the trait requirement
 fail/effects/boundary_explicit_capability_required rejected 1477ms expected @ccdb99ca2214
 	machine `missing_capability` publishes service reach `Host` but its checked body reaches undeclared service `Read`
-fail/effects/create_dir_all_requires_metadata_query rejected 28277ms expected @ccdb99ca2214
+fail/effects/create_dir_all_requires_metadata_query rejected 96706ms expected @e40519df616f
 	machine `create_without_query` publishes service reach `FilesystemMetadataMutation + FilesystemNamespaceMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
-fail/effects/directory_entry_query_requires_metadata_reach rejected 31543ms expected @ccdb99ca2214
+fail/effects/create_dir_all_requires_namespace rejected 90397ms expected @e40519df616f
+	machine `create_without_namespace` publishes service reach `FilesystemMetadataMutation + FilesystemMetadataQuery` but its checked body reaches undeclared service `FilesystemNamespaceMutation`
+fail/effects/directory_entry_query_requires_metadata_reach rejected 97231ms expected @e40519df616f
 	machine `list_without_metadata` publishes service reach `DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
 fail/effects/filesystem_readonly_requires_metadata_query rejected 32732ms expected @ccdb99ca2214
 	machine `mutate_without_query` publishes service reach `FilesystemMetadataMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
@@ -16119,7 +16122,7 @@ fail/ownership/cleanup_receiver_keeps_child_loan rejected 11826ms expected @ee4d
 	state `prepare` receives `counter` while local borrow `cleanup` is still active
 	statement 1 mutates `counter.value` while local borrow `cleanup` is still active (borrowed at statement 0)
 	statement 1 mutates `counter.value` while local borrow `cleanup` is still active (borrowed at statement 0)
-fail/ownership/completed_case_claim_return_double_consume rejected 1956ms expected @1dee68c22351
+fail/ownership/completed_case_claim_return_double_consume rejected 1903ms expected @ab6bb7225261
 	cannot use `pair.first` in machine `retire_pair` state `entry` (statement 1) after `pair.first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `pair.first` first
 fail/ownership/computed_window_selector_keeps_snapshot rejected 9312ms expected @ee4dbb4b2d56
 	cannot store `tokens[index]` while `tokens[index]` is absent: the value moved out of borrowed storage at statement 3 must be restored as a whole
@@ -16263,7 +16266,7 @@ fail/ownership/nested_borrowed_operand_later_read rejected 8158ms expected @ee4d
 	cannot use `holder.token.value` while `holder.token` is absent from borrowed storage: the value moved out at statement 0 must be restored first
 fail/ownership/nested_call_reuses_transferred_owner rejected 1682ms expected @ccdb99ca2214
 	cannot use `ticket.value` in machine `invalid` state `entry` (statement 2) after `ticket` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `ticket` first
-fail/ownership/nested_case_claim_constructor_duplicate rejected 1961ms expected @1dee68c22351
+fail/ownership/nested_case_claim_constructor_duplicate rejected 1913ms expected @ab6bb7225261
 	cannot use `value.inner.choice` in machine `check` state `entry` (statement 4) after `value.inner.choice` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `value.inner.choice` first
 fail/ownership/nested_selected_call_reuses_owner rejected 1753ms expected @ccdb99ca2214
 	cannot use `ticket.value` in machine `invalid` state `entry` (statement 1) after `ticket` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `ticket` first
@@ -16325,7 +16328,7 @@ fail/ownership/read_through_dropped_owner_rejected rejected 8842ms expected @ee4
 	cannot use `g.handle` in machine `Main::main` state `main` (statement 2) after `g` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `g` first
 fail/ownership/rebound_alias_recoverable_wrong_place rejected 8127ms expected @ee4dbb4b2d56
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.other` must hold a value again before this state's exits consume the borrow
-fail/ownership/reconstructed_case_carrier_second_transfer rejected 1886ms expected @1dee68c22351
+fail/ownership/reconstructed_case_carrier_second_transfer rejected 1896ms expected @ab6bb7225261
 	cannot use `value.slot` in machine `main` state `entry` (statement 2) after `value.slot` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `value.slot` first
 fail/ownership/reconstructed_case_write_keeps_linear_debt rejected 2782ms expected @ccdb99ca2214
 	linear value `returned.slot::Held.token` reaches scope exit without being consumed or transferred in machine `main` state `entry`
@@ -16394,6 +16397,8 @@ fail/ownership/selective_constructed_owner_reuse rejected 1793ms expected @ccdb9
 	cannot use `token.value` in machine `choose` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/ownership/stored_view_element_missing_repair rejected 8058ms expected @ee4dbb4b2d56
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `refill`, state `entry` (statement 0): `window.tokens[0]` must hold a value again before this state's exits consume the borrow
+fail/ownership/subset_case_claim_return_duplicate rejected 1922ms expected @ab6bb7225261
+	cannot use `value` in machine `inspect` state `entry` (statement 2) after `value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/ownership/successor_argument_write_keeps_linear_debt rejected 2825ms expected @ccdb99ca2214
 	linear value `slot::Held.token` reaches scope exit without being consumed or transferred in machine `main` state `entry`
 fail/ownership/successor_carried_cleanup_keeps_child_loan rejected 8938ms expected @ee4dbb4b2d56
@@ -20494,7 +20499,7 @@ pass/collections/element_policy_array_literal_store checked 16905ms check-target
 pass/collections/element_view_borrow_local checked 86446ms check-target:macos_arm64 @898dd1bf8987
 pass/collections/element_view_edge_loan checked 88832ms check-target:macos_arm64 @898dd1bf8987
 pass/collections/element_view_field_write checked 17975ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/element_view_indexed_read checked 18486ms check-target:macos_arm64 @ccdb99ca2214
+pass/collections/element_view_indexed_read checked 94575ms check-target:macos_arm64 terminal-inspections:match @ab6bb7225261
 pass/collections/element_view_indexed_write checked 22124ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/element_view_runtime_field_write checked 89153ms check-target:macos_arm64 @898dd1bf8987
 pass/collections/element_view_runtime_loan_read checked 88551ms check-target:macos_arm64 @898dd1bf8987
@@ -25522,10 +25527,10 @@ pass/facts/zero_byte_erased_carrier_through_other_machine_exit checked 3690ms ch
 pass/facts/zero_byte_erased_carrier_through_other_state_exit checked 3485ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/zero_byte_erased_carrier_through_parameter_exit checked 3095ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/zero_byte_erased_carrier_through_target_body_exit checked 3688ms check-target:macos_arm64 @ccdb99ca2214
-pass/filesystem/create_dir_all_existing_file_exit checked 323212ms check-target:macos_arm64 @e1cfe02f1a9b
+pass/filesystem/create_dir_all_existing_file_exit checked 142357ms check-target:macos_arm64 @e40519df616f
 pass/filesystem/create_dir_all_symlink_kind_exit checked 318594ms check-target:macos_arm64 @e1cfe02f1a9b
-pass/filesystem/cross_linux_value_syscalls checked 345819ms @e1cfe02f1a9b
-pass/filesystem/dir_walk_wrappers_exit checked 317974ms check-target:macos_arm64 @e1cfe02f1a9b
+pass/filesystem/cross_linux_value_syscalls checked 140892ms @e40519df616f
+pass/filesystem/dir_walk_wrappers_exit checked 135041ms check-target:macos_arm64 @e40519df616f
 pass/filesystem/native_canonicalize checked 314666ms check-target:macos_arm64 @e1cfe02f1a9b
 pass/filesystem/native_close checked 29257ms check-target:macos_arm64 @ccdb99ca2214
 pass/filesystem/native_crud checked 31509ms check-target:macos_arm64 @ccdb99ca2214
@@ -26633,7 +26638,7 @@ pass/ownership/runtime_carried_loan_field_replacement_exit checked 11656ms check
 pass/ownership/runtime_case_alternative_custody_exit rejected 14587ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
 	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(1), callee: Some(MachineId(12)), operation: OperationId(10), reason: "callee stored-reference effects are unresolved" }
 pass/ownership/runtime_complete_array_reference_store_exit checked 3703ms check-target:macos_arm64 @ccdb99ca2214
-pass/ownership/runtime_completed_case_claim_return_exit checked 3004ms check-target:macos_arm64 @1dee68c22351
+pass/ownership/runtime_completed_case_claim_return_exit checked 2842ms check-target:macos_arm64 @ab6bb7225261
 pass/ownership/runtime_computed_selector_snapshot_window_exit checked 16393ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_constructed_child_claim_frontier_exit checked 19921ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_declared_linear_local_assignment_exit checked 89924ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -26648,7 +26653,7 @@ pass/ownership/runtime_fixed_selector_owned_argument_exit incomplete 73575ms che
 pass/ownership/runtime_generic_borrowed_case_restore_exit checked 4289ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_generic_linear_case_restore_exit rejected 10443ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
 	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(1), callee: Some(MachineId(13)), operation: OperationId(10), reason: "callee stored-reference effects are unresolved" }
-pass/ownership/runtime_inactive_case_carrier_transfer_exit checked 3026ms check-target:macos_arm64 @1dee68c22351
+pass/ownership/runtime_inactive_case_carrier_transfer_exit checked 2944ms check-target:macos_arm64 @ab6bb7225261
 pass/ownership/runtime_index_before_descriptor_retarget_exit checked 13700ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_indexed_recoverable_replacement_exit checked 13473ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_indexed_replacement_effectful_singleton_exit checked 14214ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -26666,7 +26671,7 @@ pass/ownership/runtime_match_projected_subject_cleanup_exit checked 10676ms chec
 pass/ownership/runtime_match_retained_observation_cleanup_exit checked 13451ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_mutable_selector_window_exit checked 17807ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_nested_borrowed_consumption_exit checked 12210ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/ownership/runtime_nested_case_claim_constructor_exit checked 5823ms check-target:macos_arm64 terminal-inspections:match @1dee68c22351
+pass/ownership/runtime_nested_case_claim_constructor_exit checked 5665ms check-target:macos_arm64 terminal-inspections:match @ab6bb7225261
 pass/ownership/runtime_nested_owned_value_call_exit checked 3515ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_nested_owner_observation_exit checked 3309ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_nested_projected_claim_return_exit checked 16490ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -26697,6 +26702,7 @@ pass/ownership/runtime_selected_reference_local_exit checked 3241ms check-target
 pass/ownership/runtime_selective_constructed_owner_custody_exit checked 23900ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_staged_read_before_owned_move_exit checked 3401ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_stored_byte_view_return_exit checked 3801ms check-target:macos_arm64 @ccdb99ca2214
+pass/ownership/runtime_subset_case_claim_return_exit checked 5681ms check-target:macos_arm64 terminal-inspections:match @ab6bb7225261
 pass/ownership/runtime_successor_cleanup_before_writes_exit checked 9390ms check-target:macos_arm64 @c011c9b7fe43
 pass/ownership/runtime_unknown_affine_case_discard_exit checked 3711ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_view_parameter_element_window_exit checked 12600ms check-target:macos_arm64 @ee4dbb4b2d56
