@@ -248,6 +248,7 @@ fn build_targets(
             Product::Check => ProjectProduct::Check,
             Product::Terminal => ProjectProduct::Terminal,
             Product::Native => ProjectProduct::Native {
+                installation_assumptions: Vec::new(),
                 destination: NativeDestination::Retained,
                 private_entry_ram: Vec::new(),
             },

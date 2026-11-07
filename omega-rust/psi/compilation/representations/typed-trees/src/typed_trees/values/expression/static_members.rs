@@ -121,6 +121,68 @@ impl ExpressionTable {
 }
 
 impl super::TableCallExpression {
+    /// Static selections owned by compiler requests, separate from the ordinary
+    /// callee's generic arguments. Every copying/substitution pass uses this
+    /// roster so a new request cannot silently retain template operands.
+    pub fn request_static_arguments(&self) -> impl Iterator<Item = &StaticMachineArgument> {
+        self.native_code_layout
+            .iter()
+            .map(|request| &request.operand)
+            .chain(self.layout_query.iter().map(|request| &request.operand))
+            .chain(
+                self.private_layout_operation
+                    .iter()
+                    .map(|request| &request.selected_slot),
+            )
+            .chain(
+                self.installed_interrupt_operation
+                    .iter()
+                    .flat_map(|request| [&request.registrar, &request.timer_slot]),
+            )
+            .chain(self.quotient_operation.iter().flat_map(|request| {
+                std::iter::once(&request.representative_operation).chain(
+                    request
+                        .theorem_evidence
+                        .iter()
+                        .map(|theorem| &theorem.application),
+                )
+            }))
+    }
+
+    pub fn request_static_arguments_mut(
+        &mut self,
+    ) -> impl Iterator<Item = &mut StaticMachineArgument> {
+        if let Some(request) = &mut self.installed_interrupt_operation {
+            request.invalidate_preparation();
+        }
+        self.native_code_layout
+            .iter_mut()
+            .map(|request| &mut request.operand)
+            .chain(
+                self.layout_query
+                    .iter_mut()
+                    .map(|request| &mut request.operand),
+            )
+            .chain(
+                self.private_layout_operation
+                    .iter_mut()
+                    .map(|request| &mut request.selected_slot),
+            )
+            .chain(
+                self.installed_interrupt_operation
+                    .iter_mut()
+                    .flat_map(|request| [&mut request.registrar, &mut request.timer_slot]),
+            )
+            .chain(self.quotient_operation.iter_mut().flat_map(|request| {
+                std::iter::once(&mut request.representative_operation).chain(
+                    request
+                        .theorem_evidence
+                        .iter_mut()
+                        .map(|theorem| &mut theorem.application),
+                )
+            }))
+    }
+
     pub(super) fn visit_static_arguments_mut(
         &mut self,
         mut visit: impl FnMut(&mut StaticMachineArgument),
@@ -128,20 +190,26 @@ impl super::TableCallExpression {
         for argument in &mut self.machine_arguments {
             visit(argument);
         }
-        if let Some(request) = &mut self.native_code_layout {
-            visit(&mut request.operand);
+        for argument in self.request_static_arguments_mut() {
+            visit(argument);
         }
-        if let Some(request) = &mut self.layout_query {
-            visit(&mut request.operand);
+    }
+}
+
+impl crate::statement::TableCall {
+    pub fn request_static_arguments(&self) -> impl Iterator<Item = &StaticMachineArgument> {
+        self.installed_interrupt_operation
+            .iter()
+            .flat_map(|request| [&request.registrar, &request.timer_slot])
+    }
+    pub fn request_static_arguments_mut(
+        &mut self,
+    ) -> impl Iterator<Item = &mut StaticMachineArgument> {
+        if let Some(request) = &mut self.installed_interrupt_operation {
+            request.invalidate_preparation();
         }
-        if let Some(request) = &mut self.private_layout_operation {
-            visit(&mut request.selected_slot);
-        }
-        if let Some(request) = &mut self.quotient_operation {
-            visit(&mut request.representative_operation);
-            for theorem in &mut request.theorem_evidence {
-                visit(&mut theorem.application);
-            }
-        }
+        self.installed_interrupt_operation
+            .iter_mut()
+            .flat_map(|request| [&mut request.registrar, &mut request.timer_slot])
     }
 }

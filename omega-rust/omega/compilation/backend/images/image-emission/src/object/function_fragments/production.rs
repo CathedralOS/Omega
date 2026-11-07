@@ -197,7 +197,12 @@ pub fn build_function_fragment_object_artifact(
     // functions. Composition supplies their independently emitted body objects.
     let foreign_calls =
         crate::derive_normalized_foreign_call_custody(source).map_err(Error::ForeignCalls)?;
-    super::imports::declare_callbacks(&foreign_calls, &mut object, text.psi)?;
+    let private_identities = super::private_addresses::identities(
+        &foreign_calls,
+        &text.unresolved_image_addresses,
+        text.psi,
+    )?;
+    super::private_addresses::declare(&private_identities, &mut object)?;
     // Literal octets follow every byte of code, ahead of the import tail, so
     // the symbol order is program, private, literal pool, import.
     let byte_literal_pool = super::byte_literals::place(source, &mut object, &mut text_bytes)?;
@@ -246,6 +251,14 @@ pub fn build_function_fragment_object_artifact(
         &functions,
         &mut relocations,
     )?;
+    for record in super::private_addresses::records(
+        &text.unresolved_image_addresses,
+        &object,
+        &functions,
+        text.psi,
+    )? {
+        relocations.push_record(record);
+    }
     let artifact = ObjectArtifact {
         projected: ProjectedObject(()),
         hosted_receiver: None,

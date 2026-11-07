@@ -62,16 +62,14 @@ pub(super) fn retain(
         if boundary_operations.binary_search(&operation).is_err() {
             continue;
         }
-        // Emission retains the checked call's complete closed target, while
-        // nominal registration belongs to its authored declaration. Project
-        // only this lookup address through the canonical instance owner; the
-        // exact generational source site still identifies the application.
-        // In particular, equal tuples can share a closed instance whose saved
-        // application handle came from a different call. Neither that handle
-        // nor an equal ABI can replace this source-site join.
-        let registration = checked
-            .closed_requirement_application(occurrence.source_target)
-            .map_or(occurrence.source_target, |application| application.template);
+        // Checking records the authored registration before executable
+        // specialization. Read that same occurrence-owned application here;
+        // a specialized machine is not a new registrar declaration.
+        let registration = authored_registration(checked, site).unwrap_or_else(|| {
+            checked
+                .closed_requirement_application(occurrence.source_target)
+                .map_or(occurrence.source_target, |application| application.template)
+        });
         let key = source_key(site, registration);
         let first = requested.partition_point(|(candidate, _, _)| *candidate < key);
         for (_, _, registrar) in requested[first..]
@@ -89,42 +87,50 @@ pub(super) fn retain(
     for (_, usage, registrar) in requested {
         // This module need not contain every checked machine's callbacks.
         let Some(registrar) = registrar else { continue };
-        let mut boundaries = lowered
-            .source_boundary_declarations
-            .iter()
-            .filter(|(source, _)| *source == usage.satisfaction_requirement);
-        let boundary = match (boundaries.next(), boundaries.next()) {
-            (Some((_, boundary)), None) => Some(*boundary),
-            (None, None) if usage.callback_entry.is_none() => None,
-            _ => {
-                return Err(
-                    "callback requirement has no unique exact emitted inbound declaration".into(),
-                );
-            }
-        };
-        applications.push(TerminalCallbackApplication {
-            boundary,
-            application_index: usage.application_index,
-            registrar,
-            static_machine_ordinal: usage.static_machine_ordinal,
-            requirement: usage.canonical_requirement_overload.clone(),
-            calling_owner_application: usage.receiving_application.clone()?,
-            published_contract: usage
-                .published_requirement_envelope
-                .contract_commitment
-                .as_bytes(),
-            entry_admitted: usage.callback_entry.is_some(),
-            body: super::declarations::identity(
-                identities,
-                checked,
-                sources,
-                usage.selected_machine,
-            )?,
-        });
+        applications.push(lower_application(
+            identities, checked, sources, lowered, usage, registrar,
+        )?);
     }
     applications.sort_unstable_by_key(|application| application.application_index);
     lowered.semantic_module.callback_applications = applications;
     Ok(())
+}
+
+pub(super) fn lower_application(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    sources: &[(source::SourceId, [u8; 32])],
+    lowered: &LoweredPsi,
+    usage: &checked_trees::CheckedNominalMachineUse,
+    registrar: semantic_vocabulary::OperationId,
+) -> Result<TerminalCallbackApplication, String> {
+    let mut boundaries = lowered
+        .source_boundary_declarations
+        .iter()
+        .filter(|(source, _)| *source == usage.satisfaction_requirement);
+    let boundary = match (boundaries.next(), boundaries.next()) {
+        (Some((_, boundary)), None) => Some(*boundary),
+        (None, None) if usage.callback_entry.is_none() => None,
+        _ => {
+            return Err(
+                "callback requirement has no unique exact emitted inbound declaration".into(),
+            );
+        }
+    };
+    Ok(TerminalCallbackApplication {
+        boundary,
+        application_index: usage.application_index,
+        registrar,
+        static_machine_ordinal: usage.static_machine_ordinal,
+        requirement: usage.canonical_requirement_overload.clone(),
+        calling_owner_application: usage.receiving_application.clone()?,
+        published_contract: usage
+            .published_requirement_envelope
+            .contract_commitment
+            .as_bytes(),
+        entry_admitted: usage.callback_entry.is_some(),
+        body: super::declarations::identity(identities, checked, sources, usage.selected_machine)?,
+    })
 }
 
 fn source_key(site: NominalMachineUseSite, target: SymbolHandle) -> (u8, u32, u32, u32, u32) {
@@ -139,4 +145,31 @@ fn source_key(site: NominalMachineUseSite, target: SymbolHandle) -> (u8, u32, u3
         target.arena_index(),
         target.generation(),
     )
+}
+
+fn authored_registration(
+    checked: &CheckedTrees,
+    site: NominalMachineUseSite,
+) -> Option<SymbolHandle> {
+    let application = match site {
+        NominalMachineUseSite::Expression(handle) => {
+            checked
+                .expression_table
+                .call_node(handle)?
+                .authored_machine_application
+        }
+        NominalMachineUseSite::Statement(handle) => {
+            checked
+                .statement_table
+                .statement(handle)
+                .as_call()?
+                .authored_machine_application
+        }
+    };
+    application.is_valid().then(|| {
+        checked
+            .expression_table
+            .static_machine_application(application)
+            .registration_operation
+    })
 }

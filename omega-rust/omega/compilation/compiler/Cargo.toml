@@ -58,6 +58,14 @@ native-artifact = { path = "../backend/artifacts/native-artifact" }
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
+abstract-operations = { path = "../representations/abstract-operations" }
+image = { path = "../backend/images/image" }
+isa-aarch64 = { path = "../backend/instruction-set-architectures/isa-aarch64" }
+isa-x86_64 = { path = "../backend/instruction-set-architectures/isa-x86_64" }
+machine-emission = { path = "../backend/machine-emission" }
+machine-code = { path = "../representations/machine-code" }
+selected-instructions = { path = "../representations/selected-instructions" }
+register-model = { path = "../backend/register-model" }
 optimization-unit = { path = "../representations/abstract-operations/optimization-unit" }
 optimization-unit-semantics = { path = "../representations/abstract-operations/optimization-unit/semantics" }
 layout-plans = { path = "../../../psi/foundation/layout-plans" }

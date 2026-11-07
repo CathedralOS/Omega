@@ -3,5 +3,6 @@
 //! `final_image_validation` replays either for retained-artifact readers.
 
 pub(crate) mod dynamic_elf;
+pub(crate) mod entry_effects;
 pub(crate) mod final_image_validation;
 pub(crate) mod image_output;

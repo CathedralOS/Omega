@@ -88,6 +88,14 @@ pub(super) fn encode_call_owner(bytes: &mut impl MachineIdentityBytes, owner: Ca
             bytes.identity_bytes(&[2]);
             bytes.identity_bytes(&edge.get().to_le_bytes());
         }
+        CallSiteOwner::Installation { operation, role } => {
+            bytes.identity_bytes(&[4]);
+            bytes.identity_bytes(&operation.get().to_le_bytes());
+            bytes.identity_bytes(&[match role {
+                target_operations::InstallationCallRole::Validate => 0,
+                target_operations::InstallationCallRole::Work => 1,
+            }]);
+        }
         CallSiteOwner::CleanupAction {
             edge,
             action_ordinal,

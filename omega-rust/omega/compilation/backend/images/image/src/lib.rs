@@ -179,7 +179,7 @@ pub use output::{
     emitted_direct_executable_output,
 };
 pub use relocation_envelope::validate_final_text_relocation_envelope;
-pub use relocations::apply_relocations;
+pub use relocations::{apply_relocations, validate_relative_relocation_target};
 pub use symbols::{
     final_image_entry_symbol, final_image_imports_symbol, final_image_symbol_address,
     final_image_symbol_name,

@@ -301,13 +301,14 @@ pub(crate) fn emit_direct_executable_image_signed(
     let prepared_entry = crate::entries::hosted_unit_entry::prepare(artifact)?;
     let prepared =
         crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
-    let image = image::build_final_image(FinalImageInput {
+    let mut image = image::build_final_image(FinalImageInput {
         target: artifact.target,
         object: prepared.object,
         relocations: prepared.relocations,
         text_bytes: prepared.text_bytes,
         data_bytes: artifact.data_bytes(),
     });
+    crate::image::entry_effects::attach(artifact, &mut image, prepared.entry_shim.as_ref())?;
     let final_image_symbol_digest = image::final_image_symbol_digest(&image);
     let output = match artifact.target.object_format {
         // The architecture axis is deliberately not a dispatch key here: each
@@ -362,6 +363,17 @@ pub fn validate_direct_executable_image(
     artifact: &ObjectArtifact,
     image: &ExecutableImage,
 ) -> Result<(), Diagnostic> {
+    validate_direct_executable_image_output(artifact, image, image.output())
+}
+
+/// Check observed output against its retained source object and image identity.
+/// The borrowed output is untrusted data: successful comparison grants no
+/// publication or execution authority and creates no accepted image.
+pub fn validate_direct_executable_image_output(
+    artifact: &ObjectArtifact,
+    image: &ExecutableImage,
+    output: &EmittedImageOutput,
+) -> Result<(), Diagnostic> {
     crate::object::function_fragments::replay::validate(artifact)?;
     if artifact.psi() != image.psi()
         || artifact.target() != image.target()
@@ -382,13 +394,18 @@ pub fn validate_direct_executable_image(
     let prepared_entry = crate::entries::hosted_unit_entry::prepare(artifact)?;
     let prepared =
         crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
-    let replayed_final_image = image::build_final_image(FinalImageInput {
+    let mut replayed_final_image = image::build_final_image(FinalImageInput {
         target: artifact.target(),
         object: prepared.object,
         relocations: prepared.relocations,
         text_bytes: prepared.text_bytes,
         data_bytes: artifact.data_bytes(),
     });
+    crate::image::entry_effects::attach(
+        artifact,
+        &mut replayed_final_image,
+        prepared.entry_shim.as_ref(),
+    )?;
     if image.final_image_symbol_digest != image::final_image_symbol_digest(&replayed_final_image) {
         return Err(Diagnostic::error(
             "terminal executable image symbol evidence does not match its exact object entry/data-symbol table",
@@ -400,7 +417,7 @@ pub fn validate_direct_executable_image(
         prepared.relocations,
         prepared.text_bytes,
         prepared.entry_shim.clone(),
-        image.output(),
+        output,
     )?;
     if let Some(shim) = prepared.entry_shim.as_ref()
         && shim.surface == crate::entries::hosted_unit_entry::EntrySurface::ProvisionedUnit
@@ -411,20 +428,17 @@ pub fn validate_direct_executable_image(
             prepared.object,
             prepared.text_bytes,
             prepared.relocations,
-            image.output(),
+            output,
         )?;
     }
-    let function_validation = crate::object::function_fragments::reporting::summarize(
-        artifact,
-        image.output(),
-        &recomputed,
-    )?;
-    if image.output().compiler_text_validation != Some(recomputed) {
+    let function_validation =
+        crate::object::function_fragments::reporting::summarize(artifact, output, &recomputed)?;
+    if output.compiler_text_validation != Some(recomputed) {
         return Err(Diagnostic::error(
             "terminal executable image retained stale final-text validation evidence",
         ));
     }
-    if image.output().compiler_function_validation != function_validation {
+    if output.compiler_function_validation != function_validation {
         return Err(Diagnostic::error(
             "terminal executable image retained stale compiler-function validation evidence",
         ));

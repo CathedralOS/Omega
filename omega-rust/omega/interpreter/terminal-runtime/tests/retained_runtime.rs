@@ -19,6 +19,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         build_directory: Some(directory.path().to_path_buf()),
         targets: BuildTargets::Single(profile),
         product: ProjectProduct::Native {
+            installation_assumptions: Vec::new(),
             destination: NativeDestination::Retained,
             private_entry_ram: Vec::new(),
         },

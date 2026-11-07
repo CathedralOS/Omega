@@ -531,6 +531,18 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 }
                 let quotient_operation = self.lower_quotient_operation_request(call)?;
                 let private_layout_operation = self.lower_private_layout_operation_request(call)?;
+                let installed_interrupt_operation =
+                    crate::expressions::installed_interrupts::lower_request(
+                        self.program,
+                        self.target_trees,
+                        self.source.authored_expression_exposure(expression),
+                        &self
+                            .source
+                            .authored_selection_occurrences(expression)
+                            .collect::<Vec<_>>(),
+                        call.target_symbol,
+                        &call.machine_arguments,
+                    )?;
                 let layout_query = self.lower_data_layout_query(expression, call)?;
                 let native_code_layout = if call.target.as_str() == "code_layout"
                     && !call.target_symbol.is_valid()
@@ -616,7 +628,11 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         self.target_trees,
                         self.source.authored_expression_exposure(expression),
                         target_symbol,
-                        &call.machine_arguments,
+                        if installed_interrupt_operation.is_some() {
+                            &call.machine_arguments[2..]
+                        } else {
+                            &call.machine_arguments
+                        },
                     )?
                 };
                 let requirement_application = if call.requirement_application.is_valid() {
@@ -651,6 +667,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             machine_arguments,
                             quotient_operation,
                             private_layout_operation,
+                            installed_interrupt_operation,
                             layout_query,
                             native_code_layout,
                             build_selection: Default::default(),

@@ -190,6 +190,12 @@ fn compiler_builtin_execution(
         | CompilerIntrinsicExecutionIdentity::TaskRegisterRead
         | CompilerIntrinsicExecutionIdentity::SegmentReload(_)
         | CompilerIntrinsicExecutionIdentity::SegmentRead(_) => return None,
+        CompilerIntrinsicExecutionIdentity::StaticInterrupt(operation) => {
+            return Some(CompilerBuiltinExecution::StaticInterrupt {
+                boundary,
+                operation,
+            });
+        }
         CompilerIntrinsicExecutionIdentity::AccessLifecycle(operation) => {
             return Some(CompilerBuiltinExecution::AccessLifecycle {
                 boundary,

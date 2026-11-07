@@ -12,7 +12,7 @@ use legalized_operations::{
 };
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedTerminator};
 
-fn scratch(
+pub(super) fn scratch(
     builder: &mut Builder<'_>,
     class: register_model::RegisterClassId,
     scalar_type: semantic_vocabulary::ScalarType,

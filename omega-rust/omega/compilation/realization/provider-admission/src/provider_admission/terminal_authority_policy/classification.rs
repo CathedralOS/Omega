@@ -15,6 +15,16 @@ pub(super) fn classify_compiler_intrinsic(
     mechanism: CompilerIntrinsicExecutionIdentity,
 ) -> TerminalAuthorityDisposition {
     match mechanism {
+        CompilerIntrinsicExecutionIdentity::StaticInterrupt(operation) => {
+            // Helpers read the admitted root or retire its pending debt. Only
+            // installation changes CPU descriptor-table state; selected Work
+            // and Completion retain their own transitive port/control demands.
+            if operation == language_core::static_interrupts::StaticInterruptOperation::Install {
+                disposition([TerminalAuthorityClass::MachineControl])
+            } else {
+                empty_disposition()
+            }
+        }
         CompilerIntrinsicExecutionIdentity::ProgramStorageEntry
         | CompilerIntrinsicExecutionIdentity::EmptyRunRelease => {
             // These operations forward existing backing authority. Entry's

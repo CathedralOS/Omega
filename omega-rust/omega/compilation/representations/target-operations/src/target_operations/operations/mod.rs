@@ -5,7 +5,8 @@
 
 mod unit;
 pub use unit::{
-    NativeCallOrigin, TargetFloatResultPolicy, TargetStructuralRuntimeIndex, TargetUnitOperation,
+    NativeCallOrigin, TargetFloatResultPolicy, TargetInstallationCall,
+    TargetStructuralRuntimeIndex, TargetUnitOperation,
 };
 
 mod atomic;

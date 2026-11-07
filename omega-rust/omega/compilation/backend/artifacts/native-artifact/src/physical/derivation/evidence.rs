@@ -167,6 +167,9 @@ pub(crate) fn derive_physical_evidence(
                     "ordinary no-normal invocation cannot carry normalized foreign custody",
                 );
             }
+            CallSiteOwner::Installation { .. } => {
+                return Err("installation helper cannot carry normalized foreign custody");
+            }
             CallSiteOwner::CleanupAction { .. } => {
                 return Ok(blocked(
                     NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {

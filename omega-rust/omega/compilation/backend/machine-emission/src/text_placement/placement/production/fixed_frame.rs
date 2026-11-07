@@ -99,6 +99,9 @@ pub(in crate::text_placement::placement) fn place(
                                 &instruction.provenance.edges,
                             )?;
                         }
+                        target_operations::CallSiteOwner::Installation { operation, .. }
+                            if instruction.provenance.operations.as_slice() == [operation]
+                                && instruction.provenance.edges.is_empty() => {}
                         target_operations::CallSiteOwner::CleanupAction { edge, .. }
                             if instruction.provenance.operations.is_empty()
                                 && instruction.provenance.edges.as_slice() == [edge]

@@ -223,6 +223,9 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             global_descriptor_table: None,
             task_register_activate: None,
             task_register_read: None,
+            installed_interrupt_cpu_check: None,
+            installed_interrupt_task_commit: None,
+            installed_interrupt_table_publication: None,
             code_segment_reload: None,
             data_segment_reload: None,
             segment_selector_read: None,
@@ -247,6 +250,7 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             atomic_compare_exchange: Some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE),
             atomic_compare_exchange_once: Some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE_ONCE),
             crash: crate::AARCH64_CRASH,
+            privileged_crash: None,
             copy_bytes: Some(crate::AARCH64_COPY_BYTES),
             zero_bytes: Some(crate::AARCH64_ZERO_BYTES),
             scan_byte_sequence: Some(crate::AARCH64_SCAN_BYTE_SEQUENCE),
@@ -526,6 +530,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::GlobalDescriptorTableLoad
         | MachineSemanticKind::GlobalDescriptorTableStore
         | MachineSemanticKind::TaskRegisterActivate
+        | MachineSemanticKind::InstalledInterruptCpuCheck
+        | MachineSemanticKind::InstalledInterruptTaskCommit
+        | MachineSemanticKind::InstalledInterruptTablePublication
         | MachineSemanticKind::TaskRegisterRead
         | MachineSemanticKind::CodeSegmentReload
         | MachineSemanticKind::DataSegmentReload
@@ -550,6 +557,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         }
         MachineSemanticKind::FloatResultPolicy(form) => {
             return crate::selected_form_encoding::float_result_policy::effects(form);
+        }
+        MachineSemanticKind::PrivilegedCrash => {
+            unreachable!("AArch64 has no privileged termination key")
         }
         MachineSemanticKind::Crash => (Vec::new(), Vec::new()),
         MachineSemanticKind::CopyBytes => (vec![0, 1, 2], vec![3, 4]),
@@ -888,6 +898,9 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         return MachineSizeKnowledge::ExactBytes(realization.byte_size());
     }
     match semantic {
+        MachineSemanticKind::PrivilegedCrash => {
+            unreachable!("AArch64 has no privileged termination key")
+        }
         MachineSemanticKind::Crash => MachineSizeKnowledge::ExactBytes(4),
         // The allocated address scratch is always written before the store,
         // including small offsets; its early-clobber contract is not optional.
