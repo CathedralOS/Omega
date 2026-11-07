@@ -111,15 +111,10 @@ impl CapturedHandleSequence {
     ) -> Result<HandleScalarSelection, String> {
         if !matches!(expected, ScalarType::Integer(integer)
             if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8)
-            || self.element.is_some()
-            || self.stride != 1
         {
-            return Err("handle byte read changes its original byte window or scalar codec".into());
+            return Err("handle byte read changes its original scalar codec".into());
         }
-        let range = match index.filter(|_| self.precise) {
-            Some(index) => self.element_range(index, 1)?,
-            None => self.range,
-        };
+        let range = self.byte_selection_range(index)?;
         // This remains a content observation with no exact numeric value.
         // Byte dependencies cannot reconstruct a complete HANDLE identity.
         Ok(HandleScalarSelection::Family {
@@ -127,6 +122,19 @@ impl CapturedHandleSequence {
             range,
             dependencies: self.dependencies,
         })
+    }
+
+    /// A point read or weak write selects the same captured data bytes.
+    /// An unknown selector preserves the full possible data window, including
+    /// its original backing; it never selects bytes of the descriptor itself.
+    fn byte_selection_range(&self, index: Option<u64>) -> Result<HandleStorageRange, String> {
+        if self.element.is_some() || self.stride != 1 {
+            return Err("handle byte selection changes its original byte window".into());
+        }
+        match index.filter(|_| self.precise) {
+            Some(index) => self.element_range(index, 1),
+            None => Ok(self.range),
+        }
     }
 
     pub(super) fn subslice(
@@ -1079,6 +1087,23 @@ impl<'a> HandleStorageGeometry<'a> {
         ))
     }
 
+    /// A checked byte write changes data behind its actual mutable view.
+    /// The canonical operation still owns access and bounds admission. This
+    /// query supplies only the possible physical bytes and captured address
+    /// dependencies; callers must use a weak update even for an exact point.
+    pub(super) fn byte_write(
+        &self,
+        location: &DescriptorLocation,
+        references: &HandleReferences,
+        index: Option<u64>,
+    ) -> Result<(HandleStorageRange, BTreeSet<HandleInstance>), String> {
+        if !self.is_byte_view(location)? {
+            return Err("handle byte write has no original byte-view carrier".into());
+        }
+        let captured = self.sequence(location, references)?;
+        Ok((captured.byte_selection_range(index)?, captured.dependencies))
+    }
+
     /// A runtime-selected write can touch any member of its first collection.
     /// Return that containing interval, not a guessed element address. The
     /// caller must retain old dependencies and invalidate exact overlapping
@@ -1954,6 +1979,7 @@ mod tests {
         missing_length.length = None;
         assert!(
             missing_length
+                .clone()
                 .byte_scalar_selection(carrier.clone(), byte, Some(0))
                 .is_err()
         );
@@ -1968,6 +1994,7 @@ mod tests {
         wrong_stride.stride = 2;
         assert!(
             wrong_stride
+                .clone()
                 .byte_scalar_selection(carrier.clone(), byte, Some(0))
                 .is_err()
         );
@@ -1975,8 +2002,52 @@ mod tests {
         other_elements.element = Some(StructuralTypeId::new(1).unwrap());
         assert!(
             other_elements
+                .clone()
                 .byte_scalar_selection(carrier, byte, Some(0))
                 .is_err()
+        );
+
+        // A point write and point read use the same actual data window.
+        // Weak writes keep old dependencies even when the incoming byte is
+        // untracked. An unknown point cannot erase any possible old alias.
+        assert_eq!(source.byte_selection_range(Some(5)).unwrap(), byte_range);
+        assert_eq!(source.byte_selection_range(None).unwrap(), source.range);
+        assert_eq!(unknown.byte_selection_range(Some(5)).unwrap(), source.range);
+        assert!(source.byte_selection_range(Some(24)).is_err());
+        assert!(missing_length.byte_selection_range(Some(0)).is_err());
+        assert!(wrong_stride.byte_selection_range(None).is_err());
+        assert!(other_elements.byte_selection_range(None).is_err());
+        let neighbor = range(1, 64, 8);
+        let old_word = range(1, 32, 8);
+        let mut aliases = HandleAliases::with_scalar_namespace([]).unwrap();
+        for home in [old_word, neighbor] {
+            aliases
+                .write_complete_word(
+                    home,
+                    wide,
+                    HandleWordAliases::acquired(wide, handle).unwrap(),
+                )
+                .unwrap();
+        }
+        aliases.write_region(
+            source.byte_selection_range(Some(5)).unwrap(),
+            BTreeSet::new(),
+        );
+        let partial = aliases.stored_word(&old_word, wide);
+        assert!(partial.exact_handle().is_err());
+        assert_eq!(partial.dependencies(), &BTreeSet::from([handle]));
+        assert_eq!(
+            aliases.stored_word(&neighbor, wide).exact_handle().unwrap(),
+            handle
+        );
+        aliases.write_region(source.byte_selection_range(None).unwrap(), BTreeSet::new());
+        assert_eq!(
+            aliases.stored_dependencies(&old_word),
+            BTreeSet::from([handle])
+        );
+        assert_eq!(
+            aliases.stored_word(&neighbor, wide).exact_handle().unwrap(),
+            handle
         );
 
         // A byte that carries an address dependency still observes that

@@ -2132,18 +2132,43 @@ impl CanonicalHandleState {
             let location = geometry.location(*source, path)?;
             definitions.push(geometry.resolve(&location, &self.references)?.0);
         }
-        let may_writes = graph
-            .payload_invalidations
-            .get(&position)
-            .into_iter()
-            .flatten()
-            .map(|query| {
-                let query = query
-                    .as_ref()
-                    .ok_or("handle write has no bounded physical footprint")?;
-                geometry.possible_write(query, &self.references)
-            })
-            .collect::<Result<Vec<_>, String>>()?;
+        let may_writes = match &operation.kind {
+            OperationKind::ByteSequenceWrite {
+                destination, index, ..
+            } => {
+                // The shared descriptor graph marks this byte-data effect
+                // unknown: its contents-query lane cannot name primitive byte
+                // elements. Resolve the original operation's captured data
+                // window, not its descriptor's carrier bytes. Every other
+                // unknown invalidation keeps the ordinary refusal below.
+                if !matches!(
+                    graph
+                        .payload_invalidations
+                        .get(&position)
+                        .map(Vec::as_slice),
+                    Some([None])
+                ) {
+                    return Err(
+                        "handle byte write changes its canonical invalidation roster".into(),
+                    );
+                }
+                let destination = DescriptorLocation::whole(*destination);
+                self.require_active_payload(&destination, geometry)?;
+                vec![geometry.byte_write(&destination, &self.references, operand(*index)?)?]
+            }
+            _ => graph
+                .payload_invalidations
+                .get(&position)
+                .into_iter()
+                .flatten()
+                .map(|query| {
+                    let query = query
+                        .as_ref()
+                        .ok_or("handle write has no bounded physical footprint")?;
+                    geometry.possible_write(query, &self.references)
+                })
+                .collect::<Result<Vec<_>, String>>()?,
+        };
         let constructors = graph
             .case_constructors
             .get(&position)
