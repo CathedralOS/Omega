@@ -213,6 +213,7 @@ fn execute_accepted_project(project: &Path) {
         product: ProjectProduct::Native {
             destination: NativeDestination::Retained,
             private_entry_ram: Vec::new(),
+            installation_assumptions: Vec::new(),
         },
         timings: false,
         offline: true,
