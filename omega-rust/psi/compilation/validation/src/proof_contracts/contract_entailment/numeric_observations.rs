@@ -24,6 +24,7 @@ use crate::ScopedArithmeticValue;
 use crate::proof_contracts::arithmetic_domains::{
     CopiedIntegerValue, ScalarOperand, scalar_operand,
 };
+use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::statement::StatementNode;
@@ -150,22 +151,27 @@ pub fn captured_numeric_observations(
         )
         .0;
     };
-    if !in_transition_target
-        && demand.scalar_values != ScalarObservationDemand::StatePrefix
-        && statement_index <= statement_count
-    {
+    if !in_transition_target && statement_index <= statement_count {
         let batch = collect_state_numeric_observations_batch(input, machine, state, demand);
         let observed = batch[statement_index].0.clone();
+        let prefix_values = demand.scalar_values == ScalarObservationDemand::StatePrefix;
+        let needs_solo = prefix_values && !batch[statement_index].1;
         let context_free = !query.met_enclosing_cut();
         memos.numeric_observations.record(
             site,
             batch
                 .into_iter()
                 .enumerate()
-                .filter(|(_, (_, complete))| context_free || *complete)
+                .filter(|(_, (_, complete))| *complete || (context_free && !prefix_values))
                 .map(|(index, (observations, _))| (index, observations)),
         );
-        return observed;
+        // Prefix-value consumers keep each statement's independent snapshot;
+        // a later completion never donates a value to an earlier row. An
+        // incomplete batched cut still gets its original exact-prefix walk,
+        // rather than publishing missing evidence as a completed empty row.
+        if !needs_solo {
+            return observed;
+        }
     }
     let (observations, complete) = collect_numeric_observations(
         input,
@@ -406,17 +412,21 @@ fn collect_state_numeric_observations_batch(
         }
     }
 
+    // A prefix query prefetches the state's other cuts in the same walk.
+    // Share only the immutable read roster; each cut owns its observations.
+    // A state queried once may do more work than the original solo request.
+    let state_candidates: Arc<[ExpressionHandle]> = state_candidates.into();
     let mut visitors = Vec::new();
     let mut visitor_indices = Vec::new();
     for statement_index in 0..total_sites {
         let candidates = if demand.scalar_values == ScalarObservationDemand::StatePrefix {
-            state_candidates.clone()
+            Arc::clone(&state_candidates)
         } else if (needs_relations || demand.scalar_values.requested())
             && statement_index < statements.len()
         {
-            std::mem::take(&mut statement_candidates[statement_index])
+            std::mem::take(&mut statement_candidates[statement_index]).into()
         } else {
-            Vec::new()
+            Arc::default()
         };
         let operations = if statement_index < statements.len() {
             std::mem::take(&mut statement_operations[statement_index])
@@ -572,7 +582,7 @@ fn collect_numeric_observations(
         statement_index,
         in_transition_target,
         wants_scalar_values: demand.scalar_values.requested(),
-        candidates,
+        candidates: candidates.into(),
         values: Vec::new(),
         operations,
         orderings: Vec::new(),
@@ -622,7 +632,7 @@ struct Observations {
     statement_index: usize,
     in_transition_target: bool,
     wants_scalar_values: bool,
-    candidates: Vec<ExpressionHandle>,
+    candidates: Arc<[ExpressionHandle]>,
     values: Vec<(ExpressionHandle, Option<ScopedArithmeticValue>)>,
     operations: Vec<ExpressionHandle>,
     orderings: Vec<(ExpressionHandle, Option<i64>, bool)>,
@@ -639,7 +649,7 @@ impl Observations {
                 self.intersect_associations(expression, Vec::new());
             }
         }
-        for expression in &self.candidates {
+        for expression in self.candidates.iter() {
             if !crate::expression_owners::expression_contains(program, root, *expression) {
                 continue;
             }
@@ -1005,7 +1015,7 @@ impl StructuralPrefixVisitor for Observations {
     }
 
     fn statement_observations(&self) -> Option<StatementObservationRequest> {
-        let mut values = self.candidates.clone();
+        let mut values = self.candidates.to_vec();
         values.extend(
             self.results
                 .iter()
@@ -1056,7 +1066,7 @@ impl StructuralPrefixVisitor for Observations {
         }
         // Requested identities do not change when an unknown root invalidates
         // its captures. Keep this exact roster for every root in the visit.
-        let mut requested = self.candidates.clone();
+        let mut requested = self.candidates.to_vec();
         requested.extend(
             self.results
                 .iter()
