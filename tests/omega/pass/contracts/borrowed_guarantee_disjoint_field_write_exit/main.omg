@@ -35,17 +35,17 @@ machine selected(select: bool, inner: bool, expected_tag: u64) -> bool {
     let tag_correct: bool = first.tag == expected_tag;
     consume(envelope.cell, first) && envelope.marker == 73 && tag_correct
 }
-machine array_cell(cells: &mut [Amount; 2], index: u64) -> &mut Amount
+machine array_cell(cells: &mut [u64; 2], index: u64) -> &mut u64
 requires index < 2 { &mut cells[index] }
-machine forwarded_cell(cells: &mut [Amount; 2], index: u64) -> &mut Amount
+machine forwarded_cell(cells: &mut [u64; 2], index: u64) -> &mut u64
 requires index < 2 { array_cell(cells, index) }
-machine array_neighbor(cell: &Amount) -> bool
-requires cell.value == 32 { cell.value == 32 }
+machine array_neighbor(value: u64) -> bool
+requires value == 32 { value == 32 }
 machine array_forwarding() -> bool {
-    let mut cells: [Amount; 2] = [Amount { value: 48 }, Amount { value: 32 }];
-    let selected: &mut Amount = forwarded_cell(&mut cells, 0);
-    selected.value = 31;
-    array_neighbor(&cells[1]) && cells[0].value == 31
+    let mut cells: [u64; 2] = [48, 32];
+    let selected: &mut u64 = forwarded_cell(&mut cells, 0);
+    selected = 31;
+    array_neighbor(cells[1]) && cells[0] == 31
 }
 machine refresh(cell: &mut Amount, trace: &mut CycleTrace, tag: u64) -> u64
 ensures cell.value == 32, result == 0 {
