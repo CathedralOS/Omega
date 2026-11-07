@@ -23,8 +23,10 @@ use super::windows_handle_aliases::{
     CapturedHandleRegion, HandleAliases, HandleStorageBacking, HandleStorageOwner,
     HandleStorageRange, HandleWordAliases,
 };
+use super::windows_handle_arguments::PreparedHandleArguments;
 use super::windows_handle_calls::{CallSite, CallTarget, Caller, HandleCallGraph, RuntimeCall};
-use super::windows_handle_inputs::{PreparedHandleMachine, WindowsHandleInputs};
+use super::windows_handle_contracts::WindowsHandleContract;
+use super::windows_handle_inputs::{NativeHandleInput, PreparedHandleMachine, WindowsHandleInputs};
 use super::windows_handle_lifetimes::{
     HandleLifetimes, NativeOccurrence, ScalarOccurrence, ScalarUseSite,
 };
@@ -325,6 +327,19 @@ struct HandleMachineReplay<'a> {
     geometry: &'a HandleStorageGeometry<'a>,
 }
 
+struct HandleNativeReplay<'a> {
+    machine: &'a HandleMachineReplay<'a>,
+    input: &'a NativeHandleInput<'a>,
+    arguments: &'a PreparedHandleArguments,
+    occurrence: NativeOccurrence,
+}
+
+struct HandleNativeOutcomes {
+    states: Vec<CanonicalHandleState>,
+    occurrence: NativeOccurrence,
+    contract: WindowsHandleContract,
+}
+
 struct HandleReplayInvocation {
     parent: usize,
     caller: Caller,
@@ -347,6 +362,11 @@ struct HandleCensusRoot {
     carrier: StructuralTypeId,
 }
 
+struct HandleOutputCensus {
+    dependencies: BTreeSet<super::windows_handle_lifetimes::HandleInstance>,
+    storage: BTreeSet<HandleStorageRange>,
+}
+
 enum CapturedReturnValue {
     Unit,
     Scalar(CapturedHandleScalar),
@@ -364,6 +384,378 @@ struct CapturedHandleReturn {
 }
 
 impl CanonicalHandleState {
+    fn native(mut self, replay: &HandleNativeReplay<'_>) -> Result<HandleNativeOutcomes, String> {
+        let HandleNativeReplay {
+            machine,
+            input,
+            arguments,
+            occurrence,
+        } = *replay;
+        let caller = input.call.caller;
+        let position = (
+            caller.block,
+            u32::try_from(caller.operation_index)
+                .map_err(|_| "native handle call ordinal exceeds its original position")?,
+        );
+        let operation = machine
+            .body
+            .block(&caller.block)
+            .and_then(|block| block.operations.get(caller.operation_index))
+            .ok_or("native handle replay lost its original operation")?;
+        if caller.machine != machine.body.id
+            || occurrence.machine != caller.machine
+            || caller.site != CallSite::Invocation(occurrence.site)
+            || occurrence.site != InvocationSite::Operation(operation.id)
+            || input.call.boundary != Some(occurrence.boundary)
+        {
+            return Err("native handle replay substitutes another original call occurrence".into());
+        }
+        let scalar_occurrence = ScalarOccurrence {
+            machine: occurrence.machine,
+            site: ScalarUseSite::Operation(operation.id),
+            context: occurrence.context,
+        };
+        let evaluated = self.evaluated_operands(
+            operation,
+            position,
+            &machine.prepared.expressions,
+            scalar_occurrence,
+        )?;
+        let scalar = |ordinal| -> Result<CapturedHandleScalar, String> {
+            let subject = input
+                .scalars
+                .get(&ordinal)
+                .ok_or("native handle protocol has no original scalar actual")?;
+            let super::windows_handle_origins::ScalarSubject::Value {
+                machine: owner,
+                value,
+            } = subject
+            else {
+                return Err(
+                    "native handle scalar actual changes its original SSA namespace".into(),
+                );
+            };
+            if *owner != caller.machine {
+                return Err("native handle scalar actual belongs to another body".into());
+            }
+            evaluated
+                .binary_search_by_key(value, |(id, _)| *id)
+                .map(|index| evaluated[index].1.clone())
+                .map_err(|_| {
+                    "native scalar actual is absent from its complete evaluated operand roster"
+                        .into()
+                })
+        };
+        let super::windows_handle_calls::RuntimeArguments::Explicit { structural, .. } =
+            input.call.arguments
+        else {
+            return Err("native handle protocol has no original explicit storage arguments".into());
+        };
+        let allowed_handle = match input.reviewed.contract {
+            WindowsHandleContract::DuplicateHandle => Some(1),
+            WindowsHandleContract::CloseHandle
+            | WindowsHandleContract::QueryFileMode
+            | WindowsHandleContract::QueryFinalPath
+            | WindowsHandleContract::ReadFile
+            | WindowsHandleContract::WriteFile => Some(0),
+            _ => None,
+        };
+        for ordinal in input.scalars.keys() {
+            if Some(*ordinal) != allowed_handle && !scalar(*ordinal)?.word.dependencies().is_empty()
+            {
+                return Err(
+                    "native call exposes tracked handle bits through an unproved scalar role"
+                        .into(),
+                );
+            }
+        }
+        let mut storage = Vec::new();
+        let mut structural_ordinal = 0;
+        for (ordinal, kind) in input
+            .reviewed
+            .declaration
+            .parameter_order
+            .iter()
+            .enumerate()
+        {
+            if *kind != terminal_psi::BoundaryParameterKind::Structural {
+                continue;
+            }
+            let declaration = input
+                .reviewed
+                .declaration
+                .structural_parameters
+                .get(structural_ordinal)
+                .ok_or("native handle declaration omits its actual storage formal")?;
+            let actual = structural
+                .get(structural_ordinal)
+                .ok_or("native handle protocol omits its original storage actual")?;
+            structural_ordinal += 1;
+            let location = machine.geometry.location(actual.place, &actual.path)?;
+            let (range, _, codec) = machine.geometry.resolve(&location, &self.references)?;
+            if let Some(expected) = machine
+                .geometry
+                .primitive_scalar(declaration.structural_type)
+            {
+                let selected = machine
+                    .geometry
+                    .scalar(&location, &self.references, expected)?;
+                let width = terminal_semantics::reference_storage_byte_width(expected)
+                    .map(u64::from)
+                    .ok_or("native scalar pointee has no complete physical word")?;
+                if selected.range.byte_length() != width {
+                    return Err(
+                        "native scalar output does not have its SDK word's complete backing extent"
+                            .into(),
+                    );
+                }
+            }
+            let roots = [HandleCensusRoot {
+                storage: CapturedHandleStorage {
+                    range,
+                    stored_scalar: codec,
+                },
+                carrier: declaration.structural_type,
+            }];
+            // A foreign loan may use caller-owned storage, so no activation is
+            // retiring here. The census still follows every resident pointer.
+            let census = self.output_census(roots, machine.geometry, None)?;
+            if !census.dependencies.is_empty() {
+                return Err(
+                    "native call exposes tracked handle bits through an unproved buffer role"
+                        .into(),
+                );
+            }
+            storage.push((ordinal, location, range, census.storage));
+        }
+        if structural_ordinal != structural.len() {
+            return Err("native handle call changes its complete storage-argument roster".into());
+        }
+        let output = |ordinal| {
+            storage
+                .iter()
+                .find(|(actual, ..)| *actual == ordinal)
+                .map(|(_, location, range, _)| (location, *range))
+                .ok_or("native handle protocol has no original output storage".into())
+        };
+        let integer_result =
+            operation
+                .result
+                .scalar_ref()
+                .and_then(|result| match result.scalar_type {
+                    ScalarType::Integer(integer) => Some((result.id, integer)),
+                    _ => None,
+                });
+        let status = |state: &mut Self, value: KnownHandleScalar| -> Result<(), String> {
+            match operation.result.scalar_ref() {
+                Some(result) => state.define(
+                    result.id,
+                    CapturedHandleScalar {
+                        word: HandleWordAliases::untracked(result.scalar_type),
+                        known: value,
+                    },
+                    &machine.prepared.expressions,
+                ),
+                None if operation.result == terminal_psi::OperationResult::Unit => Ok(()),
+                None => {
+                    Err("native handle result has no supported original scalar or Unit lane".into())
+                }
+            }
+        };
+        let live_handle = || -> Result<super::windows_handle_lifetimes::HandleInstance, String> {
+            scalar(allowed_handle.ok_or("native protocol has no reviewed handle role")?)?
+                .word
+                .exact_handle()
+        };
+        let failure = |reason| format!("native handle lifetime transition refuses: {reason:?}");
+        let mut states = Vec::new();
+        match (input.reviewed.contract, arguments) {
+            (WindowsHandleContract::CreateFile, PreparedHandleArguments::Acquisition(checked)) => {
+                if checked.caller != caller {
+                    return Err("file acquisition arguments substitute their original call".into());
+                }
+                let (result, integer) = integer_result
+                    .ok_or("native file acquisition has no original integer result")?;
+                let mut refused = self.clone();
+                status(
+                    &mut refused,
+                    KnownHandleScalar::Integer(integer, IntegerValue::Signed(-1)),
+                )?;
+                states.push(refused);
+                for &flags in &checked.flags {
+                    let mut acquired = self.clone();
+                    let instance = acquired.ledger.next_instance().map_err(failure)?;
+                    acquired
+                        .ledger
+                        .acquire_file(instance, occurrence, flags)
+                        .map_err(failure)?;
+                    acquired.define(
+                        result,
+                        CapturedHandleScalar {
+                            word: HandleWordAliases::acquired(
+                                ScalarType::Integer(integer),
+                                instance,
+                            )?,
+                            known: KnownHandleScalar::Unknown,
+                        },
+                        &machine.prepared.expressions,
+                    )?;
+                    states.push(acquired);
+                }
+            }
+            (
+                WindowsHandleContract::DuplicateHandle,
+                PreparedHandleArguments::Duplicate(checked),
+            ) => {
+                if checked.caller != caller || input.scalars.get(&1) != Some(&checked.source) {
+                    return Err("duplicate arguments substitute their original call".into());
+                }
+                let source = live_handle()?;
+                self.ledger.preserve(source, occurrence).map_err(failure)?;
+                let (location, range) = output(3)?;
+                let (result, integer) =
+                    integer_result.ok_or("native duplicate has no original BOOL result")?;
+                let mut refused = self.clone();
+                refused.clobber_native(range);
+                status(
+                    &mut refused,
+                    KnownHandleScalar::Integer(integer, IntegerValue::Signed(0)),
+                )?;
+                states.push(refused);
+                let instance = self.ledger.next_instance().map_err(failure)?;
+                self.ledger
+                    .duplicate_file(source, instance, occurrence)
+                    .map_err(failure)?;
+                let scalar_type = semantic_vocabulary::ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Signed,
+                        64,
+                    )
+                    .map_err(|reason| {
+                        format!("native output word has no supported carrier: {reason:?}")
+                    })?,
+                );
+                self.store_scalar(
+                    location,
+                    &CapturedHandleScalar {
+                        word: HandleWordAliases::acquired(scalar_type, instance)?,
+                        known: KnownHandleScalar::Unknown,
+                    },
+                    machine.geometry,
+                )?;
+                self.define(
+                    result,
+                    CapturedHandleScalar {
+                        word: HandleWordAliases::untracked(ScalarType::Integer(integer)),
+                        known: KnownHandleScalar::Nonzero(integer),
+                    },
+                    &machine.prepared.expressions,
+                )?;
+                states.push(self);
+            }
+            (WindowsHandleContract::CloseHandle, PreparedHandleArguments::CurrentValues) => {
+                self.ledger
+                    .release_file(live_handle()?, occurrence)
+                    .map_err(failure)?;
+                status(&mut self, KnownHandleScalar::Unknown)?;
+                states.push(self);
+            }
+            (WindowsHandleContract::QueryFileMode, PreparedHandleArguments::Mode(checked)) => {
+                if checked.caller != caller || input.scalars.get(&0) != Some(&checked.handle) {
+                    return Err("mode-query arguments substitute their original call".into());
+                }
+                self.ledger
+                    .preserve(live_handle()?, occurrence)
+                    .map_err(failure)?;
+                self.clobber_native(output(1)?.1);
+                self.clobber_native(output(2)?.1);
+                status(&mut self, KnownHandleScalar::Unknown)?;
+                states.push(self);
+            }
+            (WindowsHandleContract::QueryFinalPath, PreparedHandleArguments::Path(checked)) => {
+                if checked.caller != caller {
+                    return Err("path-query arguments substitute their original call".into());
+                }
+                let (_, buffer) = output(1)?;
+                if checked
+                    .capacities
+                    .iter()
+                    .any(|count| u64::from(*count) > buffer.byte_length() / 2)
+                {
+                    return Err("native path query exceeds its actual borrowed WCHAR buffer".into());
+                }
+                self.ledger
+                    .preserve(live_handle()?, occurrence)
+                    .map_err(failure)?;
+                self.clobber_native(buffer);
+                status(&mut self, KnownHandleScalar::Unknown)?;
+                states.push(self);
+            }
+            (
+                WindowsHandleContract::ReadFile | WindowsHandleContract::WriteFile,
+                PreparedHandleArguments::Transfer(checked),
+            ) => {
+                if checked.caller != caller || input.scalars.get(&0) != Some(&checked.handle) {
+                    return Err("transfer arguments substitute their original call".into());
+                }
+                let (location, _) = output(1)?;
+                let bytes = machine.geometry.sequence(location, &self.references)?;
+                if bytes.element.is_some()
+                    || bytes.stride != 1
+                    || bytes.range.byte_length() > u64::from(u32::MAX)
+                {
+                    return Err(
+                        "native file transfer has no whole bounded DWORD byte window".into(),
+                    );
+                }
+                self.ledger
+                    .synchronous_io(live_handle()?, occurrence)
+                    .map_err(failure)?;
+                if input.reviewed.contract == WindowsHandleContract::ReadFile {
+                    self.clobber_native(bytes.range);
+                }
+                self.clobber_native(output(2)?.1);
+                status(&mut self, KnownHandleScalar::Unknown)?;
+                states.push(self);
+            }
+            (
+                WindowsHandleContract::NoHandleIntervention | WindowsHandleContract::CurrentProcess,
+                PreparedHandleArguments::CurrentValues,
+            ) => {
+                for (_, _, _, possible_writes) in storage {
+                    // These locator-only rows have no operand preservation
+                    // map. Invalidate every reachable input/output interval,
+                    // rather than treating an empty class as a write contract.
+                    for range in possible_writes {
+                        self.clobber_native(range);
+                    }
+                }
+                status(&mut self, KnownHandleScalar::Unknown)?;
+                states.push(self);
+            }
+            _ => {
+                return Err(
+                    "native handle protocol changes its original checked argument receipt".into(),
+                );
+            }
+        }
+        Ok(HandleNativeOutcomes {
+            states,
+            occurrence,
+            contract: input.reviewed.contract,
+        })
+    }
+
+    /// A native failure need not initialize an entire output. Retire exact
+    /// identities and pointer tags while retaining dependencies of old bits.
+    fn clobber_native(&mut self, range: HandleStorageRange) {
+        self.aliases.write_region(range, BTreeSet::new());
+        self.references.retire(&range);
+        self.cases.retain(|slot, _| !slot.overlaps(&range));
+        self.stored_constants
+            .retain(|slot, _| !slot.overlaps(&range));
+    }
+
     fn capture_return(
         &mut self,
         activation: usize,
@@ -553,7 +945,10 @@ impl CanonicalHandleState {
             }
             _ => return Err("handle return changes its actual receiving result lane".into()),
         }
-        scalar_outputs.extend(self.output_census(outputs, &geometry, frame.activation)?);
+        scalar_outputs.extend(
+            self.output_census(outputs, &geometry, Some(frame.activation))?
+                .dependencies,
+        );
         self.ledger = self
             .ledger
             .caller_continuation(
@@ -581,8 +976,8 @@ impl CanonicalHandleState {
         &self,
         roots: impl IntoIterator<Item = HandleCensusRoot>,
         geometry: &HandleStorageGeometry<'_>,
-        retiring: usize,
-    ) -> Result<BTreeSet<super::windows_handle_lifetimes::HandleInstance>, String> {
+        retiring: Option<usize>,
+    ) -> Result<HandleOutputCensus, String> {
         fn enqueue(
             root: HandleCensusRoot,
             discovered: &mut BTreeSet<HandleCensusRoot>,
@@ -604,7 +999,9 @@ impl CanonicalHandleState {
             enqueue(root, &mut discovered, &mut pending)?;
         }
         let mut dependencies = BTreeSet::new();
+        let mut storage = BTreeSet::new();
         while let Some(root) = pending.pop() {
+            storage.insert(root.storage.range);
             dependencies.extend(self.aliases.stored_dependencies(&root.storage.range));
             if root.storage.stored_scalar.is_some() {
                 if geometry.primitive_scalar(root.carrier).is_none() {
@@ -638,9 +1035,10 @@ impl CanonicalHandleState {
                                     .into(),
                             );
                         }
-                        if captured.range.backing().owner
-                            == HandleStorageOwner::Activation(retiring)
-                        {
+                        if retiring.is_some_and(|activation| {
+                            captured.range.backing().owner
+                                == HandleStorageOwner::Activation(activation)
+                        }) {
                             return Err("handle output reference escapes its returning activation's storage".into());
                         }
                         dependencies.extend(&captured.dependencies);
@@ -667,13 +1065,15 @@ impl CanonicalHandleState {
                                     .into(),
                             );
                         }
-                        if captured.range.backing().owner
-                            == HandleStorageOwner::Activation(retiring)
-                        {
+                        if retiring.is_some_and(|activation| {
+                            captured.range.backing().owner
+                                == HandleStorageOwner::Activation(activation)
+                        }) {
                             return Err("handle output descriptor escapes its returning activation's storage".into());
                         }
                         dependencies.extend(&captured.dependencies);
                         dependencies.extend(self.aliases.stored_dependencies(&captured.range));
+                        storage.insert(captured.range);
                         let Some(element) = element else {
                             continue;
                         };
@@ -705,7 +1105,10 @@ impl CanonicalHandleState {
                 }
             }
         }
-        Ok(dependencies)
+        Ok(HandleOutputCensus {
+            dependencies,
+            storage,
+        })
     }
 
     fn enter_call(
@@ -1267,7 +1670,7 @@ impl CanonicalHandleState {
         } else {
             None
         };
-        let definitions = step
+        let mut definitions = step
             .definitions
             .iter()
             .map(|location| {
@@ -1276,6 +1679,10 @@ impl CanonicalHandleState {
                     .map(|(range, _, _)| range)
             })
             .collect::<Result<Vec<_>, _>>()?;
+        if let OperationKind::ReleaseReference { source, path } = &operation.kind {
+            let location = geometry.location(*source, path)?;
+            definitions.push(geometry.resolve(&location, &self.references)?.0);
+        }
         let may_writes = graph
             .payload_invalidations
             .get(&position)

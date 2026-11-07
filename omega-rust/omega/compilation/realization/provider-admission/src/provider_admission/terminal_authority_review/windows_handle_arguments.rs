@@ -103,6 +103,54 @@ pub(super) struct FilePathQueryArguments {
     pub capacities: BTreeSet<u32>,
 }
 
+pub(super) enum PreparedHandleArguments {
+    Acquisition(FileAcquisitionArguments),
+    Duplicate(FileDuplicateArguments),
+    Mode(FileModeArguments),
+    Transfer(FileTransferArguments),
+    Path(FilePathQueryArguments),
+    /// These contracts have no additional closed-scalar protocol. Their
+    /// current handle words and all opaque input roles are still checked by
+    /// the execution owner at the original call cut.
+    CurrentValues,
+}
+
+/// Solve the complete original scalar equations once. Execution consumes
+/// owned argument receipts without keeping a self-reference into its inputs
+/// or rebuilding the origin graph at each dynamic call.
+pub(super) fn prepare_handle_arguments(
+    inputs: &WindowsHandleInputs<'_>,
+) -> Result<BTreeMap<Caller, PreparedHandleArguments>, String> {
+    let values = HandleArgumentValues::derive(inputs)?;
+    inputs
+        .natives
+        .iter()
+        .map(|(caller, input)| {
+            let checked = match input.reviewed.contract {
+                WindowsHandleContract::CreateFile => {
+                    PreparedHandleArguments::Acquisition(values.acquisition(*caller)?)
+                }
+                WindowsHandleContract::DuplicateHandle => {
+                    PreparedHandleArguments::Duplicate(values.duplicate(*caller)?)
+                }
+                WindowsHandleContract::QueryFileMode => {
+                    PreparedHandleArguments::Mode(values.mode(*caller)?)
+                }
+                WindowsHandleContract::ReadFile | WindowsHandleContract::WriteFile => {
+                    PreparedHandleArguments::Transfer(values.transfer(*caller)?)
+                }
+                WindowsHandleContract::QueryFinalPath => {
+                    PreparedHandleArguments::Path(values.path_query(*caller)?)
+                }
+                WindowsHandleContract::NoHandleIntervention
+                | WindowsHandleContract::CurrentProcess
+                | WindowsHandleContract::CloseHandle => PreparedHandleArguments::CurrentValues,
+            };
+            Ok((*caller, checked))
+        })
+        .collect()
+}
+
 impl<'a, 'module> HandleArgumentValues<'a, 'module> {
     pub(super) fn derive(inputs: &'a WindowsHandleInputs<'module>) -> Result<Self, String> {
         Self::from_origins(&inputs.origins, &inputs.natives)
