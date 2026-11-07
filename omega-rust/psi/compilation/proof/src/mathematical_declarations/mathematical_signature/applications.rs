@@ -288,7 +288,7 @@ impl Elaborator<'_> {
                 expression: ExpressionHandle::default(),
                 term,
                 domain,
-                identity_emissions: 0..0,
+                identity_requirements: super::identity::IdentityRequirements::default(),
             })
             .collect();
         Ok(self.apply_source_inputs(expression, callee, inputs))

@@ -28,6 +28,14 @@ impl<'a> Elaborator<'a> {
         &mut self,
         handle: ExpressionHandle,
     ) -> Result<Option<TermHandle>, Vec<diagnostics::Diagnostic>> {
+        self.result_identity_requirements = super::identity::IdentityRequirements::default();
+        self.elaborate_proposition_term(handle)
+    }
+
+    fn elaborate_proposition_term(
+        &mut self,
+        handle: ExpressionHandle,
+    ) -> Result<Option<TermHandle>, Vec<diagnostics::Diagnostic>> {
         match self.program.expression_table.expression(handle) {
             ExpressionNode::Boolean(value) => Ok(Some(self.boolean_proposition(*value))),
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
@@ -338,9 +346,15 @@ impl<'a> Elaborator<'a> {
         let mut operands = Vec::new();
         self.proposition_spine(handle, operator, &mut operands);
         let mut terms = Vec::with_capacity(operands.len());
+        let mut requirements = super::identity::IdentityRequirements::default();
         for operand in operands {
             match self.elaborate_proposition(operand)? {
-                Some(term) => terms.push(term),
+                Some(term) => {
+                    terms.push(term);
+                    let value = std::mem::take(&mut self.result_identity_requirements);
+                    requirements.emissions.extend(value.emissions);
+                    requirements.applications.extend(value.applications);
+                }
                 None => {
                     return Err(self.refuse(format!(
                         "operand `{}` of a proposition connective is not a proposition",
@@ -350,6 +364,7 @@ impl<'a> Elaborator<'a> {
                 }
             }
         }
+        self.result_identity_requirements = requirements;
         terms.sort_by_key(|term| self.term_order_key(*term));
         Ok(match operator {
             BinaryOperator::And => self.right_nested_sigma(&terms, 0),

@@ -66,6 +66,11 @@ impl Elaborator<'_> {
             Vec::new(),
             Vec::new(),
         )?;
+        self.result_identity_requirements = IdentityRequirements {
+            owner: self.source_owner,
+            emissions: vec![self.identity_emissions.len() - 1],
+            applications: Vec::new(),
+        };
         self.span = Some(self.program.expression_table.source_span(expression));
         Ok(term)
     }
@@ -192,11 +197,38 @@ impl Elaborator<'_> {
         target: SymbolHandle,
         static_arguments: &[StaticMachineArgument],
         actuals: &[ExpressionHandle],
+        callee: TermHandle,
+        inputs: &[super::source_domains::SourceInput],
+    ) -> Result<(), Vec<Diagnostic>> {
+        let emission_start = self.identity_emissions.len();
+        let application_start = self.identity_applications.len();
+        self.transport_identity_value_requirements(
+            target,
+            static_arguments,
+            actuals,
+            callee,
+            inputs,
+        )?;
+        self.result_identity_requirements = IdentityRequirements {
+            owner: self.source_owner,
+            emissions: (emission_start..self.identity_emissions.len()).collect(),
+            applications: (application_start..self.identity_applications.len()).collect(),
+        };
+        Ok(())
+    }
+
+    fn transport_identity_value_requirements(
+        &mut self,
+        target: SymbolHandle,
+        static_arguments: &[StaticMachineArgument],
+        actuals: &[ExpressionHandle],
         mut callee: TermHandle,
         inputs: &[super::source_domains::SourceInput],
     ) -> Result<(), Vec<Diagnostic>> {
         if !self.authored_index.contains_key(&target) {
-            if self.scope.iter().any(|entry| entry.symbol == Some(target)) {
+            if self.scope.iter().any(|entry| entry.symbol == Some(target))
+                && self.identity_function_value(callee)?
+            {
                 let mut value = callee;
                 for input in inputs {
                     value = self.arena.insert(Term::Apply {
@@ -281,7 +313,12 @@ impl Elaborator<'_> {
             self.retain_instantiated_identity(row, value, &scope, formals, actuals, &[])?;
         }
         let static_arity = operands.len() - inputs.len();
-        for mut application in requirements.applications {
+        let applications = requirements
+            .applications
+            .iter()
+            .map(|position| self.identity_applications[*position].clone())
+            .collect::<Vec<_>>();
+        for mut application in applications {
             let ordinal = formals
                 .iter()
                 .position(|formal| formal.symbol == application.parameter)
@@ -330,9 +367,10 @@ impl Elaborator<'_> {
                 continue;
             };
             let rows = input
-                .identity_emissions
-                .clone()
-                .map(|position| self.identity_emissions[position].clone())
+                .identity_requirements
+                .emissions
+                .iter()
+                .map(|position| self.identity_emissions[*position].clone())
                 .collect::<Vec<_>>();
             for row in rows {
                 let mut kernel_operands = operands.clone();
@@ -354,26 +392,72 @@ impl Elaborator<'_> {
                     &application.arguments,
                 )?;
             }
-            if let typed_trees::expression::ExpressionNode::Name(path) =
-                self.program.expression_table.expression(input.expression)
-                && self
-                    .scope
-                    .iter()
-                    .any(|entry| entry.symbol == Some(path.symbol))
-            {
+            let deferred = input
+                .identity_requirements
+                .applications
+                .iter()
+                .map(|position| self.identity_applications[*position].clone())
+                .collect::<Vec<_>>();
+            for mut supplied in deferred {
+                let mut kernel_operands = operands.clone();
+                kernel_operands[static_arity + ordinal] = supplied.value;
                 let value = self.instantiate_identity_requirement(
                     application.abstraction,
                     &levels,
-                    &operands,
+                    &kernel_operands,
                 )?;
-                let mut application = application;
-                application.parameter = path.symbol;
-                application.value = value;
-                application.source_scopes.insert(0, scope.clone());
-                self.record_identity_application(application)?;
+                let consumed = supplied.pending.len().min(application.arguments.len());
+                self.complete_identity_scopes(
+                    &mut supplied.source_scopes,
+                    &supplied.pending,
+                    &application.arguments[..consumed],
+                )?;
+                supplied.pending.drain(..consumed);
+                supplied
+                    .arguments
+                    .extend_from_slice(&application.arguments[consumed..]);
+                let mut scopes = Vec::with_capacity(
+                    1 + application.source_scopes.len() + supplied.source_scopes.len(),
+                );
+                scopes.push(scope.clone());
+                scopes.extend(application.source_scopes.iter().cloned());
+                scopes.extend(supplied.source_scopes);
+                supplied.source_scopes = scopes;
+                supplied
+                    .pending
+                    .splice(0..0, application.pending.iter().cloned());
+                supplied.value = value;
+                self.record_identity_application(supplied)?;
             }
         }
         Ok(())
+    }
+
+    fn identity_function_value(&mut self, value: TermHandle) -> Result<bool, Vec<Diagnostic>> {
+        let context = self.instantiation_context();
+        let ty = proof_admission::infer_type(
+            &mut self.arena,
+            &context,
+            value,
+            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+        )
+        .map_err(|error| {
+            self.refuse(format!(
+                "mathematical function value fails formation: {error:?}"
+            ))
+        })?;
+        let head = proof_admission::weak_head_normalize(
+            &mut self.arena,
+            &proof_admission::Signature::from_declarations(self.declarations.clone()),
+            ty,
+            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+        )
+        .map_err(|error| {
+            self.refuse(format!(
+                "mathematical function carrier fails reduction: {error:?}"
+            ))
+        })?;
+        Ok(matches!(self.arena.get(head), Term::Pi { .. }))
     }
 
     fn instantiate_identity_requirement(
@@ -476,7 +560,10 @@ impl Elaborator<'_> {
                 ..Default::default()
             };
         }
-        requirements.applications.push(application);
+        requirements
+            .applications
+            .push(self.identity_applications.len());
+        self.identity_applications.push(application);
         Ok(())
     }
 
@@ -602,13 +689,13 @@ struct IdentitySourceParameter {
 /// supplies the emissions; the same level/beta substitution transports both.
 #[derive(Clone, Default)]
 pub(super) struct IdentityRequirements {
-    owner: SymbolHandle,
-    emissions: Vec<usize>,
-    applications: Vec<IdentityApplication>,
+    pub(super) owner: SymbolHandle,
+    pub(super) emissions: Vec<usize>,
+    pub(super) applications: Vec<usize>,
 }
 
 #[derive(Clone)]
-struct IdentityApplication {
+pub(super) struct IdentityApplication {
     parameter: SymbolHandle,
     value: TermHandle,
     abstraction: TermHandle,

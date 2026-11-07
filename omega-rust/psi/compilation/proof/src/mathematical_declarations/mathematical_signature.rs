@@ -225,6 +225,8 @@ struct Elaborator<'a> {
     identity_declaration: Option<u32>,
     type_returning_declarations: Vec<SymbolHandle>,
     identity_emissions: Vec<identity::IdentityEmission>,
+    identity_applications: Vec<identity::IdentityApplication>,
+    result_identity_requirements: identity::IdentityRequirements,
     identity_requirements_by_owner: Vec<identity::IdentityRequirements>,
 }
 
@@ -291,6 +293,8 @@ pub(crate) fn check_mathematical_signature(
         identity_declaration: None,
         type_returning_declarations: Vec::new(),
         identity_emissions: Vec::new(),
+        identity_applications: Vec::new(),
+        result_identity_requirements: identity::IdentityRequirements::default(),
         identity_requirements_by_owner: vec![
             identity::IdentityRequirements::default();
             program.symbols.symbols().len()
@@ -387,6 +391,10 @@ impl<'a> Elaborator<'a> {
             MathematicalBody::Assumption => None,
             MathematicalBody::Definition(term) => {
                 let mut body = self.elaborate_body(*term, strict_result)?;
+                let mut requirements = std::mem::take(&mut self.result_identity_requirements);
+                requirements.owner = definition.symbol;
+                self.identity_requirements_by_owner[definition.symbol.arena_index() as usize] =
+                    requirements;
                 self.retain_source_result(*term, result, body, strict_result)?;
                 for entry in self.scope.iter().rev() {
                     body = self.arena.insert(Term::Lambda {
@@ -503,6 +511,21 @@ impl<'a> Elaborator<'a> {
     /// expression whose scalar carrier is determinable interns an opaque
     /// constant (`open_term`), and the rest refuse.
     fn elaborate_expression(
+        &mut self,
+        handle: ExpressionHandle,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        self.result_identity_requirements = identity::IdentityRequirements::default();
+        let term = self.elaborate_expression_term(handle)?;
+        if !matches!(
+            self.program.expression_table.expression(handle),
+            ExpressionNode::Name(..) | ExpressionNode::Call(..) | ExpressionNode::Binary(..)
+        ) {
+            self.result_identity_requirements = identity::IdentityRequirements::default();
+        }
+        Ok(term)
+    }
+
+    fn elaborate_expression_term(
         &mut self,
         handle: ExpressionHandle,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {

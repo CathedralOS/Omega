@@ -4,7 +4,14 @@ data FloatBox [copy] { value: f64; }
 let same<A: core::Type<0>>(left: A, right: A): core::Type<0> = core::Identity<A>(left, right);
 // Private diagnostic production of the same identity value through an argument.
 let invoke<A: core::Type<0>>(relation: A -> A -> core::Type<0>, left: A, right: A): core::Type<0> = relation(left, right);
-let via_value<A: core::Type<0>>(left: A, right: A): core::Type<0> = invoke<A>(same<A>(), left, right);
+let forward<A: core::Type<0>>(relation: A -> A -> core::Type<0>): A -> A -> core::Type<0> = relation;
+let via<A: core::Type<0>>(relation: A -> A -> core::Type<0>, left: A, right: A): core::Type<0> = invoke<A>(forward<A>(relation), left, right);
+let via_value<A: core::Type<0>>(left: A, right: A): core::Type<0> = via<A>(same<A>(), left, right);
+// Merely forwarding an ordinary generic value or type adds no Id requirement.
+let selected<N: u64>(): u64 = N;
+let selected_number(): u64 = selected<17u64>();
+let type_value<A: core::Type<0>>(): core::Type<0> = A;
+let selected_type(): core::Type<0> = type_value<u8>();
 let same_strict<A: core::Type<0>>(left: A, right: A): core::Strict<0> = core::Identity<A>(left, right);
 let partial<A: core::Type<0>>(left: A): A -> core::Type<0> = same<A>(left);
 let through_partial<A: core::Type<0>>(left: A, right: A): core::Type<0> = partial<A>(left, right);
