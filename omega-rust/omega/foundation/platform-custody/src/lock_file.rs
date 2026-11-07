@@ -1,4 +1,17 @@
-//! Persistent lock files opened beneath a retained directory.
+// Opens or creates a persistent lock file directly beneath a retained
+// `CapabilityDirectory` without following symlinks or truncating existing
+// content.
+//
+// Why split `create_new(true)` from a fallback non-creating `open_with` instead
+// of a single `create(true)` call? On Darwin 24.6 with APFS, when two processes
+// race to create the same filename via `openat` relative to a directory
+// descriptor, the loser fails with `ENOENT` roughly 50% of the time instead of
+// opening the winner's file (the kernel recovers from lost creation races for
+// path-based `open`, but not for directory-descriptor `openat`). Attempting an
+// exclusive create (`O_CREAT | O_EXCL`) first either creates the file or
+// returns `AlreadyExists`; the second `open_with` (without `O_CREAT` and with
+// `FollowSymlinks::No`) then opens the winner's regular file or rejects a
+// symlink at that name.
 
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(unix)]
@@ -6,25 +19,6 @@ use cap_std::fs::OpenOptionsExt;
 use cap_std::fs::{Dir as CapabilityDirectory, File as CapabilityFile, OpenOptions};
 use std::{io, path::Path};
 
-/// Open the lock file `name` directly beneath `directory` for reading and
-/// writing, creating it owner-only (mode 0600 on Unix) when it is absent.
-///
-/// A final symbolic link is never followed and an existing file is never
-/// truncated. Callers keep lock files in place and still verify the opened
-/// file's identity, owner, and mode; this only chooses how the open is made.
-///
-/// Creation is exclusive, and a name that already exists is reopened without
-/// `O_CREAT`. The single open-or-create call this replaces is wrong on macOS:
-/// when two processes create one name at once through `openat` relative to a
-/// directory descriptor, the one that loses the creation race fails with
-/// `ENOENT` instead of opening the winner's file. On Darwin 24.6 with APFS
-/// that happens for roughly half of all contended creations, while the same
-/// contention through `open` by absolute path or relative to the working
-/// directory never fails: the kernel recovers from a lost creation race for
-/// those lookups but not for a directory-descriptor lookup, and a capability
-/// open has only the descriptor. An exclusive create never enters that
-/// recovery: it either creates the file or reports `AlreadyExists`, and the
-/// second open then finds the file that exists.
 pub fn open_or_create_lock_file(
     directory: &CapabilityDirectory,
     name: impl AsRef<Path>,
@@ -42,8 +36,6 @@ pub fn open_or_create_lock_file(
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
         created_or_failed => return created_or_failed,
     }
-    // An existing symbolic link also reports `AlreadyExists`; this no-follow
-    // open then rejects it rather than opening its target.
     let mut existing = OpenOptions::new();
     existing.read(true).write(true).follow(FollowSymlinks::No);
     directory.open_with(name, &existing)

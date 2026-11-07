@@ -1,4 +1,5 @@
-//! Every way a build file can fail projection, with its user-facing text.
+// User-facing error variants for every way a `build.omg` file can fail syntax
+// projection.
 
 use crate::BuildDeclarationKind;
 use std::fmt;

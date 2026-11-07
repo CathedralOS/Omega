@@ -1,3 +1,11 @@
+// Tests verifying Windows Job Object active-process, per-process memory,
+// aggregate job memory, and aggregate CPU limits.
+//
+// In `job_aggregate_cpu_limit_terminates_the_job`, the over-limit worker uses
+// `spin-until-terminated` so only the OS job CPU limit can end the worker; a
+// fixed wall-clock loop could otherwise exit cleanly before accruing enough
+// user time on a heavily loaded host.
+
 use std::time::Duration;
 
 use super::super::lifecycle::JobLimitEvent;
@@ -93,8 +101,6 @@ fn job_aggregate_cpu_limit_terminates_the_job() {
     assert!(status.success(), "below-limit aggregate CPU should succeed");
     assert!(!events.contains(&JobLimitEvent::AggregateCpu));
 
-    // Only the OS limit may finish this worker. A wall-clock deadline can end a
-    // worker successfully before it accrues enough user time on a loaded host.
     let limited = test_limits(2, 256, 512, Duration::from_millis(100));
     let (status, events) = run_worker(
         "spin-until-terminated",

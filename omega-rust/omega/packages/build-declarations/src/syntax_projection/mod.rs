@@ -1,7 +1,19 @@
-//! Projecting a build declaration from source or syntax trees: locating the
-//! canonical build entry, reading the role call, and rejecting every shape
-//! that would need evaluation. This serves conservative edits and diagnostic
-//! suggestions, never package source binding or historical recovery.
+/*
+Syntax-tree projection for `build.omg`.
+
+We locate the canonical root `machine build(builder: &mut Build)` entry, read
+its direct `Build::{package,application,member,artifact_only}` statements, and
+reject every call shape that would require evaluation or hide a role statement
+inside a helper state, nested machine, or subexpression.
+
+Why inspect the expression table after scanning the root entry's statements?
+Statement calls are parsed as expressions first and then wrapped in statement
+nodes, so `syntax_trees.expressions` contains one `ExpressionNode::Call` for
+every call anywhere in the file. An accepted root-entry statement's call
+expression is the unique occurrence whose argument-handle slice matches the
+statement's argument-handle slice; any other call targeting a role operation
+anywhere in the file fails with that operation's `Unsupported*Shape` error.
+*/
 
 use crate::build_declaration::{
     APPLICATION_MACHINE_NAME, ARTIFACT_ONLY_MACHINE_NAME, BUILD_MACHINE_NAME, BUILD_TYPE_NAME,
@@ -19,18 +31,12 @@ use syntax_trees::item::{Item, StateHandle, StateParameterHandle};
 use syntax_trees::statement::StatementNode;
 use syntax_trees::types::TypeReferenceNode;
 
-/// A validated role plus the exact syntax entry that established it.
-///
-/// Consumers projecting adjacent build syntax must use this handle instead of
-/// rediscovering the build machine or reproducing its signature checks.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildDeclarationSyntaxProjection {
     declaration: BuildDeclaration,
     build: BuildEntrySyntaxProjection,
 }
 
-/// The structurally validated root build entry, before requiring a project
-/// role declaration from its body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildEntrySyntaxProjection {
     build_entry: StateHandle,
@@ -65,7 +71,6 @@ impl BuildEntrySyntaxProjection {
     }
 }
 
-/// Parse source and project its literal role without evaluating it.
 pub fn project_build_declaration_from_source(
     source: &str,
 ) -> Result<BuildDeclaration, BuildDeclarationError> {
@@ -78,7 +83,6 @@ pub fn project_build_declaration_from_source(
     project_build_declaration_from_syntax_trees(&parsed.syntax)
 }
 
-/// Project only the role value from an already-parsed syntax tree.
 pub(crate) fn project_build_declaration_from_syntax_trees(
     syntax_trees: &SyntaxTrees,
 ) -> Result<BuildDeclaration, BuildDeclarationError> {
@@ -86,10 +90,6 @@ pub(crate) fn project_build_declaration_from_syntax_trees(
         .map(BuildDeclarationSyntaxProjection::into_declaration)
 }
 
-/// Validate and locate the root build entry without requiring a role call.
-///
-/// This is the common seam for adjacent syntactic projectors that must retain
-/// their own historical error ordering before the role is required.
 pub fn project_build_entry_syntax(
     syntax_trees: &SyntaxTrees,
 ) -> Result<BuildEntrySyntaxProjection, BuildDeclarationError> {
@@ -178,7 +178,6 @@ pub fn project_build_entry_syntax(
     })
 }
 
-/// Project the role and retain the exact validated root build entry.
 pub(crate) fn project_build_declaration_syntax(
     syntax_trees: &SyntaxTrees,
 ) -> Result<BuildDeclarationSyntaxProjection, BuildDeclarationError> {
@@ -193,10 +192,6 @@ pub(crate) fn project_build_declaration_syntax(
     project_build_declaration_in_entry(syntax_trees, build)
 }
 
-/// Project the role from a root entry previously validated by this crate.
-///
-/// The opaque entry value prevents adjacent projectors from substituting an
-/// arbitrary state while allowing them to preserve diagnostic ordering.
 pub fn project_build_declaration_in_entry(
     syntax_trees: &SyntaxTrees,
     build: BuildEntrySyntaxProjection,
@@ -221,8 +216,6 @@ pub fn project_build_declaration_in_entry(
                 DirectBuildCallError::WrongReceiver => operation.wrong_receiver(),
                 DirectBuildCallError::WrongArguments => operation.wrong_arguments(),
             })?;
-        // The artifact-only application modifier is unconditional: it takes no
-        // name or evidence operand, so there is no literal to project.
         if operation == DeclarationOperation::ArtifactOnly {
             if !operands.is_empty() {
                 return Err(operation.wrong_arguments());
@@ -292,8 +285,6 @@ pub fn project_build_declaration_in_entry(
             }
         }
         if members.is_empty() {
-            // Artifact-only alone is a modifier, not a role: the build still
-            // owes one package/application/workspace declaration.
             return Err(BuildDeclarationError::MissingBuildDeclaration);
         }
         if artifact_only > 0 {
@@ -307,8 +298,6 @@ pub fn project_build_declaration_in_entry(
     Ok(BuildDeclarationSyntaxProjection { declaration, build })
 }
 
-/// One direct `Build` statement operation that a role statement projects,
-/// with its three-way rejection vocabulary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DeclarationOperation {
     Package,
@@ -318,7 +307,6 @@ enum DeclarationOperation {
 }
 
 impl DeclarationOperation {
-    /// Classify a `build.omg` call target as a role-projecting operation.
     fn classify(target: &str) -> Option<Self> {
         Some(match target {
             PACKAGE_MACHINE_NAME => Self::Package,
@@ -429,17 +417,6 @@ fn project_member_path_literal(
     WorkspaceMemberPath::parse(path).map_err(|_| BuildDeclarationError::InvalidWorkspaceMemberPath)
 }
 
-/// Reject every expression occurrence of the declaration vocabulary that is
-/// not the source expression of an accepted direct statement of the root
-/// build entry.
-///
-/// Statement calls are parsed as expressions first and then converted, so the
-/// expression table carries one call for every statement call anywhere in the
-/// file, and an accepted statement's source expression is the one occurrence
-/// whose argument handles match it. A call in another state or machine, and a
-/// compact-expression occurrence such as `consume(Build::package(...))`, match
-/// no accepted statement and are rejected with the operation's unsupported
-/// shape.
 fn reject_unprojected_build_declaration_syntax(
     syntax_trees: &SyntaxTrees,
     accepted: &[&[ExpressionHandle]],
