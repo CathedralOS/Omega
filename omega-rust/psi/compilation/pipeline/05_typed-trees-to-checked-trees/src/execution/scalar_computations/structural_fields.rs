@@ -95,7 +95,7 @@ impl Builder<'_, '_> {
                 subject: CheckedUnitStructuralArgumentPlan {
                     projection_evaluations: Default::default(),
                     source: SourcePlan::StructuralExpression {
-                        value_dependency: receiver_value.is_valid().then_some(receiver_value),
+                        value_dependency: None,
                         expression,
                         logical_root_type_identity: None,
                     },

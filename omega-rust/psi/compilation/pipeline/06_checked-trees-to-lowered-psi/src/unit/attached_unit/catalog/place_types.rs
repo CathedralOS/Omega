@@ -453,11 +453,12 @@ fn source_type(
                 .map(|result| result.type_identity)
         }),
         Source::StructuralExpression {
+            expression,
             value_dependency: Some(value),
             ..
         } => value_facts(checked)
             .structural_values
-            .root_for_value(value)
+            .root_for_value_home(value, expression)
             .filter(|root| root.state == state && statement == Some(root.statement_ordinal))
             .map(|root| stored_structural_identity(checked, root.type_reference)),
         Source::StructuralExpression {

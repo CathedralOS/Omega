@@ -329,7 +329,7 @@ pub(crate) fn retain_shapes(
                             // of the home used to read it. A selected copy may
                             // depend on a captured-copy root rather than the
                             // older subject behind its saved expression.
-                            let root = structural_values.root_for_value(value).ok_or_else(|| {
+                            let root = structural_values.root_for_value_home(value, expression).ok_or_else(|| {
                                 format!("call {handle:?} expression {expression:?} value {value:?} has no completed structural dependency")
                             })?;
                             if root.state != state

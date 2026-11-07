@@ -367,9 +367,27 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
         })
     }
     fn argument(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {
+        if !self.source_is_retained(argument) {
+            return 0;
+        }
         self.argument_transfer(argument)
             + self.argument_evaluation(argument)
             + self.produced(argument)
+    }
+
+    fn source_is_retained(&self, argument: &CheckedUnitStructuralArgumentPlan) -> bool {
+        match argument.source {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression,
+                value_dependency: Some(value),
+                ..
+            } => self
+                .values
+                .structural_values
+                .root_for_value_home(value, expression)
+                .is_some(),
+            _ => true,
+        }
     }
 
     fn argument_transfer(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {
@@ -399,6 +417,7 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
     /// nothing here, so accounting still demands another disposition.
     fn produced(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {
         let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+            expression,
             value_dependency: Some(value),
             ..
         } = argument.source
@@ -406,7 +425,7 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
             return 0;
         };
         let plans = &self.values.structural_values;
-        let Some(root) = plans.root_for_value(value) else {
+        let Some(root) = plans.root_for_value_home(value, expression) else {
             return 0;
         };
         if matches!(
@@ -444,6 +463,9 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 .map(|argument| self.structural(*argument, calls))
                 .sum(),
             CheckedStructuralValueKind::Place(source) => {
+                if !self.source_is_retained(source) {
+                    return 0;
+                }
                 // A Place is an existing value, not another construction. Its
                 // expression may identify this very root; following production
                 // again turns that identity edge into infinite execution.
@@ -979,6 +1001,29 @@ mod tests {
                 root,
                 ..Default::default()
             });
+        let unretained = values
+            .structural_values
+            .nodes
+            .append(crate::CheckedStructuralValue {
+                expression,
+                ..Default::default()
+            });
+        let other_expression = arena::Handle::from_parts(2, 1);
+        let wrong_home = values
+            .structural_values
+            .nodes
+            .append(crate::CheckedStructuralValue {
+                expression: other_expression,
+                ..Default::default()
+            });
+        values
+            .structural_values
+            .roots
+            .append(crate::CheckedStructuralValueRoot {
+                expression: other_expression,
+                root: wrong_home,
+                ..Default::default()
+            });
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index: 0,
             binding_ordinal: 0,
@@ -1006,6 +1051,27 @@ mod tests {
             *value_dependency = Some(root);
         }
         assert_eq!(transfers.argument(&argument), 1);
+        for value in [
+            CheckedStructuralValueHandle::invalid(),
+            unretained,
+            wrong_home,
+        ] {
+            if let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                value_dependency,
+                ..
+            } = &mut argument.source
+            {
+                *value_dependency = Some(value);
+            }
+            assert_eq!(transfers.argument(&argument), 0);
+        }
+        if let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+            value_dependency,
+            ..
+        } = &mut argument.source
+        {
+            *value_dependency = Some(root);
+        }
         argument.access = CheckedStructuralAccess::SharedBorrow;
         assert_eq!(transfers.argument(&argument), 0);
     }
