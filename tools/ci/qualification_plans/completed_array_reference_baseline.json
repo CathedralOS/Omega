@@ -1,0 +1,50 @@
+{
+  "schema": "omega-compiler-pilot-plan-v1",
+  "producer": {
+    "revision": "e3aa2896cd348ad4fb15d5a98a58d9957b6f1a4b",
+    "tree": "74b1182380876bc8ec8771cdffc12fd65dfb0286",
+    "target": "linux_x86_64",
+    "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+    "input_objects": {
+      "omega-rust": "7e32a97e22613140ba4df8c2aeea183ab67e8f4a",
+      "source/library": "46754f5f6584d158e0fb077d4ed89a83afd07230",
+      "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
+      "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
+      "bootstrap": "42230c0aa7138a175590d9dd6a57d8ee71934df1",
+      "tools/benchmark": "58715a339b701d6e1efc1bf6a0916096ec4c697b",
+      "Cargo.toml": "611d634f15e9f745dc0d429fe7b26b3ec87850d9",
+      "Cargo.lock": "f12e9c233c5f667d5903546a7d85d9e6ab684f58",
+      "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+      ".cargo": "152f54b1593e9a8e1c5139fc5a4373a14bbc0701"
+    },
+    "executables": {
+      "cli": {
+        "sha256": "4da4104f42c908942d937b442226b9a225ca3b433719e0120000f95d40e9ee24",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      },
+      "runner": {
+        "sha256": "e4c3c3eb4ccacbad93c1dcd42c9ba858eec17f4d2d1ae973c3bec0aee168b392",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      }
+    },
+    "origin_run": 42366539156,
+    "cache_key": "compiler-regression-Linux-X64-619be19a8e341c9422e0bbfdb9c702e2989ff767a7e78d51ff551da858c5fcb7-e3aa2896cd348ad4fb15d5a98a58d9957b6f1a4b-prepared-v1-with-runner"
+  },
+  "fixtures": [
+    "pass/arrays/runtime_completed_array_window_replacement_exit",
+    "pass/collections/runtime_stored_reference_array_replacement_contract_exit",
+    "pass/borrows/fixed_array_reference_results_exit",
+    "fail/arrays/window_copy_preserves_inherited_element_policy",
+    "fail/collections/stored_reference_array_stale_extent",
+    "fail/borrows/fixed_array_return_live_parent_write"
+  ],
+  "source_only": true,
+  "samples": [],
+  "cli_fixtures": []
+}
