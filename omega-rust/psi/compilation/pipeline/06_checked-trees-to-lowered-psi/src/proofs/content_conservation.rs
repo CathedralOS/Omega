@@ -19,7 +19,7 @@ use super::{
     CheckedContentPlaceVersion, CheckedContentProjectionExpression, CheckedContentScalarExpression,
     CheckedContentStructuralPlace, CheckedTrees, CheckedUnitEntryClaimPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, ClaimContentProjection,
-    ClaimId, ContentAlgebra, ContentAlgebraKind, ContentArithmeticOperator, ContentConservation,
+    ClaimId, ContentAlgebra, ContentArithmeticOperator, ContentConservation,
     ContentConservationGuarantee, ContentConservationOwnerKind, ContentConservationPlan,
     ContentDomainId, ContentEntryClaim, ContentIdentityReshuffle, ContentIdentityReshuffleFact,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,
@@ -59,16 +59,7 @@ pub struct LoweredContentIdentityReshuffles {
 /// One terminal algebra for one checked algebra identity: the identity names
 /// the algebra kind and its coordinate space, never a second representation.
 fn content_algebra(identity: &CheckedContentAlgebraIdentity) -> ContentAlgebra {
-    match identity {
-        CheckedContentAlgebraIdentity::IntervalSet { coordinate_space } => ContentAlgebra {
-            kind: ContentAlgebraKind::IntervalSet,
-            parameter: coordinate_space.clone(),
-        },
-        CheckedContentAlgebraIdentity::CountedQuantity { unit } => ContentAlgebra {
-            kind: ContentAlgebraKind::CountedQuantity,
-            parameter: unit.clone(),
-        },
-    }
+    identity.canonical_algebra()
 }
 
 fn content_field_identity(checked: &CheckedTrees, symbol: symbols::SymbolHandle) -> Option<String> {

@@ -57,6 +57,7 @@ impl StructuralJudge<'_> {
                 }
             }
             StructuralTerm::IntegerEmbedding { value, .. }
+            | StructuralTerm::ContentValue { value, .. }
             | StructuralTerm::Projection { subject: value, .. } => {
                 self.identity_value_is_available(value)
             }
@@ -227,7 +228,7 @@ impl StructuralJudge<'_> {
         }
     }
 
-    fn identity_constructor_fields(
+    pub(super) fn identity_constructor_fields(
         &self,
         identity: ConstructorIdentity,
     ) -> Option<std::collections::HashMap<String, typed_trees::types::TypeReferenceHandle>> {

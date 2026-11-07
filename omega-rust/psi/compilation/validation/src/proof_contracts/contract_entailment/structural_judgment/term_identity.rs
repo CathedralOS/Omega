@@ -240,6 +240,7 @@ impl StructuralTerm {
                     ..
                 }
                 | Self::Projection { subject, .. }
+                | Self::ContentValue { value: subject, .. }
                 | Self::IntegerEmbedding { value: subject, .. }
                 | Self::ScalarRepresentation { value: subject, .. } => StructuralChildren::Fixed {
                     first: Some(subject.as_ref()),
@@ -325,6 +326,9 @@ impl PartialEq for StructuralTerm {
         let other = other.semantic_value();
         match self {
             Self::ObservedValue { value, .. } => value.as_ref().eq(other),
+            Self::ContentValue { algebra, value } => matches!(other,
+                Self::ContentValue { algebra: other_algebra, value: other_value }
+                    if (algebra, value) == (other_algebra, other_value)),
             Self::Identity {
                 carrier,
                 left,
@@ -579,6 +583,11 @@ impl std::fmt::Debug for StructuralTerm {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ObservedValue { value, .. } => std::fmt::Debug::fmt(value, formatter),
+            Self::ContentValue { algebra, value } => formatter
+                .debug_struct("ContentValue")
+                .field("algebra", algebra)
+                .field("value", value)
+                .finish(),
             Self::Identity {
                 carrier,
                 left,

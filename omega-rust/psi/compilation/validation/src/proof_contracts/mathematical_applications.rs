@@ -6,7 +6,9 @@
 mod fixed_core_vocabulary;
 mod identity;
 pub use fixed_core_vocabulary::{FixedCore, FixedCoreVocabulary};
-pub use identity::{IdentityApplication, identity_application, is_identity_call};
+pub use identity::{
+    IdentityApplication, identity_application, identity_application_at, is_identity_call,
+};
 use typed_trees::type_identity::TypeIdentityRequest;
 mod static_arguments;
 pub use static_arguments::{

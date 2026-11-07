@@ -39,6 +39,7 @@ macro_rules! interned_literal {
 
 mod applications;
 mod carriers;
+mod content_values;
 mod dependencies;
 mod identity;
 mod level_types;
@@ -131,6 +132,9 @@ struct Elaborator<'a> {
     /// each land immediately before the authored declaration whose
     /// elaboration discovered them.
     declarations: Vec<Declaration>,
+    /// Canonical content types are opaque algebra values, never the source
+    /// literal former's start/end record representation.
+    source_content: Option<proof_admission::SourceContentTheory>,
     /// Carrier symbol -> signature position (a `Type 0` assumption).
     carriers: HashMap<SymbolHandle, u32>,
     /// `Int : Type 0` — the shared mathematical-integer carrier every
@@ -247,6 +251,7 @@ pub(crate) fn check_mathematical_signature(
         program,
         arena,
         declarations,
+        source_content: None,
         carriers: HashMap::new(),
         integer: None,
         boolean: None,

@@ -267,6 +267,7 @@ fn nested_rewrite_key(term: &StructuralTerm, depth: usize) -> (u8, u64) {
         key.rotate_left(8) ^ u64::from(kind)
     };
     match term.semantic_value() {
+        StructuralTerm::ContentValue { value, .. } => (22, nested(value)),
         StructuralTerm::Identity {
             carrier,
             left,
@@ -397,6 +398,7 @@ fn term_may_produce_mathematical_value(term: &StructuralTerm) -> bool {
     !matches!(
         term.semantic_value(),
         StructuralTerm::Identity { .. }
+            | StructuralTerm::ContentValue { .. }
             | StructuralTerm::Float(_)
             | StructuralTerm::ScalarRepresentation { .. }
             | StructuralTerm::Opaque(_)

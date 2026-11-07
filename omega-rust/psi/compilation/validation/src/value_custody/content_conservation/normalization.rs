@@ -11,7 +11,7 @@ use language_semantics::content::{
 };
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -32,22 +32,33 @@ pub(super) fn normalize_equation(
     expression: ExpressionHandle,
     formations: &mut Vec<ContentProjectionFormation>,
 ) -> Result<(ContentAlgebraIdentity, ContentConservationEquation), String> {
-    let Some(binary) = expression_table(context.program).binary_node(expression) else {
-        return Err(
-            "the contract must be one equality over exact projection and `separate(...)` terms"
-                .to_owned(),
-        );
-    };
-    if binary.operator != BinaryOperator::Equal {
-        return Err("content conservation is authored with `==`; containment or scalar comparisons are not the n-ary conservation theorem".to_owned());
-    }
-    let (left, left_algebra) = normalize_term(context, binary.left, formations)?;
-    let (right, right_algebra) = normalize_term(context, binary.right, formations)?;
+    let identity =
+        crate::mathematical_applications::identity_application_at(context.program, expression)
+            .map_err(|reason| {
+                format!("content conservation requires the sealed typed core::Identity: {reason}")
+            })?;
+    let carrier = super::super::content_projections::content_algebra_for_type(
+        context.program,
+        identity.carrier,
+    )
+    .ok_or_else(|| {
+        "content conservation identity requires an exact closed content algebra carrier".to_owned()
+    })?;
+    let [left, right] = identity.subjects;
+    let (left, left_algebra) = normalize_term(context, left, formations)?;
+    let (right, right_algebra) = normalize_term(context, right, formations)?;
     if left_algebra != right_algebra {
         return Err(format!(
             "the two sides select different content algebras (`{}` versus `{}`)",
             algebra_key(&left_algebra),
             algebra_key(&right_algebra),
+        ));
+    }
+    if carrier != left_algebra {
+        return Err(format!(
+            "the identity carrier selects content algebra `{}` but its subjects select `{}`",
+            algebra_key(&carrier),
+            algebra_key(&left_algebra),
         ));
     }
     Ok((left_algebra, ContentConservationEquation::new(left, right)))

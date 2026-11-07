@@ -414,6 +414,9 @@ pub(crate) fn display_structural_term(term: &StructuralTerm) -> String {
             display_structural_term(left),
             display_structural_term(right)
         ),
+        StructuralTerm::ContentValue { algebra, value } => {
+            format!("canonical:{algebra:?}({})", display_structural_term(value))
+        }
         StructuralTerm::Opaque(display) => display.clone(),
     }
 }

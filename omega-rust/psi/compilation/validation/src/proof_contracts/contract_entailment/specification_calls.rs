@@ -2162,6 +2162,9 @@ fn term_has_complete_substitution(
                     .is_some_and(|primitive| primitive.is_fixed_integer()),
                 _ => false,
             }),
+        StructuralTerm::ContentValue { value, .. } => {
+            term_has_complete_substitution(program, value)
+        }
         StructuralTerm::Identity { .. }
         | StructuralTerm::CapturedValue { .. }
         | StructuralTerm::BoundProjection { .. }

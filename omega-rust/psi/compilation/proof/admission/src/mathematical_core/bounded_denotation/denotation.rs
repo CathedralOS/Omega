@@ -26,10 +26,12 @@ pub(super) struct Denotation {
     /// key is the term's evaluated closed literal when it has one, so
     /// decided closed equalities denote reflexive identities.
     pub(super) terms: BTreeMap<ScalarTerm, u32>,
-    /// Content algebra → `Type 0` carrier assumption position. Each
+    /// Content algebra → its `Type 0` carrier application. Each
     /// algebra's conservation equations denote `Id` over their own
     /// carrier, so identities in different algebras can never compose.
-    pub(super) content_carriers: BTreeMap<ContentAlgebra, u32>,
+    pub(super) content_carriers: BTreeMap<ContentAlgebra, TermHandle>,
+    content_families: [Option<u32>; 2],
+    content_parameters: BTreeMap<String, u32>,
     /// `(algebra, content term)` → element assumption position at that
     /// algebra's carrier. The key is the term itself: `ContentTerm`'s
     /// constructors already normalize ordering and nesting, so
@@ -681,6 +683,8 @@ impl Denotation {
             carriers: BTreeMap::new(),
             terms: BTreeMap::new(),
             content_carriers: BTreeMap::new(),
+            content_families: [None, None],
+            content_parameters: BTreeMap::new(),
             content_terms: BTreeMap::new(),
             integer: None,
             integer_less_than: None,
@@ -793,12 +797,57 @@ impl Denotation {
         &mut self,
         algebra: &ContentAlgebra,
     ) -> Result<TermHandle, BoundedDenotationError> {
+        if let Some(carrier) = self.content_carriers.get(algebra) {
+            return Ok(*carrier);
+        }
         let position = self.interned_keyed_assumption(
-            |this| &mut this.content_carriers,
-            algebra.clone(),
+            |this| &mut this.content_parameters,
+            algebra.parameter.clone(),
             |this| Ok(this.type_zero),
         )?;
-        Ok(self.constant(position))
+        let parameter = self.constant(position);
+        let carrier = self.content_carrier_at(algebra.kind, parameter, Level::Constant(0))?;
+        self.content_carriers.insert(algebra.clone(), carrier);
+        Ok(carrier)
+    }
+
+    /// The canonical algebra family is small; its type parameter is an outer
+    /// argument, rather than a stored literal field. Its exact checked level
+    /// remains on the application, including under source Pi substitution.
+    pub(super) fn content_carrier_at(
+        &mut self,
+        kind: semantic_vocabulary::ContentAlgebraKind,
+        parameter: TermHandle,
+        level: Level,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        let slot = match kind {
+            semantic_vocabulary::ContentAlgebraKind::IntervalSet => 0,
+            semantic_vocabulary::ContentAlgebraKind::CountedQuantity => 1,
+        };
+        let declaration = match self.content_families[slot] {
+            Some(declaration) => declaration,
+            None => {
+                let domain = self
+                    .arena
+                    .insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+                let ty = self.arena.insert(Term::Pi {
+                    domain,
+                    codomain: self.type_zero,
+                });
+                let declaration = self.position()?;
+                self.declarations.push(Declaration::assumption(1, ty));
+                self.content_families[slot] = Some(declaration);
+                declaration
+            }
+        };
+        let function = self.arena.insert(Term::Constant {
+            declaration,
+            levels: vec![level],
+        });
+        Ok(self.arena.insert(Term::Apply {
+            function,
+            argument: parameter,
+        }))
     }
 
     /// The assumption constant one content term denotes — an element of

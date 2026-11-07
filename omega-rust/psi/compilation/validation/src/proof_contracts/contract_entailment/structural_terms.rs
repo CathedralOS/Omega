@@ -387,6 +387,9 @@ pub(super) fn term_spelling(program: &dyn crate::CheckingInput, term: &Structura
             term_spelling(program, left),
             term_spelling(program, right)
         ),
+        StructuralTerm::ContentValue { algebra, value } => {
+            format!("canonical {algebra:?}({})", term_spelling(program, value))
+        }
         StructuralTerm::Opaque(display) => display.clone(),
     }
 }

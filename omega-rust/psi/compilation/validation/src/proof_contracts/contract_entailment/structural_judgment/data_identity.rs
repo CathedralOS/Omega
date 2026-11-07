@@ -208,13 +208,32 @@ impl StructuralJudge<'_> {
                 if right_by_name.len() != right_fields.len() {
                     return StructuralJudgment::Unknown;
                 }
+                let Some(declared) = self.identity_constructor_fields(*left_identity) else {
+                    return StructuralJudgment::Unknown;
+                };
+                if declared.len() != left_fields.len() {
+                    return StructuralJudgment::Unknown;
+                }
                 let mut verdict = StructuralJudgment::Proven;
                 for (name, left) in left_fields {
                     let Some(right) = right_by_name.get(name.as_str()) else {
                         return StructuralJudgment::Unknown;
                     };
-                    match self.exact_identity_congruence(left.clone(), (*right).clone(), depth + 1)
-                    {
+                    let Some(reference) = declared.get(name.as_str()) else {
+                        return StructuralJudgment::Unknown;
+                    };
+                    let observe = |value| {
+                        super::super::structural_terms::owned_projection_observation(
+                            self.program,
+                            *reference,
+                            value,
+                        )
+                    };
+                    match self.exact_identity_congruence(
+                        observe(left.clone()),
+                        observe((*right).clone()),
+                        depth + 1,
+                    ) {
                         StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
                         StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
                         StructuralJudgment::Proven => {}
@@ -565,7 +584,8 @@ impl StructuralJudge<'_> {
             | StructuralTerm::CapturedValue { .. }
             | StructuralTerm::Integer(_)
             | StructuralTerm::Float(_) => true,
-            StructuralTerm::IntegerEmbedding { value, .. } => self.data_identity_is_observed(value),
+            StructuralTerm::IntegerEmbedding { value, .. }
+            | StructuralTerm::ContentValue { value, .. } => self.data_identity_is_observed(value),
             StructuralTerm::Projection { subject, .. } => self.data_identity_is_observed(subject),
             StructuralTerm::Constructor { fields, .. } => fields
                 .iter()

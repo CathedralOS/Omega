@@ -135,6 +135,9 @@ impl<'a> Elaborator<'a> {
                 self.refuse("a mathematical type references a type that does not exist".to_owned())
             );
         }
+        if let Some(carrier) = self.elaborate_content_carrier(reference)? {
+            return Ok(carrier);
+        }
         // Source intervals belong to flow facts and callable contracts, not
         // authored mathematical type syntax. Existing runtime operand captures
         // project their inferred intervals before entering this type/formal path.

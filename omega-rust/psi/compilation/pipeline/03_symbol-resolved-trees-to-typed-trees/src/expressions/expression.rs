@@ -196,8 +196,10 @@ pub(crate) fn lower_static_machine_argument(
             .as_ref()
             .is_none_or(|application| !application.member.is_valid())
         && selected.symbol.is_valid()
-        && target.symbols.get(selected.symbol).kind == symbols::SymbolKind::Data
-        && selected.application.is_some()
+        && matches!(
+            target.symbols.get(selected.symbol).kind,
+            symbols::SymbolKind::Data | symbols::SymbolKind::BuiltinType
+        )
     {
         let type_reference = target
             .static_operand_type_reference(&selected)

@@ -279,7 +279,7 @@ fn check_equality_operand(
                 return Ok(());
             }
             Err(Diagnostic::error(format!(
-                "cannot compare against payload-bearing case `{data_name}::{case_name}` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `{}` to synthesize structural equality, or use `core::Identity` with the complete carrier for mathematical identity",
+                "cannot compare against payload-bearing case `{data_name}::{case_name}` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `{}` to synthesize structural equality, or use `core::Identity` with complete values and their carrier for mathematical identity",
                 crate::expressions::equatable::suggested_equality_declaration(data_name)
             )))
         }

@@ -272,32 +272,57 @@ fn selected_content_algebra(
     else {
         return None;
     };
+    content_algebra_for_type(program, *argument)
+}
+
+/// The closed algebra carrier selected by content projections and explicit
+/// conservation identities. A same-spelled user declaration has no authority.
+pub fn content_algebra_for_type(
+    program: &dyn CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<ContentAlgebraIdentity> {
+    Some(content_algebra_application(program, reference)?.identity)
+}
+
+pub struct ContentAlgebraApplication {
+    pub identity: ContentAlgebraIdentity,
+    pub parameter: typed_trees::types::TypeReferenceHandle,
+}
+
+pub fn content_algebra_application(
+    program: &dyn CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<ContentAlgebraApplication> {
     let TypeReferenceNode::Generic {
         base_symbol,
         base_name,
         arguments,
         ..
-    } = program.type_reference_table.type_reference(*argument)
+    } = program.type_reference_table.type_reference(reference)
     else {
         return None;
     };
     if !compiler_owned_symbol(program, *base_symbol) {
         return None;
     }
-    let [identity] = program
+    let [parameter] = program
         .type_reference_table
         .type_reference_handles(*arguments)
     else {
         return None;
     };
-    let identity = program.normalized_type_identity_text(*identity);
-    match base_name.as_str().rsplit("::").next() {
-        Some("IntervalSet") => Some(ContentAlgebraIdentity::IntervalSet {
+    let identity = program.normalized_type_identity_text(*parameter);
+    let algebra = match base_name.as_str().rsplit("::").next() {
+        Some("IntervalSet") => ContentAlgebraIdentity::IntervalSet {
             coordinate_space: identity,
-        }),
-        Some("CountedQuantity") => Some(ContentAlgebraIdentity::CountedQuantity { unit: identity }),
-        _ => None,
-    }
+        },
+        Some("CountedQuantity") => ContentAlgebraIdentity::CountedQuantity { unit: identity },
+        _ => return None,
+    };
+    Some(ContentAlgebraApplication {
+        identity: algebra,
+        parameter: *parameter,
+    })
 }
 
 fn projection_result_expression(

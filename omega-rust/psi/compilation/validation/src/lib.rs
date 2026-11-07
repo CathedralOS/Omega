@@ -319,7 +319,10 @@ pub use crate::value_custody::content_conservation::{
     ContentBoundaryBodyRequirement, ContentConservationSourcePlan,
     boundary_body_content_requirements, content_conservation_plans,
 };
-pub use crate::value_custody::content_projections::build_content_projection_plans;
+pub use crate::value_custody::content_projections::{
+    ContentAlgebraApplication, build_content_projection_plans, content_algebra_application,
+    content_algebra_for_type,
+};
 
 pub use crate::declarations::symbols::TopLevelSymbols;
 pub use crate::value_custody::cleanup::{

@@ -196,7 +196,9 @@ mod multiplication;
 #[cfg(test)]
 mod order_antisymmetry_tests;
 mod order_translation;
+mod source_content;
 mod source_integer;
+pub use source_content::SourceContentTheory;
 mod subtraction;
 pub use source_integer::{SourceIntegerTheory, SourceIntegerVocabulary};
 

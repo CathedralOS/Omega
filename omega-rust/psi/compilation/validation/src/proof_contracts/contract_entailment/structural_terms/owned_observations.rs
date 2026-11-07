@@ -29,7 +29,17 @@ pub(in crate::proof_contracts::contract_entailment) fn owned_projection_observat
     declared: TypeReferenceHandle,
     value: StructuralTerm,
 ) -> StructuralTerm {
-    if shared_inline_observation_type(program, &value)
+    if let Some(algebra) = crate::content_algebra_for_type(program, declared) {
+        if matches!(&value, StructuralTerm::ContentValue { algebra: actual, .. } if actual == &algebra)
+        {
+            value
+        } else {
+            StructuralTerm::ContentValue {
+                algebra,
+                value: Box::new(value),
+            }
+        }
+    } else if shared_inline_observation_type(program, &value)
         .is_some_and(|observed| crate::declared_carriers_match(program, declared, observed))
     {
         value

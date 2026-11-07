@@ -134,6 +134,12 @@ pub(crate) enum StructuralTerm {
         left: Box<StructuralTerm>,
         right: Box<StructuralTerm>,
     },
+    /// A value of the closed canonical content algebra. The source literal
+    /// former's fields are not projections of this mathematical value.
+    ContentValue {
+        algebra: language_semantics::content::ContentAlgebraIdentity,
+        value: Box<StructuralTerm>,
+    },
     Variable(String),
     /// A frame-authenticated observation of an input referent. Scalar reads
     /// retain their declared content authority. A collection additionally keeps
@@ -400,6 +406,10 @@ impl StructuralTerm {
     /// about a completed collection, never the referent's contents.
     pub(super) fn map_children(self, mut map: impl FnMut(Self) -> Self) -> Self {
         match self {
+            StructuralTerm::ContentValue { algebra, value } => StructuralTerm::ContentValue {
+                algebra,
+                value: Box::new(map(*value)),
+            },
             StructuralTerm::Identity {
                 carrier,
                 left,
@@ -3348,6 +3358,7 @@ impl<'program> StructuralJudge<'program> {
                             StructuralTerm::Opaque(format!("{root}.{suffix}"))
                         }
                         StructuralTerm::Identity { .. }
+                        | StructuralTerm::ContentValue { .. }
                         | StructuralTerm::Integer(_)
                         | StructuralTerm::RepeatedArray { .. }
                         | StructuralTerm::Float(_)
