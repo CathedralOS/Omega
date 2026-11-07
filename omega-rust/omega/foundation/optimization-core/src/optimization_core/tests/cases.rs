@@ -7,22 +7,18 @@ use std::collections::BTreeSet;
 #[test]
 fn authoritative_vocabulary_has_contiguous_tags_and_unique_nonempty_names() {
     // The descriptor macro generates both the enum and `ALL`; this test
-    // protects the stable tag sequence and the two generated build views.
+    // protects the stable tag sequence and the generated build view.
     let mut case_names = BTreeSet::new();
-    let mut counter_fields = BTreeSet::new();
     for (index, optimization) in Optimization::ALL.into_iter().enumerate() {
         assert_eq!(usize::from(optimization as u8), index + 1);
         assert!(!optimization.build_case_name().is_empty());
-        assert!(!optimization.build_counter_field().is_empty());
         assert!(case_names.insert(optimization.build_case_name()));
-        assert!(counter_fields.insert(optimization.build_counter_field()));
         assert_eq!(
             Optimization::from_build_case_name(optimization.build_case_name()),
             Some(optimization)
         );
     }
     assert_eq!(case_names.len(), Optimization::ALL.len());
-    assert_eq!(counter_fields.len(), Optimization::ALL.len());
     assert_eq!(
         Optimization::from_build_case_name("CopyPropagationV2"),
         None

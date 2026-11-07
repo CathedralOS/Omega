@@ -11,14 +11,16 @@ pub(super) fn zero_build_field(
             "optimizations".to_owned(),
             BuildTimeValue::Struct {
                 type_name: "Optimizations".to_owned(),
-                fields: std::iter::once(("human_report".to_owned(), BuildTimeValue::Int(0)))
-                    .chain(Optimization::ALL.into_iter().map(|optimization| {
-                        (
-                            optimization.build_counter_field().to_owned(),
-                            BuildTimeValue::Int(0),
-                        )
-                    }))
-                    .collect(),
+                fields: vec![
+                    ("human_report".to_owned(), BuildTimeValue::Int(0)),
+                    (
+                        "selected".to_owned(),
+                        BuildTimeValue::Array(vec![
+                            BuildTimeValue::Int(0);
+                            Optimization::ALL.len()
+                        ]),
+                    ),
+                ],
             },
         )
     })
@@ -76,17 +78,27 @@ pub(super) fn extract(
             ));
         }
     };
+    let Some((_, counters)) = fields.iter().find(|(field, _)| field == "selected") else {
+        return Err("Build.optimizations carries no `selected` counter array".to_owned());
+    };
+    let BuildTimeValue::Array(counters) = counters else {
+        return Err(format!(
+            "Build.optimizations.selected is not a counter array: {counters:?}"
+        ));
+    };
+    if counters.len() != Optimization::ALL.len() {
+        return Err(format!(
+            "Build.optimizations.selected has {} counters, expected {}",
+            counters.len(),
+            Optimization::ALL.len()
+        ));
+    }
     let mut selected = Vec::new();
-    for optimization in Optimization::ALL {
-        let name = optimization.build_counter_field();
-        let Some((_, value)) = fields.iter().find(|(field, _)| field == name) else {
-            return Err(format!(
-                "Build.optimizations carries no `{name}` selection counter"
-            ));
-        };
+    for (optimization, value) in Optimization::ALL.into_iter().zip(counters) {
+        let name = optimization.build_case_name();
         let BuildTimeValue::Int(count) = value else {
             return Err(format!(
-                "Build.optimizations.{name} is not an integer selection counter: {value:?}"
+                "Build.optimizations.selected counter for `{name}` is not an integer: {value:?}"
             ));
         };
         match *count {
@@ -100,7 +112,7 @@ pub(super) fn extract(
             }
             count => {
                 return Err(format!(
-                    "Build.optimizations.{name} has invalid negative selection count {count}"
+                    "Build.optimizations.selected counter for `{name}` has invalid negative count {count}"
                 ));
             }
         }
