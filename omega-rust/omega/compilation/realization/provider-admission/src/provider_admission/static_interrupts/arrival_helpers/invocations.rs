@@ -67,7 +67,6 @@ impl<'a> Calls<'a> {
                         OperationKind::BoundaryCall {
                             boundary,
                             structural_arguments,
-                            crash_continuations,
                             ..
                         } => {
                             // Core arrival operations have their own token
@@ -78,7 +77,14 @@ impl<'a> Calls<'a> {
                             (
                                 graph.boundary_callee(*boundary)?.into_iter().collect(),
                                 structural_arguments.as_slice(),
-                                crash_continuations.is_empty(),
+                                // BoundaryCall retains advertised outcomes
+                                // on its exact declaration, not as a local
+                                // crash-continuation operand.
+                                module
+                                    .boundary_machine(*boundary)
+                                    .ok_or("arrival boundary invocation lost its declaration")?
+                                    .crash_routes
+                                    .is_empty(),
                             )
                         }
                         OperationKind::CallDynamic {
