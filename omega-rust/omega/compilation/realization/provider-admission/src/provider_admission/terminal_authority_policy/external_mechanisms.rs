@@ -1,6 +1,20 @@
-//! Checked direct-syscall argument-contract identity.
+/*
+Canonical mechanism identities for normalized-foreign imports and direct syscalls.
 
-use crate::digest_encoder::DomainDigestEncoder;
+`normalized_foreign_terminal_mechanism` and
+`normalized_foreign_terminal_mechanism_with_callback_materializations`
+reconstruct the normalized-foreign role from the retained locator and canonical
+admitted boundary entry plan, rejecting any plan whose revalidation rewrites the
+entry plan.
+
+`conservative_syscall_terminal_mechanism` derives the conservative checked
+syscall argument contract from one verified target-neutral boundary signature on
+Linux x86-64/ARM64, committing the complete parameter carrier and access
+contract while rejecting boundary structural-domain requirements or
+qualifications.
+*/
+
+use calling_conventions::{BoundaryEntryPlan, CallSignature};
 use effects::{
     CheckedSyscallArgumentContractIdentity, SyscallTerminalMechanismIdentity,
     TerminalMechanismIdentity,
@@ -8,21 +22,91 @@ use effects::{
 use semantic_vocabulary::{IeeeFloatFormat, IntegerCarrier, IntegerSign, ScalarType};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
+use crate::digest_encoder::DomainDigestEncoder;
+
 const CONSERVATIVE_ARGUMENT_CONTRACT_DOMAIN: &[u8] =
     b"omega.checked-syscall-argument-contract.conservative-unqualified.v2\0";
 
-/// Derive the first checked syscall argument contract from one verified
-/// target-neutral boundary signature.
-///
-/// This rung is deliberately conservative: it commits the complete admitted
-/// parameter carrier/access contract but treats every runtime value within
-/// that contract as reachable. Structural-domain commitments, constants,
-/// ranges, descriptor provenance, and other narrowing proofs require later
-/// distinct identities.
-///
-/// Receiving consumers may use this key to supply an independent classification.
-/// Derivation grants neither a classification nor service permission, provider
-/// admission, or executable authority.
+pub(crate) fn normalized_foreign_terminal_mechanism(
+    locator: &target::NormalizedForeignLocator,
+    boundary_entry_plan: &BoundaryEntryPlan,
+) -> Result<TerminalMechanismIdentity, String> {
+    let signature = entry_call_signature(boundary_entry_plan);
+    let validated =
+        calling_conventions::validate_boundary_entry_plan(boundary_entry_plan.clone(), &signature)
+            .map_err(|diagnostic| diagnostic.to_string())?;
+    require_canonical_plan(
+        &validated,
+        boundary_entry_plan,
+        "normalized foreign boundary plan is not canonical",
+    )?;
+    Ok(
+        effects::NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(
+            locator,
+            effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+                validated.contract_commitment_digest(),
+            ),
+        )
+        .into(),
+    )
+}
+
+pub(crate) fn normalized_foreign_terminal_mechanism_with_callback_materializations(
+    locator: &target::NormalizedForeignLocator,
+    boundary_entry_plan: &BoundaryEntryPlan,
+    context: &calling_conventions::CallbackMaterializationContext,
+) -> Result<TerminalMechanismIdentity, String> {
+    let signature = entry_call_signature(boundary_entry_plan);
+    let validated =
+        calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+            boundary_entry_plan.clone(),
+            &signature,
+            context,
+        )
+        .map_err(|diagnostic| diagnostic.to_string())?;
+    require_canonical_plan(
+        &validated,
+        boundary_entry_plan,
+        "normalized foreign callback boundary plan is not canonical",
+    )?;
+    Ok(
+        effects::NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(
+            locator,
+            effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+                validated.contract_commitment_digest(),
+            ),
+        )
+        .into(),
+    )
+}
+
+fn entry_call_signature(boundary_entry_plan: &BoundaryEntryPlan) -> CallSignature {
+    CallSignature {
+        parameters: boundary_entry_plan
+            .call
+            .parameters
+            .iter()
+            .map(|placement| placement.shape)
+            .collect(),
+        result: boundary_entry_plan
+            .call
+            .result
+            .as_ref()
+            .map(|placement| placement.shape),
+    }
+}
+
+fn require_canonical_plan(
+    validated: &calling_conventions::ValidatedBoundaryEntryPlan,
+    boundary_entry_plan: &BoundaryEntryPlan,
+    reason: &str,
+) -> Result<(), String> {
+    if validated.plan() != boundary_entry_plan {
+        return Err(reason.to_owned());
+    }
+    Ok(())
+}
+
 pub(crate) fn conservative_syscall_terminal_mechanism(
     target: target::TargetProfile,
     number: i64,

@@ -1,12 +1,99 @@
-//! Retain the selected handler ABI independently of emitted entry metadata.
-//! Both foreign registrations and installed arrivals use the same exact body,
-//! Calling selection and nominal-formal join before receiving this receipt.
-use super::{AdmittedCallbackEntry, NativeRealizationInput, ProviderAdmissionRequest};
+// Callback argument projection and inbound handler entry ABI admission.
+//
+// `project_native_callback_arguments` projects callback arguments in occurrence
+// order from retained placements without validating the thunk body or replacing
+// the target lowerer's independent application replay. `PreparedEntries` and
+// `admit_entries` retain the selected handler ABI independently of emitted
+// entry metadata so both foreign registrations and installed arrivals use the
+// same exact body, Calling selection, and nominal-formal join before receiving
+// an `AdmittedCallbackEntry`.
+
+use super::{
+    AdmittedCallbackEntry, AdmittedNativeCallbackArgument, NativeRealizationInput,
+    ProviderAdmissionRequest,
+};
 use backend_plan::TerminalCallbackOccurrenceProposal;
 use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};
+use diagnostics::Diagnostic;
 use semantic_vocabulary::{BoundaryMachineId, IdTable, MachineId};
 use std::collections::BTreeMap;
 use terminal_psi::{TerminalCallbackApplication, TerminalMachine};
+
+pub fn project_native_callback_arguments(
+    placements: &[backend_plan::NativeCallbackPlacement],
+    occurrences: &[backend_plan::TerminalCallbackOccurrenceProposal],
+) -> Result<Option<Vec<crate::NativeCallbackArgumentProposal>>, Vec<Diagnostic>> {
+    let mut admitted = Vec::with_capacity(occurrences.len());
+    let mut admitted_placements = std::collections::BTreeSet::new();
+    for occurrence in occurrences {
+        if !admitted_placements.insert(occurrence.placement_index()) {
+            return Err(callback_error(
+                "two callback occurrences share one retained placement",
+            ));
+        }
+        let placement = placements
+            .get(occurrence.placement_index())
+            .ok_or_else(|| {
+                callback_error("callback occurrence names an absent retained placement")
+            })?;
+        let Some(materialization) = placement.private_materialization.as_ref() else {
+            return Ok(None);
+        };
+        let application = materialization.destination_application.application();
+        admitted.push(crate::NativeCallbackArgumentProposal {
+            registrar_invokes_callback: materialization.registrar_invokes_callback,
+            terminal_operation: occurrence.terminal_operation(),
+            placement_index: occurrence.placement_index(),
+            callback_function: occurrence.callback_thunk_identity(),
+            destination: materialization.destination.clone(),
+            field_placements: materialization
+                .destination_application
+                .placements()
+                .cloned(),
+            application: application.clone(),
+            registrar_boundary_entry_plan: materialization.registrar_boundary_entry_plan.clone(),
+            registrar_context: materialization.context.clone(),
+            registrar_application_commitment: materialization.registrar_application_commitment,
+            registrar_application: materialization.registrar_application.clone(),
+            binder: materialization.binder,
+        });
+    }
+    Ok(Some(admitted))
+}
+
+fn callback_error(message: impl std::fmt::Display) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(format!(
+        "Terminal callback custody: {message}"
+    ))]
+}
+
+pub(super) fn admit_entries(
+    input: &NativeRealizationInput<'_>,
+    request: &ProviderAdmissionRequest<'_, '_>,
+    entries: &PreparedEntries<'_>,
+) -> Result<Vec<AdmittedNativeCallbackArgument>, String> {
+    request
+        .native_callbacks
+        .iter()
+        .map(|proposal| {
+            let occurrence = entries.occurrence(proposal.placement_index)?;
+            if occurrence.terminal_operation() != proposal.terminal_operation
+                || occurrence.callback_thunk_identity() != proposal.callback_function
+            {
+                return Err("callback argument changed its original entry occurrence".into());
+            }
+            let callback = input
+                .module()
+                .callback_application(occurrence.application_index())
+                .ok_or("callback entry lost its checked application")?;
+            let entry = entries.admit(callback, occurrence)?;
+            Ok(AdmittedNativeCallbackArgument::admit(
+                proposal.clone(),
+                entry,
+            ))
+        })
+        .collect()
+}
 
 pub(super) struct PreparedEntries<'a> {
     input: &'a NativeRealizationInput<'a>,
@@ -18,6 +105,7 @@ pub(super) struct PreparedEntries<'a> {
         &'a BoundaryCallingApplication,
     >,
 }
+
 impl<'a> PreparedEntries<'a> {
     pub(super) fn new(
         input: &'a NativeRealizationInput<'a>,
@@ -97,6 +185,7 @@ impl<'a> PreparedEntries<'a> {
             calling,
         })
     }
+
     pub(super) fn occurrence(
         &self,
         placement: usize,
@@ -107,6 +196,7 @@ impl<'a> PreparedEntries<'a> {
             .map(|i| self.occurrences[i].1)
             .ok_or("entry has no independently retained callback occurrence".into())
     }
+
     pub(super) fn selected(
         &self,
         boundary: BoundaryMachineId,
@@ -124,6 +214,7 @@ impl<'a> PreparedEntries<'a> {
         }
         Ok(row)
     }
+
     pub(super) fn admit(
         &self,
         callback: &TerminalCallbackApplication,
