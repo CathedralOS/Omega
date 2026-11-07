@@ -27,6 +27,7 @@ mod match_captures;
 mod match_composition;
 mod nominal_values;
 mod operand_types;
+mod operation_requests;
 mod owned_arguments;
 mod placement_results;
 
@@ -230,6 +231,7 @@ enum ValueDelivery {
 struct OperationObservations<'query> {
     stop: ObservationStop,
     expressions: &'query [ExpressionHandle],
+    operation_index: Option<&'query operation_requests::OperationRequests>,
     operands: OperationOperandDemand<'query>,
     values: &'query [ExpressionHandle],
     roots: &'query [ExpressionHandle],
@@ -244,6 +246,7 @@ impl<'query> OperationObservations<'query> {
         OperationObservations {
             stop: ObservationStop::None,
             expressions,
+            operation_index: None,
             operands: OperationOperandDemand::All,
             values,
             roots: &[],
@@ -257,6 +260,21 @@ impl<'query> OperationObservations<'query> {
         }
     }
 
+    fn with_operation_index(
+        mut self,
+        index: &'query operation_requests::OperationRequests,
+    ) -> Self {
+        self.operation_index = Some(index);
+        self
+    }
+
+    fn observes_operation(self, expression: ExpressionHandle) -> bool {
+        self.operation_index.map_or_else(
+            || self.expressions.contains(&expression),
+            |index| index.contains(expression),
+        )
+    }
+
     fn with_roots(mut self, roots: &'query [ExpressionHandle]) -> Self {
         self.roots = roots;
         self
@@ -266,6 +284,7 @@ impl<'query> OperationObservations<'query> {
         Self {
             stop: ObservationStop::None,
             expressions: &[],
+            operation_index: None,
             operands: OperationOperandDemand::All,
             values: &[],
             roots: &[],
@@ -657,6 +676,7 @@ impl<'program> StructuralJudge<'program> {
                 OperationObservations {
                     stop: ObservationStop::BeforeOperation(call),
                     expressions: &[],
+                    operation_index: None,
                     operands: operand_demand,
                     values: &[],
                     roots: &[],
@@ -703,6 +723,7 @@ impl<'program> StructuralJudge<'program> {
             OperationObservations {
                 stop: ObservationStop::BeforeExpression(expression),
                 expressions: &[],
+                operation_index: None,
                 operands: OperationOperandDemand::Selected(&[]),
                 values: &[],
                 roots: &[],
@@ -739,6 +760,7 @@ impl<'program> StructuralJudge<'program> {
             OperationObservations {
                 stop: ObservationStop::AfterValue(expression),
                 expressions: &[],
+                operation_index: None,
                 operands: OperationOperandDemand::All,
                 values: &[],
                 roots: &[],
@@ -776,6 +798,7 @@ impl<'program> StructuralJudge<'program> {
             OperationObservations {
                 stop: ObservationStop::AfterValue(expression),
                 expressions: &[],
+                operation_index: None,
                 operands: OperationOperandDemand::All,
                 values: &[],
                 roots: &[],
@@ -818,13 +841,17 @@ impl<'program> StructuralJudge<'program> {
             .iter()
             .map(|operand| operand.expression)
             .collect::<Vec<_>>();
+        let operation_index =
+            operation_requests::OperationRequests::prepare(self.program, &roots, operations);
         let mut entries = NormalObservationEntries::default();
         let completed = self.clone().evaluate_normal_operands(
             &operands,
             environment,
             scope,
             0,
-            OperationObservations::completion(observations, operations).with_roots(&roots),
+            OperationObservations::completion(observations, operations)
+                .with_operation_index(&operation_index)
+                .with_roots(&roots),
             &mut entries,
             None,
         );
@@ -1551,7 +1578,7 @@ impl<'program> StructuralJudge<'program> {
             NormalValueDemand::Observe(observations)
                 if !before_operation
                     && (observations.contains(&expression)
-                        || requested_operations.expressions.contains(&expression)
+                        || requested_operations.observes_operation(expression)
                         || !discarded_value_has_no_own_effects(program, scope, expression)) =>
             {
                 NormalValueDemand::Value
@@ -1593,10 +1620,18 @@ impl<'program> StructuralJudge<'program> {
         let contains_observation =
             |observed| crate::expression_owners::expression_contains(program, expression, observed);
         let observes_inner_operation = || {
-            requested_operations
-                .expressions
+            requested_operations.operation_index.map_or_else(
+                || {
+                    requested_operations
+                        .expressions
+                        .iter()
+                        .copied()
+                        .any(contains_observation)
+                },
+                |index| index.contains_in_subtree(expression),
+            ) || requested_operations
+                .values
                 .iter()
-                .chain(requested_operations.values)
                 .copied()
                 .any(contains_observation)
                 || match requested_operations.stop {
@@ -1799,7 +1834,7 @@ impl<'program> StructuralJudge<'program> {
             .map(|(child, child_reference)| {
                 let entry_values_requested = before_operation
                     || matches!(demand, NormalValueDemand::ObserveOnly(_))
-                        && requested_operations.expressions.contains(&expression);
+                        && requested_operations.observes_operation(expression);
                 let operand_demand = if entry_values_requested {
                     match requested_operations.operands {
                         OperationOperandDemand::All => NormalValueDemand::Value,
@@ -1916,7 +1951,7 @@ impl<'program> StructuralJudge<'program> {
                     None
                 };
                 if requested_operations.stop == ObservationStop::BeforeOperation(expression)
-                    || requested_operations.expressions.contains(&expression)
+                    || requested_operations.observes_operation(expression)
                     || matches!(demand, NormalValueDemand::ObserveOnly(_))
                 {
                     entries.operations.push(NormalOperationEntry {
