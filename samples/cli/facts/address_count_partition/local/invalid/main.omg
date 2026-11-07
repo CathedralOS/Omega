@@ -16,8 +16,11 @@ satisfies Content<Region, IntervalSet<Nat>>::project {
 data Pieces { left: Region in Owned; right: Region in Owned; }
 machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
 requires embed(whole.base) + embed(whole.length) <= embed(ceiling)
-ensures Owned::content(old(&whole)) == separate(
-    Owned::content(&result.right), Owned::content(&result.left))
+ensures core::Identity<IntervalSet<Nat>>(
+    Owned::content(old(&whole)),
+    separate(
+        Owned::content(&result.right), Owned::content(&result.left))
+)
 {
     let mut unrelated: u64 = 1;
     unrelated = 2;

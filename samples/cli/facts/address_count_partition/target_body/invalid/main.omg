@@ -36,12 +36,18 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedSplit {
     machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures Owned::content(old(&whole)) == separate( Owned::content(&result.right), Owned::content(&result.left));
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures core::Identity<IntervalSet<Nat>>(
+            Owned::content(old(&whole)),
+            separate( Owned::content(&result.right), Owned::content(&result.left))
+        );
 }
 
 X86Split satisfies SelectedSplit {
     machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures Owned::content(old(&whole)) == separate( Owned::content(&result.right), Owned::content(&result.left))
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures core::Identity<IntervalSet<Nat>>(
+            Owned::content(old(&whole)),
+            separate( Owned::content(&result.right), Owned::content(&result.left))
+        )
     {
         SelectedBodyCheck::require_tag(17u64);
         let left: Region in Owned = Region { base: whole.base, length: length };
@@ -53,7 +59,10 @@ X86Split satisfies SelectedSplit {
 
 ArmSplit satisfies SelectedSplit {
     machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures Owned::content(old(&whole)) == separate( Owned::content(&result.right), Owned::content(&result.left))
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures core::Identity<IntervalSet<Nat>>(
+            Owned::content(old(&whole)),
+            separate( Owned::content(&result.right), Owned::content(&result.left))
+        )
     {
         SelectedBodyCheck::require_tag(29u64);
         let left: Region in Owned = Region { base: whole.base, length: length };

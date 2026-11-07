@@ -1,9 +1,21 @@
 # Address/count interval partition
 
+Current owning task: **PROOF-KERNEL-CORE**.
+
 The fact is that an address base and a count length partition into disjoint
 intervals with exactly the original content. The operation is a checked split,
 with the requested count bounded by the input length and the input endpoint
 bounded by a separately formed address ceiling. No host address width is assumed.
+
+The complete content equations now state
+`core::Identity<IntervalSet<Nat>>` over canonical interval-set elements. Their
+projection, entry/current places and separation operand order are unchanged;
+the numeric bounds and runtime comparisons keep their original meaning.
+This source checkpoint supplies preservation audits only. Integrated optimized
+proof/native validation and the original exact-arithmetic refusals remain
+required, followed by clean fixture recording. Older measurements below belong
+to their recorded legacy source revisions and do not qualify this migrated
+source.
 
 Every place performs the same operation: split a `Region { base: 10, length: 80 }`
 at a requested count of `20` under an address `ceiling` of `100`, verify that the
@@ -28,8 +40,8 @@ changes.
 
 Each positive place and the root `main.omg` binds `ProgramEntry` for all four
 hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`),
-declares `Expected exit: 0`, and passes `omega run --both` — Terminal Psi and
-native execution agreeing:
+declares `Expected exit: 0`, and must pass `omega run --both` with Terminal Psi
+and native execution agreeing:
 
 ```sh
 omega run --both samples/cli/facts/address_count_partition/main.omg
@@ -44,7 +56,7 @@ omega run --both samples/cli/facts/address_count_partition/other_machine/main.om
 omega run --both samples/cli/facts/address_count_partition/target_body/main.omg
 ```
 
-### The oracle discriminates
+### Historical oracle checks
 
 Discrimination was verified with two independent probes:
 1. Corrupting the requested partition count (`20` -> `25`, so the left piece is no longer `{base: 10, length: 20}`) branches to `bad()`, producing `native signal 5` together with `interp crash: Trap` (host presentation agrees).
