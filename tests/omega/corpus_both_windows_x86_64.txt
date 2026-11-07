@@ -4797,7 +4797,7 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit built 62135
 pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit built 133925ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit built 182201ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/typed_run_singleton built 32458ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @9a26074461a7
-pass/facts/typed_run_singleton_rejection built 24906ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @9a26074461a7
+pass/facts/typed_run_singleton_rejection built 19762ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @600199213086
 pass/facts/unannotated_direct_boundary_call_through_call_result_exit built 2041ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/unannotated_direct_boundary_call_through_const_name_exit built 1931ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/unannotated_direct_boundary_call_through_field_exit built 1796ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
