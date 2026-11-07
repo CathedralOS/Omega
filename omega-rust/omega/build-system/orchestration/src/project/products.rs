@@ -1,4 +1,4 @@
-//! Translate project product demands into package or standalone facade requests.
+// Route a `BuildRequest` to package-batch compilation (`project_compilation::compile_returned`) when `build.omg` is present, or to standalone single-source (`produce_source` for `Inspection`) / multi-target (`compile_sources`) compilation when compiling a standalone `.omg` root.
 
 use crate::{BuildError, BuildRequest, BuildTargets, ProjectProduct};
 use compiler::{CompilationOutput, CompileRequest, RequestedCompileProduct};
@@ -110,8 +110,6 @@ impl ProjectProduct {
     }
 }
 
-/// Standalone check/Terminal/native reports use the batch compiler facade. Inspection
-/// has a different terminal product, selected above rather than flattened here.
 fn compile_standalone_reports(
     request: &BuildRequest,
     directory: &Path,

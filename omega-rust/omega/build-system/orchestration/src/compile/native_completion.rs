@@ -1,9 +1,32 @@
-//! Complete source-free native products under the application's evaluator sponsor.
-//!
-//! Compiler admission has already fixed the Terminal product, policy, component
-//! joins and report settlement. This owner drives the native facade and completes
-//! its scalar demand; neither the source compiler nor native stages run an
-//! interpreter callback. Every failure retains the attempted evaluation ledger.
+/*
+
+Complete post-Terminal native products and scalar constant demands (`complete_product`, `complete_products`).
+
+By the time a product reaches this module, the source compiler has already fixed
+the Terminal Psi artifact, package authority policy, independent-component joins,
+and report settlement inside a `PendingNativeProduct`:
+1. Native preparation lowers the Terminal Psi module and surfaces any
+   compile-time scalar constant demands.
+2. We evaluate each scalar demand through
+   `build_settings::scalar_completion` (charging the settlement's
+   `source_completion_accounting_mut` budget) and feed the result back into the
+   demand slot so neither `compiler` nor `native_compiler` embeds an interpreter
+   callback.
+3. For `NativeImageDemand::Emit`, the native backend emits the executable image
+   and attaches its runtime provisions to the settlement. For
+   `NativeImageDemand::RuntimeAdmissionOnly` (`omega run --engine terminal`),
+   runtime admission is validated without emitting machine code before settling
+   the report.
+4. Any failure wraps the diagnostics together with the attempted evaluation
+   accounting (`CompilationProductError::ProductionAttempt`) so resource-bound
+   (`Incomplete`) refusals are preserved.
+
+Non-native `CompilationOutput` variants (`Report`, `Inspection`, etc.) are
+already complete and pass through `complete_product` and `complete_products`
+unchanged. When multiple native targets are present, `complete_products` drains
+them across bounded compiler-stack workers via `queue::execute`.
+
+*/
 
 mod queue;
 
@@ -11,21 +34,15 @@ use compilation_products::PendingNativeProduct;
 use compiler::{CompilationOutput, CompilationProductError};
 use diagnostics::Diagnostic;
 
-/// Complete the application-owned work of a compiler product. Non-native stops
-/// are already complete and never acquire native obligations or execution.
 pub fn complete_product(
     product: CompilationOutput,
 ) -> Result<CompilationOutput, CompilationProductError> {
     let CompilationOutput::Native(product) = product else {
         return Ok(product);
     };
-    // Direct product consumers need the same stack as the enclosing batch
-    // entrances. Nested completion reuses their existing compiler worker.
     compiler::checked::run_on_compile_thread(|| complete_native(*product))
 }
 
-/// Source admission has finished for the roster. Only owned native products
-/// enter workers; every owner remains attached to its complete result.
 pub(crate) fn complete_products<Owner: Send>(
     products: Vec<(Owner, Result<CompilationOutput, CompilationProductError>)>,
 ) -> Vec<(Owner, Result<CompilationOutput, CompilationProductError>)> {
@@ -47,8 +64,6 @@ pub(crate) fn complete_products<Owner: Send>(
     completed.into_iter().map(|(_, product)| product).collect()
 }
 
-/// Native production ends in an image, or, for Terminal-only execution, in
-/// the runtime provisions admitted for the retained Terminal artifact.
 enum NativeStop {
     Image(native_compiler::RealizedNativeProduct),
     RuntimeAdmission(Option<compilation_products::TerminalRuntimeProvisions>),

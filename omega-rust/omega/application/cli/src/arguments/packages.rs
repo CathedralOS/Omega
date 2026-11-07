@@ -1,3 +1,5 @@
+// Parse arguments for `omega install` and `omega update`, including `--resume`, `--discard-review`, and `--dangerously-accept-all`.
+
 use super::{parse_build_input, take_text, take_value};
 use package_compilation::BuildSourceCaptureRequest;
 use package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions};
