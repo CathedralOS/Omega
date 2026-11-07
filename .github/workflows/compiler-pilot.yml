@@ -191,6 +191,7 @@ jobs:
       - name: Optional executable observations
         if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
         env:
+          OMEGA_COMPILER_TRACE_COMPLETION: '*'
           OMEGA_CORPUS_SHOW_STREAMS: '1'
           OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
