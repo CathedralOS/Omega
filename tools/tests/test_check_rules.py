@@ -602,6 +602,20 @@ class ChecklistRefusalTests(unittest.TestCase):
         self.assertEqual(diagnostic_fragments("alpha\n\nbeta\n"),
                          diagnostic_fragments("  beta  \nalpha\n"))
 
+    def test_retired_integer_argument_format_keeps_the_same_refusal(self):
+        old = "expects `&Frame<Payload, Storage<const 8>>`\ndelivered as `Storage<Marker>`\n"
+        new = old.replace("const 8", "8")
+        self.assertEqual(expected_pin_violations(
+            [("M", self.OLD)], lambda path: old, lambda path: new), [])
+        for changed in (new.replace("Storage<8>", "Storage<9>"),
+                        new.replace("Payload", "Other"),
+                        new.replace("&Frame", "&mut Frame"),
+                        new.replace("delivered as `Storage<Marker>`\n", ""),
+                        "unrelated name lookup error\n"):
+            with self.subTest(changed=changed):
+                self.assertTrue(expected_pin_violations(
+                    [("M", self.OLD)], lambda path: old, lambda path: changed))
+
     def test_a_new_expected_file_and_other_oracles_are_allowed(self):
         changes = [
             ("A", "tests/omega/fail/text/fresh_refusal/expected.txt"),
