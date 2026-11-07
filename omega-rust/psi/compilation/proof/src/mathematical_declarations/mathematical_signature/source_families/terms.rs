@@ -6,6 +6,23 @@
 //! and child-index functions are closed over that ordered source telescope,
 //! so moving them under tag/payload eliminators cannot capture a source name.
 //! Finite child positions use the profile's boxed strict empty/unit types.
+//!
+//! To combine payloads at different levels, let A : Type u and define
+//! P(A) = (a : A) -> squash(Id A a a) : Strict u. Its canonical proof is
+//! a -> sq(refl A a), so U(A) = Box P(A) : Type u is inhabited even when
+//! A is empty. Box elimination reduces identity with the canonical box to
+//! equality of strict proofs, which holds by strict proof irrelevance.
+//! Thus x -> (canonical, x) and second projection preserve a payload in
+//! Sigma(_: U(A)). B : Type max(u, v), for B : Type v. The reverse composite
+//! is propositionally equal by this contraction; no conversion rule changes.
+//!
+//! For a multi-case family, A is one shared product of its complete unpadded
+//! branch types, closed over the common source telescope. Its level is exactly
+//! their maximum, including case constraints, without assuming any branch is
+//! inhabited. One U(A) component raises each branch to that same level. Common
+//! fields and indices keep their separately inferred levels. Single-case data
+//! needs no padding. A Type0 Box or data with an unused high-level parameter
+//! therefore stays Type0.
 
 #[cfg(test)]
 use super::parameter_closure::{abstract_parameters, excludes_parameters};

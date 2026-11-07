@@ -35,7 +35,7 @@ pub(super) fn produce(
     for carrier in facts
         .source_evidence_carriers
         .iter()
-        .filter(|carrier| (carrier.domains.is_empty() && carrier.level_arity == 0))
+        .filter(|carrier| carrier.domains.is_empty() && carrier.level_arity == 0)
     {
         let identity = program
             .type_identity_text(carrier.type_identity)
