@@ -16,8 +16,9 @@ requires 0 <= index && index <= 511 {
 }
 
 machine customer_word(word: u64) -> bool {
-    let step: helpers::X86BootstrapPageTableWalkStep = PageTableBuilder::step(0u64, 0u64, word);
-    step.entry.physical_address == (word & 0x000FFFFFFFFFF000u64) &&
+    let step: helpers::X86BootstrapPageTableWalkStep = PageTableBuilder::step(0x12345000u64, 7u64, word);
+    step.table_address == 0x12345000u64 && step.index == 7u64 &&
+        step.entry_address == 0x12345038u64 && step.entry.physical_address == (word & 0x000FFFFFFFFFF000u64) &&
         helpers::x86_encode_page_table_entry(&step.entry.entry) == word
 }
 
