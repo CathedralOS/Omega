@@ -1,17 +1,35 @@
-//! Plan a requested stop and prepare its admitted Terminal product.
-//!
-//! The compiler owns batch ordering and shared Terminal production. This owner
-//! finishes non-native stops and transfers native work, without checked source,
-//! to application Build. Permission and trust admission stay after selected
-//! execution installation; planning is not authority to execute or publish.
+/*
+We plan each requested compilation stop (`Check`, `Terminal`, `Native`,
+`Inspection`, or `Component`) and finish its admitted Terminal Psi product.
 
-mod checking;
+The compiler owns batch ordering and shared Terminal production; this module
+finishes non-native stops directly and packages native work into a source-free
+`PendingNativeProduct` for application Build completion. Permission and trust
+admission run after selected execution settlement, ensuring that planning alone
+never grants authority to execute or publish.
+*/
+
+/*
+When a non-executing `Check` request still owes scalar proof conditions
+(`has_proof_obligations`), `CheckingCompilation` joins the shared portable
+Terminal batch under `TerminalProductUse::Declarations` to evaluate target-local
+scalar conditions and task activations without requiring a `ProgramEntry` or
+native permissions.
+
+When a native or component product is requested, we project and validate the
+checked package's accepted Terminal authority permission rows
+(`accepted_terminal_authority_permission_policy`) and optionally capture
+deterministic native derivation inputs before preparing the source-free
+`RetainedTerminalArtifact`.
+*/
+
 mod component;
 mod inspection;
-mod native_inputs;
 
 use crate::execution_settlement::SelectedProductTarget;
-use crate::terminal::{TerminalProductRequest, TerminalProductionView};
+use crate::terminal::{
+    ProducedTerminalProduct, TerminalProductRequest, TerminalProductUse, TerminalProductionView,
+};
 use crate::{CheckedCompilation, CompileReport};
 use compilation_products::{
     CheckedProductReport, NativeProductRequest, ProductReportPlan, ProductReportRequest,
@@ -19,16 +37,15 @@ use compilation_products::{
 use component::ComponentPublication;
 use diagnostics::Diagnostic;
 use native_compiler::TerminalApplication;
+use optimization_core::OptimizationSelections;
 use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use std::path::PathBuf;
 
-/// Native authority belongs only to a native request, never a checking stop.
 #[derive(Clone)]
 pub enum CompilationProduct {
     Check,
     Terminal(crate::OptimizationRollback),
     Native(NativeProductRequest),
-    /// Describe a named checked machine without granting executable authority.
     Inspection(String),
 }
 
@@ -42,8 +59,6 @@ impl CompilationProduct {
     }
 }
 
-/// Source compilation output. Native work transfers to application Build;
-/// checked source and continuation state never cross that boundary.
 pub enum CompilationOutput {
     Native(Box<compilation_products::PendingNativeProduct>),
     Report(CompileReport),
@@ -100,8 +115,6 @@ impl CompilationOutput {
     }
 }
 
-/// Source result in its original requested target position, before application
-/// execution. Failed siblings remain part of the returned roster.
 pub struct TargetProductOutcome {
     pub target: Option<target::TargetProfile>,
     pub result: Result<CompilationOutput, CompilationProductError>,
@@ -146,7 +159,6 @@ impl CompilationProductError {
     }
 }
 
-/// The selection and exact request travel together, including occurrence consent.
 pub(crate) enum ProductRequest {
     Requested {
         realization: SelectedProductTarget,
@@ -154,9 +166,6 @@ pub(crate) enum ProductRequest {
         product: CompilationProduct,
         permissions: Option<TerminalPermissionAcceptance>,
     },
-    /// Review and dependency demands own Psi-checked, target-selected custody.
-    /// Declaration obligations complete against the shared produced artifact,
-    /// before publishing a component description or admitting it to the cache.
     Component {
         checked: CheckedCompilation,
         retain_native_inputs: bool,
@@ -168,12 +177,9 @@ pub(crate) enum CompilationWork {
     Terminal(TerminalCompilation),
 }
 
-/// Only work that actually needs Terminal production enters the shared batch.
-/// The report plan owns the native request and its settled optimization choices;
-/// there is no independent requested-mode/report-mode pair to reconcile later.
 pub(crate) enum TerminalCompilation {
     Requested(RequestedTerminalCompilation),
-    Checking(checking::CheckingCompilation),
+    Checking(CheckingCompilation),
     Component(ComponentPublication),
     Inspection(inspection::InspectionCompilation),
 }
@@ -182,6 +188,83 @@ pub(crate) struct RequestedTerminalCompilation {
     realization: SelectedProductTarget,
     report: ProductReportPlan,
     permissions: Option<TerminalPermissionAcceptance>,
+}
+
+pub(crate) struct CheckingCompilation {
+    realization: SelectedProductTarget,
+    report: ProductReportPlan,
+    permissions: Option<TerminalPermissionAcceptance>,
+    selections: OptimizationSelections,
+}
+
+impl CheckingCompilation {
+    pub(crate) fn new(
+        realization: SelectedProductTarget,
+        report: ProductReportPlan,
+        permissions: Option<TerminalPermissionAcceptance>,
+    ) -> Self {
+        let selections = realization
+            .custody
+            .terminal_publication
+            .optimizations()
+            .clone();
+        Self {
+            realization,
+            report,
+            permissions,
+            selections,
+        }
+    }
+
+    pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
+        TerminalProductRequest {
+            view: TerminalProductionView::selection(&mut self.realization.custody, None),
+            selections: &self.selections,
+            use_kind: TerminalProductUse::Declarations,
+        }
+    }
+
+    pub(crate) fn finish(
+        mut self,
+        produced: ProducedTerminalProduct,
+    ) -> Result<CompilationOutput, CompilationProductError> {
+        let completed = produced
+            .check_conditions(&mut self.realization.custody)
+            .and_then(|()| {
+                self.realization
+                    .check_declaration_requirements(Some(produced.module()))
+            });
+        if let Err(diagnostics) = completed {
+            return Err(CompilationProductError::ProductionAttempt {
+                diagnostics,
+                accounting: std::mem::take(
+                    &mut self.realization.custody.source_completion_accounting,
+                ),
+            });
+        }
+        let runtime_policy = std::sync::Arc::clone(&self.realization.runtime_policy);
+        let checked = self.realization.into_checked_compilation();
+        let accounting = checked.source_completion_accounting().clone();
+        let report = (|| {
+            admit_permissions(&checked, &runtime_policy, self.permissions.as_ref(), false)?;
+            checked
+                .admit_trust()
+                .map_err(CompilationProductError::TrustAdmission)?;
+            match self.report.prepare(&checked)? {
+                CheckedProductReport::Complete(report) => Ok(CompilationOutput::Report(report)),
+                _ => Err(vec![Diagnostic::error(
+                    "declaration checking unexpectedly requested executable production",
+                )]
+                .into()),
+            }
+        })();
+        report.map_err(|error: CompilationProductError| {
+            CompilationProductError::ProductionAttempt {
+                diagnostics: error.into_diagnostics(),
+                accounting,
+            }
+        })
+    }
 }
 
 impl ProductRequest {
@@ -225,7 +308,7 @@ impl ProductRequest {
         } else {
             if realization.custody.execution.has_proof_obligations {
                 return Ok(CompilationWork::Terminal(TerminalCompilation::Checking(
-                    checking::CheckingCompilation::new(realization, report, permissions),
+                    CheckingCompilation::new(realization, report, permissions),
                 )));
             }
             let runtime_policy = std::sync::Arc::clone(&realization.runtime_policy);
@@ -282,7 +365,7 @@ impl RequestedTerminalCompilation {
                     .then_some(&self.realization.independent_components),
             ),
             selections: self.report.optimizations(),
-            use_kind: crate::terminal::TerminalProductUse::Application,
+            use_kind: TerminalProductUse::Application,
         }
     }
 
@@ -298,8 +381,6 @@ impl RequestedTerminalCompilation {
                 .admit_trust()
                 .map_err(CompilationProductError::TrustAdmission)
         })()?;
-        // Product eligibility precedes application completion, as it did before
-        // batching. Both production halves consume the same settled choices.
         let product = self.report.prepare(&checked)?;
         let report = match product {
             CheckedProductReport::Complete(_) => {
@@ -326,11 +407,8 @@ impl RequestedTerminalCompilation {
             } => {
                 let native_request =
                     checked.terminal_native_proposal_request(rollback.effective(), &[])?;
-                // Save inputs while their checked owner is available. Keep
-                // capture failures pending until ordinary preparation succeeds.
                 let captured_inputs = request.retain_native_inputs.then(|| {
-                    let permissions =
-                        native_inputs::accepted_terminal_authority_permission_policy(&checked)?;
+                    let permissions = accepted_terminal_authority_permission_policy(&checked)?;
                     let bytes = native_compiler::retain_native_derivation_inputs(
                         &produced.receipt,
                         produced.physical_entry_adapter,
@@ -347,7 +425,7 @@ impl RequestedTerminalCompilation {
                     Some(captured) => {
                         captured.map(|(bytes, permissions)| (Some(bytes), permissions))
                     }
-                    None => native_inputs::accepted_terminal_authority_permission_policy(&checked)
+                    None => accepted_terminal_authority_permission_policy(&checked)
                         .map(|permissions| (None, permissions)),
                 };
                 let (retained_native_inputs, accepted_package_permissions) =
@@ -375,17 +453,19 @@ impl RequestedTerminalCompilation {
     }
 }
 
+pub(crate) fn accepted_terminal_authority_permission_policy(
+    checked: &CheckedCompilation,
+) -> Result<native_compiler::TerminalAuthorityPermissionPolicy, Vec<Diagnostic>> {
+    let (permissions, permission_identities) = checked.execution().terminal_authority_permissions();
+    native_compiler::admit_package_permissions(permissions, permission_identities)
+}
+
 fn admit_permissions(
     checked: &CheckedCompilation,
     declarations: &package_evidence::permission_acceptance::PreparedRuntimePolicy,
     permissions: Option<&TerminalPermissionAcceptance>,
     runtime_product: bool,
 ) -> Result<(), CompilationProductError> {
-    // A retained lock is compared as historical consent. An activation with no
-    // lock still has to carry the root's Product risk rows, and those rows come
-    // from the Build this compilation already evaluated. Writing `omega.lock`
-    // here would accept one source graph as a side effect and leave every other
-    // place of the same fact without consent.
     let input = package_evidence::permission_acceptance::RuntimePermissionInput::from_compilation(
         declarations,
         checked,

@@ -1,4 +1,8 @@
-//! Exact admission values: semantic subjects, strong digests, and identity comparison.
+// We define `TrustAdmission` and its domain-separated collision-resistant
+// digest (`TrustAdmissionDigest`, domain `omega.trust-admission.v1\0`). The
+// human-readable commitment and subject domain (`provider-plan`,
+// `machine-template`, or `machine-contract`) define admission equality and
+// ordering, whereas compact report fingerprints do not.
 
 use language_semantics::trust_declarations::{
     AcceptedContractDeclaration, AcceptedTemplateDeclaration,
@@ -6,9 +10,6 @@ use language_semantics::trust_declarations::{
 use std::cmp::Ordering;
 use std::fmt;
 
-/// Domain-separated collision-resistant identity of one persisted owner
-/// admission. The human-readable commitment remains part of admission
-/// authority, but compact report coordinates do not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TrustAdmissionDigest([u8; 32]);
 
@@ -63,7 +64,6 @@ fn trust_admission_digest(
     TrustAdmissionDigest(digest.finish())
 }
 
-/// One exact owner-policy admission consumed by compilation.
 #[derive(Debug, Clone)]
 pub struct TrustAdmission {
     commitment: String,

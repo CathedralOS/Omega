@@ -1,8 +1,10 @@
-//! Join prepared declaration facts to exact target and accepted provider custody.
-//!
-//! Source recognizers belong to provider-planning's intrinsic declaration producer.
-//! Numeric meaning remains in Psi's external declarations. Neither preparation
-//! nor a closed catalog identity supplies host execution permission.
+// Join prepared declaration facts to exact target and accepted provider custody.
+// Source recognizers belong to provider-planning's intrinsic declaration producer,
+// and numeric meaning remains in Psi's external declarations; neither preparation
+// nor a closed catalog identity supplies host execution permission.
+// Independent review projects the candidate source and uses the same source-free
+// target join as direct-call completion, while deferred shape failures retain
+// their original target and ownership demand gate.
 
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
@@ -22,8 +24,6 @@ pub enum SelectedCompilerIntrinsicExecutionIdentity {
     Unsupported,
 }
 
-/// Independent review projects the candidate source, then uses the same
-/// source-free target join as direct-call completion.
 pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
     checked: &CheckedTrees,
     numeric: crate::NumericProviderSelection<'_>,
@@ -41,7 +41,6 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
         services: &ServiceDeclarations,
         binding: &'a crate::ResolvedAcceptedSemanticBinding,
     ) -> Result<AcceptedRowBinding<'a>, Diagnostic> {
-        // A full nominal/schema match must still have one Product occurrence.
         services.rejoin(binding.declaration())?;
         Ok(AcceptedRowBinding {
             accepted: binding.accepted(),
@@ -68,8 +67,6 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
     )
 }
 
-/// Project one original declaration while the checked program is available.
-/// Deferred shape failures retain their original target/ownership demand gate.
 pub(crate) fn row_execution_identity(
     checked: &CheckedTrees,
     numeric: crate::NumericProviderSelection<'_>,
