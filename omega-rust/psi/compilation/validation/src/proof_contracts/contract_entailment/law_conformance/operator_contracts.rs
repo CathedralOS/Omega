@@ -14,8 +14,8 @@ use crate::proof_contracts::contract_structure::{callable_binders, generic_binde
 /// contract covers the selected operator contract.
 ///
 /// The first checked-software rung deliberately admits the contract language
-/// that is already load-bearing for boundary operators: equality facts and
-/// exact `&&` conjunctions. Provider `requires` may only repeat requirement
+/// that is already load-bearing for boundary operators: typed identity, type equations, declared Boolean calls,
+/// and exact `&&` conjunctions. Provider `requires` may only repeat requirement
 /// premises (asking less is valid); every required operator `ensures` conjunct
 /// must appear in the provider's proved ensures. Operator parameters are
 /// substituted positionally onto provider parameters, and the reserved

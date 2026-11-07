@@ -8,7 +8,6 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::signature::StateParameter;
 use typed_trees::type_identity::{TypeIdentityRequest, normalized_expression_identity};
-use typed_trees::types::TypeReferenceHandle;
 
 use crate::mathematical_applications::{IdentityApplication, identity_application_at};
 
@@ -17,15 +16,14 @@ pub(crate) struct EqualityConjunct<'scope> {
     owner: SymbolHandle,
     parameters: &'scope [StateParameter],
     expression: ExpressionHandle,
-    subjects: [ExpressionHandle; 2],
     meaning: EqualityMeaning,
 }
 
 #[derive(Clone, Copy)]
 enum EqualityMeaning {
-    Identity(TypeReferenceHandle),
+    Identity(IdentityApplication),
     TypeEquality,
-    Comparison,
+    BooleanPredicate,
 }
 
 impl<'scope> EqualityConjunct<'scope> {
@@ -38,13 +36,10 @@ impl<'scope> EqualityConjunct<'scope> {
     }
 
     pub(crate) fn identity(self) -> Option<IdentityApplication> {
-        let EqualityMeaning::Identity(carrier) = self.meaning else {
+        let EqualityMeaning::Identity(identity) = self.meaning else {
             return None;
         };
-        Some(IdentityApplication {
-            carrier,
-            subjects: self.subjects,
-        })
+        Some(identity)
     }
 }
 
@@ -57,93 +52,48 @@ pub(crate) fn equality_conjunct<'scope>(
     if super::super::structural_terms::is_case_observation(program, expression) {
         return None;
     }
-    if let Ok(identity) = identity_application_at(program, expression) {
-        return Some(EqualityConjunct {
-            owner,
-            parameters,
-            expression,
-            subjects: identity.subjects,
-            meaning: EqualityMeaning::Identity(identity.carrier),
-        });
-    }
-    let (subjects, meaning) = if let Some(binary) = program.expression_table.binary_node(expression)
-    {
+    let meaning = if let Ok(identity) = identity_application_at(program, expression) {
+        EqualityMeaning::Identity(identity)
+    } else if let Some(binary) = program.expression_table.binary_node(expression) {
         if binary.operator != BinaryOperator::Equal {
             return None;
         }
-        let meaning = if program.static_type_predicate_operands(expression).is_some() {
+        if program.static_type_predicate_operands(expression).is_some() {
             EqualityMeaning::TypeEquality
         } else {
             super::super::structural_terms::builtin_identity_operand_references(
                 program, owner, parameters, expression,
             )
-            .map_or(EqualityMeaning::Comparison, |references| {
-                EqualityMeaning::Identity(references[0])
+            .map_or(EqualityMeaning::BooleanPredicate, |references| {
+                EqualityMeaning::Identity(IdentityApplication {
+                    carrier: references[0],
+                    subjects: [binary.left, binary.right],
+                })
             })
-        };
-        ([binary.left, binary.right], meaning)
+        }
     } else {
-        (
-            selected_comparison_subjects(program, owner, expression)?,
-            EqualityMeaning::Comparison,
-        )
+        // Preparation binds selected comparisons to ordinary calls. Their
+        // declared Bool result retains the complete predicate: a namespace,
+        // value receiver, arguments and static/evidence selections keep their
+        // original roles. No comparison spelling or argument layout is needed,
+        // and no Boolean call supplies value identity.
+        program.expression_table.call_node(expression)?;
+        let reference = crate::parameter_expression_result_type_reference(
+            program, owner, parameters, expression,
+        )?;
+        if program.primitive_type_reference(reference)
+            != Some(typed_trees::types::PrimitiveType::Bool)
+        {
+            return None;
+        }
+        EqualityMeaning::BooleanPredicate
     };
     Some(EqualityConjunct {
         owner,
         parameters,
         expression,
-        subjects,
         meaning,
     })
-}
-
-/// Preparation can bind an authored comparison to an ordinary call. Its
-/// selected public declaration, never a callee's displayed name or body,
-/// determines whether it is still a comparison statement.
-fn selected_comparison_subjects(
-    program: &dyn crate::CheckingInput,
-    owner: SymbolHandle,
-    expression: ExpressionHandle,
-) -> Option<[ExpressionHandle; 2]> {
-    use super::super::specification_calls::{SelectedCallContract, selected_call_contract};
-    let call = program.expression_table.call_node(expression)?;
-    let contract = selected_call_contract(program, owner, call)?;
-    let equal = Some(language_core::OperatorSpelling::Equal);
-    let selected = match contract {
-        SelectedCallContract::Signature(signature)
-        | SelectedCallContract::DynamicSlot { signature, .. } => signature.spelling == equal,
-        SelectedCallContract::Operator(operator) => operator.spelling == equal,
-        SelectedCallContract::Concrete(machine, _) => {
-            machine.spelling == equal
-                || program
-                    .machine_trait_conformances(machine)
-                    .iter()
-                    .any(|conformance| {
-                        program
-                            .trait_definition_by_symbol(conformance.symbol)
-                            .and_then(|definition| {
-                                program.trait_machine_signature_by_symbol(
-                                    definition,
-                                    conformance.requirement_symbol,
-                                )
-                            })
-                            .is_some_and(|signature| signature.spelling == equal)
-                    })
-        }
-    };
-    if !selected {
-        return None;
-    }
-    let namespace = !call.receiver.is_valid()
-        || super::super::structural_terms::static_call_receiver(program, owner, call);
-    match (
-        namespace,
-        program.expression_table.expression_handles(call.arguments),
-    ) {
-        (true, [left, right]) => Some([*left, *right]),
-        (false, [right]) => Some([call.receiver, *right]),
-        _ => None,
-    }
 }
 
 /// One declaration reuses graph scratch across all its clause candidates.
@@ -176,8 +126,8 @@ impl SourceCorrespondence {
     ) -> bool {
         match (required.meaning, provided.meaning) {
             (
-                EqualityMeaning::Identity(required_carrier),
-                EqualityMeaning::Identity(provided_carrier),
+                EqualityMeaning::Identity(required_identity),
+                EqualityMeaning::Identity(provided_identity),
             ) => {
                 let carrier = |reference, binders| {
                     program.type_identity(TypeIdentityRequest {
@@ -185,55 +135,56 @@ impl SourceCorrespondence {
                         ..TypeIdentityRequest::ordinary(reference)
                     })
                 };
-                if carrier(required_carrier, required_binders)
-                    != carrier(provided_carrier, provided_binders)
+                if carrier(required_identity.carrier, required_binders)
+                    != carrier(provided_identity.carrier, provided_binders)
                 {
                     return false;
                 }
                 (self.matching_values(
                     program,
                     required.scope(),
-                    required.subjects[0],
+                    required_identity.subjects[0],
                     required_binders,
                     provided.scope(),
-                    provided.subjects[0],
+                    provided_identity.subjects[0],
                     provided_binders,
                 ) && self.matching_values(
                     program,
                     required.scope(),
-                    required.subjects[1],
+                    required_identity.subjects[1],
                     required_binders,
                     provided.scope(),
-                    provided.subjects[1],
+                    provided_identity.subjects[1],
                     provided_binders,
                 )) || (self.matching_values(
                     program,
                     required.scope(),
-                    required.subjects[0],
+                    required_identity.subjects[0],
                     required_binders,
                     provided.scope(),
-                    provided.subjects[1],
+                    provided_identity.subjects[1],
                     provided_binders,
                 ) && self.matching_values(
                     program,
                     required.scope(),
-                    required.subjects[1],
+                    required_identity.subjects[1],
                     required_binders,
                     provided.scope(),
-                    provided.subjects[0],
+                    provided_identity.subjects[0],
                     provided_binders,
                 ))
             }
             (EqualityMeaning::TypeEquality, EqualityMeaning::TypeEquality)
-            | (EqualityMeaning::Comparison, EqualityMeaning::Comparison) => self.matching_values(
-                program,
-                required.scope(),
-                required.expression,
-                required_binders,
-                provided.scope(),
-                provided.expression,
-                provided_binders,
-            ),
+            | (EqualityMeaning::BooleanPredicate, EqualityMeaning::BooleanPredicate) => self
+                .matching_values(
+                    program,
+                    required.scope(),
+                    required.expression,
+                    required_binders,
+                    provided.scope(),
+                    provided.expression,
+                    provided_binders,
+                ),
             _ => false,
         }
     }

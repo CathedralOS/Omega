@@ -10,7 +10,7 @@ use typed_trees::{
         TableCallExpression,
     },
     name::Identifier,
-    types::TypeReferenceNode,
+    types::{TypeReferenceHandle, TypeReferenceNode},
 };
 
 fn matching_equality_conjuncts(
@@ -35,6 +35,7 @@ struct Fixture {
     impostor: SymbolHandle,
     namespace: SymbolHandle,
     entry: SymbolHandle,
+    other_entry: SymbolHandle,
     generic_carrier: TypeReferenceHandle,
     parameters: [StateParameter; 2],
     subjects: [ExpressionHandle; 2],
@@ -72,6 +73,7 @@ impl Fixture {
                 (SymbolKind::Parameter, SymbolNameRef::Static("left")),
                 (SymbolKind::Parameter, SymbolNameRef::Static("right")),
                 (SymbolKind::State, SymbolNameRef::Static("apply")),
+                (SymbolKind::State, SymbolNameRef::Static("other")),
             ],
         );
         let mut program = TypedTrees {
@@ -116,6 +118,7 @@ impl Fixture {
             impostor,
             namespace,
             entry: params.handle_at(2),
+            other_entry: params.handle_at(3),
             generic_carrier,
             parameters,
             subjects,
@@ -124,24 +127,35 @@ impl Fixture {
         }
     }
 
-    fn install_machine(&mut self, result: TypeReferenceHandle) {
+    fn install_machine(&mut self, result: TypeReferenceHandle, borrowed: bool) {
         let mut machine = typed_trees::machine::Machine {
             symbol: self.owner,
             name: Identifier::from("selected"),
-            spelling: Some(language_core::OperatorSpelling::Equal),
             ..Default::default()
         };
-        let mut entry = typed_trees::state::State {
-            symbol: self.entry,
-            name: Identifier::from("apply"),
-            return_type: result,
-            ..Default::default()
-        };
-        for parameter in &self.parameters {
-            self.program
-                .push_state_parameter(&mut entry, parameter.clone());
+        for (symbol, name) in [(self.entry, "apply"), (self.other_entry, "other")] {
+            let mut entry = typed_trees::state::State {
+                symbol,
+                name: Identifier::from(name),
+                return_type: result,
+                ..Default::default()
+            };
+            for parameter in &self.parameters {
+                let mut parameter = parameter.clone();
+                if borrowed {
+                    parameter.type_reference =
+                        self.program
+                            .type_reference_table
+                            .insert(TypeReferenceNode::Reference {
+                                referee: parameter.type_reference,
+                                access: language_core::ReferenceAccess::Shared,
+                                lifetime: None,
+                            });
+                }
+                self.program.push_state_parameter(&mut entry, parameter);
+            }
+            self.program.push_machine_state(&mut machine, entry);
         }
-        self.program.push_machine_state(&mut machine, entry);
         self.program.push_machine(machine);
     }
 
@@ -388,7 +402,7 @@ fn identity_law_matching_preserves_distinct_parameter_roles() {
 #[test]
 fn comparison_namespace_keeps_both_explicit_borrowed_operands() {
     let mut f = Fixture::new(BuiltinTypeAtom::U64, BuiltinTypeAtom::U16);
-    f.install_machine(f.boolean_carrier);
+    f.install_machine(f.boolean_carrier, true);
     let receiver = f
         .program
         .expression_table
@@ -420,13 +434,30 @@ fn comparison_namespace_keeps_both_explicit_borrowed_operands() {
     call.arguments = arguments;
     let comparison = f.read(expression).unwrap();
     assert!(comparison.identity().is_none());
-    assert_eq!(comparison.subjects, borrowed);
-    // A value receiver cannot masquerade as the selected declaration namespace.
-    let ExpressionNode::Call(call) = f.program.expression_table.expression_mut(expression) else {
-        unreachable!()
-    };
-    call.receiver = f.subjects[0];
-    assert!(f.read(expression).is_none());
+    assert_eq!(comparison.expression(), expression);
+    let original = f.program.expression_table.call_node(expression).unwrap();
+    assert_eq!(original.receiver, receiver);
+    assert_eq!(
+        f.program
+            .expression_table
+            .expression_handles(original.arguments),
+        borrowed
+    );
+    let mut other_call = original.clone();
+    other_call.target_symbol = f.other_entry;
+    other_call.target = Identifier::from("other");
+    let other = f
+        .program
+        .expression_table
+        .insert(ExpressionNode::Call(other_call));
+    assert!(f.read(other).unwrap().identity().is_none());
+    assert!(!matching_equality_conjuncts(
+        &f.program,
+        f.read(expression).unwrap(),
+        &[],
+        f.read(other).unwrap(),
+        &[]
+    ));
 }
 
 #[test]
@@ -435,7 +466,7 @@ fn selected_slot_rewrite_replaces_target_and_result_carrier_before_matching() {
     use super::super::slot_bindings::{diagnostic_shape_match, rewrite_slot_applications};
     let mut f = Fixture::new(BuiltinTypeAtom::U64, BuiltinTypeAtom::U16);
     let carrier = f.parameters[0].type_reference;
-    f.install_machine(carrier);
+    f.install_machine(carrier, false);
     let arguments = f
         .parameters
         .iter()
@@ -478,7 +509,7 @@ fn selected_slot_rewrite_replaces_target_and_result_carrier_before_matching() {
     let StructuralTerm::Application { target, .. } = &mut wrong_target else {
         unreachable!()
     };
-    *target = f.impostor;
+    *target = f.other_entry;
     assert!(!matches(&wrong_target));
     let mut wrong_selection = concrete_call;
     let StructuralTerm::Application { selections, .. } = &mut wrong_selection else {
