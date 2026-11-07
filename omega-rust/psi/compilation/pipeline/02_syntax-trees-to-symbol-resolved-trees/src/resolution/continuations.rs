@@ -8,6 +8,7 @@
 //! ledger before the trees can enter it.
 
 use diagnostics::Diagnostic;
+use std::sync::Arc;
 use symbol_resolved_trees::{
     AuthoredDeclarationSelections, AuthoredSelectionExtensionFrontier,
     AuthoredSelectionExtensionRebaseError, SymbolResolvedTrees,
@@ -259,7 +260,7 @@ impl ConstInitializerSelection {
 pub struct SeededSymbolResolvedTrees {
     pub(crate) trees: SymbolResolvedTrees,
     pub(crate) authored_selection_frontier: AuthoredSelectionExtensionFrontier,
-    pub(crate) retained_base: Box<SymbolResolvedTrees>,
+    pub(crate) retained_base: Arc<SymbolResolvedTrees>,
 }
 
 /// A seeded resolved extension whose authored-selection suffix has been
@@ -268,7 +269,7 @@ pub struct SeededSymbolResolvedTrees {
 #[derive(Debug, PartialEq, Eq)]
 pub struct RebasedSeededSymbolResolvedTrees {
     trees: SymbolResolvedTrees,
-    retained_base: Box<SymbolResolvedTrees>,
+    retained_base: Arc<SymbolResolvedTrees>,
 }
 
 impl SeededSymbolResolvedTrees {
@@ -302,8 +303,8 @@ impl RebasedSeededSymbolResolvedTrees {
         &self.trees
     }
 
-    pub fn into_typing_continuation_parts(self) -> (SymbolResolvedTrees, SymbolResolvedTrees) {
-        (self.trees, *self.retained_base)
+    pub fn into_typing_continuation_parts(self) -> (SymbolResolvedTrees, Arc<SymbolResolvedTrees>) {
+        (self.trees, self.retained_base)
     }
 }
 
