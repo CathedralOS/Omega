@@ -157,7 +157,7 @@ fn package_commands_schedule_work_outside_package_policy() {
 fn application_depends_on_facades_not_language_stages() {
     assert_absent(
         &[include_str!(
-            "../../../application/cli/src/cli/compilation.rs"
+            "../../../application/cli/src/commands/compile.rs"
         )],
         "CLI reaches behind Build:",
         &["publish_compilation("],

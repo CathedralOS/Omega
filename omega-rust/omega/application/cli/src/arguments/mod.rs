@@ -1,16 +1,15 @@
 //! Parse one invocation before any compiler or package work begins.
 
-mod compile;
-mod execution;
-mod inspection;
-mod package_audit;
-mod packages;
-mod source_audit;
+pub(crate) mod audit;
+pub(crate) mod compile;
+pub(crate) mod inspect;
+pub(crate) mod packages;
+pub(crate) mod run;
 
+pub(crate) use audit::SourceArguments;
 pub(crate) use compile::CompileArguments;
-pub(crate) use execution::RunArguments;
-pub(crate) use inspection::InspectTerminalArguments;
-pub(crate) use source_audit::SourceArguments;
+pub(crate) use inspect::InspectTerminalArguments;
+pub(crate) use run::RunArguments;
 
 use package_compilation::BuildSourceCaptureObligation;
 use package_manager::operations::PackageInspectionOptions;
@@ -46,12 +45,12 @@ pub(crate) fn parse(mut arguments: impl Iterator<Item = OsString>) -> Result<Inv
         Some("install") => parse_package(PackageCommandKind::Install, arguments),
         Some("update") => parse_package(PackageCommandKind::Update, arguments),
         Some("audit") => parse_audit(arguments),
-        Some("run") => execution::parse_arguments(arguments)
+        Some("run") => run::parse_arguments(arguments)
             .map(Invocation::Run)
             .map_err(|error| {
                 format!("{error}\nusage: omega run [--engine <native|terminal> | --both] [--terminal-fuel-allowance <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>")
             }),
-        Some("inspect-terminal") => inspection::parse_inspect_terminal_arguments(arguments)
+        Some("inspect-terminal") => inspect::parse_arguments(arguments)
             .map(Invocation::InspectTerminal)
             .ok_or_else(|| {
                 "usage: omega inspect-terminal --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega inspect-terminal --artifact <file>"
@@ -100,19 +99,19 @@ fn parse_audit(mut arguments: impl Iterator<Item = OsString>) -> Result<Invocati
         "usage: omega audit source --kind <local|git> <locator> [--rev <rev>]";
     let subcommand = arguments.next();
     match subcommand.as_deref().and_then(std::ffi::OsStr::to_str) {
-        Some("source") => source_audit::parse_source_arguments(arguments)
+        Some("source") => audit::parse_source(arguments)
             .map(Invocation::AuditSource)
             .ok_or_else(|| SOURCE_USAGE.to_owned()),
-        Some("packages") => match package_audit::parse(arguments) {
+        Some("packages") => match audit::parse_packages(arguments) {
             Ok(Some(options)) => Ok(Invocation::AuditPackages(options)),
-            Ok(None) => Ok(Invocation::Help(package_audit::USAGE)),
-            Err(error) => Err(format!("{error}\n{}", package_audit::USAGE)),
+            Ok(None) => Ok(Invocation::Help(audit::PACKAGES_USAGE)),
+            Err(error) => Err(format!("{error}\n{}", audit::PACKAGES_USAGE)),
         },
         _ => {
             let error = subcommand.map_or_else(String::new, |subcommand| {
                 format!("unknown audit command `{}`\n", subcommand.to_string_lossy())
             });
-            Err(format!("{error}{SOURCE_USAGE}\n{}", package_audit::USAGE))
+            Err(format!("{error}{SOURCE_USAGE}\n{}", audit::PACKAGES_USAGE))
         }
     }
 }

@@ -1,6 +1,10 @@
 //! Inspect a source product through Build, or admit an existing Terminal envelope.
 //! Neither route grants native installation or runtime authority.
 
+mod summary;
+
+pub use summary::terminal_summary;
+
 use diagnostics::Diagnostic;
 use orchestration::{BuildError, BuildRequest, BuildTargets, ProjectProduct};
 use std::path::PathBuf;

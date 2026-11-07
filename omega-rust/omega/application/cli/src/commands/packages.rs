@@ -1,13 +1,14 @@
 //! Install, update, and inspect package sources and accepted project policy.
 
-pub(crate) mod audit;
-pub(crate) mod source;
-
-use orchestration::{BuildSession, execute_package_command};
+use crate::arguments::USAGE_ERROR_EXIT;
+use crate::arguments::audit::SourceArguments;
+use orchestration::{BuildSession, execute_package_command, inspect_packages};
+use package_manager::operations::PackageInspectionOptions;
 use package_manager::{
     PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
     PackageCommandOutcome, PackageCommandStatus, discard_package_review,
 };
+use package_source::PrimaryGitChoices;
 use std::path::Path;
 
 /// A resume regenerates findings, so a changed closure can surface fresh
@@ -79,6 +80,55 @@ pub(crate) fn run(command: PackageCommand, mut options: PackageCommandOptions, a
     let status = exit_status(outcome.status);
     if status != 0 {
         std::process::exit(status);
+    }
+}
+
+pub(crate) fn run_audit(options: PackageInspectionOptions) {
+    match inspect_packages(options) {
+        Ok(outcome) => {
+            print!("{}", outcome.report);
+            if !outcome.complete {
+                std::process::exit(1);
+            }
+            if outcome.requires_decision {
+                std::process::exit(3);
+            }
+        }
+        Err(error) => {
+            eprintln!("cannot inspect packages: {error}");
+            std::process::exit(1);
+        }
+    }
+}
+
+pub(crate) fn run_source_audit(arguments: SourceArguments) {
+    let adapter = match package_manager::operations::SourceAdapter::parse(&arguments.source_kind) {
+        Ok(adapter) => adapter,
+        Err(error) => {
+            eprintln!("invalid source adapter: {error:?}");
+            std::process::exit(i32::from(USAGE_ERROR_EXIT));
+        }
+    };
+    let storage =
+        match package_source::SourceResolver::for_current_user(PrimaryGitChoices::default()) {
+            Ok(storage) => storage,
+            Err(error) => {
+                eprintln!("cannot open private source resolver storage: {error}");
+                std::process::exit(1);
+            }
+        };
+    match package_manager::operations::inspect_package_source_locator(
+        adapter,
+        arguments.locator,
+        arguments.rev,
+        &storage,
+        package_source::LocalSourceLimits::default(),
+    ) {
+        Ok(report) => print!("{}", report.to_text()),
+        Err(error) => {
+            eprintln!("cannot inspect package source: {error:?}");
+            std::process::exit(1);
+        }
     }
 }
 

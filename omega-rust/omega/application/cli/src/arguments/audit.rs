@@ -4,9 +4,15 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use target::TargetProfile;
 
-pub(super) const USAGE: &str = "usage: omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\nChecks current project source with accepted dependency pins; no lock means fresh unaccepted inspection.\n--offline disables package source network acquisition for this invocation.\n--details includes full normalized policy after the readable summary.\nExit 0: checked; 1: unavailable; 2: invalid arguments; 3: policy requires review.\nInspection never accepts changes or resumes a pending publication.";
+pub(super) const PACKAGES_USAGE: &str = "usage: omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\nChecks current project source with accepted dependency pins; no lock means fresh unaccepted inspection.\n--offline disables package source network acquisition for this invocation.\n--details includes full normalized policy after the readable summary.\nExit 0: checked; 1: unavailable; 2: invalid arguments; 3: policy requires review.\nInspection never accepts changes or resumes a pending publication.";
 
-pub(super) fn parse(
+pub(crate) struct SourceArguments {
+    pub(crate) source_kind: String,
+    pub(crate) locator: String,
+    pub(crate) rev: Option<String>,
+}
+
+pub(super) fn parse_packages(
     mut arguments: impl Iterator<Item = OsString>,
 ) -> Result<Option<PackageInspectionOptions>, String> {
     let mut project_root = None;
@@ -56,6 +62,41 @@ pub(super) fn parse(
         offline,
         build_inputs,
     }))
+}
+
+pub(super) fn parse_source(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Option<SourceArguments> {
+    let mut locator = None;
+    let mut source_kind = None;
+    let mut rev = None;
+    while let Some(argument) = arguments.next() {
+        if argument == "--kind" {
+            if source_kind.is_some() {
+                return None;
+            }
+            source_kind = arguments.next().and_then(|value| value.into_string().ok());
+            source_kind.as_ref()?;
+            continue;
+        }
+        if argument == "--rev" {
+            if rev.is_some() {
+                return None;
+            }
+            rev = arguments.next().and_then(|value| value.into_string().ok());
+            rev.as_ref()?;
+            continue;
+        }
+        if locator.is_some() || argument.to_string_lossy().starts_with('-') {
+            return None;
+        }
+        locator = Some(argument.into_string().ok()?);
+    }
+    Some(SourceArguments {
+        source_kind: source_kind?,
+        locator: locator?,
+        rev,
+    })
 }
 
 fn value(arguments: &mut impl Iterator<Item = OsString>, flag: &str) -> Result<OsString, String> {
