@@ -542,6 +542,45 @@ class ChecklistRefusalTests(unittest.TestCase):
               "pass/facts/length_through_local_exit"}
     FACTS = {"length", "may_write_codec", "may_write_codec_argument"}
 
+    def test_scalar_bracket_retirement_keeps_the_original_negative_source(self):
+        fixture = "tests/omega/fail/proofs/mathematical_constrained_scalar_formal/"
+        pin = fixture + "expected.txt"
+        source = fixture + "main.omg"
+        original = (
+            "// Operand interval projection does not admit constrained mathematical formals.\n"
+            "let same(value:i64 [0..=4]):core::Strict<0> = value == value;\n"
+            "machine main() {}\n")
+        old = "cannot be a borrow, constraint or dynamic trait\n"
+        new = "type brackets are retired\n"
+        before = {pin: old, source: original, self.OLD: "unrelated pin\n"}
+        after = {**before, pin: new}
+        cases = [
+            ("exact retirement", [("M", pin)], before, after, 0),
+            ("changed declaration", [("M", pin)], before,
+             {**after, source: original.replace("i64", "u64")}, 1),
+            ("changed comment", [("M", pin)], before,
+             {**after, source: original.replace("Operand", "Changed")}, 1),
+            ("deleted source", [("M", pin)], before, {**after, source: ""}, 1),
+            ("deleted pin", [("D", pin)], before, after, 1),
+            ("different replacement", [("M", pin)], before,
+             {**after, pin: "another refusal\n"}, 1),
+            ("removed extra fragment", [("M", pin)],
+             {**before, pin: old + "another obligation\n"}, after, 1),
+            ("other fixture", [("M", self.OLD)], before,
+             {**after, self.OLD: new}, 1),
+            ("another changed pin", [("M", pin), ("M", self.OLD)], before,
+             {**after, self.OLD: new}, 1),
+            ("reverse transition", [("M", pin)], after, before, 1),
+            ("unchanged pin", [("M", pin)], before, before, 0),
+            ("new fixture", [("A", self.OLD)], before, after, 0),
+        ]
+        for name, changes, base, candidate, count in cases:
+            with self.subTest(name=name):
+                violations = expected_pin_violations(
+                    changes, lambda path: base.get(path, ""),
+                    lambda path: candidate.get(path, ""))
+                self.assertEqual(len(violations), count, violations)
+
     def test_rewriting_an_existing_pin_names_the_file_and_rule(self):
         changes = [("M", self.OLD)]
         violations = expected_pin_violations(
