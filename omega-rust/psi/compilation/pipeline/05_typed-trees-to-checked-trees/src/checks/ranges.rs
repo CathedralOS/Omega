@@ -118,8 +118,6 @@ pub(crate) fn check_indexed_accesses(
                 {
                     return None;
                 }
-                let mut machine_diagnostics = Vec::new();
-                let mut machine_verdicts = indexes::IndexVerdicts::default();
                 let non_entry_has_indexed = state_has_indexed
                     .get(1..)
                     .is_some_and(|rest| rest.iter().copied().any(std::convert::identity));
@@ -170,65 +168,66 @@ pub(crate) fn check_indexed_accesses(
                     "psi.05.check_checked_facts.check_indexed_accesses.loop_invariant_facts",
                     || collect_loop_invariant_facts(program, machine, call_frames),
                 );
-                for ((state, calls), has_indexed) in
-                    machine_states.iter().zip(&calls).zip(state_has_indexed)
-                {
-                    if !has_indexed {
-                        continue;
-                    }
-                    let collection_bounds =
-                        validation::CollectionBoundsObservations::new(program, machine, state);
-                    let mut facts = RangeFacts::new(machine.symbol, &field_lengths, &bound_lookup);
-                    facts.collection_bounds = Some(&collection_bounds);
-                    facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
-                    facts.checked_operators = Some(operators);
-                    facts.checked_calls = Some(calls);
-                    // State parameters are stable named places for the duration of
-                    // the state, just like locals introduced by `let`. Retain a
-                    // literal fixed-array referee's length even through a reference
-                    // access mode so ordinary index checking—not an access-mode-
-                    // specific gate—owns every dynamic bounds obligation.
-                    for parameter in program.state_parameters(state) {
-                        facts.define_local(
-                            parameter.symbol,
-                            parameter.name.to_string(),
-                            fixed_array_type_length(program, parameter.type_reference),
-                            None,
+                // Invocation and private-arrival walks own a whole machine,
+                // so defer its actual bounds demands together across states.
+                // Each request retains its state and pre-operation cut.
+                let collection_bounds =
+                    validation::CollectionBoundsObservations::new(program, machine);
+                let check = || {
+                    let mut machine_diagnostics = Vec::new();
+                    let mut machine_verdicts = indexes::IndexVerdicts::default();
+                    for ((state, calls), has_indexed) in machine_states
+                        .iter()
+                        .zip(&calls)
+                        .zip(state_has_indexed.iter().copied())
+                    {
+                        if !has_indexed {
+                            continue;
+                        }
+                        let mut facts =
+                            RangeFacts::new(machine.symbol, &field_lengths, &bound_lookup);
+                        facts.collection_bounds = Some(&collection_bounds);
+                        facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
+                        facts.checked_operators = Some(operators);
+                        facts.checked_calls = Some(calls);
+                        // State parameters are stable named places for the duration of
+                        // the state, just like locals introduced by `let`. Retain a
+                        // literal fixed-array referee's length even through a reference
+                        // access mode so ordinary index checking—not an access-mode-
+                        // specific gate—owns every dynamic bounds obligation.
+                        for parameter in program.state_parameters(state) {
+                            facts.define_local(
+                                parameter.symbol,
+                                parameter.name.to_string(),
+                                fixed_array_type_length(program, parameter.type_reference),
+                                None,
+                            );
+                        }
+                        phase_profile::scope(
+                            "psi.05.check_checked_facts.check_indexed_accesses.seed_state",
+                            || {
+                                seed_state_requires(program, &mut facts, machine, state);
+                                seed_state_argument_facts(&mut facts, state, &state_argument_facts);
+                                seed_dependent_param_orderings(program, &mut facts, machine, state);
+                                seed_incoming_guard_facts(
+                                    program,
+                                    machine,
+                                    &mut facts,
+                                    state,
+                                    incoming_guard_facts,
+                                );
+                                seed_loop_invariant_facts(
+                                    program,
+                                    machine,
+                                    &mut facts,
+                                    state,
+                                    &loop_invariant_facts,
+                                );
+                            },
                         );
-                    }
-                    phase_profile::scope(
-                        "psi.05.check_checked_facts.check_indexed_accesses.seed_state",
-                        || {
-                            seed_state_requires(program, &mut facts, machine, state);
-                            seed_state_argument_facts(&mut facts, state, &state_argument_facts);
-                            seed_dependent_param_orderings(program, &mut facts, machine, state);
-                            seed_incoming_guard_facts(
-                                program,
-                                machine,
-                                &mut facts,
-                                state,
-                                incoming_guard_facts,
-                            );
-                            seed_loop_invariant_facts(
-                                program,
-                                machine,
-                                &mut facts,
-                                state,
-                                &loop_invariant_facts,
-                            );
-                        },
-                    );
-                    let _s = phase_profile::guard(
-                        "psi.05.check_checked_facts.check_indexed_accesses.check_statements",
-                    );
-                    // First retain only the expensive bounds demands the
-                    // ordinary range walk cannot settle. Their exact prefix
-                    // observations share one walk, then a fresh range replay
-                    // publishes the final diagnostics and verdicts. Neither
-                    // provisional failure nor a later statement seeds a proof.
-                    let check = |mut facts: RangeFacts<'_>| {
-                        let mut diagnostics = Vec::new();
-                        let mut verdicts = indexes::IndexVerdicts::default();
+                        let _s = phase_profile::guard(
+                            "psi.05.check_checked_facts.check_indexed_accesses.check_statements",
+                        );
                         for (statement_index, statement) in program
                             .statement_table
                             .admitted_execution_statements(state.statement_nodes)
@@ -241,21 +240,23 @@ pub(crate) fn check_indexed_accesses(
                                 call_frames,
                                 &mut facts,
                                 statement,
-                                &mut diagnostics,
-                                &mut verdicts,
+                                &mut machine_diagnostics,
+                                &mut machine_verdicts,
                             );
                         }
-                        (diagnostics, verdicts)
-                    };
-                    let provisional = check(facts.clone());
-                    let (diagnostics, verdicts) = if collection_bounds.resolve_deferred() {
-                        check(facts)
+                    }
+                    (machine_diagnostics, machine_verdicts)
+                };
+                // Only a successful deferred proof needs a fresh cheap walk.
+                // Recreate its facts from the same seeds, never from the end
+                // of the provisional walk or another state's premises.
+                let provisional = check();
+                let (machine_diagnostics, machine_verdicts) =
+                    if collection_bounds.resolve_deferred() {
+                        check()
                     } else {
                         provisional
                     };
-                    machine_diagnostics.extend(diagnostics);
-                    machine_verdicts.extend(verdicts);
-                }
                 Some((machine_diagnostics, machine_verdicts))
             })
             .collect()
