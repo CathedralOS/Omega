@@ -1,6 +1,10 @@
 # const_record_computed
 
-Computed nominal consts: `const CONFIG: Config = Config{size: SIZE*2, enabled: SIZE==7}` — record literal + bool member in const init, field projection `CONFIG.size`/`CONFIG.enabled` as machine bodies; anonymous `7/2*2` warns exact-fraction landing.
+This probe constructs a nominal constant record with a computed integer and
+Boolean field, then reads `CONFIG.size` and `CONFIG.enabled` from machine bodies.
+Its anonymous `SIZE` initializer requires `(7 / 2 * 2) as u64` under
+[explicit integer landing](../../../../wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics).
+That source migration belongs to [the landing task](../../../../wiki/drafts/designs/explicit_integer_landing.md).
 
 Compile-checked only: no standard-library dependency and
-no `Main::exit` — run a check target, not native.
+no `Main::exit`. Run a check target, not native.
