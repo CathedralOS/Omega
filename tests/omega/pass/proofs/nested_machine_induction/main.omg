@@ -15,7 +15,7 @@ terminates by value
 
 machine copy_identity(value: Branch)
 terminates by value
-ensures copy_branch(value) == value
+ensures core::Identity<Branch>(copy_branch(value), value)
 {
     transition value {
         Branch::End -> finish()
