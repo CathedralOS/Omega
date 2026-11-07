@@ -195,6 +195,7 @@ fn occurrences(
         }
     }
     let mut declarations = Vec::<(ValueTypeOwner, Vec<ExpressionHandle>)>::new();
+    let mut declaration_positions = symbols::SymbolKeyMap::<ValueTypeOwner, usize>::default();
     for (callable, _, parameters, trait_scope, contract) in
         validation::callable_contract_scopes(program)
     {
@@ -212,13 +213,11 @@ fn occurrences(
             parameters,
             trait_scope,
         };
-        let position = declarations
-            .iter()
-            .position(|(candidate, _)| *candidate == owner)
-            .unwrap_or_else(|| {
-                declarations.push((owner, Vec::new()));
-                declarations.len() - 1
-            });
+        let position = *declaration_positions.entry(owner).or_insert_with(|| {
+            let position = declarations.len();
+            declarations.push((owner, Vec::new()));
+            position
+        });
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             identity_context::append(&contract_input, owner, fact, &mut peers);
             validation::append_fact_expression_roots(program, fact, &mut declarations[position].1);
