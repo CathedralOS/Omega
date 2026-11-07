@@ -44,6 +44,9 @@ pub(super) fn build(
     }
     let flow = super::super::types::state_flow(facts, machine.symbol, state.symbol)?;
     let call_roster = facts.flow.control.calls.span_or_empty(flow.calls);
+    trace.phase("Unit completion: shared occurrence prefix");
+    trace.statement(Some(statement));
+    let mut selected = control::SelectedInvocationAccounting::new(program, facts, root)?;
     let mut bind_call =
         |node: &checked_trees::CheckedCompletionExpression,
          source_call: arena::Handle<checked_trees::FlowCallFact>| {
@@ -75,6 +78,7 @@ pub(super) fn build(
                 &CheckedControlResultPlan::Unit,
                 0,
                 call_roster,
+                Some(&mut selected),
                 call,
                 call.target_symbol,
                 statement,
@@ -114,6 +118,9 @@ pub(super) fn build(
         trace,
         statement,
     )?;
+    trace.phase("Unit completion: complete occurrence inventory");
+    trace.statement(Some(statement));
+    selected.finish(program, facts, preamble)?;
     Some(CheckedUnitCompletionPlan {
         statement_ordinal: statement,
         expression,
@@ -235,11 +242,27 @@ fn bind_expression(
             }
         }
     };
+    // Operand execution can stop before a normally returning callee. That
+    // checked transaction must not donate a normal arrival to its parent.
+    let normal_continuation = node.normal_continuation
+        && match &kind {
+            CheckedUnitCompletionKind::Invocation(operations) => operations
+                .iter()
+                .all(|operation| operation.has_normal_continuation()),
+            CheckedUnitCompletionKind::Selection(CheckedUnitCompletionSelection::Scalar {
+                arms,
+                ..
+            }) => arms.iter().any(|arm| arm.completion.normal_continuation),
+            CheckedUnitCompletionKind::Selection(CheckedUnitCompletionSelection::Structural {
+                arms,
+                ..
+            }) => arms.iter().any(|arm| arm.completion.normal_continuation),
+        };
     active.remove(&key);
     Some(CheckedUnitCompletionExpression {
         source: handle,
         expression: node.expression,
-        normal_continuation: node.normal_continuation,
+        normal_continuation,
         kind,
     })
 }

@@ -242,6 +242,7 @@ pub(super) fn arm_call(
         result,
         next_scalar_binding,
         calls,
+        None,
         call,
         target,
         statement_ordinal,
@@ -269,6 +270,7 @@ pub(super) fn plan_call_arm(
     result: &checked_trees::CheckedControlResultPlan,
     next_scalar_binding: usize,
     calls: &[checked_trees::FlowCallFact],
+    mut selected: Option<&mut control::SelectedInvocationAccounting>,
     call: &checked_trees::FlowCallFact,
     target: symbols::SymbolHandle,
     statement_ordinal: u32,
@@ -328,6 +330,9 @@ pub(super) fn plan_call_arm(
         &mut crate::execution::terminal_unit::borrowed_windows::OpenWindows::default(),
     )?;
     if completion == checked_trees::CheckedValueCompletion::NoNormal {
+        if let Some(selected) = selected.as_deref_mut() {
+            selected.stopped_prefix(facts, call, &preparation[predecessor_count..])?;
+        }
         return Some(
             checked_trees::CheckedConditionalReturnArm::EvaluateNoNormal {
                 statement_ordinal,
@@ -354,6 +359,7 @@ pub(super) fn plan_call_arm(
         call,
         calls,
         &preparation,
+        selected,
     )?;
     trace.phase("state graph: terminator: terminal call arm: call operation");
     trace.statement(Some(statement_ordinal));
