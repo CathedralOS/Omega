@@ -113,7 +113,7 @@ pub use content::{
     ContentClaimTransformationSource, ContentIdentityReshuffleFact,
     ContentPartitionCompositionFact, ContentPartitionInputClaimBinding,
     ContentPartitionPlaceSubstitution, ContentPartitionResultRewrite, ContentPartitionReturnFact,
-    ContentProjectionFacts, RetainedBorrowCustodyFact,
+    ContentProjectionFacts, ContentWalkRows, RetainedBorrowCustodyFact,
 };
 pub use content_classes::{ContentClassFacts, ContentClassRow};
 pub use contextual_cleanup::{

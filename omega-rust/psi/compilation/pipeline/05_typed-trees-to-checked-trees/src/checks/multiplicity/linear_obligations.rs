@@ -132,7 +132,17 @@ impl ClaimIdentityAllocator {
         self.next_ordinal = window * CLAIM_ORDINALS_PER_STATE;
     }
 
-    /// Mint every later identity above all the ordinals the walk handed out.
+    /// Continue after every ordinal this allocator or `other` handed out.
+    pub(crate) fn absorb(&mut self, other: Self) {
+        self.high_water = self
+            .high_water
+            .max(self.next_ordinal)
+            .max(other.high_water)
+            .max(other.next_ordinal);
+        self.next_ordinal = self.high_water;
+    }
+
+    /// Mint after the walk: above every ordinal the walk's states used.
     pub(crate) fn finish_walk(&mut self) {
         self.high_water = self.high_water.max(self.next_ordinal);
         self.next_ordinal = self.high_water;

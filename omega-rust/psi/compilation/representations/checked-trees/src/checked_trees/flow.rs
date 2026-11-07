@@ -135,7 +135,7 @@ pub use ownership::{
 };
 pub use roots::{
     FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts, FlowFacts,
-    FlowInvalidationFacts, FlowOwnershipFacts,
+    FlowInvalidationFacts, FlowOwnershipFacts, WalkGuard,
 };
 pub use semantic_dependencies::{
     CheckedSemanticDependencies, CheckedSemanticDependency, CheckedSemanticDependencyExposure,

@@ -53,6 +53,47 @@ impl ClaimOutcomePreparation {
         self.joins.begin();
     }
 
+    /// A copy for one worker's run of states. `resolve` reads only the
+    /// previous iteration's maps and join bindings and appends what it
+    /// consulted, so the copy carries those and starts with nothing consulted.
+    pub(crate) fn fork_for_walk(&self) -> Self {
+        Self {
+            maps: self.maps.clone(),
+            dependencies: Vec::new(),
+            joins: self.joins.fork_for_walk(),
+            revisions: self.revisions,
+            revision_limit: self.revision_limit,
+        }
+    }
+
+    /// Hand over what this worker consulted since the last call, as a value
+    /// `absorb_walk` takes, and keep the summaries for its next state.
+    pub(crate) fn take_consulted(&mut self) -> Self {
+        Self {
+            maps: Vec::new(),
+            dependencies: std::mem::take(&mut self.dependencies),
+            joins: self.joins.take_consulted(),
+            revisions: self.revisions,
+            revision_limit: self.revision_limit,
+        }
+    }
+
+    /// Record what a worker consulted after what is recorded here, in the
+    /// first-consulted order a single walk over the same states would keep.
+    pub(crate) fn absorb_walk(&mut self, fork: Self) {
+        let Self {
+            maps: _,
+            dependencies,
+            joins,
+            revisions: _,
+            revision_limit: _,
+        } = fork;
+        for dependency in dependencies {
+            push_unique(&mut self.dependencies, dependency);
+        }
+        self.joins.absorb_walk(joins);
+    }
+
     pub(crate) fn update(
         &mut self,
         maps: Vec<CheckedClaimOutcomeMap>,
