@@ -22,6 +22,55 @@ use super::windows_handle_contracts::{ReviewedHandleCall, WindowsHandleContract,
 use super::windows_handle_origins::{HandleOrigins, ScalarSubject};
 use super::windows_handle_values::{HandleValueReader, LocalScalarExpressions};
 
+/// Keep completed phases visible when a receiver command is interrupted.
+/// This opt-in observation never supplies a value to the proof or its limits.
+pub(super) struct HandleProofProgress {
+    started: Option<std::time::Instant>,
+}
+
+impl HandleProofProgress {
+    pub(super) fn new() -> Self {
+        Self {
+            started: (std::env::var_os("OMEGA_WINDOWS_HANDLE_PROFILE").as_deref()
+                == Some(std::ffi::OsStr::new("1")))
+            .then(std::time::Instant::now),
+        }
+    }
+
+    pub(super) fn note(&self, phase: std::fmt::Arguments<'_>) {
+        let Some(started) = self.started else {
+            return;
+        };
+        eprintln!(
+            "Windows handle proof: {phase}; elapsed={:.3}s; {}",
+            started.elapsed().as_secs_f64(),
+            Self::memory(),
+        );
+    }
+
+    pub(super) fn replay(&self, steps: usize, retained: usize, queued: usize) {
+        // At most 21 reports under the existing total-step bound. No operation
+        // identity, scalar value, proof decision or global trace is collected.
+        if self.started.is_some() && steps.is_power_of_two() {
+            self.note(format_args!(
+                "replay progress: steps={steps}, retained={retained}, queued={queued}"
+            ));
+        }
+    }
+
+    fn memory() -> String {
+        #[cfg(target_os = "linux")]
+        if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
+            return status
+                .lines()
+                .filter(|line| line.starts_with("VmRSS:") || line.starts_with("VmHWM:"))
+                .collect::<Vec<_>>()
+                .join("; ");
+        }
+        "process memory unavailable".into()
+    }
+}
+
 pub(super) struct NativeHandleInput<'a> {
     pub call: RuntimeCall<'a>,
     pub reviewed: ReviewedHandleCall<'a>,
@@ -55,8 +104,13 @@ pub(super) struct WindowsHandleInputs<'a> {
 }
 
 impl<'a> WindowsHandleInputs<'a> {
-    pub(super) fn prepare(context: &'a ReviewContext<'_>) -> Result<Self, String> {
+    pub(super) fn prepare(
+        context: &'a ReviewContext<'_>,
+        progress: &HandleProofProgress,
+    ) -> Result<Self, String> {
+        progress.note(format_args!("input preparation started"));
         let calls = HandleCallGraph::new(context)?;
+        progress.note(format_args!("selected call graph prepared"));
         let module = context.input.module();
         let mut selected_bodies = Vec::new();
         let mut natives = BTreeMap::new();
@@ -158,14 +212,17 @@ impl<'a> WindowsHandleInputs<'a> {
             &selected_bodies,
         )
         .map_err(|reason| format!("handle replay cannot reconstruct actual storage: {reason}"))?;
+        progress.note(format_args!("borrowed-storage graph prepared"));
         let (origins, machines) = {
             let mut reader = HandleValueReader::new(context, &calls, &storage, module)?;
+            progress.note(format_args!("scalar and resident readers prepared"));
             let mut machines = Vec::new();
             for (storage_index, machine) in storage.iter().enumerate() {
                 let expressions = reader.local_expressions(machine.id)?;
                 machines.push((machine.id, (storage_index, expressions)));
             }
             let origins = HandleOrigins::derive(module, &calls, &mut reader, roots)?;
+            progress.note(format_args!("closed argument origins prepared"));
             let (mut operands, mut resident_transfers) = reader.into_captures();
             machines.sort_by_key(|(identity, _)| *identity);
             let machines = machines
@@ -195,6 +252,7 @@ impl<'a> WindowsHandleInputs<'a> {
             })?;
             (origins, machines)
         };
+        progress.note(format_args!("input preparation completed"));
         Ok(Self {
             calls,
             storage,

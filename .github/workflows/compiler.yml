@@ -121,4 +121,5 @@ jobs:
           TEST_PACKAGE: ${{ inputs.test_package }}
           TEST_FILTER: ${{ inputs.test_filter }}
           TEST_TARGET: ${{ inputs.test_target }}
+          OMEGA_WINDOWS_HANDLE_PROFILE: ${{ inputs.test_package == 'compiler' && inputs.test_target == 'filesystem_receiver' && inputs.test_filter == 'windows_canonicalize_receiver' && '1' || '' }}
         run: cargo xtask focused-test

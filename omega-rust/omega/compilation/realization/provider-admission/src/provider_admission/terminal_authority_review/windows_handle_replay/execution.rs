@@ -729,7 +729,9 @@ pub(super) fn derive(
     artifact: [u8; 32],
     context: &ReviewContext<'_>,
     inputs: &WindowsHandleInputs<'_>,
+    progress: &HandleProofProgress,
 ) -> Result<CheckedHandleExecution, String> {
+    progress.note(format_args!("execution setup started"));
     let activations = HandleReplayActivations::new(artifact, context, &inputs.calls)?;
     let body = inputs
         .calls
@@ -761,10 +763,13 @@ pub(super) fn derive(
             }
         }
     }
+    progress.note(format_args!("closed argument checking started"));
+    let arguments = super::super::windows_handle_arguments::prepare_handle_arguments(inputs)?;
+    progress.note(format_args!("closed argument checking completed"));
     let mut execution = Execution {
         context,
         inputs,
-        arguments: super::super::windows_handle_arguments::prepare_handle_arguments(inputs)?,
+        arguments,
         activations,
         blocks,
         pending: Pending::default(),
@@ -777,6 +782,7 @@ pub(super) fn derive(
         frames: Vec::new(),
         state: initial,
     })?;
+    progress.note(format_args!("all-path replay started"));
     let mut steps = 0usize;
     while let Some(work) = execution.pending.queue.pop_front() {
         steps += 1;
@@ -784,7 +790,17 @@ pub(super) fn derive(
             return Err("handle execution exceeds its bounded total replay steps".into());
         }
         execution.step(work)?;
+        progress.replay(
+            steps,
+            execution.pending.rows.len(),
+            execution.pending.queue.len(),
+        );
     }
+    progress.note(format_args!(
+        "all-path replay completed: steps={steps}, retained={}, complete_paths={}",
+        execution.pending.rows.len(),
+        execution.completed,
+    ));
     if execution.completed == 0 {
         return Err("handle execution has no checked complete path".into());
     }

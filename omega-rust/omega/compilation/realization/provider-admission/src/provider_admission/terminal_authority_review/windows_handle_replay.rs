@@ -30,7 +30,9 @@ use super::windows_handle_aliases::{
 use super::windows_handle_arguments::PreparedHandleArguments;
 use super::windows_handle_calls::{CallSite, CallTarget, Caller, HandleCallGraph, RuntimeCall};
 use super::windows_handle_contracts::WindowsHandleContract;
-use super::windows_handle_inputs::{NativeHandleInput, PreparedHandleMachine, WindowsHandleInputs};
+use super::windows_handle_inputs::{
+    HandleProofProgress, NativeHandleInput, PreparedHandleMachine, WindowsHandleInputs,
+};
 use super::windows_handle_lifetimes::{
     HandleLifetimes, NativeOccurrence, ScalarOccurrence, ScalarUseSite,
 };
@@ -2629,7 +2631,8 @@ pub(super) fn checked_calls(
     }
     // This point is reached from the ordinary reviewer's actual selected
     // import leaf. Completely classified programs never prepare handle flow.
-    let inputs = WindowsHandleInputs::prepare(context)?;
+    let progress = HandleProofProgress::new();
+    let inputs = WindowsHandleInputs::prepare(context, &progress)?;
     let mut needed = Vec::new();
     for caller in inputs.close_sites.iter().chain(&inputs.duplicate_sites) {
         let native = inputs
@@ -2654,7 +2657,7 @@ pub(super) fn checked_calls(
             "handle proof trigger is absent from the original executable call roster".into(),
         );
     }
-    let checked = execution::derive(artifact, context, &inputs)?;
+    let checked = execution::derive(artifact, context, &inputs, &progress)?;
     // The retained artifact and selected closure bind the entire original
     // control/argument roster. This owner has just replayed it; the commitment
     // records that derivation, rather than accepting a caller-asserted digest.
