@@ -219,7 +219,6 @@ pub(super) struct DescriptorReplay<'a> {
     operations: Vec<DescriptorOperation<'a>>,
     hardware: Vec<(OperationId, &'a SelectedInstruction)>,
     selected: &'a SelectedFunction,
-    target: &'a TargetFunction,
     definitions: Vec<Definition<'a>>,
     accesses: Vec<&'a SelectedMemoryAccess>,
 }
@@ -294,7 +293,6 @@ impl<'a> DescriptorReplay<'a> {
                 operations,
                 hardware,
                 selected,
-                target,
                 definitions: Vec::new(),
                 accesses: Vec::new(),
             });
@@ -326,7 +324,6 @@ impl<'a> DescriptorReplay<'a> {
             operations,
             hardware,
             selected,
-            target,
             definitions,
             accesses,
         })
