@@ -1,12 +1,12 @@
 {
   "schema": "omega-compiler-pilot-plan-v1",
   "producer": {
-    "revision": "a417143b344b2d880312041c72dfba6326dc88df",
-    "tree": "59f2a2082ffebf59462ba43d862e8b26e4092220",
+    "revision": "5eb9b592df0bd3a5210622e15d09fd62a493b13d",
+    "tree": "cabf77601e15d6b53d188fe3eedb432cb66bc40b",
     "target": "linux_x86_64",
     "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
     "input_objects": {
-      "omega-rust": "9e1e137ffbe94fe4da7f7b48062c77254a64bf31",
+      "omega-rust": "8bdaea6bfd2477d3a834d3b2bd00a351b3783fc2",
       "source/library": "46754f5f6584d158e0fb077d4ed89a83afd07230",
       "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
       "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
@@ -19,28 +19,28 @@
     },
     "executables": {
       "cli": {
-        "sha256": "fac1cc2cec66ce33bf27ba3480959cb07a1bd34b243f1e15ae4096eee5012816",
+        "sha256": "d24d2b96d9c36c242725cb02af99b5bd71bea9d1ec82b61d067eed3f3e00b4e8",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       },
       "runner": {
-        "sha256": "f5f20dae1023dd7890fd7f75cbdbff89a4113e659fe21c54541a1808d7a48165",
+        "sha256": "44a9cf1cf77ca131dd303215de484a74a8a6001bf75b325cc32408adc14c4f82",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       }
     },
-    "origin_run": 42367574490,
-    "cache_key": "compiler-regression-Linux-X64-619be19a8e341c9422e0bbfdb9c702e2989ff767a7e78d51ff551da858c5fcb7-a417143b344b2d880312041c72dfba6326dc88df-prepared-v1-with-runner"
+    "cache_key": "compiler-regression-Linux-X64-619be19a8e341c9422e0bbfdb9c702e2989ff767a7e78d51ff551da858c5fcb7-5eb9b592df0bd3a5210622e15d09fd62a493b13d-prepared-v1-with-runner",
+    "origin_run": 42365818154
   },
   "fixtures": [
-    "pass/contracts/borrowed_guarantee_disjoint_field_write_exit",
-    "fail/contracts/borrowed_guarantee_overlapping_field_write_rejected"
+    "fail/borrows/nested_machine_carried_recurrent_selector_false_guarantee_rejected",
+    "fail/contracts/call_write_retires_overlapping_guard"
   ],
-  "source_only": false,
+  "source_only": true,
   "samples": [],
   "cli_fixtures": []
 }
