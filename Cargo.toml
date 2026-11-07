@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "tools/xtask",
     "tools/benchmark",
     "tools/benchmark/allocation-observation",
     "samples/cli/scientific/sample-runner",
