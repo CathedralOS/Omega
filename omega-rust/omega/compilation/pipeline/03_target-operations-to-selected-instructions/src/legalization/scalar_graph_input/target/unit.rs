@@ -1281,10 +1281,17 @@ pub(super) fn validate_operation(
         ) => {
             if result != expected
                 || !matches!(view, target_operations::TargetElementView::Established { psi_operation: operation, .. } if operation == psi_operation)
-                || !checker.element_view(view, *destination, &[])
             {
                 return Err(LegalizationError::custody());
             }
+            checker
+                .element_view_custody(view, *destination, &[])
+                .map_err(|reason| LegalizationError::ElementViewCustody {
+                    machine: optimized.machine,
+                    operation: *psi_operation,
+                    place: *destination,
+                    reason,
+                })?;
         }
         (
             TargetUnitOperation::ScalarDefinition { result_home, .. },
