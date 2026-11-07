@@ -512,26 +512,6 @@ pub fn require_completed_scalar_capture(
 /// One bit per reachable position: every arrival must still have the current
 /// producer's version. Re-execution of that producer starts a new version;
 /// loops do not preserve a stale observation from an earlier dynamic instance.
-fn version_flow(
-    flow: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
-    entry: DescriptorPosition,
-    producer: DescriptorPosition,
-    observation: DescriptorPosition,
-    includes_edge: impl Fn(DescriptorPosition, usize) -> bool,
-    modifies: impl FnMut(DescriptorPosition, &DescriptorFlowStep) -> Result<bool, &'static str>,
-    replaces_on_arrival: impl Fn(&crate::descriptors::descriptor_lifetimes::DescriptorFlowEdge) -> bool,
-) -> Result<bool, &'static str> {
-    version_flow_from(
-        flow,
-        entry,
-        VersionStart::Completed(producer),
-        observation,
-        includes_edge,
-        modifies,
-        replaces_on_arrival,
-    )
-}
-
 fn version_flow_from(
     flow: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     entry: DescriptorPosition,
@@ -1325,10 +1305,10 @@ mod tests {
     fn all_arrivals_need_the_completed_unchanged_version() {
         let diamond = flow(&[(1, &[2]), (2, &[3, 4]), (3, &[5]), (4, &[5]), (5, &[])]);
         let query = |writes: &[u64]| {
-            version_flow(
+            version_flow_from(
                 &diamond,
                 position(1),
-                position(2),
+                VersionStart::Completed(position(2)),
                 position(5),
                 |_, _| true,
                 |current, _| Ok(writes.iter().any(|write| position(*write) == current)),
@@ -1341,10 +1321,10 @@ mod tests {
         assert!(!query(&[4]));
         let bypass = flow(&[(1, &[2, 4]), (2, &[3]), (3, &[5]), (4, &[5]), (5, &[])]);
         assert!(
-            !version_flow(
+            !version_flow_from(
                 &bypass,
                 position(1),
-                position(2),
+                VersionStart::Completed(position(2)),
                 position(5),
                 |_, _| true,
                 |_, _| Ok(false),
@@ -1384,10 +1364,10 @@ mod tests {
                 .unwrap(),
             );
             assert_eq!(
-                version_flow(
+                version_flow_from(
                     &diamond,
                     position(1),
-                    position(2),
+                    VersionStart::Completed(position(2)),
                     position(5),
                     |_, _| true,
                     |_, _| Ok(false),
@@ -1403,10 +1383,10 @@ mod tests {
     fn new_loop_completion_replaces_the_previous_dynamic_version() {
         let loop_flow = flow(&[(1, &[2]), (2, &[3]), (3, &[4]), (4, &[2, 5]), (5, &[])]);
         assert!(
-            version_flow(
+            version_flow_from(
                 &loop_flow,
                 position(1),
-                position(2),
+                VersionStart::Completed(position(2)),
                 position(3),
                 |_, _| true,
                 |current, _| Ok(current == position(4)),
@@ -1416,10 +1396,10 @@ mod tests {
         );
         let stale_loop = flow(&[(1, &[2]), (2, &[3]), (3, &[4]), (4, &[3, 5]), (5, &[])]);
         assert!(
-            !version_flow(
+            !version_flow_from(
                 &stale_loop,
                 position(1),
-                position(2),
+                VersionStart::Completed(position(2)),
                 position(3),
                 |_, _| true,
                 |current, _| Ok(current == position(4)),
