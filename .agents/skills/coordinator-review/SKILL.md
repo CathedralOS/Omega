@@ -25,9 +25,8 @@ cloud sessions:
    message the coordinator (`candidate_ready`).**
 2. **Workers controlled by a coordinator never mark a PR ready (`gh pr ready`),
    never arm auto-merge (`gh pr merge --auto`), and never run
-   `tools/landing.py land` themselves.**
-3. **Only the coordinator marks a PR ready and lands it** (`python3
-   tools/landing.py land <pr> --expected-head <sha>`) **after** completing the
+   `cargo xtask land` themselves.**
+3. **Only the coordinator marks a PR ready and lands it** (`cargo xtask land <pr> --expected-head <sha>`) **after** completing the
    5-point diff audit below.
 4. **Reactive wakeup only:** Neither the coordinator nor any worker schedules
    timers (`schedule`, cron, `send_later`, or polling loops). The worker's
@@ -35,7 +34,7 @@ cloud sessions:
 
 ## 2. The 5-Point Coordinator Review Checklist
 
-Before running `gh pr ready` or `tools/landing.py land` on any worker branch or
+Before running `gh pr ready` or `cargo xtask land` on any worker branch or
 PR, inspect the actual diff:
 
 ```bash
@@ -144,7 +143,7 @@ Inspect every added or modified line in `tests/omega/corpus_outcomes.txt`:
 
 - **If the candidate passes all 5 points:**
   1. The coordinator marks the PR ready and queues it for merge:
-     `python3 tools/landing.py land <pr> --expected-head <sha>`
+     `cargo xtask land <pr> --expected-head <sha>`
   2. The coordinator dispatches the next requirement of the parent capability
      to the worker on its warm worktree.
 - **If the candidate fails any point:**

@@ -24,10 +24,6 @@ use artifacts::compile_timings::counters;
 use compiler::{CompileOutputKind, CompileRequest, RequestedCompileProduct};
 
 fn main() {
-    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
-        println!("{}", compiler::compiler_build_profile());
-        return;
-    }
     let mut arguments = std::env::args().skip(1).peekable();
     let mut execute_host = false;
     let mut compare_single_targets = false;
