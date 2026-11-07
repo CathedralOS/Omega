@@ -2,9 +2,9 @@
 //!
 //! A transparent proposition is its body: unfolding an application binds the
 //! declaration's parameters to the actual argument terms and yields one
-//! identity equation per conjunct, following `= other(..)` definitions to
+//! checked predicate per conjunct, following `= other(..)` definitions to
 //! their own bodies. The same unfolding serves both directions -- a `requires`
-//! application installs its equations as hypotheses, an `ensures` application
+//! application installs its predicates as hypotheses, an `ensures` application
 //! must prove every one -- so a defined premise means exactly what the
 //! defined goal means.
 
@@ -21,17 +21,18 @@ use typed_trees::machine::Machine;
 use typed_trees::proposition::PropositionBody;
 use typed_trees::signature::SignatureContractKind;
 
-/// The identity equations one transparent application denotes, one per
+/// The checked predicates one transparent application denotes, one per
 /// conjunct of its unfolded body. `None` when the application is not
 /// transparent. A `None` conjunct lies outside the structural language: a
 /// hypothesis drops it (only weakening), a goal cannot be proven. A literal
-/// `true` conjunct contributes no equation.
+/// `true` conjunct contributes no obligation. Explicit Id retains its carrier
+/// and subjects; a Boolean comparison retains its selected operation.
 pub(super) fn transparent_application_conjuncts(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     application: &typed_trees::proposition::PropositionApplication,
-) -> Option<Vec<Option<(StructuralTerm, StructuralTerm)>>> {
+) -> Option<Vec<Option<StructuralTerm>>> {
     let declaration = program.proposition_definition_by_symbol(application.proposition)?;
     if !matches!(declaration.body, PropositionBody::Transparent { .. }) {
         return None;
@@ -71,7 +72,7 @@ fn unfold_definition(
     proposition: symbols::SymbolHandle,
     environment: &[(String, StructuralTerm)],
     visiting: &mut Vec<symbols::SymbolHandle>,
-    conjuncts: &mut Vec<Option<(StructuralTerm, StructuralTerm)>>,
+    conjuncts: &mut Vec<Option<StructuralTerm>>,
 ) {
     let Some(declaration) = program.proposition_definition_by_symbol(proposition) else {
         conjuncts.push(None);
@@ -148,7 +149,7 @@ fn unfold_boolean(
     parameters: &[typed_trees::signature::StateParameter],
     expression: ExpressionHandle,
     environment: &[(String, StructuralTerm)],
-    conjuncts: &mut Vec<Option<(StructuralTerm, StructuralTerm)>>,
+    conjuncts: &mut Vec<Option<StructuralTerm>>,
 ) {
     if let Some(binary) = expression_table(program).binary_node(expression)
         && binary.operator == BinaryOperator::And
@@ -173,18 +174,24 @@ fn unfold_boolean(
     }
     // `true` is the unit of conjunction: it owes a goal nothing and grants a
     // premise nothing. A total relation (`= true`) therefore unfolds to no
-    // equations rather than one unreadable conjunct.
+    // obligations rather than one unreadable conjunct.
     if expression_table(program).boolean_node(expression) == Some(&true) {
         return;
     }
     conjuncts.push(
-        super::structural_terms::identity_equality_terms(program, scope, parameters, expression)
-            .map(|(left, right)| {
-                (
-                    StructuralJudge::substitute_term(&left, environment),
-                    StructuralJudge::substitute_term(&right, environment),
-                )
-            }),
+        structural_term(program, None, Some((scope, parameters)), expression, None)
+            .filter(|predicate| {
+                predicate.is_checked_predicate()
+                    || (matches!(
+                        predicate.semantic_value(),
+                        StructuralTerm::Application { .. } | StructuralTerm::Variable(_)
+                    ) && crate::parameter_expression_result_type_reference(
+                        program, scope, parameters, expression,
+                    )
+                    .and_then(|reference| program.primitive_type_reference(reference))
+                        == Some(typed_trees::types::PrimitiveType::Bool))
+            })
+            .map(|predicate| StructuralJudge::substitute_term(&predicate, environment)),
     );
 }
 
@@ -203,12 +210,12 @@ pub(super) fn intake_transparent_requires(
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
         .filter_map(ProofFact::as_proposition)
     {
-        for (left, right) in transparent_application_conjuncts(program, machine, state, application)
+        for predicate in transparent_application_conjuncts(program, machine, state, application)
             .into_iter()
             .flatten()
             .flatten()
         {
-            judge.intake_equation(left, right, 0);
+            judge.intake_observed_predicate(predicate, 0);
         }
     }
 }
@@ -225,7 +232,7 @@ pub struct InheritedRequirementEdge<'edge> {
 /// structural entailment engine used for ordinary Boolean contracts. Named
 /// propositions remain the public fact identity; transparency is only the
 /// proof-side expansion. Every conjunct of the unfolded body must be an
-/// identity equation the hypotheses prove; a primitive or witness-bearing
+/// checked predicate the hypotheses prove; a primitive or witness-bearing
 /// proposition is never transparent. A requirement-authored `goal` first
 /// moves through its `inherited` edge: the selected family replaces the
 /// proposition parameter and the requirement's parameters rename
@@ -325,10 +332,10 @@ fn premises_prove(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
-    conjuncts: Option<Vec<Option<(StructuralTerm, StructuralTerm)>>>,
+    conjuncts: Option<Vec<Option<StructuralTerm>>>,
     renames: &[(String, StructuralTerm)],
 ) -> bool {
-    let Some(equations) =
+    let Some(predicates) =
         conjuncts.and_then(|conjuncts| conjuncts.into_iter().collect::<Option<Vec<_>>>())
     else {
         return false;
@@ -350,11 +357,10 @@ fn premises_prove(
         intake_transparent_requires(program, machine, state, contracts, &mut judge);
     }
     judge.hypotheses_contradictory
-        || equations.into_iter().all(|(left, right)| {
-            let left = StructuralJudge::substitute_term(&left, renames);
-            let right = StructuralJudge::substitute_term(&right, renames);
+        || predicates.into_iter().all(|predicate| {
+            let predicate = StructuralJudge::substitute_term(&predicate, renames);
             matches!(
-                judge.judge_equation(judge.resolve(left), judge.resolve(right), 0),
+                judge.judge_observed_predicate(predicate, 0),
                 StructuralJudgment::Proven
             )
         })

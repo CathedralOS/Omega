@@ -202,7 +202,14 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
             fields: Vec::new(),
         };
         self.proven &= matches!(
-            judge.judge_equation(judge.resolve(left), judge.resolve(right), 0),
+            judge.judge_observed_predicate(
+                StructuralTerm::Identity {
+                    carrier: program.normalized_type_identity(self.carrier),
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+                0,
+            ),
             StructuralJudgment::Proven
         );
     }
