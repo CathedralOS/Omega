@@ -35,6 +35,32 @@ impl StructuralJudge<'_> {
             return Err("the Id value context exhausted the shared query allowance");
         }
         *remaining -= 1;
+        // Ordinary call producers can retain raw actuals. Recover only this
+        // value's own recorded type before entering its structural children;
+        // canonical content formers are not records of observable endpoints.
+        let own_type = match &value {
+            StructuralTerm::Application { result_type, .. }
+            | StructuralTerm::ObservedValue {
+                observed_type: result_type,
+                ..
+            } => Some(*result_type),
+            StructuralTerm::Constructor {
+                identity: super::ConstructorIdentity::Nominal { reference, .. },
+                ..
+            } => Some(*reference),
+            _ => None,
+        };
+        if let Some(reference) = own_type.filter(|reference| reference.is_valid())
+            && crate::content_algebra_for_type(self.program, reference).is_some()
+        {
+            return Ok(
+                super::super::structural_terms::owned_projection_observation(
+                    self.program,
+                    reference,
+                    value,
+                ),
+            );
+        }
         let owned_observation =
             super::super::structural_terms::owned_observation_type(self.program, &value).is_some();
         let value = match value {
