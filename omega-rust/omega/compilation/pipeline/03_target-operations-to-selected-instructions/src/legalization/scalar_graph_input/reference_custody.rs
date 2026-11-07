@@ -1113,6 +1113,20 @@ fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bo
 
 mod call_paths;
 
+/// Find the outstanding borrow that prevents this storage access.
+fn storage_access_conflicting_leaf<'a>(
+    function: &PsiOptimizationFunction,
+    custody: &'a Custody,
+    types: &[StructuralTypeDeclaration],
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    requested: StructuralAccess,
+) -> Option<&'a Leaf> {
+    custody.leaves.values().find(|&reference| {
+        leaf_storage_access_conflicts(function, custody, types, reference, place, path, requested)
+    })
+}
+
 /// Ingress reference leaves identify external pointees, not descriptor storage.
 /// Ordinary origin fields protect their exact storage regions. Shared access
 /// may coexist with shared loans; writes, moves and disposal may not. Unknown
@@ -1125,9 +1139,7 @@ fn storage_access_conflicts(
     path: &[StructuralPathSegment],
     requested: StructuralAccess,
 ) -> bool {
-    custody.leaves.values().any(|reference| {
-        leaf_storage_access_conflicts(function, custody, types, reference, place, path, requested)
-    })
+    storage_access_conflicting_leaf(function, custody, types, place, path, requested).is_some()
 }
 
 /// As [`storage_access_conflicts`], ignoring the leaves that spell the access
@@ -3298,7 +3310,7 @@ fn apply_cleanup_actions(
                 {
                     return Err(invalid());
                 }
-                if storage_access_conflicts(
+                if let Some(conflict) = storage_access_conflicting_leaf(
                     function,
                     custody,
                     types,
@@ -3306,6 +3318,18 @@ fn apply_cleanup_actions(
                     &cleanup.path,
                     StructuralAccess::Owned,
                 ) {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!(
+                            "CHECKSITE retained-native-disposal-conflict machine={:?} position={:?} event={:?} place={:?} path={:?} live_total={} first_conflict={:?}",
+                            function.machine,
+                            custody.reference_position,
+                            event,
+                            cleanup.place,
+                            &cleanup.path,
+                            custody.leaves.len(),
+                            conflict,
+                        );
+                    }
                     return Err(LegalizationError::ReferenceDisposalConflict {
                         machine: function.machine,
                         place: cleanup.place,
@@ -3325,7 +3349,7 @@ fn apply_cleanup_actions(
             }
         };
         // A suspended referent root cannot be discarded while its loan lives.
-        if storage_access_conflicts(
+        if let Some(conflict) = storage_access_conflicting_leaf(
             function,
             custody,
             types,
@@ -3333,6 +3357,18 @@ fn apply_cleanup_actions(
             &[],
             StructuralAccess::Owned,
         ) {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE retained-native-disposal-conflict machine={:?} position={:?} event={:?} place={:?} path={:?} live_total={} first_conflict={:?}",
+                    function.machine,
+                    custody.reference_position,
+                    event,
+                    place,
+                    &[] as &[StructuralPathSegment],
+                    custody.leaves.len(),
+                    conflict,
+                );
+            }
             return Err(LegalizationError::ReferenceDisposalConflict {
                 machine: function.machine,
                 place,

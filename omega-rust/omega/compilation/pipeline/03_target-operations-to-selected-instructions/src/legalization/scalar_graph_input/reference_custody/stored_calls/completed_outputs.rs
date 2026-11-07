@@ -105,8 +105,8 @@ pub(super) fn stage(
     if destination_keys.windows(2).any(|rows| rows[0] == rows[1]) {
         return Err(invalid());
     }
-    let mut completed = None;
-    for exit in body.exits() {
+    let mut completed: Option<Staged> = None;
+    for (exit_index, exit) in body.exits().iter().enumerate() {
         let mut staged = Staged {
             operation,
             replacements: Vec::new(),
@@ -302,12 +302,52 @@ pub(super) fn stage(
         {
             return Err(invalid());
         }
-        if completed.as_ref().is_some_and(|previous: &Staged| {
-            previous.replacements != staged.replacements
+        if let Some(previous) = completed.as_ref()
+            && (previous.replacements != staged.replacements
                 || previous.returned != staged.returned
                 || previous.relocations != staged.relocations
-                || previous.established != staged.established
-        }) {
+                || previous.established != staged.established)
+        {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE retained-native-call-exit-mismatch caller={:?} callee={:?} operation={:?} position={:?} exit={}/{} arguments_total={} arguments_prefix={:?} captured_total={} captured_prefix={:?} result={:?}",
+                    function.machine,
+                    callee.machine,
+                    operation,
+                    custody.reference_position,
+                    exit_index,
+                    body.exits().len(),
+                    arguments.len(),
+                    arguments.iter().take(8).collect::<Vec<_>>(),
+                    captured.len(),
+                    captured.iter().enumerate().take(8).map(|(index, capture)| {
+                        (index, capture.as_ref().map(|capture| (&capture.location, &capture.leaf)))
+                    }).collect::<Vec<_>>(),
+                    result,
+                );
+                eprintln!(
+                    "CHECKSITE retained-native-call-exit-previous replacements_total={} replacements_prefix={:?} returned_total={:?} returned_prefix={:?} relocations_total={} relocations_prefix={:?} established_total={} established_prefix={:?}",
+                    previous.replacements.len(),
+                    previous.replacements.iter().take(8).collect::<Vec<_>>(),
+                    previous.returned.as_ref().map(Vec::len),
+                    previous.returned.as_ref().map(|rows| rows.iter().take(8).collect::<Vec<_>>()),
+                    previous.relocations.len(),
+                    previous.relocations.iter().take(8).collect::<Vec<_>>(),
+                    previous.established.len(),
+                    previous.established.iter().take(8).collect::<Vec<_>>(),
+                );
+                eprintln!(
+                    "CHECKSITE retained-native-call-exit-current replacements_total={} replacements_prefix={:?} returned_total={:?} returned_prefix={:?} relocations_total={} relocations_prefix={:?} established_total={} established_prefix={:?}",
+                    staged.replacements.len(),
+                    staged.replacements.iter().take(8).collect::<Vec<_>>(),
+                    staged.returned.as_ref().map(Vec::len),
+                    staged.returned.as_ref().map(|rows| rows.iter().take(8).collect::<Vec<_>>()),
+                    staged.relocations.len(),
+                    staged.relocations.iter().take(8).collect::<Vec<_>>(),
+                    staged.established.len(),
+                    staged.established.iter().take(8).collect::<Vec<_>>(),
+                );
+            }
             // Current custody has no union of divergent parent graphs. Keep
             // that limit explicit rather than choosing one normal exit.
             return Err(invalid());
