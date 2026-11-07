@@ -8,7 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{BoundaryMachineId, InvocationSite, MachineId};
+use semantic_vocabulary::{BoundaryMachineId, EdgeId, InvocationSite, MachineId, OperationId};
 
 /// Exact static occurrence plus the substituted caller context. The context is
 /// independent of the proof commitment, so changing a proof cannot rename use.
@@ -26,8 +26,14 @@ pub(super) struct NativeOccurrence {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct ScalarOccurrence {
     pub machine: MachineId,
-    pub site: InvocationSite,
+    pub site: ScalarUseSite,
     pub context: [u8; 32],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum ScalarUseSite {
+    Operation(OperationId),
+    Edge(EdgeId),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -68,6 +74,7 @@ struct Handle {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct FileObjectState {
+    acquisition_flags: u32,
     /// A disposition on one duplicate changes their shared file object. A
     /// pending deletion requested through another independently opened object
     /// does not set this flag and is not excluded from the environment.
@@ -77,6 +84,7 @@ struct FileObjectState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum HandleLifetimeFailure {
+    InvalidActivation(&'static str),
     UnprovedOccurrence(HandleUseOccurrence),
     UnknownHandle {
         instance: HandleInstance,
@@ -94,6 +102,10 @@ pub(super) enum HandleLifetimeFailure {
     AttachedDeletion {
         acquisition: NativeOccurrence,
         release: NativeOccurrence,
+    },
+    AsynchronousIo {
+        acquisition: NativeOccurrence,
+        call: NativeOccurrence,
     },
     MissingRelease {
         acquisition: NativeOccurrence,
@@ -128,6 +140,7 @@ impl HandleLifetimes {
         }
         let object = FileObject(self.objects.len());
         self.objects.push(FileObjectState {
+            acquisition_flags: flags,
             attached_deletion: flags & 0x0400_0000 != 0,
             escaped: None,
         });
@@ -184,6 +197,34 @@ impl HandleLifetimes {
         occurrence: NativeOccurrence,
     ) -> Result<(), HandleLifetimeFailure> {
         self.require_live(instance, occurrence.into())?;
+        self.handles
+            .get_mut(&instance)
+            .unwrap()
+            .uses
+            .insert(occurrence.into());
+        Ok(())
+    }
+
+    /// APIs borrowing stack output buffers require completed I/O before those
+    /// buffers can die. For this protocol the actual CreateFileW flags establish
+    /// synchronous I/O before a borrowed-buffer transfer. The fixed class-16,
+    /// length-4 mode query uses its separate reviewed non-retention premise; a
+    /// later observation does not justify issuing its own query. Duplicates retain
+    /// these flags. This states nothing about console or device kind.
+    /// External API premise: CreateFileW's "Synchronous and Asynchronous I/O
+    /// Handles" contract and DuplicateHandle's same-object contract.
+    pub(super) fn synchronous_io(
+        &mut self,
+        instance: HandleInstance,
+        occurrence: NativeOccurrence,
+    ) -> Result<(), HandleLifetimeFailure> {
+        let object = self.require_live(instance, occurrence.into())?;
+        if self.objects[object.0].acquisition_flags & 0x4000_0000 != 0 {
+            return Err(HandleLifetimeFailure::AsynchronousIo {
+                acquisition: self.acquisition(instance, occurrence.into())?,
+                call: occurrence,
+            });
+        }
         self.handles
             .get_mut(&instance)
             .unwrap()
@@ -265,9 +306,18 @@ impl HandleLifetimes {
     /// output storage. Every other acquired instance needs one release on this
     /// normal exit. This is not invoked for a fabricated empty path.
     pub(super) fn returning_path(
-        &self,
+        &mut self,
+        occurrence: ScalarOccurrence,
         retained_by_caller: &[HandleInstance],
     ) -> Result<(), HandleLifetimeFailure> {
+        let use_site = HandleUseOccurrence::Scalar(occurrence);
+        Self::require_occurrence(use_site)?;
+        if !matches!(occurrence.site, ScalarUseSite::Edge(_)) {
+            return Err(HandleLifetimeFailure::UnprovedOccurrence(use_site));
+        }
+        for instance in retained_by_caller {
+            self.require_live(*instance, use_site)?;
+        }
         for (instance, handle) in &self.handles {
             if let Some(escape) = self.objects[handle.object.0].escaped {
                 return Err(HandleLifetimeFailure::EscapedObject {
@@ -281,15 +331,96 @@ impl HandleLifetimes {
                 });
             }
         }
+        // Check the entire return first. A failed release obligation or stale
+        // output must not leave a partially recorded return transition.
+        for instance in retained_by_caller {
+            self.handles
+                .get_mut(instance)
+                .unwrap()
+                .uses
+                .insert(use_site);
+        }
         Ok(())
     }
 
+    /// Project a completed activation back into its actual caller. The owner
+    /// must derive the complete output-alias roster, including mutable argument
+    /// storage, before this call. An output containing a retired integer refuses.
+    /// Fresh closed instances can then leave this activation's analysis state;
+    /// their full history remains in its path proof, not in the caller's next
+    /// dynamic activation. Caller instances, including retired aliases, survive.
+    pub(super) fn caller_continuation(
+        &self,
+        incoming: &Self,
+        return_site: ScalarOccurrence,
+        outputs: &[HandleInstance],
+    ) -> Result<Self, HandleLifetimeFailure> {
+        if self.objects.len() < incoming.objects.len() {
+            return Err(HandleLifetimeFailure::InvalidActivation(
+                "callee dropped caller file objects",
+            ));
+        }
+        for (instance, original) in &incoming.handles {
+            let current =
+                self.handles
+                    .get(instance)
+                    .ok_or(HandleLifetimeFailure::InvalidActivation(
+                        "callee dropped a caller handle generation",
+                    ))?;
+            if current.origin != original.origin
+                || current.object != original.object
+                || self.objects[current.object.0].acquisition_flags
+                    != incoming.objects[original.object.0].acquisition_flags
+                || (original.release.is_some() && current.release != original.release)
+            {
+                return Err(HandleLifetimeFailure::InvalidActivation(
+                    "callee substituted a caller handle generation",
+                ));
+            }
+        }
+        let mut retained = incoming
+            .handles
+            .keys()
+            .filter(|instance| self.handles[instance].release.is_none())
+            .copied()
+            .collect::<BTreeSet<_>>();
+        retained.extend(outputs.iter().copied());
+        let mut continuation = self.clone();
+        continuation.returning_path(return_site, &retained.into_iter().collect::<Vec<_>>())?;
+        let outputs = outputs.iter().copied().collect::<BTreeSet<_>>();
+        continuation.handles.retain(|instance, _| {
+            incoming.handles.contains_key(instance) || outputs.contains(instance)
+        });
+
+        // Keep the caller's object coordinates stable. Only fresh, activation-
+        // private closed objects are omitted; retained fresh objects receive
+        // compact analysis coordinates after that unchanged caller prefix.
+        let mut object_map = (0..incoming.objects.len())
+            .map(|index| (FileObject(index), FileObject(index)))
+            .collect::<BTreeMap<_, _>>();
+        let mut objects = continuation.objects[..incoming.objects.len()].to_vec();
+        for handle in continuation.handles.values_mut() {
+            if let Some(object) = object_map.get(&handle.object) {
+                handle.object = *object;
+            } else {
+                let object = FileObject(objects.len());
+                objects.push(continuation.objects[handle.object.0].clone());
+                object_map.insert(handle.object, object);
+                handle.object = object;
+            }
+        }
+        continuation.objects = objects;
+        Ok(continuation)
+    }
+
     fn require_occurrence(occurrence: HandleUseOccurrence) -> Result<(), HandleLifetimeFailure> {
-        let (context, site) = match occurrence {
-            HandleUseOccurrence::Native(native) => (native.context, native.site),
-            HandleUseOccurrence::Scalar(scalar) => (scalar.context, scalar.site),
+        let proved_site = match occurrence {
+            HandleUseOccurrence::Native(native) => {
+                native.context != [0; 32] && native.site.operation().is_some()
+            }
+            HandleUseOccurrence::Scalar(scalar) => scalar.context != [0; 32],
         };
-        if context == [0; 32] || site.operation().is_none() {
+        if !proved_site {
             return Err(HandleLifetimeFailure::UnprovedOccurrence(occurrence));
         }
         Ok(())
@@ -345,7 +476,6 @@ impl HandleLifetimes {
 #[cfg(test)]
 mod transition_tests {
     use super::*;
-    use semantic_vocabulary::OperationId;
 
     fn occurrence(operation: u64) -> NativeOccurrence {
         NativeOccurrence {
@@ -354,6 +484,106 @@ mod transition_tests {
             context: [1; 32],
             boundary: BoundaryMachineId::new(1).unwrap(),
         }
+    }
+
+    #[test]
+    fn private_closed_alias_can_recur_only_without_an_output_escape() {
+        let source = HandleInstance(0);
+        let local = HandleInstance(1);
+        let return_site = ScalarOccurrence {
+            machine: MachineId::new(1).unwrap(),
+            site: ScalarUseSite::Edge(EdgeId::new(1).unwrap()),
+            context: [1; 32],
+        };
+        let mut caller = HandleLifetimes::default();
+        caller.acquire_file(source, occurrence(1), 0).unwrap();
+        for _ in 0..2 {
+            let mut activation = caller.clone();
+            activation
+                .duplicate_file(source, local, occurrence(2))
+                .unwrap();
+            activation.release_file(local, occurrence(3)).unwrap();
+            assert!(matches!(
+                activation.caller_continuation(&caller, return_site, &[local]),
+                Err(HandleLifetimeFailure::UseAfterRelease { .. })
+            ));
+            caller = activation
+                .caller_continuation(&caller, return_site, &[])
+                .unwrap();
+            assert!(!caller.handles.contains_key(&local));
+            assert!(caller.handles.contains_key(&source));
+        }
+        caller.release_file(source, occurrence(4)).unwrap();
+        caller.returning_path(return_site, &[]).unwrap();
+    }
+
+    #[test]
+    fn duplicate_keeps_the_acquired_io_mode_before_borrowing_output() {
+        let source = HandleInstance(0);
+        let alias = HandleInstance(1);
+        let mut synchronous = HandleLifetimes::default();
+        synchronous
+            .acquire_file(source, occurrence(1), 0x0010_0080)
+            .unwrap();
+        synchronous
+            .duplicate_file(source, alias, occurrence(2))
+            .unwrap();
+        synchronous.synchronous_io(alias, occurrence(3)).unwrap();
+
+        let mut asynchronous = HandleLifetimes::default();
+        asynchronous
+            .acquire_file(source, occurrence(4), 0x4000_0080)
+            .unwrap();
+        asynchronous
+            .duplicate_file(source, alias, occurrence(5))
+            .unwrap();
+        let before = asynchronous.clone();
+        assert!(matches!(
+            asynchronous.synchronous_io(alias, occurrence(6)),
+            Err(HandleLifetimeFailure::AsynchronousIo { .. })
+        ));
+        assert_eq!(asynchronous, before);
+        // An overlapped handle can still be closed ordinarily when no pending
+        // operation was issued. Mode refusal does not narrow CloseHandle.
+        asynchronous.release_file(alias, occurrence(7)).unwrap();
+        asynchronous.release_file(source, occurrence(8)).unwrap();
+    }
+
+    #[test]
+    fn return_refuses_dead_unknown_or_unreleased_instances_atomically() {
+        let source = HandleInstance(0);
+        let alias = HandleInstance(1);
+        let mut handles = HandleLifetimes::default();
+        handles.acquire_file(source, occurrence(1), 0).unwrap();
+        handles
+            .duplicate_file(source, alias, occurrence(2))
+            .unwrap();
+        handles.release_file(source, occurrence(3)).unwrap();
+        let return_site = ScalarOccurrence {
+            machine: MachineId::new(1).unwrap(),
+            site: ScalarUseSite::Edge(EdgeId::new(1).unwrap()),
+            context: [1; 32],
+        };
+        let before = handles.clone();
+        assert!(matches!(
+            handles.returning_path(return_site, &[source]),
+            Err(HandleLifetimeFailure::UseAfterRelease {
+                later_use: HandleUseOccurrence::Scalar(_),
+                ..
+            })
+        ));
+        assert_eq!(handles, before);
+        assert!(matches!(
+            handles.returning_path(return_site, &[HandleInstance(2)]),
+            Err(HandleLifetimeFailure::UnknownHandle { .. })
+        ));
+        assert_eq!(handles, before);
+        assert!(matches!(
+            handles.returning_path(return_site, &[]),
+            Err(HandleLifetimeFailure::MissingRelease { .. })
+        ));
+        assert_eq!(handles, before);
+        handles.returning_path(return_site, &[alias]).unwrap();
     }
 
     #[test]
@@ -370,7 +600,7 @@ mod transition_tests {
                 source,
                 ScalarOccurrence {
                     machine: native.machine,
-                    site: native.site,
+                    site: ScalarUseSite::Operation(native.site.operation().unwrap()),
                     context: native.context,
                 }
             ),
@@ -388,7 +618,14 @@ mod transition_tests {
             .unwrap();
         escaped.escape(alias, occurrence(6)).unwrap();
         assert!(matches!(
-            escaped.returning_path(&[source, alias]),
+            escaped.returning_path(
+                ScalarOccurrence {
+                    machine: native.machine,
+                    site: ScalarUseSite::Edge(EdgeId::new(1).unwrap()),
+                    context: native.context
+                },
+                &[source, alias]
+            ),
             Err(HandleLifetimeFailure::EscapedObject { .. })
         ));
         assert!(matches!(

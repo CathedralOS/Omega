@@ -59,6 +59,9 @@ pub(super) enum CallTarget {
 #[derive(Clone, Copy)]
 pub(super) struct RuntimeCall<'a> {
     pub caller: Caller,
+    /// Original boundary coordinate, retained when its selected execution is a
+    /// module body or intrinsic. Terminator invocations have the same custody.
+    pub boundary: Option<BoundaryMachineId>,
     pub target: CallTarget,
     pub arguments: RuntimeArguments<'a>,
     pub normal_return: bool,
@@ -116,6 +119,7 @@ impl<'a> HandleCallGraph<'a> {
                     graph.insert(
                         RuntimeCall {
                             caller,
+                            boundary: None,
                             target: CallTarget::Machine(invocation.inputs.callee),
                             arguments: invocation.inputs.into(),
                             normal_return: !matches!(
@@ -136,6 +140,7 @@ impl<'a> HandleCallGraph<'a> {
                     graph.insert(
                         RuntimeCall {
                             caller,
+                            boundary: Some(invocation.boundary),
                             target: boundary_target(context, invocation.boundary)?,
                             arguments: RuntimeArguments::Explicit {
                                 scalar: invocation.arguments,
@@ -178,6 +183,7 @@ impl<'a> HandleCallGraph<'a> {
                                         operation.id,
                                     )),
                                 },
+                                boundary: None,
                                 target: CallTarget::Machine(callee),
                                 arguments: RuntimeArguments::Explicit {
                                     scalar: arguments,
@@ -200,6 +206,7 @@ impl<'a> HandleCallGraph<'a> {
                                         operation_index: block.operations.len(),
                                         site: CallSite::Cleanup { edge, ordinal },
                                     },
+                                    boundary: None,
                                     target: CallTarget::Machine(cleanup.cleanup_machine),
                                     arguments: RuntimeArguments::Cleanup(cleanup),
                                     normal_return: true,

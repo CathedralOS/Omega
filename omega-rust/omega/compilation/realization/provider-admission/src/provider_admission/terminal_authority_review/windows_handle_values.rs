@@ -341,6 +341,12 @@ impl<'a> HandleValueReader<'a> {
                     Some(ScalarTerm::Integer { scalar_type, value })
                 }
                 OperationKind::BooleanConstant { value } => Some(ScalarTerm::Boolean(value)),
+                OperationKind::ReadScalarApplication { application } => {
+                    Some(ScalarTerm::Application {
+                        application,
+                        scalar_type: operation.result.expect_scalar().scalar_type,
+                    })
+                }
                 _ => None,
             };
             if let Some(literal) = literal {
@@ -502,6 +508,7 @@ impl<'a> HandleValueReader<'a> {
             || !self.calls.calls.get(&call.caller).is_some_and(|originals| {
                 originals.iter().any(|original| {
                     matches!(original.target, CallTarget::Machine(actual) if actual == callee)
+                        && original.boundary == call.boundary
                         && original.normal_return == call.normal_return
                         && match (original.arguments, call.arguments) {
                             (
