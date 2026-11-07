@@ -2,20 +2,19 @@
 
 This reference defines the local shared-machine transport for running concurrent agents on one host with a local Rust toolchain.
 - **Worker workflow:** Every worker follows [advance](../../advance/SKILL.md) (`/advance`) and [AGENTS.md](../../../../AGENTS.md#law-of-completion) for capability selection, validation, and board updates. Do not duplicate `/advance` rules in worker prompts; point the worker to `.agents/skills/advance/SKILL.md`.
-- **Coordinator review & landing:** Workers push a **draft** PR (`gh pr create --draft`) and stop (`candidate_ready`). The coordinator audits every diff using [coordinator-review](../../coordinator-review/SKILL.md) before running `python3 tools/landing.py land <pr> --expected-head <sha>`.
+- **Coordinator review & landing:** Workers push a **draft** PR (`gh pr create --draft`) and stop (`candidate_ready`). The coordinator audits every diff using [coordinator-review](../../coordinator-review/SKILL.md) before running `cargo xtask land land <pr> --expected-head <sha>`.
 
 ## 1. Local Host Setup & Worktrees
 
 Local subagents share one physical machine (CPU, RAM, disk, and process table):
-1. **Preflight:** Fetch `origin/main` (`git fetch origin main`) and check live claims (`python3 tools/claims.py status`) and open PRs before dispatching. Reserve outcomes with [dispatch.md](../../../../tools/swarm/dispatch.md).
-2. **One isolated detached worktree per worker:** Never edit in the primary checkout and never run two editing agents in the same worktree:
+1. **Preflight:** Fetch `origin/main` (`git fetch origin main`) and check live claims (`cargo xtask claims status`) and open PRs before dispatching. Reserve outcomes with [dispatch.md](../../../../tools/swarm/dispatch.md).
+2. **One isolated `worker-N` pool slot per worker:** Never edit in the primary checkout and never run two editing agents in the same worktree:
    ```bash
-   git worktree add --detach .agents/worktree/<short-name> origin/main
+   cargo xtask worktree acquire <lane>-<topic>
    ```
-   Local named branches are banned. Reuse a worker's existing worktree across slices so its `target/` cache stays warm.
+   Local named branches are banned. Reuse a worker's fixed `.agents/worktree/worker-N` slot across slices (`cargo xtask worktree release`) so its `target/` cache stays warm.
 3. **Host build concurrency ([host-setup.md](host-setup.md)):**
    - Agent slots and expensive-build slots are separate. Keep each worktree's `CARGO_TARGET_DIR` independent (`CARGO_PROFILE_DEV_OPT_LEVEL=1`).
-   - Take the local build pool once for the build/test chain via `tools/build_slot.py` and release it before waiting on GitHub CI.
    - Where supported, share verification builds as per-wave generations (`--cli` / `--runner`) built once at the wave base.
 
 ## 2. Launching & Communicating with Local Subagents

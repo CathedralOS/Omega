@@ -5,12 +5,6 @@
 [commands/](src/commands/mod.rs) owns console rendering and shell exit codes.
 It calls complete operations, not individual compiler stages.
 
-For separate allocation attribution, the optional `allocation-observation`
-feature wraps the normal MiMalloc allocator and marks `--version`. Successful
-invocations write a requested-byte/count report to `OMEGA_ALLOCATION_PROFILE`
-when set. Use an uninstrumented retained producer for timing comparisons; see
-the [performance tooling guide](../../../../tools/benchmark/comparison.md).
-
 Project Build is owned by the [compiler's Build coordinator](../../build-system/orchestration/README.md).
 The CLI package also houses the execution and inspection operations:
 
@@ -223,12 +217,6 @@ the packager), and Rust host target. Release bundles carry their matching librar
 beside the executable; ordinary Cargo development builds retain a checkout
 fallback. See [release packaging](../../../../tools/release/README.md#build-a-relocatable-bundle)
 for installation layout, explicit library selection, and relocation tests.
-
-`omega --build-profile` prints the loaded compiler's build-time optimization
-profile as JSON without loading a project or its library. Validation tools use
-this observation with the binary digest; runtime Cargo environment variables
-cannot change it. Normal dev/test builds use opt-level 1, and the compiler build
-refuses opt-level 0. Debug information can be enabled while retaining optimization.
 
 `omega inspect-terminal --artifact <file>` reads an existing portable Terminal
 artifact envelope (up to 64 MiB), applies canonical decoding and semantic

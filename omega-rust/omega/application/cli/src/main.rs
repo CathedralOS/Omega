@@ -13,10 +13,7 @@
 //! stacks are small on Windows (1 MB vs. 8 MB on macOS and Linux), and nested
 //! `run_on_compile_thread` calls inside package readiness and compilation reuse
 //! that single worker inline instead of spawning a second 256 MB thread.
-//! Lightweight metadata flags (`--help`, `--version`, `--build-profile`) run
-//! directly on `main` without spawning a worker.
 
-mod allocator;
 mod arguments;
 mod commands;
 mod execution;
@@ -25,8 +22,10 @@ mod inspection;
 use arguments::Invocation;
 use std::process::ExitCode;
 
+#[global_allocator]
+static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 fn main() -> ExitCode {
-    let _allocation_report = allocator::ReportOnExit;
     terminal_runtime::run_native_provider_worker_if_requested();
     let invocation = match arguments::parse(std::env::args_os().skip(1)) {
         Ok(invocation) => invocation,
@@ -35,31 +34,10 @@ fn main() -> ExitCode {
             return ExitCode::from(arguments::USAGE_ERROR_EXIT);
         }
     };
-    run_invocation(invocation)
+    run_with_large_stack(invocation)
 }
 
-fn run_invocation(invocation: Invocation) -> ExitCode {
-    match invocation {
-        Invocation::Help(usage) => {
-            println!("{usage}");
-            return ExitCode::SUCCESS;
-        }
-        Invocation::BuildProfile => {
-            println!("{}", compiler::compiler_build_profile());
-            return ExitCode::SUCCESS;
-        }
-        Invocation::Version => {
-            println!(
-                "omega {}{} ({}; {})",
-                env!("OMEGA_VERSION"),
-                allocator::VERSION_SUFFIX,
-                env!("OMEGA_COMMIT"),
-                env!("OMEGA_HOST")
-            );
-            return ExitCode::SUCCESS;
-        }
-        _ => {}
-    }
+fn run_with_large_stack(invocation: Invocation) -> ExitCode {
     std::thread::scope(|scope| {
         let worker = compiler::checked::spawn_compile_worker(scope, move || match invocation {
             Invocation::Compile(request) => commands::compile::run(request),
@@ -72,7 +50,13 @@ fn run_invocation(invocation: Invocation) -> ExitCode {
             } => commands::packages::run(command, options, accept_all),
             Invocation::AuditSource(request) => commands::packages::run_source_audit(request),
             Invocation::AuditPackages(request) => commands::packages::run_audit(request),
-            Invocation::Help(_) | Invocation::BuildProfile | Invocation::Version => unreachable!(),
+            Invocation::Help(usage) => println!("{usage}"),
+            Invocation::Version => println!(
+                "omega {} ({}; {})",
+                env!("OMEGA_VERSION"),
+                env!("OMEGA_COMMIT"),
+                env!("OMEGA_HOST")
+            ),
         });
         match worker {
             Ok(worker) => {

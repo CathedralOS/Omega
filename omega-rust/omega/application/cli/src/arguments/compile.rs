@@ -20,17 +20,16 @@ pub(crate) struct CompileArguments {
     pub(crate) optimization_rollback: OptimizationRollback,
 }
 
-pub(crate) fn usage() -> &'static str {
-    "usage: omega [--check] [--verify] [--offline] [--timings] [--report-file <path>] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both [--terminal-fuel-allowance <positive-u64>]] [--keep] [--entry-ram <position=hex>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega inspect-terminal --artifact <file>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install|update --resume [--project <dir>] [--offline]\n       omega install|update --discard-review [--project <dir>] [--offline]\n       omega --version\n--verify (with --check) withholds the accepted lock's checkpoint and recorded trust admissions so the package re-verifies under retained source pins instead of recorded acceptance.\n--offline disables package source network acquisition for this invocation.\nrun and inspect-terminal do not support --offline.\n--entry-ram constructs checked private scalar-record RAM for an exact placed entry parameter; it supplies no host address or authority.\n--build-input and --optional-build-input select the exact build input inventory relative to the source root.\nDirectories include their subtrees; required source files must be included explicitly.\n--report-file writes the produced compile report as a plain-text observation file at the named path."
-}
+pub(super) const USAGE: &str = "usage: omega [--check] [--verify] [--offline] [--timings] [--report-file <path>] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both [--terminal-fuel-allowance <positive-u64>]] [--keep] [--entry-ram <position=hex>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega inspect-terminal --artifact <file>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install|update --resume [--project <dir>] [--offline]\n       omega install|update --discard-review [--project <dir>] [--offline]\n       omega --version\n--verify (with --check) withholds the accepted lock's checkpoint and recorded trust admissions so the package re-verifies under retained source pins instead of recorded acceptance.\n--offline disables package source network acquisition for this invocation.\nrun and inspect-terminal do not support --offline.\n--entry-ram constructs checked private scalar-record RAM for an exact placed entry parameter; it supplies no host address or authority.\n--build-input and --optional-build-input select the exact build input inventory relative to the source root.\nDirectories include their subtrees; required source files must be included explicitly.\n--report-file writes the produced compile report as a plain-text observation file at the named path.";
 
-pub(crate) fn parse_arguments(
+pub(super) fn parse_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
-) -> Result<CompileArguments, String> {
+) -> Result<Option<CompileArguments>, String> {
     let mut build_dir = None;
     let mut build_inputs = Vec::new();
     let mut check_only = false;
     let mut disabled_optimizations = Vec::new();
+    let mut help = false;
     let mut offline = false;
     let mut timings = false;
     let mut verify = false;
@@ -39,6 +38,11 @@ pub(crate) fn parse_arguments(
     let mut target_names: Vec<String> = Vec::new();
 
     while let Some(argument) = arguments.next() {
+        if argument == "--help" || argument == "-h" {
+            super::set_flag(&mut help, &argument.to_string_lossy())?;
+            continue;
+        }
+
         if argument == "--offline" {
             super::set_flag(&mut offline, "--offline")?;
             continue;
@@ -140,7 +144,10 @@ pub(crate) fn parse_arguments(
     if verify && !check_only {
         return Err("--verify requires --check".into());
     }
-    Ok(CompileArguments {
+    if help {
+        return Ok(None);
+    }
+    Ok(Some(CompileArguments {
         build_dir,
         build_inputs,
         check_only,
@@ -151,5 +158,5 @@ pub(crate) fn parse_arguments(
         root_path: root_path.ok_or_else(|| "missing root Omega source path".to_owned())?,
         target_names,
         optimization_rollback,
-    })
+    }))
 }
