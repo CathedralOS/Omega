@@ -273,7 +273,11 @@ def main() -> int:
     if not os.access(cli, os.X_OK):
         raise SystemExit(f"sample_gate: missing CLI {cli}")
 
-    jobs = options.jobs or min(len(roots), os.cpu_count() or 4)
+    jobs = max(1, min(len(roots), options.jobs or min(4, os.cpu_count() or 4)))
+    if "RAYON_NUM_THREADS" not in os.environ:
+        os.environ["RAYON_NUM_THREADS"] = str(
+            max(1, (os.cpu_count() or 1) // jobs)
+        )
     records = []
     with tempfile.TemporaryDirectory(prefix="omega-sample-gate-") as scratch:
         scratch_path = Path(scratch)

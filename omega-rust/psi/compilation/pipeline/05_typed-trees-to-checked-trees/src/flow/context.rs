@@ -108,21 +108,24 @@ impl MachineOrigins {
     ) -> Self {
         use rayon::prelude::*;
         let machines = program.machines();
-        let parameters = machines
-            .par_iter()
-            .map(|machine| {
-                std::sync::Arc::new(entry_origins::machine_parameter_origins(program, machine))
-            })
-            .collect();
-        let storage = call_frames.map_or_else(Vec::new, |frames| {
-            machines
+        let (parameters, storage) = validation::checking_thread_pool().install(|| {
+            let parameters = machines
                 .par_iter()
                 .map(|machine| {
-                    std::sync::Arc::new(entry_origins::machine_storage_origins(
-                        program, frames, machine,
-                    ))
+                    std::sync::Arc::new(entry_origins::machine_parameter_origins(program, machine))
                 })
-                .collect()
+                .collect();
+            let storage = call_frames.map_or_else(Vec::new, |frames| {
+                machines
+                    .par_iter()
+                    .map(|machine| {
+                        std::sync::Arc::new(entry_origins::machine_storage_origins(
+                            program, frames, machine,
+                        ))
+                    })
+                    .collect()
+            });
+            (parameters, storage)
         });
         Self {
             parameters,
