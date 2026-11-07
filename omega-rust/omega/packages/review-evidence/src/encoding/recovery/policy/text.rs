@@ -1,4 +1,5 @@
-//! Named-text recovery restores the existing bounded typed policy meaning.
+// Named-text recovery restoring bounded typed policy meaning.
+// `PackagePolicyTextRecoveryLimits` pairs a text-expansion byte ceiling with the underlying policy owned-storage budget (shared by reconstructed binary storage, typed allocations, and canonical verification scratch while input and text verification stay borrowed).
 
 pub(in crate::encoding) mod framing;
 pub(in crate::encoding::recovery) mod tokens;
@@ -9,9 +10,6 @@ use crate::encoding::{
 };
 use crate::record::PackagePolicyBaseline;
 
-/// Text expansion has its own byte ceiling. All reconstructed binary storage,
-/// typed recovery allocations, and canonical verification scratch share the
-/// underlying policy owned-storage budget. Input text remains borrowed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackagePolicyTextRecoveryLimits {
     maximum_text_bytes: usize,
@@ -34,10 +32,6 @@ impl Default for PackagePolicyTextRecoveryLimits {
 }
 
 impl PackagePolicyBaseline {
-    /// Recover the same inert meaning and report all charged storage and typed
-    /// elements so an enclosing document can lower its next child's ceilings.
-    /// Storage includes the requested reconstructed-binary reserve, typed data,
-    /// and canonical binary scratch. Input and text verification stay borrowed.
     pub fn recover_text_with_usage(
         text: &str,
         limits: PackagePolicyTextRecoveryLimits,

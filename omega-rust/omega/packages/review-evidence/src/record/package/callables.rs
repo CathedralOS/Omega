@@ -1,7 +1,7 @@
+// Checked implementation body service-reach state (`PackageReviewCheckedServiceReach`).
+
 use super::super::identity::PackageReviewNominalIdentity;
 
-/// Whether package review has a checked implementation body from which exact
-/// service reach can be reported.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageReviewCheckedServiceReach {
     NoCheckedBody,

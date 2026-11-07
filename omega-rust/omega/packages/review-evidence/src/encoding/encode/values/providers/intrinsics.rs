@@ -1,3 +1,5 @@
+// Canonical encoding for compiler intrinsic executions and primitive numeric/float operations.
+
 use crate::encoding::{PackageReviewEncodingError, encode::encoder::Encoder};
 use crate::record::PackageReviewCompilerIntrinsicExecution;
 use numerics::arithmetic::ArithmeticDomain;

@@ -1,3 +1,5 @@
+// Structural validation for public traits, operators, conformances, domains, propositions, and evidence interfaces.
+
 use super::{Result, Scope};
 use crate::record::PackagePolicyConformanceShape;
 use crate::record::PackagePolicyDomainShape;

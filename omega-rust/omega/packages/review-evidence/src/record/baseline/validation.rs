@@ -1,4 +1,9 @@
-//! Cross-component associations, without compiler or acceptance reconstruction.
+// Cross-component structural validation for `PackagePolicyBaseline`, without
+// compiler or acceptance reconstruction.
+//
+// Foreign operator declarations belong to their own package's baseline, so this
+// aggregate checks their qualified coordinate and delegates local operator
+// demand validation to `boundary_owners::validate_demand`.
 
 use crate::record::PackagePolicyBaseline;
 use crate::record::PackagePolicyCallable;
@@ -185,9 +190,6 @@ impl PackagePolicyBaseline {
                     );
                 }
             }
-            // Foreign operator declarations belong to their own package's
-            // baseline. This aggregate can check their qualified coordinate,
-            // not manufacture a local copy of the foreign declaration.
             if demand.operator_coordinate.identity.owner
                 == PackageReviewNominalOwner::Package(self.package)
             {

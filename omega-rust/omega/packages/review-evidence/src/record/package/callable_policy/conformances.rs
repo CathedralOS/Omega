@@ -1,9 +1,11 @@
+// Callable conformance claims (`PackagePolicyCallableConformance`), keeping
+// caller lifetime choices distinct from the requirement's alpha-normalized
+// equality partition.
+
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewTypeIdentity;
 use crate::record::accessors::field_projection_accessors;
 
-/// Exact caller lifetime choices remain distinct from the requirement's
-/// alpha-normalized equality partition.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyCallableConformance {
     pub(crate) trait_identity: PackageReviewNominalIdentity,

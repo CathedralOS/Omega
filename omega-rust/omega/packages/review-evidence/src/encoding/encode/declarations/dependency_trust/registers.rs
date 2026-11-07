@@ -1,3 +1,5 @@
+// Canonical encoding for machine registers and boundary calling-policy tags.
+
 use crate::encoding::encode::encoder::Encoder;
 use crate::record::{PackageReviewBoundaryCallingPolicy, PackageReviewMachineRegister};
 

@@ -1,3 +1,5 @@
+// Canonical encoding for callable contracts, contract facts, and proposition applications.
+
 use super::super::declarations::{encode_carry_permission, encode_type_identity};
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;

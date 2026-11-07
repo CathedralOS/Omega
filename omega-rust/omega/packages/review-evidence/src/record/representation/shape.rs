@@ -1,4 +1,4 @@
-//! Complete checked shape graph for one representation demand.
+// Complete checked shape graph for one representation demand.
 
 use crate::record::accessors::field_projection_accessors;
 pub type PackageReviewBoundaryShapeClass = calling_conventions::BoundaryValueClass;

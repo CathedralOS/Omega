@@ -1,4 +1,4 @@
-//! Exact service-schema permission meaning under one aggregate writer budget.
+// Exact service-schema terminal permission encoding under one aggregate writer budget.
 
 use super::{
     encoder::{Encoder, encode_canonical_component},
