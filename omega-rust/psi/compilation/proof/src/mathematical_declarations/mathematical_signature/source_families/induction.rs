@@ -51,7 +51,10 @@ mod tests {
             .unwrap();
             proof_admission::check_type(
                 arena,
-                &Context::empty().with_signature(signature),
+                &Context::with_level_arity(
+                    self.level_binders.len() as u32 + self.generalized_levels,
+                )
+                .with_signature(signature),
                 proof,
                 ty,
                 &mut Budget::new(DEFAULT_CONVERSION_STEPS),
@@ -155,7 +158,8 @@ impl Elaborator<'_> {
         invariant: TermHandle,
         index_actuals: &[TermHandle],
     ) -> Result<SourceInduction, Vec<Diagnostic>> {
-        let family = self.source_family(symbol)?;
+        let template = self.source_family(symbol)?;
+        let family = self.applied_source_family(&template, index_actuals)?;
         let description = family
             .description_at(&mut self.arena, index_actuals)
             .map_err(|reason| self.refuse(reason.into()))?;
@@ -188,9 +192,16 @@ impl Elaborator<'_> {
         }) {
             return Ok(previous.result.clone());
         }
+        let result_level = terms::result_sort_level(
+            &mut self.arena,
+            &self.declarations,
+            invariant,
+            self.level_binders.len() as u32 + self.generalized_levels,
+        )
+        .map_err(|reason| self.refuse(reason.into()))?;
         let sort = self
             .arena
-            .insert(Term::Sort(Sort::Type(Level::Constant(0))));
+            .insert(Term::Sort(Sort::Type(result_level.clone())));
         let invariant_type = self.arena.insert(Term::Pi {
             domain: description.index,
             codomain: sort,
@@ -201,6 +212,7 @@ impl Elaborator<'_> {
             &mut self.declarations,
             &description,
             invariant,
+            result_level,
         );
         // A source specialization may erase every index occurrence from its
         // authored proposition. When an open induction for this family is
@@ -225,7 +237,9 @@ impl Elaborator<'_> {
                 "source invariant normalization is unsupported: {error:?}"
             ))
         })?;
-        let context = Context::empty().with_signature(signature);
+        let context =
+            Context::with_level_arity(self.level_binders.len() as u32 + self.generalized_levels)
+                .with_signature(signature);
         if proof_admission::infer_sort(
             &mut self.arena,
             &context,
@@ -273,7 +287,7 @@ impl Elaborator<'_> {
         let common_types = family
             .common
             .iter()
-            .map(|field| self.source_field_function(field, &family.parameters))
+            .map(|field| self.source_field_function(field, &family.parameters, &family.type_levels))
             .collect::<Result<Vec<_>, _>>()?;
         let mut common = family
             .common
@@ -291,9 +305,6 @@ impl Elaborator<'_> {
             .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
             .map(|parameter| parameter.symbol)
             .collect::<Vec<_>>();
-        let type_sort = self
-            .arena
-            .insert(Term::Sort(Sort::Type(Level::Constant(0))));
         let mut external_slots = vec![false; family.parameters.len()];
         for &position in &family.external_parameter_indices {
             external_slots[position] = true;
@@ -314,9 +325,17 @@ impl Elaborator<'_> {
             .collect::<Vec<_>>();
         common.splice(
             0..0,
-            stored_type_symbols
-                .iter()
-                .map(|symbol| (*symbol, type_sort)),
+            stored_type_symbols.iter().map(|symbol| {
+                let ordinal = type_symbols
+                    .iter()
+                    .position(|bound| bound == symbol)
+                    .expect("retained Type binder");
+                (
+                    *symbol,
+                    self.arena
+                        .insert(Term::Sort(Sort::Type(family.type_levels[ordinal].clone()))),
+                )
+            }),
         );
         let mut index_fields = self
             .program
@@ -329,7 +348,7 @@ impl Elaborator<'_> {
                 .payload
                 .iter()
                 .map(|field| {
-                    self.source_field_function(field, &family.parameters)
+                    self.source_field_function(field, &family.parameters, &family.type_levels)
                         .map(|ty| (field.symbol, ty))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -363,7 +382,7 @@ impl Elaborator<'_> {
                 // occurrence is abstracted before the theorem is checked.
                 let position = self.declarations.len() as u32;
                 self.declarations.push(Declaration {
-                    level_arity: 0,
+                    level_arity: proof_admission::universe_parameter_arity(&self.arena, &[domain]),
                     ty: domain,
                     body: None,
                 });
@@ -456,8 +475,11 @@ impl Elaborator<'_> {
             // at every occurrence inside the derived eliminator. Definitions
             // keep the complete proof/assumption closure reachable.
             let position = self.declarations.len() as u32;
-            self.declarations
-                .push(Declaration::definition(0, lemma_type, lemma));
+            self.declarations.push(Declaration::definition(
+                proof_admission::universe_parameter_arity(&self.arena, &[lemma_type, lemma]),
+                lemma_type,
+                lemma,
+            ));
             lemmas.push(self.constant(position));
             schemes.push(terms::Case {
                 payload,
@@ -476,6 +498,7 @@ impl Elaborator<'_> {
             &mut self.declarations,
             &type_symbols,
             &external_actuals,
+            &family.payload_lifts,
         )
         .map_err(|error| self.refuse(error.into()))?;
         self.check_induction_term(step, step_type, "indexed-family induction step")?;
@@ -497,7 +520,9 @@ impl Elaborator<'_> {
             return Ok(None);
         }
         let signature = Signature::from_declarations(self.declarations.clone());
-        let context = Context::empty().with_signature(signature.clone());
+        let context =
+            Context::with_level_arity(self.level_binders.len() as u32 + self.generalized_levels)
+                .with_signature(signature.clone());
         if index_actuals
             .iter()
             .any(|actual| term_mentions_variable(&self.arena, *actual))
@@ -585,8 +610,9 @@ impl Elaborator<'_> {
         ty: TermHandle,
         role: &str,
     ) -> Result<(), Vec<Diagnostic>> {
-        let context = Context::empty()
-            .with_signature(Signature::from_declarations(self.declarations.clone()));
+        let context =
+            Context::with_level_arity(self.level_binders.len() as u32 + self.generalized_levels)
+                .with_signature(Signature::from_declarations(self.declarations.clone()));
         let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
         let result = proof_admission::check_type(&mut self.arena, &context, term, ty, &mut budget);
         result.map_err(|error| {

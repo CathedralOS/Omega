@@ -26,6 +26,7 @@ pub(super) struct SourceApplication {
     pub(super) owner: SymbolHandle,
     pub(super) term: TermHandle,
     pub(super) domains: Vec<TermHandle>,
+    pub(super) level_arity: u32,
     pub(super) captures: Vec<super::PreparedCapture>,
     pub(super) emissions: std::ops::Range<usize>,
 }
@@ -77,6 +78,7 @@ impl Elaborator<'_> {
             self.level_binders.clear();
             self.level_names.clear();
             self.generalized_levels = 0;
+            self.source_type_levels.clear();
             self.captured_expressions.clear();
             self.source_family_values.clear();
             let mut captures = Vec::new();
@@ -145,6 +147,7 @@ impl Elaborator<'_> {
                 owner: self.source_owner,
                 term,
                 domains: self.scope.iter().map(|entry| entry.domain).collect(),
+                level_arity: self.level_binders.len() as u32 + self.generalized_levels,
                 captures,
                 emissions: emission_start..self.identity_emissions.len(),
             });

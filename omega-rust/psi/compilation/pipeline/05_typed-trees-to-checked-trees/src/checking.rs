@@ -601,6 +601,7 @@ fn check_program(
                     .proof
                     .identity_formations
                     .push(checked_trees::CheckedIdentityFormation {
+                        level_arity: application.level_arity,
                         expression: application.expression,
                         owner: application.owner,
                         type_identity: value.type_identity,
@@ -629,6 +630,7 @@ fn check_program(
         .source_carriers
         .iter()
         .map(|(_, carrier)| checked_trees::CheckedSourceEvidenceCarrier {
+            level_arity: carrier.level_arity,
             type_identity: carrier.type_identity,
             ty: carrier.ty,
             domains: carrier.domains.clone(),
@@ -681,6 +683,7 @@ fn check_program(
             .proof
             .indexed_theorems
             .push(checked_trees::CheckedIndexedTheorem {
+                level_arity: theorem.level_arity,
                 machine: theorem.machine,
                 expression: theorem.expression,
                 ensure_ordinal: theorem.ensure_ordinal,

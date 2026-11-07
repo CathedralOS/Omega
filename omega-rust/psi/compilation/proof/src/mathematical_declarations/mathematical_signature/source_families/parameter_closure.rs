@@ -73,8 +73,15 @@ fn abstract_parameters_with_declarations(
                     .iter()
                     .position(|(position, _, _)| *position == declaration)
                 {
-                    if !levels.is_empty() {
-                        return Err("source value placeholder acquired universe arguments");
+                    let arity =
+                        proof_admission::universe_parameter_arity(arena, &[parameters[ordinal].2]);
+                    let expected = (0..arity)
+                        .map(proof_admission::Level::Parameter)
+                        .collect::<Vec<_>>();
+                    if levels != expected {
+                        return Err(
+                            "source value placeholder changed its exact universe application",
+                        );
                     }
                     Term::Variable(depth + (parameters.len() - ordinal - 1) as u32)
                 } else if let Some(replacement) = lifted.get(declaration) {

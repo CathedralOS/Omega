@@ -57,7 +57,7 @@ pub(crate) fn indexed_theorems(
             &signature.arena,
             &proof_admission::MathematicalCertificate {
                 signature: signature.declarations.clone(),
-                level_arity: 0,
+                level_arity: theorem.level_arity,
                 context: Vec::new(),
                 term: theorem.term,
                 expected: theorem.ty,

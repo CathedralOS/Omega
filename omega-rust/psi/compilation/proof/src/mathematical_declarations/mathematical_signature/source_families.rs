@@ -365,6 +365,8 @@ pub(super) struct SourceFamily {
     pub declaration: u32,
     pub symbol: SymbolHandle,
     pub parameters: Vec<TypeParameter>,
+    pub type_levels: Vec<Level>,
+    pub payload_lifts: Vec<(SymbolHandle, TermHandle)>,
     pub common: Vec<DataField>,
     pub cases: Vec<SourceCase>,
     description_template: IndexedFamily,
@@ -383,6 +385,49 @@ pub(super) struct SourceCase {
 }
 
 impl SourceFamily {
+    pub(super) fn at_levels(
+        &self,
+        arena: &mut proof_admission::TermArena,
+        levels: &[Level],
+    ) -> Result<Self, &'static str> {
+        if levels.len() != self.type_levels.len() {
+            return Err("source description lost its exact universe telescope");
+        }
+        let mut result = self.clone();
+        result.type_levels = levels.to_vec();
+        let instantiate = |arena: &mut proof_admission::TermArena, term| {
+            proof_admission::instantiate_levels(arena, term, levels)
+                .map_err(|_| "source description has an unbound universe parameter")
+        };
+        result.description_template = IndexedFamily {
+            levels: [
+                self.description_template.levels[0]
+                    .instantiate(levels)
+                    .map_err(|_| "source index universe is unbound")?,
+                self.description_template.levels[1]
+                    .instantiate(levels)
+                    .map_err(|_| "source label universe is unbound")?,
+                self.description_template.levels[2]
+                    .instantiate(levels)
+                    .map_err(|_| "source position universe is unbound")?,
+            ],
+            index: instantiate(arena, self.description_template.index)?,
+            carrier: instantiate(arena, self.description_template.carrier)?,
+            children: instantiate(arena, self.description_template.children)?,
+            out: instantiate(arena, self.description_template.out)?,
+            next: instantiate(arena, self.description_template.next)?,
+        };
+        for (_, domain) in &mut result.payload_lifts {
+            *domain = instantiate(arena, *domain)?;
+        }
+        for case in &mut result.cases {
+            case.constraints = instantiate(arena, case.constraints)?;
+            for child in &mut case.child_indices {
+                *child = instantiate(arena, *child)?;
+            }
+        }
+        Ok(result)
+    }
     pub(super) fn description_at(
         &self,
         arena: &mut proof_admission::TermArena,
@@ -411,6 +456,16 @@ impl SourceFamily {
 }
 
 impl Elaborator<'_> {
+    pub(super) fn applied_source_family(
+        &mut self,
+        family: &SourceFamily,
+        actuals: &[TermHandle],
+    ) -> Result<SourceFamily, Vec<Diagnostic>> {
+        let levels = self.family_actual_levels(&family.parameters, actuals)?;
+        family
+            .at_levels(&mut self.arena, &levels)
+            .map_err(|reason| self.refuse(reason.into()))
+    }
     /// Seed source evidence demanded without any mathematical declaration or
     /// application. Each model still passes the same exact declaration/W checks.
     pub(super) fn demand_source_family_declarations(&mut self) -> Result<(), Vec<Diagnostic>> {
@@ -441,9 +496,18 @@ impl Elaborator<'_> {
         if family.parameters.len() != arguments.len() {
             return Err(self.refuse("source indexed application changed its index arity".into()));
         }
-        let mut term = self.constant(family.declaration);
-        for (parameter, argument) in family.parameters.iter().zip(arguments) {
-            let operand = self.index_operand(*argument, parameter, &[])?;
+        let actuals = family
+            .parameters
+            .iter()
+            .zip(arguments)
+            .map(|(parameter, argument)| self.index_operand(*argument, parameter, &[]))
+            .collect::<Result<Vec<_>, _>>()?;
+        let levels = self.family_actual_levels(&family.parameters, &actuals)?;
+        let mut term = self.arena.insert(Term::Constant {
+            declaration: family.declaration,
+            levels,
+        });
+        for operand in actuals {
             term = self.arena.insert(Term::Apply {
                 function: term,
                 argument: operand,
@@ -496,7 +560,9 @@ impl Elaborator<'_> {
         self.source_owner = symbol;
         self.span = self.program.symbols.symbol_source_span(symbol);
         self.indexed_family_stack.push(symbol);
+        let saved_levels = self.enter_family_levels(&parameters);
         let result = self.build_source_family(&data, parameters);
+        self.restore_source_levels(saved_levels);
         self.indexed_family_stack.pop();
         self.scope = saved_scope;
         self.source_owner = saved_owner;
@@ -520,6 +586,11 @@ impl Elaborator<'_> {
         data: &DataDefinition,
         parameters: Vec<TypeParameter>,
     ) -> Result<SourceFamily, Vec<Diagnostic>> {
+        let type_levels = parameters
+            .iter()
+            .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+            .map(|parameter| self.source_type_level(parameter.symbol))
+            .collect::<Vec<_>>();
         let mut common = Vec::new();
         let mut common_children = Vec::new();
         let mut variants = Vec::new();
@@ -645,7 +716,7 @@ impl Elaborator<'_> {
                 self.push_scope(Some(field.symbol), field.name.clone(), domain);
                 payload_types.push((
                     field.symbol,
-                    self.source_field_function(&field, &parameters)?,
+                    self.source_field_function(&field, &parameters, &type_levels)?,
                 ));
                 payload.push(field);
             }
@@ -744,7 +815,7 @@ impl Elaborator<'_> {
         let mut common_pairs = common
             .iter()
             .map(|field| {
-                self.source_field_function(field, &parameters)
+                self.source_field_function(field, &parameters, &type_levels)
                     .map(|ty| (field.symbol, ty))
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -753,9 +824,6 @@ impl Elaborator<'_> {
             .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
             .map(|parameter| parameter.symbol)
             .collect::<Vec<_>>();
-        let type_sort = self
-            .arena
-            .insert(Term::Sort(Sort::Type(Level::Constant(0))));
         let external_symbols = external_parameter_indices
             .iter()
             .map(|&position| parameters[position].symbol)
@@ -765,12 +833,37 @@ impl Elaborator<'_> {
             .copied()
             .filter(|symbol| !external_symbols.contains(symbol))
             .collect::<Vec<_>>();
-        common_pairs.splice(0..0, stored_types.iter().map(|symbol| (*symbol, type_sort)));
+        let stored_domains = stored_types
+            .iter()
+            .map(|symbol| {
+                let ordinal = type_symbols
+                    .iter()
+                    .position(|bound| bound == symbol)
+                    .expect("retained Type binder");
+                (
+                    *symbol,
+                    self.arena
+                        .insert(Term::Sort(Sort::Type(type_levels[ordinal].clone()))),
+                )
+            })
+            .collect::<Vec<_>>();
+        common_pairs.splice(0..0, stored_domains);
         let mut index_symbols = index_fields
             .iter()
             .map(|(_, field)| *field)
             .collect::<Vec<_>>();
         index_symbols.splice(0..0, stored_types.iter().copied());
+        let external_domains = external_parameter_indices
+            .iter()
+            .map(|&position| {
+                let ordinal = type_symbols
+                    .iter()
+                    .position(|symbol| *symbol == parameters[position].symbol)
+                    .expect("external Type parameter");
+                self.arena
+                    .insert(Term::Sort(Sort::Type(type_levels[ordinal].clone())))
+            })
+            .collect::<Vec<_>>();
         let description = terms::description(
             &mut self.arena,
             &common_pairs,
@@ -778,20 +871,28 @@ impl Elaborator<'_> {
             &schemes,
             &type_symbols,
             &external_symbols,
+            &self.declarations,
+            &external_domains,
+            type_levels.len() as u32,
         )
         .map_err(|error| self.refuse(error.into()))?;
+        let payload_lifts = description.payload_lifts;
         let description = terms::intern_description(
             &mut self.arena,
             &mut self.declarations,
-            description,
-            external_symbols.len(),
+            description.family,
+            &external_domains,
+            type_levels.len() as u32,
         )
         .map_err(|error| self.refuse(error.into()))?;
         self.scope.clear();
         let mut domains = Vec::new();
         for parameter in &parameters {
             let domain = match parameter.kind {
-                TypeParameterKind::Type => type_sort,
+                TypeParameterKind::Type => {
+                    let level = self.source_type_level(parameter.symbol);
+                    self.arena.insert(Term::Sort(Sort::Type(level)))
+                }
                 TypeParameterKind::Value { type_reference } => {
                     self.elaborate_type_reference(type_reference)?
                 }
@@ -829,7 +930,7 @@ impl Elaborator<'_> {
         }
         let declaration = self.declarations.len() as u32;
         self.declarations.push(Declaration {
-            level_arity: 0,
+            level_arity: type_levels.len() as u32,
             ty,
             body: Some(body),
         });
@@ -838,6 +939,8 @@ impl Elaborator<'_> {
             declaration,
             symbol: data.symbol,
             parameters,
+            type_levels,
+            payload_lifts,
             common,
             cases: source_cases,
             description_template: description,
@@ -896,13 +999,26 @@ impl Elaborator<'_> {
         declaration_contains_family(self.program, owner, reference, references, declarations)
     }
     pub(super) fn push_family_type_scope(&mut self, parameters: &[TypeParameter]) {
-        for parameter in parameters
+        let levels = parameters
             .iter()
             .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+            .map(|parameter| self.source_type_level(parameter.symbol))
+            .collect::<Vec<_>>();
+        self.push_family_type_scope_at(parameters, &levels);
+    }
+
+    pub(super) fn push_family_type_scope_at(
+        &mut self,
+        parameters: &[TypeParameter],
+        levels: &[Level],
+    ) {
+        for (parameter, level) in parameters
+            .iter()
+            .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+            .zip(levels)
         {
-            let domain = self
-                .arena
-                .insert(Term::Sort(Sort::Type(Level::Constant(0))));
+            let level = level.clone();
+            let domain = self.arena.insert(Term::Sort(Sort::Type(level)));
             self.push_scope(Some(parameter.symbol), parameter.name.clone(), domain);
         }
     }
@@ -913,9 +1029,10 @@ impl Elaborator<'_> {
         &mut self,
         field: &DataField,
         parameters: &[TypeParameter],
+        levels: &[Level],
     ) -> Result<TermHandle, Vec<Diagnostic>> {
         let saved = std::mem::take(&mut self.scope);
-        self.push_family_type_scope(parameters);
+        self.push_family_type_scope_at(parameters, levels);
         let result = self
             .kernel_field_domain(field)
             .map(|body| self.close_family_telescope(body));
@@ -926,8 +1043,10 @@ impl Elaborator<'_> {
     fn closed_field_domain(&mut self, field: &DataField) -> Result<TermHandle, Vec<Diagnostic>> {
         let domain = self.elaborate_type_reference(field.type_reference)?;
         let context = self.scope.iter().fold(
-            Context::empty()
-                .with_signature(Signature::from_declarations(self.declarations.clone())),
+            proof_admission::Context::with_level_arity(
+                self.level_binders.len() as u32 + self.generalized_levels,
+            )
+            .with_signature(Signature::from_declarations(self.declarations.clone())),
             |context, entry| context.extend(entry.domain),
         );
         let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
@@ -1037,7 +1156,10 @@ impl Elaborator<'_> {
                 let expected = self.elaborate_type_reference(carrier)?;
                 let signature = Signature::from_declarations(self.declarations.clone());
                 let context = self.scope.iter().fold(
-                    Context::empty().with_signature(signature.clone()),
+                    Context::with_level_arity(
+                        self.level_binders.len() as u32 + self.generalized_levels,
+                    )
+                    .with_signature(signature.clone()),
                     |context, entry| context.extend(entry.domain),
                 );
                 let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);

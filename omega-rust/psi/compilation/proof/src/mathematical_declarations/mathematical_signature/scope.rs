@@ -139,23 +139,36 @@ impl<'a> Elaborator<'a> {
     /// other builtin atoms and authored `data` types intern per-symbol.
     /// Symbols of other kinds decline so the caller can refuse.
     pub(super) fn carrier_for_symbol(&mut self, symbol: SymbolHandle) -> Option<TermHandle> {
+        if self.program.symbols.get(symbol).kind == symbols::SymbolKind::TypeParameter
+            && self
+                .program
+                .data_type_parameter_by_symbol(symbol)
+                .is_some_and(|parameter| {
+                    matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                })
+        {
+            let level = self.source_type_level(symbol);
+            let position = if let Some(&position) = self.carriers.get(&symbol) {
+                position
+            } else {
+                let ty = self.arena.insert(Term::Sort(proof_admission::Sort::Type(
+                    proof_admission::Level::Parameter(0),
+                )));
+                let position = self.declarations.len() as u32;
+                self.declarations
+                    .push(proof_admission::Declaration::assumption(1, ty));
+                self.carriers.insert(symbol, position);
+                position
+            };
+            return Some(self.arena.insert(Term::Constant {
+                declaration: position,
+                levels: vec![level],
+            }));
+        }
         if let Some(&position) = self.carriers.get(&symbol) {
             return Some(self.constant(position));
         }
         let position = match self.program.symbols.get(symbol).kind {
-            // Ordinary source Type binders have the language's Type0 domain.
-            // Mathematical universe binders resolve from the scoped telescope
-            // before this branch; they never acquire an inferred Type0 sort.
-            symbols::SymbolKind::TypeParameter
-                if self
-                    .program
-                    .data_type_parameter_by_symbol(symbol)
-                    .is_some_and(|parameter| {
-                        matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-                    }) =>
-            {
-                self.push_type_carrier()
-            }
             symbols::SymbolKind::BuiltinType | symbols::SymbolKind::Data => {
                 match self.program.symbols.builtin_type_atom(symbol) {
                     Some(
@@ -181,5 +194,18 @@ impl<'a> Elaborator<'a> {
         };
         self.carriers.insert(symbol, position);
         Some(self.constant(position))
+    }
+
+    pub(super) fn source_type_level(&mut self, symbol: SymbolHandle) -> proof_admission::Level {
+        if let Some((_, level)) = self
+            .source_type_levels
+            .iter()
+            .find(|(bound, _)| *bound == symbol)
+        {
+            return level.clone();
+        }
+        let level = self.generalized_level();
+        self.source_type_levels.push((symbol, level.clone()));
+        level
     }
 }

@@ -30,6 +30,7 @@ pub struct PreparedMathematicalApplications {
 /// Body validation and safety receiver admission are separate judgments.
 #[derive(Debug, Default)]
 pub struct PreparedIndexedTheorem {
+    pub level_arity: u32,
     pub machine: SymbolHandle,
     pub expression: ExpressionHandle,
     pub ensure_ordinal: u32,
@@ -70,6 +71,7 @@ pub struct PreparedSourceConstructor {
 /// Source carrier formation retained under its exact value telescope.
 #[derive(Debug, Default)]
 pub struct PreparedSourceCarrier {
+    pub level_arity: u32,
     pub source_type: TypeReferenceHandle,
     pub type_identity: typed_trees::type_identity::TypeIdentityId,
     pub ty: TermHandle,
@@ -78,6 +80,7 @@ pub struct PreparedSourceCarrier {
 
 #[derive(Debug, Default)]
 pub struct PreparedApplication {
+    pub level_arity: u32,
     pub expression: ExpressionHandle,
     pub owner: SymbolHandle,
     pub term: TermHandle,

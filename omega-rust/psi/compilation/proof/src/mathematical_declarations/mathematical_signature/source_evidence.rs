@@ -36,8 +36,9 @@ impl Elaborator<'_> {
         if domains.is_empty() {
             return domains;
         }
-        let context = Context::empty()
-            .with_signature(Signature::from_declarations(self.declarations.clone()));
+        let context =
+            Context::with_level_arity(self.level_binders.len() as u32 + self.generalized_levels)
+                .with_signature(Signature::from_declarations(self.declarations.clone()));
         if infer_sort(
             &mut self.arena,
             &context,
@@ -65,6 +66,7 @@ impl Elaborator<'_> {
         let mut families = self.indexed_families.values().cloned().collect::<Vec<_>>();
         families.sort_by_key(|family| family.symbol.arena_index());
         for family in families {
+            let saved_levels = self.enter_family_levels(&family.parameters);
             for case in &family.cases {
                 self.scope.clear();
                 self.push_family_type_scope(&family.parameters);
@@ -77,6 +79,7 @@ impl Elaborator<'_> {
                     let ty = self.elaborate_type_reference(reference)?;
                     let domains = self.source_carrier_domains(ty);
                     self.prepared.source_carriers.append(PreparedSourceCarrier {
+                        level_arity: self.level_binders.len() as u32 + self.generalized_levels,
                         source_type: reference,
                         type_identity: self.program.normalized_type_identity(reference),
                         ty,
@@ -84,6 +87,7 @@ impl Elaborator<'_> {
                     });
                 }
             }
+            self.restore_source_levels(saved_levels);
         }
         let machines = self.program.machines().to_vec();
         for machine in &machines {
@@ -134,11 +138,13 @@ impl Elaborator<'_> {
             }) {
                 continue;
             }
+            let saved_levels = self.enter_family_levels(&binders);
             for binder in &binders {
                 let domain = match binder.kind {
-                    TypeParameterKind::Type => self
-                        .arena
-                        .insert(Term::Sort(Sort::Type(Level::Constant(0)))),
+                    TypeParameterKind::Type => {
+                        let level = self.source_type_level(binder.symbol);
+                        self.arena.insert(Term::Sort(Sort::Type(level)))
+                    }
                     TypeParameterKind::Value { type_reference } => {
                         self.elaborate_type_reference(type_reference)?
                     }
@@ -164,6 +170,7 @@ impl Elaborator<'_> {
                         // scalar-to-mathematical cast at the wire boundary.
                         let domains = self.source_carrier_domains(domain);
                         self.prepared.source_carriers.append(PreparedSourceCarrier {
+                            level_arity: self.level_binders.len() as u32 + self.generalized_levels,
                             source_type: parameter.type_reference,
                             type_identity: self
                                 .program
@@ -187,6 +194,7 @@ impl Elaborator<'_> {
                     let ty = self.elaborate_type_reference(reference)?;
                     let domains = self.source_carrier_domains(ty);
                     self.prepared.source_carriers.append(PreparedSourceCarrier {
+                        level_arity: self.level_binders.len() as u32 + self.generalized_levels,
                         source_type: reference,
                         type_identity: self.program.normalized_type_identity(reference),
                         ty,
@@ -231,6 +239,7 @@ impl Elaborator<'_> {
                     }
                 }
             }
+            self.restore_source_levels(saved_levels);
         }
         self.scope.clear();
         Ok(())
@@ -510,13 +519,16 @@ impl Elaborator<'_> {
             let saved_constructor_context = std::mem::take(&mut self.source_constructor_context);
             let mut outer_parameters = Vec::new();
             let mut lifted_declarations = super::source_families::ParameterAbstractions::default();
+            let saved_levels = self.enter_family_levels(&binders);
             for symbol in outer_types {
-                let domain = self
-                    .arena
-                    .insert(Term::Sort(Sort::Type(Level::Constant(0))));
+                let level = self.source_type_level(symbol);
+                let domain = self.arena.insert(Term::Sort(Sort::Type(level)));
                 let position = self.declarations.len() as u32;
                 self.declarations
-                    .push(proof_admission::Declaration::assumption(0, domain));
+                    .push(proof_admission::Declaration::assumption(
+                        proof_admission::universe_parameter_arity(&self.arena, &[domain]),
+                        domain,
+                    ));
                 let term = self.constant(position);
                 self.source_constructor_context.values.push((symbol, term));
                 outer_parameters.push((position, symbol, domain));
@@ -528,8 +540,10 @@ impl Elaborator<'_> {
                 let domain = if let Some(reference) = type_reference {
                     self.elaborate_type_reference(*reference)?
                 } else {
-                    self.arena
-                        .insert(Term::Sort(Sort::Type(Level::Constant(0))))
+                    {
+                        let level = self.source_type_level(*symbol);
+                        self.arena.insert(Term::Sort(Sort::Type(level)))
+                    }
                 };
                 self.push_scope(Some(*symbol), name.clone(), domain);
             }
@@ -538,6 +552,7 @@ impl Elaborator<'_> {
                 .zip(&family.parameters)
                 .map(|(argument, parameter)| self.index_operand(*argument, parameter, &[]))
                 .collect::<Result<Vec<_>, _>>()?;
+            let family = self.applied_source_family(&family, &actuals)?;
             let description = family
                 .description_at(&mut self.arena, &actuals)
                 .map_err(|reason| self.refuse(reason.into()))?;
@@ -563,6 +578,7 @@ impl Elaborator<'_> {
             if mapping.len() != telescope.len() {
                 self.scope.clear();
                 self.source_constructor_context = saved_constructor_context;
+                self.restore_source_levels(saved_levels);
                 continue;
             }
             let expressions = self
@@ -628,8 +644,10 @@ impl Elaborator<'_> {
                 .map_err(|reason| self.refuse(reason.into()))?;
                 check_type(
                     &mut self.arena,
-                    &Context::empty()
-                        .with_signature(Signature::from_declarations(self.declarations.clone())),
+                    &Context::with_level_arity(
+                        self.level_binders.len() as u32 + self.generalized_levels,
+                    )
+                    .with_signature(Signature::from_declarations(self.declarations.clone())),
                     theorem.theorem,
                     theorem.ty,
                     &mut Budget::new(DEFAULT_CONVERSION_STEPS),
@@ -648,6 +666,7 @@ impl Elaborator<'_> {
                 self.prepared
                     .indexed_theorems
                     .append(PreparedIndexedTheorem {
+                        level_arity: self.level_binders.len() as u32 + self.generalized_levels,
                         machine: machine.symbol,
                         expression,
                         ensure_ordinal: ensure_ordinal as u32,
@@ -662,13 +681,16 @@ impl Elaborator<'_> {
                     let domain = if let Some(reference) = type_reference {
                         self.elaborate_type_reference(*reference)?
                     } else {
-                        self.arena
-                            .insert(Term::Sort(Sort::Type(Level::Constant(0))))
+                        {
+                            let level = self.source_type_level(*symbol);
+                            self.arena.insert(Term::Sort(Sort::Type(level)))
+                        }
                     };
                     self.push_scope(Some(*symbol), name.clone(), domain);
                 }
             }
             self.source_constructor_context = saved_constructor_context;
+            self.restore_source_levels(saved_levels);
         }
         self.scope.clear();
         Ok(())
@@ -729,8 +751,9 @@ impl Elaborator<'_> {
                 .find_map(|(_, carrier)| {
                     (identity.is_valid()
                         && carrier.type_identity == identity
-                        && carrier.domains.is_empty())
-                    .then_some(carrier.ty)
+                        && carrier.domains.is_empty()
+                        && carrier.level_arity == 0)
+                        .then_some(carrier.ty)
                 })
             else {
                 return Err(self.refuse(

@@ -36,6 +36,32 @@ pub fn instantiate_levels(
     remap(arena, term, 0, Remapping::Levels { arguments })
 }
 
+/// The universe telescope needed by these terms, without opening declaration
+/// bodies. Constants retain their explicit level applications. This describes
+/// syntax only; the ordinary kernel judgment still checks every parameter.
+pub fn universe_parameter_arity(arena: &TermArena, roots: &[TermHandle]) -> u32 {
+    let mut pending = roots.to_vec();
+    let mut seen = std::collections::HashSet::new();
+    let mut arity = 0;
+    while let Some(term) = pending.pop() {
+        if !seen.insert(term) {
+            continue;
+        }
+        let node = arena.get(term);
+        match &node {
+            Term::Sort(sort) => arity = arity.max(sort.level().parameter_arity()),
+            Term::Constant { levels, .. } => {
+                for level in levels {
+                    arity = arity.max(level.parameter_arity());
+                }
+            }
+            _ => {}
+        }
+        pending.extend(node.subterms().iter().map(|(child, _)| child));
+    }
+    arity
+}
+
 #[derive(Clone, Copy)]
 enum Remapping<'a> {
     Shift { amount: u32 },

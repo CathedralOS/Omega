@@ -26,6 +26,9 @@ enum S {
     SourceDomain(TermHandle, Vec<S>),
     Var(Key),
     Type,
+    Universe(Level),
+    Squashed(Box<S>),
+    SquashValue(Box<S>, Box<S>),
     Two,
     Zero,
     One,
@@ -102,6 +105,14 @@ impl S {
                     .ok_or("generated source-family binder escaped its telescope")?,
             ),
             Self::Type => Term::Sort(Sort::Type(Level::Constant(0))),
+            Self::Universe(level) => Term::Sort(Sort::Type(level.clone())),
+            Self::Squashed(ty) => Term::Squash {
+                ty: ty.term(arena, scope)?,
+            },
+            Self::SquashValue(ty, value) => Term::SquashIntro {
+                ty: ty.term(arena, scope)?,
+                value: value.term(arena, scope)?,
+            },
             Self::Two => Term::Two,
             Self::Zero => Term::TwoZero,
             Self::One => Term::TwoOne,
@@ -177,6 +188,77 @@ pub(super) struct Case {
     pub child_indices: Vec<TermHandle>,
 }
 
+pub(super) fn result_sort_level(
+    arena: &mut TermArena,
+    declarations: &[Declaration],
+    function: TermHandle,
+    level_arity: u32,
+) -> Result<Level, &'static str> {
+    let context = proof_admission::Context::with_level_arity(level_arity).with_signature(
+        proof_admission::Signature::from_declarations(declarations.to_vec()),
+    );
+    result_sort_level_in(arena, &context, function)
+}
+
+fn result_sort_level_in(
+    arena: &mut TermArena,
+    context: &proof_admission::Context,
+    function: TermHandle,
+) -> Result<Level, &'static str> {
+    let mut ty = proof_admission::infer_type(
+        arena,
+        context,
+        function,
+        &mut proof_admission::Budget::new(proof_admission::DEFAULT_CONVERSION_STEPS),
+    )
+    .map_err(|_| "source descriptor domain fails universe inference")?;
+    while let Term::Pi { codomain, .. } = arena.get(ty) {
+        ty = codomain;
+    }
+    match arena.get(ty) {
+        Term::Sort(sort) => Ok(sort.level()),
+        _ => Err("source descriptor domain does not return a universe"),
+    }
+}
+
+fn payload_sort_level(
+    arena: &mut TermArena,
+    declarations: &[Declaration],
+    cases: &[Case],
+    level_arity: u32,
+) -> Result<Level, &'static str> {
+    let context = proof_admission::Context::with_level_arity(level_arity).with_signature(
+        proof_admission::Signature::from_declarations(declarations.to_vec()),
+    );
+    let mut level = Level::Constant(0);
+    for case in cases {
+        level = level.maximum(result_sort_level_in(arena, &context, case.constraints)?);
+        for (_, domain) in &case.payload {
+            level = level.maximum(result_sort_level_in(arena, &context, *domain)?);
+        }
+    }
+    Ok(level)
+}
+
+/// The constructor uses the same contractible padding as the descriptor.
+/// Dropping these first components recovers the exact original payload.
+pub(super) fn lift_payload(
+    arena: &mut TermArena,
+    domains: &[TermHandle],
+    mut payload: TermHandle,
+) -> Result<TermHandle, &'static str> {
+    let mut terms = SourceTerms::default();
+    for &domain in domains.iter().rev() {
+        let (_, witness) = terms.level_unit(S::Closed(domain));
+        let witness = witness.term(arena, &mut Vec::new())?;
+        payload = arena.insert(Term::Pair {
+            first: witness,
+            second: payload,
+        });
+    }
+    Ok(payload)
+}
+
 #[derive(Clone, Copy)]
 enum ResultKind {
     Positions,
@@ -216,8 +298,34 @@ impl SourceTerms {
         )
     }
     fn type_motive(&mut self) -> S {
+        self.type_motive_at(Level::Constant(0))
+    }
+    fn type_motive_at(&mut self, level: Level) -> S {
         let k = self.fresh();
-        lam(k, S::Two, S::Type)
+        lam(k, S::Two, S::Universe(level))
+    }
+    fn level_unit(&mut self, carrier: S) -> (S, S) {
+        // This boxed strict function is inhabited for every A : Type u,
+        // including empty A, and lives at exactly Type u. Pairing it with a
+        // lower payload is an explicit lift; projecting the payload is its
+        // inverse up to strict proof irrelevance. No universe is resized.
+        let x = self.fresh();
+        let identity = S::Identity(
+            Box::new(carrier.clone()),
+            Box::new(S::Var(x)),
+            Box::new(S::Var(x)),
+        );
+        let proposition = pi(x, carrier.clone(), S::Squashed(Box::new(identity.clone())));
+        let reflexivity = S::Reflexivity(Box::new(carrier.clone()), Box::new(S::Var(x)));
+        let proof = lam(
+            x,
+            carrier,
+            S::SquashValue(Box::new(identity), Box::new(reflexivity)),
+        );
+        (
+            S::Boxed(Box::new(proposition.clone())),
+            S::BoxIntro(Box::new(proposition), Box::new(proof)),
+        )
     }
     fn positions(&mut self, count: usize) -> S {
         match count {
@@ -286,6 +394,8 @@ struct Builder<'a> {
     cases: &'a [Case],
     type_parameters: &'a [SymbolHandle],
     external_actuals: &'a [(SymbolHandle, TermHandle)],
+    payload_level: Level,
+    payload_lifts: &'a [(SymbolHandle, TermHandle)],
 }
 impl Builder<'_> {
     fn type_actual(&self, symbol: SymbolHandle) -> S {
@@ -342,10 +452,27 @@ impl Builder<'_> {
         }
         term
     }
-    fn payload_type(&self, case: usize) -> S {
+    fn lift_count(&self) -> usize {
+        self.payload_lifts.len()
+    }
+    fn unlift_payload(&self, mut payload: S) -> S {
+        for _ in 0..self.lift_count() {
+            payload = snd(payload);
+        }
+        payload
+    }
+    fn payload_type(&mut self, case: usize) -> S {
         let mut body = self.constraint_application(case);
         for (symbol, ty) in self.cases[case].payload.iter().rev() {
             body = sigma(Key::Source(*symbol), self.domain(*symbol, *ty), body);
+        }
+        if !self.payload_lifts.is_empty() {
+            for (symbol, domain) in self.payload_lifts.iter().rev() {
+                let carrier = self.domain(*symbol, *domain);
+                let (unit, _) = self.terms.level_unit(carrier);
+                let binder = self.terms.fresh();
+                body = sigma(binder, unit, body);
+            }
         }
         body
     }
@@ -357,7 +484,7 @@ impl Builder<'_> {
             return self.payload_type(start);
         }
         let tag = self.terms.fresh();
-        let motive = self.terms.type_motive();
+        let motive = self.terms.type_motive_at(self.payload_level.clone());
         let zero = self.payload_type(start);
         let one = self.sum_type(start + 1);
         sigma(tag, S::Two, choose(motive, zero, one, S::Var(tag)))
@@ -393,6 +520,7 @@ impl Builder<'_> {
         term
     }
     fn case_body(&mut self, case: usize, payload: S, kind: ResultKind) -> Result<S, &'static str> {
+        let payload = self.unlift_payload(payload);
         let count = self.cases[case].child_indices.len();
         let positions = self.terms.positions(count);
         if matches!(kind, ResultKind::Positions) {
@@ -425,7 +553,7 @@ impl Builder<'_> {
         }
         let tag = self.terms.fresh();
         let payload = self.terms.fresh();
-        let tm = self.terms.type_motive();
+        let tm = self.terms.type_motive_at(self.payload_level.clone());
         let zero_type = self.payload_type(start);
         let one_type = self.sum_type(start + 1);
         let payload_type = choose(tm, zero_type.clone(), one_type.clone(), S::Var(tag));
@@ -501,6 +629,16 @@ pub(super) fn constructor_children(
     lam(position, S::Closed(child_domain), body).term(arena, &mut Vec::new())
 }
 
+pub(super) struct SourceDescription {
+    pub family: IndexedFamily,
+    pub payload_lifts: Vec<(SymbolHandle, TermHandle)>,
+}
+
+/// Each multi-case payload is explicitly lifted by the same contractible
+/// witnesses. The shared sort is computed from represented fields and their
+/// constraints, not from the unused generic telescope. A single-case record
+/// needs no padding, and a Type0 Box therefore stays at Type0.
+///
 /// Closed producer terms. The caller must check the resulting ordinary scheme
 /// application and retain source correspondence before admitting any use.
 pub(super) fn description(
@@ -510,7 +648,21 @@ pub(super) fn description(
     cases: &[Case],
     type_parameters: &[SymbolHandle],
     external_parameters: &[SymbolHandle],
-) -> Result<IndexedFamily, &'static str> {
+    declarations: &[Declaration],
+    type_domains: &[TermHandle],
+    level_arity: u32,
+) -> Result<SourceDescription, &'static str> {
+    let payload_level = payload_sort_level(arena, declarations, cases, level_arity)?;
+
+    debug_assert_eq!(type_domains.len(), external_parameters.len());
+    let payload_lifts = if cases.len() > 1 && payload_level != Level::Constant(0) {
+        cases
+            .iter()
+            .flat_map(|case| case.payload.iter().copied())
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
     let mut b = Builder {
         terms: SourceTerms::default(),
         common,
@@ -518,6 +670,8 @@ pub(super) fn description(
         cases,
         type_parameters,
         external_actuals: &[],
+        payload_level: payload_level.clone(),
+        payload_lifts: &payload_lifts,
     };
     let carrier = b.carrier();
     let index = b.index_type()?;
@@ -530,25 +684,33 @@ pub(super) fn description(
     let a = b.terms.fresh();
     let next_body = b.unpack(S::Var(a), ResultKind::Next)?;
     let next = lam(a, carrier.clone(), next_body);
-    let has_stored_types = common
-        .iter()
-        .any(|(symbol, _)| type_parameters.contains(symbol));
+    let context = proof_admission::Context::with_level_arity(level_arity).with_signature(
+        proof_admission::Signature::from_declarations(declarations.to_vec()),
+    );
+    let mut index_level = Level::Constant(0);
+    let mut carrier_level = payload_level;
+    for (symbol, domain) in common {
+        let level = result_sort_level_in(arena, &context, *domain)?;
+        carrier_level = carrier_level.maximum(level.clone());
+        if index_fields.contains(symbol) {
+            index_level = index_level.maximum(level);
+        }
+    }
     let mut scope = external_parameters
         .iter()
         .copied()
         .map(Key::Source)
         .collect::<Vec<_>>();
-    Ok(IndexedFamily {
-        levels: [
-            Level::Constant(u32::from(has_stored_types)),
-            Level::Constant(u32::from(has_stored_types)),
-            Level::Constant(0),
-        ],
-        index: index.term(arena, &mut scope)?,
-        carrier: carrier.term(arena, &mut scope)?,
-        children: children.term(arena, &mut scope)?,
-        out: out.term(arena, &mut scope)?,
-        next: next.term(arena, &mut scope)?,
+    Ok(SourceDescription {
+        family: IndexedFamily {
+            levels: [index_level, carrier_level, Level::Constant(0)],
+            index: index.term(arena, &mut scope)?,
+            carrier: carrier.term(arena, &mut scope)?,
+            children: children.term(arena, &mut scope)?,
+            out: out.term(arena, &mut scope)?,
+            next: next.term(arena, &mut scope)?,
+        },
+        payload_lifts,
     })
 }
 
@@ -559,17 +721,20 @@ pub(super) fn intern_description(
     arena: &mut TermArena,
     declarations: &mut Vec<Declaration>,
     mut family: IndexedFamily,
-    parameter_count: usize,
+    parameter_domains: &[TermHandle],
+    level_arity: u32,
 ) -> Result<IndexedFamily, &'static str> {
+    let parameter_count = parameter_domains.len();
     fn retain(
         arena: &mut TermArena,
         declarations: &mut Vec<Declaration>,
         mut ty: TermHandle,
         mut body: TermHandle,
-        parameter_count: usize,
+        parameter_domains: &[TermHandle],
+        level_arity: u32,
     ) -> (TermHandle, TermHandle) {
-        let parameter_sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
-        for _ in 0..parameter_count {
+        let parameter_count = parameter_domains.len();
+        for &parameter_sort in parameter_domains.iter().rev() {
             body = arena.insert(Term::Lambda {
                 domain: parameter_sort,
                 body,
@@ -580,8 +745,10 @@ pub(super) fn intern_description(
             });
         }
         let declaration = declarations.len() as u32;
-        declarations.push(Declaration::definition(0, ty, body));
-        let constant = arena.insert(term!(Constant => declaration => vec![]));
+        declarations.push(Declaration::definition(level_arity, ty, body));
+        let constant = arena.insert(
+            term!(Constant => declaration => (0..level_arity).map(Level::Parameter).collect()),
+        );
         let mut applied = constant;
         for ordinal in 0..parameter_count {
             let argument = arena.insert(Term::Variable((parameter_count - ordinal - 1) as u32));
@@ -600,28 +767,50 @@ pub(super) fn intern_description(
         declarations,
         index_sort,
         family.index,
-        parameter_count,
+        parameter_domains,
+        level_arity,
     );
     let (carrier, applied_carrier) = retain(
         arena,
         declarations,
         carrier_sort,
         family.carrier,
-        parameter_count,
+        parameter_domains,
+        level_arity,
     );
     let ty = arena.insert(term!(Pi => applied_carrier => sort));
-    let (children, applied_children) =
-        retain(arena, declarations, ty, family.children, parameter_count);
+    let (children, applied_children) = retain(
+        arena,
+        declarations,
+        ty,
+        family.children,
+        parameter_domains,
+        level_arity,
+    );
     let index_under_label = shift(arena, applied_index, 0, 1);
     let ty = arena.insert(term!(Pi => applied_carrier => index_under_label));
-    let (out, _) = retain(arena, declarations, ty, family.out, parameter_count);
+    let (out, _) = retain(
+        arena,
+        declarations,
+        ty,
+        family.out,
+        parameter_domains,
+        level_arity,
+    );
     let a = arena.insert(Term::Variable(0));
     let children_under_label = shift(arena, applied_children, 0, 1);
     let domain = arena.insert(term!(Apply => children_under_label => a));
     let index_under_position = shift(arena, applied_index, 0, 2);
     let codomain = arena.insert(term!(Pi => domain => index_under_position));
     let ty = arena.insert(term!(Pi => applied_carrier => codomain));
-    let (next, _) = retain(arena, declarations, ty, family.next, parameter_count);
+    let (next, _) = retain(
+        arena,
+        declarations,
+        ty,
+        family.next,
+        parameter_domains,
+        level_arity,
+    );
     family.index = index;
     family.carrier = carrier;
     family.children = children;
@@ -737,7 +926,7 @@ impl InductionBuilder<'_, '_> {
         for (symbol, _) in self.b.common {
             body = app(body, S::Var(Key::Source(*symbol)));
         }
-        let mut predicate = payload.clone();
+        let mut predicate = self.b.unlift_payload(payload.clone());
         for _ in &self.b.cases[case].payload {
             body = app(body, fst(predicate.clone()));
             predicate = snd(predicate);
@@ -759,7 +948,7 @@ impl InductionBuilder<'_, '_> {
         }
         let tag = self.b.terms.fresh();
         let payload = self.b.terms.fresh();
-        let tm = self.b.terms.type_motive();
+        let tm = self.b.terms.type_motive_at(self.b.payload_level.clone());
         let zero_type = self.b.payload_type(start);
         let one_type = self.b.sum_type(start + 1);
         let payload_type = choose(tm, zero_type.clone(), one_type.clone(), S::Var(tag));
@@ -837,12 +1026,17 @@ pub(super) fn intern_invariant(
     declarations: &mut Vec<Declaration>,
     family: &IndexedFamily,
     invariant: TermHandle,
+    result_level: Level,
 ) -> TermHandle {
-    let sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+    let sort = arena.insert(Term::Sort(Sort::Type(result_level)));
     let ty = arena.insert(term!(Pi => family.index => sort));
     let declaration = declarations.len() as u32;
-    declarations.push(Declaration::definition(0, ty, invariant));
-    arena.insert(term!(Constant => declaration => vec![]))
+    declarations.push(Declaration::definition(
+        proof_admission::universe_parameter_arity(arena, &[ty, invariant]),
+        ty,
+        invariant,
+    ));
+    arena.insert(term!(Constant => declaration => (0..declarations[declaration as usize].level_arity).map(Level::Parameter).collect()))
 }
 
 /// Abstract a checked closed proposition proof over unused index/evidence
@@ -880,7 +1074,14 @@ pub(super) fn induction(
     declarations: &mut Vec<Declaration>,
     type_parameters: &[SymbolHandle],
     external_actuals: &[(SymbolHandle, TermHandle)],
+    payload_lifts: &[(SymbolHandle, TermHandle)],
 ) -> Result<(TermHandle, TermHandle, TermHandle, TermHandle), &'static str> {
+    let level_arity = proof_admission::universe_parameter_arity(
+        arena,
+        &[family.index, family.carrier, invariant],
+    );
+    let payload_level = payload_sort_level(arena, declarations, cases, level_arity)?;
+    let result_level = result_sort_level(arena, declarations, invariant, level_arity)?;
     if cases.len() != lemmas.len() {
         return Err("source induction lemma roster differs from its exact cases");
     }
@@ -891,8 +1092,12 @@ pub(super) fn induction(
         body: TermHandle,
     ) -> TermHandle {
         let declaration = declarations.len() as u32;
-        declarations.push(Declaration::definition(0, ty, body));
-        arena.insert(term!(Constant => declaration => vec![]))
+        declarations.push(Declaration::definition(
+            proof_admission::universe_parameter_arity(arena, &[ty, body]),
+            ty,
+            body,
+        ));
+        arena.insert(term!(Constant => declaration => (0..declarations[declaration as usize].level_arity).map(Level::Parameter).collect()))
     }
     let w_sort = arena.insert(Term::Sort(Sort::Type(
         family
@@ -915,6 +1120,8 @@ pub(super) fn induction(
         cases,
         type_parameters,
         external_actuals,
+        payload_level: payload_level.clone(),
+        payload_lifts,
     };
     let tail = builder.terms.fresh();
     let sum_type = builder.sum_type(0);
@@ -952,7 +1159,7 @@ pub(super) fn induction(
     let goal = shift(arena, goal, 0, 1);
     let result = arena.insert(term!(Pi => hypotheses => goal));
     let result = arena.insert(term!(Lambda => family.carrier => result));
-    let proposition_sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+    let proposition_sort = arena.insert(Term::Sort(Sort::Type(result_level.clone())));
     let result_type = arena.insert(term!(Pi => family.carrier => proposition_sort));
     let logical_result = retain(arena, declarations, result_type, result);
     let mut producer = InductionBuilder {
@@ -963,6 +1170,8 @@ pub(super) fn induction(
             cases,
             type_parameters,
             external_actuals,
+            payload_level,
+            payload_lifts,
         },
         family,
         iw,
@@ -1002,14 +1211,18 @@ pub(super) fn induction(
     let result_type = producer.type_at_label(S::Var(a));
     let step_type = pi(a, S::Closed(family.carrier), result_type).term(arena, &mut Vec::new())?;
     let declaration = declarations.len() as u32;
-    declarations.push(Declaration::definition(0, step_type, step_body));
-    let step = arena.insert(term!(Constant => declaration => vec![]));
+    declarations.push(Declaration::definition(
+        proof_admission::universe_parameter_arity(arena, &[step_type, step_body]),
+        step_type,
+        step_body,
+    ));
+    let step = arena.insert(term!(Constant => declaration => (0..declarations[declaration as usize].level_arity).map(Level::Parameter).collect()));
     let i = arena.insert(Term::Variable(1));
     let proposition = arena.insert(term!(Apply => invariant => i));
     let motive_body = arena.insert(term!(Lambda => iw_body => proposition));
     let motive = arena.insert(term!(Lambda => family.index => motive_body));
     let tree = arena.insert(Term::Variable(0));
-    let body = family.ind(arena, Level::Constant(0), motive, step, i, tree);
+    let body = family.ind(arena, result_level, motive, step, i, tree);
     let body = arena.insert(term!(Lambda => iw_body => body));
     let theorem = arena.insert(term!(Lambda => family.index => body));
     let result = arena.insert(term!(Pi => iw_body => proposition));
@@ -1022,6 +1235,106 @@ mod induction_tests {
     use super::*;
     use proof_admission::{Budget, Context, DEFAULT_CONVERSION_STEPS, Signature};
     use proof_admission::{check_signature, check_type, indexed_scheme, infer_type};
+
+    #[test]
+    fn explicit_payload_lift_preserves_its_value_at_the_required_universe() {
+        let mut arena = TermArena::new();
+        let higher = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+        let two = arena.insert(Term::Two);
+        let zero = arena.insert(Term::TwoZero);
+        let mut terms = SourceTerms::default();
+        let (unit, witness) = terms.level_unit(S::Closed(higher));
+        let unit = unit.term(&mut arena, &mut Vec::new()).unwrap();
+        let witness = witness.term(&mut arena, &mut Vec::new()).unwrap();
+        let context = Context::with_level_arity(1);
+        check_type(&mut arena, &context, witness, unit, &mut Budget::default()).unwrap();
+        // Every boxed inhabitant contracts to the canonical witness. The
+        // eliminator enters the strict proof binder, where irrelevance makes
+        // its boxed value agree with the canonical proof; no Box eta axiom is
+        // needed to prove this relevant identity.
+        let Term::Box { ty: proposition } = arena.get(unit) else {
+            unreachable!()
+        };
+        let boxed = arena.insert(Term::Variable(0));
+        let conclusion = arena.insert(Term::Id {
+            ty: unit,
+            left: witness,
+            right: boxed,
+        });
+        let motive = arena.insert(Term::Lambda {
+            domain: unit,
+            body: conclusion,
+        });
+        let proof = arena.insert(Term::Variable(0));
+        let boxed_proof = arena.insert(Term::BoxIntro {
+            ty: proposition,
+            value: proof,
+        });
+        let reflexive = arena.insert(Term::Refl {
+            ty: unit,
+            value: boxed_proof,
+        });
+        let branch = arena.insert(Term::Lambda {
+            domain: proposition,
+            body: reflexive,
+        });
+        let contraction = arena.insert(Term::BoxElim {
+            motive,
+            body: branch,
+            scrutinee: boxed,
+        });
+        check_type(
+            &mut arena,
+            &context.extend(unit),
+            contraction,
+            conclusion,
+            &mut Budget::default(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            proof_admission::infer_sort(&mut arena, &context, unit, &mut Budget::default())
+                .unwrap(),
+            Sort::Type(Level::Parameter(0).successor().unwrap())
+        );
+        let lifted = lift_payload(&mut arena, &[higher], zero).unwrap();
+        let expected = arena.insert(Term::Sigma {
+            domain: unit,
+            codomain: two,
+        });
+        check_type(
+            &mut arena,
+            &context,
+            lifted,
+            expected,
+            &mut Budget::default(),
+        )
+        .unwrap();
+        let recovered = arena.insert(Term::Snd { pair: lifted });
+        assert!(
+            proof_admission::convertible(
+                &mut arena,
+                &context,
+                recovered,
+                zero,
+                two,
+                &mut Budget::default()
+            )
+            .unwrap()
+        );
+        // No implicit resizing: this lifted value is not an ordinary Two.
+        assert!(check_type(&mut arena, &context, lifted, two, &mut Budget::default()).is_err());
+        assert!(
+            check_type(
+                &mut arena,
+                &Context::empty(),
+                witness,
+                unit,
+                &mut Budget::default()
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn constructor_abstraction_binds_dependent_child_and_premise_domains() {
@@ -1164,8 +1477,20 @@ mod induction_tests {
                 child_indices: vec![child_index; count],
             })
             .collect::<Vec<_>>();
-        let family = description(&mut arena, &[(field, two)], &[field], &cases, &[], &[]).unwrap();
-        let family = intern_description(&mut arena, &mut declarations, family, 0).unwrap();
+        let family = description(
+            &mut arena,
+            &[(field, two)],
+            &[field],
+            &cases,
+            &[],
+            &[],
+            &declarations,
+            &[],
+            0,
+        )
+        .unwrap()
+        .family;
+        let family = intern_description(&mut arena, &mut declarations, family, &[], 0).unwrap();
         let index = arena.insert(Term::Variable(0));
         let reflexive = arena.insert(Term::Id {
             ty: two,
@@ -1173,7 +1498,13 @@ mod induction_tests {
             right: index,
         });
         let invariant = arena.insert(term!(Lambda => two => reflexive));
-        let invariant = intern_invariant(&mut arena, &mut declarations, &family, invariant);
+        let invariant = intern_invariant(
+            &mut arena,
+            &mut declarations,
+            &family,
+            invariant,
+            Level::Constant(0),
+        );
         let mut lemmas = Vec::new();
         for case in &cases {
             let constant = arena.insert(Term::Variable((case.child_indices.len() + 1) as u32));
@@ -1211,6 +1542,7 @@ mod induction_tests {
             invariant,
             &lemmas,
             &mut declarations,
+            &[],
             &[],
             &[],
         )
@@ -1505,8 +1837,20 @@ mod indexed_vector_budget_tests {
         // alias domains remain in the constraint/invariant functions above.
         let common = [(length_symbol, integer), (total_symbol, integer)];
         let indices = [length_symbol, total_symbol];
-        let family = description(&mut arena, &common, &indices, &cases, &[], &[]).unwrap();
-        let family = intern_description(&mut arena, &mut declarations, family, 0).unwrap();
+        let family = description(
+            &mut arena,
+            &common,
+            &indices,
+            &cases,
+            &[],
+            &[],
+            &declarations,
+            &[],
+            0,
+        )
+        .unwrap()
+        .family;
+        let family = intern_description(&mut arena, &mut declarations, family, &[], 0).unwrap();
         let i = arena.insert(Term::Variable(0));
         let length = arena.insert(Term::Fst { pair: i });
         let total = arena.insert(Term::Snd { pair: i });
@@ -1557,7 +1901,13 @@ mod indexed_vector_budget_tests {
             goal
         };
         let invariant = arena.insert(term!(Lambda => family.index => goal));
-        let invariant = intern_invariant(&mut arena, &mut declarations, &family, invariant);
+        let invariant = intern_invariant(
+            &mut arena,
+            &mut declarations,
+            &family,
+            invariant,
+            Level::Constant(0),
+        );
         let mut lemmas = Vec::new();
         for (ordinal, case) in cases.iter().enumerate() {
             let fields = common
@@ -1627,6 +1977,7 @@ mod indexed_vector_budget_tests {
             invariant,
             &lemmas,
             &mut declarations,
+            &[],
             &[],
             &[],
         )

@@ -232,7 +232,7 @@ pub use signature::{
     Declaration, Signature, SignatureCheckError, assumption_closure, check_signature,
     check_signature_with_attribution, judgment_assumption_closure,
 };
-pub use substitution::{instantiate_levels, shift, substitute};
+pub use substitution::{instantiate_levels, shift, substitute, universe_parameter_arity};
 pub use term::{Level, Sort, Term, TermArena, TermHandle};
 pub use theorems::identity_substitution;
 pub use typing::{Context, CoreError, check_type, infer_sort, infer_type};

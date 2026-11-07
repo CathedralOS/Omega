@@ -48,7 +48,7 @@ pub(super) fn produce(
             &signature.arena,
             &MathematicalCertificate {
                 signature: Vec::new(),
-                level_arity: 0,
+                level_arity: formation.level_arity,
                 context: formation.domains.clone(),
                 term: formation.term,
                 expected: formation.ty,
