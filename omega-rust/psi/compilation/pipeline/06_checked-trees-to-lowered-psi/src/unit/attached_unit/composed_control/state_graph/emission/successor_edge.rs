@@ -1383,6 +1383,7 @@ impl StateGraphEmission<'_, '_> {
                 self.checked,
                 &mut structural_arguments,
                 &capture_parameters,
+                &cleanup_regions,
                 &mut edge_values,
                 &mut self.catalogs.next_place,
                 &mut self.catalogs.temporary_places,

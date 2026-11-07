@@ -249,9 +249,11 @@ pub(super) fn build(
     }
     let mut unit_completion_failure = trace.deferred_failure();
     if result == CheckedControlResultPlan::Unit {
-        let expression = match statements.get(terminator_index)? {
-            StatementNode::Expression(expression) => Some(*expression),
-            StatementNode::Transition(transition)
+        // A completed statement prefix has no expression left. Its empty
+        // tail still reaches the ordinary implicit Unit return below.
+        let expression = match statements.get(terminator_index..)?.first() {
+            Some(StatementNode::Expression(expression)) => Some(*expression),
+            Some(StatementNode::Transition(transition))
                 if transition.guard == TransitionGuardNode::Always
                     && transition.exit == TransitionExit::Ordinary
                     && !transition.continuation.is_valid() =>

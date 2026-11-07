@@ -60,14 +60,7 @@ impl NativeExecutionScope {
                             &mut roots,
                         )
                         .map_err(|reason| {
-                            format!(
-                                "native storage demand for {:?}: {reason}; block {:?}, structural result {:?}",
-                                operation.id,
-                                block.id,
-                                operation.result.structural().map(|result| {
-                                    (result.place, result.structural_type)
-                                }),
-                            )
+                            format!("native storage demand for {:?}: {reason}", operation.id)
                         })?;
                     }
                 }
