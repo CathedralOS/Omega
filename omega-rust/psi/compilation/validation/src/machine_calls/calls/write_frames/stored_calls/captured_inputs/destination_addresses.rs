@@ -50,8 +50,27 @@ pub(in crate::machine_calls::calls::write_frames::stored_calls) fn assignment_ad
     crate::value_has_builtin_coordinates(program, machine, state, target.expression)
         .then_some(())
         .ok_or("destination projection has no selected builtin coordinates")?;
-    let place = crate::canonical_place_from_expression(program, target.expression)
+    let mut place = crate::canonical_place_from_expression(program, target.expression)
         .ok_or("destination has no canonical storage projection")?;
+    // The ordinary receiving-shape owner also resolves omitted endpoints from
+    // the fixed collection declaration. Keep earlier selectors captured; only
+    // this final window gets the same finite bounds used by assignment typing.
+    if let Some(shape) = crate::array_window_shape(
+        program,
+        machine,
+        state,
+        target.expression,
+        &mut crate::ImmutableBoundLookup::new(program),
+    ) {
+        *place
+            .segments
+            .last_mut()
+            .ok_or("destination window has no canonical collection selector")? =
+            facts::PlaceSegment::FixedRange {
+                start: shape.start.ok_or("destination window has no fixed start")?,
+                end: shape.end.ok_or("destination window has no fixed end")?,
+            };
+    }
     let mut end = place.segments.len();
     let mut expression = target.expression;
     let mut spine = Vec::new();
@@ -101,16 +120,22 @@ pub(in crate::machine_calls::calls::write_frames::stored_calls) fn assignment_ad
                 .enter_referee()
                 .ok_or("destination receiver has no reference backing")?;
         }
-        for segment in &place.segments[start..end] {
-            cursor.advance(segment).ok_or(
-                "destination projection crosses an uncaptured descriptor or unsupported coordinate",
-            )?;
-        }
+        advance_destination_span(
+            &mut cursor,
+            &place.segments[start..end],
+            end == place.segments.len(),
+        )?;
     }
+    let window = match place.segments.last() {
+        Some(facts::PlaceSegment::FixedRange { start, end }) => Some((*start, *end)),
+        _ => None,
+    };
     let actual =
         crate::expression_result_type_reference(program, machine, state, target.expression)
             .ok_or("destination has no checked result type")?;
-    if program.normalized_type_identity(actual) != program.normalized_type_identity(receiving) {
+    if window.is_none()
+        && program.normalized_type_identity(actual) != program.normalized_type_identity(receiving)
+    {
         cursor
             .reference_access()
             .ok_or("destination result is not a reference to its receiving cell")?;
@@ -119,7 +144,7 @@ pub(in crate::machine_calls::calls::write_frames::stored_calls) fn assignment_ad
             .enter_referee()
             .ok_or("destination result has no reference backing")?;
     }
-    if !cursor.has_declared_type(receiving) {
+    if !matches_receiving(cursor, window, receiving) {
         return Err("destination projection changes its receiving storage type");
     }
     let (mut origins, start) = if let Some((captured, start)) = descriptor {
@@ -131,12 +156,8 @@ pub(in crate::machine_calls::calls::write_frames::stored_calls) fn assignment_ad
         // Revalidate this complete owned span in the selected descriptor's
         // applied type, retaining generic substitutions and every case/index.
         let mut owned = stored_origins::StorageProjectionCursor::new(program, shell.referee);
-        for segment in &place.segments[start..] {
-            owned
-                .advance(segment)
-                .ok_or("destination suffix is not owned by its captured descriptor")?;
-        }
-        if !owned.has_declared_type(receiving) {
+        advance_destination_span(&mut owned, &place.segments[start..], true)?;
+        if !matches_receiving(owned, window, receiving) {
             return Err("captured descriptor suffix changes the receiving type");
         }
         let (sources, _) = partition_sources(
@@ -209,6 +230,40 @@ pub(in crate::machine_calls::calls::write_frames::stored_calls) fn assignment_ad
         }
     }
     Ok(origins)
+}
+
+fn advance_destination_span(
+    cursor: &mut stored_origins::StorageProjectionCursor<'_>,
+    segments: &[facts::PlaceSegment],
+    completes_destination: bool,
+) -> Result<(), &'static str> {
+    for (ordinal, segment) in segments.iter().enumerate() {
+        if completes_destination
+            && ordinal + 1 == segments.len()
+            && let facts::PlaceSegment::FixedRange { start, end } = segment
+        {
+            cursor
+                .validate_fixed_window(*start, *end)
+                .ok_or("destination window is outside its captured collection")?;
+        } else {
+            cursor.advance(segment).ok_or(
+                "destination projection crosses an uncaptured descriptor or unsupported coordinate",
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn matches_receiving(
+    cursor: stored_origins::StorageProjectionCursor<'_>,
+    window: Option<(usize, usize)>,
+    receiving: TypeReferenceHandle,
+) -> bool {
+    if let Some((start, end)) = window {
+        cursor.has_declared_window_type(start, end, receiving)
+    } else {
+        cursor.has_declared_type(receiving)
+    }
 }
 
 fn key(expression: ExpressionHandle) -> CaptureKey {

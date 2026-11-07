@@ -116,7 +116,9 @@ pub(super) fn complete<T>(
         let mut evaluated = Vec::new();
         let mut required = Vec::new();
         for state in std::mem::take(&mut pending) {
-            let position = relations.position(state)?;
+            let position = relations
+                .position(state)
+                .or_else(|| refusal("queued return state has no equation", Some(state)))?;
             let row = &relations.rows[position];
             let observed = EquationObservations::default();
             let captures = Captures {
@@ -126,8 +128,14 @@ pub(super) fn complete<T>(
                 relations: Some(&relations),
                 observed: Some(&observed),
             };
+            let stored_state = program.state_by_symbol(row.state).or_else(|| {
+                refusal(
+                    "return equation state has no stored source body",
+                    Some(row.state),
+                )
+            })?;
             let sources = captures
-                .returned(program.state_by_symbol(row.state)?, &mut Vec::new())
+                .returned(stored_state, &mut Vec::new())
                 .or_else(|| refusal("captured return equation is unavailable", Some(row.state)))?;
             // Equations only add possible origins. Losing a previously proved
             // alternative is unavailable data, never permission to narrow it.
@@ -234,14 +242,18 @@ pub(super) fn complete<T>(
         }
         let graph_changed = !new_edges.is_empty();
         for (dependency, caller) in new_edges {
-            let position = relations.position(dependency)?;
+            let position = relations
+                .position(dependency)
+                .or_else(|| refusal("return dependency has no equation", Some(dependency)))?;
             let callers = &mut relations.rows[position].callers;
             if !callers.contains(&caller) {
                 callers.push(caller);
             }
         }
         if graph_changed {
-            let edges = relations.edges()?;
+            let edges = relations
+                .edges()
+                .or_else(|| refusal("return graph has an unregistered dependency", None))?;
             // Paths around a recursive component may not grow by unrolling it.
             // Its outputs must belong to the finite actual returned-loan frontier.
             // Acyclic transport keeps the existing composed projection behavior.
