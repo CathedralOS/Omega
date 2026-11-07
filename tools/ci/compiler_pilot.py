@@ -99,7 +99,7 @@ def select_cli_fixtures(request):
     if corpus:
         _, negatives = select_fixtures(",".join(corpus))
         if negatives:
-            raise ValueError("ordinary CLI fixtures must be pass/... projects")
+            raise ValueError("ordinary CLI fixtures must be pass/... or run/... projects")
     for fixture in selected:
         ordinary_cli_fixture.expected_exit(ROOT, fixture, corpus_gate.host_target())
     return selected
@@ -672,7 +672,7 @@ def main(arguments=None):
                         help="prepare and retain the compiler, consume its manifest without building, or do both")
     parser.add_argument("--fixtures", help="exact pass/... or fail/... IDs, or @tracked/replay-plan.json")
     parser.add_argument("--samples", help="comma-separated exact samples/cli/facts project paths (includes descendants)")
-    parser.add_argument("--cli-fixtures", help="exact pass/... normal-exit projects through ordinary CLI review/run")
+    parser.add_argument("--cli-fixtures", help="exact pass/... or run/... normal-exit projects through ordinary CLI review/run")
     parser.add_argument("--checking-only", action="store_true",
                         default=os.environ.get("OMEGA_COMPILER_PILOT_CHECKING_ONLY") == "true",
                         help="check exact --fixtures and rejection controls without executing positives")

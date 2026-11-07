@@ -487,23 +487,24 @@ class CompilerPilotTests(unittest.TestCase):
             (directory / "build.omg").write_text("ProgramEntry")
 
     def test_ordinary_cli_selection_is_exact_and_never_replaces_refusal_with_smoke(self):
-        fixture = "pass/filesystem/normal_exit"
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            self.fixture_root(root, fixture)
-            project = root / "tests/omega" / fixture
-            (project / "build.omg").write_text("ProgramEntry")
-            (project / "expected_native_exit.txt").write_text("70")
-            with patch.object(pilot, "ROOT", root), patch.object(pilot, "execute") as execute:
-                self.assertEqual(pilot.run_suite("cli", pilot.POSITIVES, pilot.NEGATIVES,
-                                                cli_fixtures=fixture), 0)
-                self.assertEqual(execute.call_args.kwargs["positives"], ())
-                self.assertEqual(execute.call_args.kwargs["cli_fixtures"], (fixture,))
-                execute.reset_mock()
-                (project / "expected_stdout.windows_x86_64.txt").write_text("must be checked")
-                self.assertEqual(pilot.run_suite("bad", pilot.POSITIVES, pilot.NEGATIVES,
-                                                cli_fixtures=fixture), 1)
-                execute.assert_not_called()
+        for tier in ("pass", "run"):
+            fixture = f"{tier}/filesystem/normal_exit"
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                self.fixture_root(root, fixture)
+                project = root / "tests/omega" / fixture
+                (project / "build.omg").write_text("ProgramEntry")
+                (project / "expected_native_exit.txt").write_text("70")
+                with patch.object(pilot, "ROOT", root), patch.object(pilot, "execute") as execute:
+                    self.assertEqual(pilot.run_suite("cli", pilot.POSITIVES, pilot.NEGATIVES,
+                                                    cli_fixtures=fixture), 0)
+                    self.assertEqual(execute.call_args.kwargs["positives"], ())
+                    self.assertEqual(execute.call_args.kwargs["cli_fixtures"], (fixture,))
+                    execute.reset_mock()
+                    (project / "expected_stdout.windows_x86_64.txt").write_text("must be checked")
+                    self.assertEqual(pilot.run_suite("bad", pilot.POSITIVES, pilot.NEGATIVES,
+                                                    cli_fixtures=fixture), 1)
+                    execute.assert_not_called()
 
     def test_ordinary_cli_inspection_oracles_are_preserved_or_refused_before_build(self):
         with tempfile.TemporaryDirectory() as temporary:
