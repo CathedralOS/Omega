@@ -19458,7 +19458,7 @@ pass/borrow/runtime_write_only_utf8_field_exit checked 7566ms check-target:macos
 pass/borrow/storage_address_backing_identity_exit checked 3442ms check-target:linux_x86_64 @ccdb99ca2214
 pass/borrow/storage_address_byte_window_identity_exit checked 3687ms check-target:linux_x86_64 @ccdb99ca2214
 pass/borrow/storage_address_loop_copy_identity_exit checked 4071ms check-target:linux_x86_64 @ccdb99ca2214
-pass/borrow/storage_address_window_identity_exit checked 3383ms check-target:linux_x86_64 @ccdb99ca2214
+pass/borrow/storage_address_window_identity_exit checked 6472ms check-target:macos_arm64 @8e2d8b56d565
 pass/borrow/stored_write_only_metadata checked 2560ms @ccdb99ca2214
 pass/borrow/write_only_composed_forward_exit checked 16781ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/write_only_constrained_record_field checked 5168ms check-target:macos_arm64 @bfee8ea078a6
@@ -28132,7 +28132,7 @@ pass/types/runtime_exact_address_subtraction_exit checked 13213ms check-target:m
 pass/types/runtime_i16_signed_arith_exit checked 11952ms check-target:macos_arm64 @ccdb99ca2214
 pass/types/shared_borrow_retains_carrier_exit checked 3428ms check-target:linux_x86_64 @ccdb99ca2214
 pass/types/storage_address_aggregate checked 2207ms @ccdb99ca2214
-pass/types/storage_address_core_name_shadowed_exit checked 3658ms check-target:linux_x86_64 @ccdb99ca2214
+pass/types/storage_address_core_name_shadowed_exit checked 6437ms check-target:macos_arm64 @8e2d8b56d565
 pass/versioning/migration_generic_trait checked 50465ms check-target:macos_arm64 @1e29a538216e
 pass/versioning/runtime_version_migration_exit checked 52430ms check-target:macos_arm64 @1e29a538216e
 pass/wire/codec_reference_array_exit checked 53509ms check-target:macos_arm64 @1e29a538216e
