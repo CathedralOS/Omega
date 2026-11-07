@@ -15,3 +15,13 @@ requires left == right
 }
 // The checked body above must reject under the selected comparison premise.
 machine main() { }
+
+// An ordinary true Boolean predicate gains no core identity authority by name.
+machine Identity<T>(left: Pair, right: Pair) -> bool reaches terminates
+ensures result == true
+{ true }
+machine forged_name(left: Pair, right: Pair)
+requires Identity<Pair>(left, right)
+{
+    require_identity(left, right);
+}
