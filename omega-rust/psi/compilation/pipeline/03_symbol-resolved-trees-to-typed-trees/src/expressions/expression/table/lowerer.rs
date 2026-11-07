@@ -1309,7 +1309,6 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         };
         let Some(holder) = program.data_definitions.iter().find(|definition| {
             definition.symbol == literal.type_symbol
-                && definition.type_parameters.is_empty()
                 && definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape
         }) else {
             return Vec::new();
@@ -1328,6 +1327,10 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             }
         }
 
+        // Holder genericity does not make an independently concrete evidence
+        // field ambiguous. Each erased field must still name the nongeneric,
+        // accessible unique nullary declaration accepted below. Open or
+        // applied evidence types still supply no implicit inhabitance.
         selected_fields
             .into_iter()
             .filter(|field| field.relevance.is_erased())

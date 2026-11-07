@@ -196,8 +196,17 @@ fn validate_struct_literal(
                         && constructor.state == state.symbol
                 })
         });
+    // Receiving application custody establishes correspondence, not evidence
+    // or permission to read an erased field at runtime. Its selected fields
+    // still require explicit terms (including checked nullary elaboration),
+    // and those terms retain their ErasedInitializer context below.
+    let applied = program.closed_data_constructor_definition(
+        crate::value_custody::struct_literals::construction_application(program, expression),
+        literal.type_symbol,
+    );
     let unsupported_bare_generic = !definition.type_parameters.is_empty()
         && !erased_fields(program, definition).is_empty()
+        && applied.is_none()
         && !checked_source_evidence;
     if unsupported_bare_generic {
         diagnostics.push(Diagnostic::error(format!(
@@ -205,9 +214,13 @@ fn validate_struct_literal(
             definition.name
         )));
     }
-    let declared_erased = literal_fields(program, definition, literal.case_name.as_ref())
-        .filter(|field| field.relevance.is_erased())
-        .collect::<Vec<_>>();
+    let declared_erased = literal_fields(
+        program,
+        applied.unwrap_or(definition),
+        literal.case_name.as_ref(),
+    )
+    .filter(|field| field.relevance.is_erased())
+    .collect::<Vec<_>>();
     let authored = expression_table(program).struct_fields(literal.fields);
     for erased in &declared_erased {
         if !unsupported_bare_generic && !authored.iter().any(|field| field.name == erased.name) {
