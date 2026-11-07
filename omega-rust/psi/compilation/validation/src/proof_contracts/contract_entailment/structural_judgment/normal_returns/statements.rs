@@ -74,6 +74,15 @@ impl<'program> StructuralJudge<'program> {
                 scope.0.symbol,
                 call,
             );
+        let debug = erased_citation && std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some();
+        if debug {
+            eprintln!(
+                "CALLREQ citation caller={} statement={statement_index} target={} application={}",
+                scope.0.name,
+                call.target,
+                application.is_some()
+            );
+        }
         let statement = scope.1.statement_nodes.handles().nth(statement_index)?;
         if !matches!(program.statement_table.statements(scope.1.statement_nodes).get(statement_index), Some(StatementNode::Call(selected)) if std::ptr::eq(selected, call))
         {
@@ -128,7 +137,11 @@ impl<'program> StructuralJudge<'program> {
                     environment,
                     scope,
                     &writes,
-                )
+                ).inspect(|captured| {
+                    if debug {
+                        eprintln!("CALLREQ citation captured caller={} statement={statement_index} entry={:?} exit={:?}", scope.0.name, captured.entry_bindings, captured.bindings);
+                    }
+                })
                 && let Some(guarantees) = judge.selected_guarantees(
                     &owner,
                     &captured.entry_bindings,
@@ -136,7 +149,11 @@ impl<'program> StructuralJudge<'program> {
                     &application.types,
                     None,
                     0,
-                )
+                ).inspect(|guarantees| {
+                    if debug {
+                        eprintln!("CALLREQ citation guarantees caller={} statement={statement_index} equations={:?} identities={:?}", scope.0.name, guarantees.equations, guarantees.data_identities);
+                    }
+                })
             {
                 judge.intake_normal_call_equations(
                     guarantees

@@ -115,6 +115,12 @@ impl StructuralJudge<'_> {
         }) {
             StructuralJudgment::Proven
         } else {
+            if std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some() {
+                eprintln!(
+                    "CALLREQ identity unknown owner={:?} left={left:?} right={right:?} equations={:?}",
+                    self.machine_symbol, self.captured_result_equations
+                );
+            }
             StructuralJudgment::Unknown
         }
     }
