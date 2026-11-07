@@ -61,6 +61,8 @@ mod descriptors;
 mod domain_preservation;
 mod exactly_one;
 mod references;
+#[path = "scalars/scalar_demand.rs"]
+pub mod scalar_demand;
 mod scalars;
 mod storage;
 mod structural;
