@@ -529,6 +529,12 @@ pub(crate) fn lower_proof_term(
         if let Some(constructor) = view.source_constructor(expression)
             && constructor.type_identity == program.normalized_type_identity(expected_type)
         {
+            // Both publication forms carry closed mathematical judgments.
+            // A quantified source schema is useful during source checking,
+            // but must be specialized before entering either receiving lane.
+            if constructor.level_arity != 0 {
+                return None;
+            }
             // Abstraction can produce a closed value under an unrelated
             // lexical scalar scope. Its empty dependency roster is already
             // kernel checked; retain that exact value rather than rebuilding

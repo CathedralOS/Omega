@@ -68,11 +68,9 @@ fn receive_catalog(
             .signature
             .get(row.declaration as usize)
             .ok_or_else(|| fail("Id formation declaration is absent"))?;
-        if declaration.level_arity != 0 {
-            return Err(fail(
-                "Id subject telescope retains free universe parameters",
-            ));
-        }
+        // The shared signature check quantified this declaration's exact
+        // universe telescope. Source-bound verification below compares it with
+        // the independently checked source judgment, including its arity.
         let mut body = declaration
             .body
             .ok_or_else(|| fail("Id formation is an assumption rather than a definition"))?;
@@ -192,7 +190,7 @@ pub fn verify_identity_formations(
             &decoded.arena,
             &proof_admission::MathematicalCertificate {
                 signature: Vec::new(),
-                level_arity: 0,
+                level_arity: declaration.level_arity,
                 context,
                 term,
                 expected: ty,
@@ -205,4 +203,202 @@ pub fn verify_identity_formations(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proof_admission::{Declaration, Level, MathematicalCertificate, Sort, TermArena};
+
+    #[test]
+    fn quantified_identity_formation_retains_its_exact_source_levels() {
+        let mut arena = TermArena::new();
+        let sort = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+        let carrier = arena.insert(Term::Constant {
+            declaration: 0,
+            levels: vec![Level::Parameter(0)],
+        });
+        let left = arena.insert(Term::Variable(1));
+        let right = arena.insert(Term::Variable(0));
+        let identity = arena.insert(Term::Id {
+            ty: carrier,
+            left,
+            right,
+        });
+        let body = arena.insert(Term::Lambda {
+            domain: carrier,
+            body: identity,
+        });
+        let body = arena.insert(Term::Lambda {
+            domain: carrier,
+            body,
+        });
+        let ty = arena.insert(Term::Pi {
+            domain: carrier,
+            codomain: sort,
+        });
+        let ty = arena.insert(Term::Pi {
+            domain: carrier,
+            codomain: ty,
+        });
+        let prefix = vec![Declaration::assumption(1, sort)];
+        let mut signature = prefix.clone();
+        signature.push(Declaration::definition(1, ty, body));
+        let zero = arena.insert(Term::TwoZero);
+        let two = arena.insert(Term::Two);
+        let mut certificate = MathematicalCertificate {
+            signature,
+            level_arity: 0,
+            context: Vec::new(),
+            term: zero,
+            expected: two,
+        };
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let owner = identities.intern("quantified-owner");
+        let source_carrier = identities.intern("source-carrier");
+        let entry = semantic_vocabulary::MachineId::new(1).unwrap();
+        let mut module = TerminalModule::for_entry(entry);
+        module.identities = identities.build();
+        module
+            .identity_formations
+            .rows
+            .push(terminal_psi::TerminalIdentityFormation {
+                source_owner: owner,
+                source_carrier,
+                subject_carriers: vec![source_carrier; 2],
+                subject_origins: vec![(1, 2), (3, 4)],
+                declaration: 1,
+            });
+        let expected = ExpectedIdentityFormations {
+            signature: crate::encode_mathematical_certificate(
+                &arena,
+                &MathematicalCertificate {
+                    signature: prefix,
+                    level_arity: 0,
+                    context: Vec::new(),
+                    term: zero,
+                    expected: two,
+                },
+            )
+            .unwrap(),
+            rows: vec![ExpectedIdentityFormation {
+                source_owner: "quantified-owner".into(),
+                source_carrier: "source-carrier".into(),
+                subject_carriers: vec!["source-carrier".into(); 2],
+                subject_origins: vec![(1, 2), (3, 4)],
+                judgment: crate::encode_mathematical_certificate(
+                    &arena,
+                    &MathematicalCertificate {
+                        signature: Vec::new(),
+                        level_arity: 1,
+                        context: vec![carrier; 2],
+                        term: identity,
+                        expected: sort,
+                    },
+                )
+                .unwrap(),
+            }],
+        };
+        module.identity_formations.certificate =
+            crate::encode_mathematical_certificate(&arena, &certificate).unwrap();
+        verify_identity_formations(&module, &expected, &mut Budget::default()).unwrap();
+
+        // A quantified function forms in its declared universe scope, but it
+        // is not a closed erased actual, even with an exact independent key.
+        // Constructor schemas and scalar/proof function actuals use this same
+        // closed receiving boundary after source specialization.
+        let mut quantified = MathematicalCertificate {
+            signature: certificate.signature.clone(),
+            level_arity: 1,
+            context: Vec::new(),
+            term: body,
+            expected: ty,
+        };
+        proof_admission::verify_mathematical_certificate(
+            &mut arena,
+            &quantified,
+            &mut Budget::default(),
+        )
+        .unwrap();
+        let key = crate::mathematical_carrier_key(&arena, &quantified).unwrap();
+        let actual = semantic_vocabulary::ProofTerm::Mathematical {
+            type_identity: "source-carrier".into(),
+            certificate: crate::encode_mathematical_certificate(&arena, &quantified).unwrap(),
+        };
+        assert!(matches!(
+            crate::verify_mathematical_proof_actual(
+                &actual,
+                "source-carrier",
+                &key,
+                &std::collections::BTreeSet::new(),
+                &mut Budget::default(),
+            ),
+            Err(crate::MathematicalProofActualError::OpenContext)
+        ));
+        // Dropping metadata cannot make that same function closed.
+        quantified.level_arity = 0;
+        let key = crate::mathematical_carrier_key(&arena, &quantified).unwrap();
+        let actual = semantic_vocabulary::ProofTerm::Mathematical {
+            type_identity: "source-carrier".into(),
+            certificate: crate::encode_mathematical_certificate(&arena, &quantified).unwrap(),
+        };
+        assert!(matches!(
+            crate::verify_mathematical_proof_actual(
+                &actual,
+                "source-carrier",
+                &key,
+                &std::collections::BTreeSet::new(),
+                &mut Budget::default(),
+            ),
+            Err(crate::MathematicalProofActualError::Kernel(
+                proof_admission::CoreError::UnboundLevelParameter { .. }
+            ))
+        ));
+
+        // Dropping the quantified scope leaves the level application unbound.
+        certificate.signature[1].level_arity = 0;
+        module.identity_formations.certificate =
+            crate::encode_mathematical_certificate(&arena, &certificate).unwrap();
+        let error = validate_identity_formations(&module, &mut Budget::default()).unwrap_err();
+        assert!(format!("{error:?}").contains("UnboundLevelParameter"));
+
+        // An extra unused level forms, but changes the independently supplied source judgment.
+        certificate.signature[1].level_arity = 2;
+        module.identity_formations.certificate =
+            crate::encode_mathematical_certificate(&arena, &certificate).unwrap();
+        validate_identity_formations(&module, &mut Budget::default()).unwrap();
+        let error =
+            verify_identity_formations(&module, &expected, &mut Budget::default()).unwrap_err();
+        assert!(format!("{error:?}").contains("receiver's checked source formation"));
+
+        // A malformed application cannot borrow the declaration's level scope.
+        certificate.signature[1].level_arity = 1;
+        for (levels, reason) in [
+            (Vec::new(), "DeclarationArityMismatch"),
+            (vec![Level::Parameter(1)], "UnboundLevelParameter"),
+        ] {
+            let wrong = arena.insert(Term::Constant {
+                declaration: 0,
+                levels,
+            });
+            let identity = arena.insert(Term::Id {
+                ty: wrong,
+                left,
+                right,
+            });
+            let body = arena.insert(Term::Lambda {
+                domain: carrier,
+                body: identity,
+            });
+            let body = arena.insert(Term::Lambda {
+                domain: carrier,
+                body,
+            });
+            certificate.signature[1].body = Some(body);
+            module.identity_formations.certificate =
+                crate::encode_mathematical_certificate(&arena, &certificate).unwrap();
+            let error = validate_identity_formations(&module, &mut Budget::default()).unwrap_err();
+            assert!(format!("{error:?}").contains(reason));
+        }
+    }
 }

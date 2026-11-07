@@ -47,7 +47,7 @@ pub(super) fn produce(
     for carrier in facts
         .source_evidence_carriers
         .iter()
-        .filter(|carrier| carrier.domains.is_empty())
+        .filter(|carrier| carrier.domains.is_empty() && carrier.level_arity == 0)
     {
         let identity = program
             .type_identity_text(carrier.type_identity)
@@ -90,7 +90,7 @@ pub(super) fn produce(
             .as_bytes();
         let source_judgment = MathematicalCertificate {
             signature: signature.declarations.clone(),
-            level_arity: 0,
+            level_arity: theorem.level_arity,
             context: Vec::new(),
             term: theorem.term,
             expected: theorem.ty,
@@ -147,7 +147,7 @@ pub(super) fn produce(
         .source_evidence_carriers
         .iter()
         .find(|carrier| {
-            carrier.domains.is_empty()
+            (carrier.domains.is_empty() && carrier.level_arity == 0)
                 && program
                     .type_identity_text(carrier.type_identity)
                     .is_some_and(|text| text.matches("integer(0)").count() == 2)

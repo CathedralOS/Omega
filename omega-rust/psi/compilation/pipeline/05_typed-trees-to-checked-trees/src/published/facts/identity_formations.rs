@@ -91,7 +91,7 @@ pub(crate) fn record(
         let declaration = u32::try_from(declarations.len())
             .map_err(|_| refuse("Id formation declaration roster exceeds u32"))?;
         declarations.push(Declaration {
-            level_arity: 0,
+            level_arity: formation.level_arity,
             ty,
             body: Some(body),
         });

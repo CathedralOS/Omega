@@ -3,7 +3,7 @@
 
 use super::super::Elaborator;
 use super::parameter_closure::{abstract_parameters, excludes_parameters};
-use super::terms::constructor_children;
+use super::terms::{constructor_children, lift_payload};
 use crate::typed_expressions::{expression_table, type_reference_table};
 use diagnostics::Diagnostic;
 use language_core::BindingRelevance;
@@ -177,7 +177,7 @@ impl Elaborator<'_> {
         }
         check_type(
             &mut self.arena,
-            &Context::empty()
+            &Context::with_level_arity(self.level_binders.len() as u32 + self.generalized_levels)
                 .with_signature(Signature::from_declarations(self.declarations.clone())),
             schema,
             schema_type,
@@ -188,8 +188,11 @@ impl Elaborator<'_> {
                 "source constructor schema fails kernel checking: {error:?}"
             ))
         })?;
-        self.declarations
-            .push(Declaration::definition(0, schema_type, schema));
+        self.declarations.push(Declaration::definition(
+            proof_admission::universe_parameter_arity(&self.arena, &[schema_type, schema]),
+            schema_type,
+            schema,
+        ));
         let ExpressionNode::StructLiteral(literal) =
             self.program.expression_table.expression(expression)
         else {
@@ -227,6 +230,10 @@ impl Elaborator<'_> {
         self.prepared
             .source_constructors
             .append(PreparedSourceConstructor {
+                level_arity: proof_admission::universe_parameter_arity(
+                    &self.arena,
+                    &[schema_type, schema],
+                ),
                 expression,
                 constructor: expression,
                 source_type: reference,
@@ -273,7 +280,10 @@ impl Elaborator<'_> {
         domain: TermHandle,
     ) -> TermHandle {
         let position = self.declarations.len() as u32;
-        self.declarations.push(Declaration::assumption(0, domain));
+        self.declarations.push(Declaration::assumption(
+            proof_admission::universe_parameter_arity(&self.arena, &[domain]),
+            domain,
+        ));
         let term = self.constant(position);
         self.source_constructor_context
             .parameters
@@ -426,6 +436,7 @@ impl Elaborator<'_> {
             .zip(&arguments)
             .map(|(parameter, argument)| self.index_operand(*argument, parameter, &[]))
             .collect::<Result<Vec<_>, _>>()?;
+        let family = self.applied_source_family(&family, &actuals)?;
         let description = family
             .description_at(&mut self.arena, &actuals)
             .map_err(|reason| self.refuse(reason.into()))?;
@@ -566,8 +577,10 @@ impl Elaborator<'_> {
                 });
             }
             let expected = description.indexed_w(&mut self.arena, index);
-            let context = Context::empty()
-                .with_signature(Signature::from_declarations(self.declarations.clone()));
+            let context = Context::with_level_arity(
+                self.level_binders.len() as u32 + self.generalized_levels,
+            )
+            .with_signature(Signature::from_declarations(self.declarations.clone()));
             match check_type(
                 &mut self.arena,
                 &context,
@@ -637,8 +650,9 @@ impl Elaborator<'_> {
                 argument,
             });
         }
-        let context = Context::empty()
-            .with_signature(Signature::from_declarations(self.declarations.clone()));
+        let context =
+            Context::with_level_arity(self.level_binders.len() as u32 + self.generalized_levels)
+                .with_signature(Signature::from_declarations(self.declarations.clone()));
         check_type(
             &mut self.arena,
             &context,
@@ -657,6 +671,24 @@ impl Elaborator<'_> {
                 first: value,
                 second: label,
             });
+        }
+        if !family.payload_lifts.is_empty() {
+            let mut lift_domains = Vec::new();
+            for &function in &family.payload_lifts {
+                let mut domain = function;
+                for &actual in type_actuals
+                    .iter()
+                    .chain(common.iter().skip(stored_type_count))
+                {
+                    domain = self.arena.insert(Term::Apply {
+                        function: domain,
+                        argument: actual,
+                    });
+                }
+                lift_domains.push(domain);
+            }
+            label = lift_payload(&mut self.arena, &lift_domains, label)
+                .map_err(|reason| self.refuse(reason.into()))?;
         }
         if case + 1 < family.cases.len() {
             let tag = self.arena.insert(Term::TwoZero);
@@ -703,8 +735,11 @@ impl Elaborator<'_> {
                 },
             )?;
         let label_position = self.declarations.len() as u32;
-        self.declarations
-            .push(Declaration::definition(0, label_type, label_body));
+        self.declarations.push(Declaration::definition(
+            proof_admission::universe_parameter_arity(&self.arena, &[label_type, label_body]),
+            label_type,
+            label_body,
+        ));
         let mut label = self.constant(label_position);
         for (position, _, _) in parameters {
             let argument = self.constant(position);
@@ -713,8 +748,9 @@ impl Elaborator<'_> {
                 argument,
             });
         }
-        let context = Context::empty()
-            .with_signature(Signature::from_declarations(self.declarations.clone()));
+        let context =
+            Context::with_level_arity(self.level_binders.len() as u32 + self.generalized_levels)
+                .with_signature(Signature::from_declarations(self.declarations.clone()));
         let child_domain = self.arena.insert(Term::Apply {
             function: description.children,
             argument: label,
@@ -753,8 +789,9 @@ impl Elaborator<'_> {
         })?;
         let term = description.sup(&mut self.arena, label, children_fn);
         let expected = self.elaborate_type_reference(reference)?;
-        let context = Context::empty()
-            .with_signature(Signature::from_declarations(self.declarations.clone()));
+        let context =
+            Context::with_level_arity(self.level_binders.len() as u32 + self.generalized_levels)
+                .with_signature(Signature::from_declarations(self.declarations.clone()));
         check_type(
             &mut self.arena,
             &context,

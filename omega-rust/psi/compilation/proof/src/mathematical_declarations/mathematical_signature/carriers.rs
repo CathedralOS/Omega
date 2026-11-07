@@ -478,10 +478,7 @@ impl<'a> Elaborator<'a> {
 
     /// `Constant` term for a signature position.
     pub(super) fn constant(&mut self, position: u32) -> TermHandle {
-        self.arena.insert(Term::Constant {
-            declaration: position,
-            levels: Vec::new(),
-        })
+        self.quantified_constant(position)
     }
 
     /// `Type 0` as a term.
@@ -493,7 +490,10 @@ impl<'a> Elaborator<'a> {
     /// Push an assumption declaration and return its position.
     pub(super) fn push_assumption(&mut self, ty: TermHandle) -> u32 {
         let position = self.declarations.len() as u32;
-        self.declarations.push(Declaration::assumption(0, ty));
+        self.declarations.push(Declaration::assumption(
+            proof_admission::universe_parameter_arity(&self.arena, &[ty]),
+            ty,
+        ));
         position
     }
 

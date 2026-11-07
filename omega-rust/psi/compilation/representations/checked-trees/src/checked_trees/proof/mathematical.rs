@@ -136,6 +136,7 @@ pub struct CheckedMathematicalSignature {
 /// executable specialization's erased carrier.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedSourceEvidenceCarrier {
+    pub level_arity: u32,
     pub type_identity: TypeIdentityId,
     pub ty: proof_admission::TermHandle,
     pub domains: Vec<proof_admission::TermHandle>,
@@ -146,6 +147,7 @@ pub struct CheckedSourceEvidenceCarrier {
 /// call retirement; source coordinates are eliminated at Terminal publication.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedIndexedTheorem {
+    pub level_arity: u32,
     pub machine: SymbolHandle,
     pub expression: typed_trees::expression::ExpressionHandle,
     pub ensure_ordinal: u32,
@@ -168,6 +170,7 @@ pub struct CheckedIndexedCitation {
 /// publication abstracts these subjects without allocating runtime copies.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedIdentityFormation {
+    pub level_arity: u32,
     pub expression: typed_trees::expression::ExpressionHandle,
     pub owner: SymbolHandle,
     pub type_identity: TypeIdentityId,

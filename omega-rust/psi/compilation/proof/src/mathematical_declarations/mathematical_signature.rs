@@ -50,6 +50,7 @@ mod scope;
 mod source_domains;
 mod source_evidence;
 mod source_families;
+mod source_levels;
 mod term_order;
 
 use crate::typed_expressions::expression_table;
@@ -202,6 +203,8 @@ struct Elaborator<'a> {
     /// Universe parameters claimed by generalized (bare or unapplied
     /// `Type`) binders; appended after the authored level binders.
     generalized_levels: u32,
+    /// Ordinary source binders reuse one inferred universe in this telescope.
+    source_type_levels: Vec<(SymbolHandle, Level)>,
     /// Term scope for the declaration under elaboration: ordered
     /// telescope entries plus in-flight arrow binders.
     scope: Vec<ScopeEntry>,
@@ -279,6 +282,7 @@ pub(crate) fn check_mathematical_signature(
         level_binders: Vec::new(),
         level_names: Vec::new(),
         generalized_levels: 0,
+        source_type_levels: Vec::new(),
         scope: Vec::new(),
         fixed_core: FixedCoreVocabulary::resolve(&program.symbols),
         address_bound: None,
@@ -344,6 +348,7 @@ impl<'a> Elaborator<'a> {
         self.level_binders.clear();
         self.level_names.clear();
         self.generalized_levels = 0;
+        self.source_type_levels.clear();
         self.scope.clear();
 
         let binders = self
@@ -749,7 +754,7 @@ impl<'a> Elaborator<'a> {
         self.check_source_domains(&signature)?;
         for (_, carrier) in self.prepared.source_carriers.iter() {
             let context = carrier.domains.iter().copied().fold(
-                Context::empty().with_signature(signature.clone()),
+                Context::with_level_arity(carrier.level_arity).with_signature(signature.clone()),
                 |context, domain| context.extend(domain),
             );
             infer_sort(
@@ -773,8 +778,10 @@ impl<'a> Elaborator<'a> {
                 domains,
                 captures,
                 emissions,
+                level_arity,
             } = application;
-            let mut context = Context::empty().with_signature(signature.clone());
+            let mut context =
+                Context::with_level_arity(level_arity).with_signature(signature.clone());
             for domain in &domains {
                 infer_sort(
                     &mut self.arena,
@@ -823,6 +830,7 @@ impl<'a> Elaborator<'a> {
             )?;
             let captures = self.prepared.captures.insert_many(captures);
             self.prepared.applications.append(PreparedApplication {
+                level_arity,
                 expression,
                 owner,
                 term,
