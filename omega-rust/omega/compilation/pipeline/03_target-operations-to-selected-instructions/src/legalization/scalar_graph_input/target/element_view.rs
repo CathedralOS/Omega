@@ -395,10 +395,14 @@ impl Checker<'_> {
         backing
             && parameter.structural_type == root_structural_type
             && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-            && parameter
-                .projected_qualifications
-                .iter()
-                .all(|row| row.is_element_membership())
+            // An owned record keeps its field predicates while lending an
+            // array. Borrowed descriptors retain their element-only roster;
+            // neither kind acquires backing permission from a qualification.
+            && (parameter.access == terminal_psi::StructuralAccess::Owned
+                || parameter
+                    .projected_qualifications
+                    .iter()
+                    .all(|row| row.is_element_membership()))
             && self.optimized.structural_places.iter().any(|declaration| {
                 declaration.id == place
                     && declaration.kind
