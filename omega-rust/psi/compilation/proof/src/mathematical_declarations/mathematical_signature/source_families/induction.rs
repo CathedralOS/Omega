@@ -50,10 +50,7 @@ mod tests {
             .unwrap();
             proof_admission::check_type(
                 arena,
-                &Context::with_level_arity(
-                    self.level_binders.len() as u32 + self.generalized_levels,
-                )
-                .with_signature(signature),
+                &Context::empty().with_signature(signature),
                 proof,
                 ty,
                 &mut Budget::new(DEFAULT_CONVERSION_STEPS),
