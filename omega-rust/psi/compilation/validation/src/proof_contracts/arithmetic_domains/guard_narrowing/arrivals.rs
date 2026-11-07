@@ -1601,36 +1601,47 @@ impl ArrivalWalk<'_, '_> {
                 let mut joined: Option<ValueEnvironment> = None;
                 let mut boolean_values = [false; 2];
                 for arm in expression_table(self.program).match_arms(dispatch.arms) {
-                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                        self.expression(source, pattern, &mut remaining);
-                        if let Some(value) = expression_table(self.program).boolean_node(pattern) {
-                            boolean_values[usize::from(*value)] = true;
+                    let pattern = match arm.pattern {
+                        typed_trees::expression::MatchPattern::Value(pattern) => {
+                            if let Some(value) =
+                                expression_table(self.program).boolean_node(pattern)
+                            {
+                                boolean_values[usize::from(*value)] = true;
+                            }
+                            Some(pattern)
                         }
+                        typed_trees::expression::MatchPattern::Destructure(pattern) => {
+                            Some(pattern.condition)
+                        }
+                        typed_trees::expression::MatchPattern::Wildcard => None,
+                    };
+                    if let Some(pattern) = pattern {
+                        self.expression(source, pattern, &mut remaining);
                     }
-                    let mut selected = remaining.clone();
-                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern
-                        && let ExpressionNode::Boolean(positive) =
-                            expression_table(self.program).expression(pattern)
-                    {
-                        narrow_environment_by_condition(
-                            self.program,
-                            self.machine,
-                            Some(source),
-                            &mut selected,
-                            dispatch.subject,
-                            *positive,
-                        );
-                        narrow_environment_by_condition(
-                            self.program,
-                            self.machine,
-                            Some(source),
-                            &mut remaining,
-                            dispatch.subject,
-                            !*positive,
-                        );
-                        self.expression_effects(source, dispatch.subject, &mut selected);
-                        self.expression_effects(source, dispatch.subject, &mut remaining);
-                    }
+                    let mut selected = super::super::dispatch_environments::dispatch_arm_context(
+                        expression,
+                        dispatch.subject,
+                        arm.pattern,
+                        &mut remaining,
+                        &mut |_, _| true,
+                        &mut |selected, selection| {
+                            super::super::dispatch_environments::narrow_dispatch_selection(
+                                self.program,
+                                self.machine,
+                                Some(source),
+                                dispatch,
+                                selected,
+                                selection,
+                            );
+                            // A completed comparison is not a fresh source read.
+                            // Keep only consequences that survive both the
+                            // subject and this pattern's actual write frames.
+                            self.expression_effects(source, dispatch.subject, selected);
+                            if let Some(pattern) = pattern {
+                                self.expression_effects(source, pattern, selected);
+                            }
+                        },
+                    );
                     self.expression(source, arm.value, &mut selected);
                     joined = Some(
                         joined.map_or_else(|| selected.clone(), |joined| joined.join(&selected)),
