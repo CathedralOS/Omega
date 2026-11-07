@@ -68,9 +68,21 @@ impl ScalarCallSite<'_> {
             // operation's scope can supply its argument sources.
             let mut selected = None;
             for arm in state.terminator.return_arms() {
-                let dependencies = arm.operation_dependencies().collect::<Vec<_>>();
-                if owns(&dependencies) && selected.replace(dependencies).is_some() {
-                    return None;
+                for dependencies in arm.operation_scopes() {
+                    if owns(&dependencies) && selected.replace(dependencies).is_some() {
+                        return None;
+                    }
+                }
+            }
+            if let checked_trees::CheckedComposedUnitControlTerminatorPlan::CompleteExpression {
+                completion,
+            } = &state.terminator
+            {
+                for operations in completion.expression.invocation_scopes() {
+                    let dependencies = operations.iter().collect::<Vec<_>>();
+                    if owns(&dependencies) && selected.replace(dependencies).is_some() {
+                        return None;
+                    }
                 }
             }
             if let checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded {

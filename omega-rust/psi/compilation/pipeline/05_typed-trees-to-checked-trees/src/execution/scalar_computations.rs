@@ -72,6 +72,7 @@ mod boundary_calls;
 mod byte_comparisons;
 mod call_arguments;
 mod cases;
+mod completions;
 mod coordinate_reads;
 mod declaration_inputs;
 mod dispatch;
@@ -100,10 +101,15 @@ pub(crate) fn build_checked_value_computation_plans(
     proof: &ProofFacts,
     pure: &mut CheckedScalarExpressionPlans,
     exact_integer_casts: &[ExactIntegerCastFact],
-) -> (CheckedScalarComputationPlans, CheckedStructuralValuePlans) {
+) -> (
+    CheckedScalarComputationPlans,
+    CheckedStructuralValuePlans,
+    checked_trees::CheckedCompletionPlans,
+) {
     dispatch_copies::withdraw_captured_pure_roots(program, flow, pure);
     let mut plans = CheckedScalarComputationPlans::default();
     let mut structural_values = CheckedStructuralValuePlans::default();
+    let mut completions = checked_trees::CheckedCompletionPlans::default();
     for machine in program.machines() {
         let states = program.machine_states(machine);
         for state in states {
@@ -158,6 +164,26 @@ pub(crate) fn build_checked_value_computation_plans(
                     integer_occurrences: Vec::new(),
                 };
                 builder.retain_dispatch_copy_roots();
+                if crate::execution::terminal_unit::types::is_unit(program, state.return_type) {
+                    match statement {
+                        StatementNode::Expression(expression)
+                            if statement_index + 1 == statements.len() =>
+                        {
+                            builder.record_completion(*expression, &mut completions);
+                        }
+                        StatementNode::Transition(transition) => {
+                            for target in transition.targets() {
+                                if let TransitionTargetNode::Value(expression) =
+                                    program.statement_table.transition_target(target)
+                                {
+                                    builder.record_completion(*expression, &mut completions);
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
                 // Endpoints are ordinary operands. Capture every occurrence
                 // before constructing consumers, so a call result and a pure
                 // bound supply the same range operation at its authored site.
@@ -226,6 +252,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 // scalar element roots cannot also be structural operands.
                 if let Some((expression, expected)) = construction_destination
                     && scalar_elements.is_none()
+                    && !crate::execution::terminal_unit::types::is_unit(program, expected)
                     && (is_scalar_case_value(program, expression, expected)
                         || program.primitive_type_reference(expected).is_none())
                     && let Some(root) = builder.structural_value(expression, expected)
@@ -717,7 +744,8 @@ pub(crate) fn build_checked_value_computation_plans(
     }
     plans.seal();
     structural_values.seal();
-    (plans, structural_values)
+    completions.seal();
+    (plans, structural_values, completions)
 }
 
 /// Source-admitted observations append only after completed effects and final

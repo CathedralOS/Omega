@@ -50,6 +50,7 @@ pub(super) mod returns;
 mod successors;
 mod terminal_calls;
 mod terminator;
+mod unit_completions;
 
 use fused::fused_states;
 pub(super) use fused::{FusedStates, fused_target_index};

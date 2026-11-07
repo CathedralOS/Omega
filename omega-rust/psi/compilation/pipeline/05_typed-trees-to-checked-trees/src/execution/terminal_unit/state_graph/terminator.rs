@@ -247,6 +247,41 @@ pub(super) fn build(
             Some(selected_exit),
         ));
     }
+    if *result == CheckedControlResultPlan::Unit {
+        let expression = match statements.get(terminator_index)? {
+            StatementNode::Expression(expression) => Some(*expression),
+            StatementNode::Transition(transition)
+                if transition.guard == TransitionGuardNode::Always
+                    && transition.exit == TransitionExit::Ordinary
+                    && !transition.continuation.is_valid() =>
+            {
+                match program.statement_table.transition_target(transition.target) {
+                    TransitionTargetNode::Value(expression) => Some(*expression),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        if let Some(completion) = expression.and_then(|expression| {
+            super::unit_completions::build(
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                machine,
+                state,
+                structural,
+                entry_claims,
+                local_results,
+                operations,
+                ordinal,
+                expression,
+                trace,
+            )
+        }) {
+            return Some((TerminatorPlan::CompleteExpression { completion }, None));
+        }
+    }
     let before_closed_sum = trace.mark();
     let closed_sum = closed_sum::build(
         program,
@@ -989,6 +1024,24 @@ fn guarded_return_arm(
         TransitionTargetNode::Value(expression) => *expression,
         _ => return None,
     };
+    if *result == CheckedControlResultPlan::Unit {
+        return super::unit_completions::build(
+            program,
+            facts,
+            scalar_callees,
+            shapes,
+            machine,
+            state,
+            structural,
+            entry_claims,
+            local_results,
+            operations,
+            statement_ordinal,
+            expression,
+            trace,
+        )
+        .map(checked_trees::CheckedConditionalReturnArm::Completion);
+    }
     if let CheckedControlResultPlan::Scalar { primitive_type } = result {
         let role = CheckedScalarExpressionRole::Return;
         let retained = facts
@@ -1094,7 +1147,14 @@ fn complete_selected_return(
             operations.extend(prefix.iter().cloned());
             TerminatorPlan::EvaluateNoNormal
         }
+        Arm::EvaluateUnit {
+            operations: prefix, ..
+        } => {
+            operations.extend(prefix.iter().cloned());
+            TerminatorPlan::ReturnUnit
+        }
         Arm::Crash { statement_ordinal } => TerminatorPlan::Crash { statement_ordinal },
+        Arm::Completion(completion) => TerminatorPlan::CompleteExpression { completion },
         Arm::Unit { .. } => TerminatorPlan::ReturnUnit,
         Arm::Scalar {
             statement_ordinal,

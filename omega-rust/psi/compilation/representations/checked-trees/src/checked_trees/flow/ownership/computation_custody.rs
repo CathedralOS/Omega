@@ -203,10 +203,16 @@ impl CheckedConditionalReturnArm {
                 CheckedScalarExpressionRole::Return,
             ),
             Self::Structural(operation) => transfers.operation(operation),
-            Self::EvaluateNoNormal { operations, .. } => operations
-                .iter()
-                .map(|operation| transfers.operation(operation))
-                .sum(),
+            Self::Completion(plan) => transfers
+                .completion(&plan.expression)
+                .flatten()
+                .unwrap_or(0),
+            Self::EvaluateNoNormal { operations, .. } | Self::EvaluateUnit { operations, .. } => {
+                operations
+                    .iter()
+                    .map(|operation| transfers.operation(operation))
+                    .sum()
+            }
             Self::Call {
                 operands,
                 operation,
@@ -560,6 +566,44 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 }
             }
         }
+    }
+
+    fn completion(&self, node: &crate::CheckedUnitCompletionExpression) -> Option<Option<usize>> {
+        if !node.normal_continuation {
+            return Some(None);
+        }
+        if let crate::CheckedUnitCompletionKind::Invocation(operations) = &node.kind {
+            return Some(Some(
+                operations
+                    .iter()
+                    .map(|operation| self.operation(operation))
+                    .sum(),
+            ));
+        }
+        let subject = node.subject()?;
+        let mut scope = self.clone();
+        let subject_count = scope.dispatch_subject(&subject);
+        match subject {
+            crate::CheckedDispatchSubject::Scalar(value) => {
+                scope.completed_computations.push(value)
+            }
+            crate::CheckedDispatchSubject::Structural { value, .. } => {
+                scope.established_values.push(value)
+            }
+        }
+        let mut prefix = 0;
+        let mut minimum = None;
+        for (pattern, child) in node.arms() {
+            if let Some(pattern) = pattern {
+                prefix += scope.computation(pattern);
+                scope.completed_computations.push(pattern);
+            }
+            if let Some(child) = scope.completion(child)? {
+                let count = prefix + child;
+                minimum = Some(minimum.map_or(count, |previous: usize| previous.min(count)));
+            }
+        }
+        Some(Some(subject_count + minimum?))
     }
 
     fn computation(&self, root: CheckedScalarComputationHandle) -> usize {
@@ -953,5 +997,20 @@ mod tests {
         assert_eq!(transfers.constructed(root, &[], false), 0);
         argument.access = CheckedStructuralAccess::SharedBorrow;
         assert_eq!(transfers.argument(&argument), 0);
+    }
+}
+
+impl crate::CheckedUnitCompletionPlan {
+    pub fn definite_call_transfers<'calls>(
+        &self,
+        values: &CheckedValueFacts,
+        call_schedules: &CallSchedules<'_, 'calls>,
+        producer: &CheckedUnitEffectOperationPlan,
+        local: SymbolHandle,
+    ) -> usize {
+        CallTransfers::for_producer(values, call_schedules, producer, local)
+            .and_then(|transfers| transfers.completion(&self.expression))
+            .flatten()
+            .unwrap_or(0)
     }
 }

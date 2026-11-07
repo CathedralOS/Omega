@@ -44,6 +44,7 @@ use semantic_vocabulary::{BlockId, EdgeId, ValueId};
 use std::collections::BTreeMap;
 
 mod captured_loans;
+mod completion_expressions;
 mod conditional_return;
 pub(super) mod dispatch_copies;
 mod entry_rank;

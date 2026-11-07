@@ -66,6 +66,9 @@ pub use composed_unit_control_plans::{
     CheckedGuardedReturnValue, CheckedIntegerRankObservation, CheckedNaturalRankFunction,
     CheckedNaturalRankMeasure, CheckedRankEdgeCoordinate, CheckedScalarCaseFieldPlan,
     CheckedScalarReturnPlan, CheckedStateContractRequirement, CheckedStateNaturalRank,
+    CheckedUnitCompletionExpression, CheckedUnitCompletionKind, CheckedUnitCompletionPlan,
+    CheckedUnitCompletionSelection, CheckedUnitScalarCompletionArm,
+    CheckedUnitScalarCompletionCondition, CheckedUnitStructuralCompletionArm,
 };
 pub use dynamic_slot_plans::{CheckedDynamicClaimPath, CheckedDynamicSlotPlan};
 pub use place_loan_plans::{CheckedPlaceLoanPlan, CheckedPlaceLoanRoot};

@@ -51,6 +51,12 @@ pub use proof_terms::{
     CheckedErasedProofParameterPlan, CheckedLocatedProofTerm, CheckedMathematicalArgument,
     CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole, CheckedProofTerms,
 };
+mod completion_expressions;
+pub use completion_expressions::{
+    CheckedCompletionArm, CheckedCompletionComparison, CheckedCompletionExpression,
+    CheckedCompletionExpressionHandle, CheckedCompletionExpressionKind, CheckedCompletionPlans,
+    CheckedCompletionRoot,
+};
 mod structural_values;
 pub use structural_values::{
     CheckedElementViewRegion, CheckedQuotientAdaptationLicense, CheckedStructuralDispatchArm,
@@ -151,6 +157,7 @@ pub struct CheckedValueFacts {
     pub scalar_expressions: CheckedScalarExpressionPlans,
     pub scalar_computations: CheckedScalarComputationPlans,
     pub structural_values: CheckedStructuralValuePlans,
+    pub completions: CheckedCompletionPlans,
     /// Proof-only erased actuals recorded under `CheckedProofTermRole`
     /// coordinates. They own no runtime operand rows.
     pub proof_terms: CheckedProofTerms,
@@ -163,6 +170,7 @@ impl CheckedValueFacts {
             scalar_expressions: CheckedScalarExpressionPlans::default(),
             scalar_computations: CheckedScalarComputationPlans::default(),
             structural_values: CheckedStructuralValuePlans::default(),
+            completions: CheckedCompletionPlans::default(),
             proof_terms: CheckedProofTerms::default(),
             scalar_type_refinements: Arena::new(),
             scalar_type_predicates: Arena::new(),
