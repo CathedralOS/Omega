@@ -38,7 +38,6 @@ mod integer_predicates;
 pub(super) use integer_predicates::{CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank};
 mod identity_normalization;
 mod invocation_entry;
-mod le_case_observations;
 mod licenses;
 mod logical_resolution;
 mod mathematical_predicates;
