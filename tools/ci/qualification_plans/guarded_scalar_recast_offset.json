@@ -1,12 +1,12 @@
 {
   "schema": "omega-compiler-pilot-plan-v1",
   "producer": {
-    "revision": "d2fa9fffef843aec744e6bc9408c36f445d8322e",
-    "tree": "7b9c911d038983525a012986a89ccc9b6e25996e",
+    "revision": "52458bd01fabe7722f89da16c92cfbeec305edd4",
+    "tree": "6d7cdc35e40505d63499e25fb18acf45c53ebd37",
     "target": "linux_x86_64",
     "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
     "input_objects": {
-      "omega-rust": "3ddc52fb99156dfcec09cca6069101a14f26dfbd",
+      "omega-rust": "20d882e4fc6ab6601cc918f39ace0c93c7b1b171",
       "source/library": "7783edfa32208a372f2ab8c217ca98fe9a2dd9db",
       "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
       "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
@@ -19,22 +19,22 @@
     },
     "executables": {
       "cli": {
-        "sha256": "06534bdbe70bf52ee9ec1a95f1fdd856cdf36c05de553dfd8362bba52c77ccd0",
+        "sha256": "6b3d561926b552a785c5643533837274104949e27f796edff45a81712063a2dc",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       },
       "runner": {
-        "sha256": "b7dd64412363eaedf00f5d27841d61a6a3610f30dd516f3ae79d6290aeea330b",
+        "sha256": "e9b9223512730d398effba268fb7865ad651f05fc82c7a9574fd8165d81aaa95",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       }
     },
-    "origin_run": 42412574438,
-    "cache_key": "compiler-regression-Linux-X64-26373569842e2df801f2f08493e13bb4af4cdb54e2db5ac79f9e762a605313ff-d2fa9fffef843aec744e6bc9408c36f445d8322e-prepared-v1-with-runner"
+    "origin_run": 42418886789,
+    "cache_key": "compiler-regression-Linux-X64-26373569842e2df801f2f08493e13bb4af4cdb54e2db5ac79f9e762a605313ff-52458bd01fabe7722f89da16c92cfbeec305edd4-prepared-v1-with-runner"
   },
   "fixtures": [
     "pass/recast/runtime_integer_bit_view_recast_exit"
