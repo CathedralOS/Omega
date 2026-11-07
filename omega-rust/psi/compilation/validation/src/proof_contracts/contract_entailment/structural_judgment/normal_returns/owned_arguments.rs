@@ -135,3 +135,6 @@ pub(super) fn capture_position_at_site(
 ) -> Option<usize> {
     crate::machine_calls::calls::captured_argument_position(program, saved, site)
 }
+
+#[cfg(test)]
+mod tests;

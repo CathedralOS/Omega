@@ -1342,6 +1342,20 @@ impl AppliedProofBindings {
             &[],
             &[static_scope],
         )?;
+        // Keep the result declaration when application leaves its complete
+        // recipe unchanged. An equivalent type from another compilation context
+        // can name different fields and domains; it cannot relabel this value.
+        if try_normalized_index_identity(
+            program,
+            IndexIdentityArgument::TypeArgument(declared),
+            &[],
+            &[],
+        )
+        .as_deref()
+            == Some(identity.as_str())
+        {
+            return Some(declared);
+        }
         // Full qualified identities must also be complete. An unavailable
         // index marker is diagnostic payload, never a matching public recipe.
         result_reference_for_identity(program, &identity)
