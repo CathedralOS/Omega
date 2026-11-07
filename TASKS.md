@@ -168,14 +168,6 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **COMPONENT-SUBSTRATE.** (covers **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**, **RUNTIME-SIZED-ACTIVATION-CONTRACT**, **FILESYSTEM-PLATFORM-SERVICES**, **TR3-TR8**, **CHECKED-REPRESENTATION-REUSE**) Complete [authority review](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission), [bounded activation](wiki/spec/resources/activation_storage.md), [filesystem services](wiki/spec/build/platform_services.md), [component installation](wiki/spec/build/component_publication.md), [task runtime](wiki/spec/build/task_runtime.md) (`blocking-executor`), and [checked reuse](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse).
   Acceptance: `console_exit_process_exit` (warm `< 50%` cold), `bounded_activation`, Windows filesystem fixtures, `Independent` builds, and `blocking-executor` pass `--both`.
-  The `blocking-executor` queue and executor contracts require executable queue
-  bodies, bounded worker loops and provider integration. Deliver a completion-based
-  I/O provider and one working server using arena-held connection state and bounded
-  workers as described in the [concurrency guide](wiki/language_guide/chapter_18_concurrency.md#many-waiting-connections-bounded-workers).
-  Acceptance includes queue-full custody return, a separately enforced worker-count
-  bound, and a borrowed-buffer read raced against a timeout: cancellation requests
-  must not permit buffer reuse before all external access is retired, including
-  late completion. No per-connection parked activation is required by this arrangement.
 
 ## Connected scientific library
 
