@@ -65,127 +65,21 @@ impl<'a> CapturedCallIntervals<'a> {
     ) -> Option<IntegerRange> {
         let parameter = self.parameters.get(ordinal)?;
         let operand = self.arguments.get(ordinal)?;
-        let values = crate::flow::captured_operand_values(
+        super::CapturedIntegerIntervals::new(
             self.program,
-            self.flow.view(),
+            self.operators,
             self.semantic,
+            self.flow,
             self.state,
+        )
+        .bounds(
             crate::flow::CapturedOperand::unrecorded(operand),
             parameter.type_reference,
             path,
-        )?;
-        let values = crate::flow::observe_captured_values(
-            self.program,
-            self.flow,
-            self.semantic,
-            self.state,
-            values,
+            self.call.entry_constraints,
             self.epoch,
-        );
-        let mut hull: Option<IntegerRange> = None;
-        for value in values {
-            let mut known: Option<IntegerRange> = None;
-            for (capture, reference, projection, places, invocation) in [
-                (
-                    value.observation,
-                    value.observation_type,
-                    &value.observation_projection,
-                    crate::flow::captured_observation_places(
-                        self.program,
-                        self.flow.view(),
-                        &value,
-                    ),
-                    self.call.entry_constraints,
-                ),
-                (
-                    value.operand,
-                    value.type_reference,
-                    &value.projection,
-                    crate::flow::captured_value_places(self.program, self.flow.view(), &value),
-                    value.producer_invocation(self.call.entry_constraints),
-                ),
-            ] {
-                let contexts = crate::flow::operand_contexts(
-                    self.program,
-                    &self.flow.contexts,
-                    &self.flow.control,
-                    self.semantic,
-                    capture.row(),
-                    reference,
-                    invocation,
-                );
-                let literal = projection
-                    .remaining
-                    .is_empty()
-                    .then(|| {
-                        let expression = capture.row().expression;
-                        let integer = match self.program.expression_table.expression(expression) {
-                            typed_trees::expression::ExpressionNode::Integer(literal) => {
-                                literal.value_bignum()
-                            }
-                            _ => None,
-                        }
-                        .or_else(|| {
-                            validation::completed_integer_constant(self.program, expression)
-                                .map(|constant| constant.value)
-                        });
-                        integer.map(|value| IntegerRange {
-                            minimum: value.clone(),
-                            maximum: value,
-                        })
-                    })
-                    .flatten();
-                let bounds = literal.or_else(|| {
-                    let places = places?;
-                    if places.is_empty() {
-                        return None;
-                    }
-                    let mut current = super::CurrentIntegerBounds::at_statement(
-                        self.program,
-                        self.operators,
-                        self.semantic,
-                        &contexts,
-                        capture.row().state_symbol,
-                        capture.row().statement_index,
-                    )?;
-                    let mut range: Option<IntegerRange> = None;
-                    for place in places {
-                        let next = current.at_place(&place.projected, primitive)?;
-                        range = Some(match range {
-                            Some(previous) => IntegerRange {
-                                minimum: previous.minimum.min(next.minimum),
-                                maximum: previous.maximum.max(next.maximum),
-                            },
-                            None => next,
-                        });
-                    }
-                    range
-                });
-                if let Some(bounds) = bounds {
-                    // Both observations describe this one captured value,
-                    // so it must satisfy both bounds.
-                    known = Some(match known {
-                        Some(previous) => IntegerRange {
-                            minimum: previous.minimum.max(bounds.minimum),
-                            maximum: previous.maximum.min(bounds.maximum),
-                        },
-                        None => bounds,
-                    });
-                }
-            }
-            let bounds = known?;
-            if bounds.minimum > bounds.maximum {
-                return None;
-            }
-            hull = Some(match hull {
-                Some(previous) => IntegerRange {
-                    minimum: previous.minimum.min(bounds.minimum),
-                    maximum: previous.maximum.max(bounds.maximum),
-                },
-                None => bounds,
-            });
-        }
-        hull
+            primitive,
+        )
     }
 }
 

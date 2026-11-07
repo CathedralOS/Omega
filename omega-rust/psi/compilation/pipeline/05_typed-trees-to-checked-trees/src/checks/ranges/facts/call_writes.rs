@@ -21,6 +21,20 @@ pub(in super::super) struct RangeCallContext<'program> {
     call_frames: Option<&'program validation::CallFrameResolver<'program>>,
 }
 
+#[derive(Debug)]
+enum CapturedIndexRefusal {
+    NotBuiltin,
+    NotScalarIndex,
+    MissingState,
+    MissingConsumer,
+    UnavailableReceiver,
+    MissingSelector,
+    MismatchedOccurrence,
+    Extent,
+    NonIntegerSelector,
+    UnavailableBounds,
+}
+
 impl<'program> RangeCallContext<'program> {
     pub(in super::super) fn new(
         machine: &'program Machine,
@@ -89,6 +103,154 @@ impl<'program> RangeCallContext<'program> {
             return None;
         };
         value.to_i64()
+    }
+
+    /// Consume the selector completed by this exact indexed operation. Its
+    /// scalar copy keeps the original constraints across later RHS effects.
+    /// A declared always-full extent belongs to the captured receiver itself;
+    /// slices and unknown geometry retain the existing ordered proof route.
+    pub(in super::super) fn captured_fixed_index_bounds(
+        &self,
+        program: &dyn validation::CheckingInput,
+        operators: &checked_trees::CheckedOperatorFacts,
+        statement_index: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+        length: usize,
+    ) -> Option<facts::IntegerRange> {
+        let result = self.try_captured_fixed_index_bounds(
+            program,
+            operators,
+            statement_index,
+            expression,
+            length,
+        );
+        if let Err(reason) = &result
+            && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+        {
+            eprintln!(
+                "CHECKSITE captured-index-bound state={:?} statement={statement_index} expression={expression:?} length={length} refusal={reason:?}",
+                self.state.symbol,
+            );
+        }
+        result.ok()
+    }
+
+    fn try_captured_fixed_index_bounds(
+        &self,
+        program: &dyn validation::CheckingInput,
+        operators: &checked_trees::CheckedOperatorFacts,
+        statement_index: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+        length: usize,
+    ) -> Result<facts::IntegerRange, CapturedIndexRefusal> {
+        if !crate::values::operator_is_builtin(operators, expression)
+            || !validation::place_has_builtin_coordinates(
+                program,
+                self.machine,
+                Some(self.state),
+                expression,
+            )
+        {
+            return Err(CapturedIndexRefusal::NotBuiltin);
+        }
+        let indexed = program
+            .expression_table
+            .indexed_node(expression)
+            .ok_or(CapturedIndexRefusal::NotScalarIndex)?;
+        if matches!(
+            program.expression_table.expression(indexed.index),
+            typed_trees::expression::ExpressionNode::Range(_)
+        ) {
+            return Err(CapturedIndexRefusal::NotScalarIndex);
+        }
+        let state = self
+            .flow
+            .control
+            .state(self.machine.symbol, self.state.symbol)
+            .ok_or(CapturedIndexRefusal::MissingState)?;
+        let captures = validation::completed_storage::consumer_captures(
+            &self.flow.control,
+            self.state.symbol,
+            statement_index,
+            expression,
+        )
+        .ok_or(CapturedIndexRefusal::MissingConsumer)?;
+        let intervals = crate::values::CapturedIntegerIntervals::new(
+            program,
+            operators,
+            self.semantic,
+            self.flow,
+            state,
+        );
+        let mut hull: Option<facts::IntegerRange> = None;
+        for capture in captures {
+            let operand = self.flow.control.operands.get(capture);
+            if operand.expression != expression
+                || operand.state_symbol != self.state.symbol
+                || operand.statement_index != statement_index
+                || operand.evaluation == checked_trees::FlowPermissionEvaluation::Unknown
+                || operand.conditional_inputs_from.is_some()
+                || !self.flow.control.operands.is_valid(operand.backing)
+            {
+                return Err(CapturedIndexRefusal::UnavailableReceiver);
+            }
+            let receiver = self.flow.control.operands.get(operand.backing);
+            let [selector] = self
+                .flow
+                .control
+                .operands
+                .span(operand.evaluated_inputs)
+                .ok_or(CapturedIndexRefusal::MissingSelector)?
+            else {
+                return Err(CapturedIndexRefusal::MissingSelector);
+            };
+            if receiver.expression != indexed.collection
+                || selector.expression != indexed.index
+                || receiver.state_symbol != self.state.symbol
+                || selector.state_symbol != self.state.symbol
+                || receiver.statement_index != statement_index
+                || selector.statement_index != statement_index
+                || receiver.evaluation != operand.evaluation
+                || selector.evaluation != operand.evaluation
+                || !receiver.type_reference.is_valid()
+                || !selector.type_reference.is_valid()
+            {
+                return Err(CapturedIndexRefusal::MismatchedOccurrence);
+            }
+            if validation::fixed_array_type_length(program, receiver.type_reference) != Some(length)
+            {
+                return Err(CapturedIndexRefusal::Extent);
+            }
+            let primitive = program
+                .primitive_type_reference(selector.type_reference)
+                .ok_or(CapturedIndexRefusal::NonIntegerSelector)?;
+            if !primitive.is_fixed_integer() {
+                return Err(CapturedIndexRefusal::NonIntegerSelector);
+            }
+            let selector_capture = crate::flow::CapturedOperand::recorded(
+                &self.flow.control,
+                operand.evaluated_inputs.handle_at(0),
+            )
+            .ok_or(CapturedIndexRefusal::MissingSelector)?;
+            let bounds = intervals
+                .bounds(
+                    selector_capture,
+                    selector.type_reference,
+                    &[],
+                    selector.constraints,
+                    selector,
+                    primitive,
+                )
+                .ok_or(CapturedIndexRefusal::UnavailableBounds)?;
+            hull = Some(match hull {
+                Some(previous) => facts::IntegerRange {
+                    minimum: previous.minimum.min(bounds.minimum),
+                    maximum: previous.maximum.max(bounds.maximum),
+                },
+                None => bounds,
+            });
+        }
+        hull.ok_or(CapturedIndexRefusal::MissingConsumer)
     }
 
     /// The pass-shared resolver this context already borrows; `None` leaves a
