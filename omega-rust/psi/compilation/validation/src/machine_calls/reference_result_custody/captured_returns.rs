@@ -16,6 +16,7 @@
 mod completion_calls;
 mod completions;
 mod descriptor_sources;
+mod family_returns;
 mod incoming_origins;
 mod input_views;
 mod invocation_returns;
@@ -203,6 +204,9 @@ impl Captures<'_> {
         }
         if active.len() >= super::MAX_REFERENCE_ORIGIN_DEPTH {
             return None;
+        }
+        if let Some(entries) = family_returns::entries(self.program, state)? {
+            return self.family_return(&entries);
         }
         if !crate::normal_completion_possible(self.program, state)? {
             // A machine proved never to complete normally publishes no result,
