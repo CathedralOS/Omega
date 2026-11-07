@@ -272,6 +272,11 @@ cache before program consumers begin. Later consumer failures stay red without
 hiding the already prepared producer. The final observations and compact records
 use separate artifact names; the original producer upload is not overwritten.
 
+When corpus fixtures need a new producer, preparation first checks the exact
+`compiler` test target `corpus_runner` before optimized code generation. A failed
+check retains its stdout/stderr and stops before building the CLI. CLI-only and
+authenticated retained-producer requests do not run this additional check.
+
 For an ordinary CLI runtime failure, `compiler_diagnostics: true` also records
 the interpreter's operation, block and scalar values in that fixture's
 `both.stderr`. `OMEGA_TERMINAL_TRACE=1` enables the same trace directly. It is
