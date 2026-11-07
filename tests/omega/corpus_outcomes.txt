@@ -17566,8 +17566,8 @@ fail/ranges/guarded_case_payload_self_justifying rejected 701ms expected @2c185c
 	cannot form specification operator `<=` in data `Text` default-domain predicate: no exact selected meaning
 fail/ranges/guarded_case_payload_sibling_guard rejected 701ms expected @2c185c80180f
 	cannot form specification operator `<=` in data `Text` default-domain predicate: no exact selected meaning
-fail/ranges/index_signed_guard_below_zero rejected 14579ms unexpected @ccdb99ca2214
-	cannot prove index `main.j` is within length 4 in body::entry
+fail/ranges/index_signed_guard_below_zero rejected 16323ms expected @33a75c3f9dee
+	cannot prove index `main.j` is non-negative (>= 0)
 fail/ranges/loop_increment_index_unbounded rejected 12285ms expected @ccdb99ca2214
 	cannot prove index `main.i` is within length 4 in body::entry
 fail/ranges/loop_saved_guard_stale_counter rejected 3639ms unexpected @ccdb99ca2214
@@ -27156,8 +27156,7 @@ pass/providers/token_machine_family_override_exit rejected 333259ms check-target
 pass/providers/uncalled_boundary_provider_exit checked 3494ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/unreached_console_provider_rows checked 16889ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/unused_named_provider_candidates checked 3791ms check-target:macos_arm64 @ccdb99ca2214
-pass/range/data_parameter_counter_non_negative_exit rejected 10443ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove index `main.i` is within length 2 in add::entry
+pass/range/data_parameter_counter_non_negative_exit checked 17440ms check-target:macos_arm64 @33a75c3f9dee
 pass/range/runtime_funnel_guard_agreement_exit checked 88469ms check-target:macos_arm64 @4e466851bcbe
 pass/range/runtime_guarded_runtime_index_increment_exit checked 12584ms check-target:macos_arm64 @89d5d2d7655c
 pass/ranges/loop_saved_guard_disjoint_write_exit checked 8907ms check-target:macos_arm64 @6d175b77abdc
