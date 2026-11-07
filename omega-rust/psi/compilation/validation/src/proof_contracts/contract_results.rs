@@ -482,11 +482,11 @@ pub(crate) fn retained_callable_signatures(
 /// Preserve the supplying scope alongside each exact copied telescope.
 pub(crate) fn retained_callable_contracts(
     program: &dyn crate::CheckingInput,
-) -> impl Iterator<Item = typed_trees::CallableContractScope<'_>> {
+) -> impl Iterator<Item = typed_trees::typed_trees::CallableContractScope<'_>> {
     fn unscoped(
         signature: &typed_trees::signature::StateSignature,
-    ) -> typed_trees::CallableContractScope<'_> {
-        typed_trees::CallableContractScope {
+    ) -> typed_trees::typed_trees::CallableContractScope<'_> {
+        typed_trees::typed_trees::CallableContractScope {
             signature,
             trait_scope: None,
         }

@@ -11,4 +11,5 @@ Each entry promises native/Psi exit 0; actual qualification remains pending.
 
 The existing negative fixture retains its original missing-contract provider
 and adds a provider that substitutes Saturating for the required Wrapping cast.
-Separate message fragments and source locations must attribute both refusals.
+The original message pin remains unchanged. Required source locations must
+attribute both refusals to their distinct provider declarations.

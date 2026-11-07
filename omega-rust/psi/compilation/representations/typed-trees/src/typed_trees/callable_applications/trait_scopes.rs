@@ -34,6 +34,9 @@ impl TypedTrees {
         call: &crate::expression::TableCallExpression,
         supplying_scope: crate::trait_definition::RetainedTraitScope,
     ) -> Option<&signature::StateSignature> {
+        if let Some(signature) = self.resolve_named_conformance_call_signature(call).ok()? {
+            return Some(signature);
+        }
         if let Some(signature) = self.requirement_call_signature(lexical_owner, call) {
             return Some(signature);
         }

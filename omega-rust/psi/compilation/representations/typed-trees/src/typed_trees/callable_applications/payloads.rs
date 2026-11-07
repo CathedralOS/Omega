@@ -652,8 +652,9 @@ impl CallableApplication {
                     if let Some(query) = &mut call.native_code_layout {
                         self.static_arguments(program, std::slice::from_mut(&mut query.operand))?;
                     }
-                    let application = call.authored_machine_application;
-                    if application.is_valid() {
+                    for application in
+                        crate::references::StaticArgumentCall::Expression(handle, &call).applications()
+                    {
                         let lifetimes = program
                             .static_machine_application_lifetimes(application)
                             .iter()
