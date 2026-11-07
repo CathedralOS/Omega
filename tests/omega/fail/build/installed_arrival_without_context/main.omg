@@ -2000,6 +2000,8 @@ crashes Trap ensures false {
 public machine start()
 invokes TaskStatePreparation
 invokes BootstrapInterruptRegistrar
+crashes Abort
+crashes Trap
 requires addr::Bound == 18446744073709551616 {
     let mut storage: TaskStateStorage;
     let activated: bool = TaskStatePreparation::activate(&mut storage);
