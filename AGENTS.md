@@ -57,7 +57,7 @@ End every PR description with one line naming the agent that wrote it:
 when there is one (`Agent: Codex, /root/target_selection_frontier`). Commits
 carry no tool attribution, squash merges drop the description from main, and
 several agents share each GitHub account, so this line is the only record of
-who did the work. `cargo xtask check-rules --body-file` checks it on every PR.
+who did the work. `check_rules.py --body-file` checks it on every PR.
 
 ## Law of completion
 
@@ -83,8 +83,8 @@ roles below. Close a PR only for a recorded withdrawal or supersession, not age.
 1. **Drive the six release gates and sweep whole root-cause clusters, never 1-off wins:**
    When you fix a mechanism or migration gap, sweep and re-record **all**
    pinned regressions in `tests/omega/corpus_outcomes.txt`
-   (`cargo xtask corpus --list-pinned-regressions`) and failing
-   programs in `samples/` (`cargo xtask sample-gate`) that share
+   (`python3 tools/corpus_gate.py --list-pinned-regressions`) and failing
+   programs in `samples/` (`python3 tools/sample_native_gate.py`) that share
    that root cause in the same PR.
 2. **Fail-closed semantics over permissive fallbacks:** Never make a positive
    program pass by weakening a proof obligation, returning `true` when a
@@ -106,7 +106,7 @@ roles below. Close a PR only for a recorded withdrawal or supersession, not age.
 5. **Monotonic board closure & clean golden records:** Delete completed bullets
    from `TASKS.md` outright (never rewrite into `"preserving / keeping / now
    passes"` history prose). Commit all code and fixture files before running
-   `cargo xtask corpus --record --filter <fixtures>` so `corpus_outcomes.txt`
+   `corpus_gate.py --record --filter <fixtures>` so `corpus_outcomes.txt`
    never records a dirty `@<sha>+wt` stamp, a `pass/`/`run/` row as `rejected`,
    or a `fail/` row as `unexpected`.
 
@@ -127,7 +127,7 @@ a different object, and a green check on it does not count.
 ### No new `samples/cli/facts` folder bloat
 
 `samples/cli/facts/` and `tests/omega/{pass,fail,run}/facts/` are a **frozen
-finite set**. `cargo xtask check-rules` mechanically rejects adding any new `.omg`
+finite set**. `tools/check_rules.py` mechanically rejects adding any new `.omg`
 files under `facts/` and caps new `.omg` files anywhere in the repository at
 **at most 6 per PR** (`MAX_NEW_OMG_FILES = 6`). Pin repairs by flipping
 existing failing rows in `tests/omega/corpus_outcomes.txt` and `samples/`, or
@@ -176,7 +176,7 @@ and [omega-rust/pipeline.md](omega-rust/pipeline.md):
 
 On a fresh Linux host or cloud container, `bash tools/agent_setup.sh` installs
 the pinned toolchain, `mbx`, `cargo-nextest` and `zstd`, and fetches crates;
-`cargo xtask doctor` then confirms the host is ready.
+`python3 tools/doctor.py` then confirms the host is ready.
 See [tools/testing.md](tools/testing.md) for full details. Always close stdin
 with `< /dev/null` on non-interactive `omega` / `corpus_runner` invocations so
 background processes never hang on open stdin:
@@ -186,20 +186,19 @@ background processes never hang on open stdin:
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=$PWD/target mbx build -p omega < /dev/null
 
 # Run focused corpus verification & record (only on a clean committed worktree):
-cargo xtask corpus --filter <fixtures> < /dev/null
-cargo xtask corpus --record --filter <fixtures> < /dev/null
+python3 tools/corpus_gate.py --filter <fixtures> < /dev/null
+python3 tools/corpus_gate.py --record --filter <fixtures> < /dev/null
 
 # Run focused sample native + Psi gate:
-cargo xtask sample-gate --filter <sample_path> < /dev/null
+python3 tools/sample_native_gate.py --filter <sample_path> < /dev/null
 
-# Run repository rules, formatting, and boundary gates:
-cargo xtask check-rules --base origin/main --title "<lane>: <subject>"
-cargo xtask fmt --check
-cargo xtask check-boundary
+# Run repository rules, formatting, and lint gates:
+python3 tools/check_rules.py --base origin/main --title "<lane>: <subject>"
+python3 tools/fmt.py --check
 ```
 
 Use `cargo` when `mbx` is unavailable. Never run an unfiltered corpus sweep
-locally (`cargo xtask corpus` enforces a 200-fixture local selection budget).
+locally (`corpus_gate.py` enforces a 200-fixture local selection budget).
 
 ## The Psi/Omega firewall
 
@@ -248,13 +247,13 @@ locally (`cargo xtask corpus` enforces a 200-fixture local selection budget).
     pre-diagnose the bug), creates the worktrees and claims, and dispatches
     workers immediately. Workers execute Steps 2–5 of `/advance`, push their
     branch, open a **draft** PR (`gh pr create --draft`), and stop
-    (`candidate_ready`). Workers never mark a PR ready or run `cargo xtask land`
+    (`candidate_ready`). Workers never mark a PR ready or run `tools/landing.py`
     themselves. The coordinator audits `gh pr diff <pr>` with
     [.agents/skills/coordinator-review/SKILL.md](.agents/skills/coordinator-review/SKILL.md)
-    before running `cargo xtask land <pr> --expected-head <sha>`.
+    before running `python3 tools/landing.py land <pr> --expected-head <sha>`.
   - **Standalone single-agent session:** One agent executes Steps 1–5 of
     `/advance`, self-reviews against `coordinator-review`, and runs
-    `cargo xtask land <pr> --expected-head <sha>`.
+    `python3 tools/landing.py land <pr> --expected-head <sha>`.
 - **Reactive wakeup only:** Never poll in loops, `sleep`, or schedule periodic
   timers waiting on subagents or background tasks; end the turn and let completion
   notifications wake the session.
@@ -262,7 +261,7 @@ locally (`cargo xtask corpus` enforces a 200-fixture local selection budget).
 ## Commit naming
 
 Use `lane: statement` (lowercase, declarative, max 85 characters, no trailing
-period, no tool attribution or `Co-Authored-By` trailers). `cargo xtask check-rules`
+period, no tool attribution or `Co-Authored-By` trailers). `check_rules.py`
 reads the allowed lanes from this table:
 
 | Lane | Responsibility and current path anchors |
@@ -295,9 +294,9 @@ reads the allowed lanes from this table:
   `samples/cli/facts/` or `tests/omega/{pass,fail,run}/facts/`, and never add
   more than 6 `.omg` files in a PR.
 - **No direct pushes to `main` and no chasing `main`:** Land only through
-  reviewed PRs and `cargo xtask land`. Rebase only on actual conflicts or
+  reviewed PRs and `tools/landing.py`. Rebase only on actual conflicts or
   needed prerequisites.
-- **Claims are informational (`cargo xtask claims`):** Register claims
+- **Claims are informational (`python3 tools/claims.py`):** Register claims
   before editing shared paths; reconcile overlapping edits at rebase.
 - **Keep sample coverage out of the shipped CLI.**
 

@@ -1,0 +1,67 @@
+name: Warm build
+
+# Publish main's compiler build so Claude Code cloud sessions start warm
+# instead of compiling the whole compiler (12 minutes on their 4-CPU
+# containers). The build runs as root on Ubuntu 24.04 at the exact path a
+# session restores into, so Cargo reuses it there. tools/warm_build.py
+# explains why the path and file times have to match.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Every run builds cold. Building on top of the previous warm build kept every
+# superseded artifact, and the published build grew from 3.1 GB to 5.2 GB in a
+# few hours, more than a cloud session's disk could unpack.
+#
+# One build runs at a time; GitHub keeps only the newest waiting push, so a
+# busy main still publishes instead of cancelling every build before it ends.
+concurrency:
+  group: warm-build
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    container:
+      image: ubuntu:24.04
+      options: --user root
+    env:
+      HOME: /root
+      # Cargo turns incremental compilation off when CI=true. Sessions build
+      # with it on, and the setting is part of each crate's identity, so a
+      # build made without it is never reused there.
+      CARGO_INCREMENTAL: "1"
+      WARM: /home/user/Omega/.agents/worktree/warm
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config python3 git curl ca-certificates zstd gh
+      - name: Check out main at the session path
+        run: |
+          git config --global --add safe.directory '*'
+          git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /home/user/Omega
+          git -C /home/user/Omega worktree add -q --detach "$WARM" "${{ github.sha }}"
+      - name: Install the pinned Rust toolchain
+        working-directory: /home/user/Omega/.agents/worktree/warm
+        run: |
+          channel=$(python3 -c "import tomllib; print(tomllib.load(open('rust-toolchain.toml', 'rb'))['toolchain']['channel'])")
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain "$channel" -c clippy -c rustfmt
+      - name: Build the compiler and the corpus runner
+        working-directory: /home/user/Omega/.agents/worktree/warm
+        run: |
+          . "$HOME/.cargo/env"
+          cargo build --locked -p omega
+          cargo test --locked --no-run -p compiler --test corpus_runner
+      - name: Publish the build
+        working-directory: /home/user/Omega/.agents/worktree/warm
+        run: |
+          . "$HOME/.cargo/env"
+          python3 tools/warm_build.py publish --worktree "$WARM"
