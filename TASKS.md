@@ -48,8 +48,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Run migrated POSIX (`pass/filesystem/`, `runtime_posix_*`) and Windows GUI (`runtime_{gui,windows}_*`, `window_demo`) customers via `omega run --both`.
   Acceptance: POSIX and Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
 
-- **OPERATOR-MACHINE-SUPPLY.** Run declared operations and premises end to end ([executable supply](wiki/spec/language/expressions.md#executable-supply), [contracts.md](wiki/spec/proofs/contracts.md#licensed-normalization)).
-  - Implement 64-summand canonical index normalization.
+- **OPERATOR-MACHINE-SUPPLY.** Run declared operations and premises; migrate [index identity and compatibility](wiki/drafts/designs/index_identity.md).
+  - Separate fixed identity from budgeted, evidence-producing algebra proofs.
   - Carry generic compatibility through specialization, retire the `operator` introducer ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)), and lower `f64 in D` / `i32 in D` operator shapes.
   Acceptance: `declared_operator_match_result` and `body_bearing_comparison`/`generic_comparison_body`/`open_index_distributivity` pass `--both`.
 
