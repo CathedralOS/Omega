@@ -79,7 +79,14 @@ impl Elaborator<'_> {
                     let ty = self.elaborate_type_reference(reference)?;
                     let domains = self.source_carrier_domains(ty);
                     self.prepared.source_carriers.append(PreparedSourceCarrier {
-                        level_arity: self.level_binders.len() as u32 + self.generalized_levels,
+                        level_arity: proof_admission::universe_parameter_arity(
+                            &self.arena,
+                            &domains
+                                .iter()
+                                .copied()
+                                .chain(std::iter::once(ty))
+                                .collect::<Vec<_>>(),
+                        ),
                         source_type: reference,
                         type_identity: self.program.normalized_type_identity(reference),
                         ty,
@@ -170,7 +177,14 @@ impl Elaborator<'_> {
                         // scalar-to-mathematical cast at the wire boundary.
                         let domains = self.source_carrier_domains(domain);
                         self.prepared.source_carriers.append(PreparedSourceCarrier {
-                            level_arity: self.level_binders.len() as u32 + self.generalized_levels,
+                            level_arity: proof_admission::universe_parameter_arity(
+                                &self.arena,
+                                &domains
+                                    .iter()
+                                    .copied()
+                                    .chain(std::iter::once(domain))
+                                    .collect::<Vec<_>>(),
+                            ),
                             source_type: parameter.type_reference,
                             type_identity: self
                                 .program
@@ -194,7 +208,14 @@ impl Elaborator<'_> {
                     let ty = self.elaborate_type_reference(reference)?;
                     let domains = self.source_carrier_domains(ty);
                     self.prepared.source_carriers.append(PreparedSourceCarrier {
-                        level_arity: self.level_binders.len() as u32 + self.generalized_levels,
+                        level_arity: proof_admission::universe_parameter_arity(
+                            &self.arena,
+                            &domains
+                                .iter()
+                                .copied()
+                                .chain(std::iter::once(ty))
+                                .collect::<Vec<_>>(),
+                        ),
                         source_type: reference,
                         type_identity: self.program.normalized_type_identity(reference),
                         ty,
