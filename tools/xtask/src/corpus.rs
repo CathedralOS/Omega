@@ -2,9 +2,10 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+
+use crate::{execution, producer};
 
 use crate::repo_root;
 
@@ -19,7 +20,7 @@ pub struct PinnedRegression {
     pub diagnostics: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct CorpusRecord {
     pub fixture: String,
     pub tier: String,
@@ -308,97 +309,57 @@ fn host_target() -> &'static str {
     }
 }
 
-fn selected_fixture_count(root: &Path, filter_text: &str, shard_text: &str) -> usize {
-    let fragments: Vec<&str> = filter_text
+pub fn selected_fixture_names(root: &Path, filter_text: &str) -> Result<Vec<String>, String> {
+    let fragments: Vec<_> = filter_text
         .split(',')
         .map(str::trim)
-        .filter(|s| !s.is_empty())
+        .filter(|v| !v.is_empty())
         .collect();
     let corpus = root.join("tests/omega");
-    let mut count = 0usize;
+    let mut names = Vec::new();
     for tier in ["pass", "fail", "run"] {
-        let tier_dir = corpus.join(tier);
-        let Ok(groups) = fs::read_dir(&tier_dir) else {
-            continue;
-        };
-        for group in groups.flatten() {
-            if !group.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                continue;
-            }
-            let group_name = group.file_name().to_string_lossy().into_owned();
-            let Ok(fixtures) = fs::read_dir(group.path()) else {
-                continue;
-            };
-            for fixture in fixtures.flatten() {
-                if !fixture.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                    continue;
-                }
-                let fixture_name = fixture.file_name().to_string_lossy().into_owned();
-                let name = format!("{tier}/{group_name}/{fixture_name}");
-                if fragments.is_empty() || fragments.iter().any(|f| name.contains(f)) {
-                    count += 1;
+        let base = corpus.join(tier);
+        let mut pending = vec![base.clone()];
+        while let Some(directory) = pending.pop() {
+            for entry in fs::read_dir(&directory)
+                .map_err(|e| format!("read {}: {e}", directory.display()))?
+            {
+                let entry = entry.map_err(|e| e.to_string())?;
+                if entry.file_type().map_err(|e| e.to_string())?.is_dir() {
+                    pending.push(entry.path());
+                } else if entry.file_name() == "main.omg" {
+                    let name = format!(
+                        "{tier}/{}",
+                        directory
+                            .strip_prefix(&base)
+                            .map_err(|e| e.to_string())?
+                            .to_string_lossy()
+                            .replace('\\', "/")
+                    );
+                    if fragments.is_empty() || fragments.iter().any(|f| name.contains(f)) {
+                        names.push(name);
+                    }
                 }
             }
         }
     }
+    names.sort();
+    Ok(names)
+}
+
+fn selected_fixture_count(
+    root: &Path,
+    filter_text: &str,
+    shard_text: &str,
+) -> Result<usize, String> {
+    let count = selected_fixture_names(root, filter_text)?.len();
     if let Some((_, n_str)) = shard_text.trim().split_once('/')
         && let Ok(shards) = n_str.parse::<usize>()
         && shards > 1
     {
-        count = count.div_ceil(shards);
+        return Ok(count.div_ceil(shards));
     }
-    count
-}
-
-fn build_runner(root: &Path) -> Result<PathBuf, u8> {
-    let output = Command::new("mbx")
-        .args([
-            "test",
-            "--locked",
-            "--no-run",
-            "--message-format=json",
-            "-p",
-            "compiler",
-            "--test",
-            "corpus_runner",
-        ])
-        .current_dir(root)
-        .env("CARGO_PROFILE_DEV_OPT_LEVEL", "1")
-        .env("CARGO_PROFILE_TEST_OPT_LEVEL", "1")
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|e| {
-            eprintln!("corpus: failed to invoke mbx test (mbx is required; run `bash tools/agent_setup.sh`): {e}");
-            4u8
-        })?;
-    if !output.status.success() {
-        eprintln!(
-            "corpus: failed to build corpus_runner:\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        return Err(4);
-    }
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut executable: Option<PathBuf> = None;
-    for line in stdout.lines() {
-        let Ok(val) = serde_json::from_str::<serde_json::Value>(line) else {
-            continue;
-        };
-        if val.get("reason").and_then(|v| v.as_str()) == Some("compiler-artifact")
-            && val
-                .get("target")
-                .and_then(|t| t.get("name"))
-                .and_then(|n| n.as_str())
-                == Some("corpus_runner")
-            && let Some(exe) = val.get("executable").and_then(|v| v.as_str())
-        {
-            executable = Some(PathBuf::from(exe));
-        }
-    }
-    executable.ok_or_else(|| {
-        eprintln!("corpus: cargo produced no corpus_runner executable");
-        4u8
-    })
+    Ok(count)
 }
 
 fn current_stamp(root: &Path) -> String {
@@ -450,6 +411,58 @@ fn print_pinned_regressions(root: &Path, golden_path: &Path, filters: &[String])
         rel.display()
     );
     Ok(())
+}
+
+/// Execute the existing harness with an explicit selection and retain original rows.
+pub fn observe(
+    root: &Path,
+    binary: &Path,
+    filter: &str,
+    shard: &str,
+    native_target: Option<&str>,
+    interpret: bool,
+    checked_interpreter: bool,
+    evidence: &Path,
+) -> Result<String, String> {
+    if filter.trim().is_empty() {
+        return Err("refusing an unfiltered harness invocation".to_owned());
+    }
+    fs::create_dir_all(evidence).map_err(|e| e.to_string())?;
+    let records_path = evidence.join("records.txt");
+    let mut command = Command::new(binary);
+    command
+        .current_dir(root)
+        .stdin(Stdio::null())
+        .env("OMEGA_CORPUS_ROOT", root)
+        .env("OMEGA_LIBRARY_ROOT", root.join("source/library"))
+        .env("OMEGA_CORPUS_RECORDS", &records_path)
+        .env("OMEGA_CORPUS_FIXTURE_FILTER", filter)
+        .env_remove("NEXTEST")
+        .env_remove("OMEGA_CORPUS_MIGRATION_FIXTURES")
+        .env_remove("OMEGA_CORPUS_SHARD")
+        .env_remove("OMEGA_CORPUS_NATIVE")
+        .env_remove("OMEGA_CORPUS_INTERPRET")
+        .env_remove("OMEGA_CORPUS_CHECKED_INTERPRETER")
+        .env_remove("OMEGA_CORPUS_NATIVE_TARGET");
+    if !shard.is_empty() {
+        command.env("OMEGA_CORPUS_SHARD", shard);
+    }
+    if let Some(target) = native_target {
+        command
+            .env("OMEGA_CORPUS_NATIVE", "1")
+            .env("OMEGA_CORPUS_NATIVE_TARGET", target);
+    }
+    if interpret {
+        command.env("OMEGA_CORPUS_INTERPRET", "1");
+    }
+    if checked_interpreter {
+        command.env("OMEGA_CORPUS_CHECKED_INTERPRETER", "1");
+    }
+    let status = execution::run(&mut command, evidence, "runner")?;
+    if !status.success() {
+        return Err(format!("runner exited {status}; original output retained"));
+    }
+    fs::read_to_string(records_path).map_err(|e| format!("read original runner records: {e}"))
 }
 
 pub fn run(args: &[String]) -> Result<(), u8> {
@@ -569,7 +582,18 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         return print_pinned_regressions(&root, &golden_path, &filters);
     }
 
-    let selected = selected_fixture_count(&root, &filter, &shard);
+    let selected = selected_fixture_count(&root, &filter, &shard).map_err(|e| {
+        eprintln!("corpus: {e}");
+        2u8
+    })?;
+    if filter.trim().is_empty() && sweep {
+        filter = selected_fixture_names(&root, "")
+            .map_err(|e| {
+                eprintln!("corpus: {e}");
+                2u8
+            })?
+            .join(",");
+    }
     if selected > SELECTION_BUDGET && !sweep {
         eprintln!(
             "corpus: this selection runs {selected} fixtures; past {SELECTION_BUDGET} a run is a sweep. Name the fixtures with --filter, or pass --sweep."
@@ -577,69 +601,44 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         return Err(2);
     }
 
-    let binary = match runner {
-        Some(path) => path,
-        None => build_runner(&root)?,
-    };
-
-    let records_path =
-        std::env::temp_dir().join(format!("corpus-records-{}.txt", std::process::id()));
-    let mut cmd = Command::new(&binary);
-    cmd.current_dir(&root)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .env("OMEGA_CORPUS_ROOT", &root)
-        .env("OMEGA_LIBRARY_ROOT", root.join("source/library"))
-        .env("OMEGA_CORPUS_RECORDS", &records_path);
-    if golden_path.is_file() {
-        cmd.env("OMEGA_CORPUS_TIMINGS", &golden_path);
+    if runner.is_some() {
+        eprintln!(
+            "corpus: --runner cannot authenticate an external executable; use the current-source builder"
+        );
+        return Err(2);
     }
-    if !filter.is_empty() {
-        cmd.env("OMEGA_CORPUS_FIXTURE_FILTER", &filter);
+    if selected == 0 {
+        eprintln!("corpus: selection matches no fixtures");
+        return Err(2);
     }
-    if !shard.is_empty() {
-        cmd.env("OMEGA_CORPUS_SHARD", &shard);
-    }
-    if native {
-        cmd.env("OMEGA_CORPUS_NATIVE", "1");
-        if let Some(t) = &native_target {
-            cmd.env("OMEGA_CORPUS_NATIVE_TARGET", t);
-        }
-    }
-    if interpret {
-        cmd.env("OMEGA_CORPUS_INTERPRET", "1");
-    }
-    if checked_interpreter {
-        cmd.env("OMEGA_CORPUS_CHECKED_INTERPRETER", "1");
-    }
-
-    let mut child = cmd.spawn().map_err(|e| {
-        let _ = fs::remove_file(&records_path);
-        eprintln!("corpus: failed to spawn {}: {e}", binary.display());
+    let evidence = execution::reserve_directory(&root.join("build/corpus-runs")).map_err(|e| {
+        eprintln!("corpus: {e}");
         4u8
     })?;
-    if let Some(stderr) = child.stderr.take() {
-        let reader = BufReader::new(stderr);
-        for line in reader.lines().map_while(Result::ok) {
-            if line.starts_with("corpus_runner:")
-                && !line.starts_with("corpus_runner: fixture-root-v1 ")
-            {
-                eprintln!("{line}");
-            }
-        }
-    }
-    let status = child.wait().map_err(|e| {
-        let _ = fs::remove_file(&records_path);
-        eprintln!("corpus: failed waiting for runner: {e}");
+    let producer =
+        producer::prepare(&root, &evidence.join("producer"), true, false).map_err(|e| {
+            eprintln!("corpus: {e}");
+            4u8
+        })?;
+    let binary = producer.runner.as_deref().ok_or(4u8)?;
+    let records_text = observe(
+        &root,
+        binary,
+        &filter,
+        &shard,
+        native.then_some(target),
+        interpret,
+        checked_interpreter,
+        &evidence,
+    )
+    .map_err(|e| {
+        eprintln!("corpus: {e}");
         4u8
     })?;
-    let records_text = fs::read_to_string(&records_path).unwrap_or_default();
-    let _ = fs::remove_file(&records_path);
-    if !status.success() {
-        eprintln!("corpus: runner exited with {status}");
-        return Err(4);
-    }
+    producer.verify().map_err(|e| {
+        eprintln!("corpus: {e}");
+        4u8
+    })?;
 
     let mut observed = parse_records(&records_text).map_err(|e| {
         eprintln!("corpus: unreadable runner records: {e}");
