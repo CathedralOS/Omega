@@ -80,6 +80,20 @@ pub(super) fn specification_application_candidate(
     ) {
         return Err("the selected application depends on the active declaration");
     }
+    if let Some(operator) = program.operator_definition_by_symbol(target) {
+        if !selections.is_empty() {
+            return Err("a closed catalog operation has no static selection telescope");
+        }
+        // The exact sealed catalog already supplies this operation's total
+        // value meaning. A bodyless signature or an admitted runtime boundary
+        // alone cannot close this leaf, and a failed selection cannot fall
+        // through to a different checked machine.
+        return crate::machine_calls::denotational_calls::selected_operator_has_closed_value_denotation(
+            program, operator,
+        )
+        .then_some(())
+        .ok_or("the selected operator has no exact closed value denotation");
+    }
     let machine = super::structural_terms::selected_application_machine(program, target)
         .ok_or("the application has no exact selected entry")?;
     let state = program
