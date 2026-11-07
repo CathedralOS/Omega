@@ -240,6 +240,32 @@ impl CallJoinPreparation {
         self.dependencies.clear();
     }
 
+    /// A copy for one worker's run of states: the previous iteration's
+    /// bindings, and no receivers consulted yet.
+    pub(super) fn fork_for_walk(&self) -> Self {
+        Self {
+            bindings: self.bindings.clone(),
+            dependencies: Vec::new(),
+        }
+    }
+
+    /// Hand over the receivers consulted since the last call, keeping the
+    /// bindings.
+    pub(super) fn take_consulted(&mut self) -> Self {
+        Self {
+            bindings: Vec::new(),
+            dependencies: std::mem::take(&mut self.dependencies),
+        }
+    }
+
+    /// Record the receivers a worker consulted after these, keeping the
+    /// first-consulted order a single walk over the same states would have.
+    pub(super) fn absorb_walk(&mut self, fork: Self) {
+        for receiver in fork.dependencies {
+            push_unique(&mut self.dependencies, receiver);
+        }
+    }
+
     pub(super) fn update(&mut self, bindings: Vec<PreparedCallClaimJoin>) -> bool {
         let changed = self.dependencies.iter().any(|receiver| {
             self.bindings

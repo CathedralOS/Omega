@@ -44,7 +44,6 @@
 1 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars.rs
 3 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/mod.rs
 1 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/multiplicity/linear_validation/loan_completions.rs
-1 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/multiplicity/permission_events.rs
 1 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/ranges.rs
 1 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/ranges/state_arguments.rs
 5 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/loan_backing/record_selections.rs

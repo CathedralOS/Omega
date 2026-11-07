@@ -1003,6 +1003,7 @@ fn trace_missing_frontier(
         .flow
         .control
         .state(machine.symbol, operand.state_symbol);
+    ownership.walk_guard.note(operand.state_symbol);
     let events = ownership
         .permissions
         .iter()

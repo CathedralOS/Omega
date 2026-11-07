@@ -224,6 +224,7 @@ pub(crate) fn owned_operand_transfer_place(
     source: language_semantics::PermissionEventSource,
 ) -> Result<Option<CanonicalPlace>, &'static str> {
     use language_semantics::PermissionEventSource;
+    facts.flow.ownership.walk_guard.note(state);
     if evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
         return Err("owned operand has no permission evaluation coordinate");
     }
@@ -277,6 +278,7 @@ fn transfers_for_source<'facts>(
     state: &checked_trees::FlowStateFact,
     source: FlowOwnershipEventSource,
 ) -> impl Iterator<Item = &'facts checked_trees::FlowStorageTransferFact> {
+    facts.flow.ownership.walk_guard.note(state.state_symbol);
     facts
         .flow
         .ownership
