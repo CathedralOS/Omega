@@ -1,5 +1,8 @@
 //! Borrowed ancestry for unfinished checking queries. Descendants carry the
-//! same immutable input view, completed memos, and conservative recurrence cuts.
+//! same immutable input view and conservative recurrence cuts. They read the
+//! memos their input completed but write only their own
+//! (`CheckingMemos::query_scratch`), so nothing computed under a cut is reused
+//! outside it.
 //! An unfinished machine population keeps the ordinary occurrence path; a repeated
 //! numeric state contributes unknown evidence. Neither publishes its own premise.
 //!
@@ -9,7 +12,7 @@
 //! every call site and does not.
 
 use crate::CheckingInput;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use symbols::SymbolHandle;
 
 #[cfg(test)]
@@ -29,13 +32,28 @@ enum QueryKind {
     },
 }
 
-#[derive(Debug)]
 pub(crate) struct CheckingQuery<'input> {
     input: &'input dyn CheckingInput,
     query: QueryKind,
+    /// This query's own memos: the typed-tree memos shared from its input,
+    /// and empty context-sensitive memos dropped with the query.
+    memos: Option<crate::CheckingMemos>,
     /// A descendant met the cut of a query enclosing this one, so this
     /// query's answer is specific to its ancestry.
     met_enclosing_cut: AtomicBool,
+    /// How many `has_active_*` answers through this query were `true`: each
+    /// is an answer that holds only while this query or an enclosing one is
+    /// live (`CutGuard`).
+    cut_reads: AtomicU64,
+}
+
+impl std::fmt::Debug for CheckingQuery<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CheckingQuery")
+            .field("input", &self.input)
+            .field("query", &self.query)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<'input> CheckingQuery<'input> {
@@ -74,7 +92,11 @@ impl<'input> CheckingQuery<'input> {
         Self {
             input,
             query,
+            memos: input
+                .checking_memos()
+                .map(crate::CheckingMemos::query_scratch),
             met_enclosing_cut: AtomicBool::new(false),
+            cut_reads: AtomicU64::new(0),
         }
     }
 
@@ -91,10 +113,19 @@ impl<'input> CheckingQuery<'input> {
         }
         enclosing
     }
+
+    /// Every `has_active_*` answer passes through here, so a `true` one is
+    /// always counted.
+    fn counted(&self, active: bool) -> bool {
+        if active {
+            self.cut_reads.fetch_add(1, Ordering::Relaxed);
+        }
+        active
+    }
 }
 
-// Query ancestry changes no checking authority, geometry, selected meaning or
-// completed memo. Forward every semantic input to its original owner.
+// Query ancestry changes no checking authority, geometry or selected meaning.
+// Forward every semantic input to its original owner; memos are the query's own.
 impl CheckingInput for CheckingQuery<'_> {
     fn external_invocation_roots(&self) -> Option<&[symbols::SymbolHandle]> {
         self.input.external_invocation_roots()
@@ -105,19 +136,25 @@ impl CheckingInput for CheckingQuery<'_> {
     }
 
     fn has_active_numeric_observation(&self, machine: SymbolHandle, state: SymbolHandle) -> bool {
-        matches!(self.query, QueryKind::Numeric { machine: active, state: active_state }
+        self.counted(
+            matches!(self.query, QueryKind::Numeric { machine: active, state: active_state }
             if active == machine && active_state == state)
-            || self.enclosing_cut(self.input.has_active_numeric_observation(machine, state))
+                || self.enclosing_cut(self.input.has_active_numeric_observation(machine, state)),
+        )
     }
 
     fn has_active_operand_fit_population(&self, machine: SymbolHandle) -> bool {
-        matches!(self.query, QueryKind::OperandFits { machine: active } if active == machine)
-            || self.enclosing_cut(self.input.has_active_operand_fit_population(machine))
+        self.counted(
+            matches!(self.query, QueryKind::OperandFits { machine: active } if active == machine)
+                || self.enclosing_cut(self.input.has_active_operand_fit_population(machine)),
+        )
     }
 
     fn has_active_completed_case_population(&self, machine: SymbolHandle) -> bool {
-        matches!(self.query, QueryKind::CompletedCases { machine: active } if active == machine)
-            || self.enclosing_cut(self.input.has_active_completed_case_population(machine))
+        self.counted(
+            matches!(self.query, QueryKind::CompletedCases { machine: active } if active == machine)
+                || self.enclosing_cut(self.input.has_active_completed_case_population(machine)),
+        )
     }
 
     fn defers_pending_layout_geometry(&self) -> bool {
@@ -145,7 +182,17 @@ impl CheckingInput for CheckingQuery<'_> {
     }
 
     fn checking_memos(&self) -> Option<&crate::CheckingMemos> {
-        self.input.checking_memos()
+        self.memos.as_ref()
+    }
+
+    /// This query's count plus every enclosing query's: a cut answer read
+    /// anywhere in the ancestry changes it.
+    fn cut_reads(&self) -> u64 {
+        self.cut_reads.load(Ordering::Relaxed) + self.input.cut_reads()
+    }
+
+    fn shared_memos(&self) -> Option<&crate::CheckingMemos> {
+        self.input.shared_memos()
     }
 
     fn proof_only_classification(
