@@ -790,9 +790,9 @@ impl Denotation {
         Ok(self.constant(position))
     }
 
-    /// The `Type 0` carrier assumption one closed content algebra
-    /// denotes — its conservation equations are identities over this
-    /// carrier, interned once per algebra.
+    /// The `Type 0` carrier one closed content algebra denotes: its canonical
+    /// family applied to the exact parameter. Conservation equations are
+    /// identities over this carrier, interned once per algebra.
     pub(super) fn content_carrier(
         &mut self,
         algebra: &ContentAlgebra,

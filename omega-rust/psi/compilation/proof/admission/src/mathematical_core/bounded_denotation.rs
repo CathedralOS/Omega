@@ -53,10 +53,11 @@
 //!   crossing the bounded matcher licenses denotes to the same type.
 //! - `ContentConservation` — exact equality in one closed content
 //!   algebra — denotes `Id C l' r'` where `C` is that algebra's own
-//!   `Type 0` carrier assumption and `l'`, `r'` are element assumptions
+//!   `Type 0` carrier `C = F P` for the canonical algebra family `F` and
+//!   exact parameter `P`; `l'`, `r'` are element assumptions
 //!   interned by the canonical content terms. Equalities in different
-//!   algebras can never compose: their carriers are different
-//!   constants. A reflexive conservation `c ≡ c` is then a `refl` the
+//!   algebras can never compose: their carriers have distinct family or
+//!   parameter constants. A reflexive conservation `c ≡ c` is then a `refl` the
 //!   kernel proves outright, and the transitivity rule below is a `J`
 //!   composition, not an axiom.
 //! - Every other atomic proposition denotes an assumption constant
