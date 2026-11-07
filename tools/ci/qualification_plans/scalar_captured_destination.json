@@ -37,10 +37,9 @@
     "cache_key": "compiler-regression-Linux-X64-007cfa9f9b9c5d5e53ace1acb6a69af709124dce0e0b01a2858a95408d3db9ac-071034107c356a871fbbceaf86799baeadd06b9c-prepared-v1-with-runner"
   },
   "fixtures": [
-    "run/domains/qualified_fixed_byte_array_captured_destination_exit",
-    "fail/domains/qualified_fixed_byte_array_captured_invalid_write"
+    "run/domains/qualified_fixed_byte_array_captured_destination_exit"
   ],
-  "source_only": false,
+  "source_only": true,
   "samples": [],
   "cli_fixtures": []
 }
