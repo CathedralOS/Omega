@@ -2415,7 +2415,7 @@ pass/calls/nested_call_footprints_follow_occurrences built 3186ms exit:0 interpr
 pass/calls/nested_call_tail_roots_exit built 12707ms exit:0 interpreter-exit:0 interpreter:agrees @faab7e6c1b7d+wt
 pass/calls/nested_machine_continuation built 14292ms exit:0 interpreter-exit:0 interpreter:agrees @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/calls/nested_scalar_argument_evaluation_order_exit built 2935ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
-pass/calls/nonreturning_borrowed_argument_indirect_result_exit built 3749ms exit:0 interpreter-exit:0 interpreter:agrees @9ac99b4eaa48
+pass/calls/nonreturning_borrowed_argument_indirect_result_exit built 8775ms native-input-backing-controls:match exit:0 interpreter-exit:0 interpreter:agrees @80c0c3a3b3e9
 pass/calls/nonreturning_large_call_required_argument_exit built 3711ms exit:0 interpreter-exit:0 interpreter:agrees @9ac99b4eaa48
 pass/calls/nonreturning_record_constructor_prefix_exit built 3967ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @9ac99b4eaa48
 pass/calls/nonreturning_record_match_normal_exit built 4001ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @9ac99b4eaa48

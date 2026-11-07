@@ -20192,7 +20192,7 @@ pass/calls/nested_subject_call_operand checked 2482ms @ccdb99ca2214
 pass/calls/nested_value_call_arg_compile checked 16344ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/nested_value_schedule_namespace_exit checked 3746ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/nested_where_binding checked 8422ms @911f6617ba9e
-pass/calls/nonreturning_borrowed_argument_indirect_result_exit checked 14618ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/nonreturning_borrowed_argument_indirect_result_exit checked 8562ms check-target:macos_arm64 @80c0c3a3b3e9
 pass/calls/nonreturning_large_call_required_argument_exit checked 14809ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/nonreturning_record_constructor_prefix_exit checked 17029ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/nonreturning_record_match_normal_exit checked 19648ms check-target:macos_arm64 @ccdb99ca2214
