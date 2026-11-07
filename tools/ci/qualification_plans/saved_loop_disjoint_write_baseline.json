@@ -1,0 +1,46 @@
+{
+  "schema": "omega-compiler-pilot-plan-v1",
+  "producer": {
+    "revision": "af4614055bdd3f1f6bbd03d64cc3a7a5f08ae6b5",
+    "tree": "9561d20d01de566308eee5e3f17953ffe22fe605",
+    "target": "linux_x86_64",
+    "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+    "input_objects": {
+      "omega-rust": "caeb031522a8f87f6d1b98e5644db6328f7f3936",
+      "source/library": "46754f5f6584d158e0fb077d4ed89a83afd07230",
+      "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
+      "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
+      "bootstrap": "42230c0aa7138a175590d9dd6a57d8ee71934df1",
+      "tools/benchmark": "58715a339b701d6e1efc1bf6a0916096ec4c697b",
+      "Cargo.toml": "611d634f15e9f745dc0d429fe7b26b3ec87850d9",
+      "Cargo.lock": "f12e9c233c5f667d5903546a7d85d9e6ab684f58",
+      "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+      ".cargo": "152f54b1593e9a8e1c5139fc5a4373a14bbc0701"
+    },
+    "executables": {
+      "cli": {
+        "sha256": "d4d0a00a12220907a7ce3ae81cdf85fd8b46cb774a5d8ba96bd560786859aba3",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      },
+      "runner": {
+        "sha256": "0e78209ca7d6b91e8713a9dbc11be761640a50e7e84cb35776907dfae85f5c01",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      }
+    },
+    "origin_run": 42394861080,
+    "cache_key": "compiler-regression-Linux-X64-619be19a8e341c9422e0bbfdb9c702e2989ff767a7e78d51ff551da858c5fcb7-af4614055bdd3f1f6bbd03d64cc3a7a5f08ae6b5-prepared-v1-with-runner"
+  },
+  "fixtures": [
+    "pass/ranges/loop_saved_guard_disjoint_write_exit",
+    "fail/ranges/loop_saved_guard_stale_counter"
+  ],
+  "source_only": true,
+  "samples": [],
+  "cli_fixtures": []
+}
