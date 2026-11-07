@@ -227,10 +227,12 @@ fn completed_byte_classes(
     };
     let mut classes = ByteSequencePredicateSet::EMPTY;
     if let Some((minimum, maximum)) = observed() {
-        // The supported pointwise classes, ASCII and nonzero bytes, are
-        // intervals. Both endpoints therefore cover every possible byte.
+        // A pointwise predicate need not describe one interval. The U8
+        // carrier bounds this complete check to at most 256 possible bytes.
         for predicate in ByteSequencePredicate::ALL {
-            if predicate.is_subslice_preserving() && predicate.holds_for(&[minimum, maximum]) {
+            if predicate.is_subslice_preserving()
+                && (minimum..=maximum).all(|byte| predicate.holds_for(&[byte]))
+            {
                 classes.insert(predicate);
             }
         }
