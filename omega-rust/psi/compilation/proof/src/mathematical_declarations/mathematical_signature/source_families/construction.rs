@@ -3,7 +3,7 @@
 
 use super::super::Elaborator;
 use super::parameter_closure::{abstract_parameters, excludes_parameters};
-use super::terms::constructor_children;
+use super::terms::{constructor_children, lift_payload};
 use crate::typed_expressions::{expression_table, type_reference_table};
 use diagnostics::Diagnostic;
 use language_core::BindingRelevance;
@@ -680,7 +680,7 @@ impl Elaborator<'_> {
                 }
                 lift_domains.push(domain);
             }
-            label = terms::lift_payload(&mut self.arena, &lift_domains, label)
+            label = lift_payload(&mut self.arena, &lift_domains, label)
                 .map_err(|reason| self.refuse(reason.into()))?;
         }
         if case + 1 < family.cases.len() {
