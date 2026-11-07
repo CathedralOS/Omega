@@ -40,6 +40,7 @@ use typed_trees::statement::StatementNode;
 /// summary actually read by recording schedules another preparation iteration.
 #[derive(Clone, Default)]
 pub(crate) struct ClaimOutcomePreparation {
+    /// Any new read of these maps on the walk's path must call `note_map_read`.
     maps: Vec<CheckedClaimOutcomeMap>,
     dependencies: Vec<SymbolHandle>,
     joins: joins::CallJoinPreparation,

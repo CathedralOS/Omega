@@ -18,8 +18,6 @@ use super::{
 use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::calls::byte_sequence_literal_argument;
 use crate::execution::terminal_unit::calls::projected_argument_path;
-use crate::execution::terminal_unit::control::checked_structural_result_type;
-use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::flow::expressions;
 use crate::published::places::place_at;
 use crate::published::semantic::calls::shared_argument_referent;
@@ -840,13 +838,9 @@ impl Builder<'_, '_> {
             // supply. The ordinary call planner retains the exact boundary,
             // body or dynamic route and its independent completion custody.
             if !value_predicates::structural_carriers_match(self.program, returned, expected)
-                || checked_structural_result_type(
-                    self.program,
-                    &mut ShapeCollector::new(self.program),
-                    returned,
-                    &[],
-                )
-                .is_none()
+                || !self
+                    .call_result_types
+                    .admits(self.program, &self.carriers, returned)
             {
                 return None;
             }
