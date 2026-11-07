@@ -93,10 +93,6 @@ enum ResultShape {
 }
 
 fn main() {
-    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
-        println!("{}", compiler::compiler_build_profile());
-        return;
-    }
     let scenarios: &[(&str, &[(&str, ResultShape)])] = &[
         (
             "tests/omega/pass/facts/build_activation_borrow/field/main.omg",

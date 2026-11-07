@@ -16,13 +16,16 @@ pub(crate) struct RunArguments {
     pub(crate) main_path: std::path::PathBuf,
 }
 
+pub(super) const USAGE: &str = "usage: omega run [--engine <native|terminal> | --both] [--terminal-fuel-allowance <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>";
+
 pub(super) fn parse_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
-) -> Result<RunArguments, String> {
+) -> Result<Option<RunArguments>, String> {
     let mut both = false;
     let mut engine = None;
     let mut terminal_fuel_allowance = None;
     let mut private_entry_ram = Vec::new();
+    let mut help = false;
     let mut keep = false;
     let mut target_name = None;
     let mut inputs = None;
@@ -31,6 +34,7 @@ pub(super) fn parse_arguments(
     let mut main_path = None;
     while let Some(argument) = arguments.next() {
         match argument.to_str() {
+            Some("--help" | "-h") => super::set_flag(&mut help, &argument.to_string_lossy())?,
             Some("--offline") => return Err("omega run does not support --offline".into()),
             Some("--both") => super::set_flag(&mut both, "--both")?,
             Some("--engine") => {
@@ -162,7 +166,6 @@ pub(super) fn parse_arguments(
             }
         }
     }
-    let main_path = main_path.ok_or_else(|| "missing root Omega source path".to_owned())?;
     // `--both` is a comparison request, not a third engine; naming an engine
     // beside it would leave one of the two compared executions unexplained.
     let selection = match (engine, both) {
@@ -192,7 +195,11 @@ pub(super) fn parse_arguments(
             "--terminal-fuel-allowance requires --engine terminal or --both host execution".into(),
         );
     }
-    Ok(RunArguments {
+    if help {
+        return Ok(None);
+    }
+    let main_path = main_path.ok_or_else(|| "missing root Omega source path".to_owned())?;
+    Ok(Some(RunArguments {
         private_entry_ram,
         selection,
         terminal_fuel_allowance,
@@ -202,7 +209,7 @@ pub(super) fn parse_arguments(
         input_files,
         outputs,
         main_path,
-    })
+    }))
 }
 
 #[cfg(test)]
@@ -211,7 +218,8 @@ mod tests {
     use crate::execution::ExecutionSelection;
 
     fn parse(arguments: &[&str]) -> Result<super::RunArguments, String> {
-        parse_arguments(arguments.iter().map(std::ffi::OsString::from))
+        parse_arguments(arguments.iter().map(std::ffi::OsString::from))?
+            .ok_or_else(|| "unexpected --help".to_owned())
     }
 
     #[test]

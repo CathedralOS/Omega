@@ -8,10 +8,6 @@ use artifacts::compile_timings::counters;
 use compiler::{CompilationSession, CompileRequest, RequestedCompileProduct};
 
 fn main() {
-    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
-        println!("{}", compiler::compiler_build_profile());
-        return;
-    }
     let root = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg");
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
