@@ -111,7 +111,7 @@ pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit built 1389ms exit:0 
 pass/calls/runtime_owned_state_scalar_field_store_exit built 13934ms exit:70 interpreter-exit:70 interpreter:agrees @33b180036351
 pass/calls/static_machine_required_input_crash_refinement_exit built 1270ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
 pass/calls/unit_normal_completion_contract_exit built 4415ms exit:0 interpreter-exit:0 interpreter:agrees @323727c404b9
-pass/capabilities/alternative_synchronous_provider_exit built 6055ms exit:0 interpreter-exit:0 interpreter:agrees synchronous-provider-controls:match terminal-inspections:match @419735b2f61f
+pass/capabilities/alternative_synchronous_provider_exit built 5941ms exit:0 interpreter-exit:0 interpreter:agrees synchronous-provider-controls:match terminal-inspections:match @8037a6a2db2b
 pass/capabilities/selected_applied_synchronous_chain_exit built 6463ms exit:0 interpreter-exit:0 interpreter:agrees declared-invocation-controls:match terminal-inspections:match @c8f27239e5d4
 pass/capabilities/selected_synchronous_chain_exit built 3447ms exit:0 interpreter-exit:0 interpreter:agrees @c8f27239e5d4
 pass/capabilities/selected_synchronous_helper_ceiling_exit built 6342ms exit:0 interpreter-exit:0 interpreter:agrees declared-invocation-controls:match terminal-inspections:match @c8f27239e5d4
