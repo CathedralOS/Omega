@@ -141,7 +141,7 @@ class CompilerPilotTests(unittest.TestCase):
                     return source.runner
 
                 with self.producer_environment(root, source), \
-                        patch.object(pilot.shutil, "which", return_value=None), \
+                        patch.object(pilot.shutil, "which", return_value="mbx"), \
                         patch.object(build_slot, "hold") as slot, \
                         patch.object(pilot.subprocess, "run", side_effect=prepare_command) as run, \
                         patch.object(pilot.corpus_gate, "build_runner", side_effect=build_harness):
@@ -150,7 +150,7 @@ class CompilerPilotTests(unittest.TestCase):
                 self.assertEqual(stages, ["check harness", "build CLI", "build harness"]
                                  if need_runner else ["build CLI"])
                 self.assertEqual(slot.call_count, 2 if need_runner else 1)
-                self.assertTrue(all(call.args[0][0] == "cargo" for call in run.call_args_list))
+                self.assertTrue(all(call.args[0][0] == "mbx" for call in run.call_args_list))
                 self.assertEqual(prepared.cli_profile, source.cli_profile)
                 self.assertEqual(prepared.runner_profile, source.runner_profile if need_runner else None)
                 self.assertEqual(prepared.runner is not None, need_runner)
