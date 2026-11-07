@@ -364,10 +364,11 @@ fn indexed_owners_match_raw_rosters_targets_and_refusals_for_exact_worlds() {
 
 #[test]
 fn preparation_retains_fresh_applied_signature_and_parameter_scopes() {
-    use typed_trees::data::TypeParameter;
+    use typed_trees::data::{TypeParameter, TypeParameterKind};
+    use typed_trees::domain::DomainDefinition;
     use typed_trees::signature::{SignatureContract, SignatureContractKind, StateSignature};
     use typed_trees::trait_definition::{Conformance, TraitDefinition};
-    use typed_trees::types::TypeConstraintNode;
+    use typed_trees::types::{DomainConstraint, TypeConstraintNode};
 
     let mut symbols = SymbolTableBuilder::default();
     let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
@@ -377,11 +378,19 @@ fn preparation_retains_fresh_applied_signature_and_parameter_scopes() {
             (SymbolKind::Trait, SymbolNameRef::Static("Other")),
             (SymbolKind::Trait, SymbolNameRef::Static("Generic")),
             (SymbolKind::Conformance, SymbolNameRef::Static("UnitView")),
+            (SymbolKind::Domain, SymbolNameRef::Static("AtLimit")),
         ],
     );
     let other = declarations.handle_at(0);
     let generic = declarations.handle_at(1);
     let implementation = declarations.handle_at(2);
+    let at_limit = declarations.handle_at(3);
+    let bound = symbols
+        .insert_children(
+            at_limit,
+            [(SymbolKind::TypeParameter, SymbolNameRef::Static("bound"))],
+        )
+        .handle_at(0);
     let other_law = symbols
         .insert_children(other, [(SymbolKind::Machine, SymbolNameRef::Static("law"))])
         .handle_at(0);
@@ -496,14 +505,36 @@ fn preparation_retains_fresh_applied_signature_and_parameter_scopes() {
             parameters.handle_at(1),
             parameters.handle_at(1),
         )));
+    let domain_parameters = program.data_type_parameters.insert_many([TypeParameter {
+        symbol: bound,
+        name: Identifier::from("bound"),
+        kind: TypeParameterKind::Const {
+            type_reference: integer,
+        },
+        ..Default::default()
+    }]);
+    let domain_identity = program.semantic_domains.intern("root::AtLimit");
+    program.push_domain_definition(DomainDefinition {
+        symbol: at_limit,
+        name: Identifier::from("AtLimit"),
+        type_parameters: domain_parameters,
+        target_type: integer,
+        semantic_id: domain_identity,
+        ..Default::default()
+    });
+    let limit_argument = program
+        .type_reference_table
+        .insert(TypeReferenceNode::ConstExpression(limit));
     let constraints =
         program
             .type_reference_table
-            .insert_constraints([TypeConstraintNode::Range {
-                minimum: limit,
-                maximum: limit,
-                end_inclusive: true,
-            }]);
+            .insert_constraints([TypeConstraintNode::Domain(DomainConstraint {
+                symbol: at_limit,
+                name: Identifier::from("AtLimit"),
+                arguments: vec![limit_argument],
+                semantic_id: domain_identity,
+                ..Default::default()
+            })]);
     let bounded = program
         .type_reference_table
         .insert(TypeReferenceNode::Constrained {
@@ -606,11 +637,28 @@ fn preparation_retains_fresh_applied_signature_and_parameter_scopes() {
     else {
         panic!("prepared parameter lost its complete constraint");
     };
-    let TypeConstraintNode::Range { maximum, .. } =
-        program.type_reference_table.constraints(*constraints)[0]
+    let TypeConstraintNode::Domain(domain) =
+        &program.type_reference_table.constraints(*constraints)[0]
     else {
-        panic!("prepared parameter lost its range");
+        panic!("prepared parameter lost its domain application");
     };
+    assert_eq!(domain.symbol, at_limit);
+    let [argument] = domain.arguments.as_slice() else {
+        panic!("prepared domain lost its complete static argument");
+    };
+    let TypeReferenceNode::ConstExpression(copied_limit) =
+        program.type_reference_table.type_reference(*argument)
+    else {
+        panic!("prepared domain lost its dependent expression");
+    };
+    let copied_limit = *copied_limit;
+    assert_ne!(copied_limit, limit);
+    let path = program
+        .expression_table
+        .name_path_node(copied_limit)
+        .unwrap();
+    assert_eq!(path.symbol, actuals[1].symbol);
+    assert_ne!(path.symbol, parameters.handle_at(1));
     let facts = Arena::default();
     let owners = OwnerEnvironmentIndex::for_preparation(&program);
     assert_eq!(
@@ -640,9 +688,9 @@ fn preparation_retains_fresh_applied_signature_and_parameter_scopes() {
         Some(program.normalized_type_identity(boolean))
     );
     assert_eq!(
-        infer(maximum, maximum),
+        infer(copied_limit, copied_limit),
         Some(program.normalized_type_identity(integer))
     );
     assert!(owners.containing_contract_facts(applied_root).is_empty());
-    assert!(owners.containing_contract_facts(maximum).is_empty());
+    assert!(owners.containing_contract_facts(copied_limit).is_empty());
 }

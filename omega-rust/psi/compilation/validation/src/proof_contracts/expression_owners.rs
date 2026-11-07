@@ -144,7 +144,8 @@ impl OwnerEnvironmentIndex {
     }
 
     /// Checked invocation signatures retain their complete applied parameter
-    /// environment. Preparation has no such authority and uses `new` instead.
+    /// environment. Preparation uses `for_preparation` to retain source typing
+    /// without checked-contract authority.
     pub fn with_call_signatures(
         program: &dyn crate::CheckingInput,
         contract_facts: &arena::Arena<ContractProofFact>,
