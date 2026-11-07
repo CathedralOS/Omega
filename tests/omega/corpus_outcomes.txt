@@ -28047,7 +28047,7 @@ pass/traits/runtime_dyn_local_selection_exit checked 12900ms check-target:macos_
 pass/traits/runtime_dyn_mixed_scalar_borrow_boolean_exit checked 12458ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_mutable_byte_result checked 3783ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_nested_result_exit checked 2658ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/runtime_dyn_post_write_alternatives_exit checked 6977ms check-target:macos_arm64 @911f6617ba9e
+pass/traits/runtime_dyn_post_write_alternatives_exit checked 5123ms check-target:macos_arm64 @0282d7651c42
 pass/traits/runtime_dyn_qualified_byte_result checked 3393ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_ranked_dispatch_cycle_exit checked 2941ms check-target:macos_arm64 @3caadfad789f+wt
 pass/traits/runtime_dyn_ranked_self_dispatch_exit checked 2702ms check-target:macos_arm64 @3caadfad789f+wt
