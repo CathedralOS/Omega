@@ -4,7 +4,9 @@
 //! never an executable machine, a runtime result occurrence or a purity claim.
 
 mod fixed_core_vocabulary;
+mod identity;
 pub use fixed_core_vocabulary::{FixedCore, FixedCoreVocabulary};
+pub use identity::{IdentityApplication, identity_application, is_identity_call};
 use typed_trees::type_identity::TypeIdentityRequest;
 mod static_arguments;
 pub use static_arguments::{
@@ -36,6 +38,14 @@ use typed_trees::expression::{
 };
 use typed_trees::mathematical::{MathematicalDefinition, MathematicalType};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// Mathematical declarations own dependent formation and have no runtime call.
+pub fn is_mathematical_call(
+    program: &dyn crate::CheckingInput,
+    call: &TableCallExpression,
+) -> bool {
+    is_identity_call(program, call) || selected_definition(program, call).is_some()
+}
 
 pub fn selected_definition<'program>(
     program: &'program dyn crate::CheckingInput,

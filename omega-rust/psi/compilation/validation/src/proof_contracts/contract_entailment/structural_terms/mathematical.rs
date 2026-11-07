@@ -18,6 +18,24 @@ pub(in crate::proof_contracts::contract_entailment) fn application_term(
 ) -> Option<StructuralTerm> {
     let view = program.prepared_mathematics()?;
     let application = view.application(expression)?;
+    if let Some(call) = program.expression_table.call_node(expression)
+        && crate::mathematical_applications::is_identity_call(program, call)
+    {
+        let identity =
+            crate::mathematical_applications::identity_application(program, call).ok()?;
+        if !matches!(view.arena.get(application.term), Term::Id { .. }) {
+            return None;
+        }
+        let carrier = program.normalized_type_identity(identity.carrier);
+        if !carrier.is_valid() {
+            return None;
+        }
+        return Some(StructuralTerm::Identity {
+            carrier,
+            left: Box::new(observe(identity.subjects[0])?),
+            right: Box::new(observe(identity.subjects[1])?),
+        });
+    }
     let captures = view
         .applications
         .captures

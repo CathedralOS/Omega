@@ -405,6 +405,15 @@ pub(crate) fn display_structural_term(term: &StructuralTerm) -> String {
         StructuralTerm::Projection { subject, path } => {
             format!("{}.{path}", display_structural_term(subject))
         }
+        StructuralTerm::Identity {
+            carrier,
+            left,
+            right,
+        } => format!(
+            "identity:{carrier:?}({},{})",
+            display_structural_term(left),
+            display_structural_term(right)
+        ),
         StructuralTerm::Opaque(display) => display.clone(),
     }
 }

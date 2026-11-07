@@ -51,9 +51,10 @@ pub use lemmas::{
     LemmaFacts, ProofLemmaFact, ProofLemmaKind, QuantifiedBoundFact, QuantifiedRangeFact,
 };
 pub use mathematical::{
-    CheckedIndexedCitation, CheckedIndexedTheorem, CheckedMathematicalBinder,
-    CheckedMathematicalBinderKind, CheckedMathematicalBody, CheckedMathematicalDeclaration,
-    CheckedMathematicalParameter, CheckedMathematicalSignature, CheckedSourceEvidenceCarrier,
+    CheckedIdentityFormation, CheckedIndexedCitation, CheckedIndexedTheorem,
+    CheckedMathematicalBinder, CheckedMathematicalBinderKind, CheckedMathematicalBody,
+    CheckedMathematicalDeclaration, CheckedMathematicalParameter, CheckedMathematicalSignature,
+    CheckedSourceEvidenceCarrier,
 };
 pub use obligations::{
     CheckedIntegerAssignmentDecision, ProofFactKind, ProofObligationFact, ProofObligationOwner,

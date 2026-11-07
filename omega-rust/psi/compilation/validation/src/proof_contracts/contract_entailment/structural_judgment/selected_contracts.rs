@@ -1267,6 +1267,12 @@ pub(super) fn capture_guarantees(
     ) else {
         return;
     };
+    if let StructuralTerm::Identity { left, right, .. } = &predicate {
+        if judge.data_identity_is_observed(left) && judge.data_identity_is_observed(right) {
+            data_identities.push((left.as_ref().clone(), right.as_ref().clone()));
+        }
+        return;
+    }
     let boolean =
         crate::parameter_expression_result_type_reference(program, scope, parameters, expression)
             .and_then(|reference| program.primitive_type_reference(reference))

@@ -231,6 +231,14 @@ fn nested_rewrite_key(term: &StructuralTerm, depth: usize) -> (u8, u64) {
         key.rotate_left(8) ^ u64::from(kind)
     };
     match term.semantic_value() {
+        StructuralTerm::Identity {
+            carrier,
+            left,
+            right,
+        } => (
+            21,
+            hash_key(carrier) ^ nested(left).rotate_left(21) ^ nested(right).rotate_left(42),
+        ),
         StructuralTerm::Variable(name) => (1, string_key(name)),
         StructuralTerm::BoundValue(symbol) => (2, handle_key(*symbol)),
         StructuralTerm::CapturedValue {
@@ -352,7 +360,8 @@ fn max_captured_occurrence(term: &StructuralTerm) -> usize {
 fn term_may_produce_mathematical_value(term: &StructuralTerm) -> bool {
     !matches!(
         term.semantic_value(),
-        StructuralTerm::Float(_)
+        StructuralTerm::Identity { .. }
+            | StructuralTerm::Float(_)
             | StructuralTerm::ScalarRepresentation { .. }
             | StructuralTerm::Opaque(_)
             | StructuralTerm::ScalarBinary { .. }

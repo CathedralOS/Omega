@@ -79,6 +79,8 @@ pub struct PreparedSourceCarrier {
 pub struct PreparedApplication {
     pub expression: ExpressionHandle,
     pub term: TermHandle,
+    pub ty: TermHandle,
+    pub domains: Vec<TermHandle>,
     pub captures: HandleSpan<PreparedCapture>,
 }
 

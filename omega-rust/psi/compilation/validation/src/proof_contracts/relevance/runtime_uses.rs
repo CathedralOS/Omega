@@ -111,7 +111,7 @@ pub(super) fn validate_expression(
             }
             if context == Context::ErasedInitializer
                 && !call_targets_proof_machine(program, proof_only, call.target_symbol)
-                && !(crate::mathematical_applications::selected_definition(program, call).is_some()
+                && !(crate::mathematical_applications::is_mathematical_call(program, call)
                     && program
                         .prepared_mathematics()
                         .is_some_and(|view| view.application(expression).is_some()))

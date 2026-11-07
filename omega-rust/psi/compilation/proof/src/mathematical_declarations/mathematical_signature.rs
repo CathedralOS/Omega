@@ -40,6 +40,7 @@ macro_rules! interned_literal {
 mod applications;
 mod carriers;
 mod dependencies;
+mod identity;
 mod level_types;
 mod normalization;
 mod operand_terms;
@@ -525,6 +526,9 @@ impl<'a> Elaborator<'a> {
             }
             ExpressionNode::Call(call) => {
                 let call = call.clone();
+                if validation::mathematical_applications::is_identity_call(self.program, &call) {
+                    return self.elaborate_identity(handle, &call);
+                }
                 let target_symbol = validation::call_target_symbol(self.program, &call);
                 if target_symbol.is_valid()
                     && !self.authored_index.contains_key(&target_symbol)
@@ -716,13 +720,13 @@ impl<'a> Elaborator<'a> {
             })?;
         }
         for (expression, term, domains, captures) in applications {
-            let context = domains.into_iter().fold(
+            let context = domains.iter().copied().fold(
                 Context::empty().with_signature(signature.clone()),
                 |context, domain| context.extend(domain),
             );
             let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
-            proof_admission::infer_type(&mut self.arena, &context, term, &mut budget).map_err(
-                |error| {
+            let ty = proof_admission::infer_type(&mut self.arena, &context, term, &mut budget)
+                .map_err(|error| {
                     self.refuse(format!(
                         "mathematical application `{}` fails checking: {error:?}",
                         self.program.render_proof_expression(
@@ -730,8 +734,7 @@ impl<'a> Elaborator<'a> {
                             typed_trees::proposition::ProofSubstitutions::None
                         )
                     ))
-                },
-            )?;
+                })?;
             if captures.is_empty() {
                 self.retain_checked_source_application(expression, term, &context, &signature)?;
             }
@@ -767,6 +770,8 @@ impl<'a> Elaborator<'a> {
             self.prepared.applications.append(PreparedApplication {
                 expression,
                 term,
+                ty,
+                domains,
                 captures,
             });
         }
@@ -926,4 +931,11 @@ enum ScalarCarrier {
 
 pub(super) fn has_source_evidence_demand(program: &dyn validation::CheckingInput) -> bool {
     source_families::needs_scheme(program)
+        || program
+            .expression_table
+            .iter_expressions()
+            .any(|(_, node)| {
+                matches!(node, ExpressionNode::Call(call)
+                if validation::mathematical_applications::is_identity_call(program, call))
+            })
 }

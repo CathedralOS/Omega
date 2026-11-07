@@ -554,7 +554,8 @@ impl StructuralJudge<'_> {
                     ),
                 )
             }
-            StructuralTerm::CallProjection { .. }
+            StructuralTerm::Identity { .. }
+            | StructuralTerm::CallProjection { .. }
             | StructuralTerm::Opaque(_)
             | StructuralTerm::ScalarBinary { .. }
             | StructuralTerm::MathematicalBinary { .. }

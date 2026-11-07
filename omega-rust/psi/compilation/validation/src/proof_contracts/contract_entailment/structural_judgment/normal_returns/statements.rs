@@ -74,25 +74,6 @@ impl<'program> StructuralJudge<'program> {
                 scope.0.symbol,
                 call,
             );
-        if erased_citation && std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some() {
-            eprintln!(
-                "IDTRACE citation caller={} statement={statement_index} target={} types={:?}",
-                scope.0.name,
-                call.target,
-                application.as_ref().map(|application| &application.types),
-            );
-            for parameter in parameters.iter() {
-                eprintln!(
-                    "IDTRACE citation formal name={} symbol={:?} type={:?} node={:?}",
-                    parameter.name,
-                    parameter.symbol,
-                    parameter.type_reference,
-                    program
-                        .type_reference_table
-                        .type_reference(parameter.type_reference),
-                );
-            }
-        }
         let statement = scope.1.statement_nodes.handles().nth(statement_index)?;
         if !matches!(program.statement_table.statements(scope.1.statement_nodes).get(statement_index), Some(StatementNode::Call(selected)) if std::ptr::eq(selected, call))
         {

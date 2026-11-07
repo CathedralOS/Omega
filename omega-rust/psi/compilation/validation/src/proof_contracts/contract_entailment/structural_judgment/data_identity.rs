@@ -49,6 +49,24 @@ impl StructuralJudge<'_> {
         if self.case_facts_only {
             return;
         }
+        if self
+            .program
+            .expression_table
+            .call_node(fact)
+            .is_some_and(|call| {
+                crate::mathematical_applications::is_identity_call(self.program, call)
+            })
+        {
+            if let Some(StructuralTerm::Identity { left, right, .. }) = self.declaration_term(fact)
+                && self.data_identity_is_observed(&left)
+                && self.data_identity_is_observed(&right)
+            {
+                std::sync::Arc::make_mut(&mut self.captured_result_equations).push(
+                    super::normal_returns::CapturedResultEquation::data_identity((*left, *right)),
+                );
+            }
+            return;
+        }
         let Some(binary) = self.program.expression_table.binary_node(fact) else {
             return;
         };
@@ -115,7 +133,6 @@ impl StructuralJudge<'_> {
         }) {
             StructuralJudgment::Proven
         } else {
-            self.trace_unknown_identity(&left, &right);
             StructuralJudgment::Unknown
         }
     }
@@ -291,7 +308,7 @@ impl StructuralJudge<'_> {
         })
     }
 
-    fn data_identity_is_observed(&self, value: &StructuralTerm) -> bool {
+    pub(super) fn data_identity_is_observed(&self, value: &StructuralTerm) -> bool {
         match value {
             StructuralTerm::ObservedValue {
                 observed_type,

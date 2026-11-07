@@ -245,7 +245,8 @@ impl StructuralTerm {
                     first: Some(subject.as_ref()),
                     second: None,
                 },
-                Self::ScalarBinary { left, right, .. }
+                Self::Identity { left, right, .. }
+                | Self::ScalarBinary { left, right, .. }
                 | Self::MathematicalBinary { left, right, .. } => StructuralChildren::Fixed {
                     first: Some(left.as_ref()),
                     second: Some(right.as_ref()),
@@ -324,6 +325,13 @@ impl PartialEq for StructuralTerm {
         let other = other.semantic_value();
         match self {
             Self::ObservedValue { value, .. } => value.as_ref().eq(other),
+            Self::Identity {
+                carrier,
+                left,
+                right,
+            } => matches!(other,
+                Self::Identity { carrier: other_carrier, left: other_left, right: other_right }
+                    if (carrier, left, right) == (other_carrier, other_left, other_right)),
             Self::RepeatedArray { length, element } => matches!(
                 other,
                 Self::RepeatedArray { length: other_length, element: other_element }
@@ -571,6 +579,16 @@ impl std::fmt::Debug for StructuralTerm {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ObservedValue { value, .. } => std::fmt::Debug::fmt(value, formatter),
+            Self::Identity {
+                carrier,
+                left,
+                right,
+            } => formatter
+                .debug_struct("Identity")
+                .field("carrier", carrier)
+                .field("left", left)
+                .field("right", right)
+                .finish(),
             Self::RepeatedArray { length, element } => formatter
                 .debug_struct("RepeatedArray")
                 .field("length", length)

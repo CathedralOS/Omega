@@ -34,18 +34,15 @@ impl Elaborator<'_> {
         )>,
         Vec<Diagnostic>,
     > {
-        if self.authored_index.is_empty() {
-            return Ok(Vec::new());
-        }
         let candidate_calls = expression_table(self.program)
             .iter_expressions()
             .filter_map(|(expression, node)| {
                 let ExpressionNode::Call(call) = node else {
                     return None;
                 };
-                self.authored_index
-                    .contains_key(&call.target_symbol)
-                    .then_some((expression, call.clone()))
+                (self.authored_index.contains_key(&call.target_symbol)
+                    || validation::mathematical_applications::is_identity_call(self.program, call))
+                .then_some((expression, call.clone()))
             })
             .collect::<Vec<_>>();
         if candidate_calls.is_empty() {
@@ -102,8 +99,13 @@ impl Elaborator<'_> {
                     // Wrapping computation into source leaves would silently
                     // replace its denotation with unbounded arithmetic.
                     let domain = self.elaborate_source_operand_type(reference)?;
-                    if let TypeReferenceNode::Generic { base_symbol, .. } =
-                        self.program.type_reference_table.type_reference(reference)
+                    // A relation may name an existing value without
+                    // constructing or duplicating its runtime resource. A
+                    // mathematical value actual still owes its constructor
+                    // evidence; Id formation only borrows the typed subject.
+                    if !validation::mathematical_applications::is_identity_call(self.program, &call)
+                        && let TypeReferenceNode::Generic { base_symbol, .. } =
+                            self.program.type_reference_table.type_reference(reference)
                         && self.indexed_families.contains_key(base_symbol)
                     {
                         let value = self.source_family_constructor(operand, reference, 0)?;

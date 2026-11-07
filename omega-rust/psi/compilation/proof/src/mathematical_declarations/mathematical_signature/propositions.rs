@@ -40,6 +40,12 @@ impl<'a> Elaborator<'a> {
                 self.elaborate_proposition(operand)
                     .map(|proposition| proposition.map(|term| self.negated_proposition(term)))
             }
+            ExpressionNode::Call(call)
+                if validation::mathematical_applications::is_identity_call(self.program, call) =>
+            {
+                let call = call.clone();
+                self.elaborate_identity(handle, &call).map(Some)
+            }
             ExpressionNode::Name(..)
             | ExpressionNode::Call(..)
             | ExpressionNode::Unary(..)

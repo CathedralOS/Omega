@@ -162,3 +162,15 @@ pub struct CheckedIndexedCitation {
     pub caller: SymbolHandle,
     pub theorem: SymbolHandle,
 }
+
+/// A formed sealed Id statement, retained separately from evidence of truth.
+/// The exact source carrier and checked kernel telescope survive erasure;
+/// publication abstracts these subjects without allocating runtime copies.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedIdentityFormation {
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub type_identity: TypeIdentityId,
+    pub term: proof_admission::TermHandle,
+    pub ty: proof_admission::TermHandle,
+    pub domains: Vec<proof_admission::TermHandle>,
+}

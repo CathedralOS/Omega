@@ -241,7 +241,7 @@ fn validate_expression_call_bounds(
     // machine entry or executable call obligations. Its complete dependent
     // application was checked by the mathematical producer; relevance still
     // visits every operand and rejects runtime effects or escaped evidence.
-    if crate::mathematical_applications::selected_definition(program, call).is_some()
+    if crate::mathematical_applications::is_mathematical_call(program, call)
         && program
             .prepared_mathematics()
             .is_some_and(|view| view.application(expression).is_some())

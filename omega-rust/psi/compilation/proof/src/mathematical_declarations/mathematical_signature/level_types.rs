@@ -209,6 +209,10 @@ impl<'a> Elaborator<'a> {
                             arguments.len()
                         ))),
                     },
+                    Some(FixedCore::Identity) => {
+                        Err(self
+                            .refuse("core::Identity requires its two typed subjects".to_owned()))
+                    }
                     Some(FixedCore::Level) => {
                         Err(self.refuse("`core::Level` is a universe level, not a type".to_owned()))
                     }

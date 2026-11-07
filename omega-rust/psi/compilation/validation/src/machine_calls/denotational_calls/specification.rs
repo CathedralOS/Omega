@@ -125,7 +125,7 @@ pub(crate) fn validate_specification_calls(
         if program.is_deferred_contract_invocation(expression) {
             continue;
         }
-        if crate::mathematical_applications::selected_definition(program, call).is_some() {
+        if crate::mathematical_applications::is_mathematical_call(program, call) {
             // Checked mathematical signature formation owns the dependent
             // application. It has no operational closure to classify.
             // The producer has already checked this source application at

@@ -30,7 +30,6 @@ pub(super) use constructor_identity::ConstructorIdentity;
 mod data_identity;
 mod domain_premises;
 mod equations;
-mod identity_trace;
 pub(in crate::proof_contracts::contract_entailment) use domain_premises::data_application_static_bindings;
 mod integer_predicates;
 pub(super) use integer_predicates::{CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank};
@@ -127,6 +126,13 @@ struct MembershipGuarantee {
 
 #[derive(Clone)]
 pub(crate) enum StructuralTerm {
+    /// A formed core Id proposition. Its carrier is not an executable
+    /// equality selection, and no truth follows from constructing this node.
+    Identity {
+        carrier: typed_trees::type_identity::TypeIdentityId,
+        left: Box<StructuralTerm>,
+        right: Box<StructuralTerm>,
+    },
     Variable(String),
     /// A frame-authenticated observation of an input referent. Scalar reads
     /// retain their declared content authority. A collection additionally keeps
@@ -303,7 +309,9 @@ impl StructuralTerm {
     }
 
     pub(super) fn is_checked_predicate(&self) -> bool {
-        if value_predicates::boolean_value(self.semantic_value()).is_some() {
+        if matches!(self.semantic_value(), Self::Identity { .. })
+            || value_predicates::boolean_value(self.semantic_value()).is_some()
+        {
             return true;
         }
         if let Self::MathematicalBinary {
@@ -391,6 +399,15 @@ impl StructuralTerm {
     /// about a completed collection, never the referent's contents.
     pub(super) fn map_children(self, mut map: impl FnMut(Self) -> Self) -> Self {
         match self {
+            StructuralTerm::Identity {
+                carrier,
+                left,
+                right,
+            } => StructuralTerm::Identity {
+                carrier,
+                left: Box::new(map(*left)),
+                right: Box::new(map(*right)),
+            },
             StructuralTerm::RepeatedArray { length, element } => StructuralTerm::RepeatedArray {
                 length,
                 element: element.map(|element| Box::new(map(*element))),
@@ -2872,7 +2889,7 @@ impl<'program> StructuralJudge<'program> {
         if expression_table(program)
             .call_node(expression)
             .is_some_and(|call| {
-                crate::mathematical_applications::selected_definition(program, call).is_some()
+                crate::mathematical_applications::is_mathematical_call(program, call)
             })
         {
             return super::structural_terms::mathematical_application_term(
@@ -3418,7 +3435,7 @@ impl<'program> StructuralJudge<'program> {
         if expression_table(program)
             .call_node(fact)
             .is_some_and(|call| {
-                crate::mathematical_applications::selected_definition(program, call).is_some()
+                crate::mathematical_applications::is_mathematical_call(program, call)
             })
         {
             // This engine consumes source entry observations rather than this

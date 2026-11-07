@@ -1055,7 +1055,7 @@ fn validate_specification_expression_in_scope(
     // the selected declaration's public preconditions through this one intake.
     let (contract_owner, arguments, call, application_bindings) = match node {
         ExpressionNode::Call(call) => {
-            if crate::mathematical_applications::selected_definition(program, call).is_some() {
+            if crate::mathematical_applications::is_mathematical_call(program, call) {
                 // Mathematical definitions own checked dependent applications,
                 // not machine contract telescopes. Their source producer checks
                 // the application; the walk above still forms every argument.
@@ -2213,7 +2213,8 @@ fn term_has_complete_substitution(
                     .is_some_and(|primitive| primitive.is_fixed_integer()),
                 _ => false,
             }),
-        StructuralTerm::CapturedValue { .. }
+        StructuralTerm::Identity { .. }
+        | StructuralTerm::CapturedValue { .. }
         | StructuralTerm::BoundProjection { .. }
         | StructuralTerm::MathematicalBinary { .. }
         | StructuralTerm::IntegerEmbedding { .. }

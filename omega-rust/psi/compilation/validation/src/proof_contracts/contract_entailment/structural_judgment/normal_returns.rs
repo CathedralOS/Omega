@@ -2852,7 +2852,7 @@ pub(in crate::proof_contracts::contract_entailment) fn call_has_mathematical_den
     caller: SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
-    if crate::mathematical_applications::selected_definition(program, call).is_some() {
+    if crate::mathematical_applications::is_mathematical_call(program, call) {
         return true;
     }
     if let Some(signature) = crate::machine_calls::denotational_calls::abstract_value_call_signature(

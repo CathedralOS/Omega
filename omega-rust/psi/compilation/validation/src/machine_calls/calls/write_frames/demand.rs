@@ -1563,8 +1563,10 @@ impl<'program> CallFrameResolver<'program> {
                     )
                     .is_some()
                         || value_builtin_has_empty_write_frame(self.program, call)
-                        || crate::mathematical_applications::selected_definition(self.program, call)
-                            .is_some()
+                        || crate::mathematical_applications::is_mathematical_call(
+                            self.program,
+                            call,
+                        )
                         || crate::machine_calls::denotational_calls::abstract_value_call_signature(
                             self.program,
                             call.target_symbol,

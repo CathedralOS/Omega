@@ -145,7 +145,7 @@ pub(crate) fn validate_proof_embeddings(
                 program.symbols.builtin_type_member(path.symbol).is_some()
             }
             ExpressionNode::Call(call) => {
-                crate::mathematical_applications::selected_definition(program, call).is_some()
+                crate::mathematical_applications::is_mathematical_call(program, call)
             }
             _ => false,
         };
