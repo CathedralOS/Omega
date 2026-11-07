@@ -662,6 +662,11 @@ mathematical axiom admission. None of these checks guarantees that the complete
 assumption set is consistent. These rules belong to
 [receiving policy](../spec/proofs/contracts.md#axioms-and-receiving-policy).
 
+Do not reach for that runtime escape hatch when an ordinary proof fails.
+Establish the missing facts, correct the program or contract, or fix the prover.
+Ordinary applications should reject assumed bindings, and libraries must not
+ask consumers to approve one merely to compensate for missing proof support.
+
 Admission means trusting the claim, not trusting it only after a runtime check.
 There is no mandatory automatic or author-written checking requirement, and no
 required proof-build mode. Runtime checkability does not determine whether a
