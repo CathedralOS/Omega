@@ -137,6 +137,18 @@ pub fn collect_captured(
                 declaration.source.requirement_path,
             ))]
         };
+        let requirement_loaded = program.symbols.source_files().any(|file| {
+            file.dependency_scope == source::DependencyScope::Product
+                && program
+                    .symbols
+                    .source_map()
+                    .is_none_or(|sources| sources.source_is_selected(file.source_id))
+                && file.path == declaration.requirement.source().path
+        });
+        if !requirement_loaded {
+            resolved.push(None);
+            continue;
+        }
         let selected = declaration
             .requirement
             .rejoin(
@@ -198,39 +210,40 @@ pub fn collect_captured(
                 "is not visible under its original Product package and temporal scope",
             ));
         }
-        resolved.push((subject, requirement));
+        resolved.push(Some((subject, requirement)));
     }
-    intents
-        .iter()
-        .map(|intent| {
-            let declaration = declarations
-                .get(intent.declaration as usize)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "captured native effect lost its declared source occurrence",
-                    )]
-                })?;
-            let (subject, requirement) = resolved[intent.declaration as usize];
-            let span = typed
-                .symbols
-                .symbol_provenance_source_span(requirement)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "captured native requirement lost its checked Product source",
-                    )]
-                })?;
-            Ok(NativeBindingSelection {
-                subject,
-                requirement,
-                target: intent.target,
-                locator: intent.locator.clone(),
-                producer: declaration.source.producer.clone(),
-                supplier_package: declaration.source.producer.package,
-                source_occurrence_digest: declaration.source.source_occurrence_digest,
-                source_span: span,
-            })
-        })
-        .collect()
+    let mut selections = Vec::with_capacity(intents.len());
+    for intent in intents {
+        let declaration = declarations
+            .get(intent.declaration as usize)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "captured native effect lost its declared source occurrence",
+                )]
+            })?;
+        let Some((subject, requirement)) = resolved[intent.declaration as usize] else {
+            continue;
+        };
+        let span = typed
+            .symbols
+            .symbol_provenance_source_span(requirement)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "captured native requirement lost its checked Product source",
+                )]
+            })?;
+        selections.push(NativeBindingSelection {
+            subject,
+            requirement,
+            target: intent.target,
+            locator: intent.locator.clone(),
+            producer: declaration.source.producer.clone(),
+            supplier_package: declaration.source.producer.package,
+            source_occurrence_digest: declaration.source.source_occurrence_digest,
+            source_span: span,
+        });
+    }
+    Ok(selections)
 }
 
 fn requirement_owner(
