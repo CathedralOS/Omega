@@ -19,9 +19,11 @@ use checked_trees::{
 use proof::obligations::ProofPlan;
 
 mod captured_call_intervals;
+mod captured_intervals;
 mod current_integer_bounds;
 mod evaluation;
 pub(crate) use captured_call_intervals::CapturedCallIntervals;
+pub(crate) use captured_intervals::CapturedIntegerIntervals;
 pub(crate) use current_integer_bounds::CurrentIntegerBounds;
 pub(crate) mod float_predicates;
 mod place_intervals;
