@@ -69,6 +69,9 @@ pub(crate) fn emit_realization_object(
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
     program_entry: Option<&ValidatedNativeProgramEntrySettlement>,
+    program_provider_context: &std::sync::Arc<
+        terminal_psi_to_abstract_operations::provider_admission::AdmittedProgramProviderContext,
+    >,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<EmittedRealizationObject, Vec<Diagnostic>> {
     let native_callbacks = input
@@ -90,7 +93,7 @@ pub(crate) fn emit_realization_object(
     // selection as the entry. Target lowering rejoins the exact callback
     // roster; physical and installation replay preserve its private addresses.
     let target = lower_target(input, provider_installation, settlements, request)?;
-    let mut prepared_callbacks = PreparedCallbackObjects::new(request)?;
+    let mut prepared_callbacks = PreparedCallbackObjects::new(request, program_provider_context)?;
     let physical_entry = program_entry
         .filter(|entry| entry.source().target_slot().owner == target::TargetProfile::UefiX64)
         .and_then(|entry| {

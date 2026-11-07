@@ -225,6 +225,7 @@ pub fn admit_prepared_native_realization<'execution>(
     let scoped_providers = ProviderAdmissionRequest {
         profile: request.providers.profile,
         bootstrap_entry: request.providers.bootstrap_entry,
+        program_provider_context: request.providers.program_provider_context,
         installation_assumptions: request.providers.installation_assumptions,
         selected_provider_plans: request.providers.selected_provider_plans,
         checked_adapters: request.providers.checked_adapters,

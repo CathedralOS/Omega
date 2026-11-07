@@ -23,10 +23,18 @@ pub(crate) struct PreparedCallbackObjects {
     active: Vec<bool>,
     settlement_positions: Vec<Option<usize>>,
     installed_plans: PreparedEntryPlans,
+    program_provider_context: std::sync::Arc<
+        terminal_psi_to_abstract_operations::provider_admission::AdmittedProgramProviderContext,
+    >,
 }
 
 impl PreparedCallbackObjects {
-    pub fn new(request: &NativeRealizationRequest<'_>) -> Result<Self, Vec<Diagnostic>> {
+    pub fn new(
+        request: &NativeRealizationRequest<'_>,
+        program_provider_context: &std::sync::Arc<
+            terminal_psi_to_abstract_operations::provider_admission::AdmittedProgramProviderContext,
+        >,
+    ) -> Result<Self, Vec<Diagnostic>> {
         let placement_count = request.callback_thunks.len();
         let mut settlement_positions = vec![None; placement_count];
         for (position, row) in request.callback_thunks.iter().enumerate() {
@@ -50,6 +58,7 @@ impl PreparedCallbackObjects {
             active: vec![false; placement_count],
             settlement_positions,
             installed_plans: PreparedEntryPlans::new(placement_count),
+            program_provider_context: program_provider_context.clone(),
         })
     }
 
@@ -266,6 +275,11 @@ fn lower_callback_thunk(
     let admission = terminal_psi_to_abstract_operations::NativeAdmissionRequest {
         private_entry_ram: &[],
         entry: terminal_psi::TargetMachineCallable::Machine(settlement.entry),
+        providers:
+            terminal_psi_to_abstract_operations::provider_admission::ProviderAdmissionRequest {
+                program_provider_context: Some(&prepared_objects.program_provider_context),
+                ..request.admission.providers
+            },
         ..request.admission
     };
     let input = request.execution.lower_callable(

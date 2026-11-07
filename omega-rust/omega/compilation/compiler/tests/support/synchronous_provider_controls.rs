@@ -217,6 +217,14 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
     if !calls.from_root(quiet)?.boundaries.is_empty() {
         return Err("quiet entry unexpectedly calls a provider".into());
     }
+    inspect_program_context(
+        retained,
+        &uncalled,
+        target,
+        alpha,
+        quiet,
+        alternative.candidate,
+    )?;
     require_cycle(
         changed.admit(uncalled.view(), target),
         "uncalled installed cycle",
@@ -279,6 +287,177 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
         method.synchronous_invocations.clear();
     }
     opaque.admit(loaded.view(), target)?;
+    Ok(())
+}
+
+/// Obtain the context from ordinary admission of the source's selected Alpha
+/// body, then admit its quiet Beta body with an empty local provider scope.
+/// Inspecting Alpha through that smaller scope must keep the original choices
+/// without installing them in Beta. The actual installed private-body witness
+/// remains the saved Cathedral native request.
+fn inspect_program_context(
+    retained: &RetainedTerminalArtifact,
+    foreign: &CanonicalTerminalArtifact,
+    target: &str,
+    alpha: semantic_vocabulary::MachineId,
+    beta: semantic_vocabulary::MachineId,
+    alternative: semantic_vocabulary::MachineId,
+) -> Result<(), String> {
+    use std::sync::Arc;
+    use terminal_psi::TargetMachineCallable;
+    use terminal_psi_to_abstract_operations::{
+        NativeAdmissionRequest, RetainedNativeProviderInputs, admit_prepared_native_realization,
+        provider_admission::{
+            ProviderAdmissionRequest, current_terminal_authority_policy,
+            selected_synchronous_call_graph, terminal_authority_permission_policy_with_rows,
+        },
+    };
+    let artifact = retained.artifact();
+    let proposal = retained
+        .native_realization_proposal()
+        .ok_or("missing native proposal")?;
+    let work = proposal
+        .prepare_native_callable_execution(artifact, TargetMachineCallable::Machine(alpha))
+        .map_err(|errors| format!("program context parent preparation: {errors:?}"))?;
+    let (input, execution) = work
+        .lower(None)
+        .map_err(|errors| format!("program context parent lowering: {errors:?}"))?;
+    let permissions = terminal_authority_permission_policy_with_rows(
+        proposal.package_terminal_authority_permissions().to_vec(),
+        proposal
+            .package_terminal_authority_permission_identities()
+            .clone(),
+    )
+    .map_err(|error| format!("program context package permissions: {error:?}"))?;
+    let providers = proposal
+        .prepare_native_providers(
+            artifact,
+            RetainedNativeProviderInputs {
+                execution: &execution,
+                optimization_selections: proposal.post_terminal_optimizations().selections(),
+                accepted_package_permissions: &permissions,
+                imports: &[],
+            },
+        )
+        .map_err(|errors| format!("program context provider preparation: {errors:?}"))?;
+    let settlements = providers.program_settlements();
+    let policy = current_terminal_authority_policy();
+    let receiving_permissions = None;
+    let request = NativeAdmissionRequest {
+        entry: TargetMachineCallable::Machine(alpha),
+        ..providers.admission_request(&settlements, &policy, &receiving_permissions, &[])
+    };
+    let parent = admit_prepared_native_realization(input, artifact, &request)
+        .map_err(|errors| format!("program context parent admission: {errors:?}"))?;
+    let context = Arc::clone(parent.providers.program_provider_context());
+    let profile = request.providers.profile;
+    context.require(
+        artifact.view().identity(),
+        profile,
+        request.providers.selected_provider_plans,
+    )?;
+    require_graph_error(
+        context.require(
+            foreign.view().identity(),
+            profile,
+            request.providers.selected_provider_plans,
+        ),
+        "program provider context names another Terminal artifact",
+        "foreign program context",
+    )?;
+    let other_target = match target {
+        "macos_arm64" => "linux_arm64",
+        "linux_arm64" => "macos_arm64",
+        "linux_x86_64" => "windows_x86_64",
+        _ => "linux_x86_64",
+    };
+    let other_profile = target::TargetProfile::from_canonical_target_name(other_target)
+        .map_err(|error| error.message)?;
+    require_graph_error(
+        context.require(
+            artifact.view().identity(),
+            other_profile,
+            request.providers.selected_provider_plans,
+        ),
+        "program provider context names another target profile",
+        "foreign program target",
+    )?;
+    require_graph_error(
+        context.require(
+            artifact.view().identity(),
+            profile,
+            &SelectedProviderPlanFacts::default(),
+        ),
+        "program provider context names another selected-plan closure",
+        "changed program choices",
+    )?;
+    drop(parent);
+    let child_input = execution
+        .lower_callable(
+            artifact,
+            proposal,
+            TargetMachineCallable::Machine(beta),
+            None,
+        )
+        .map_err(|errors| format!("program context child lowering: {errors:?}"))?;
+    let child_request = NativeAdmissionRequest {
+        entry: TargetMachineCallable::Machine(beta),
+        providers: ProviderAdmissionRequest {
+            program_provider_context: Some(&context),
+            ..request.providers
+        },
+        ..request
+    };
+    let child = admit_prepared_native_realization(child_input, artifact, &child_request)
+        .map_err(|errors| format!("program context child admission: {errors:?}"))?;
+    if !Arc::ptr_eq(&context, child.providers.program_provider_context())
+        || child
+            .providers
+            .installation
+            .as_ref()
+            .is_some_and(|installation| {
+                installation
+                    .terminal_selection()
+                    .providers()
+                    .next()
+                    .is_some()
+                    || !installation.installed_calls().is_empty()
+            })
+    {
+        return Err("private admission copied program providers into its quiet scope".into());
+    }
+    let members = terminal_installation::admit_target_machine_selections(artifact.view(), target);
+    let original = selected_synchronous_call_graph(
+        artifact.view(),
+        Some(&members),
+        context.entry_bridge(),
+        context.providers(),
+        profile,
+    )?
+    .from_root(alpha)?;
+    let local = selected_synchronous_call_graph(
+        artifact.view(),
+        Some(&members),
+        None,
+        child
+            .providers
+            .installation
+            .as_ref()
+            .map(|row| row.terminal_selection()),
+        profile,
+    )?
+    .from_root(alpha)?;
+    if !original.machines.iter().any(|body| body.id == beta)
+        || original.machines.iter().any(|body| body.id == alternative)
+        || local
+            .machines
+            .iter()
+            .any(|body| body.id == beta || body.id == alternative)
+    {
+        return Err(
+            "program entry inspection did not retain its exact selected provider context".into(),
+        );
+    }
     Ok(())
 }
 

@@ -53,7 +53,7 @@ pub use source_evaluated_bindings::prepare_source_evaluated_bindings;
 
 pub use request::{NativeBoundaryRealization, NativeCompilerBuiltinSettlement};
 pub use request::{NativeProviderSettlement, ProviderAdmissionRequest};
-pub use synchronous_calls::selected_synchronous_call_graph;
+pub use synchronous_calls::{AdmittedProgramProviderContext, selected_synchronous_call_graph};
 pub use terminal_authority_permission_policy::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyRow,
     terminal_authority_permission_policy_with_rows,
@@ -92,10 +92,17 @@ pub struct AdmittedNativeProviders<'execution> {
     pub terminal_authority_permission_policy_identity:
         Option<effects::TerminalAuthorityPermissionPolicyIdentity>,
     callable_authority: AdmittedNativeCallableAuthority,
+    program_provider_context: std::sync::Arc<AdmittedProgramProviderContext>,
     pub installation: Option<AdmittedProviderInstallation>,
 }
 
 impl AdmittedNativeProviders<'_> {
+    pub const fn program_provider_context(
+        &self,
+    ) -> &std::sync::Arc<AdmittedProgramProviderContext> {
+        &self.program_provider_context
+    }
+
     /// Hand the admitted callback cohort to the verified input it was
     /// admitted for. It leaves this admission only as a sealed cohort bound to
     /// that input's Terminal program.
@@ -136,6 +143,15 @@ pub fn admit_native_providers<'request>(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_, 'request>,
 ) -> Result<AdmittedNativeProviders<'request>, Vec<Diagnostic>> {
+    if let Some(context) = request.program_provider_context {
+        context
+            .require(
+                artifact.view().identity(),
+                request.profile,
+                request.selected_provider_plans,
+            )
+            .map_err(|reason| diagnostics::realization_error("program provider context", reason))?;
+    }
     let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();
     let entry_custody = callback_entries::PreparedEntries::new(input, request)
         .map_err(|reason| diagnostics::realization_error("callback entry admission", reason))?;
@@ -285,6 +301,20 @@ pub fn admit_native_providers<'request>(
         .map_err(|error| {
             diagnostics::realization_error("terminal-authority closure review", error)
         })?;
+    let program_provider_context = request
+        .program_provider_context
+        .cloned()
+        .unwrap_or_else(|| {
+            std::sync::Arc::new(AdmittedProgramProviderContext::new(
+                artifact.view().identity(),
+                request.profile,
+                request.selected_provider_plans,
+                installation.as_ref().map(|row| row.terminal_selection()),
+                input
+                    .selected_program_entry_call()
+                    .map(|entry| (entry.boundary(), entry.entry())),
+            ))
+        });
     Ok(AdmittedNativeProviders {
         installed_interrupts,
         settlements,
@@ -306,5 +336,6 @@ pub fn admit_native_providers<'request>(
             terminal_authority_closure_review,
         ),
         installation,
+        program_provider_context,
     })
 }

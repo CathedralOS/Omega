@@ -41,6 +41,26 @@ pub(super) fn prepare(
         installation,
         request.profile,
     )?;
+    // A private callback's provider installation describes its own executed
+    // calls. The original program entry is checked with the choices already
+    // admitted for that program, retaining its exact selected entry bridge.
+    let program_calls = if let Some(context) = request.program_provider_context {
+        context.require(
+            artifact.view().identity(),
+            request.profile,
+            request.selected_provider_plans,
+        )?;
+        Some(super::super::selected_synchronous_call_graph(
+            artifact.view(),
+            input.target_machine_selections(),
+            context.entry_bridge(),
+            context.providers(),
+            request.profile,
+        )?)
+    } else {
+        None
+    };
+    let assumed_calls = program_calls.as_ref().unwrap_or(&calls);
     let mut reached = input
         .plan()
         .operations()
@@ -72,7 +92,11 @@ pub(super) fn prepare(
     assumed_entries.dedup();
     let assumed_entries = assumed_entries
         .into_iter()
-        .map(|entry| calls.from_root(entry).map(|closure| (entry, closure)))
+        .map(|entry| {
+            assumed_calls
+                .from_root(entry)
+                .map(|closure| (entry, closure))
+        })
         .collect::<Result<Vec<_>, _>>()?;
     for registration in &module.installed_interrupt_registrations {
         // Installation entries are scoped by the actual executable operations.

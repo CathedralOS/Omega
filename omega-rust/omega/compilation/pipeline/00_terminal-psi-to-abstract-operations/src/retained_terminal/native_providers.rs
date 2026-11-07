@@ -168,6 +168,7 @@ impl PreparedRetainedNativeProviders<'_> {
             providers: ProviderAdmissionRequest {
                 profile: proposal.target_profile(),
                 bootstrap_entry: proposal.program_entry().checked_entry().terminal_entry(),
+                program_provider_context: None,
                 installation_assumptions,
                 selected_provider_plans: &self.execution.selection,
                 checked_adapters: &self.execution.local_adapters,

@@ -88,6 +88,11 @@ pub struct ProviderAdmissionRequest<'request, 'execution> {
     /// consume the same operation without impersonating a ProgramEntry.
     pub profile: target::TargetProfile,
     pub bootstrap_entry: semantic_vocabulary::MachineId,
+    /// The successful program admission's choices, used only to inspect the
+    /// original assumption entry during private-body realization. Executed
+    /// providers and authority continue to come from this invocation's plan.
+    pub program_provider_context:
+        Option<&'request std::sync::Arc<super::AdmittedProgramProviderContext>>,
     pub installation_assumptions:
         &'request [installation_evidence::InstallationEnvironmentAssumption],
     pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,

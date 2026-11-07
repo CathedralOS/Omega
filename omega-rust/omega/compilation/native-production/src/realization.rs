@@ -120,12 +120,14 @@ pub(crate) fn realize_native_artifact(
         runtime_provisions,
     } = admit_realization(&artifact, input, &request)?;
     let private_entry_ram = input.private_entry_ram().to_vec();
+    let program_provider_context = providers.program_provider_context().clone();
     let emitted = phase_profile::scope("omega.native.emit_realization_object", || {
         emit_realization_object(
             input,
             providers.installation.take(),
             &providers.settlements,
             entry_settlement.as_ref(),
+            &program_provider_context,
             &request,
         )
     })?;
