@@ -1,3 +1,6 @@
+// Unit tests for cache lock path-identity verification, cold-key creation race
+// contention, lock wait deadlines, and namespace/invalidation error precedence.
+
 use super::{
     CacheCustodyKind, CacheEntryLock, SourceResolveError, open_absolute_directory_nofollow,
     temp_root, verify_cache_lock_path_identity, verify_cache_lock_path_identity_for_test,
@@ -69,10 +72,6 @@ fn cache_lock_identity_rejects_a_replaced_parent_path() {
     }
 }
 
-/// Parallel compiler runs that share one cold snapshot key all reach its lock
-/// file before any of them has created it. Every contender must open the one
-/// file the winner created; a lost creation race is contention, not a custody
-/// failure.
 #[test]
 fn contended_cold_cache_lock_creation_admits_every_acquirer() {
     const CONTENDERS: usize = 8;

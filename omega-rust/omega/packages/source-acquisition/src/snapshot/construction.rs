@@ -1,4 +1,5 @@
-//! Capability-relative snapshot directory, file, and symlink construction.
+// Capability-relative snapshot directory, file, and symlink construction under
+// an open staging root (`FollowSymlinks::No` and `create_new(true)`).
 
 use crate::SourceResolveError;
 use crate::custody::tree::{CacheCustodyKind, cache_custody_invalid};

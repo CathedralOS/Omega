@@ -1,16 +1,19 @@
-//! Operator-owned primary Git selection before package input is inspected.
+// Operator-owned primary Git executable selection frozen before inspecting
+// package-controlled input.
+//
+// `PrimaryGitSelection::capture` freezes one canonical Git executable path: an
+// explicit operator path takes precedence without falling back to `PATH`, while
+// automatic selection snapshots `PATH` once, considers only absolute entries,
+// skips any candidate or canonical target inside `package_controlled_roots`,
+// and verifies launchability (`git` on Unix, direct `git.exe` on Windows).
+// `capture_optional` allows local-only storage sessions to initialize when Git
+// is absent on the host.
 
 use super::validation::verify_git_executable_launchability;
 use crate::SourceResolveError;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-/// One primary Git executable frozen before package-controlled input is read.
-///
-/// The explicit path, when present, is an operator input and takes precedence
-/// over `PATH`. Otherwise `PATH` is snapshotted once by [`Self::capture`].
-/// Callers should provide every package-controlled workspace, source, build,
-/// quarantine, and cache root already known at operation start.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrimaryGitSelection {
     pub(crate) path: PathBuf,
@@ -25,8 +28,6 @@ impl PrimaryGitSelection {
             .ok_or(SourceResolveError::GitExecutableUnavailable)
     }
 
-    /// Freeze the selected Git when one is available without making Git a
-    /// prerequisite for storage sessions that only resolve local sources.
     pub(crate) fn capture_optional(
         explicit_operator_path: Option<&Path>,
         package_controlled_roots: &[PathBuf],

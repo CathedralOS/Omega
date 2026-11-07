@@ -1,4 +1,9 @@
-//! Whole-root operation-local pins never refresh a mutable selector.
+// Whole-root operation-local pin tests verifying that pinned acquisitions reject
+// mismatched requests, absent caches, and tampered metadata or snapshots without
+// refetching mutable selectors. Off Unix, `permissions.set_readonly(false)` is
+// used to make retained fixture files writable during tamper simulation because
+// non-Unix platforms lack mode bits.
+
 use super::{
     GIT_CACHE_METADATA, GitSourceRequest, LocalSourceLimits, PathBuf, SourceResolveError,
     SourceResolver, create_git_source, fixture_storage, git_cache_identity, local_git_request,
@@ -137,10 +142,6 @@ fn whole_root_pin_rejects_corrupt_cache_and_changed_snapshot_without_fetch() {
             use std::os::unix::fs::PermissionsExt;
             permissions.set_mode(permissions.mode() | 0o200);
         }
-        // Off Unix there are no permission mode bits, so clearing the read-only
-        // attribute is the only way to make the retained file writable again.
-        // The lint's world-writable concern is a Unix one, and the Unix arm
-        // above widens only the owner bit through `PermissionsExt::set_mode`.
         #[cfg(not(unix))]
         #[allow(clippy::permissions_set_readonly_false)]
         permissions.set_readonly(false);
