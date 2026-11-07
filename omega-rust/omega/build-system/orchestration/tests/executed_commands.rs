@@ -63,13 +63,40 @@ fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
         ("executed_dependency_source_join_exit", 2),
     ] {
         let project = root.join(fixture);
-        let mut session = BuildSession::create(&project.join("build/package-manager")).unwrap();
+        let build_source = project.join("build.omg");
+        let original = std::fs::read_to_string(&build_source).unwrap();
+        // A role change needs an authored decision even for an effect-free
+        // program. Keep the candidate and its execution oracle unchanged.
+        let package = original.replace("Build::application(", "Build::package(");
+        assert_ne!(package, original);
+        std::fs::write(&build_source, package).unwrap();
+        let mut baseline = BuildSession::create(&project.join("build/package-manager")).unwrap();
         let mut options = PackageCommandOptions {
             project_root: project.clone(),
             targets: vec![TargetProfile::host_if_supported().unwrap()],
             offline: true,
             build_inputs: None,
         };
+        let accepted = execute_package_command(
+            PackageCommand::Update {
+                packages: Vec::new(),
+                revision: None,
+            },
+            options.clone(),
+            &mut baseline,
+        )
+        .unwrap();
+        assert_eq!(
+            accepted.status,
+            PackageCommandStatus::Published,
+            "{fixture}: {}",
+            accepted.report
+        );
+        baseline.close().unwrap();
+        let baseline_lock = std::fs::read(project.join("omega.lock")).unwrap();
+        std::fs::write(&build_source, &original).unwrap();
+        let mut session = BuildSession::create(&project.join("build/package-manager")).unwrap();
+        let sponsor = session.resources().evaluation_sponsor().clone();
         let before = counters::source_build_execution_count();
         let mut outcome = execute_package_command(
             PackageCommand::Update {
@@ -85,11 +112,61 @@ fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
             executions,
             "{fixture}: each source runs once; the separate provider-default supplier is counted separately"
         );
-        assert_ne!(outcome.status, PackageCommandStatus::Published);
+        assert_eq!(
+            outcome.status,
+            PackageCommandStatus::ReviewRequired,
+            "{fixture}: {}",
+            outcome.report
+        );
+        assert!(!outcome.review_paths.is_empty());
+        assert!(
+            outcome.review_paths.iter().any(|path| {
+                std::fs::read_to_string(path)
+                    .unwrap()
+                    .lines()
+                    .any(|line| line.starts_with("decision ") && line.ends_with(" pending"))
+            }),
+            "{fixture}: the role change must require an authored decision"
+        );
+        assert_eq!(
+            std::fs::read(project.join("omega.lock")).unwrap(),
+            baseline_lock
+        );
+        assert!(sponsor.consumed_fuel_units() > 0);
         options.targets.clear();
+        if fixture == "executed_dependency_source_join_exit" {
+            accept_decisions(&outcome.review_paths);
+            std::fs::write(
+                &build_source,
+                original.replace(
+                    "../executed_dependency_source_library",
+                    "../changed_missing_source",
+                ),
+            )
+            .unwrap();
+            let error = execute_package_command(
+                PackageCommand::Resume {
+                    kind: PackageCommandKind::Update,
+                },
+                options.clone(),
+                &mut session,
+            )
+            .expect_err("a changed request cannot publish the previously reviewed result");
+            assert!(
+                error.to_string().contains("changed since the proposal"),
+                "{error}"
+            );
+            assert_eq!(
+                std::fs::read(project.join("omega.lock")).unwrap(),
+                baseline_lock
+            );
+            std::fs::write(&build_source, &original).unwrap();
+        }
+        let mut resumes = 0;
         for _ in 0..3 {
             accept_decisions(&outcome.review_paths);
             let before = counters::build_execution_count();
+            let fuel_before = sponsor.consumed_fuel_units();
             outcome = execute_package_command(
                 PackageCommand::Resume {
                     kind: PackageCommandKind::Update,
@@ -98,6 +175,11 @@ fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
                 &mut session,
             )
             .unwrap();
+            resumes += 1;
+            assert!(
+                sponsor.consumed_fuel_units() > fuel_before,
+                "{fixture}: consuming a retained result must charge the current occurrence"
+            );
             assert_eq!(
                 counters::build_execution_count(),
                 before,
@@ -113,39 +195,12 @@ fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
             "{}",
             outcome.report
         );
-        let lock = std::fs::read(project.join("omega.lock")).unwrap();
+        assert!(resumes > 0);
+        assert_eq!(std::fs::read_to_string(&build_source).unwrap(), original);
         execute_accepted_project(&project);
         println!(
             "{fixture}: same-session review published; matching Pure Build executions skipped; native and Terminal exit 0"
         );
-        if fixture == "executed_dependency_source_join_exit" {
-            let build = project.join("build.omg");
-            let source = std::fs::read_to_string(&build).unwrap();
-            std::fs::write(
-                &build,
-                source.replace(
-                    "../executed_dependency_source_library",
-                    "../changed_missing_source",
-                ),
-            )
-            .unwrap();
-            let before = counters::build_execution_count();
-            let error = execute_package_command(
-                PackageCommand::Update {
-                    packages: Vec::new(),
-                    revision: None,
-                },
-                options,
-                &mut session,
-            )
-            .expect_err("changed source requests must not reuse the previous declaration ledger");
-            assert!(
-                format!("{error:?}").contains("changed_missing_source"),
-                "{error:?}"
-            );
-            assert!(counters::build_execution_count() > before);
-            assert_eq!(std::fs::read(project.join("omega.lock")).unwrap(), lock);
-        }
         session.close().unwrap();
     }
 }
