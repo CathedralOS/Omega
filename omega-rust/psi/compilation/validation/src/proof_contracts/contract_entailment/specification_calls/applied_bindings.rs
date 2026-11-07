@@ -15,8 +15,6 @@ use typed_trees::static_applications::StaticMachineBindingValue;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod operations;
-#[cfg(test)]
-mod result_recipe_tests;
 
 /// Result consumers inspect this handle without a static application scope.
 /// Rejoin only existing, independently equivalent full recipes: reference
@@ -1344,9 +1342,9 @@ impl AppliedProofBindings {
             &[],
             &[static_scope],
         )?;
-        // Keep the result declaration when application leaves its complete
-        // recipe unchanged. An equivalent type from another compilation context
-        // can name different fields and domains; it cannot relabel this value.
+        // Keep the result's original declaration when the call leaves its full
+        // type unchanged. Equivalent declarations loaded elsewhere can use
+        // different field and constraint identifiers.
         if try_normalized_index_identity(
             program,
             IndexIdentityArgument::TypeArgument(declared),

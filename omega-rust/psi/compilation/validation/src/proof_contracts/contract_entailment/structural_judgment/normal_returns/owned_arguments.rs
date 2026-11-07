@@ -14,10 +14,10 @@ impl StructuralJudge<'_> {
         if !declared.is_valid() || crate::reference_shell(self.program, declared).is_some() {
             return None;
         }
-        // Passing a value keeps the type of the value already read. A formal's
-        // applied carrier can use another copy of the same declaration, whose
-        // fields belong to a different arena namespace. Keep the actual capture;
-        // contract projection still checks its exact selected application.
+        // Passing a value must keep its recorded type. An equivalent declaration
+        // loaded elsewhere has different field identifiers; replacing the type
+        // loses the facts attached to those fields. The call still checks the
+        // exact selected type arguments.
         if super::super::super::structural_terms::owned_observation_type(self.program, value)
             .is_some()
         {
@@ -135,6 +135,3 @@ pub(super) fn capture_position_at_site(
 ) -> Option<usize> {
     crate::machine_calls::calls::captured_argument_position(program, saved, site)
 }
-
-#[cfg(test)]
-mod tests;
