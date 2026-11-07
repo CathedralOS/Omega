@@ -1,4 +1,5 @@
-//! Join accepted project bytes, staged edits, and complete target decisions.
+// Verified publication of a reviewed `build.omg` replacement and all retained target sections of `omega.lock` (`publish_reviewed_package_change`).
+// Verifies that the project root, staged snapshot, and replacement digests match, that no previously accepted target is dropped, and that neither live local dependencies nor the staged project root changed before committing the transaction.
 
 use package_source::local::operations::resolve_local_source;
 mod error;
@@ -16,13 +17,6 @@ use crate::review::{
 use package_source::local::staging::StagedLocalSnapshot;
 use package_source::{SourceContentDigest, SourceLineage};
 
-/// Publish the exact reviewed declaration and all retained target sections.
-/// No target is silently dropped. Missing acceptance means fresh review; an
-/// edited or mismatched baseline must be reviewed again before publication.
-///
-/// The transaction journal records an accepted intent, not proof of an audit.
-/// A pending-publication error may follow a partial write; recover that intent
-/// under the project mutex before loading the next accepted pair.
 pub fn publish_reviewed_package_change(
     transaction: &mut PackageFileTransaction,
     replacement: &BuildFileReplacement,

@@ -1,3 +1,6 @@
+// We resolve external-local dependency paths relative to the requester's
+// canonical root and re-export cached local source recovery.
+
 mod recovery;
 pub(crate) use recovery::recover_cached_external_local_source;
 

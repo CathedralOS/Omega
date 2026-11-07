@@ -1,3 +1,5 @@
+// Error vocabulary (`PackageChangeError`) for candidate review, policy comparison, and proposed lock target construction.
+
 use crate::lock::{HistoricalPackagePolicyError, PackageLockError};
 use crate::resolution::graph::CanonicalSourceClosureSubjectError;
 use crate::review::{CompileResolvedPackageReviewsError, PackagePolicyChangeError};

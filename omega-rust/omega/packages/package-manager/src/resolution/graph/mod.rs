@@ -1,10 +1,18 @@
-//! Complete dependency-graph construction and identity.
-//!
-//! Source acquisition executes declarations before [`reconcile`] builds the
-//! complete dependency closure. [`accepted`] compares retained lock subjects;
-//! [`git_pins`] selects exact acquisition policy. This file
-//! owns its validated shape ([`ResolvedPackageClosure`]), and [`subject`]
-//! gives that exact closure a canonical review subject.
+/*
+Complete dependency-graph construction, validation, and canonical source-closure identity.
+
+Source acquisition executes declarations before `reconcile` builds the complete
+dependency closure. `ResolvedPackageClosure` validates that the graph is finite,
+reachable from the root, acyclic, free of duplicate `(purpose, alias)` bindings per
+requester, and free of conflicting source resolutions for any `PackageKey`.
+*/
+
+/*
+`accepted` compares executed closures against retained lock subjects without source
+acquisition, `git_pins` enforces repository-level pin preservation during selective
+updates, and `subject` projects the validated closure into a canonical review subject
+(`CanonicalSourceClosureSubject`).
+*/
 
 mod accepted;
 mod git_pins;
@@ -31,10 +39,6 @@ pub(crate) use subject::{
     CanonicalSourceClosureSubjectFingerprint, CanonicalSourceClosureSubjectLimits,
 };
 
-/// A package's stable identity paired with one immutable source selection.
-///
-/// This is source-resolution output only. It does not represent compiler
-/// evidence, capability admission, or an accepted package instance.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ResolvedSourceIdentity {
     key: PackageKey,
@@ -61,20 +65,12 @@ impl ResolvedSourceIdentity {
         Self { key, resolution }
     }
 
-    /// Position of `key` in a canonically sorted package roster.
-    ///
-    /// Every roster in a canonical source closure is sorted by package key, so
-    /// one search answers it; a second spell of the search at a caller is a
-    /// second contract that can drift (two of them filtered on exact identity).
     pub(crate) fn index_in(packages: &[Self], key: &PackageKey) -> Option<usize> {
         packages
             .binary_search_by(|source| source.key().cmp(key))
             .ok()
     }
 
-    /// Position of this exact identity - package key and immutable resolution -
-    /// in a canonically sorted roster. A key match with a different resolution
-    /// is not that identity.
     pub(crate) fn exact_index_in(packages: &[Self], identity: &Self) -> Option<usize> {
         Self::index_in(packages, identity.key()).filter(|position| &packages[*position] == identity)
     }
@@ -88,12 +84,10 @@ impl ResolvedSourceIdentity {
     }
 }
 
-/// One requester-local dependency edge: its authorized context, authored
-/// ordinal within that context, import alias, and exact package target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ResolvedDependency {
     purpose: DependencyPurpose,
-    dependency_index: usize,
+    dependency_index: usize, // zero-based position in the requester's authored rows for this purpose scope
     alias: AliasName,
     target: PackageKey,
 }
@@ -117,8 +111,6 @@ impl ResolvedDependency {
         self.purpose
     }
 
-    /// Zero-based position in the requester's authored rows for this edge's
-    /// purpose scope.
     pub const fn dependency_index(&self) -> usize {
         self.dependency_index
     }
@@ -132,7 +124,6 @@ impl ResolvedDependency {
     }
 }
 
-/// One resolved package and the dependency edges authored by that package.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ResolvedPackageNode {
     source: ResolvedSourceIdentity,
@@ -156,11 +147,6 @@ impl ResolvedPackageNode {
     }
 }
 
-/// A closed, finite source graph before compilation or admission.
-///
-/// Construction validates the complete graph. In particular, every edge is
-/// resolved by exact `PackageKey`; a package with the same declared name but a
-/// different source lineage cannot satisfy the edge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ResolvedPackageClosure {
     root: PackageKey,
@@ -273,7 +259,6 @@ impl ResolvedPackageClosure {
             .map(|position| &self.packages[position])
     }
 
-    /// Dense position in this immutable graph, for request-local side tables.
     pub(crate) fn package_position(&self, key: &PackageKey) -> Option<usize> {
         self.package_indices.get(key).copied()
     }
@@ -310,8 +295,7 @@ pub(crate) enum PackageClosureValidationError {
         key: PackageKey,
     },
     DependencyCycle {
-        /// The first and last entries are the same package.
-        cycle: Vec<PackageKey>,
+        cycle: Vec<PackageKey>, // first and last entries are the same package
     },
 }
 

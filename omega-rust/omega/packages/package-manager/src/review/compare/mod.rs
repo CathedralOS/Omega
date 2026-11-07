@@ -1,8 +1,24 @@
-//! Complete normalized policy deltas; neither decisions nor publication.
+/*
+    We compare one complete fresh candidate review set against retained lock
+    policy or an explicit empty initial baseline (`compare_package_policy_changes`),
+    producing a normalized `PackagePolicyChangeSet` without reacquiring old
+    sources or replaying the compiler.
 
-use package_compilation::build_execution::RestrictedBuildRequest;
+    Comparison binds both inert policy rows and fresh issuer provenance into
+    domain-separated `PackagePolicyChangeFingerprint`s (`fingerprints`), merges
+    baseline and candidate occurrences per package and purpose (`assembly`,
+    `merge`, `projection`), derives shortest canonical dependency paths
+    (`paths`), and identifies root-role contract breaks (`ReviewOnlyRootRoleChange`)
+    and requester-local source replacements (`replacements`) under aggregate
+    `Budget` ceilings (`limits`).
+*/
+
+/*
+    Policy comparison belongs to the package review comparison boundary
+    (`review/compare/mod.rs`).
+*/
+
 mod assembly;
-mod error;
 mod fingerprints;
 mod limits;
 mod merge;
@@ -10,7 +26,6 @@ mod paths;
 mod projection;
 mod replacements;
 
-pub(crate) use error::PackagePolicyChangeError;
 pub(crate) use limits::PackagePolicyChangeLimits;
 pub(crate) use replacements::{PackagePolicyReplacementSite, PackagePolicySourceReplacement};
 
@@ -18,25 +33,133 @@ use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::lock::PackageLockTarget;
-use crate::lock::{PackageAcceptanceRow, PackageCheckedContext};
-use crate::resolution::graph::CanonicalSourceClosureSubjectFingerprint;
-use crate::resolution::graph::{CanonicalSourceClosureSubject, ExactTargetPackageSourceClosure};
-use crate::review::timings;
-use crate::review::{
-    CompilerIssuedPackageReviewSet, ReviewOnlyRootRoleChange, ReviewOnlyRootRoleContract,
+use crate::lock::{PackageAcceptanceRow, PackageCheckedContext, PackageOccurrenceRosterError};
+use crate::resolution::graph::{
+    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectError,
+    CanonicalSourceClosureSubjectFingerprint, ExactTargetPackageSourceClosure,
 };
+use crate::review::CompilerIssuedPackageReviewSet;
+use crate::review::timings;
 use limits::Budget;
+use package_compilation::build_execution::RestrictedBuildRequest;
+use package_evidence::encoding::PackageReviewEncodingError;
 use package_evidence::record::PackagePolicyRowKind;
 use package_source::ImmutableSourceResolution;
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::Digest;
+use std::fmt;
 
-/// Compare one complete fresh candidate against retained policy or an explicit
-/// empty initial baseline. Old content is never reacquired or compiler-replayed.
-/// Removed packages remain present with no candidate resolution or path.
-///
-/// Candidate verification and obligation discharge remain independent. This
-/// function does not reinterpret historical decisions or authorize a transaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum ReviewOnlyRootRoleContract {
+    DependencyCompatibility,
+    ApplicationActivation,
+}
+
+impl ReviewOnlyRootRoleContract {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::DependencyCompatibility => "dependency-compatibility",
+            Self::ApplicationActivation => "application-activation",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ReviewOnlyRootRoleChange {
+    root: PackageKey,
+    baseline_role: BuildDeclarationKind,
+    candidate_role: BuildDeclarationKind,
+    broken_contract: ReviewOnlyRootRoleContract,
+}
+
+impl ReviewOnlyRootRoleChange {
+    pub fn root(&self) -> &PackageKey {
+        &self.root
+    }
+
+    pub const fn baseline_role(&self) -> BuildDeclarationKind {
+        self.baseline_role
+    }
+
+    pub const fn candidate_role(&self) -> BuildDeclarationKind {
+        self.candidate_role
+    }
+
+    pub const fn broken_contract(&self) -> ReviewOnlyRootRoleContract {
+        self.broken_contract
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum PackagePolicyChangeError {
+    TargetMismatch,
+    CandidateReview {
+        package: Option<Box<PackageKey>>,
+        reason: &'static str,
+    },
+    SourceSubject(CanonicalSourceClosureSubjectError),
+    Projection {
+        package: Box<PackageKey>,
+        error: PackageReviewEncodingError,
+    },
+    InvalidSourcePath {
+        package: Box<PackageKey>,
+    },
+    OccurrenceRoster,
+    LimitExceeded {
+        resource: &'static str,
+        maximum: usize,
+    },
+    AllocationFailed,
+}
+
+impl fmt::Display for PackagePolicyChangeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::TargetMismatch => {
+                formatter.write_str("normalized policy comparison requires one exact target")
+            }
+            Self::CandidateReview { package, reason } => write!(
+                formatter,
+                "invalid fresh candidate review {package:?}: {reason}"
+            ),
+            Self::SourceSubject(error) => {
+                write!(formatter, "invalid candidate source subject: {error}")
+            }
+            Self::Projection { package, error } => write!(
+                formatter,
+                "cannot project normalized policy rows for {package:?}: {error}"
+            ),
+            Self::InvalidSourcePath { package } => write!(
+                formatter,
+                "source subject has no bounded path to {package:?}"
+            ),
+            Self::OccurrenceRoster => {
+                formatter.write_str("source subject does not yield a complete occurrence roster")
+            }
+            Self::LimitExceeded { resource, maximum } => write!(
+                formatter,
+                "normalized policy comparison exceeds {resource} limit {maximum}"
+            ),
+            Self::AllocationFailed => {
+                formatter.write_str("normalized policy comparison allocation failed")
+            }
+        }
+    }
+}
+
+impl std::error::Error for PackagePolicyChangeError {}
+
+impl From<PackageOccurrenceRosterError> for PackagePolicyChangeError {
+    fn from(error: PackageOccurrenceRosterError) -> Self {
+        match error {
+            PackageOccurrenceRosterError::AllocationFailed => Self::AllocationFailed,
+            PackageOccurrenceRosterError::UnknownPackage
+            | PackageOccurrenceRosterError::UnreachablePackage => Self::OccurrenceRoster,
+        }
+    }
+}
+
 pub(crate) fn compare_package_policy_changes(
     accepted: Option<&PackageLockTarget>,
     candidate: &CompilerIssuedPackageReviewSet,
@@ -123,7 +246,6 @@ pub(crate) enum PackagePolicyChangeKind {
     Changed,
 }
 
-/// A versioned identity of exact comparison context, never review certification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct PackagePolicyChangeFingerprint([u8; 32]);
 impl PackagePolicyChangeFingerprint {
@@ -179,7 +301,6 @@ impl PackagePolicyRowChange {
     }
 }
 
-/// Source-qualified path from one side's root, without old filesystem custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePolicyDependencyPath {
     root: PackageKeyIdentity,
@@ -220,17 +341,9 @@ pub(crate) struct PackagePolicyPackageChange {
     candidate_resolution: Option<ImmutableSourceResolution>,
     baseline_path: Option<PackagePolicyDependencyPath>,
     candidate_path: Option<PackagePolicyDependencyPath>,
-    /// The candidate's normalized restricted build-host requests — what this
-    /// package's build machine asks of the host before it may run. They are
-    /// admission intent surfaced beside, never inside, this package's
-    /// product-authority rows; accepting the rows does not accept host reach.
-    restricted_build_requests: Vec<RestrictedBuildRequest>,
-    /// The occurrences the accepted baseline consented to, joined from the
-    /// source-graph roster; empty when the package has no baseline.
-    baseline_occurrence_contexts: Vec<PackageCheckedContext>,
-    /// The occurrences the candidate review answers for, joined from the
-    /// candidate roster; empty when the package left the closure.
-    candidate_occurrence_contexts: Vec<PackageCheckedContext>,
+    restricted_build_requests: Vec<RestrictedBuildRequest>, // Normalized restricted build-host requests surfaced beside product-authority rows.
+    baseline_occurrence_contexts: Vec<PackageCheckedContext>, // Occurrences the accepted baseline consented to.
+    candidate_occurrence_contexts: Vec<PackageCheckedContext>, // Occurrences the candidate review answers for.
     source_changed: bool,
     source_association_changed: bool,
     audit_recommended: bool,
@@ -259,22 +372,15 @@ impl PackagePolicyPackageChange {
     pub const fn source_association_changed(&self) -> bool {
         self.source_association_changed
     }
-    /// The candidate's restricted build-host requests in issue order
-    /// (wiki/spec/packages/acceptance.md#restricted-build-acceptance). Empty
-    /// when the package has no build machine or its build asks nothing of
-    /// the host.
     pub fn restricted_build_requests(&self) -> &[RestrictedBuildRequest] {
         &self.restricted_build_requests
     }
-    /// Exact retained checked occurrences; empty when the package has no baseline.
     pub(crate) fn baseline_occurrence_contexts(&self) -> &[PackageCheckedContext] {
         &self.baseline_occurrence_contexts
     }
-    /// Exact candidate checked occurrences; empty when the package left the closure.
     pub(crate) fn candidate_occurrence_contexts(&self) -> &[PackageCheckedContext] {
         &self.candidate_occurrence_contexts
     }
-    /// Context changes remain audit-visible even when benign policy has no rows.
     pub(crate) fn occurrence_contexts_changed(&self) -> bool {
         self.baseline_occurrence_contexts != self.candidate_occurrence_contexts
     }
@@ -291,8 +397,6 @@ impl PackagePolicyPackageChange {
     }
 }
 
-/// Complete package-key union. Unchanged candidates remain visible for audit.
-/// Historical resolutions cannot consume this type through a legacy adapter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePolicyChangeSet {
     baseline_source_subject: Option<CanonicalSourceClosureSubjectFingerprint>,

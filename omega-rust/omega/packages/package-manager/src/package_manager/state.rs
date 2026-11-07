@@ -1,4 +1,4 @@
-//! Command proposal and editable findings, separate from publication intent.
+// Retained-root record helpers for command proposals (`proposal`) and editable review documents (`review-<target>.txt`) inside `build/package-manager`.
 
 use super::{PackageCommandError, PackageCommandOutcome, PackageCommandStatus, failure};
 use crate::operations::{PackageFileTransaction, PackagePublicationError};

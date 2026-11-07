@@ -1,4 +1,5 @@
-//! Readable source-qualified keys and immutable resolutions.
+// We format and parse readable source-qualified package keys, lineages, and
+// immutable resolutions in canonical source-closure text records.
 
 use super::super::hex_length;
 use super::framing::{Reader, Writer};

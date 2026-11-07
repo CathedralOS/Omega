@@ -1,4 +1,9 @@
-//! Comparison identities bind both inert policy and fresh issuer provenance.
+// We compute domain-separated SHA-256 comparison fingerprints
+// (`PackagePolicyChangeFingerprint`) binding both inert policy rows and fresh
+// issuer provenance (source consumption commitment, policy commitment, selected
+// build machine identity, and build observation commitment), along with paths,
+// occurrence contexts, and change flags.
+
 use super::{
     PackagePolicyChangeFingerprint, PackagePolicyChangeKind, PackagePolicyDependencyPath,
     PackagePolicyPackageChange, PackagePolicyReplacementSite,
@@ -17,7 +22,6 @@ pub(super) fn context(
 ) -> Sha256 {
     let mut hash = Sha256::new();
     field(&mut hash, b"OMEGA-PACKAGE-POLICY-COMPARISON-CONTEXT\0");
-    // Each role has independently retained policy and a checked execution context.
     hash.update(4_u16.to_le_bytes());
     hash.update(PACKAGE_POLICY_ROW_VERSION.to_le_bytes());
     hash.update([u8::from(accepted.is_some())]);
@@ -74,13 +78,9 @@ pub(super) fn finish_package(
 ) {
     let mut hash = Sha256::new();
     field(&mut hash, b"OMEGA-PACKAGE-POLICY-PACKAGE-CHANGE\0");
-    // Package summaries retain full checked contexts, including empty policy.
     hash.update(3_u16.to_le_bytes());
     field(&mut hash, &context.digest());
     field(&mut hash, &package.key.identity().digest());
-    // The context contains both exact immutable source resolutions, including
-    // absence. Paths, purposes, and flags are also bound explicitly for
-    // report consumers.
     path(&mut hash, package.baseline_path.as_ref());
     path(&mut hash, package.candidate_path.as_ref());
     context_set(&mut hash, &package.baseline_occurrence_contexts);

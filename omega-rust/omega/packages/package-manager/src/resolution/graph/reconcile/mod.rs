@@ -1,7 +1,20 @@
-//! Bounded traversal and reconciliation of the complete package source closure.
-//!
-//! Source custody defines what was selected, resolution traverses every
-//! declared request, and the resolved closure exposes the validated result.
+/*
+    We perform bounded traversal and reconciliation of the complete package
+    source closure. Source custody defines what was selected, resolution
+    traverses every declared request, and the resolved closure exposes the
+    validated result.
+
+    Dependency-row ordinals keep repeated otherwise-identical authored requests
+    distinguishable along root-to-dependency explanation paths. Applications may
+    be selected only as the closure root; non-package dependency roles,
+    conflicting custodies for a single `PackageKey`, alias collisions, and
+    exceeded package/request/depth ceilings all fail closed.
+*/
+
+/*
+    Source-closure reconciliation belongs to the package graph layer
+    (`resolution/graph/reconcile/mod.rs`).
+*/
 
 mod dependency_paths;
 mod resolution;
@@ -22,7 +35,6 @@ use crate::resolution::source::PackageSourceCustody;
 pub(crate) use resolution::{PendingSourceResolution, SourceClosureStep, begin_source_closure};
 use std::fmt;
 
-/// One exact requester-local edge in a root-to-dependency path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DependencyRequestPathStep {
     requester: PackageKey,
@@ -42,10 +54,6 @@ impl DependencyRequestPathStep {
     }
 }
 
-/// One exact path by which source resolution discovered a package custody.
-///
-/// The root custody has an empty `steps` sequence. Dependency-row ordinals
-/// keep repeated otherwise-identical authored requests distinguishable.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DependencyRequestPath {
     root: PackageKey,
@@ -62,8 +70,6 @@ impl DependencyRequestPath {
     }
 }
 
-/// One distinct custody observed for a conflicted `PackageKey`, together with
-/// every dependency path that produced that exact custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageSourceClosureConflictCandidate {
     custody: PackageSourceCustody,
@@ -72,7 +78,6 @@ pub(crate) struct PackageSourceClosureConflictCandidate {
 
 impl PackageSourceClosureConflictCandidate {}
 
-/// All distinct source custodies observed for one conflicting package key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageSourceClosureConflict {
     key: PackageKey,
@@ -81,7 +86,6 @@ pub(crate) struct PackageSourceClosureConflict {
 
 impl PackageSourceClosureConflict {}
 
-/// Resolver-work ceilings applied across one complete source closure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PackageSourceClosureLimits {
     pub max_packages: usize,
@@ -108,13 +112,10 @@ pub(crate) enum PackageSourceClosureLimitKind {
 
 #[derive(Debug)]
 pub(crate) enum PackageSourceClosureResolutionError<E> {
-    /// The adapter could not resolve one projected dependency request.
     Adapter {
         requester: PackageKey,
         purpose: DependencyPurpose,
         dependency_index: usize,
-        /// The exact outstanding request the adapter refused; retained for the
-        /// test that pins the occurrence, so only that configuration reads it.
         #[cfg(test)]
         request: DependencySourceRequest,
         error: E,
@@ -123,16 +124,12 @@ pub(crate) enum PackageSourceClosureResolutionError<E> {
         kind: PackageSourceClosureLimitKind,
         limit: usize,
     },
-    /// One or more package keys produced non-identical immutable custody.
     ConflictingCustody {
         conflicts: Vec<PackageSourceClosureConflict>,
     },
-    /// Final exact graph validation rejected the fully traversed closure.
     InvalidClosure {
         errors: Vec<PackageClosureValidationError>,
     },
-    /// A dependency adapter returned a source whose authored role is not
-    /// importable. Applications may be selected only as the closure root.
     InvalidDependencyRole {
         requester: PackageKey,
         purpose: DependencyPurpose,
@@ -140,8 +137,6 @@ pub(crate) enum PackageSourceClosureResolutionError<E> {
         selected: PackageKey,
         role: BuildDeclarationKind,
     },
-    /// Requester-local aliases conflict after package-authored names have been
-    /// recovered from source custody.
     InvalidAliases {
         requester: PackageKey,
         purpose: DependencyPurpose,

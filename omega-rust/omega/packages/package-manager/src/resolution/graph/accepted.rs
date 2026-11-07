@@ -1,4 +1,4 @@
-//! Accepted-source comparisons over executed graphs, without source acquisition.
+// Accepted-source comparisons over executed graphs (`admit_locked_source_request`, `admit_locked_issued_source_request`, and `mutable_local_graph_matches`) without performing source acquisition.
 
 use crate::declarations::PackageKey;
 use crate::declarations::dependencies::read::{DependencyPurpose, DependencySourceRequest};
@@ -10,7 +10,6 @@ use crate::resolution::graph::{
 };
 use crate::resolution::source::PackageSourceCustody;
 
-/// Refuse a changed edge before fetching or opening its selected source.
 pub(crate) fn admit_locked_source_request(
     subject: &CanonicalSourceClosureSubject,
     pending: &super::reconcile::PendingSourceResolution,
@@ -40,9 +39,6 @@ pub(crate) fn admit_locked_source_request(
     Ok(())
 }
 
-/// A suspended Build has acquired source identity, not a returned package name.
-/// Admit only an existing exact request occurrence at that identity. The final
-/// graph still checks the returned name and complete dependency projection.
 pub(crate) fn admit_locked_issued_source_request(
     subject: &CanonicalSourceClosureSubject,
     origin: crate::resolution::source::SourceAcquisitionOrigin<'_>,
@@ -183,8 +179,6 @@ fn local_root_context_matches(
     ) if source_context == actual)
 }
 
-/// Compare typed graph fields; never rewrite or re-encode a recovered record
-/// to manufacture a subject matching the edited root.
 pub(crate) fn mutable_local_graph_matches(
     recorded: &CanonicalSourceClosureSubject,
     closure: &ResolvedPackageSourceClosure,

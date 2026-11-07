@@ -1,3 +1,8 @@
+// We compute the first canonical breadth-first dependency path
+// (`PackagePolicyDependencyPath`) from a source closure subject's root to each
+// package. Diamond edges remain bound by the full source subject even though
+// the diagnostic path selects one shortest occurrence.
+
 use super::{
     PackagePolicyChangeError as Error, PackagePolicyDependencyPath,
     PackagePolicyDependencyPathStep, limits::Budget,
@@ -5,8 +10,6 @@ use super::{
 use crate::declarations::PackageKey;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 
-/// First canonical breadth-first path. Diamond edges remain bound by the full
-/// source subject even though the diagnostic path chooses one occurrence.
 pub(super) struct Paths<'a> {
     subject: &'a CanonicalSourceClosureSubject,
     root: usize,

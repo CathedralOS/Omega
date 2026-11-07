@@ -1,3 +1,7 @@
+// We validate package keys, source lineages, source identities, package
+// navigations, Git selections, and byte-length ceilings for canonical
+// source-closure subjects.
+
 use super::super::CanonicalSourceClosureSubjectError;
 use super::super::usage::Budget;
 use crate::declarations::PackageKey;

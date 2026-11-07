@@ -1,11 +1,11 @@
-//! Snapshot capture, entry classification, and fixed metadata rendering.
+// We capture verified package source snapshots from in-memory captures or
+// physical custody roots, classify entries as model-readable text or binary
+// payloads requiring standalone audit, and render fixed snapshot metadata.
 
-use super::diff::{DiffBudget, myers_diff, render_hunks, source_line_count, split_lines};
-use super::output::BoundedOutput;
-use super::patch::PackageSourcePatchSide;
 use super::{
-    MAXIMUM_BYTES_PER_SNAPSHOT, MAXIMUM_ENTRIES_PER_SNAPSHOT, MAXIMUM_METADATA_BYTES_PER_SNAPSHOT,
-    PackageSourcePatchError,
+    BoundedOutput, DiffBudget, MAXIMUM_BYTES_PER_SNAPSHOT, MAXIMUM_ENTRIES_PER_SNAPSHOT,
+    MAXIMUM_METADATA_BYTES_PER_SNAPSHOT, PackageSourcePatchError, PackageSourcePatchSide,
+    myers_diff, render_hunks, source_line_count, split_lines,
 };
 use crate::Hex;
 use crate::resolution::source::PackageSourceCustody;
@@ -120,8 +120,6 @@ pub(super) fn capture_snapshot(
     Ok(captured)
 }
 
-/// Render the same immutable namespace that the compiler consumed. A live
-/// checkout's later contents or permissions cannot replace this source view.
 fn captured_entries(
     tree: &source::CapturedSourceTree,
     limits: LocalSourceLimits,

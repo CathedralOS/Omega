@@ -1,3 +1,8 @@
+// We enforce aggregate resource ceilings (`PackagePolicyChangeLimits` and
+// `Budget`) across both complete comparison inputs, tracking context bytes,
+// projected rows, owned bytes, sequence elements, changed rows, and source
+// replacements without resetting per package.
+
 use super::{
     PackagePolicyChangeError as Error, PackagePolicyPackageChange, PackagePolicyRowChange,
 };
@@ -7,22 +12,15 @@ use crate::resolution::graph::CanonicalSourceClosureSubjectLimits;
 use package_evidence::record::{PackagePolicyRowLimits, PackagePolicyRowUsage};
 use package_source::SourceLineage;
 
-/// Aggregate ceilings across both complete inputs, not a reset per package.
-/// Context bytes count canonical source and fresh review inputs and requested
-/// scratch/path/key storage. Source-subject construction has its own bounded
-/// model and temporary storage; that storage is not charged as context bytes.
-/// These limits do not measure allocator overhead or process memory.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PackagePolicyChangeLimits {
     pub maximum_packages: usize,
     pub maximum_rows: usize,
     pub maximum_projection_owned_bytes: usize,
     pub maximum_projection_elements: usize,
-    /// Combined policy-row changes and source-replacement findings.
-    pub maximum_changed_rows: usize,
+    pub maximum_changed_rows: usize, // Combined policy-row changes and source-replacement findings.
     pub maximum_changed_owned_bytes: usize,
-    /// Per diagnostic path. Combined retained path storage is context-bounded.
-    pub maximum_dependency_path_steps: usize,
+    pub maximum_dependency_path_steps: usize, // Per diagnostic path; combined retained path storage is context-bounded.
     pub maximum_context_bytes: usize,
 }
 impl Default for PackagePolicyChangeLimits {
@@ -194,8 +192,6 @@ pub(super) fn row_bytes(row: &PackageAcceptanceRow) -> Result<usize, Error> {
         .and_then(|bytes| bytes.checked_add(row.canonical_text().len()))
         .ok_or(Error::AllocationFailed)
 }
-/// Reserve `additional` values before a projection appends them, so an
-/// allocation failure surfaces as a comparison error rather than a panic.
 pub(super) fn reserve<T>(items: &mut Vec<T>, additional: usize) -> Result<(), Error> {
     items
         .try_reserve_exact(additional)
