@@ -14,6 +14,7 @@ use terminal_semantics::descriptor_results::{
 };
 
 use super::context::ReviewContext;
+use super::windows_handle_arguments::closed_argument_roots;
 use super::windows_handle_calls::{
     CallTarget, Caller, HandleCallGraph, RuntimeArguments, RuntimeCall,
 };
@@ -117,18 +118,13 @@ impl<'a> WindowsHandleInputs<'a> {
                         if reviewed.contract == WindowsHandleContract::DuplicateHandle {
                             duplicate_sites.insert(call.caller);
                         }
-                        roots.extend(scalars.values().cloned());
-                        if natives
-                            .insert(
-                                call.caller,
-                                NativeHandleInput {
-                                    call,
-                                    reviewed,
-                                    scalars,
-                                },
-                            )
-                            .is_some()
-                        {
+                        let input = NativeHandleInput {
+                            call,
+                            reviewed,
+                            scalars,
+                        };
+                        roots.extend(closed_argument_roots(&input)?);
+                        if natives.insert(call.caller, input).is_some() {
                             return Err(format!(
                                 "handle API {:?} has conflicting executable alternatives",
                                 call.caller

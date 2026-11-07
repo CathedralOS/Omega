@@ -114,6 +114,37 @@ pub(super) enum PreparedHandleArguments {
     CurrentValues,
 }
 
+/// Only protocol constants need backward closed-value equations. Actual handle
+/// words, access-dependent buffers and opaque arguments are read and checked at
+/// every reached native occurrence by the forward lifetime replay. Requiring a
+/// context-free storage origin for them would reject valid captured aliases
+/// before their actual caller and selected case can be examined.
+pub(super) fn closed_argument_roots(
+    input: &NativeHandleInput<'_>,
+) -> Result<Vec<ScalarSubject>, String> {
+    let ordinals: &[usize] = match input.reviewed.contract {
+        WindowsHandleContract::CreateFile => &[2, 3, 5, 6],
+        WindowsHandleContract::DuplicateHandle => &[0, 2, 5, 6],
+        WindowsHandleContract::QueryFileMode => &[3, 4],
+        WindowsHandleContract::ReadFile | WindowsHandleContract::WriteFile => &[3],
+        WindowsHandleContract::QueryFinalPath => &[2],
+        WindowsHandleContract::NoHandleIntervention
+        | WindowsHandleContract::CurrentProcess
+        | WindowsHandleContract::CloseHandle => &[],
+    };
+    ordinals
+        .iter()
+        .map(|ordinal| {
+            input.scalars.get(ordinal).cloned().ok_or_else(|| {
+                format!(
+                    "native {:?} omits closed protocol argument {ordinal}",
+                    input.call.caller
+                )
+            })
+        })
+        .collect()
+}
+
 /// Solve the complete original scalar equations once. Execution consumes
 /// owned argument receipts without keeping a self-reference into its inputs
 /// or rebuilding the origin graph at each dynamic call.
