@@ -3,7 +3,9 @@
 mod lifecycle_execution;
 mod primitive_selection;
 mod sealed_accessors;
-pub use lifecycle_execution::{AccessContentShape, AccessExecutionDeclaration};
+pub use lifecycle_execution::{
+    AccessBackingOutcome, AccessBackingTransfer, AccessContentShape, AccessExecutionDeclaration,
+};
 pub use primitive_selection::AccessorPrimitive;
 pub use sealed_accessors::{ScalarAccessorDeclaration, ScalarAccessorOperation};
 

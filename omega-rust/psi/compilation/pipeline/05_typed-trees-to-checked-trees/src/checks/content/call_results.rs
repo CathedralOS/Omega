@@ -425,6 +425,25 @@ pub(super) fn check_call_result_qualifications(
                 failure_reason = Some("the exact invocation has no retained input signature");
                 return None;
             };
+            if let Some(outcomes) = super::retained_custody::lifecycle_backing_transfers(
+                program, target_symbol, parameters, invocation.result_type(program)?, projection,
+            ) {
+                let outcome = outcomes.iter().find(|outcome| outcome.iter().any(|transfer| transfer.output == *path))?;
+                let mut consumed = Vec::new();
+                let mut returned = Vec::new();
+                for transfer in outcome {
+                    let input = input_claim(program, facts, &invocation, parameters,
+                        transfer.parameter, &transfer.input, projection)?;
+                    let output = result_claim(program, facts, &invocation, &transfer.output)?;
+                    if consumed.contains(&input) || returned.contains(&output) {
+                        failure_reason = Some("the placement outcome duplicates an input or output backing claim");
+                        return None;
+                    }
+                    consumed.push(input);
+                    returned.push(output);
+                }
+                return Some(());
+            }
             if facts
                 .qualifications
                 .content

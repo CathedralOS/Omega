@@ -41,7 +41,117 @@ pub struct AccessExecutionDeclaration {
     template: symbols::SymbolHandle,
 }
 
+/// A backing owner is forwarded, not issued, by a private lifecycle operation.
+/// Paths are relative to the named outcome and input parameter. Consumers must
+/// resolve them against the exact applied signature and check live claims.
+pub struct AccessBackingTransfer {
+    pub parameter: usize,
+    pub input: &'static str,
+    pub output: &'static str,
+}
+
+pub struct AccessBackingOutcome {
+    pub case: &'static str,
+    pub transfers: &'static [AccessBackingTransfer],
+}
+
 impl AccessExecutionDeclaration {
+    /// The operation's ownership contract is independent of its scalar geometry
+    /// facts. Every outcome returns each consumed backing exactly once; content
+    /// establishment/extraction remains a separate operation-specific judgment.
+    pub fn backing_outcomes(&self) -> &'static [AccessBackingOutcome] {
+        use AccessBackingOutcome as Outcome;
+        use AccessBackingTransfer as Transfer;
+        match (self.operation, self.content) {
+            (AccessLifecycleOperation::Initialize, AccessContentShape::Run) => &[
+                Outcome {
+                    case: "Ready",
+                    transfers: &[Transfer {
+                        parameter: 0,
+                        input: "",
+                        output: "view.storage",
+                    }],
+                },
+                Outcome {
+                    case: "Rejected",
+                    transfers: &[Transfer {
+                        parameter: 0,
+                        input: "",
+                        output: "returned.source",
+                    }],
+                },
+            ],
+            (AccessLifecycleOperation::Initialize, AccessContentShape::Resident) => &[
+                Outcome {
+                    case: "Ready",
+                    transfers: &[Transfer {
+                        parameter: 0,
+                        input: "",
+                        output: "view",
+                    }],
+                },
+                Outcome {
+                    case: "Rejected",
+                    transfers: &[Transfer {
+                        parameter: 0,
+                        input: "",
+                        output: "returned.source",
+                    }],
+                },
+            ],
+            (AccessLifecycleOperation::MoveOut, AccessContentShape::Run) => &[Outcome {
+                case: "Moved",
+                transfers: &[Transfer {
+                    parameter: 0,
+                    input: "storage",
+                    output: "storage",
+                }],
+            }],
+            (AccessLifecycleOperation::MoveOut, AccessContentShape::Resident) => &[Outcome {
+                case: "Moved",
+                transfers: &[Transfer {
+                    parameter: 0,
+                    input: "",
+                    output: "storage",
+                }],
+            }],
+            (AccessLifecycleOperation::Relocate, AccessContentShape::Run) => &[
+                Outcome {
+                    case: "Ready",
+                    transfers: &[
+                        Transfer {
+                            parameter: 1,
+                            input: "",
+                            output: "view.run.storage",
+                        },
+                        Transfer {
+                            parameter: 0,
+                            input: "storage",
+                            output: "view.vacated",
+                        },
+                    ],
+                },
+                Outcome {
+                    case: "Rejected",
+                    transfers: &[
+                        Transfer {
+                            parameter: 0,
+                            input: "storage",
+                            output: "returned.source.storage",
+                        },
+                        Transfer {
+                            parameter: 1,
+                            input: "",
+                            output: "returned.custody",
+                        },
+                    ],
+                },
+            ],
+            (AccessLifecycleOperation::View, _)
+            | (AccessLifecycleOperation::Relocate, AccessContentShape::Resident) => &[],
+        }
+    }
+
     pub const fn content(&self) -> AccessContentShape {
         self.content
     }

@@ -29,49 +29,10 @@ impl StructuralJudge<'_> {
         else {
             return Some(Vec::new());
         };
-        let outcomes: &[(&str, &[(usize, &str, &str, &[&str])])] =
-            match (declaration.operation(), declaration.content()) {
-                (AccessLifecycleOperation::Initialize, AccessContentShape::Run) => &[
-                    ("Ready", &[(0, "", "view.storage", &["base", "length"])]),
-                    (
-                        "Rejected",
-                        &[(0, "", "returned.source", &["base", "length"])],
-                    ),
-                ],
-                (AccessLifecycleOperation::Initialize, AccessContentShape::Resident) => &[
-                    ("Ready", &[(0, "", "view", &["base", "length"])]),
-                    (
-                        "Rejected",
-                        &[(0, "", "returned.source", &["base", "length"])],
-                    ),
-                ],
-                (AccessLifecycleOperation::MoveOut, AccessContentShape::Run) => {
-                    &[("Moved", &[(0, "storage", "storage", &["base", "length"])])]
-                }
-                (AccessLifecycleOperation::MoveOut, AccessContentShape::Resident) => {
-                    &[("Moved", &[(0, "", "storage", &["base", "length"])])]
-                }
-                (AccessLifecycleOperation::View, _) => return Some(Vec::new()),
-                (AccessLifecycleOperation::Relocate, AccessContentShape::Run) => &[
-                    (
-                        "Ready",
-                        &[
-                            (1, "", "view.run.storage", &["base", "length"]),
-                            (0, "storage", "view.vacated", &["base", "length"]),
-                            (0, "", "view.run", &["count"]),
-                        ],
-                    ),
-                    (
-                        "Rejected",
-                        &[
-                            (0, "storage", "returned.source.storage", &["base", "length"]),
-                            (1, "", "returned.custody", &["base", "length"]),
-                            (0, "", "returned.source", &["count"]),
-                        ],
-                    ),
-                ],
-                (AccessLifecycleOperation::Relocate, AccessContentShape::Resident) => return None,
-            };
+        let outcomes = declaration.backing_outcomes();
+        if outcomes.is_empty() {
+            return (declaration.operation() == AccessLifecycleOperation::View).then(Vec::new);
+        }
         let result @ StructuralTerm::CapturedValue { result_type, .. } = result? else {
             return None;
         };
@@ -82,29 +43,49 @@ impl StructuralJudge<'_> {
             .data_application_definition(result_type)
             .or_else(|| program.closed_data_definition(result_type))?;
         let mut guarantees = Vec::with_capacity(outcomes.len());
-        for (case_name, coordinates) in outcomes {
+        for outcome in outcomes {
             let case = program
                 .data_members(definition)
                 .iter()
                 .find_map(|member| match member {
-                    DataMember::Variant(case) if case.name.as_str() == *case_name => Some(case),
+                    DataMember::Variant(case) if case.name.as_str() == outcome.case => Some(case),
                     _ => None,
                 })?;
             let mut equations = Vec::new();
-            for (position, input_path, result_path, fields) in *coordinates {
-                let parameter = prepared.parameters.get(*position)?.symbol;
+            for transfer in outcome.transfers {
+                let parameter = prepared.parameters.get(transfer.parameter)?.symbol;
                 let source = &prepared
                     .bindings
                     .entry_bindings
                     .iter()
                     .find(|(symbol, _)| *symbol == parameter)?
                     .1;
-                for field in *fields {
+                for field in ["base", "length"] {
                     equations.push(CapturedResultEquation::public((
-                        project(result, result_path, field),
-                        project(source, input_path, field),
+                        project(result, transfer.output, field),
+                        project(source, transfer.input, field),
                     )));
                 }
+            }
+            if declaration.operation() == AccessLifecycleOperation::Relocate
+                && declaration.content() == AccessContentShape::Run
+            {
+                let parameter = prepared.parameters.first()?.symbol;
+                let source = &prepared
+                    .bindings
+                    .entry_bindings
+                    .iter()
+                    .find(|(symbol, _)| *symbol == parameter)?
+                    .1;
+                let owner = match outcome.case {
+                    "Ready" => "view.run",
+                    "Rejected" => "returned.source",
+                    _ => return None,
+                };
+                equations.push(CapturedResultEquation::public((
+                    project(result, owner, "count"),
+                    project(source, "", "count"),
+                )));
             }
             guarantees.push(ConditionalGuarantees {
                 conditions: vec![(
