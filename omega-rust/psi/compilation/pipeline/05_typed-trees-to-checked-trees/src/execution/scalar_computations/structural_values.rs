@@ -12,8 +12,8 @@
 //! owned or borrowed root may supply an unrestricted child without moving it.
 //! Exact source/path replay and ordinary liveness remain downstream checks.
 use super::{
-    Builder, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType,
-    SymbolHandle, TypeReferenceNode,
+    Builder, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, SymbolHandle,
+    TypeReferenceNode,
 };
 use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::calls::byte_sequence_literal_argument;

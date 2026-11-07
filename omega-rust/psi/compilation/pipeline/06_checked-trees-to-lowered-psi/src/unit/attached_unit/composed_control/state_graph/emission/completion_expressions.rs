@@ -252,7 +252,10 @@ impl StateGraphEmission<'_, '_> {
                     let id = operations.allocate();
                     operations.push(terminal_psi::Operation::unsuspended(
                         id,
-                        scalar_result_declaration(condition, terminal_psi::ScalarType::Boolean),
+                        scalar_result_declaration(
+                            condition,
+                            semantic_vocabulary::ScalarType::Boolean,
+                        ),
                         kind,
                     ));
                     Some(condition)

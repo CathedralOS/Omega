@@ -205,6 +205,7 @@ impl Evaluation {
             CheckedScalarBranchDestination,
             usize,
             checked_trees::FlowClaimJoinExit,
+            &[checked_trees::CheckedSelectedPayloadCopy],
         )],
     ) -> Result<LoweredScalarBranchTerminator, LoweringError> {
         let source = dispatches[0].source;

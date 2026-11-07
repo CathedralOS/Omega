@@ -247,7 +247,7 @@ pub(super) fn build(
             Some(selected_exit),
         ));
     }
-    if *result == CheckedControlResultPlan::Unit {
+    if result == CheckedControlResultPlan::Unit {
         let expression = match statements.get(terminator_index)? {
             StatementNode::Expression(expression) => Some(*expression),
             StatementNode::Transition(transition)
