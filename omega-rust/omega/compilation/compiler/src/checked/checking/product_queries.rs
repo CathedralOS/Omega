@@ -1,12 +1,12 @@
-//! Describe declarations at a paused Build occurrence, without completing Build.
+// We answer declaration queries (`ProductQueries::describe`) at a paused Build
+// occurrence without completing Build. The application supplies acquired
+// dependency inputs rather than source IRs, and repeated queries over equal
+// `ProductQueryInputs` reuse their assembled declaration frontier.
 
 use build_settings::host::bindings::{BuildProductDescription, BuildProductQuery};
 use diagnostics::Diagnostic;
 use package_compilation::source_imports::{ProductQueryDependency, ProductQueryInputs};
 
-/// Invocation-owned query context. The application supplies acquired dependency
-/// inputs, never source IRs or a synthetic completed package. Repeated queries
-/// over the same inputs share their declaration frontier.
 pub struct ProductQueries {
     preparation: compilation_products::SourcePreparation,
     sources: Option<package_compilation::source_assembly::DeferredProductSources>,

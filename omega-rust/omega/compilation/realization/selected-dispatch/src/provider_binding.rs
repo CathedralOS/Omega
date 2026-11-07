@@ -1,6 +1,17 @@
-//! Bind a target's selected implementations using declarations saved before
-//! Terminal publication. Grants, calls and callbacks are checked in order;
-//! this step cannot read source or choose a different implementation.
+/*
+Target-selected provider binding and source-free declaration preparation.
+
+PreparedBindingDeclarations captures the declarations needed to choose
+executable implementations while checked source is available, reporting each
+saved failure at its original binding step so an unused declaration never fails
+early.
+
+prepare_selected_execution then binds a target's selected implementations using
+those saved declarations without reopening source or choosing a different
+implementation. We check grants, calls, and callbacks in order, closing the
+existing exact source association once without needing native ABI publication to
+count calling declarations.
+*/
 
 use crate::SelectedExecution;
 use diagnostics::Diagnostic;
@@ -8,10 +19,66 @@ use package_compilation::AcceptedSemanticBindingRole;
 use provider_planning::service_declarations::ServiceDeclarations;
 use std::sync::Arc;
 
-mod preparation;
-pub use preparation::PreparedBindingDeclarations;
+pub struct PreparedBindingDeclarations {
+    pub(crate) owner: Result<(), Vec<Diagnostic>>,
+    pub(crate) source_owner: std::sync::Weak<checked_trees::CheckedTrees>,
+    pub trust: Arc<language_semantics::trust_declarations::TrustDeclarations>,
+    pub(crate) external:
+        Result<Arc<psi_terminal_production::PreparedExternalProviderDeclarations>, Vec<Diagnostic>>,
+    pub(crate) issuers: Result<Vec<language_semantics::BoundaryQualificationIssuer>, &'static str>,
+    pub(crate) services: Arc<typed_trees::service_declarations::PreparedServiceCatalog>,
+    pub has_proof_obligations: bool,
+}
 
-/// Realization choices joined to a completed source judgment.
+impl PreparedBindingDeclarations {
+    pub fn capture(
+        program: &Arc<checked_trees::CheckedTrees>,
+        inventory: &Arc<psi_terminal_production::PreparedProviderInventory>,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Self {
+        let owner = if Arc::ptr_eq(inventory.program(), program) {
+            Ok(())
+        } else {
+            Err(vec![Diagnostic::error(
+                "selected provider inventory belongs to another checked program",
+            )])
+        };
+        let external = (|| {
+            owner.clone()?;
+            let external = psi_terminal_production::PreparedExternalProviderDeclarations::prepare(
+                Arc::clone(program),
+                exact_toolchain_sources,
+            )
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "external provider declarations: {error:?}"
+                ))]
+            })?;
+            external
+                .require_owner(program, exact_toolchain_sources)
+                .map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "external provider declarations: {error:?}"
+                    ))]
+                })?;
+            Ok(Arc::new(external))
+        })();
+        Self {
+            owner,
+            source_owner: Arc::downgrade(program),
+            trust: Arc::new(inventory.trust_declarations().clone()),
+            external,
+            issuers: program
+                .facts
+                .semantic
+                .admitted_qualification_issuers()
+                .map(|issuers| issuers.into_iter().cloned().collect()),
+            services: inventory.retained_service_catalog(),
+            has_proof_obligations: program.facts.proof_applications.has_obligations,
+        }
+    }
+}
+
 pub struct ProviderBindingRequest<'a> {
     pub declarations: &'a PreparedBindingDeclarations,
     pub selected_declarations:
@@ -30,16 +97,13 @@ pub struct ProviderBindingRequest<'a> {
     pub root_grants: &'a [String],
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub authored_root_grants: &'a [trust_model::AuthoredRootGrant],
-    /// Derivation target is not a deployment choice for checking-only products.
-    pub provider_planning_target_profile: Option<target::TargetProfile>,
+    pub provider_planning_target_profile: Option<target::TargetProfile>, // derivation target is not a deployment choice for checking-only products
     pub selected_target_profile: Option<target::TargetProfile>,
     pub selected_program_entry:
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 
-/// Finish target binding without reopening source. Saved errors are reported
-/// at their original step; native-only errors remain deferred until emission.
 pub fn prepare_selected_execution(
     mut settlement: ProviderBindingRequest<'_>,
 ) -> Result<SelectedExecution, Vec<Diagnostic>> {
@@ -109,8 +173,6 @@ pub fn prepare_selected_execution(
     )?;
     let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
     let selected_provider_plan_facts = Arc::new(selected_provider_plan_facts);
-    // Close the existing exact source association once. Native ABI publication
-    // is not needed to count calling declarations and must not add early errors.
     let calling_requirements = external_providers.callbacks.calling_requirements(
         settlement
             .boundary_calling_plan_realizations

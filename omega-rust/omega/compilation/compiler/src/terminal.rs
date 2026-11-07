@@ -1,9 +1,31 @@
-//! Retain calling declarations and policy entries in the shared Product publication.
-//!
-//! Original review correspondence and inert helper choices are captured once
-//! before publication. All target children borrow this immutable catalog; no
-//! policy invocation compiles source or falls back to the checked interpreter.
-//! This owner publishes no policy-only artifact.
+/*
+We publish portable Terminal Psi code for a Checked Product once and attach each
+target's selected entry, provider plans, and behavior-exclusion policy.
+
+When target provider selection needs boundary calling plans, `retain_calling_program`
+captures the source calling relationships (`CallingSourcePreparation`) in parallel
+with publishing the shared `PortableTerminalProgram` (`product_code.rs`) and caches
+the immutable `CallingProgram` on `CheckedProductSource` so target children never
+reopen Checked Psi after publication.
+*/
+
+/*
+Ordinary target applications (`terminal_artifact.rs`) reuse that shared
+publication, attach their selected `ProgramEntry` and callback roots, and verify
+Omega behavior exclusions (`behavior_exclusions.rs`) without rerunning Psi
+lowering. Named machine inspection (`TerminalProductUse::Inspection`) uses an
+explicit source-producing entrance because it may select a machine root outside
+the executable application closure.
+*/
+
+mod behavior_exclusions;
+mod product_code;
+mod terminal_artifact;
+
+pub(crate) use terminal_artifact::{
+    ProducedTerminalProduct, TerminalProductRequest, TerminalProductUse, TerminalProductionView,
+    check_terminal_conditions, produce_retained_terminal_artifacts,
+};
 
 use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
@@ -26,15 +48,11 @@ fn prepare(
     source: &CheckedProductSource,
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<Arc<CallingProgram>, Vec<Diagnostic>> {
-    // Capture Source relationships while code is published: both only read the
-    // checked source. Publication's refusal still takes priority over the
-    // capture's. Targets receive only this owned result; Calling construction
-    // does not reopen Source after Terminal publication.
     let (program, source_preparation) = std::thread::scope(|scope| {
         let capture = crate::checked::checking::compile_thread::spawn_compile_worker(scope, || {
             capture_source_preparation(source)
         });
-        let code = super::product_code::ProductCodeSource::checked(source);
+        let code = product_code::ProductCodeSource::checked(source);
         let program = code.publish(
             source.terminal_publication.optimizations(),
             &mut crate::observations::PsiStageTimings::new(timings),
@@ -43,7 +61,6 @@ fn prepare(
             Ok(worker) => worker
                 .join()
                 .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
-            // No spare thread: capture here, exactly as it ran before.
             Err(_) => capture_source_preparation(source),
         };
         (program, source_preparation)
@@ -59,8 +76,6 @@ fn prepare(
     }))
 }
 
-/// Keep all fallible declaration acquisition in the captured Result, including
-/// owner/census refusals. Publication retains its original diagnostic priority.
 fn capture_source_preparation(
     source: &CheckedProductSource,
 ) -> Result<CallingSourcePreparation, Vec<Diagnostic>> {
