@@ -64,7 +64,7 @@ pub(in crate::encoding::recovery) fn bounds(
         })?,
         evaluation_sponsor_limits: reader.option(|reader| {
             Ok(PackagePolicyEvaluationSponsorLimits {
-                maximum_fuel_units: reader.u64()?,
+                work_budget: reader.u64()?,
                 maximum_build_log_bytes: reader.u64()?,
                 maximum_filesystem_operation_attempts: reader.u64()?,
                 maximum_live_filesystem_handles: reader.u64()?,

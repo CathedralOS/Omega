@@ -271,7 +271,7 @@ The applicable requirement categories above extend through the component edge:
   commits its transfer. Pending calls retain the original scalar/structural
   operands and atoms. Sponsor suspension resumes the same child without
   rereading a consumed parent home, replaying committed effects or replenishing
-  its original total budget. The focused six-call fuel witness compares every
+  its original total budget. The focused six-call work witness compares every
   effect and resource attribution with ordinary execution, including exhausted
   total budgets. The shared host store consumes the exact nonrecycled token;
   artifact-local type coordinates are compared through their owning identities
@@ -333,7 +333,7 @@ input/result transport on all four hosted targets. The
 [checked Copy continuation](independent_copy/README.md)
 establishes exact Copy input/result transport across independent components on
 all four hosted targets, retaining the original Windows timeout and its finite
-diagnostic observations. These rows and the focused fuel witness do not close
+diagnostic observations. These rows and the focused work witness do not close
 the remaining parent requirements.
 
 ## Native component description publication

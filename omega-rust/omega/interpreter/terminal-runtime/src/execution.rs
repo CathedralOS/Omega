@@ -104,7 +104,7 @@ pub struct TerminalRuntimeRequest<'program> {
     /// Explicit receiving-root choice from the Build companion. It supplies
     /// checked candidate selection only, never entry backing or host authority.
     pub provider_proposal: Option<&'program backend_plan::TerminalTargetProviderProposal>,
-    pub fuel_allowance: u64,
+    pub work_budget: u64,
     /// Explicit host acceptance of domain death through the driver's private
     /// storage and buffered crossings. Binding establishment, reach, provider
     /// selection and artifact possession supply none of this permission.
@@ -128,9 +128,9 @@ pub struct TerminalRuntimeObservation {
     pub private_entry_ram: Vec<(u32, Vec<u8>)>,
     pub effects: Vec<terminal_interpreter::TerminalEffect>,
     /// Actual logical work, including independently executing children.
-    pub fuel_usage: terminal_fuel::TerminalFuelUsage,
-    /// Fuel pauses resumed by this sponsor, never replayed invocations.
-    pub fuel_suspensions: u64,
+    pub work_usage: psi_work::WorkUsage,
+    /// Work pauses resumed by this sponsor, never replayed invocations.
+    pub work_suspensions: u64,
     /// Pauses at which a real producing child still owns its invocation.
     pub component_suspensions: u64,
 }
@@ -229,7 +229,7 @@ pub fn execute(
 
 /// Execute the same admitted root with a bounded sponsor scheduling quantum.
 /// The driver owns every invocation and its observed outcome. Replenishment
-/// keeps the same meter and instance, never exceeds the request's total fuel
+/// keeps the same meter and instance, never exceeds the request's total work
 /// allowance, and grants no new host binding or result-producing callback.
 pub fn execute_sliced(
     request: TerminalRuntimeRequest<'_>,
@@ -476,24 +476,24 @@ pub fn execute_sliced(
             .bind_external_completion(demand.boundary, admission)
             .map_err(TerminalRuntimeError::Binding)?;
     }
-    let first_quantum = request.fuel_allowance.min(quantum.get());
-    let mut remaining = request.fuel_allowance - first_quantum;
-    let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(first_quantum);
-    let mut fuel_suspensions = 0u64;
+    let first_quantum = request.work_budget.min(quantum.get());
+    let mut remaining = request.work_budget - first_quantum;
+    let mut work = psi_work::WorkMeter::with_budget(first_quantum);
+    let mut work_suspensions = 0u64;
     let mut component_suspensions = 0u64;
     let status = loop {
         let status = instance
-            .invoke(&mut fuel)
+            .invoke(&mut work)
             .map_err(TerminalRuntimeError::Execution)?;
         if !matches!(status, TerminalExecutionStatus::SponsorExhausted(_)) || remaining == 0 {
             break status;
         }
-        fuel_suspensions += 1;
+        work_suspensions += 1;
         component_suspensions += u64::from(instance.active_component_invocation_count() != 0);
         let additional = remaining.min(quantum.get());
         remaining -= additional;
-        fuel.replenish(additional).map_err(|_| {
-            TerminalRuntimeError::InvalidProvision("sponsor fuel replenishment overflows")
+        work.replenish(additional).map_err(|_| {
+            TerminalRuntimeError::InvalidProvision("sponsor work replenishment overflows")
         })?;
     };
     let stdout = output.stdout.snapshot()?;
@@ -504,8 +504,8 @@ pub fn execute_sliced(
     let effects = instance.effects().to_vec();
     host.finish_native_provider()?;
     Ok(TerminalRuntimeObservation {
-        fuel_usage: fuel.into_usage(),
-        fuel_suspensions,
+        work_usage: work.into_usage(),
+        work_suspensions,
         component_suspensions,
         effects,
         private_entry_ram,

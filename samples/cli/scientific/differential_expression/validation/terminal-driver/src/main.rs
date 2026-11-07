@@ -111,7 +111,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             artifact: artifact.psi_artifact(),
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
-            fuel_allowance: 100_000_000,
+            work_budget: 100_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(fs::File::open(&fixture)?)),
             clock: None,

@@ -3,7 +3,7 @@
 Invocation-scoped compiler and package resource lifetime (`BuildSession`).
 
 A `BuildSession` pairs one in-memory `CompilationSession` with one
-`PackageBuildSession` (staging directory custody and aggregate evaluation fuel/byte
+`PackageBuildSession` (staging directory custody and aggregate evaluation work/byte
 budgets). Package policy lends staging and resource sponsors to admitted work,
 but never owns a `CompilationSession` or decides when to invoke the compiler.
 

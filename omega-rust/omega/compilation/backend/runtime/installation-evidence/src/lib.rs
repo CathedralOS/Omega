@@ -100,7 +100,7 @@ pub trait ProviderInstallationEvidence: std::fmt::Debug {
 }
 
 /// Relocation-free terminal object facts required to bind installed entry and
-/// fixed-fuel evidence.
+/// fixed-work evidence.
 pub trait ObjectEvidence {
     fn psi(&self) -> terminal_psi::TerminalPsiIdentity;
     fn target(&self) -> target::NativeTarget;

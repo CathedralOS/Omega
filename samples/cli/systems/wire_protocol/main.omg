@@ -152,29 +152,29 @@ machine AuthoredCompactBinary::plan(compact_binary: &mut AuthoredCompactBinary, 
     AuthoredCompactBinary::evaluate(compact_binary, schema, 128)
 }
 
-machine AuthoredCompactBinary::evaluate(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, fuel: u64) -> Plan
-requires 1 <= fuel
-requires fuel <= 128
+machine AuthoredCompactBinary::evaluate(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, remaining_steps: u64) -> Plan
+requires 1 <= remaining_steps
+requires remaining_steps <= 128
 {
-    transition { _ -> fill(compact_binary, schema, fuel, 0) }
+    transition { _ -> fill(compact_binary, schema, remaining_steps, 0) }
 
-    // The fuel witness belongs to the recursive fill/place component.
-    machine fill(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, fuel: u64, index: i64 in Wrapping) -> Plan
-    requires 1 <= fuel
-    requires fuel <= 128
-    terminates by fuel
+    // The remaining_steps witness belongs to the recursive fill/place component.
+    machine fill(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, remaining_steps: u64, index: i64 in Wrapping) -> Plan
+    requires 1 <= remaining_steps
+    requires remaining_steps <= 128
+    terminates by remaining_steps
     {
-        transition fuel > 1 && index >= 0 && index < 32 && index < schema.field_count {
-            true -> place(compact_binary, schema, fuel - 1, index)
+        transition remaining_steps > 1 && index >= 0 && index < 32 && index < schema.field_count {
+            true -> place(compact_binary, schema, remaining_steps - 1, index)
             _ -> done(compact_binary, schema)
         }
     }
-    machine place(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, fuel: u64, index: i64 in Wrapping) -> Plan
-    requires 1 <= fuel
-    requires fuel <= 128 {
+    machine place(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, remaining_steps: u64, index: i64 in Wrapping) -> Plan
+    requires 1 <= remaining_steps
+    requires remaining_steps <= 128 {
         compact_binary.tag = schema.fields[index].number;
         compact_binary.plans[index] = field_plan(&schema.fields[index].kind, compact_binary.tag);
-        transition fuel > 1 { true -> fill(compact_binary, schema, fuel - 1, index + 1) _ -> done(compact_binary, schema) }
+        transition remaining_steps > 1 { true -> fill(compact_binary, schema, remaining_steps - 1, index + 1) _ -> done(compact_binary, schema) }
     }
     machine done(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema) -> Plan {
         Plan {
@@ -399,20 +399,20 @@ machine policy_kind<Kind>() -> PolicyKind {
         _ -> PolicyKind { supported: false, kind: FieldKind::Scalar }
     }
 }
-machine policy_matches(schema: &WireSchema, plan: &Plan, index: u64, fuel: u64) -> bool
-requires fuel > 0u64
-terminates by fuel
+machine policy_matches(schema: &WireSchema, plan: &Plan, index: u64, remaining_steps: u64) -> bool
+requires remaining_steps > 0u64
+terminates by remaining_steps
 {
     transition {
         index == schema.field_count -> true
-        index < schema.field_count && index < 32u64 && fuel > 1u64 -> member(schema, plan, index, fuel)
+        index < schema.field_count && index < 32u64 && remaining_steps > 1u64 -> member(schema, plan, index, remaining_steps)
         _ -> false
     }
-    machine member(schema: &WireSchema, plan: &Plan, index: u64, fuel: u64) -> bool
-    requires index < schema.field_count && index < 32u64 && fuel > 1u64
+    machine member(schema: &WireSchema, plan: &Plan, index: u64, remaining_steps: u64) -> bool
+    requires index < schema.field_count && index < 32u64 && remaining_steps > 1u64
     {
         transition policy_member_matches(&schema.fields[index].kind, &plan.fields[index], narrow_i64_to_u64_wrapping(schema.fields[index].number)) {
-            true -> policy_matches(schema, plan, index + 1u64, fuel - 1u64)
+            true -> policy_matches(schema, plan, index + 1u64, remaining_steps - 1u64)
             false -> false
         }
     }

@@ -2142,8 +2142,8 @@ fail/build/build_effects_undeclared rejected 4ms unexpected @ccdb99ca2214
 	failed to resolve tests/omega/fail/build/build_effects_undeclared/omega_language_std/console.omg: captured entry is absent: omega_language_std
 fail/build/build_failure_precedes_product_import rejected 772ms expected @ccdb99ca2214
 	Build returned duplicate or mixed project roles
-fail/build/build_fuel_exhausted rejected 292ms expected @ccdb99ca2214
-	evaluation Fuel allowance exhausted at Operation(OperationId(2)) in MachineId(1)/BlockId(1) at Some(OperationId(2))
+fail/build/build_fuel_exhausted rejected 3418ms expected @6fd07112da3c
+	evaluation Work budget exhausted at Operation(OperationId(2)) in MachineId(1)/BlockId(1) at Some(OperationId(2)) (StructuralLeafCopy)
 fail/build/build_log_counterfeit_facet_refused rejected 686ms expected @ccdb99ca2214
 	build logging requires the activation's compiler-issued BuildLog facet at OperationId(12) in MachineId(3)/BlockId(9) at Some(OperationId(12))
 fail/build/build_machine_wrong_arity rejected 415ms unexpected @ccdb99ca2214
@@ -2414,8 +2414,8 @@ fail/build/root_binding_overlapping_loan rejected 218ms expected @ccdb99ca2214
 	exclusive operation receiver overlaps local borrow `shared` which is still active
 fail/build/root_binding_shared_receiver rejected 343ms expected @ccdb99ca2214
 	exclusive operation receiver is not writable in this state
-fail/build/scoped_build_stops_before_unaccepted_effect rejected 289ms expected @ccdb99ca2214
-	restricted Build execution requires explicit consent; generated-source and final product findings are unavailable; pending request: RestrictedBuildRequest { operation: ScopedFilesystemExecution, read_grants: [RestrictedBuildGrant { root: SourceInventory, narrowed: true, captured: Some(BuildCapturedSourceInventory { entry_count: 5, file_bytes: 885, source_metadata_identity: BuildCanonicalSourceMetadataIdentity { policy_version: 1, source_content_commitment: [7, 52, 33, 12, 211, 241, 30, 234, 236, 20, 48, 27, 190, 202, 79, 150, 21, 254, 221, 38, 218, 29, 35, 57, 16, 127, 167, 233, 75, 193, 100, 114] } }) }], write_grants: [RestrictedBuildGrant { root: StagedOutput, narrowed: false, captured: None }], bounds: RestrictedBuildBounds { filesystem_sponsor_limits: Some(FilesystemSponsorLimits { maximum_entries: 4096, maximum_total_logical_bytes: 268435456, maximum_object_extent: 268435456 }), evaluation_sponsor_limits: Some(BuildEvaluationSponsorLimits { maximum_fuel_units: 100000000, maximum_build_log_bytes: 16777216, maximum_filesystem_operation_attempts: 65536, maximum_live_filesystem_handles: 4096, maximum_live_storage_cells: 1048576, maximum_live_payload_bytes: 67108864, maximum_result_storage_cells: 1048576, maximum_result_payload_bytes: 67108864 }), required_outputs: [], artifact_only: false }, build_execution_profile: Some(MacosArm64), selected_target_profile: None }
+fail/build/scoped_build_stops_before_unaccepted_effect rejected 3336ms expected @6fd07112da3c
+	restricted Build execution requires explicit consent; generated-source and final product findings are unavailable; pending request: RestrictedBuildRequest { operation: ScopedFilesystemExecution, read_grants: [RestrictedBuildGrant { root: SourceInventory, narrowed: true, captured: Some(BuildCapturedSourceInventory { entry_count: 5, file_bytes: 885, source_metadata_identity: BuildCanonicalSourceMetadataIdentity { policy_version: 1, source_content_commitment: [7, 52, 33, 12, 211, 241, 30, 234, 236, 20, 48, 27, 190, 202, 79, 150, 21, 254, 221, 38, 218, 29, 35, 57, 16, 127, 167, 233, 75, 193, 100, 114] } }) }], write_grants: [RestrictedBuildGrant { root: StagedOutput, narrowed: false, captured: None }], bounds: RestrictedBuildBounds { filesystem_sponsor_limits: Some(FilesystemSponsorLimits { maximum_entries: 4096, maximum_total_logical_bytes: 268435456, maximum_object_extent: 268435456 }), evaluation_sponsor_limits: Some(BuildEvaluationSponsorLimits { work_budget: 100000000, maximum_build_log_bytes: 16777216, maximum_filesystem_operation_attempts: 65536, maximum_live_filesystem_handles: 4096, maximum_live_storage_cells: 1048576, maximum_live_payload_bytes: 67108864, maximum_result_storage_cells: 1048576, maximum_result_payload_bytes: 67108864 }), required_outputs: [], artifact_only: false }, build_execution_profile: Some(MacosArm64), selected_target_profile: None }
 fail/build/segment_selector_invalidates_descriptor rejected 126078ms expected @393c6c5fe83d
 	cannot prove requires contract for call consume_unchanged from exercise: buffers.table[3] == old_descriptor (needs fact `value == old` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/build/segment_selector_missing_machine_control rejected 58190ms expected @393c6c5fe83d
@@ -3093,8 +3093,8 @@ fail/comptime/const_recursive_counter_survives_unrelated_writes rejected 609ms e
 	fixed-array length `[u8; extent()]`: const evaluation of `extent` failed: machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/comptime/effectful_const_array_length rejected 8980ms expected @ccdb99ca2214
 	fixed-array length `[i64; loud_size()]`: const evaluation of `loud_size` failed: machine `@array-extent-1-4` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
-fail/comptime/fuel_exhausted_const_array_length rejected 8854ms expected @ccdb99ca2214
-	fixed-array length `[i64; table_size()]`: const evaluation of `table_size` failed: constant Terminal execution exhausted its fuel allowance after 100000 units
+fail/comptime/fuel_exhausted_const_array_length rejected 27673ms expected @6fd07112da3c
+	fixed-array length `[i64; table_size()]`: const evaluation of `table_size` failed: constant Terminal execution exhausted its work budget after 100000 units
 fail/comptime/generic_constructor_field_demand_extent_domain_violation rejected 2510ms expected @911f6617ba9e
 	fixed-array length `[u8; observed()]`: const evaluation of `observed` failed: data `Bounded` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	fixed-array length `[u8; observed()]`: const evaluation of `observed` failed: data `Bounded` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
@@ -3434,7 +3434,7 @@ fail/contracts/mutable_owned_call_ensures_keeps_poststate rejected 2163ms expect
 	cannot prove asm `requires` fact at block entry in main state `entry` (statement 5): returned == 1 && preserved == 3 && completed == 8
 fail/contracts/mutable_owned_collection_ensures_keeps_poststate rejected 2249ms expected @ccdb99ca2214
 	cannot prove asm `requires` fact at block entry in main state `entry` (statement 4): view.len == 1
-fail/contracts/named_state_prefix_does_not_inherit_machine_entry_facts rejected 4277ms expected @d352d5e8e77e
+fail/contracts/named_state_prefix_does_not_inherit_machine_entry_facts rejected 7793ms expected @6fd07112da3c
 	cannot prove requires contract for call accept from later: value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/named_tail_return_contract rejected 2142ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from forward at statement 0: result == 1
@@ -9106,42 +9106,24 @@ fail/facts/generic_requirement_statement_call_through_target_body_rejected rejec
 	argument `value` for state `record` expects `&T`, got `named value`
 	argument `value` for state `record` expects `&i32`, got `named value`
 	argument `value` for state `record` expects `&u8`, got `named value`
-fail/facts/guarded_call_entry_through_call_result_rejected rejected 1503ms expected @730ec906baa1
-	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-fail/facts/guarded_call_entry_through_const_name_rejected rejected 1895ms expected @730ec906baa1
-	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-fail/facts/guarded_call_entry_through_field_rejected rejected 1881ms expected @730ec906baa1
-	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-fail/facts/guarded_call_entry_through_local_rejected rejected 1684ms expected @730ec906baa1
-	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-fail/facts/guarded_call_entry_through_match_join_rejected rejected 1634ms expected @730ec906baa1
-	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-fail/facts/guarded_call_entry_through_other_machine_rejected rejected 1709ms expected @730ec906baa1
-	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-fail/facts/guarded_call_entry_through_other_state_rejected rejected 1660ms expected @730ec906baa1
-	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-fail/facts/guarded_call_entry_through_parameter_rejected rejected 1750ms expected @730ec906baa1
-	cannot prove requires contract for call parse from receive: context.count <= context.slots.len && fuel > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from receive$specialized$fd31d04fe4f074ee$0: context.count <= context.slots.len && fuel > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from receive$specialized$756b65da49c3ef04$1: context.count <= context.slots.len && fuel > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/guarded_call_entry_through_target_body_rejected rejected 1750ms expected @730ec906baa1
-	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-	cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
+fail/facts/guarded_call_entry_through_call_result_rejected rejected 9680ms expected @6fd07112da3c
+	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && remaining_steps > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
+fail/facts/guarded_call_entry_through_const_name_rejected rejected 8512ms expected @6fd07112da3c
+	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && remaining_steps > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
+fail/facts/guarded_call_entry_through_field_rejected rejected 8523ms expected @6fd07112da3c
+	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && remaining_steps > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
+fail/facts/guarded_call_entry_through_local_rejected rejected 9830ms expected @6fd07112da3c
+	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && remaining_steps > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
+fail/facts/guarded_call_entry_through_match_join_rejected rejected 11999ms expected @6fd07112da3c
+	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && remaining_steps > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
+fail/facts/guarded_call_entry_through_other_machine_rejected rejected 9931ms expected @6fd07112da3c
+	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && remaining_steps > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
+fail/facts/guarded_call_entry_through_other_state_rejected rejected 26425ms expected @6fd07112da3c
+	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && remaining_steps > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
+fail/facts/guarded_call_entry_through_parameter_rejected rejected 38214ms expected @6fd07112da3c
+	cannot prove requires contract for call parse from receive: context.count <= context.slots.len && remaining_steps > 0 (needs fact `context.count <= context.slots.len && remaining_steps > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/guarded_call_entry_through_target_body_rejected rejected 24799ms expected @6fd07112da3c
+	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && remaining_steps > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
 fail/facts/guarded_line_loan_through_call_result_rejected rejected 2692ms expected @ccdb99ca2214
 	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -19181,12 +19163,8 @@ fail/wire/wire_compatibility_migration_route_missing rejected 456ms expected @cc
 	wire compatibility demand `ArchiveStore` is unsatisfied for local schema `Counter` and peer schema `CounterV1`: migration coverage (no complete `CounterLineage` migration route exists from `CounterV1` to `Counter`)
 fail/wire/wire_compatibility_preservation_unmet rejected 759ms expected @ccdb99ca2214
 	wire compatibility demand `RelayChannel` is unsatisfied for local schema `LocalMessage` and peer schema `PeerMessage`: unknown preservation (compact_binary publishes strict unknown-member behavior)
-fail/wire/wire_policy_plan_disagrees rejected 2970ms unexpected @167d5864712d
-	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
-	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
-	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
-	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
-	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+fail/wire/wire_policy_plan_disagrees rejected 21064ms expected @6fd07112da3c
+	cannot prove requires contract for call policy_gate from Main::main: false (needs fact `valid` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/anonymous_integer_arith checked 3485ms @ccdb99ca2214
@@ -20650,8 +20628,7 @@ pass/comptime/runtime_const_array_product_specializations_exit checked 10820ms c
 pass/comptime/runtime_const_array_product_u32_exit checked 12370ms check-target:macos_arm64 @911f6617ba9e
 pass/comptime/runtime_const_array_saturating_result_exit checked 3925ms check-target:macos_arm64 @ccdb99ca2214
 pass/comptime/runtime_const_array_wrapping_result_exit checked 3183ms check-target:macos_arm64 @ccdb99ca2214
-pass/comptime/runtime_const_measured_recursion_exit rejected 8407ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	fixed-array length `[u8; table_size()]`: const evaluation of `table_size` failed: machine call cycle: `triangle`, `step` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/comptime/runtime_const_measured_recursion_exit checked 41552ms check-target:macos_arm64 @6fd07112da3c
 pass/comptime/runtime_generic_constructor_field_demand_extent_exit checked 8491ms check-target:macos_arm64 @911f6617ba9e
 pass/comptime/selected_float_array_length_exit rejected 324036ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @72a0af2d293d
 	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(482)]
@@ -20921,7 +20898,7 @@ pass/control_flow/runtime_captured_case_reference_child_arm_forwarding_exit chec
 pass/control_flow/runtime_captured_local_remutated_field_exit checked 16597ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_carried_local_reference_backing_exit checked 3962ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_compare_pair_dispatch_exit checked 11437ms check-target:macos_arm64 @ccdb99ca2214
-pass/control_flow/runtime_completed_readonly_home_replacement_exit checked 4180ms check-target:macos_arm64 @d352d5e8e77e
+pass/control_flow/runtime_completed_readonly_home_replacement_exit checked 13481ms check-target:macos_arm64 @6fd07112da3c
 pass/control_flow/runtime_computed_case_subject_call_operand_exit checked 12213ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_computed_case_subject_single_evaluation_exit checked 13426ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_computed_index_state_loan_exit checked 6008ms check-target:macos_arm64 @911f6617ba9e
@@ -23249,15 +23226,15 @@ pass/facts/generic_terminated_array_through_other_machine_exit checked 2033ms ch
 pass/facts/generic_terminated_array_through_other_state_exit checked 1868ms check-target:macos_arm64 @a889c2d8b84c
 pass/facts/generic_terminated_array_through_parameter_exit checked 2215ms check-target:macos_arm64 @a889c2d8b84c
 pass/facts/generic_terminated_array_through_target_body_exit checked 1926ms check-target:macos_arm64 @a889c2d8b84c
-pass/facts/guarded_call_entry_through_call_result_exit checked 3187ms check-target:macos_arm64 @730ec906baa1
-pass/facts/guarded_call_entry_through_const_name_exit checked 3187ms check-target:macos_arm64 @730ec906baa1
-pass/facts/guarded_call_entry_through_field_exit checked 2577ms check-target:macos_arm64 @730ec906baa1
-pass/facts/guarded_call_entry_through_local_exit checked 2569ms check-target:macos_arm64 @730ec906baa1
-pass/facts/guarded_call_entry_through_match_join_exit checked 2599ms check-target:macos_arm64 @730ec906baa1
-pass/facts/guarded_call_entry_through_other_machine_exit checked 2589ms check-target:macos_arm64 @730ec906baa1
-pass/facts/guarded_call_entry_through_other_state_exit checked 3108ms check-target:macos_arm64 @730ec906baa1
-pass/facts/guarded_call_entry_through_parameter_exit checked 2614ms check-target:macos_arm64 @730ec906baa1
-pass/facts/guarded_call_entry_through_target_body_exit checked 2532ms check-target:macos_arm64 @730ec906baa1
+pass/facts/guarded_call_entry_through_call_result_exit checked 13043ms check-target:macos_arm64 @6fd07112da3c
+pass/facts/guarded_call_entry_through_const_name_exit checked 14380ms check-target:macos_arm64 @6fd07112da3c
+pass/facts/guarded_call_entry_through_field_exit checked 14425ms check-target:macos_arm64 @6fd07112da3c
+pass/facts/guarded_call_entry_through_local_exit checked 14327ms check-target:macos_arm64 @6fd07112da3c
+pass/facts/guarded_call_entry_through_match_join_exit checked 15942ms check-target:macos_arm64 @6fd07112da3c
+pass/facts/guarded_call_entry_through_other_machine_exit checked 13539ms check-target:macos_arm64 @6fd07112da3c
+pass/facts/guarded_call_entry_through_other_state_exit checked 12967ms check-target:macos_arm64 @6fd07112da3c
+pass/facts/guarded_call_entry_through_parameter_exit checked 12948ms check-target:macos_arm64 @6fd07112da3c
+pass/facts/guarded_call_entry_through_target_body_exit checked 12748ms check-target:macos_arm64 @6fd07112da3c
 pass/facts/guarded_line_loan_through_call_result_exit checked 3534ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/guarded_line_loan_through_const_name_exit checked 3653ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/guarded_line_loan_through_field_exit checked 2604ms check-target:macos_arm64 @ccdb99ca2214
@@ -27105,8 +27082,7 @@ pass/providers/qualified_foreign_result_forwarding rejected 2865ms regressed-fro
 pass/providers/qualified_foreign_structural_arguments checked 11436ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/reference_dispatch_on_demand checked 7928ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/requirement_service_unsupplied_linux checked 15010ms check-target:linux_x86_64 provider-choice-controls:match terminal-inspections:match @61e05af8c148
-pass/providers/resource_profile_initialization_coverage_exit incomplete 11961ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	`main` calls `full_profile`, which calls `fill_profile`; `fill_profile` has no executable body: this compiler does not lower a state of it yet (temporary cleanup actions); in state `fill_profile::write::entry`
+pass/providers/resource_profile_initialization_coverage_exit checked 37622ms check-target:macos_arm64 @6fd07112da3c
 pass/providers/resource_profile_roles checked 12696ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/resource_profile_supply_observation rejected 25162ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @25bbaead8c14+wt
 	constant checking: target `alpha_bootstrap` has no provider realization in this compiler
@@ -27657,7 +27633,7 @@ pass/targets/sysv_mixed_aggregate_entry checked 6708ms @911f6617ba9e
 pass/targets/target_body_call_contracts_exit checked 3396ms check-target:macos_arm64 @ccdb99ca2214
 pass/targets/target_family_entry_exit checked 3720ms check-target:macos_arm64 @ccdb99ca2214
 pass/targets/target_machine_gating_exit checked 11363ms check-target:macos_arm64 @ccdb99ca2214
-pass/targets/target_member_ranked_self_transition_exit checked 12405ms check-target:macos_arm64 @ccdb99ca2214
+pass/targets/target_member_ranked_self_transition_exit checked 25844ms check-target:macos_arm64 @6fd07112da3c
 pass/targets/uefi_table_integrity_exit checked 10787ms check-target:macos_arm64 @ccdb99ca2214
 pass/targets/unreached_family_missing_member_exit checked 2962ms check-target:macos_arm64 @ccdb99ca2214
 pass/targets/unreached_foreign_body_caller_exit checked 17675ms check-target:macos_arm64 @ccdb99ca2214
@@ -28143,14 +28119,14 @@ pass/wire/codec_reference_array_exit checked 53509ms check-target:macos_arm64 @1
 pass/wire/codec_state_local_types_exit checked 47475ms check-target:macos_arm64 @1e29a538216e
 pass/wire/fixed_vec_member_through_qualified_path checked 45353ms @1e29a538216e
 pass/wire/fixed_vec_wire_member checked 41750ms @1e29a538216e
-pass/wire/library_compact_binary_packed_decode_exit checked 36770ms check-target:macos_arm64 @1e29a538216e
+pass/wire/library_compact_binary_packed_decode_exit checked 31510ms check-target:macos_arm64 @6fd07112da3c
 pass/wire/library_compact_binary_packed_reflection_exit checked 41925ms check-target:macos_arm64 @1e29a538216e
 pass/wire/library_compact_binary_predicate_decode_exit checked 42947ms check-target:macos_arm64 @1e29a538216e
-pass/wire/library_compact_binary_reflection_exit checked 57480ms check-target:macos_arm64 @1e29a538216e
+pass/wire/library_compact_binary_reflection_exit checked 64287ms check-target:macos_arm64 @6fd07112da3c
 pass/wire/library_compact_binary_scalar_bound_exit checked 45173ms check-target:macos_arm64 @1e29a538216e
 pass/wire/library_compact_binary_scalar_decode_exit checked 48779ms check-target:macos_arm64 @1e29a538216e
 pass/wire/library_compact_binary_signed_blob_exit checked 45894ms check-target:macos_arm64 @1e29a538216e
-pass/wire/library_compact_binary_signed_reflection_exit checked 46169ms check-target:macos_arm64 @1e29a538216e
+pass/wire/library_compact_binary_signed_reflection_exit checked 32788ms check-target:macos_arm64 @6fd07112da3c
 pass/wire/library_compact_binary_utf8_exit checked 38301ms check-target:macos_arm64 @1e29a538216e
 pass/wire/library_compact_binary_varints_exit checked 41420ms check-target:macos_arm64 @1e29a538216e
 pass/wire/numbered_case_identities checked 2664ms @ccdb99ca2214
@@ -28163,21 +28139,11 @@ pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit checked 61187ms check-t
 pass/wire/runtime_wire_encode_byte_slice_exit checked 59910ms check-target:macos_arm64 @1e29a538216e
 pass/wire/runtime_wire_encode_interior_scalar_slice_exit checked 65724ms check-target:macos_arm64 @1e29a538216e
 pass/wire/runtime_wire_exact_array_without_count_exit checked 72446ms check-target:macos_arm64 @1e29a538216e
-pass/wire/runtime_wire_policy_authored_plan_exit rejected 2572ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @167d5864712d
-	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
-	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
-	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
-	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
-	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+pass/wire/runtime_wire_policy_authored_plan_exit checked 55220ms check-target:macos_arm64 @6fd07112da3c
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit checked 77728ms check-target:macos_arm64 @1e29a538216e
 pass/wire/runtime_wire_signed_extremes_roundtrip_exit checked 72202ms check-target:macos_arm64 @1e29a538216e
 pass/wire/runtime_wire_utf8_edge_verdicts_exit checked 64041ms check-target:macos_arm64 @1e29a538216e
-pass/wire/systems_wire_protocol_exit rejected 1435ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @167d5864712d
-	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
-	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
-	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
-	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
-	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+pass/wire/systems_wire_protocol_exit checked 43709ms check-target:macos_arm64 @6fd07112da3c
 pass/wire/wire_compatibility_migration_across_shapes checked 40783ms check-target:macos_arm64 @1e29a538216e
 pass/wire/wire_data_reserved_field checked 3922ms check-target:macos_arm64 @ccdb99ca2214
 pass/wire/wire_field_numbers checked 56196ms @1e29a538216e

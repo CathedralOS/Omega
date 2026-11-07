@@ -57,7 +57,7 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
                     .unwrap()
                     .value = id(999)
             }
-            6 => function.blocks[0].instructions[3].fuel[0].units += 1,
+            6 => function.blocks[0].instructions[3].work[0].units += 1,
             7 => function.blocks[0].instructions[3].effect.output += 1,
             8 => scalar_return_mut(function).edge = id(999),
             9 => scalar_return_mut(function).ownership.clear(),
@@ -87,7 +87,7 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
                 .clear(),
             16 => call_mut(function, 0).requirement_obligations.push(id(999)),
             17 => *scalar_argument_mut(&mut call_mut(function, 0).arguments[0]).0 = id(999),
-            18 => scalar_return_mut(function).fuel[0].units += 1,
+            18 => scalar_return_mut(function).work[0].units += 1,
             19 => scalar_return_mut(function).effect.input += 1,
             20 => function.blocks[0].instructions.pop().map(|_| ()).unwrap(),
             _ => function.provenance.operations.reverse(),
@@ -203,7 +203,7 @@ fn call_aware_unit_identity_binds_semantic_and_target_custody() {
                     .source_byte_offset = 8
             }
             13 => structural_call_mut(&mut changed).claim_transfers.swap(0, 1),
-            14 => changed.scalar_functions[0].blocks[0].instructions[0].fuel[0].units += 1,
+            14 => changed.scalar_functions[0].blocks[0].instructions[0].work[0].units += 1,
             15 => {
                 changed.scalar_functions[0].blocks[0].instructions[0]
                     .effect
@@ -223,7 +223,7 @@ fn call_aware_unit_identity_binds_semantic_and_target_custody() {
                 claims.swap(0, 1);
             }
             19 => changed.scalar_functions[0].blocks[0].instructions.clear(),
-            20 => scalar_return_mut(&mut changed.scalar_functions[0]).fuel[0].units += 1,
+            20 => scalar_return_mut(&mut changed.scalar_functions[0]).work[0].units += 1,
             21 => {
                 scalar_return_mut(&mut changed.scalar_functions[0])
                     .effect

@@ -108,7 +108,7 @@ closure, entry premises and normalized package-selection requests. Calling
 admits the exact target/provider/static-binder closure over the shared Terminal
 artifact before evaluating ABI scalars or the policy. Recurrent edges require
 the retained complete-component proof at the same body/call coordinates;
-successful execution and fuel are not termination evidence. Package obligations
+successful execution and work are not termination evidence. Package obligations
 are rechecked against live authority, including predicates with no persisted
 comparison scope. Decoding alone grants no authority.
 

@@ -1,10 +1,11 @@
 use super::{
-    BaselineDecisionLog, FuelScheduleIdentity, OptimizationIdentityBundle,
-    OptimizationManifestStage, OptimizationPassManifestRecord, OptimizationSelections,
-    OptimizationStructuralStatistics, OptimizationUnitIdentity, OptimizationWorkBudget,
-    OptimizationWorkUsage, OptimizedAbstractPlanProjectionIdentity, PhysicalOptimizationDataStatus,
+    BaselineDecisionLog, OptimizationIdentityBundle, OptimizationManifestStage,
+    OptimizationPassManifestRecord, OptimizationSelections, OptimizationStructuralStatistics,
+    OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
+    OptimizedAbstractPlanProjectionIdentity, PhysicalOptimizationDataStatus,
     PrePhysicalOptimizationManifest, PrePhysicalOptimizationManifestDecodeError,
     PrePhysicalOptimizationManifestIdentity, PsiTransformationLedger, TerminalPsiIdentity,
+    WorkScheduleIdentity,
 };
 use crate::cursor::Cursor;
 const PRE_PHYSICAL_MANIFEST_MAGIC: &[u8; 8] = b"OMGPPM\0\0";
@@ -49,8 +50,8 @@ impl PrePhysicalOptimizationManifest {
         let vocabulary_marker = terminal_psi::VocabularyMarker::new(vocabulary)
             .ok_or(PrePhysicalOptimizationManifestDecodeError::UnsupportedVocabulary(vocabulary))?;
         let program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes(cursor.array()?);
-        let fuel_schedule = FuelScheduleIdentity::new(cursor.u32()?)
-            .ok_or(PrePhysicalOptimizationManifestDecodeError::InvalidFuelSchedule)?;
+        let work_schedule = WorkScheduleIdentity::new(cursor.u32()?)
+            .ok_or(PrePhysicalOptimizationManifestDecodeError::InvalidWorkSchedule)?;
         let initial_unit = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let final_unit = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let projection = OptimizedAbstractPlanProjectionIdentity::from_bytes(cursor.array()?);
@@ -89,7 +90,7 @@ impl PrePhysicalOptimizationManifest {
                 vocabulary_marker,
                 program_fingerprint,
             },
-            fuel_schedule,
+            work_schedule,
             initial_unit,
             final_unit,
             projection,
@@ -199,7 +200,7 @@ fn encode_manifest_body_prefix(
         manifest.psi.vocabulary_marker.get().to_le_bytes(),
     );
     canonical.extend_from_slice(manifest.psi.program_fingerprint.as_bytes());
-    crate::codec_bytes::push_encoded(canonical, manifest.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(canonical, manifest.work_schedule.marker().to_le_bytes());
     canonical.extend_from_slice(&manifest.initial_unit.bytes());
     canonical.extend_from_slice(&manifest.final_unit.bytes());
     canonical.extend_from_slice(&manifest.projection.bytes());

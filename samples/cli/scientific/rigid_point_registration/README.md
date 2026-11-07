@@ -125,8 +125,8 @@ manifest using the repository's existing
 The observer compiles this actual admitted complete project once, then executes
 its retained canonical Terminal artifact with the exact runtime provisions and
 finite fixture stdin. Each invocation delegates only isolated-domain process
-exit, gets 100 million fuel units and a 60-second watchdog. Decline, timeout,
-missing capture or exhausted fuel fails qualification.
+exit, gets 100 million work units and a 60-second watchdog. Decline, timeout,
+missing capture or exhausted work fails qualification.
 
 Qualification commands and captured results are retained in the outcome's
 ignored evidence directory and preserved through the supported artifact route.

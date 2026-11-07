@@ -11,7 +11,7 @@ use selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
     SelectedInstructionProvenance, VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{FuelScheduleIdentity, IntegerValue, MachineId, ScalarType, ValueId};
+use semantic_vocabulary::{IntegerValue, MachineId, ScalarType, ValueId, WorkScheduleIdentity};
 
 use crate::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity, SpillChoiceIdentity};
 
@@ -30,7 +30,7 @@ pub enum RecoveryClassificationPolicy {
 ///
 /// This artifact does not choose or insert recovery code. In particular, it
 /// grants no storage, stack-slot, frame-layout, instruction-emission, logical-
-/// fuel, or publication authority. A future materialization stage must join
+/// work, or publication authority. A future materialization stage must join
 /// target frame policy and independently validate any concrete transformation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecoveryClassificationPlan {
@@ -41,7 +41,7 @@ pub struct RecoveryClassificationPlan {
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
-    pub fuel_schedule: FuelScheduleIdentity,
+    pub work_schedule: WorkScheduleIdentity,
     pub policy: RecoveryClassificationPolicy,
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
@@ -130,7 +130,7 @@ pub enum RecoveryClassificationDecodeError {
     UnknownProvenance(u8),
     InvalidBudget,
     InvalidUsage,
-    InvalidFuelSchedule(u32),
+    InvalidWorkSchedule(u32),
     InvalidMachineId(u64),
     InvalidBlockId(u64),
     InvalidOperationId(u64),

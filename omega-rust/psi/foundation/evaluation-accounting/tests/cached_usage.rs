@@ -3,18 +3,18 @@ use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildEvaluationUsage,
     EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
 };
-use semantic_vocabulary::FuelScheduleIdentity;
+use semantic_vocabulary::WorkScheduleIdentity;
 use std::sync::{Arc, Barrier};
 
 fn limits(
-    fuel: u64,
+    work: u64,
     log: u64,
     cells: u64,
     bytes: u64,
     result_cells: u64,
     result_bytes: u64,
 ) -> BuildEvaluationSponsorLimits {
-    BuildEvaluationSponsorLimits::new(fuel, log, 8, 8, cells, bytes, result_cells, result_bytes)
+    BuildEvaluationSponsorLimits::new(work, log, 8, 8, cells, bytes, result_cells, result_bytes)
         .unwrap()
 }
 fn measured() -> BuildEvaluationUsage {
@@ -34,7 +34,7 @@ fn replay_spends_current_account_and_refreshes_its_peaks_without_live_leases() {
     let sponsor = BuildEvaluationSponsor::new(limits(100, 100, 100, 100, 100, 100));
     let existing = sponsor.reserve_live_text_bytes(11).unwrap();
     let current = sponsor.charge_pure_usage(usage).unwrap();
-    assert_eq!(sponsor.consumed_fuel_units(), 7);
+    assert_eq!(sponsor.consumed_work_units(), 7);
     assert_eq!(sponsor.consumed_result_storage_cells(), 2);
     assert_eq!(sponsor.consumed_result_payload_bytes(), 4);
     assert_eq!(sponsor.live_storage_cells(), 0);
@@ -47,7 +47,7 @@ fn replay_spends_current_account_and_refreshes_its_peaks_without_live_leases() {
     assert_eq!(usage.session_peak_live_payload_bytes, 6);
     drop(existing);
     sponsor.charge_pure_usage(usage).unwrap();
-    assert_eq!(sponsor.consumed_fuel_units(), 14);
+    assert_eq!(sponsor.consumed_work_units(), 14);
     assert_eq!(sponsor.consumed_result_storage_cells(), 4);
     assert_eq!(sponsor.live_payload_bytes(), 0);
 }
@@ -68,7 +68,7 @@ fn every_refused_axis_leaves_all_counters_unchanged() {
         let before = *invocation.snapshot().unwrap().record();
         assert!(sponsor.charge_pure_usage(measured()).is_err());
         assert_eq!(*invocation.snapshot().unwrap().record(), before);
-        assert_eq!(sponsor.consumed_fuel_units(), 0);
+        assert_eq!(sponsor.consumed_work_units(), 0);
         assert_eq!(sponsor.consumed_result_storage_cells(), 0);
         assert_eq!(sponsor.consumed_result_payload_bytes(), 0);
     }
@@ -84,13 +84,13 @@ fn invalid_records_effectful_usage_and_other_measurements_cannot_spend() {
     assert!(sponsor.charge_pure_usage(effects).is_err());
     let mut terminal = measured();
     terminal.measurement = EvaluationMeasurementIdentity::TerminalPsi {
-        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+        work_schedule: WorkScheduleIdentity::new(1).unwrap(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
     };
     terminal.usage_schema_version = 8;
     terminal.validate().unwrap();
     assert!(sponsor.charge_pure_usage(terminal).is_err());
-    assert_eq!(sponsor.consumed_fuel_units(), 0);
+    assert_eq!(sponsor.consumed_work_units(), 0);
 }
 #[test]
 fn replay_accounts_for_current_live_reservations() {
@@ -98,7 +98,7 @@ fn replay_accounts_for_current_live_reservations() {
     let held = sponsor.reserve_live_cell().unwrap();
     assert!(sponsor.charge_pure_usage(measured()).is_err());
     assert_eq!(sponsor.live_storage_cells(), 1);
-    assert_eq!(sponsor.consumed_fuel_units(), 0);
+    assert_eq!(sponsor.consumed_work_units(), 0);
     drop(held);
     sponsor.charge_pure_usage(measured()).unwrap();
     assert_eq!(sponsor.live_storage_cells(), 0);
@@ -109,14 +109,14 @@ fn overflowing_replay_does_not_change_other_axes() {
     let invocation = sponsor
         .begin_invocation(EvaluationMeasurementIdentity::CheckedTree, u64::MAX)
         .unwrap();
-    invocation.charge_fuel(u64::MAX).unwrap();
+    invocation.charge_work(u64::MAX).unwrap();
     assert!(
         sponsor
             .charge_pure_usage(measured())
             .unwrap_err()
             .contains("overflowed")
     );
-    assert_eq!(sponsor.consumed_fuel_units(), u64::MAX);
+    assert_eq!(sponsor.consumed_work_units(), u64::MAX);
     assert_eq!(sponsor.consumed_result_storage_cells(), 0);
 }
 #[test]
@@ -139,6 +139,6 @@ fn concurrent_replays_cannot_both_spend_one_allowance() {
         .map(|thread| usize::from(thread.join().unwrap()))
         .sum::<usize>();
     assert_eq!(successes, 1);
-    assert_eq!(sponsor.consumed_fuel_units(), 7);
+    assert_eq!(sponsor.consumed_work_units(), 7);
     assert_eq!(sponsor.consumed_result_storage_cells(), 2);
 }

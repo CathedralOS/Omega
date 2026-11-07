@@ -194,7 +194,7 @@ fn successor(
         actual.role == source.role
             && actual.psi_edge == source.psi_edge
             && (actual.role == selected_instructions::SelectedSuccessorRole::Semantic
-                || actual.fuel.is_empty())
+                || actual.work.is_empty())
             && actual.block == source.block
             && actual.source_target == source.source_target
             && actual
@@ -202,7 +202,7 @@ fn successor(
                 .iter()
                 .copied()
                 .eq(source.bindings.iter().map(|binding| binding.semantic))
-            && actual.fuel == source.fuel,
+            && actual.work == source.work,
     )
 }
 
@@ -222,7 +222,7 @@ mod tests {
             block: SelectedBlockId(2),
             source_target: BlockId::new(3).unwrap(),
             bindings: Vec::new(),
-            fuel: Vec::new(),
+            work: Vec::new(),
         };
         let mut actual = FunctionFragmentSuccessorProvenance {
             role: source.role,
@@ -230,7 +230,7 @@ mod tests {
             block: source.block,
             source_target: source.source_target,
             bindings: Vec::new(),
-            fuel: Vec::new(),
+            work: Vec::new(),
         };
         successor(&source, &actual).unwrap();
         actual.role = SelectedSuccessorRole::Semantic;

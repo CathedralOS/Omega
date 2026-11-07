@@ -16,7 +16,7 @@ not a new promise about reference aliasing or the cursor’s value.
 The value owner supplies the free `packet_fields` visitor for its numbered field.
 The free `encode_packet` machine adapts the existing core-library entry.
 The core `CompactBinary` library performs the encoding with explicit output,
-scratch storage, field storage and fuel. Runtime checks observe bytes
+scratch storage, field storage and work. Runtime checks observe bytes
 `[0, 0, 200, 1]` as well as the original cursor and indexed result. The match
 witness runs both choices and observes an independent path marker.
 

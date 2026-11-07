@@ -55,7 +55,7 @@ pub(crate) fn compute_terminal_allocation_legality(
     let previous = previous.filter(|(prior_ranges, prior_legality)| {
         prior_ranges.plan().target == ranges.plan().target
             && prior_ranges.plan().optimization_unit == ranges.plan().optimization_unit
-            && prior_ranges.plan().fuel_schedule == ranges.plan().fuel_schedule
+            && prior_ranges.plan().work_schedule == ranges.plan().work_schedule
             && prior_legality.plan().ranges == prior_ranges.receipt().identity()
             && prior_legality.receipt().ranges() == prior_ranges.receipt().identity()
             && prior_legality.plan().register_environment == register_environment

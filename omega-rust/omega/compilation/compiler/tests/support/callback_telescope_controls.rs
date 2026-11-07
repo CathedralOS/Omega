@@ -319,7 +319,7 @@ fn execute_policy(
         ));
     };
     let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
     };
     let sponsor = BuildEvaluationSponsor::new_with_measurement(
@@ -345,7 +345,7 @@ fn execute_policy(
         semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
         None,
     )?;
-    let (plan, fuel) = evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
+    let (plan, work) = evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
         artifact,
         entry,
         target,
@@ -353,7 +353,7 @@ fn execute_policy(
         account,
         admission,
     })?;
-    if plan != application.plan || fuel.total_units() == 0 {
+    if plan != application.plan || work.total_units() == 0 {
         return Err(
             "canonical callback input did not execute the actual native calling policy".into(),
         );

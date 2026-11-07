@@ -31,7 +31,7 @@ pub(super) fn manifest(
         || record.source_realization != source.identity
         || record.selections != source.selections
         || record.psi != fragments.psi
-        || record.fuel_schedule != fragments.fuel_schedule
+        || record.work_schedule != fragments.work_schedule
         || record.selected != fragments.selected
         || record.post_allocation_manifest != source.post_allocation_manifest
         || record.post_allocation_machine != source.post_allocation_machine

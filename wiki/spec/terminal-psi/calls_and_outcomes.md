@@ -103,7 +103,7 @@ It may occur among other ordered operations, not only at a machine's return.
 
 Execution retains the actual typed leaf payload, not just an opaque place
 identity. One logical operation unit is charged before the complete array is
-established; insufficient fuel establishes nothing. A later return charges its
+established; insufficient work establishes nothing. A later return charges its
 own edge. Suspension or calls must preserve an already completed construction
 without replaying it. Consumers that cannot carry the payload through an argument,
 result, transfer, or native realization reject that use explicitly; recognizing

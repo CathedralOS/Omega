@@ -89,13 +89,13 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('--omega',required=True,type=Path)
     parser.add_argument('--route',choices=['all','native','terminal'],default='all')
     parser.add_argument('--output',type=Path,default=ROOT/'build/qualification')
-    parser.add_argument('--timeout',type=int,default=180);parser.add_argument('--fuel',type=int,default=500_000_000)
+    parser.add_argument('--timeout',type=int,default=180);parser.add_argument('--work-budget',type=int,default=500_000_000)
     parser.add_argument('--case',action='append',dest='cases')
     preparation=parser.add_mutually_exclusive_group()
     preparation.add_argument('--prepare-only',action='store_true')
     preparation.add_argument('--prepared',action='store_true')
     options=parser.parse_args()
-    assert options.timeout>0 and options.fuel>0
+    assert options.timeout>0 and options.work_budget>0
     output=options.output.resolve();output.mkdir(parents=True,exist_ok=True)
     omega=str(options.omega.resolve());oracle=load();names=options.cases or list(oracle['cases'])
     assert all(name in oracle['cases'] for name in names)
@@ -156,12 +156,12 @@ def main():
         print('Prepared exact native/Terminal artifacts; no numerical acceptance claimed',flush=True)
         return
     if options.route in ('all','terminal'):
-        observed=execute([str(sponsor),str(ROOT),str(output),str(options.fuel),str(options.timeout),*names],b'',output,'terminal_observer',options.timeout*len(names)+180)
+        observed=execute([str(sponsor),str(ROOT),str(output),str(options.work_budget),str(options.timeout),*names],b'',output,'terminal_observer',options.timeout*len(names)+180)
         assert observed.returncode==0,observed.stdout+observed.stderr
         results=[]
         for name in names:
             results.append(check((output/f'{name}.terminal.stdout').read_bytes(),(output/f'{name}.terminal.stderr').read_bytes(),int((output/f'{name}.terminal.exit').read_text()),name,oracle))
-        invariants(results);record['routes']['terminal']={'cases':results,'observer_build':json.loads(sponsor.with_suffix('.build.json').read_text()),'fuel_per_case':options.fuel}
+        invariants(results);record['routes']['terminal']={'cases':results,'observer_build':json.loads(sponsor.with_suffix('.build.json').read_text()),'work_budget_per_case':options.work_budget}
         print('Terminal:',len(results),'actual retained numerical/refusal outputs matched',flush=True)
     record.update({'producer_version':subprocess.check_output([omega,'--version'],text=True).strip(),
         'producer_sha256':digest(Path(omega)),'source_head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=REPOSITORY,text=True).strip(),

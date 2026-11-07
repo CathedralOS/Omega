@@ -35,22 +35,22 @@ data Spread16 { index: u64 in Wrapping; }
 machine Spread16::plan(spread16: &mut Spread16, schema: Schema) -> Plan {
     Spread16::evaluate(spread16, schema, 128)
 }
-machine Spread16::evaluate(spread16: &mut Spread16, schema: Schema, fuel: u64) -> Plan
-requires fuel >= 1 && fuel <= 128
-terminates by fuel
+machine Spread16::evaluate(spread16: &mut Spread16, schema: Schema, remaining_steps: u64) -> Plan
+requires remaining_steps >= 1 && remaining_steps <= 128
+terminates by remaining_steps
 {
     let mut entries: [FieldEntry; 64];
     spread16.index = 0;
-    transition { _ -> fill(spread16, schema, fuel, entries) }
-    machine fill(spread16: &mut Spread16, schema: Schema, fuel: u64, entries: [FieldEntry; 64]) -> Plan
-    requires fuel >= 1 && fuel <= 128 {
-        transition fuel > 1 && spread16.index < schema.field_count {
-            true -> place(spread16, schema, fuel - 1, entries)
+    transition { _ -> fill(spread16, schema, remaining_steps, entries) }
+    machine fill(spread16: &mut Spread16, schema: Schema, remaining_steps: u64, entries: [FieldEntry; 64]) -> Plan
+    requires remaining_steps >= 1 && remaining_steps <= 128 {
+        transition remaining_steps > 1 && spread16.index < schema.field_count {
+            true -> place(spread16, schema, remaining_steps - 1, entries)
             _ -> done(schema, entries)
         }
     }
-    machine place(spread16: &mut Spread16, schema: Schema, fuel: u64, entries: [FieldEntry; 64]) -> Plan
-    requires fuel >= 1 && fuel <= 128 {
+    machine place(spread16: &mut Spread16, schema: Schema, remaining_steps: u64, entries: [FieldEntry; 64]) -> Plan
+    requires remaining_steps >= 1 && remaining_steps <= 128 {
         let mut updated: [FieldEntry; 64] = entries;
         let offset: u64 = (spread16.index * 16) as u64;
         updated[spread16.index] = FieldEntry {
@@ -58,7 +58,7 @@ terminates by fuel
             representation: FieldPlan::At { offset: offset },
         };
         spread16.index = spread16.index + 1;
-        transition fuel > 1 { true -> fill(spread16, schema, fuel - 1, updated) _ -> done(schema, updated) }
+        transition remaining_steps > 1 { true -> fill(spread16, schema, remaining_steps - 1, updated) _ -> done(schema, updated) }
     }
     machine done(schema: Schema, entries: [FieldEntry; 64]) -> Plan {
         Plan {

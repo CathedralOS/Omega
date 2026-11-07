@@ -303,7 +303,7 @@ fn select_function(
                     &[],
                     SelectedInstructionProvenance {
                         operations: vec![operation.operation],
-                        fuel: operation.fuel.clone(),
+                        work: operation.work.clone(),
                         ..Default::default()
                     },
                 )?;
@@ -320,7 +320,7 @@ fn select_function(
                     &[],
                     SelectedInstructionProvenance {
                         operations: vec![operation.operation],
-                        fuel: operation.fuel.clone(),
+                        work: operation.work.clone(),
                         ..Default::default()
                     },
                 )?;
@@ -704,7 +704,7 @@ impl Builder<'_> {
         pending.values.extend(provenance.values);
         pending.edges.extend(provenance.edges);
         pending.obligations.extend(provenance.obligations);
-        pending.fuel.extend(provenance.fuel);
+        pending.work.extend(provenance.work);
         pending
     }
 

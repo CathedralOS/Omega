@@ -23,7 +23,7 @@ native emission, and execution machinery. Parsing is not an Omega backend step.
 Psi is immutable, self-contained, concrete, and post-instantiation.
 Its meaning requires no source syntax, typed-tree arena, producer process,
 instruction selector, or generic execution machinery. Execution, proof
-questions, evidence, diagnostics, fuel, and lowering refer to the same stable
+questions, evidence, diagnostics, work, and lowering refer to the same stable
 values, places, operations, and edges. Each executable choice affecting behavior
 or obligations has a closed static identity. Author-declared hardware geometry
 remains semantic; target-selected layout, ABI classes, registers, storage regions,
@@ -194,7 +194,7 @@ repeat them. Failure to find a proof does not refute its conclusion.
 
 An authoritative vocabulary extension must define encoding, execution,
 reconstructed obligations and authorized admissions, proof rules and their
-soundness argument, interpretation, lowering requirements, and fuel identity.
+soundness argument, interpretation, lowering requirements, and work identity.
 An incomplete consumer rejects unsupported forms; a metadata-only producer
 does not establish complete executable support.
 Obligation-affecting policies are closed operation variants, not ordinary values
@@ -260,8 +260,8 @@ later facts.
 
 ## Accounting and subsequent products
 
-Semantic/program identity and fuel-schedule identity are independent.
-Changing a fuel schedule changes accounting, not program meaning. Semantic
+Semantic/program identity and work-schedule identity are independent.
+Changing a work schedule changes accounting, not program meaning. Semantic
 caches bind semantics and program identity; cost evidence additionally binds
 the schedule. [Logical work](../resources/logical_work.md) and
 [spatial resources](../resources/storage.md) own those separate contracts.

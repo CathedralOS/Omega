@@ -12,7 +12,7 @@
 // conformance below), validates the policy's returned plan, and retains
 // the selected provider's schema, claims, and reach resolution. What
 // remains compiler-side is the deriver-owned entry/exit stub and the
-// runtime resource columns (stack/fuel/machine-state receipts) that
+// runtime resource columns (stack/remaining_steps/machine-state receipts) that
 // admitted-provider custody still supplies in the compiler test.
 //
 // `CriticalStackPolicy` fixes the divide-error member's stack class (11)

@@ -9,7 +9,7 @@ The `69ec9f80599b` compiler on Linux and `3b8603164e96` on Windows, Mac and Linu
 At integrated source `6b1c338126fa`, the same positive again checks and produces
 native/Terminal exit 0 on Linux. The unchanged wrong-value control reaches the
 intended Build trap. All five SDK scopes also pass at that source, including
-artifact reload, exact per-purpose Build counts and the original fuel, consent,
+artifact reload, exact per-purpose Build counts and the original work, consent,
 byte-storage and output assertions. These are actual Linux observations in
 [run 42026360839](https://github.com/CathedralOS/Omega/actions/runs/42026360839)
 and its [corpus replay](https://github.com/CathedralOS/Omega/actions/runs/42033929209).

@@ -300,8 +300,8 @@ impl RecordValue for effects::provider_plan::EvaluatedBindingUsage {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         self.usage_schema_version().write(output)?;
         self.step_schedule_marker().write(output)?;
-        self.fuel_units().write(output)?;
-        self.fuel_ceiling().write(output)?;
+        self.work_units().write(output)?;
+        self.work_budget().write(output)?;
         self.build_log_bytes().write(output)?;
         self.filesystem_operation_attempts().write(output)?;
         self.peak_live_cells().write(output)?;

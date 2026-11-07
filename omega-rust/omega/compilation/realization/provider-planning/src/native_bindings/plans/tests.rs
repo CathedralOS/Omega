@@ -6,7 +6,7 @@ use evaluation_accounting::{
     TerminalStorageScheduleIdentity,
 };
 use language_semantics::declaration_selection::{NativeBindingProducer, ProductTarget};
-use semantic_vocabulary::{FuelScheduleIdentity, PackageKeyIdentity};
+use semantic_vocabulary::{PackageKeyIdentity, WorkScheduleIdentity};
 
 const REQUIREMENT: &str = "Clock::now";
 
@@ -14,7 +14,7 @@ const REQUIREMENT: &str = "Clock::now";
 fn supply(target: ProductTarget, locator: NativeBindingLocator) -> NativeBuildSupply {
     let package = PackageKeyIdentity::from_digest([3; 32]).unwrap();
     let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+        work_schedule: WorkScheduleIdentity::new(1).unwrap(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
     };
     let limits = BuildEvaluationSponsorLimits::new(100, 100, 8, 8, 100, 100, 100, 100).unwrap();

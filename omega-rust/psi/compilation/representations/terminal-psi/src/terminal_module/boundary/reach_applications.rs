@@ -4,7 +4,7 @@
 //! this projection without a checkable opening. Ordinary consumption trusts the
 //! projection, then independently checks its finite union and exact call joins.
 //! No generic execution, body-based narrowing, or additional selection identity
-//! is introduced. Calls retain their ordinary execution and fuel semantics.
+//! is introduced. Calls retain their ordinary execution and work semantics.
 
 use crate::terminal_module::TerminalIdentityIndex;
 use semantic_vocabulary::{MachineId, ServiceId};

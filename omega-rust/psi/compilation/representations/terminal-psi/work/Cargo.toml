@@ -1,11 +1,11 @@
 [package]
-name = "terminal-fuel"
+name = "psi-work"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "terminal_fuel"
+name = "psi_work"
 path = "src/lib.rs"
 
 [dependencies]
