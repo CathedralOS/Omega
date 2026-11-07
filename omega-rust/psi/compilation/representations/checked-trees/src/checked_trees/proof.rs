@@ -51,7 +51,8 @@ pub use lemmas::{
     LemmaFacts, ProofLemmaFact, ProofLemmaKind, QuantifiedBoundFact, QuantifiedRangeFact,
 };
 pub use mathematical::{
-    CheckedIdentityFormation, CheckedIndexedCitation, CheckedIndexedTheorem,
+    CheckedIdentityFormation, CheckedIdentityFormationPlan, CheckedIdentityOwner,
+    CheckedIdentityPublication, CheckedIndexedCitation, CheckedIndexedTheorem,
     CheckedMathematicalBinder, CheckedMathematicalBinderKind, CheckedMathematicalBody,
     CheckedMathematicalDeclaration, CheckedMathematicalParameter, CheckedMathematicalSignature,
     CheckedSourceEvidenceCarrier,

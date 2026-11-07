@@ -1,6 +1,6 @@
 # Selected representation agreement
 
-These programs prove that two explicitly selected conversion maps preserve both
+These programs require two explicitly selected conversion maps to preserve both
 fields of a value and reject malformed frames. Runtime checks call the maps
 through their ordinary fallible interface, then inspect the results independently
 of the agreement theorem.
@@ -13,10 +13,19 @@ Parent: **LIBRARY-REPRESENTATION-FAMILIES**.
 
 `Pair` contains two unrestricted `u8` fields. `FirstFrame` stores tag 165 and the
 two fields in semantic order. `SecondFrame` stores tag 90 and exchanges their
-storage positions. The five checked laws establish successful encoding, encoded
-validity, successful decoding of valid frames, rejection of malformed frames,
-and exact preservation of both fields on a round trip. The laws cover all
-65,536 possible Pairs; they do not rely on enumerating the runtime examples.
+storage positions. The five laws require successful encoding, encoded validity,
+successful decoding of valid frames, rejection of malformed frames, and exact
+preservation of both fields on a round trip. Their implementations must prove
+those statements for all 65,536 possible Pairs; the runtime examples do not replace that proof.
+
+The identity claims use `core::Identity<T>(left, right)`, the specified
+mathematical identity declaration. They name the complete fallible result, so
+both its case and payload must agree. One consumer uses the same claim through a
+transparent mathematical wrapper. The compiler retains each formed identity
+value with its exact source carrier and subjects through checked application,
+substitution and erasure. Canonical receiving rechecks the kernel formation;
+a separate source-bound inspection checks its correspondence with independently
+retained source judgments. Forming the statement does not prove it.
 
 The caller cites those laws through the exact selected encoder, decoder and
 validity implementation. Each law's premises must hold before its conclusions
@@ -65,17 +74,24 @@ The nine positive programs and nine decoder-only controls are mirrored under
 
 ## Validation
 
-The current compiler repair and stronger runtime oracles still require their
-recorded execution results before this row can claim fresh acceptance. Original
-Windows run 42302120700 and Linux ARM64 run 42303719206 rejected all nine valid
-callers after losing facts across citations; all nine decoder controls retained
-their intended rejection. Neither baseline reached native or Terminal execution.
+Fresh acceptance requires all nine positive programs to produce their authored
+result in native and Terminal Psi execution on all four hosted targets. All nine
+decoder-only controls must reject for their intended diagnostic. That acceptance
+is still open.
 
-Historical macOS ARM64 observations belong to the original programs and their
-recorded producers, beginning with `8c2fec05b2cabe2eef32c8a9fa714a0f2e8b3513`.
-Later program cohorts retained their own `d38849d4cb02`, `c4dff827e4da`,
-`7879363aac49` and `4c1f16dc8b68` identities. Those results do not qualify the
-new consumer checks. Their raw reports and producer profiles remain in
+The canonical-source baseline,
+[run 42327869574](https://github.com/CathedralOS/Omega/actions/runs/42327869574),
+checked the selected-implementation fixture from `f1933b40cf0662fed4051ee75cce33112fb372e7`
+with the optimized producer `9295e6aaf822a8c1afac7aaca1f594937d08a370`. It
+rejected the explicit identity calls during source checking, before either
+engine executed.
+
+Earlier Windows and Linux ARM64 baselines used the legacy source: runs
+42302120700 and 42303719206 rejected all nine valid callers after losing facts
+across citations, while their decoder controls retained the intended rejection.
+Older execution results also belong to their recorded programs and producers.
+They do not validate the explicit identity source or the stronger runtime checks.
+Legacy macOS execution records remain in
 `/Users/zcanann/Omega-build/representation-agreement-20261101/`.
 
 Current original reports, executable profiles, source bundles, exact input hashes

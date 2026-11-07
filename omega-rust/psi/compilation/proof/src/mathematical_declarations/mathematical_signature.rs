@@ -225,7 +225,7 @@ struct Elaborator<'a> {
     identity_declaration: Option<u32>,
     type_returning_declarations: Vec<SymbolHandle>,
     identity_emissions: Vec<identity::IdentityEmission>,
-    identity_emissions_by_owner: HashMap<SymbolHandle, Vec<usize>>,
+    identity_emissions_by_owner: Vec<(SymbolHandle, Vec<usize>)>,
 }
 
 /// Elaborate every mathematical declaration of `program` into a kernel
@@ -291,7 +291,10 @@ pub(crate) fn check_mathematical_signature(
         identity_declaration: None,
         type_returning_declarations: Vec::new(),
         identity_emissions: Vec::new(),
-        identity_emissions_by_owner: HashMap::new(),
+        identity_emissions_by_owner: vec![
+            (SymbolHandle::default(), Vec::new());
+            program.symbols.symbols().len()
+        ],
     };
     if needs_scheme {
         let theory = proof_admission::SourceIntegerTheory::new(

@@ -159,6 +159,7 @@ pub use proof::{
     CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatProjectionSource,
     CheckedFloatSemanticApplication, CheckedFloatSemanticApplicationError,
     CheckedFloatSemanticApplicationOperand, CheckedFloatUseSite, CheckedIdentityFormation,
+    CheckedIdentityFormationPlan, CheckedIdentityOwner, CheckedIdentityPublication,
     CheckedIndexedCitation, CheckedIndexedTheorem, CheckedIntegerAssignmentDecision,
     CheckedMathematicalBinder, CheckedMathematicalBinderKind, CheckedMathematicalBody,
     CheckedMathematicalDeclaration, CheckedMathematicalParameter, CheckedMathematicalSignature,

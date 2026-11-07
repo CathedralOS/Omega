@@ -693,6 +693,11 @@ fn check_program(
             });
     }
     facts.proof.mathematical_safety_assumptions = mathematics.applications.safety_assumptions;
+    facts.proof.identity_formation_plan = crate::published::facts::identity_formations::record(
+        &typed_program,
+        &facts.proof.identity_formations,
+        mathematics.signature.as_ref(),
+    )?;
     facts.proof.mathematical_signature = mathematics.signature;
     let mut checked = CheckedTrees::with_roots(typed_program, facts);
     phase_profile::scope(

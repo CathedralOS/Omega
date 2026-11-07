@@ -65,7 +65,7 @@ impl Elaborator<'_> {
             self.source_owner,
             Vec::new(),
             Vec::new(),
-        );
+        )?;
         self.span = Some(self.program.expression_table.source_span(expression));
         Ok(term)
     }
@@ -136,7 +136,7 @@ impl Elaborator<'_> {
         source_owner: SymbolHandle,
         source_scopes: Vec<IdentitySourceScope>,
         pending: Vec<IdentitySourceParameter>,
-    ) {
+    ) -> Result<(), Vec<Diagnostic>> {
         let mut abstraction = value;
         for entry in self.scope.iter().rev() {
             abstraction = self.arena.insert(Term::Lambda {
@@ -144,10 +144,17 @@ impl Elaborator<'_> {
                 body: abstraction,
             });
         }
-        self.identity_emissions_by_owner
-            .entry(self.source_owner)
-            .or_default()
-            .push(self.identity_emissions.len());
+        let Some((owner, emissions)) = self
+            .identity_emissions_by_owner
+            .get_mut(self.source_owner.arena_index() as usize)
+        else {
+            return Err(self.refuse("Id emission has no retained source owner".into()));
+        };
+        if *owner != self.source_owner {
+            *owner = self.source_owner;
+            emissions.clear();
+        }
+        emissions.push(self.identity_emissions.len());
         self.identity_emissions.push(IdentityEmission {
             value,
             abstraction,
@@ -156,6 +163,7 @@ impl Elaborator<'_> {
             source_scopes,
             pending,
         });
+        Ok(())
     }
 
     pub(super) fn transport_identity_emissions(
@@ -166,9 +174,10 @@ impl Elaborator<'_> {
     ) -> Result<(), Vec<Diagnostic>> {
         let emitted = self
             .identity_emissions_by_owner
-            .get(&call.target_symbol)
+            .get(call.target_symbol.arena_index() as usize)
+            .filter(|(owner, _)| *owner == call.target_symbol)
             .into_iter()
-            .flatten()
+            .flat_map(|(_, positions)| positions)
             .map(|position| self.identity_emissions[*position].clone())
             .collect::<Vec<_>>();
         if emitted.is_empty() {
@@ -275,7 +284,7 @@ impl Elaborator<'_> {
                 row.source_owner,
                 scopes,
                 pending,
-            );
+            )?;
         }
         Ok(())
     }

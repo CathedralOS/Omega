@@ -177,3 +177,30 @@ pub struct CheckedIdentityFormation {
     /// Source occurrences in the kernel telescope's outermost-first order.
     pub captures: Vec<(typed_trees::expression::ExpressionHandle, TypeIdentityId)>,
 }
+
+/// Fully formed publication plan. Checking resolves source identities and
+/// capture positions and abstracts the checked Id values once. Lowering only
+/// interns this metadata and encodes the shared mathematical judgment.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedIdentityFormationPlan {
+    pub rows: Vec<CheckedIdentityPublication>,
+    pub arena: TermArena,
+    pub declarations: Vec<Declaration>,
+    pub term: proof_admission::TermHandle,
+    pub ty: proof_admission::TermHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedIdentityPublication {
+    pub owner: CheckedIdentityOwner,
+    pub source_carrier: String,
+    pub subject_carriers: Vec<String>,
+    pub subject_origins: Vec<(u32, u32)>,
+    pub declaration: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedIdentityOwner {
+    Hermetic(String),
+    InvocationLocal(String),
+}
