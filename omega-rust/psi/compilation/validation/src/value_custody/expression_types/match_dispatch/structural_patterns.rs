@@ -81,7 +81,14 @@ pub(crate) fn structural_match_pattern_case_for_subject(
         // A record head names the subject's exact declaration. Case payloads
         // cannot be extracted under their sum owner without selecting a case.
         if matches!(pattern, MatchPattern::Destructure(_))
-            && name.symbol == data.symbol
+            && program
+                .data_constructor_definition(
+                    program
+                        .type_reference_table
+                        .peeled_type_reference(reference),
+                    name.symbol,
+                )
+                .is_some_and(|selected| selected.symbol == data.symbol)
             && program.pattern_component(subject) == Some(language_core::PatternComponent::Fields)
         {
             return Some(SymbolHandle::invalid());
