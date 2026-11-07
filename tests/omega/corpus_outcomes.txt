@@ -2236,10 +2236,10 @@ fail/build/helper_contract_context rejected 256ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from incorrect at statement 0: result == 4
 fail/build/hosted_program_entry_visible_parameter rejected 3189ms expected @ccdb99ca2214
 	hosted `ProgramEntry` exposes no arrival parameters, but `launch` declares `argument`
-fail/build/installed_arrival_without_context rejected 381509ms expected @d34b7f0d8bd0
+fail/build/installed_arrival_without_context rejected 148041ms expected @6c822102aed4
 	installed interrupt entry: installation requires an explicit bootstrap environment assumption through publication
-fail/build/installed_arrival_wrong_controller rejected 391110ms expected @d34b7f0d8bd0
-	installed interrupt arrival: completion at OperationId(10879) selects another installation's controller
+fail/build/installed_arrival_wrong_controller rejected 154878ms expected @6c822102aed4
+	installed interrupt arrival: completion at OperationId(2373) selects another installation's controller
 fail/build/installed_entry_ram_invalid_extent rejected 5528ms expected @ccdb99ca2214
 	private entry RAM requires the complete nonempty bounded schema extent
 fail/build/installed_entry_ram_invalid_padding rejected 4500ms expected @ccdb99ca2214
@@ -20131,7 +20131,7 @@ pass/calls/cyclic_mutable_borrow_block_parameter_call checked 17541ms check-targ
 pass/calls/cyclic_projected_borrow_call_exit checked 18022ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/cyclic_scalar_query_reborrow_exit checked 12341ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/declared_range_delivery_proven checked 5191ms @ccdb99ca2214
-pass/calls/direct_target_foreign_scalar_result_exit checked 3909ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/direct_target_foreign_scalar_result_exit checked 3403ms check-target:macos_arm64 @efb4acd2300e
 pass/calls/ensures_result_membership_state_graph_issuer_exit checked 2938ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/field_path_byte_subslice_exit checked 17110ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/generic_operator_guard_result checked 4770ms @ccdb99ca2214
@@ -20444,7 +20444,7 @@ pass/calls/value_tail_call_to_machine_exit checked 16258ms check-target:macos_ar
 pass/calls/whole_byte_array_view_loans_exit checked 18672ms check-target:macos_arm64 @ccdb99ca2214
 pass/capabilities/aarch64_hfa_import_compile checked 5391ms @ccdb99ca2214
 pass/capabilities/acquires_through_helper_return checked 3590ms check-target:macos_arm64 @ccdb99ca2214
-pass/capabilities/alternative_synchronous_provider_exit checked 6246ms check-target:macos_arm64 synchronous-provider-controls:match terminal-inspections:match @a430170fd79b
+pass/capabilities/alternative_synchronous_provider_exit checked 5741ms check-target:macos_arm64 synchronous-provider-controls:match terminal-inspections:match @6c822102aed4
 pass/capabilities/boundary_trait_multiple_effects checked 2256ms @ccdb99ca2214
 pass/capabilities/callback_direct_install_compile checked 20888ms check-target:linux_x86_64 @ccdb99ca2214
 pass/capabilities/derives_through_helper checked 3716ms check-target:macos_arm64 @ccdb99ca2214
@@ -25654,7 +25654,7 @@ pass/float/guarded_scalar_state_contract_exit checked 39159ms check-target:macos
 pass/float/hydrostatic_load_format_exit checked 510307ms check-target:macos_arm64 @ff514b7f093c
 pass/float/literal_indexed_float_field_read_exit checked 14635ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/live_division_operand_across_call_exit checked 3374ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/live_float_parameter_across_call_exit checked 7109ms check-target:macos_arm64 @ccdb99ca2214
+pass/float/live_float_parameter_across_call_exit checked 2997ms check-target:macos_arm64 @efb4acd2300e
 pass/float/local_after_float_call_store_exit checked 15441ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/module_imported_policy_conversion_family_exit checked 515428ms check-target:macos_arm64 @ff514b7f093c
 pass/float/named_constant_materialization_exit rejected 400135ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d73dac294b53

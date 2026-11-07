@@ -23,6 +23,7 @@ pass/build/terminal_native_layout_catalog built 12257ms exit:0 native-layout-con
 pass/build/terminal_private_callback_calling built 45543ms exit:0 @5599dba65fa9
 pass/calls/attached_parameter_overload_bound built 3260ms exit:0 @72079e22578e+wt
 pass/calls/attached_parameter_overload_exit built 3260ms exit:0 @72079e22578e+wt
+pass/calls/direct_target_foreign_scalar_result_exit built 2888ms exit:0 @efb4acd2300e
 pass/calls/runtime_mutable_owned_computation_arguments_exit built 1107ms exit:0 @66bc5becc69e
 pass/collections/runtime_stored_reference_array_owned_record_contract_exit built 1343ms exit:0 @4ce70cb5f8a0
 pass/collections/runtime_stored_reference_array_replacement_contract_exit built 1176ms exit:0 @4ce70cb5f8a0
@@ -4046,7 +4047,7 @@ pass/layouts/fixed_layout_policy_value_exit built 3073ms exit:0 @dc9835be2e64
 pass/layouts/integer_at_owned_local_borrow_call_exit built 1459ms exit:0 @313322813ba5+wt
 pass/layouts/layout_queries checked 9935ms @5041ef1af684+wt
 pass/layouts/private_callback_descriptor_fragments_exit built 95727ms exit:0 @b37aba3cc346
-pass/layouts/private_callback_inherited_policy_exit built 81260ms exit:0 @b8802407f2c4
+pass/layouts/private_callback_inherited_policy_exit built 9386ms exit:0 @efb4acd2300e
 pass/layouts/private_callback_slot_demand_compile checked 2650ms @693920652f41+wt
 pass/layouts/private_callback_slot_untaken_compile checked 214ms
 pass/layouts/runtime_callee_integer_at_fitting_write_exit built 1689ms exit:0 @acdf102c21ea+wt
