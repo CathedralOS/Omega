@@ -36,7 +36,6 @@ use typed_trees::machine::MachineBodyStatus;
 use typed_trees::operator::declaration_by_symbol;
 use typed_trees::signature::SignatureContract;
 use typed_trees::signature::SignatureContractKind;
-use typed_trees::signature::StateParameter;
 use typed_trees::signature::StateSignature;
 use validation::CallSite;
 use validation::ContentConservationSourcePlan;

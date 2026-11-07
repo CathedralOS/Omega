@@ -202,7 +202,6 @@ pub(crate) fn validate_declaration_expression_formation(
         program,
         SpecificationCaller::Declaration(owner_symbol, parameters),
         root,
-        false,
         prior_facts,
         owner,
         diagnostics,
@@ -320,7 +319,6 @@ pub(crate) fn validate_declaration_call_requirements(
             program,
             SpecificationCaller::Declaration(owner_symbol, parameters),
             root,
-            matches!(fact, ProofFact::Expression(_)),
             prior_facts,
             owner,
             diagnostics,
@@ -349,7 +347,6 @@ pub(crate) fn validate_specification_call_requirements(
             program,
             SpecificationCaller::Machine(machine, state),
             root,
-            matches!(fact, ProofFact::Expression(_)),
             prior_facts,
             owner,
             diagnostics,
@@ -403,7 +400,6 @@ pub(crate) fn validate_proof_body_formation(
         program,
         SpecificationCaller::Machine(machine, Some(state)),
         expression,
-        false,
         &hypotheses,
         &owner,
         diagnostics,
@@ -776,7 +772,6 @@ fn validate_specification_expression(
     program: &dyn crate::CheckingInput,
     caller: SpecificationCaller<'_>,
     expression: ExpressionHandle,
-    proposition_context: bool,
     prior_facts: &[ExpressionHandle],
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
@@ -788,7 +783,6 @@ fn validate_specification_expression(
         program,
         caller,
         expression,
-        proposition_context,
         SpecificationPremises {
             asserted: prior_facts,
             denied: &[],
@@ -807,7 +801,6 @@ fn validate_specification_expression_in_scope(
     program: &dyn crate::CheckingInput,
     caller: SpecificationCaller<'_>,
     expression: ExpressionHandle,
-    proposition_context: bool,
     prior_facts: SpecificationPremises<'_>,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
@@ -838,7 +831,6 @@ fn validate_specification_expression_in_scope(
             program,
             caller,
             binary.left,
-            proposition_context,
             prior_facts,
             owner,
             diagnostics,
@@ -872,7 +864,6 @@ fn validate_specification_expression_in_scope(
             program,
             caller,
             binary.right,
-            proposition_context,
             SpecificationPremises {
                 asserted: &asserted,
                 denied: &denied,
@@ -903,7 +894,6 @@ fn validate_specification_expression_in_scope(
             program,
             caller,
             dispatch.subject,
-            false,
             prior_facts,
             owner,
             diagnostics,
@@ -940,7 +930,6 @@ fn validate_specification_expression_in_scope(
                     program,
                     caller,
                     condition,
-                    predicate,
                     SpecificationPremises {
                         asserted: &asserted,
                         denied: &denied,
@@ -965,7 +954,6 @@ fn validate_specification_expression_in_scope(
                 program,
                 caller,
                 arm.value,
-                proposition_context,
                 SpecificationPremises {
                     asserted: &asserted,
                     denied: &denied,
@@ -982,13 +970,11 @@ fn validate_specification_expression_in_scope(
             }
         }
     } else {
-        let proposition_children = crate::logical_proposition_children(program, expression);
         children(program, node, |child| {
             validate_specification_expression_in_scope(
                 program,
                 caller,
                 child,
-                proposition_context && proposition_children.contains(&Some(child)),
                 prior_facts,
                 owner,
                 diagnostics,

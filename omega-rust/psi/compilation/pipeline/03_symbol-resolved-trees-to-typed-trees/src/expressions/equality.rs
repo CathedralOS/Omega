@@ -171,8 +171,8 @@ fn scan_expression(
             scan_expression(program, dispatch.subject, false)?;
             for arm in expressions.match_arms(dispatch.arms) {
                 if let resolved::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    check_equality_operand(program, dispatch.subject, false)?;
-                    check_equality_operand(program, pattern, false)?;
+                    check_equality_operand(program, dispatch.subject)?;
+                    check_equality_operand(program, pattern)?;
                     scan_expression(program, pattern, false)?;
                 }
                 scan_expression(program, arm.value, fact_position)?;
