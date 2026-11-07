@@ -8,7 +8,7 @@ use diagnostics::Diagnostic;
 /// the independently supplied receiver-admission policy.
 pub(crate) fn accepted_terminal_authority_permission_policy(
     checked: &CheckedCompilation,
-) -> Result<native_production::TerminalAuthorityPermissionPolicy, Vec<Diagnostic>> {
+) -> Result<native_compiler::TerminalAuthorityPermissionPolicy, Vec<Diagnostic>> {
     let (permissions, permission_identities) = checked.execution().terminal_authority_permissions();
-    native_production::admit_package_permissions(permissions, permission_identities)
+    native_compiler::admit_package_permissions(permissions, permission_identities)
 }

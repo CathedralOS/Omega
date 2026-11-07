@@ -505,7 +505,7 @@ dependencies = [
  "lowered-psi",
  "mimalloc",
  "native-artifact",
- "native-production",
+ "native-compiler",
  "numerics",
  "object-file",
  "optimization",
@@ -1329,7 +1329,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "native-production"
+name = "native-compiler"
 version = "0.1.0"
 dependencies = [
  "abstract-operations-to-abstract-operations",
@@ -1552,7 +1552,7 @@ dependencies = [
  "compiler",
  "diagnostics",
  "image-emission",
- "native-production",
+ "native-compiler",
  "package-compilation",
  "package-manager",
  "platform-custody",

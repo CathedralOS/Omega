@@ -198,7 +198,7 @@ fn request() -> Result<Request, Box<dyn std::error::Error>> {
 fn measure() -> Result<(), Box<dyn std::error::Error>> {
     let before = WorkCounts::snapshot();
     let request = request()?;
-    let native_before = native_production::native_pipeline_invocations().len();
+    let native_before = native_compiler::native_pipeline_invocations().len();
     let result = produce(&request);
     let actual = WorkCounts::since(&before);
     println!(
@@ -420,7 +420,7 @@ fn observe_native_products(
     });
     if let Some(directory) = &directory {
         std::fs::create_dir_all(directory)?;
-        let invocations = native_production::native_pipeline_invocations()
+        let invocations = native_compiler::native_pipeline_invocations()
             .into_iter()
             .skip(before)
             .collect::<Vec<_>>();
@@ -428,7 +428,7 @@ fn observe_native_products(
             assert!(request.targets.contains(&invocation.profile));
             assert_eq!(
                 invocation.unit,
-                native_production::NativePipelineUnit::Application
+                native_compiler::NativePipelineUnit::Application
             );
             assert!(invocation.stages.iter().all(|count| *count <= 1));
         }

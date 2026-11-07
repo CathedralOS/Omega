@@ -10,7 +10,7 @@ use crate::execution_settlement::SelectedProviderCustody;
 use crate::observations::PsiStageTimings;
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
-use native_production::TerminalApplication;
+use native_compiler::TerminalApplication;
 use optimization_core::OptimizationSelections;
 use psi_compiler::TerminalApplicationCustody;
 use std::sync::Arc;
