@@ -1,4 +1,9 @@
-//! Completed Build custody, independent of source symbol selection.
+// Completed Terminal Psi evaluation custody (`NativeBuildEvaluation`) for
+// native Build bindings. Requires `EvaluationMeasurementIdentity::TerminalPsi`
+// (never a tree-interpreter measurement) and commits the path-independent
+// `BuildObservationSummary` digest alongside the invocation's own usage
+// counters (excluding aggregate sponsorship so concurrent package billing
+// cannot perturb the provider's semantic identity).
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBuildEvaluation {
@@ -16,16 +21,12 @@ impl NativeBuildEvaluation {
         usage
             .validate()
             .map_err(|reason| format!("native Build evaluation usage: {reason:?}"))?;
-        // Never relabel a tree interpreter measurement as Terminal units.
         if !matches!(
             usage.measurement,
             evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi { .. }
         ) {
             return Err("native Build bindings require their actual Terminal evaluation".into());
         }
-        // Use the existing path-independent observation commitment. The
-        // report codec also contains physical host roots and cannot name a
-        // portable native provider.
         Ok(Self {
             terminal_code,
             usage,
@@ -33,9 +34,6 @@ impl NativeBuildEvaluation {
         })
     }
 
-    /// Code and invocation observations retained by the candidate. Aggregate
-    /// sponsorship is still reported in `usage`; another package's concurrent
-    /// billing must not change this provider's semantic identity.
     pub fn identity_digest(&self) -> [u8; 32] {
         let mut digest = optimization_core::digest_encoder::DomainDigestEncoder::new(
             b"omega.native-build-evaluation.v1\0",

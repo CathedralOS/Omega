@@ -1,11 +1,13 @@
-//! Both retained bytes and metadata-only commitments use the same checked
-//! read. Path metadata alone misses substitution during open; length alone
-//! misses in-place edits. Compare the inspected file, opened handle, completed
-//! handle, and final path before publishing either result.
-//!
-//! Host identities and times are drift guards, never canonical input metadata.
-//! They detect ordinary concurrent edits under resolver-owned backing custody,
-//! not arbitrary same-user interference or atomicity across a mutable tree.
+// Drift-checked canonical `Source` file reading (`read_canonical_source_file`) and hashing (`hash_canonical_source_file`).
+//
+// Both retained-byte capture and metadata-only hashing read files in 64 KiB chunks
+// (`read_canonical_file_chunks`) while comparing `initial_metadata` (before open),
+// `opened_metadata` (on the open handle before reading), `completed_metadata` (on
+// the handle after EOF), and `final_metadata` (`symlink_metadata` on the path after
+// reading). Comparing file length, permissions, modification time, and platform
+// inode/device or creation-time/attribute metadata across all four points detects
+// concurrent file substitution or in-place mutation before any bytes or digests are
+// published.
 
 use sha2::{Digest, Sha256};
 use std::fs::{File, Metadata};
@@ -37,8 +39,6 @@ pub(super) fn hash_canonical_source_file(
     Ok(digest.finalize().into())
 }
 
-/// Chunk consumers only accumulate private results: none may publish before
-/// the final handle and path checks succeed.
 pub(super) fn read_canonical_file_chunks(
     path: &Path,
     initial_metadata: &Metadata,
@@ -139,8 +139,6 @@ fn require_unchanged_file(
     #[cfg(windows)]
     let unchanged = {
         use std::os::windows::fs::MetadataExt;
-        // Additional drift indicators, not a unique file identity. These
-        // checks do not replace the caller's backing-store custody.
         unchanged
             && expected.creation_time() == observed.creation_time()
             && expected.file_attributes() == observed.file_attributes()

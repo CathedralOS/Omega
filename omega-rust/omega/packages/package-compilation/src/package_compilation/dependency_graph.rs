@@ -1,7 +1,7 @@
-//! Questions answered over the reconciled dependency graph: exact edge
-//! occurrences, scoped alias targets, declaration-selection authority, and
-//! the durable product-scope closure, plus the reachability and cycle
-//! walks shared by graph construction and closure recovery.
+// Dependency graph queries, cycle detection, and `PackageDependencyClosure`
+// projection over `PackageCompilationInputs`. Durable closures project only
+// product-scope edges reachable from a package root, while build-scope edges
+// remain compilation-local nameability for the root's build entry.
 
 use super::construction::is_snake_case;
 use super::{PackageCompilationInputs, PackageCompilationSourceRecord, PackageDependencyBinding};
@@ -10,9 +10,6 @@ use build_declarations::DependencyPurpose;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::{BTreeMap, BTreeSet};
 
-/// Exact, source-path-free dependency closure consumed by one package-aware
-/// compilation. This is a semantic subject coordinate, not source custody or
-/// an admission verdict.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageDependencyClosure {
     root: PackageKeyIdentity,
@@ -38,13 +35,6 @@ impl PackageDependencyClosure {
         &self.dependencies
     }
 
-    /// Recover one canonical source-path-free closure from persisted semantic
-    /// coordinates. This does not recover source custody or package admission.
-    ///
-    /// The wire decoder must not be able to manufacture a weaker graph shape
-    /// than `PackageCompilationInputs`: packages and requester-local aliases
-    /// are strictly ordered, every edge is closed, the root reaches every
-    /// package, and cycles reject.
     #[doc(hidden)]
     pub fn from_canonical_parts(
         root: PackageKeyIdentity,
@@ -109,8 +99,6 @@ impl PackageDependencyClosure {
 }
 
 impl PackageCompilationInputs {
-    /// Direct aliases in one root execution scope. Build aliases never fall
-    /// back to Product aliases, including during the final request join.
     pub fn direct_dependencies(
         &self,
         purpose: DependencyPurpose,
@@ -130,9 +118,6 @@ impl PackageCompilationInputs {
             })
     }
 
-    /// Product-scope edges only. Build-purpose edges are compilation-local
-    /// nameability for the root's build entry and never join the durable
-    /// closure projections produced from this iterator.
     pub fn dependencies(
         &self,
     ) -> impl Iterator<Item = (PackageKeyIdentity, &str, PackageKeyIdentity)> {
@@ -144,7 +129,6 @@ impl PackageCompilationInputs {
         })
     }
 
-    /// The root's build-scope edges. Only the root package may hold them.
     pub(crate) fn build_dependencies(
         &self,
     ) -> impl Iterator<Item = (PackageKeyIdentity, &str, PackageKeyIdentity)> {
@@ -156,21 +140,10 @@ impl PackageCompilationInputs {
         })
     }
 
-    /// Project the exact validated graph without source paths, package display
-    /// names, immutable source resolutions, or source bytes.
-    ///
-    /// The durable closure is the product scope: packages reachable from the
-    /// root through product edges plus the product edges between them.
-    /// Build-scope packages retain compilation-local nameability through
-    /// [`Self::dependency_target_for_purpose`] but never join this projection —
-    /// host build inputs are not product review subjects.
     pub fn dependency_closure(&self) -> PackageDependencyClosure {
         self.dependency_closure_for(self.source.root)
     }
 
-    /// The product-scope closure of one package inside this validated graph:
-    /// its product-reachable packages and the product edges between them.
-    /// Generated-source bundle custody compares against exactly this shape.
     #[doc(hidden)]
     pub(crate) fn dependency_closure_for(
         &self,
@@ -207,9 +180,7 @@ impl PackageCompilationInputs {
                 .collect(),
         }
     }
-    /// The target of `requester`'s `alias` in exactly one dependency scope.
-    /// Scopes never fall back to each other: a miss here does not license
-    /// probing the other scope.
+
     #[doc(hidden)]
     pub fn dependency_target_for_purpose(
         &self,
@@ -225,10 +196,6 @@ impl PackageCompilationInputs {
         .copied()
     }
 
-    /// Whether `requester` directly declared `owner` as a dependency in either
-    /// scope. Which source files may *name* which scope is decided earlier at
-    /// import binding; this package-level check confirms only that a declared
-    /// direct edge exists for the selected declaration's owner.
     #[doc(hidden)]
     pub fn allows_declaration_selection(
         &self,

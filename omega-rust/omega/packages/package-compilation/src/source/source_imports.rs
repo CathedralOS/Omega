@@ -1,9 +1,29 @@
-//! Discover source imports in authored order, then retain their exact bindings.
-//!
-//! Package selection owns dependency-scope and generated-source policy; path
-//! resolution confines physical candidates to their source roots. The frontier
-//! retains parsed-file ownership and the bindings rejoin exact source instances.
-//! This owner does not schedule lexing, parsing, or source-program checking.
+/*
+We discover `use` imports in authored order across parsed sources and retain their exact module-import bindings (`ResolvedSourceImport`, `PendingPackageImport`).
+
+We provide two import discovery routes:
+1. `discover_imports` resolves standalone imports relative to the project root (or the bundled `omega::language` toolchain root), rejecting local files that collide with `omega::language::*`.
+2. `discover_package_imports` resolves imports exclusively through the reconciled `PackageCompilationInputs` graph in two phases: `TargetIndependent` (physical source lookup during checkpoint preparation) and `ExactTarget` (joining dependency-generated source bundles and rejecting physical/generated collisions).
+*/
+
+/*
+Why every discovered import carries its importer's `DependencyScope`:
+In Omega's two-checked-context model (`Build` vs `Product`), a source file imported by both contexts loads as two distinct checked instances that share immutable source bytes and `PackageKeyIdentity` but never share `SourceId` coordinates or symbol tables. Propagating `parsed_source.scope` on every discovered import ensures a `Build`-scope helper's transitive imports stay in the `Build` host context rather than leaking into `Product`.
+*/
+
+/*
+Provenance:
+- Import occurrence custody and `SourceScopedTopLevelBinding` construction: `src/source/source_imports/bindings.rs`.
+- Conditional `<build-prelude>` injection: `src/source/source_imports/build_prelude.rs`.
+- Multi-target `ProgramEntry` contract source seeding: `src/source/source_imports/entry_contract_seed.rs`.
+- Source frontier storage (`SourceStorage`) and `SourceCatalogue` cohort selection: `src/source/source_imports/frontier.rs`.
+- Generated-source extension and dependency handoff admission: `src/source/source_imports/generated.rs`.
+- Scope-keyed `(PathBuf, DependencyScope)` import queue: `src/source/source_imports/import_queue.rs`.
+- Reconciled package alias resolution and missing-edge diagnostics: `src/source/source_imports/package_selection.rs`.
+- Physical path candidates and root containment checks: `src/source/source_imports/paths.rs`.
+- Paused `Build` product-query dependency mounting and discovery: `src/source/source_imports/product_queries.rs`.
+- Companion `build.omg` / `main.omg` project root discovery: `src/source/source_imports/project.rs`.
+*/
 
 mod bindings;
 mod build_prelude;
@@ -49,8 +69,6 @@ use std::path::{Path, PathBuf};
 use syntax_trees::item::Item;
 use syntax_trees::{ParsedSources, SyntaxTrees};
 
-/// Discover standalone imports without interpreting dependency declarations.
-/// Package aliases are meaningful only on the reconciled package-aware path.
 pub(crate) fn discover_imports(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
@@ -118,10 +136,6 @@ pub(crate) fn discover_imports(
                     ),
                     path: resolved.clone(),
                 });
-                // Standalone imports inherit the importer's checked
-                // instance: a build-scope source's imports are host-context
-                // content, never product content by accident of sharing
-                // bytes.
                 imports.push((resolved, parsed_source.scope));
             }
         }
@@ -130,10 +144,6 @@ pub(crate) fn discover_imports(
     Ok(imports)
 }
 
-/// Preserve standalone compilation of the bundled std sources while their
-/// authored self-imports use ordinary package-local paths. This is standalone
-/// toolchain routing only; package-aware compilation resolves the same paths
-/// through exact package custody.
 fn standalone_source_root(
     default_root: &Path,
     source: &Path,
@@ -148,8 +158,6 @@ fn standalone_source_root(
         .unwrap_or_else(|| default_root.to_path_buf()))
 }
 
-/// Resolve imports exclusively through a reconciled, requester-local package
-/// graph. This path never reads or combines dependency rows from `build.omg`.
 pub(crate) fn discover_imports_with_packages(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
@@ -175,11 +183,6 @@ pub(crate) enum PackageImportPhase {
     ExactTarget(Option<semantic_vocabulary::PackageKeyIdentity>),
 }
 
-/// Retain package requests until the exact child checks generated-source collisions.
-///
-/// Each returned path carries the checked instance it joins under: the
-/// importer's own scope. A source both scopes import loads twice — the two
-/// instances share source bytes and package identity but nothing else.
 pub(crate) fn discover_package_imports(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
@@ -196,8 +199,6 @@ pub(crate) fn discover_package_imports(
     let mut imports = Vec::new();
     let mut requests = Vec::new();
     for parsed_source in parsed.sources.span_or_empty(parsed.batch) {
-        // Physical loaders normalize paths. Generated producers already own the
-        // package association; their virtual paths need no filesystem lookup.
         let requester =
             generated_owner.or_else(|| packages.package_for_source(&parsed_source.path));
         let purpose = source_import_scope(packages, parsed_source.scope, &parsed_source.path);
