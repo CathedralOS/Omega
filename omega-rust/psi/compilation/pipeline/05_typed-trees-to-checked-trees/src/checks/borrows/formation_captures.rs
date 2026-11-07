@@ -69,7 +69,24 @@ pub(super) fn address_receiver(
     while facts.flow.control.operands.is_valid(capture) && !visited.contains(&capture) {
         visited.push(capture);
         let row = facts.flow.control.operands.get(capture);
-        if validation::reference_shell(program, row.type_reference).is_some() {
+        // A formed view keeps its collection's address. A reference-valued
+        // place instead loads a descriptor and stops at that permission boundary.
+        let forms_view = matches!(
+            row.address_projection,
+            Some(checked_trees::FlowOperandAddressProjection::View(_))
+        );
+        if forms_view {
+            if !facts.flow.control.operands.is_valid(row.backing) {
+                return AddressReceiver::Unavailable;
+            }
+            let receiver = facts.flow.control.operands.get(row.backing);
+            if receiver.state_symbol != row.state_symbol
+                || receiver.statement_index != row.statement_index
+            {
+                return AddressReceiver::Unavailable;
+            }
+        }
+        if validation::reference_shell(program, row.type_reference).is_some() && !forms_view {
             return AddressReceiver::Reference {
                 capture,
                 projection,
@@ -82,7 +99,7 @@ pub(super) fn address_receiver(
                 AddressReceiver::InlineValue
             };
         };
-        let Some(path) = facts.flow.control.operand_child_paths.span(path) else {
+        let Some(path) = facts.flow.control.operand_child_paths.span(path.segments()) else {
             return AddressReceiver::Unavailable;
         };
         let mut complete = path.to_vec();

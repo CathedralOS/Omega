@@ -344,7 +344,6 @@ impl LoweringError {
         Self::InvalidQualificationStoragePath {
             reason,
             carrier: checked
-                .typed
                 .normalized_type_identity_text(reference)
                 .chars()
                 .take(256)

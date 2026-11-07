@@ -98,7 +98,7 @@ fn project_address(
         }
         let projection = control
             .operand_child_paths
-            .span(projection)
+            .span(projection.segments())
             .ok_or("the completed address has no captured receiver projection")?;
         let backings = address(
             program,

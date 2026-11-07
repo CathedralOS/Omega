@@ -90,6 +90,7 @@ pub(crate) fn declaration_represents(
 ) -> Result<DeclarationRepresentation, LoweringError> {
     use DeclarationRepresentation::{Complete, RequiresPublication};
     use DeclarationRepresentationRefusal as Refusal;
+    let program = &checked.typed;
     let facts::ProgramPoint::CallEnsures {
         state_symbol,
         statement_index,
@@ -111,7 +112,7 @@ pub(crate) fn declaration_represents(
         .place_segments
         .span_or_empty(place.segments);
     let Some(root_type) = validation::canonical_place_type_reference(
-        &checked.typed,
+        program,
         state_symbol,
         statement_index,
         &validation::CanonicalPlace {
@@ -122,12 +123,12 @@ pub(crate) fn declaration_represents(
         return Ok(RequiresPublication(Refusal::NoRootType));
     };
     let Some(reference) =
-        validation::qualification_storage_type_reference(&checked.typed, root_type, segments)
+        validation::qualification_storage_type_reference(program, root_type, segments)
     else {
         return Ok(RequiresPublication(Refusal::NoLeafType));
     };
     let constraints =
-        validation::field_domains::declared_domain_constraint_records(&checked.typed, reference);
+        validation::field_domains::declared_domain_constraint_records(program, reference);
     let mut same_symbol = false;
     let mut same_instance = false;
     let mut selected = None;
@@ -149,19 +150,17 @@ pub(crate) fn declaration_represents(
             same_instance,
         }));
     };
-    let Some(definition) = checked
-        .typed
-        .domain_definition_for_instance(domain_symbol, semantic_domain)
+    let Some(definition) = program.domain_definition_for_instance(domain_symbol, semantic_domain)
     else {
         return Ok(RequiresPublication(Refusal::NoDomainInstance));
     };
-    if !validation::field_domains::domain_predicate_theory_is_complete(&checked.typed, definition) {
+    if !validation::field_domains::domain_predicate_theory_is_complete(program, definition) {
         return Ok(RequiresPublication(Refusal::IncompletePredicateTheory));
     }
     if !definition.establishment_routes.is_empty() {
         return Ok(RequiresPublication(Refusal::EstablishmentRoute));
     }
-    if !typed_trees::domain::required_subject_memberships(&checked.typed, definition)
+    if !typed_trees::domain::required_subject_memberships(program, definition)
         .is_some_and(|required| required.is_empty())
     {
         return Ok(RequiresPublication(Refusal::RequiredSubjectMembership));
@@ -176,7 +175,7 @@ pub(crate) fn declaration_represents(
         return Ok(RequiresPublication(Refusal::ContentCustody));
     }
     if let Some(predicate) =
-        validation::field_domains::domain_byte_predicate(&checked.typed, domain_symbol)
+        validation::field_domains::domain_byte_predicate(program, domain_symbol)
     {
         // Inline byte fields retain their complete predicate in the field
         // declaration. Reattaching that represented invariant as a nominal
@@ -184,20 +183,27 @@ pub(crate) fn declaration_represents(
         // although its public result correctly contains no such row. Whole
         // view roots and stored pointer crossings retain their ordinary
         // qualification publication; neither has this inline field contract.
+        // Qualified fixed arrays keep their ordinary array storage; the
+        // borrowed byte-slice carrier is a different presentation.
         if !matches!(segments.last(), Some(facts::PlaceSegment::Field { .. }))
             || !matches!(
                 constraint.subject,
                 typed_trees::types::DomainConstraintSubject::Declared
             )
-            || validation::byte_sequence_carrier(&checked.typed, reference, &[]).is_none()
-            || validation::stores_reference_shape(&checked.typed, reference, &[])
+            || !matches!(
+                program.type_reference_table.type_reference(
+                    validation::peel_declared_constraints(program, reference)
+                ),
+                typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. }
+                    if checked.primitive_type_reference(*element_type)
+                        == Some(typed_trees::types::PrimitiveType::U8)
+            )
+            || validation::stores_reference_shape(program, reference, &[])
         {
             return Ok(RequiresPublication(Refusal::NotDeclaredByteField));
         }
-        let declared = typed_trees::byte_predicates::type_reference_domain_predicates(
-            &checked.typed,
-            reference,
-        );
+        let declared =
+            typed_trees::byte_predicates::type_reference_domain_predicates(program, reference);
         if !declared.iter().all(|(_, predicate)| predicate.is_some()) {
             return Ok(RequiresPublication(Refusal::UnknownDeclaredBytePredicate));
         }
@@ -223,7 +229,7 @@ pub(crate) fn declaration_represents(
         return Ok(RequiresPublication(Refusal::NoScalarRestriction));
     };
     let Some(predicate) = validation::scalar_domain_value_predicate(
-        &checked.typed,
+        program,
         constraint,
         checked_trees::CheckedScalarExpression::Parameter {
             position: 0,

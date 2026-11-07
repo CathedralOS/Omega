@@ -73,17 +73,17 @@ impl PermissionFailures {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub(super) struct PermissionSourceFailure {
     reason: &'static str,
-    details: PermissionFailures,
+    details: Option<Box<PermissionFailures>>,
 }
 
 impl From<&'static str> for PermissionSourceFailure {
     fn from(reason: &'static str) -> Self {
         Self {
             reason,
-            details: PermissionFailures::default(),
+            details: None,
         }
     }
 }
@@ -104,7 +104,10 @@ impl PermissionSourceFailure {
     pub(super) fn describe(&self, program: &dyn validation::CheckingInput) -> String {
         use std::fmt::Write;
         let mut message = self.reason.to_owned();
-        for step in self.details.steps.iter().take(self.details.kept).flatten() {
+        let Some(details) = &self.details else {
+            return message;
+        };
+        for step in details.steps.iter().take(details.kept).flatten() {
             let state = if step.state.is_valid() {
                 program
                     .symbols
@@ -139,11 +142,11 @@ impl PermissionSourceFailure {
                 step.source, step.statement_index, step.rule, step.projection_count
             );
         }
-        if self.details.total > self.details.kept {
+        if details.total > details.kept {
             let _ = write!(
                 message,
                 "; {} further failed source checks omitted",
-                self.details.total - self.details.kept
+                details.total - details.kept
             );
         }
         message
@@ -239,7 +242,7 @@ pub(super) fn lending_sources(
     if !complete || suppliers.is_empty() {
         return Err(PermissionSourceFailure {
             reason: "the saved descriptor has no complete checked borrowing source",
-            details: failures,
+            details: Some(Box::new(failures)),
         });
     }
     if !argument_grant {
