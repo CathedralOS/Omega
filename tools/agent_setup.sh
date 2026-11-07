@@ -7,6 +7,7 @@
 # from the documented release channels, and is safe to rerun.
 #
 #   bash tools/agent_setup.sh             # from anywhere; finds its checkout
+#   bash tools/agent_setup.sh --mbx-only  # hosted focused tests need just mbx
 #
 # Claude Code cloud environment setup script (environment menu -> Edit):
 #
@@ -15,6 +16,13 @@
 # Tool binaries go to /usr/local/bin as root, else ~/.local/bin. The script
 # changes only this checkout's Git config, never the global one.
 set -euo pipefail
+
+mbx_only=false
+case "$#:${1:-}" in
+  0:) ;;
+  1:--mbx-only) mbx_only=true ;;
+  *) echo "usage: bash tools/agent_setup.sh [--mbx-only]" >&2; exit 2 ;;
+esac
 
 # mbx is Mr Boxington, the shared Cargo build cache AGENTS.md builds with:
 # https://mr-boxington.jdx.dev/ (source https://github.com/jdx/mr-boxington).
@@ -44,19 +52,21 @@ trap 'rm -rf "$work"' EXIT
 
 step() { printf '\n== %s\n' "$*"; }
 
-step "zstd (unpacks the warm compiler build)"
-if ! command -v zstd >/dev/null; then
-  if [ "$(id -u)" = 0 ] && command -v apt-get >/dev/null; then
-    # A fresh container has no package lists, so install alone finds nothing.
-    { apt-get update -qq && apt-get install -y -qq zstd >/dev/null; } ||
-      echo "zstd install failed; warm-build restore will be skipped" >&2
-  else
-    echo "zstd missing: install it with the host's package manager" >&2
+if [ "$mbx_only" = false ]; then
+  step "zstd (unpacks the warm compiler build)"
+  if ! command -v zstd >/dev/null; then
+    if [ "$(id -u)" = 0 ] && command -v apt-get >/dev/null; then
+      # A fresh container has no package lists, so install alone finds nothing.
+      { apt-get update -qq && apt-get install -y -qq zstd >/dev/null; } ||
+        echo "zstd install failed; warm-build restore will be skipped" >&2
+    else
+      echo "zstd missing: install it with the host's package manager" >&2
+    fi
   fi
-fi
 
-step "pinned Rust toolchain (rust-toolchain.toml)"
-(cd "$repo" && rustup toolchain install && rustc --version)
+  step "pinned Rust toolchain (rust-toolchain.toml)"
+  (cd "$repo" && rustup toolchain install && rustc --version)
+fi
 
 step "mbx $MBX_VERSION"
 if [ "$(mbx --version 2>/dev/null)" != "mbx $MBX_VERSION" ]; then
@@ -72,6 +82,9 @@ if [ "$(mbx --version 2>/dev/null)" != "mbx $MBX_VERSION" ]; then
     tar -xzf "$archive" -C "$bin" mbx)
 fi
 mbx --version
+if [ "$mbx_only" = true ]; then
+  exit 0
+fi
 mbx setup --yes || true
 
 step "cargo-nextest $NEXTEST_VERSION"

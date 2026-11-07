@@ -93,6 +93,9 @@ jobs:
         run: cargo xtask check-boundary
       - name: Check and lint the exact integration candidate
         run: cargo clippy --locked -p omega -- -D warnings
+      - name: Install the pinned focused-test build tool
+        if: github.event_name == 'workflow_dispatch' && inputs.test_package != ''
+        run: bash tools/agent_setup.sh --mbx-only
       # Save completed objects before the test can fail or time out. A compile-only
       # dispatch can prepare a cold test; a later dispatch still runs Cargo again.
       - name: Compile requested focused Rust tests
