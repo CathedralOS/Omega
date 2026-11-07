@@ -648,15 +648,19 @@ impl Inputs<'_, '_> {
         facts.places.get(place).root.as_expression().is_some()
     }
 
+    fn projection_receiver(&self, expression: ExpressionHandle) -> Option<ExpressionHandle> {
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Member(member) => Some(member.receiver),
+            ExpressionNode::Indexed(indexed) => Some(indexed.collection),
+            _ => None,
+        }
+    }
+
     fn projection(
         &self,
         expression: ExpressionHandle,
     ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
-        let receiver = match self.program.expression_table.expression(expression) {
-            ExpressionNode::Member(member) => member.receiver,
-            ExpressionNode::Indexed(indexed) => indexed.collection,
-            _ => return None,
-        };
+        let receiver = self.projection_receiver(expression)?;
         let mut facts = facts::FactPlan::default();
         let receiver_place = facts.append_place_from_expression(self.program, receiver);
         let selected_place = facts.append_place_from_expression(self.program, expression);
