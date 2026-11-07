@@ -19,6 +19,7 @@ pub fn run(command: &mut Command, directory: &Path, name: &str) -> Result<ExitSt
         "program": command.get_program().to_string_lossy(),
         "arguments": command.get_args().map(|a| a.to_string_lossy()).collect::<Vec<_>>(),
         "directory": command.get_current_dir(),
+        "environment_overrides": command.get_envs().map(|(key, value)| (key.to_string_lossy().into_owned(), value.map(|v| v.to_string_lossy().into_owned()))).collect::<std::collections::BTreeMap<_, _>>(),
         "stdout": stdout, "stderr": stderr,
     });
     let receipt_path = directory.join(format!("{name}.json"));

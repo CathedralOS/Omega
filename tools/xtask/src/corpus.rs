@@ -309,46 +309,57 @@ fn host_target() -> &'static str {
     }
 }
 
-fn selected_fixture_count(root: &Path, filter_text: &str, shard_text: &str) -> usize {
-    let fragments: Vec<&str> = filter_text
+pub fn selected_fixture_names(root: &Path, filter_text: &str) -> Result<Vec<String>, String> {
+    let fragments: Vec<_> = filter_text
         .split(',')
         .map(str::trim)
-        .filter(|s| !s.is_empty())
+        .filter(|v| !v.is_empty())
         .collect();
     let corpus = root.join("tests/omega");
-    let mut count = 0usize;
+    let mut names = Vec::new();
     for tier in ["pass", "fail", "run"] {
-        let tier_dir = corpus.join(tier);
-        let Ok(groups) = fs::read_dir(&tier_dir) else {
-            continue;
-        };
-        for group in groups.flatten() {
-            if !group.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                continue;
-            }
-            let group_name = group.file_name().to_string_lossy().into_owned();
-            let Ok(fixtures) = fs::read_dir(group.path()) else {
-                continue;
-            };
-            for fixture in fixtures.flatten() {
-                if !fixture.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                    continue;
-                }
-                let fixture_name = fixture.file_name().to_string_lossy().into_owned();
-                let name = format!("{tier}/{group_name}/{fixture_name}");
-                if fragments.is_empty() || fragments.iter().any(|f| name.contains(f)) {
-                    count += 1;
+        let base = corpus.join(tier);
+        let mut pending = vec![base.clone()];
+        while let Some(directory) = pending.pop() {
+            for entry in fs::read_dir(&directory)
+                .map_err(|e| format!("read {}: {e}", directory.display()))?
+            {
+                let entry = entry.map_err(|e| e.to_string())?;
+                if entry.file_type().map_err(|e| e.to_string())?.is_dir() {
+                    pending.push(entry.path());
+                } else if entry.file_name() == "main.omg" {
+                    let name = format!(
+                        "{tier}/{}",
+                        directory
+                            .strip_prefix(&base)
+                            .map_err(|e| e.to_string())?
+                            .to_string_lossy()
+                            .replace('\\', "/")
+                    );
+                    if fragments.is_empty() || fragments.iter().any(|f| name.contains(f)) {
+                        names.push(name);
+                    }
                 }
             }
         }
     }
+    names.sort();
+    Ok(names)
+}
+
+fn selected_fixture_count(
+    root: &Path,
+    filter_text: &str,
+    shard_text: &str,
+) -> Result<usize, String> {
+    let count = selected_fixture_names(root, filter_text)?.len();
     if let Some((_, n_str)) = shard_text.trim().split_once('/')
         && let Ok(shards) = n_str.parse::<usize>()
         && shards > 1
     {
-        count = count.div_ceil(shards);
+        return Ok(count.div_ceil(shards));
     }
-    count
+    Ok(count)
 }
 
 fn current_stamp(root: &Path) -> String {
@@ -571,7 +582,18 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         return print_pinned_regressions(&root, &golden_path, &filters);
     }
 
-    let selected = selected_fixture_count(&root, &filter, &shard);
+    let selected = selected_fixture_count(&root, &filter, &shard).map_err(|e| {
+        eprintln!("corpus: {e}");
+        2u8
+    })?;
+    if filter.trim().is_empty() && sweep {
+        filter = selected_fixture_names(&root, "")
+            .map_err(|e| {
+                eprintln!("corpus: {e}");
+                2u8
+            })?
+            .join(",");
+    }
     if selected > SELECTION_BUDGET && !sweep {
         eprintln!(
             "corpus: this selection runs {selected} fixtures; past {SELECTION_BUDGET} a run is a sweep. Name the fixtures with --filter, or pass --sweep."

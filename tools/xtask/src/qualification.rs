@@ -23,6 +23,7 @@ fn exact_paths(text: &str, prefix: &str) -> Result<Vec<String>, String> {
         if value.is_empty()
             || !value.starts_with(prefix)
             || value.contains('\\')
+            || value.split('/').any(|part| matches!(part, "" | "." | ".."))
             || Path::new(value)
                 .components()
                 .any(|p| !matches!(p, Component::Normal(_)))
@@ -72,33 +73,12 @@ fn check_selection(root: &Path, paths: &[String]) -> Result<(), String> {
     if paths.is_empty() {
         return Ok(());
     }
-    let mut matched = Vec::new();
-    // The harness uses substring filters. Discover the same bounded layout
-    // first, and refuse a requested name that would also select another fixture.
-    for tier in ["pass", "fail", "run"] {
-        let base = root.join("tests/omega").join(tier);
-        for group in fs::read_dir(&base).map_err(|e| format!("read {}: {e}", base.display()))? {
-            let group = group.map_err(|e| e.to_string())?;
-            if !group.file_type().map_err(|e| e.to_string())?.is_dir() {
-                continue;
-            }
-            for fixture in fs::read_dir(group.path()).map_err(|e| e.to_string())? {
-                let fixture = fixture.map_err(|e| e.to_string())?;
-                if !fixture.file_type().map_err(|e| e.to_string())?.is_dir() {
-                    continue;
-                }
-                let name = format!(
-                    "{tier}/{}/{}",
-                    group.file_name().to_string_lossy(),
-                    fixture.file_name().to_string_lossy()
-                );
-                if paths.iter().any(|p| name.contains(p)) {
-                    matched.push(name);
-                }
-            }
-        }
-    }
-    validate_roster(paths, matched)
+    // Use the corpus owner's discovery and substring semantics, then require
+    // exact equality with the authored request before any producer is built.
+    validate_roster(
+        paths,
+        corpus::selected_fixture_names(root, &paths.join(","))?,
+    )
 }
 
 fn expected_exit(directory: &Path, target: &str, interpreted: bool) -> Result<String, String> {
@@ -427,6 +407,34 @@ mod tests {
         assert!(exact_paths("samples/a,samples/a", "samples/").is_err());
         assert!(exact_paths("/samples/a", "samples/").is_err());
     }
+    #[test]
+    fn checked_or_wrong_exit_rows_cannot_replace_runtime_observations() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-runtime-oracle-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let directory = root.join("tests/omega/pass/a/b");
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("expected_native_exit.txt"), "70\n").unwrap();
+        fs::write(directory.join("expected_interpreter_exit.txt"), "70\n").unwrap();
+        let mut row = corpus::parse_records(
+            "pass/a/b built 1ms exit:70 interpreter-exit:70 interpreter:agrees\n",
+        )
+        .unwrap()
+        .remove(0);
+        assert!(validate_record(&row, &root, "linux_x86_64", true).is_ok());
+        row.facts[0].1 = "0".to_owned();
+        assert!(validate_record(&row, &root, "linux_x86_64", true).is_err());
+        row.facts.clear();
+        row.status = "checked".to_owned();
+        assert!(validate_record(&row, &root, "linux_x86_64", true).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn accepted_invalid_and_wrong_reason_never_count_as_success() {
         let mut row = corpus::parse_records("fail/a/b rejected 1ms expected\n\texact obligation\n")

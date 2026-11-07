@@ -57,10 +57,12 @@ fn optimized(profile: &Value, flags: &Value) -> Result<(), String> {
         .map(|v| v.as_str().ok_or("invalid rustflag"))
         .collect::<Result<Vec<_>, _>>()?;
     for (index, flag) in strings.iter().enumerate() {
-        let option = if *flag == "-C" {
+        let option = if matches!(*flag, "-C" | "--codegen") {
             strings.get(index + 1).copied().unwrap_or("")
         } else {
-            flag.strip_prefix("-C").unwrap_or(flag)
+            flag.strip_prefix("-C")
+                .or_else(|| flag.strip_prefix("--codegen="))
+                .unwrap_or(flag)
         };
         if flag.starts_with('@') {
             return Err("response-file rustflags cannot be authenticated".to_owned());
@@ -160,7 +162,9 @@ fn build(
         .current_dir(root)
         .stdin(Stdio::null())
         .env("CARGO_PROFILE_DEV_OPT_LEVEL", "1")
-        .env("CARGO_PROFILE_TEST_OPT_LEVEL", "1");
+        .env("CARGO_PROFILE_TEST_OPT_LEVEL", "1")
+        .env("CARGO_UNSTABLE_CHECKSUM_FRESHNESS", "true")
+        .env("CARGO_BUILD_FINGERPRINT", "content");
     let status = execution::run(&mut command, directory, name)?;
     if !status.success() {
         return Err(format!("{name} failed; see retained build stderr"));
@@ -190,7 +194,7 @@ pub fn prepare(
     let before = source_identity(root)?;
     execution::write_json(&directory.join("source-before.json"), &before)?;
     for (name, args) in [("rustc", vec!["-vV"]), ("mbx", vec!["--version"])] {
-        execution::run(
+        let status = execution::run(
             Command::new(name)
                 .args(args)
                 .current_dir(root)
@@ -198,6 +202,9 @@ pub fn prepare(
             directory,
             name,
         )?;
+        if !status.success() {
+            return Err(format!("{name} identity command failed"));
+        }
     }
     let environment = [
         "CARGO_BUILD_JOBS",
@@ -208,6 +215,9 @@ pub fn prepare(
         "RUSTC_WRAPPER",
         "RUSTC_WORKSPACE_WRAPPER",
         "RUST_MIN_STACK",
+        "OMEGA_CORPUS_JOBS",
+        "OMEGA_CORPUS_FIXTURE_SECS",
+        "OMEGA_CORPUS_EXECUTE_SECS",
     ]
     .into_iter()
     .map(|key| (key, std::env::var(key).ok()))
@@ -215,7 +225,7 @@ pub fn prepare(
     execution::write_json(
         &directory.join("build-inputs.json"),
         &json!({"host": host_target(), "environment": environment,
-        "forced_profile": {"dev": "1", "test": "1"}}),
+        "forced_profile": {"dev": "1", "test": "1"}, "freshness": "checksum/content"}),
     )?;
     if need_runner {
         build(
@@ -334,11 +344,54 @@ impl Producer {
 mod tests {
     use super::*;
     #[test]
+    fn receipt_binds_matching_artifact_flags_and_detects_changed_bytes() {
+        let directory = std::env::temp_dir().join(format!(
+            "omega-producer-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let profile = directory.join("debug");
+        let fingerprint = profile.join(".fingerprint/omega-abcd/bin-omega.json");
+        let dependency = profile
+            .join("deps")
+            .join(format!("omega-abcd{}", std::env::consts::EXE_SUFFIX));
+        let executable = profile.join(format!("omega{}", std::env::consts::EXE_SUFFIX));
+        fs::create_dir_all(fingerprint.parent().unwrap()).unwrap();
+        fs::create_dir_all(dependency.parent().unwrap()).unwrap();
+        fs::write(&dependency, b"original image").unwrap();
+        fs::write(&executable, b"original image").unwrap();
+        fs::write(&fingerprint, br#"{"rustflags":["--codegen=opt-level=0"]}"#).unwrap();
+        let artifact = json!({"executable": executable, "filenames": [executable], "target": {"name": "omega"}, "profile": {"opt_level": "1"}});
+        assert!(artifact_receipt(&artifact).is_err());
+        fs::write(
+            &fingerprint,
+            br#"{"rustflags":["-C","target-cpu=x86-64-v3"]}"#,
+        )
+        .unwrap();
+        let record = artifact_receipt(&artifact).unwrap();
+        let producer = Producer {
+            runner: None,
+            cli: Some(executable.clone()),
+            executables: vec![record],
+        };
+        assert!(producer.verify().is_ok());
+        fs::write(&executable, b"replacement image").unwrap();
+        assert!(producer.verify().is_err());
+        assert!(artifact_receipt(&artifact).is_err());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn effective_flags_cannot_override_optimized_profile() {
         let profile = json!({"opt_level": "1"});
         assert!(optimized(&profile, &json!(["-C", "target-cpu=x86-64-v3"])).is_ok());
         assert!(optimized(&profile, &json!(["-C", "opt-level=0"])).is_err());
         assert!(optimized(&profile, &json!(["-Copt-level=0"])).is_err());
+        assert!(optimized(&profile, &json!(["--codegen", "opt-level=0"])).is_err());
+        assert!(optimized(&profile, &json!(["--codegen=opt-level=0"])).is_err());
         assert!(optimized(&profile, &json!(["@hidden-options"])).is_err());
         assert!(optimized(&json!({"opt_level": "0"}), &json!([])).is_err());
     }
