@@ -1,6 +1,6 @@
 # Logical work and response bounds
 
-[Terminal product](../terminal-psi/product.md) |
+[Psi product](../terminal-psi/product.md) |
 [Spatial resources](storage.md) | [Observation semantics](../terminal-psi/observations.md)
 
 ## Fuel is an accounting domain

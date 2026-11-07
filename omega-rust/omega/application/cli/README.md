@@ -1,8 +1,9 @@
 # Omega application
 
-[main.rs](src/main.rs) parses and dispatches one invocation. The
-[CLI](src/cli/mod.rs) owns argument spelling, console rendering, and shell exit
-codes. It calls complete operations, not individual compiler stages.
+[main.rs](src/main.rs) parses and dispatches one invocation.
+[arguments/](src/arguments/mod.rs) owns argument spelling, and
+[commands/](src/commands/mod.rs) owns console rendering and shell exit codes.
+It calls complete operations, not individual compiler stages.
 
 For separate allocation attribution, the optional `allocation-observation`
 feature wraps the normal MiMalloc allocator and marks `--version`. Successful
@@ -11,7 +12,7 @@ when set. Use an uninstrumented retained producer for timing comparisons; see
 the [performance tooling guide](../../../../tools/benchmark/comparison.md).
 
 Project Build is owned by the [compiler's Build coordinator](../../build-system/orchestration/README.md).
-The CLI package also exposes execution and inspection through its [library](src/lib.rs):
+The CLI package also houses the execution and inspection operations:
 
 | Operation | Request and result |
 | --- | --- |
@@ -113,6 +114,13 @@ continues to pass representations through ordinary functions.
 
 ## Command surface
 
+The [command-line contract](../../../../wiki/spec/build/command_line.md) owns
+ratified subsystem routing and public **Psi** naming. The commands and retained
+filenames below describe the implementation before that migration. Move them
+with the first source-rewrite implementation as tracked in the
+[migration plan](../../../../wiki/drafts/designs/operational_markers_and_cli.md);
+do not preserve the old command spellings as aliases.
+
 The CLI package is **`omega`** (binary `omega`); there is no `omega-cli`
 package.
 
@@ -138,7 +146,7 @@ that `omega update` reviews (accept the pending decisions, then rerun with
 `--entry-ram` explicitly constructs fresh private initialized scalar-record RAM for an exact borrowed placed entry position. It grants no host address or external allocation. The physical lender supports Linux x86-64 and macOS ARM64 and refuses unsupported predicates, qualifications, compound storage and cleanup. With `--both --keep`, original backing observations and actual Terminal effect receipts are retained separately from guest streams; see [placed entry RAM sample](../../../../samples/cli/probes/placed_entry_ram/README.md).
 
 CLI startup and dispatch live in `src/main.rs`; typed invocations
-are parsed in `src/cli/arguments/`. Full surface:
+are parsed in `src/arguments/` and executed in `src/commands/`. Full surface:
 
 ```text
 omega [--check] [--offline] [--timings]

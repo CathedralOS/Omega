@@ -74,7 +74,7 @@ requires a second implementation of the checked rules.
 Source checking, decoding and installation checks remain required at their
 owning boundaries. A new or changed foreign package is verified during review,
 and an untrusted build script is confined and checked while it executes.
-[Terminal consumption](../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
+[Psi consumption](../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
 checks structural, contract and authority relationships; it relies on Psi for
 the logical obligations discharged during source checking. The portable product
 contains semantics and provenance, not an independently replayable proof of
@@ -82,7 +82,9 @@ source correctness or faithful native translation.
 
 The corpus and tests exercise independent validators where those validators
 exist. The default compile path does not run these stage-output validators on
-results it just produced. A stage that emits an invalid plan has a compiler
+results it just produced. Explicit [validator selection](../wiki/spec/build/command_line.md#independent-stage-validators)
+runs requested applicable validators and reports actual coverage through the
+ordinary compiler driver. A stage that emits an invalid plan has a compiler
 defect; successful source checking does not make subsequent lowering or
 optimization infallible.
 
@@ -178,8 +180,12 @@ realization and interpretation consume one common borrowed view over either the
 retained or admitted-owned artifact. Same-invocation realization therefore
 does not serialize, decode or clone Terminal Psi merely to cross an API.
 
+The [public command router](../wiki/spec/build/command_line.md) names portable
+artifacts and their inspection subsystem Psi. Terminal Psi remains an internal
+stage name in the pipeline.
+
 The shipped product exposes four facades: application coordination, package
-management, the two compiler drivers, and Terminal interpretation. Package
+management, the two compiler drivers, and Psi interpretation. Package
 management owns acquisition, the resolved graph, review proposals/decisions and
 `omega.lock`, then supplies source custody to Psi. It does not return checked
 trees, settle compiler products or call native production. The interpreter owns

@@ -1,7 +1,7 @@
 //! The `omega` binary: read the command line, run the command on a deep-stack
 //! thread, and turn a usage or thread-start error into an exit code. Each
-//! command surface lives in `cli::{compilation, execution, inspection,
-//! packages}`; no compilation semantics live here.
+//! command surface lives in `commands::{compile, run, inspect, packages}`; no
+//! compilation semantics live here.
 //!
 //! The same executable is also its own native-provider helper. When a program
 //! calls a foreign library, the runtime relaunches this binary as a child
@@ -17,10 +17,12 @@
 //! directly on `main` without spawning a worker.
 
 mod allocator;
-mod cli;
+mod arguments;
+mod commands;
+mod execution;
+mod inspection;
 
-use cli::arguments::{self, Invocation};
-use cli::{compilation, execution, inspection, packages};
+use arguments::Invocation;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
@@ -61,16 +63,16 @@ fn run_invocation(invocation: Invocation) -> ExitCode {
     }
     std::thread::scope(|scope| {
         let worker = compiler::checked::spawn_compile_worker(scope, move || match invocation {
-            Invocation::Compile(request) => compilation::compile_project_command(request),
-            Invocation::Run(request) => execution::run(request),
-            Invocation::InspectTerminal(request) => inspection::run(request),
+            Invocation::Compile(request) => commands::compile::run(request),
+            Invocation::Run(request) => commands::run::run(request),
+            Invocation::InspectTerminal(request) => commands::inspect::run(request),
             Invocation::Package {
                 command,
                 options,
                 accept_all,
-            } => packages::run(command, options, accept_all),
-            Invocation::AuditSource(request) => packages::source::run(request),
-            Invocation::AuditPackages(request) => packages::audit::run(request),
+            } => commands::packages::run(command, options, accept_all),
+            Invocation::AuditSource(request) => commands::packages::run_source_audit(request),
+            Invocation::AuditPackages(request) => commands::packages::run_audit(request),
             Invocation::Help(_) | Invocation::BuildProfile | Invocation::Version => unreachable!(),
         });
         match worker {

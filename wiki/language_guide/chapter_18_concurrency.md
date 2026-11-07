@@ -100,19 +100,21 @@ block operation();
 suspend block operation();
 ```
 
-These lines illustrate four different operational envelopes. The markers mean
-*may*, not *did* or *must*: a permitted wait may complete immediately. Missing,
-partial, redundant, or reversed acknowledgements reject. Abstract calls use the
-published requirement's envelope; a proved `suspends false` or `blocks false`
-refinement can narrow it.
+These lines illustrate the minimum markers for four operational envelopes.
+Missing or partial acknowledgements reject; extra markers are permitted without
+warnings. A marked call need not actually wait, and a redundant marker creates
+no effect. Combined order is `suspend block`; duplicate or reversed markers
+reject. Abstract calls use the published requirement's envelope; a checked
+refinement can narrow it without forcing the caller to delete a marker.
 
-Suspension parks the activation while retaining its fixed stack. The call must
+Suspension parks the activation while retaining its fixed stack. Any call
+written with `suspend`, including a redundant marker, must
 be a complete statement, simple `let` right-hand side, transition subject, or
 terminal expression, including a final machine call in a transition arm. That
 arm invokes and forwards the eventual result; it does not start a task. Nested
-machines have the same call-envelope acknowledgements. A blocking-only call may nest because
-it retains ordinary call execution. A call permitting both uses `suspend block` and the
-suspension position rule:
+machines have the same acknowledgement rules. A call marked only `block` may
+nest when its checked envelope permits no suspension. A call permitting both
+uses `suspend block` and the suspension position rule:
 
 ```omega
 let guard: Guard = block mutex.lock();
@@ -125,8 +127,11 @@ let total: u64 = prefix + suspend source.next();
 
 The markers make waiting sites reviewable, especially while a guard or scarce
 authority remains live. They do not change return types, propagate a different
-contract, or create another activation. See
-[call-site acknowledgements](../spec/language/effects.md#call-site-acknowledgements).
+contract, or create another activation. Carry, loan, window and continuation
+checks use the checked envelope, including generic upper bounds. The opt-in
+[source rewrite](../spec/build/command_line.md#source-rewriting) removes redundant
+markers only when they are unnecessary in the source's own checking context.
+See [call-site acknowledgements](../spec/language/effects.md#call-site-acknowledgements).
 
 ### Parked call lifecycle
 
@@ -138,7 +143,7 @@ normal completion then makes its result available.
 Parking is not a return, crash, or second local successor. A static crossing in
 a loop may be visited repeatedly, but each parked dynamic occurrence has its
 own linear resume custody. Cancellation creates no hidden edge that discards
-this state. See [Terminal suspension](../spec/terminal-psi/calls_and_outcomes.md#suspension)
+this state. See [Psi suspension](../spec/terminal-psi/calls_and_outcomes.md#suspension)
 for the exact call/frontier and runtime-preservation joins.
 
 Safety is not progress. Preserving parked custody does not prove the call will

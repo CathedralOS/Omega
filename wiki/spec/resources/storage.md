@@ -1,6 +1,6 @@
 # Provisioned storage and stack demand
 
-[Logical work](logical_work.md) | [Terminal product](../terminal-psi/product.md)
+[Logical work](logical_work.md) | [Psi product](../terminal-psi/product.md)
 
 ## Concrete storage authority
 

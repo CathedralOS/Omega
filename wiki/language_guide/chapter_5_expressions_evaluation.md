@@ -90,8 +90,8 @@ View::render_room(&mut view, &room);
 The qualified name selects the machine; context is an ordinary argument.
 Dot syntax projects a data field, not an implicit machine receiver.
 
-Calls whose known envelope permits suspension or worker blocking require exact
-acknowledgements:
+Calls whose known envelope permits suspension or worker blocking require the
+corresponding acknowledgements:
 
 ```omega
 ordinary_call();                // guaranteed neither
@@ -101,12 +101,13 @@ suspend block may_do_either();  // may do either
 ```
 
 The markers acknowledge possibilities, not events that must happen. They do
-not select an implementation or create a task. Missing or redundant markers
-reject. Imports and requirements use their pinned envelopes, not a narrower
+not select an implementation or create a task. Missing required markers reject;
+extra markers are permitted without a warning and do not create effects.
+Imports and requirements use their pinned envelopes, not a narrower
 implementation guessed by the caller.
 
-A suspending call must be a complete statement, simple `let` right-hand side,
-transition subject, or terminal expression. The last category includes a
+A call written with `suspend`, even redundantly, must be a complete statement,
+simple `let` right-hand side, transition subject, or terminal expression. The last category includes a
 [final machine call in a transition arm](chapter_4_nested_machines_transitions.md#final-calls-including-suspension),
 with ordinary call markers, result forwarding and cleanup. Bind its result
 before combining it:

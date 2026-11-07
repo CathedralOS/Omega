@@ -208,7 +208,7 @@ targets and rounds. Application Build's
 [`package_inspection.rs`](../../build-system/orchestration/src/package/package_inspection.rs)
 creates and disposes the audit's owner and executes its ordered target roster.
 The CLI's
-[`packages::run`](../../application/cli/src/cli/packages/mod.rs) retains the
+[`packages::run`](../../application/cli/src/commands/packages.rs) retains the
 install/update owner across automatic acceptance and resume rounds, lending it
 to `orchestration::execute_package_command`. A later user-issued command creates its own
 session. Discard requires only project-state recovery, without a Build owner.

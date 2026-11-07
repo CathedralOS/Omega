@@ -17,6 +17,16 @@ compiler delivery. Put implementation gaps in the owning task on the
 Keep normative limits, trust assumptions and required evidence in the spec;
 do not replace them with progress reports or remove them as status.
 
+## Public names
+
+Use **Psi** for the portable IR, artifact, interpreter and user-facing commands.
+Use **Terminal Psi** only to identify the internal compiler stage or its
+representation, particularly when distinguishing it from checked or lowered
+trees. Internal crate paths and wire/type identifiers retain their own names.
+Do not turn the stage name into a public product label. Source-language terminal
+transfers and terminal outcomes are unrelated and retain those terms.
+The [command-line contract](spec/build/command_line.md) owns public spellings.
+
 ## Current specification subjects
 
 - Source semantics: [invocation contracts and live facts](spec/language/state_contracts.md),
@@ -53,7 +63,7 @@ do not replace them with progress reports or remove them as status.
   and [relations and quotients](spec/proofs/quotients.md).
 - Runtime data/code interfaces: [machine values](spec/language/machine_values.md)
   and [some packages](spec/language/some_packages.md).
-- Terminal Psi: [product](spec/terminal-psi/product.md),
+- Psi: [product](spec/terminal-psi/product.md),
   [calls and outcomes](spec/terminal-psi/calls_and_outcomes.md),
   [control flow and ranking](spec/terminal-psi/control_flow.md),
   [boundary calls](spec/terminal-psi/boundary_calls.md),
@@ -82,7 +92,8 @@ do not replace them with progress reports or remove them as status.
   [allocation strategies](spec/resources/allocation.md),
   [bounded byte input](spec/resources/bounded_input.md), and
   [bounded growth](spec/resources/bounded_growth.md).
-- Build: [declarations and package identity](spec/build/declarations.md),
+- Build: [command-line tools](spec/build/command_line.md),
+  [declarations and package identity](spec/build/declarations.md),
   [dependency scopes, product references, and isolated I/O](spec/build/scoped_execution.md),
   [configuration and targets](spec/build/configuration.md),
   [recorded proof-work policy](spec/build/configuration.md#proof-work-policy),

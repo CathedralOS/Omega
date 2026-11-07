@@ -1,6 +1,8 @@
+use crate::execution::ExecutionSelection;
+
 pub(crate) struct RunArguments {
     /// Native unless `--engine terminal` or the `--both` comparison was named.
-    pub(crate) selection: omega::execution::ExecutionSelection,
+    pub(crate) selection: ExecutionSelection,
     pub(crate) terminal_fuel_allowance: Option<std::num::NonZeroU64>,
     pub(crate) private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub(crate) keep: bool,
@@ -38,8 +40,8 @@ pub(super) fn parse_arguments(
                 let value = super::option_value(&mut arguments)
                     .ok_or("--engine requires `native` or `terminal`")?;
                 engine = Some(match value.to_str() {
-                    Some("native") => omega::execution::ExecutionSelection::Native,
-                    Some("terminal") => omega::execution::ExecutionSelection::Terminal,
+                    Some("native") => ExecutionSelection::Native,
+                    Some("terminal") => ExecutionSelection::Terminal,
                     _ => {
                         return Err(format!(
                             "--engine requires `native` or `terminal`, not `{}`",
@@ -168,10 +170,10 @@ pub(super) fn parse_arguments(
             return Err("--engine and --both are mutually exclusive: --both already runs native and Terminal".into());
         }
         (Some(engine), false) => engine,
-        (None, true) => omega::execution::ExecutionSelection::Both,
-        (None, false) => omega::execution::ExecutionSelection::Native,
+        (None, true) => ExecutionSelection::Both,
+        (None, false) => ExecutionSelection::Native,
     };
-    let terminal = selection == omega::execution::ExecutionSelection::Terminal;
+    let terminal = selection == ExecutionSelection::Terminal;
     let cases = inputs.is_some() || !input_files.is_empty();
     if inputs.is_some() && !input_files.is_empty() {
         return Err("use either --inputs <dir> or --input <file>, not both".into());
@@ -206,6 +208,7 @@ pub(super) fn parse_arguments(
 #[cfg(test)]
 mod tests {
     use super::parse_arguments;
+    use crate::execution::ExecutionSelection;
 
     fn parse(arguments: &[&str]) -> Result<super::RunArguments, String> {
         parse_arguments(arguments.iter().map(std::ffi::OsString::from))
@@ -215,10 +218,7 @@ mod tests {
     fn inputs_and_outputs_select_a_case_run() {
         let arguments = parse(&["--both", "--inputs", "data", "--outputs", "out", "main.omg"])
             .expect("case run parses");
-        assert_eq!(
-            arguments.selection,
-            omega::execution::ExecutionSelection::Both
-        );
+        assert_eq!(arguments.selection, ExecutionSelection::Both);
         assert_eq!(
             arguments.inputs.as_deref(),
             Some(std::path::Path::new("data"))
@@ -312,7 +312,6 @@ mod tests {
 
     #[test]
     fn engine_selects_one_execution_and_defaults_to_native() {
-        use omega::execution::ExecutionSelection;
         for (arguments, expected) in [
             (vec!["main.omg"], ExecutionSelection::Native),
             (

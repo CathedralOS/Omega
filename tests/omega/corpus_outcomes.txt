@@ -4789,7 +4789,7 @@ fail/domains/qualified_explicit_buffer_write_only_replacement rejected 1196ms ex
 	data `Buffer` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/domains/qualified_fixed_byte_array_borrowed_short_literal rejected 133ms expected @ccdb99ca2214
 	quoted byte literal has 5 source byte(s), but owned fixed byte array `[u8; 8][1 constraint]` requires exactly 8; fixed-array literal copying neither truncates nor pads
-fail/domains/qualified_fixed_byte_array_captured_invalid_write rejected 3784ms expected @ccdb99ca2214
+fail/domains/qualified_fixed_byte_array_captured_invalid_write rejected 6727ms expected @413fb4703959
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "write_selected", reason: "primitive write lost its exact logical byte preservation judgment", gap: None })
 fail/domains/qualified_fixed_byte_array_constructor_snapshot rejected 1870ms expected @ccdb99ca2214
 	cannot prove requires contract for call observe_after from checked: row.bytes == [71, 97, 116, 101] (needs fact `bytes == "Gate"` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -16496,9 +16496,9 @@ fail/proofs/assignment_parameter_slot_retargeted rejected 2091ms expected regres
 	cannot prove requires contract for call demand from invalid: holder.cell.value == 11 (needs fact `value == 11` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/assignment_reference_slot_retargeted rejected 2398ms expected regressed-from:checked @ccdb99ca2214
 	cannot prove requires contract for call demand from invalid: holder.cell.value == 11 (needs fact `value == 11` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/assignment_retargeted_slot_postcondition rejected 2080ms expected @ccdb99ca2214
+fail/proofs/assignment_retargeted_slot_postcondition rejected 5946ms expected @cf504bf87162
 	cannot prove ensures contract for exit from invalid at statement 1: holder.cell.value == 11
-fail/proofs/assignment_selector_precedes_rhs_write rejected 1885ms expected @ccdb99ca2214
+fail/proofs/assignment_selector_precedes_rhs_write rejected 5649ms expected @cf504bf87162
 	cannot prove requires contract for call demand from invalid: values[position] == 11 (needs fact `value == 11` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove index `position` is within length 2 in invalid::entry
 fail/proofs/bag_view_false_twin rejected 848ms unexpected @ccdb99ca2214
@@ -28343,8 +28343,7 @@ run/domains/qualified_explicit_byte_buffer_append_exit checked 6166ms check-targ
 run/domains/qualified_explicit_byte_buffer_exit checked 30317ms check-target:macos_arm64 @911f6617ba9e
 run/domains/qualified_explicit_byte_buffer_field_source_exit checked 30294ms check-target:macos_arm64 @911f6617ba9e
 run/domains/qualified_explicit_utf8_buffer_exit checked 5036ms check-target:macos_arm64 @911f6617ba9e
-run/domains/qualified_fixed_byte_array_captured_destination_exit rejected 2446ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "write_selected", reason: "primitive write lost its exact logical byte preservation judgment", gap: None })
+run/domains/qualified_fixed_byte_array_captured_destination_exit checked 8562ms check-target:macos_arm64 @413fb4703959
 run/domains/qualified_fixed_byte_array_carrier_exit checked 3370ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/qualified_fixed_byte_array_explicit_buffer_count_exit checked 5747ms check-target:macos_arm64 @911f6617ba9e
 run/domains/qualified_fixed_byte_array_forwarding_exit rejected 2742ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214

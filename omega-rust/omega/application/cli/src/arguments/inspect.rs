@@ -12,7 +12,7 @@ pub(crate) enum InspectTerminalArguments {
     },
 }
 
-pub(super) fn parse_inspect_terminal_arguments(
+pub(super) fn parse_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
 ) -> Option<InspectTerminalArguments> {
     let mut machine = None;
