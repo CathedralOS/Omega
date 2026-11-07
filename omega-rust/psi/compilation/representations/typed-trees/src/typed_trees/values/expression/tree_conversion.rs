@@ -222,6 +222,7 @@ impl ExpressionTable {
                 let members = self.insert_name_path_members(path);
                 let member_symbols = self.insert_name_path_member_symbols(path);
                 self.insert(ExpressionNode::Name(TableNamePath {
+                    component: Default::default(),
                     members,
                     member_symbols,
                     head_symbol: path.head_symbol(),

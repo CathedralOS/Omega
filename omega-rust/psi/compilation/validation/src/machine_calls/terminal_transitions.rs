@@ -130,6 +130,7 @@ pub fn normalize_terminal_transition_calls(
             let receiver = program
                 .expression_table
                 .insert(ExpressionNode::Name(TableNamePath {
+                    component: Default::default(),
                     members: namespace,
                     member_symbols: arena::HandleSpan::empty(),
                     head_symbol: namespace_head,

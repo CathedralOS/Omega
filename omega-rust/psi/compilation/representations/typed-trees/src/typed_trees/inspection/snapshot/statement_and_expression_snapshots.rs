@@ -158,6 +158,8 @@ pub enum MatchPatternSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MatchFieldSnapshot {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub component: Option<&'static str>,
     pub member: String,
     pub action: MatchFieldActionSnapshot,
 }
@@ -180,6 +182,8 @@ pub enum ExpressionSnapshot {
         arms: Vec<MatchArmSnapshot>,
     },
     SavedSubject {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        component: Option<&'static str>,
         capture: (u32, u32),
         pattern_head: Box<ExpressionSnapshot>,
     },
@@ -248,6 +252,8 @@ pub enum ExpressionSnapshot {
         value: Box<ExpressionSnapshot>,
     },
     Name {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        component: Option<&'static str>,
         path: Vec<String>,
     },
     Range {
@@ -514,6 +520,7 @@ pub(crate) fn expression_snapshot(
                 .collect(),
         },
         ExpressionNode::SavedSubject(saved) => ExpressionSnapshot::SavedSubject {
+            component: (saved.component == language_core::PatternComponent::Case).then_some("case"),
             capture: (saved.capture.arena_index(), saved.capture.generation()),
             pattern_head: Box::new(expression_snapshot(program, saved.pattern_head)),
         },
@@ -591,6 +598,7 @@ pub(crate) fn expression_snapshot(
             value: Box::new(expression_snapshot(program, value.target)),
         },
         ExpressionNode::Name(path) => ExpressionSnapshot::Name {
+            component: (path.component == language_core::PatternComponent::Case).then_some("case"),
             path: path_snapshot(program.expression_table.name_path_members(path.members)),
         },
         ExpressionNode::Range(range) => ExpressionSnapshot::Range {
@@ -723,6 +731,8 @@ pub(super) fn snapshot_match_pattern(
                 .match_fields(pattern.fields)
                 .iter()
                 .map(|field| MatchFieldSnapshot {
+                    component: (field.component == language_core::PatternComponent::Case)
+                        .then_some("case"),
                     member: field.member.as_str().to_owned(),
                     action: match &field.action {
                         MatchFieldAction::Bind(binding) => MatchFieldActionSnapshot::Bind {

@@ -179,6 +179,18 @@ macro_rules! expression_node_accessors {
 }
 
 impl ExpressionTable {
+    /// The component changes which patterns can decompose this read, while
+    /// its carrier and backing remain those of the completed subject.
+    pub fn pattern_component(
+        &self,
+        expression: ExpressionHandle,
+    ) -> language_core::PatternComponent {
+        match self.expression(expression) {
+            ExpressionNode::SavedSubject(saved) => saved.component,
+            ExpressionNode::Name(name) => name.component,
+            _ => language_core::PatternComponent::Fields,
+        }
+    }
     pub fn insert_static_member(
         &mut self,
         member: StaticMachineArgument,
@@ -296,7 +308,11 @@ impl ExpressionTable {
             && self.expression_is_valid(capture.subject)
             && self.match_arms(dispatch.arms).iter().any(|arm| {
                 matches!(arm.pattern, MatchPattern::Destructure(pattern)
-                    if pattern.head == saved.pattern_head)
+                    if pattern.head == saved.pattern_head
+                    && (saved.component == language_core::PatternComponent::Fields
+                        || self.match_fields(pattern.fields).iter().any(|field|
+                            field.component == language_core::PatternComponent::Case
+                                && matches!(field.action, MatchFieldAction::Bind(_)))))
             }))
         .then_some(capture.subject)
     }
@@ -1351,6 +1367,9 @@ impl ExpressionTable {
                     })
             }
             (ExpressionNode::SavedSubject(left), ExpressionNode::SavedSubject(right)) => {
+                if left.component != right.component {
+                    return false;
+                }
                 left.capture == right.capture
                     && self.expressions_structurally_equal(left.pattern_head, right.pattern_head)
             }
@@ -1362,7 +1381,8 @@ impl ExpressionTable {
                 left == right
             }
             (ExpressionNode::Name(x), ExpressionNode::Name(y)) => {
-                x.head_symbol == y.head_symbol
+                x.component == y.component
+                    && x.head_symbol == y.head_symbol
                     && x.symbol == y.symbol
                     && identifier_texts_equal(
                         self.name_path_members(x.members),
@@ -1872,6 +1892,7 @@ pub struct EvidenceProjection {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableNamePath {
+    pub component: language_core::PatternComponent,
     pub members: HandleSpan<Identifier>,
     pub member_symbols: HandleSpan<SymbolHandle>,
     pub head_symbol: SymbolHandle,
@@ -1889,6 +1910,7 @@ impl TableNamePath {
         symbol: SymbolHandle,
     ) -> Self {
         Self {
+            component: language_core::PatternComponent::Fields,
             members,
             member_symbols,
             head_symbol,
@@ -2291,6 +2313,7 @@ pub enum ValueCaptureOwner {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableSavedSubject {
+    pub component: language_core::PatternComponent,
     pub capture: Handle<CompletedValueCapture>,
     pub pattern_head: ExpressionHandle,
 }
@@ -2327,6 +2350,7 @@ pub struct TableDestructurePattern {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableMatchField {
+    pub component: language_core::PatternComponent,
     pub member: Identifier,
     pub field_symbol: SymbolHandle,
     pub action: MatchFieldAction,

@@ -783,6 +783,7 @@ impl ExpressionTable {
                         copies,
                     );
                     self.insert(ExpressionNode::SavedSubject(super::TableSavedSubject {
+                        component: saved.component,
                         capture,
                         pattern_head,
                     }))
@@ -925,6 +926,7 @@ impl ExpressionTable {
                 let member_symbols =
                     self.copy_name_path_member_symbols(source, path.member_symbols);
                 self.insert(ExpressionNode::Name(TableNamePath {
+                    component: path.component,
                     members,
                     member_symbols,
                     head_symbol: path.head_symbol,
