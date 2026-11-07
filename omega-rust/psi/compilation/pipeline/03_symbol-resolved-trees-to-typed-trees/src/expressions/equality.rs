@@ -3,10 +3,9 @@
 //! value -- only its domain -- so comparing against it is an error that
 //! suggests `in`. The brace form (`Command::Move { dx: 1 }`) IS a constructed
 //! value: when an `Equatable<Type>` implementation exists the compare is
-//! legal and lowers through it (`crate::expressions::equatable`). Logical fact
-//! positions instead elaborate data identity without executable equality.
-//! Payload-less cases stay legal `==` operands everywhere (tag identity is
-//! the only thing equality could mean for them).
+//! legal and lowers through it (`crate::expressions::equatable`) in every
+//! position. Payload-less cases are values too; their selected comparison
+//! still owns the meaning. Mathematical identity uses explicit core::Identity.
 //!
 //! This check runs on the RESOLVED trees, BEFORE membership lowering: `in`
 //! is still a distinct `Membership` node here, and transition case arms
@@ -64,10 +63,10 @@ fn scan_proof_facts(
     for fact in program.proof_facts(facts) {
         match fact {
             resolved::domain::ProofFact::Expression(expression) => {
-                scan_expression(program, *expression, true)?;
+                scan_expression(program, *expression)?;
             }
             resolved::domain::ProofFact::Membership(membership) => {
-                scan_expression(program, membership.value, true)?;
+                scan_expression(program, membership.value)?;
             }
         }
     }
@@ -93,7 +92,7 @@ fn scan_statement(
                             .span_or_empty(block.ensures),
                     )
                 {
-                    scan_expression(program, *expression, true)?;
+                    scan_expression(program, *expression)?;
                 }
                 for instruction in resolved_statements(program).statements(block.statement_nodes) {
                     scan_statement(program, instruction)?;
@@ -102,33 +101,31 @@ fn scan_statement(
             Ok(())
         }
         StatementNode::RootBinding(binding) => {
-            scan_expression(program, binding.receiver, false)?;
+            scan_expression(program, binding.receiver)?;
             if binding.implementation_operand.is_valid() {
-                scan_expression(program, binding.implementation_operand, false)?;
+                scan_expression(program, binding.implementation_operand)?;
             }
             Ok(())
         }
-        StatementNode::AssemblyFact(fact) => scan_expression(program, fact.expression, true),
+        StatementNode::AssemblyFact(fact) => scan_expression(program, fact.expression),
         StatementNode::Assignment(assignment) => {
-            scan_expression(program, assignment.target, false)?;
-            scan_expression(program, assignment.value, false)
+            scan_expression(program, assignment.target)?;
+            scan_expression(program, assignment.value)
         }
         StatementNode::Call(call) => {
             for argument in resolved_statements(program).expression_handles(call.arguments) {
-                scan_expression(program, *argument, false)?;
+                scan_expression(program, *argument)?;
             }
             Ok(())
         }
         StatementNode::ProofOutputBindingStatement(package) => {
-            scan_expression(program, package.call, false)
+            scan_expression(program, package.call)
         }
-        StatementNode::Expression(expression) => scan_expression(program, *expression, false),
-        StatementNode::LocalData(local_data) => {
-            scan_expression(program, local_data.initial_value, false)
-        }
+        StatementNode::Expression(expression) => scan_expression(program, *expression),
+        StatementNode::LocalData(local_data) => scan_expression(program, local_data.initial_value),
         StatementNode::Transition(transition) => {
             if let TransitionGuardNode::When(guard) = transition.guard {
-                scan_expression(program, guard, false)?;
+                scan_expression(program, guard)?;
             }
             scan_transition_target(program, transition.target)?;
             scan_transition_target(program, transition.continuation)
@@ -146,11 +143,11 @@ fn scan_transition_target(
     match program.tables.bodies.statements.transition_target(target) {
         TransitionTargetNode::Named { arguments, .. } => {
             for argument in resolved_statements(program).expression_handles(*arguments) {
-                scan_expression(program, *argument, false)?;
+                scan_expression(program, *argument)?;
             }
             Ok(())
         }
-        TransitionTargetNode::Value(expression) => scan_expression(program, *expression, false),
+        TransitionTargetNode::Value(expression) => scan_expression(program, *expression),
         TransitionTargetNode::Terminal => Ok(()),
     }
 }
@@ -158,7 +155,6 @@ fn scan_transition_target(
 fn scan_expression(
     program: &SymbolResolvedTrees,
     expression: ExpressionHandle,
-    fact_position: bool,
 ) -> Result<(), Diagnostic> {
     if !expression.is_valid() {
         return Ok(());
@@ -168,18 +164,18 @@ fn scan_expression(
     match expressions.expression(expression) {
         ExpressionNode::SavedSubject(_) => Ok(()),
         ExpressionNode::Match(dispatch) => {
-            scan_expression(program, dispatch.subject, false)?;
+            scan_expression(program, dispatch.subject)?;
             for arm in expressions.match_arms(dispatch.arms) {
                 if let resolved::expression::MatchPattern::Value(pattern) = arm.pattern {
                     check_equality_operand(program, dispatch.subject)?;
                     check_equality_operand(program, pattern)?;
-                    scan_expression(program, pattern, false)?;
+                    scan_expression(program, pattern)?;
                 }
-                scan_expression(program, arm.value, fact_position)?;
+                scan_expression(program, arm.value)?;
             }
             Ok(())
         }
-        ExpressionNode::Atomic(atomic) => scan_expression(program, atomic.value, false),
+        ExpressionNode::Atomic(atomic) => scan_expression(program, atomic.value),
         ExpressionNode::Binary(binary) => {
             if matches!(
                 binary.operator,
@@ -189,55 +185,43 @@ fn scan_expression(
                     check_equality_operand(program, operand)?;
                 }
             }
-            let children_are_facts = fact_position
-                && matches!(
-                    binary.operator,
-                    BinaryOperator::And
-                        | BinaryOperator::Or
-                        | BinaryOperator::Equal
-                        | BinaryOperator::NotEqual
-                );
-            scan_expression(program, binary.left, children_are_facts)?;
-            scan_expression(program, binary.right, children_are_facts)
+            scan_expression(program, binary.left)?;
+            scan_expression(program, binary.right)
         }
         ExpressionNode::ArrayLiteral(elements) => {
             for element in expressions.expression_handles(*elements) {
-                scan_expression(program, *element, false)?;
+                scan_expression(program, *element)?;
             }
             Ok(())
         }
-        ExpressionNode::Cast(cast) => scan_expression(program, cast.value, false),
+        ExpressionNode::Cast(cast) => scan_expression(program, cast.value),
         ExpressionNode::Call(call) => {
-            scan_expression(program, call.receiver, false)?;
+            scan_expression(program, call.receiver)?;
             for argument in expressions.expression_handles(call.arguments) {
-                scan_expression(program, *argument, false)?;
+                scan_expression(program, *argument)?;
             }
             Ok(())
         }
         ExpressionNode::Indexed(indexed) => {
-            scan_expression(program, indexed.collection, false)?;
-            scan_expression(program, indexed.index, false)
+            scan_expression(program, indexed.collection)?;
+            scan_expression(program, indexed.index)
         }
-        ExpressionNode::Member(member) => scan_expression(program, member.receiver, false),
+        ExpressionNode::Member(member) => scan_expression(program, member.receiver),
         // The membership DOMAIN is a name path, not a value: a bare case
         // name is exactly what `in` is for, so only the subject is scanned.
-        ExpressionNode::Membership(membership) => scan_expression(program, membership.value, false),
-        ExpressionNode::Borrow(inner) => scan_expression(program, inner.target, false),
+        ExpressionNode::Membership(membership) => scan_expression(program, membership.value),
+        ExpressionNode::Borrow(inner) => scan_expression(program, inner.target),
         ExpressionNode::Range(range) => {
-            scan_expression(program, range.start, false)?;
-            scan_expression(program, range.end, false)
+            scan_expression(program, range.start)?;
+            scan_expression(program, range.end)
         }
         ExpressionNode::StructLiteral(literal) => {
             for field in expressions.struct_fields(literal.fields) {
-                scan_expression(program, field.value, false)?;
+                scan_expression(program, field.value)?;
             }
             Ok(())
         }
-        ExpressionNode::Unary(unary) => scan_expression(
-            program,
-            unary.operand,
-            fact_position && unary.operator == resolved::expression::UnaryOperator::LogicalNot,
-        ),
+        ExpressionNode::Unary(unary) => scan_expression(program, unary.operand),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_)
@@ -295,7 +279,7 @@ fn check_equality_operand(
                 return Ok(());
             }
             Err(Diagnostic::error(format!(
-                "cannot compare against payload-bearing case `{data_name}::{case_name}` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `{}` to synthesize structural equality",
+                "cannot compare against payload-bearing case `{data_name}::{case_name}` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `{}` to synthesize structural equality, or use `core::Identity` with the complete carrier for mathematical identity",
                 crate::expressions::equatable::suggested_equality_declaration(data_name)
             )))
         }
