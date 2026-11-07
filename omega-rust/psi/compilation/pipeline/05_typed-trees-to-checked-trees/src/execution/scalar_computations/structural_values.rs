@@ -822,6 +822,11 @@ impl Builder<'_, '_> {
             self.statement_index,
             expression,
             expected,
+            |anchor| {
+                self.dispatch_receivers
+                    .get(&(anchor.arena_index(), anchor.generation()))
+                    .is_some_and(|receiver| !receiver.value.is_valid())
+            },
         ) {
             // Reading an already stored carrier copies that value, including
             // a shared view's captured extent. Its backing loan cannot replace
