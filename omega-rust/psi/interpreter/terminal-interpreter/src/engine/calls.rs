@@ -517,6 +517,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 &select_positions(&callee.structural_parameters, &opaque_positions)?,
                 &self.structural_types(),
                 self.structural_cases.as_map(),
+                None,
                 self.account.as_ref(),
             )?;
             for position in owned_arrays {
