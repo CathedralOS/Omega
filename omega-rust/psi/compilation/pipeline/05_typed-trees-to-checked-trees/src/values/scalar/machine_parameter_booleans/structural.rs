@@ -4,7 +4,6 @@
 //! places keep authored parameter positions; scalar parameters use the dense
 //! scalar namespace.
 
-use super::structural_equality;
 use super::structural_paths::{path_primitive_type, path_type_reference};
 use crate::flow::expressions;
 use crate::values::scalar::boolean_lowering::construct_integer_comparison;
@@ -46,21 +45,6 @@ pub(crate) fn lower(
             observation: expression,
             parameter_position,
             path,
-        });
-    }
-
-    if let Some(binary) = program.expression_table.binary_node(expression)
-        && matches!(
-            binary.operator,
-            BinaryOperator::Equal | BinaryOperator::NotEqual
-        )
-        && let Some(equality) =
-            structural_equality::lower(program, parameters, binary.left, binary.right)
-    {
-        return Some(if binary.operator == BinaryOperator::NotEqual {
-            CheckedBooleanExpression::Not(Box::new(equality))
-        } else {
-            equality
         });
     }
 

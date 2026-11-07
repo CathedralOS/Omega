@@ -13,10 +13,57 @@
 //! arguments are genuine family indices and retain their larger index sort.
 //! The checked description keeps parameter, index and payload roles distinct.
 
+macro_rules! term {
+    (Pi => $domain:expr => $codomain:expr) => {
+        Term::Pi {
+            domain: $domain,
+            codomain: $codomain,
+        }
+    };
+    (Sigma => $domain:expr => $codomain:expr) => {
+        Term::Sigma {
+            domain: $domain,
+            codomain: $codomain,
+        }
+    };
+    (Lambda => $domain:expr => $body:expr) => {
+        Term::Lambda {
+            domain: $domain,
+            body: $body,
+        }
+    };
+    (Apply => $function:expr => $argument:expr) => {
+        Term::Apply {
+            function: $function,
+            argument: $argument,
+        }
+    };
+    (Constant => $declaration:expr => $levels:expr) => {
+        Term::Constant {
+            declaration: $declaration,
+            levels: $levels,
+        }
+    };
+    (Pair => $first:expr => $second:expr) => {
+        Term::Pair {
+            first: $first,
+            second: $second,
+        }
+    };
+    (Refl => $ty:expr => $value:expr) => {
+        Term::Refl {
+            ty: $ty,
+            value: $value,
+        }
+    };
+}
+
+mod parameter_closure;
+pub(super) use parameter_closure::{ParameterAbstractions, abstract_parameter_closure};
 mod construction;
 pub(super) use construction::SourceConstructorContext;
 mod induction;
-pub(super) mod terms;
+mod terms;
 
 use super::{Elaborator, ScalarCarrier};
 use crate::typed_expressions::type_reference_table;

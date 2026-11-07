@@ -186,7 +186,7 @@ fn scan_expression(
                 BinaryOperator::Equal | BinaryOperator::NotEqual
             ) {
                 for operand in [binary.left, binary.right] {
-                    check_equality_operand(program, operand, fact_position)?;
+                    check_equality_operand(program, operand)?;
                 }
             }
             let children_are_facts = fact_position
@@ -252,7 +252,6 @@ fn scan_expression(
 fn check_equality_operand(
     program: &SymbolResolvedTrees,
     operand: ExpressionHandle,
-    fact_position: bool,
 ) -> Result<(), Diagnostic> {
     match program.tables.bodies.expressions.expression(operand) {
         ExpressionNode::Name(path) => {
@@ -293,12 +292,6 @@ fn check_equality_operand(
                 crate::expressions::equatable::equality_selection(program, data),
                 crate::expressions::equatable::EqualitySelection::Missing
             ) {
-                return Ok(());
-            }
-            // Logical identity applies to every data carrier. Typed formation
-            // still checks complete operand types and the proof owner checks
-            // all common/payload fields; this is never a tag-only comparison.
-            if fact_position {
                 return Ok(());
             }
             Err(Diagnostic::error(format!(

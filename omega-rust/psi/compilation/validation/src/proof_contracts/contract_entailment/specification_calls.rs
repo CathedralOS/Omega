@@ -982,7 +982,7 @@ fn validate_specification_expression_in_scope(
             }
         }
     } else {
-        let proposition_children = crate::contextual_proposition_children(program, expression);
+        let proposition_children = crate::logical_proposition_children(program, expression);
         children(program, node, |child| {
             validate_specification_expression_in_scope(
                 program,
@@ -1098,43 +1098,6 @@ fn validate_specification_expression_in_scope(
             return;
         }
         ExpressionNode::Binary(_) | ExpressionNode::Indexed(_) => {
-            if proposition_context
-                && !super::structural_terms::is_case_observation(program, expression)
-                && let ExpressionNode::Binary(binary) = node
-                && matches!(
-                    binary.operator,
-                    BinaryOperator::Equal | BinaryOperator::NotEqual
-                )
-            {
-                let operands = [binary.left, binary.right];
-                let references = operands.map(|operand| caller.expression_type(program, operand));
-                let identities = std::array::from_fn::<_, 2, _>(|position| {
-                    crate::contextual_identity_subject_type(
-                        program,
-                        references[position]?,
-                        matches!(
-                            expression_table(program).expression(operands[position]),
-                            ExpressionNode::Name(_) | ExpressionNode::Borrow(_)
-                        ),
-                    )
-                });
-                if identities.iter().any(Option::is_some) {
-                    if identities[0].is_some() && identities[0] == identities[1] {
-                        // Prop selects full data identity, not Equatable or an
-                        // executable Boolean overload. All operands and selected
-                        // call preconditions were formed above; no runtime Copy,
-                        // layout, value equation or quotient authority is granted.
-                        return;
-                    }
-                    if let [Some(left), Some(right)] = references {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "{owner} data identity requires the same complete operand type, found `{}` and `{}`",
-                            program.display_type_reference(left), program.display_type_reference(right),
-                        )).with_source_span(expression_table(program).source_span(expression)));
-                        return;
-                    }
-                }
-            }
             let (spelling, arguments) = match node {
                 ExpressionNode::Binary(binary) => {
                     let Some(spelling) =

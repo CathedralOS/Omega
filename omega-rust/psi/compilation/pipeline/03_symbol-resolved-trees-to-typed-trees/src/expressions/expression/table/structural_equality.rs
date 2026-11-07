@@ -199,11 +199,6 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self,
         binary: &resolved::expression::TableBinaryExpression,
     ) -> Result<Option<typed::expression::ExpressionHandle>, Diagnostic> {
-        // Logical identity has its own complete-carrier formation judgment;
-        // executable equality selection and its shape checks do not apply.
-        if self.fact_position {
-            return Ok(None);
-        }
         let Some(program) = self.program else {
             return Ok(None);
         };

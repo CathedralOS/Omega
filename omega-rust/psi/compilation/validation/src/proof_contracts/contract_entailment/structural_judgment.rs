@@ -3505,9 +3505,9 @@ impl<'program> StructuralJudge<'program> {
                     .is_some()
                 });
                 if data_identity {
-                    // Prop selects data Id before any executable comparison.
-                    // Failure to observe its operands cannot select Equatable
-                    // or IEEE comparison as an alternative meaning.
+                    // The authenticated owned primitive comparison has the
+                    // same equality law as its value identity. This does not
+                    // grant an aggregate or authored comparison an Id bridge.
                     let Some([left, right]) = self.declaration_data_identity_terms(fact) else {
                         return StructuralJudgment::Unknown;
                     };

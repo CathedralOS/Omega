@@ -432,10 +432,14 @@ impl Elaborator<'_> {
                 });
             }
             self.check_induction_term(proof, ty, "case predicate derivation")?;
-            let (lemma, lemma_type) =
-                terms::abstract_parameters(&mut self.arena, proof, ty, &parameters)
-                    .map_err(|error| self.refuse(error.into()))?;
-            if !terms::excludes_parameters(
+            let (lemma, lemma_type) = super::parameter_closure::abstract_parameters(
+                &mut self.arena,
+                proof,
+                ty,
+                &parameters,
+            )
+            .map_err(|error| self.refuse(error.into()))?;
+            if !super::parameter_closure::excludes_parameters(
                 &self.arena,
                 &self.declarations,
                 &[lemma, lemma_type],

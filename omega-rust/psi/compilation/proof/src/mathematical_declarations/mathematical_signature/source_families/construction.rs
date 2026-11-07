@@ -2,7 +2,8 @@
 //! children. A receiving application is not evidence that a value inhabits it.
 
 use super::super::Elaborator;
-use super::terms::{abstract_parameters, constructor_children, excludes_parameters};
+use super::parameter_closure::{abstract_parameters, excludes_parameters};
+use super::terms::constructor_children;
 use crate::typed_expressions::{expression_table, type_reference_table};
 use diagnostics::Diagnostic;
 use language_core::BindingRelevance;

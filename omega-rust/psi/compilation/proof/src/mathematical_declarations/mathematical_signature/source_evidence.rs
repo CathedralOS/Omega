@@ -509,8 +509,7 @@ impl Elaborator<'_> {
             }
             let saved_constructor_context = std::mem::take(&mut self.source_constructor_context);
             let mut outer_parameters = Vec::new();
-            let mut lifted_declarations =
-                super::source_families::terms::ParameterAbstractions::default();
+            let mut lifted_declarations = super::source_families::ParameterAbstractions::default();
             for symbol in outer_types {
                 let domain = self
                     .arena
@@ -618,27 +617,15 @@ impl Elaborator<'_> {
                 });
                 self.scope.clear();
                 let mut theorem = self.source_family_induction(symbol, invariant, &actuals)?;
-                (theorem.theorem, theorem.ty) =
-                    super::source_families::terms::abstract_parameter_closure(
-                        &mut self.arena,
-                        &mut self.declarations,
-                        theorem.theorem,
-                        theorem.ty,
-                        &outer_parameters,
-                        &mut lifted_declarations,
-                    )
-                    .map_err(|reason| self.refuse(reason.into()))?;
-                if !super::source_families::terms::excludes_parameters(
-                    &self.arena,
-                    &self.declarations,
-                    &[theorem.theorem, theorem.ty],
+                (theorem.theorem, theorem.ty) = super::source_families::abstract_parameter_closure(
+                    &mut self.arena,
+                    &mut self.declarations,
+                    theorem.theorem,
+                    theorem.ty,
                     &outer_parameters,
-                ) {
-                    return Err(self.refuse(
-                        "source induction retains an outer Type assumption after abstraction"
-                            .into(),
-                    ));
-                }
+                    &mut lifted_declarations,
+                )
+                .map_err(|reason| self.refuse(reason.into()))?;
                 check_type(
                     &mut self.arena,
                     &Context::empty()

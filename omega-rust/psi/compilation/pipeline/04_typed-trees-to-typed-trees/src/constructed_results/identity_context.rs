@@ -37,7 +37,7 @@ pub(super) fn append(
         }
         visited.push(expression);
         pending.extend(
-            validation::contextual_proposition_children(program, expression)
+            validation::logical_proposition_children(program, expression)
                 .into_iter()
                 .flatten(),
         );

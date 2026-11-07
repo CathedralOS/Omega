@@ -34,7 +34,6 @@ use crate::published::facts::crash_calls::summary_predicates::{
 };
 use crate::published::facts::crash_plan_facts::declared_parameter_names;
 use crate::shared::call_formals::arguments_aligned_to_formals;
-use crate::values::scalar::machine_parameter_booleans::structural_equality::subjects;
 use checked_trees::CrashPredicateExpression;
 pub(crate) use private_summaries::{
     PreparedCrashSummaryGraph, prepare_crash_summary_graph, selected_invocation_target,
@@ -48,32 +47,19 @@ pub(super) fn crash_predicate_from_expression(
     parameter_names: &[String],
     content_conservation: Option<&[validation::ContentConservationSourcePlan]>,
 ) -> CrashPredicateExpression {
-    predicate_expression(
-        program,
-        expression,
-        parameter_names,
-        content_conservation,
-        None,
-    )
+    predicate_expression(program, expression, parameter_names, content_conservation)
 }
 
-/// Proof clauses retain contextual identity in the canonical key itself.
-/// Runtime guards use the executable producer above; provenance of their
-/// operands cannot change the meaning of a selected equality operation.
+/// Contracts and runtime guards retain the same selected operation. The
+/// caller's declaration checks own the parameter telescope independently.
 pub(super) fn proof_crash_predicate_from_expression(
     program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
-    parameters: &[StateParameter],
+    _parameters: &[StateParameter],
     parameter_names: &[String],
     content_conservation: Option<&[validation::ContentConservationSourcePlan]>,
 ) -> CrashPredicateExpression {
-    predicate_expression(
-        program,
-        expression,
-        parameter_names,
-        content_conservation,
-        Some(parameters),
-    )
+    crash_predicate_from_expression(program, expression, parameter_names, content_conservation)
 }
 
 fn predicate_expression(
@@ -81,7 +67,6 @@ fn predicate_expression(
     expression: typed_trees::expression::ExpressionHandle,
     parameter_names: &[String],
     content_conservation: Option<&[validation::ContentConservationSourcePlan]>,
-    proof_parameters: Option<&[StateParameter]>,
 ) -> CrashPredicateExpression {
     use typed_trees::expression::ExpressionNode;
 
@@ -97,44 +82,8 @@ fn predicate_expression(
     if !expression.is_valid() {
         return CrashPredicateExpression::Invalid;
     }
-    let proposition_children = validation::contextual_proposition_children(program, expression);
-    let lower = |operand| {
-        predicate_expression(
-            program,
-            operand,
-            parameter_names,
-            content_conservation,
-            proof_parameters.filter(|_| proposition_children.contains(&Some(operand))),
-        )
-    };
-    if let Some(parameters) = proof_parameters
-        && let Some(binary) = program.expression_table.binary_node(expression)
-        && matches!(
-            binary.operator,
-            typed_trees::expression::BinaryOperator::Equal
-                | typed_trees::expression::BinaryOperator::NotEqual
-        )
-        && let Some((_, _, type_identity)) =
-            subjects(program, parameters, binary.left, binary.right)
-    {
-        let left = lower(binary.left);
-        let right = lower(binary.right);
-        let identity = CrashPredicateExpression::structural_identity(
-            type_identity,
-            &program.type_identities,
-            left,
-            right,
-        )
-        .unwrap_or(CrashPredicateExpression::Invalid);
-        return if binary.operator == typed_trees::expression::BinaryOperator::NotEqual {
-            CrashPredicateExpression::Unary {
-                operator: typed_trees::expression::UnaryOperator::LogicalNot as u8,
-                operand: Box::new(identity),
-            }
-        } else {
-            identity
-        };
-    }
+    let lower =
+        |operand| predicate_expression(program, operand, parameter_names, content_conservation);
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => CrashPredicateExpression::Binary {
             operator: binary.operator as u8,

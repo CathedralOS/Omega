@@ -12,7 +12,10 @@ use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use validation::expression_owners::{OwnerEnvironmentIndex, source_declaration_owner};
+use validation::expression_owners::{
+    OwnerEnvironmentIndex, checked_expression_type_reference_from_exact_owner,
+    source_declaration_owner,
+};
 use validation::expression_traversal::children;
 use validation::mathematical_applications::{
     MathematicalBinderKind, expression_nodes, operand_type_reference, source_generic_argument_plan,
@@ -57,7 +60,8 @@ impl Elaborator<'_> {
         if calls.is_empty() {
             return Ok(Vec::new());
         }
-        let owners = OwnerEnvironmentIndex::new(self.program, &arena::Arena::default());
+        let owners = OwnerEnvironmentIndex::for_preparation(self.program);
+        let contract_facts = arena::Arena::default();
         let mut applications = Vec::with_capacity(calls.len());
         for (expression, call) in calls {
             self.span = Some(self.program.expression_table.source_span(expression));
@@ -92,10 +96,20 @@ impl Elaborator<'_> {
                 let declaration_description = matches!(node, ExpressionNode::Name(path)
                     if self.program.symbols.builtin_type_member(path.symbol).is_some()
                         || self.program.symbols.builtin_type_atom(path.symbol).is_some());
-                if !mathematical
-                    && !declaration_description
-                    && let Some(reference) = operand_type_reference(self.program, operand)
-                {
+                let reference = (!mathematical && !declaration_description)
+                    .then(|| {
+                        operand_type_reference(self.program, operand).or_else(|| {
+                            checked_expression_type_reference_from_exact_owner(
+                                self.program,
+                                &contract_facts,
+                                expression,
+                                operand,
+                                Some(&owners),
+                            )
+                        })
+                    })
+                    .flatten();
+                if let Some(reference) = reference {
                     // Capture the complete evaluated value. Splitting a fixed
                     // Wrapping computation into source leaves would silently
                     // replace its denotation with unbounded arithmetic.

@@ -265,10 +265,8 @@ pub use proof_contracts::bound_expression_meaning::{
     has_exact_integer_domain_subject, match_result_unique_arm, sealed_float_comparison,
     sealed_float_comparison_declaration,
 };
-pub use proof_contracts::contextual_identity::{
-    contextual_identity_subject_type, contextual_proposition_children,
-};
 pub use proof_contracts::contract_entailment::declaration_projection_cases_hold;
+pub use proof_contracts::proposition_context::logical_proposition_children;
 pub use value_custody::intrinsic_boundaries::boundary_requirement_completion;
 pub use value_custody::intrinsic_boundaries::checked_shape_data_declaration;
 pub use value_custody::intrinsic_boundaries::exact_byte_read_result_type;

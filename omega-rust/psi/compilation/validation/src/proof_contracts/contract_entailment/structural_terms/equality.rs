@@ -49,7 +49,9 @@ pub(in crate::proof_contracts::contract_entailment) fn has_identity_equality_mea
         {
             !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
         } else {
-            identity_carrier(program, reference, &mut Vec::new(), 0, false)
+            matches!(program.type_reference_table.type_reference(reference),
+                TypeReferenceNode::Named { symbol, .. } if matches!(program.symbols.builtin_type_atom(*symbol),
+                    Some(symbols::BuiltinTypeAtom::Int | symbols::BuiltinTypeAtom::UInt)))
         }
     })
 }
@@ -96,111 +98,6 @@ pub(in crate::proof_contracts::contract_entailment) fn builtin_identity_operand_
         return None;
     }
     Some(references)
-}
-
-fn identity_carrier(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-    active: &mut Vec<TypeReferenceHandle>,
-    depth: usize,
-    symbolic_data: bool,
-) -> bool {
-    if !reference.is_valid() || depth >= 64 {
-        return false;
-    }
-    if let Some(primitive) = program.primitive_type_reference(reference) {
-        return !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64);
-    }
-    match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            identity_carrier(program, *base_type, active, depth + 1, symbolic_data)
-        }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            identity_carrier(program, *element_type, active, depth + 1, symbolic_data)
-        }
-        TypeReferenceNode::Named { symbol, .. }
-            if matches!(
-                program.symbols.builtin_type_atom(*symbol),
-                Some(symbols::BuiltinTypeAtom::Int | symbols::BuiltinTypeAtom::UInt)
-            ) =>
-        {
-            true
-        }
-        TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
-            // Recursive data remains structural provided every nonrecursive
-            // field has identity equality. Executable comparisons keep their
-            // closed-field rule; Prop Id can retain a symbolic subject without
-            // assigning an IEEE or executable equality algorithm to that subject.
-            if active.contains(&reference) {
-                return true;
-            }
-            if symbolic_data {
-                if let TypeReferenceNode::Named { symbol, .. } =
-                    program.type_reference_table.type_reference(reference)
-                    && program
-                        .data_type_parameter_by_symbol(*symbol)
-                        .is_some_and(|parameter| {
-                            matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-                        })
-                {
-                    return true;
-                }
-                if let TypeReferenceNode::Generic {
-                    base_symbol,
-                    arguments,
-                    ..
-                } = program.type_reference_table.type_reference(reference)
-                {
-                    let Some(definition) = program.unique_data_definition_by_symbol(*base_symbol)
-                    else {
-                        return false;
-                    };
-                    if !program
-                        .data_type_parameters(definition)
-                        .iter()
-                        .zip(
-                            program
-                                .type_reference_table
-                                .type_reference_handles(*arguments),
-                        )
-                        .filter(|(parameter, _)| {
-                            matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-                        })
-                        .all(|(_, argument)| {
-                            identity_carrier(program, *argument, active, depth + 1, true)
-                        })
-                    {
-                        return false;
-                    }
-                }
-            }
-            let Some(data) =
-                crate::value_custody::places::data_definition_for_type(program, reference)
-            else {
-                return false;
-            };
-            active.push(reference);
-            let identity = program
-                .data_member_fields(program.data_members(data))
-                .all(|field| {
-                    identity_carrier(
-                        program,
-                        field.type_reference,
-                        active,
-                        depth + 1,
-                        symbolic_data,
-                    )
-                });
-            active.pop();
-            identity
-        }
-        TypeReferenceNode::Unit => true,
-        // A referent/content comparison does not equate descriptor identity.
-        TypeReferenceNode::Reference { .. }
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::DynamicTrait { .. } => false,
-    }
 }
 
 /// `fact`'s operand pair when it is a binary `==` carrying identity meaning
