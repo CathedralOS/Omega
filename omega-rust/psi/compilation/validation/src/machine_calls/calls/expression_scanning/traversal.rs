@@ -389,8 +389,8 @@ impl ScanContext<'_, '_> {
         }
     }
 
-    /// Only the direct expression statement may discard Unit. Recursive operands
-    /// remain value uses even if a malformed tree reuses that statement's handle.
+    /// Selected result arms retain a terminal completion. Subjects, patterns
+    /// and ordinary operands remain value uses even when handles are shared.
     fn scan_at(
         &mut self,
         expression: ExpressionHandle,
@@ -584,8 +584,13 @@ impl ScanContext<'_, '_> {
                         }
                         }
                     };
-                    self.scan(
+                    self.scan_at(
                         arm.value,
+                        if matches!(expression_use, CallExpressionUse::TerminalResult) {
+                            CallExpressionUse::TerminalResult
+                        } else {
+                            CallExpressionUse::Value
+                        },
                         environment,
                         remaining_executes && selected != Some(false),
                     );

@@ -1014,7 +1014,10 @@ fn operand_type_at_depth(
                 operand_place_projection_type(program, machine, state, expression, depth + 1)
             })
         }
-        ExpressionNode::Call(_) | ExpressionNode::Binary(_) | ExpressionNode::StructLiteral(_) => {
+        ExpressionNode::Call(_)
+        | ExpressionNode::Binary(_)
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::Borrow(_) => {
             // Computed operands use the same selected-result query as value
             // checking. Reconstructing only fixed-integer syntax here lost
             // proof Int and turned embeds/sums into wildcard overload inputs.
@@ -1034,8 +1037,7 @@ fn operand_type_at_depth(
         }
         ExpressionNode::Cast(cast) => Some(cast.target_type),
         ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
-        // In particular, do not let declared_place_type_raw erase a Borrow
-        // shell and incorrectly rule out a reference-typed operator candidate.
+        // Unknown operands cannot borrow another operand's carrier.
         _ => None,
     }?;
     program
