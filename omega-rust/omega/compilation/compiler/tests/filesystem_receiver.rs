@@ -6,14 +6,15 @@
 //! classes to each raw requirement owned by the reviewed bundled std package;
 //! these are broad filesystem grants, not minimal per-operation permissions.
 //! Generic ordinary close gets an empty grant, while namespace-removal close
-//! keeps the filesystem grant. Only the structural process-exit intrinsic gets
-//! termination permission. Physical classification stays independently supplied
-//! by the existing toolchain policy, so an unsupported leaf must refuse.
+//! keeps the filesystem grant. The structural process-exit intrinsic and the
+//! trusted std Console::exit_process requirement get termination permission.
+//! Physical classification stays independently supplied by the existing
+//! toolchain policy, so an unsupported leaf must refuse.
 
 use effects::{
     CompilerIntrinsicExecutionIdentity, PortableFilesystemAuthorityFacet, TerminalAuthorityClass,
     TerminalAuthorityDisposition,
-    provider_plan::{ProviderBinding, ProviderPlan},
+    provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow},
 };
 use package_manager::{
     PackageCommand, PackageCommandKind, PackageCommandOptions, PackageCommandStatus,
@@ -109,6 +110,7 @@ fn windows_canonicalize_receiver() {
     let mut permissions = Vec::new();
     let mut trusted_filesystem_grants = 0;
     let mut ordinary_close_grants = 0;
+    let mut trusted_console_exit_grants = 0;
     let mut grant = |plan: &ProviderPlan, process_exit: bool| {
         for row in &plan.rows {
             if !process_exit
@@ -119,13 +121,14 @@ fn windows_canonicalize_receiver() {
             {
                 continue;
             }
-            let Some(permitted) = receiver_grant(plan, &row.method, trusted_std, process_exit)
-            else {
+            let Some(permitted) = receiver_grant(plan, row, trusted_std, process_exit) else {
                 continue;
             };
             if !process_exit && plan.schema.declaration.trait_package_identity == Some(trusted_std)
             {
-                if matches!(
+                if permitted.classes() == [TerminalAuthorityClass::ProcessTermination] {
+                    trusted_console_exit_grants += 1;
+                } else if matches!(
                     row.method.as_str(),
                     "c_close_handle" | "close_handle" | "find_close"
                 ) {
@@ -177,8 +180,12 @@ fn windows_canonicalize_receiver() {
         ordinary_close_grants > 0,
         "the independently configured std identity matched no empty ordinary-close grant"
     );
+    assert!(
+        trusted_console_exit_grants > 0,
+        "the independently configured std identity matched no Console::exit_process grant"
+    );
     eprintln!(
-        "trusted std receiver setup: {trusted_filesystem_grants} filesystem grants, {ordinary_close_grants} empty ordinary-close grants"
+        "trusted std receiver setup: {trusted_filesystem_grants} filesystem grants, {ordinary_close_grants} empty ordinary-close grants, {trusted_console_exit_grants} Console::exit_process grants"
     );
     let receiver = provider_admission::terminal_authority_permission_policy_with_rows(
         permissions,
@@ -274,7 +281,7 @@ fn windows_canonicalize_receiver() {
 
 fn receiver_grant(
     plan: &ProviderPlan,
-    method: &str,
+    row: &ProviderPlanRow,
     trusted_std: PackageKeyIdentity,
     process_exit: bool,
 ) -> Option<TerminalAuthorityDisposition> {
@@ -286,10 +293,38 @@ fn receiver_grant(
     if plan.schema.declaration.trait_package_identity != Some(trusted_std) {
         return None;
     }
+    // The independently trusted source declares Console::exit_process. Its
+    // Windows implementation is a foreign leaf, rather than the intrinsic
+    // above. Grant that authored requirement termination permission, keeping
+    // physical import classification independent. Join the exact row to its
+    // checked contract; direct leaves have already validated that projection
+    // against their separately retained original satisfied schema.
+    let requirement = plan.identities.text(row.requirement_identity);
+    let mut methods = plan
+        .schema
+        .declaration
+        .methods
+        .iter()
+        .filter(|method| plan.schema.identity_text(method.requirement_identity) == requirement);
+    let method = methods
+        .next()
+        .expect("receiver row has its exact checked contract");
+    assert!(methods.next().is_none(), "one exact receiver contract");
+    if method.requirement_owner_package_identity == Some(trusted_std)
+        && method.requirement_owner == "Console"
+        && method.name == "exit_process"
+    {
+        return Some(TerminalAuthorityDisposition::from_classes([
+            TerminalAuthorityClass::ProcessTermination,
+        ]));
+    }
     // This changes the receiver's permission, never the mechanism's physical
     // classification. The exact schema digest includes declaration ownership
     // and checked contracts; names only locate the policy's ordinary-close row.
-    if matches!(method, "c_close_handle" | "close_handle" | "find_close") {
+    if matches!(
+        row.method.as_str(),
+        "c_close_handle" | "close_handle" | "find_close"
+    ) {
         Some(TerminalAuthorityDisposition::from_classes([]))
     } else {
         Some(TerminalAuthorityDisposition::from_filesystem_facets(
