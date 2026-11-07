@@ -302,6 +302,58 @@ mod tests {
             crate::encode_mathematical_certificate(&arena, &certificate).unwrap();
         verify_identity_formations(&module, &expected, &mut Budget::default()).unwrap();
 
+        // A quantified function forms in its declared universe scope, but it
+        // is not a closed erased actual, even with an exact independent key.
+        // Constructor schemas and scalar/proof function actuals use this same
+        // closed receiving boundary after source specialization.
+        let mut quantified = MathematicalCertificate {
+            signature: certificate.signature.clone(),
+            level_arity: 1,
+            context: Vec::new(),
+            term: body,
+            expected: ty,
+        };
+        proof_admission::verify_mathematical_certificate(
+            &mut arena,
+            &quantified,
+            &mut Budget::default(),
+        )
+        .unwrap();
+        let key = crate::mathematical_carrier_key(&arena, &quantified).unwrap();
+        let actual = semantic_vocabulary::ProofTerm::Mathematical {
+            type_identity: "source-carrier".into(),
+            certificate: crate::encode_mathematical_certificate(&arena, &quantified).unwrap(),
+        };
+        assert!(matches!(
+            crate::verify_mathematical_proof_actual(
+                &actual,
+                "source-carrier",
+                &key,
+                &std::collections::BTreeSet::new(),
+                &mut Budget::default(),
+            ),
+            Err(crate::MathematicalProofActualError::OpenContext)
+        ));
+        // Dropping metadata cannot make that same function closed.
+        quantified.level_arity = 0;
+        let key = crate::mathematical_carrier_key(&arena, &quantified).unwrap();
+        let actual = semantic_vocabulary::ProofTerm::Mathematical {
+            type_identity: "source-carrier".into(),
+            certificate: crate::encode_mathematical_certificate(&arena, &quantified).unwrap(),
+        };
+        assert!(matches!(
+            crate::verify_mathematical_proof_actual(
+                &actual,
+                "source-carrier",
+                &key,
+                &std::collections::BTreeSet::new(),
+                &mut Budget::default(),
+            ),
+            Err(crate::MathematicalProofActualError::Kernel(
+                proof_admission::CoreError::UnboundLevelParameter { .. }
+            ))
+        ));
+
         // Dropping the quantified scope leaves the level application unbound.
         certificate.signature[1].level_arity = 0;
         module.identity_formations.certificate =

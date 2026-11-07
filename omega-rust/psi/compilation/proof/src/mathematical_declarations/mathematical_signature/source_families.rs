@@ -881,7 +881,7 @@ impl Elaborator<'_> {
             &type_domains,
             type_levels.len() as u32,
         )
-        .map_err(|error| self.refuse(error.into()))?;
+        .map_err(|error| self.refuse(error))?;
         let payload_lifts = description.payload_lifts;
         let description = terms::intern_description(
             &mut self.arena,

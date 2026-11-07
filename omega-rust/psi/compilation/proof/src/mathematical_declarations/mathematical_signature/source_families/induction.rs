@@ -194,7 +194,7 @@ impl Elaborator<'_> {
             invariant,
             self.level_binders.len() as u32 + self.generalized_levels,
         )
-        .map_err(|reason| self.refuse(reason.into()))?;
+        .map_err(|reason| self.refuse(reason))?;
         let sort = self
             .arena
             .insert(Term::Sort(Sort::Type(result_level.clone())));
@@ -496,7 +496,7 @@ impl Elaborator<'_> {
             &external_actuals,
             &family.payload_lifts,
         )
-        .map_err(|error| self.refuse(error.into()))?;
+        .map_err(|error| self.refuse(error))?;
         self.check_induction_term(step, step_type, "indexed-family induction step")?;
         self.check_induction_term(theorem, ty, "derived indexed-family theorem")?;
         // The final mathematical-signature trust boundary checks every

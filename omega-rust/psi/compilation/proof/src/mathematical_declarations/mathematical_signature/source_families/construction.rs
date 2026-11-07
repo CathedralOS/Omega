@@ -230,6 +230,10 @@ impl Elaborator<'_> {
         self.prepared
             .source_constructors
             .append(PreparedSourceConstructor {
+                level_arity: proof_admission::universe_parameter_arity(
+                    &self.arena,
+                    &[schema_type, schema],
+                ),
                 expression,
                 constructor: expression,
                 source_type: reference,

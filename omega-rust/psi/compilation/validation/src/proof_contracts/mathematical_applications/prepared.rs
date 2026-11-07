@@ -56,6 +56,7 @@ pub struct PreparedSourceEvidence {
 /// assumptions and not closed evidence actuals for an arbitrary destination.
 #[derive(Debug, Default, Clone)]
 pub struct PreparedSourceConstructor {
+    pub level_arity: u32,
     pub expression: ExpressionHandle,
     pub constructor: ExpressionHandle,
     pub source_type: TypeReferenceHandle,
