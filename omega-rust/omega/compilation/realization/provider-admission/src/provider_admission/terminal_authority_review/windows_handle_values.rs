@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use semantic_vocabulary::{MachineId, ScalarTerm, ScalarType, ValueId};
+use semantic_vocabulary::{BlockId, MachineId, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::{BoundaryParameterKind, Operation, OperationKind, TerminalModule, Terminator};
 use terminal_semantics::descriptors::descriptor_lifetimes::{
     DescriptorLocation, DescriptorPathSegment, DescriptorPosition, descriptor_location,
@@ -23,6 +23,31 @@ use super::windows_handle_calls::{
     CallSite, CallTarget, Caller, HandleCallGraph, RuntimeArguments,
 };
 use super::windows_handle_contracts::{WindowsHandleContract, reviewed_call};
+
+pub(super) struct LocalScalarExpressions {
+    pub identity: MachineId,
+    pub definitions: BTreeMap<ValueId, (ScalarType, Option<ScalarTerm>)>,
+    pub producers: BTreeMap<ValueId, DescriptorPosition>,
+    parameters: BTreeMap<ValueId, Option<BlockId>>,
+    dominators: terminal_semantics::control_graph::DominatorTree,
+}
+
+impl LocalScalarExpressions {
+    pub(super) fn available_at(&self, value: ValueId, observation: DescriptorPosition) -> bool {
+        if let Some(source) = self.producers.get(&value) {
+            return if source.0 == observation.0 {
+                source.1 < observation.1
+            } else {
+                self.dominators.dominates(source.0, observation.0)
+            };
+        }
+        match self.parameters.get(&value) {
+            Some(None) => true,
+            Some(Some(block)) => self.dominators.dominates(*block, observation.0),
+            None => false,
+        }
+    }
+}
 
 /// Every alternative is retained. A join is not permission to choose whichever
 /// source would make a later close valid.
@@ -99,6 +124,75 @@ pub(super) struct HandleValueReader<'a> {
 }
 
 impl<'a> HandleValueReader<'a> {
+    /// Immutable equations for ordinary scalar leaves. Native results and
+    /// storage observations stay their original SSA binders; no call summary,
+    /// current storage fact or source qualifier is substituted here.
+    pub(super) fn local_expressions(
+        &self,
+        identity: MachineId,
+    ) -> Result<LocalScalarExpressions, String> {
+        let types = self
+            .types
+            .get(&identity)
+            .ok_or("scalar expression catalog names an unreached machine")?;
+        let machine = self.calls.machines[&identity];
+        let blocks = machine
+            .blocks
+            .iter()
+            .map(|block| block.id)
+            .collect::<std::collections::BTreeSet<_>>();
+        if blocks.len() != machine.blocks.len() || !blocks.contains(&machine.entry) {
+            return Err("scalar expression control graph has repeated blocks or no entry".into());
+        }
+        let outgoing = terminal_semantics::control_graph::successors(machine);
+        if outgoing
+            .values()
+            .flatten()
+            .any(|(_, target)| !blocks.contains(target))
+            || terminal_semantics::control_graph::reverse_postorder(machine).len() != blocks.len()
+        {
+            return Err("scalar expression control graph has absent or unreachable blocks".into());
+        }
+        let definitions = types
+            .iter()
+            .map(|(&value, &scalar_type)| {
+                let expression = match self.producers.get(&(identity, value)) {
+                    Some(producer) => operation_expression(producer.operation, types)?,
+                    None => None,
+                };
+                Ok((value, (scalar_type, expression)))
+            })
+            .collect::<Result<_, String>>()?;
+        let producers = types
+            .keys()
+            .filter_map(|value| {
+                self.producers
+                    .get(&(identity, *value))
+                    .map(|producer| (*value, producer.position))
+            })
+            .collect();
+        let mut parameters = machine
+            .parameters
+            .iter()
+            .map(|parameter| (parameter.id, None))
+            .collect::<BTreeMap<_, _>>();
+        for block in &machine.blocks {
+            parameters.extend(
+                block
+                    .parameters
+                    .iter()
+                    .map(|parameter| (parameter.id, Some(block.id))),
+            );
+        }
+        Ok(LocalScalarExpressions {
+            identity,
+            definitions,
+            producers,
+            parameters,
+            dominators: terminal_semantics::control_graph::dominators(machine),
+        })
+    }
+
     pub(super) fn require_native_output(
         &self,
         caller: Caller,
@@ -331,46 +425,8 @@ impl<'a> HandleValueReader<'a> {
             .ok_or("handle scalar has no descriptor graph")?];
         if let Some(producer) = self.producers.get(&(identity, value)) {
             let operation = producer.operation;
-            let literal = match operation.kind {
-                OperationKind::IntegerConstant { value } => {
-                    let ScalarType::Integer(scalar_type) =
-                        operation.result.expect_scalar().scalar_type
-                    else {
-                        return Err("canonical integer literal has a noninteger result".into());
-                    };
-                    Some(ScalarTerm::Integer { scalar_type, value })
-                }
-                OperationKind::BooleanConstant { value } => Some(ScalarTerm::Boolean(value)),
-                OperationKind::ReadScalarApplication { application } => {
-                    Some(ScalarTerm::Application {
-                        application,
-                        scalar_type: operation.result.expect_scalar().scalar_type,
-                    })
-                }
-                _ => None,
-            };
-            if let Some(literal) = literal {
-                return Ok(ScalarDefinition::Expression(literal));
-            }
-            let value_types = &self.types[&identity];
-            let equation =
-                terminal_semantics::goal_free_scalar_leaf_semantics(operation, value_types)
-                    .map_err(|error| {
-                        format!(
-                            "handle scalar operation has invalid canonical semantics: {error:?}"
-                        )
-                    })?
-                    .map(|semantics| semantics.result_equation().clone())
-                    .or(terminal_semantics::proof_bearing_scalar_leaf_semantics(
-                        operation,
-                        value_types,
-                    )
-                    .map_err(|error| {
-                        format!("handle scalar operation has invalid checked semantics: {error:?}")
-                    })?
-                    .map(|semantics| semantics.result_equation().clone()));
-            if let Some(semantic_vocabulary::Proposition::Equal(_, right)) = equation {
-                return Ok(ScalarDefinition::Expression(right));
+            if let Some(expression) = operation_expression(operation, &self.types[&identity])? {
+                return Ok(ScalarDefinition::Expression(expression));
             }
             let position = producer.position;
             let caller = Caller {
@@ -756,4 +812,44 @@ impl<'a> HandleValueReader<'a> {
             }
         }
     }
+}
+
+fn operation_expression(
+    operation: &Operation,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+) -> Result<Option<ScalarTerm>, String> {
+    let literal = match operation.kind {
+        OperationKind::IntegerConstant { value } => {
+            let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type
+            else {
+                return Err("canonical integer literal has a noninteger result".into());
+            };
+            Some(ScalarTerm::Integer { scalar_type, value })
+        }
+        OperationKind::BooleanConstant { value } => Some(ScalarTerm::Boolean(value)),
+        OperationKind::ReadScalarApplication { application } => Some(ScalarTerm::Application {
+            application,
+            scalar_type: operation.result.expect_scalar().scalar_type,
+        }),
+        _ => None,
+    };
+    if let Some(literal) = literal {
+        return Ok(Some(literal));
+    }
+    let equation = terminal_semantics::goal_free_scalar_leaf_semantics(operation, value_types)
+        .map_err(|error| {
+            format!("handle scalar operation has invalid canonical semantics: {error:?}")
+        })?
+        .map(|semantics| semantics.result_equation().clone())
+        .or(
+            terminal_semantics::proof_bearing_scalar_leaf_semantics(operation, value_types)
+                .map_err(|error| {
+                    format!("handle scalar operation has invalid checked semantics: {error:?}")
+                })?
+                .map(|semantics| semantics.result_equation().clone()),
+        );
+    if let Some(semantic_vocabulary::Proposition::Equal(_, right)) = equation {
+        return Ok(Some(right));
+    }
+    Ok(None)
 }

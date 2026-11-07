@@ -55,7 +55,8 @@ pub use payload_predicates::{
     PayloadEntryScalarIdentity, PayloadScalarObservation, scalar_payload_expression,
 };
 pub use payload_versions::{
-    ProducedPayloadVersion, require_completed_scalar_capture, require_unchanged_entry_storage,
+    ProducedPayloadVersion, ScalarCaptureAnalysis, ScalarCaptureFailure,
+    require_completed_scalar_capture, require_unchanged_entry_storage,
     require_unchanged_observed_storage, require_unchanged_produced_payload,
     unchanged_payload_producer, unchanged_stored_projection_sources_in,
     unchanged_stored_scalar_sources, unchanged_stored_sources,

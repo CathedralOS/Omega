@@ -17,6 +17,215 @@ use semantic_vocabulary::ValueId;
 use std::collections::{BTreeMap, VecDeque};
 use terminal_psi::StructuralTypeDeclaration;
 
+struct ScalarCaptureEdge {
+    target: usize,
+    parameters: Vec<ValueId>,
+}
+
+struct ScalarCaptureStep {
+    definitions: Vec<ValueId>,
+    successors: Vec<ScalarCaptureEdge>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScalarCaptureFailure {
+    NotCompleted,
+    UnknownPosition(DescriptorPosition),
+    MissingOrRenewed,
+    QueryBudget,
+    InvalidFlow,
+}
+
+/// Prepared immutable scalar-version flow for one canonical machine. Queries
+/// borrow no second graph, so equal coordinates from another graph cannot reuse
+/// this analysis. Topology, value definitions and arrival rosters are prepared
+/// once; scratch storage and completed query answers are reused.
+pub struct ScalarCaptureAnalysis {
+    identity: MachineId,
+    positions: BTreeMap<DescriptorPosition, usize>,
+    coordinates: Vec<DescriptorPosition>,
+    entry: usize,
+    steps: Vec<ScalarCaptureStep>,
+    answers: BTreeMap<(usize, usize, Vec<ValueId>), bool>,
+    versions: Vec<Option<bool>>,
+    queued: Vec<bool>,
+    pending: VecDeque<usize>,
+}
+
+impl ScalarCaptureAnalysis {
+    pub fn new(machine: &DescriptorMachine) -> Result<Self, &'static str> {
+        let positions = machine
+            .flow
+            .keys()
+            .copied()
+            .enumerate()
+            .map(|(index, position)| (position, index))
+            .collect::<BTreeMap<_, _>>();
+        let entry = *positions
+            .get(&machine.entry)
+            .ok_or("scalar capture graph has no entry")?;
+        let mut steps = Vec::with_capacity(positions.len());
+        for (&position, step) in &machine.flow {
+            let mut successors = Vec::with_capacity(step.successors.len());
+            for edge in &step.successors {
+                let target = *positions
+                    .get(&edge.target)
+                    .ok_or("scalar capture graph has an absent target")?;
+                let parameters = if edge.target.1 == 0 {
+                    machine
+                        .payload_scalar_parameters
+                        .get(&edge.target.0)
+                        .cloned()
+                        .unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                successors.push(ScalarCaptureEdge { target, parameters });
+            }
+            steps.push(ScalarCaptureStep {
+                definitions: machine
+                    .payload_scalar_definitions
+                    .get(&position)
+                    .cloned()
+                    .unwrap_or_default(),
+                successors,
+            });
+        }
+        Ok(Self {
+            identity: machine.id,
+            entry,
+            versions: vec![None; steps.len()],
+            queued: vec![false; steps.len()],
+            pending: VecDeque::new(),
+            coordinates: positions.keys().copied().collect(),
+            positions,
+            steps,
+            answers: BTreeMap::new(),
+        })
+    }
+
+    pub fn identity(&self) -> MachineId {
+        self.identity
+    }
+
+    /// A real operation completed before the observation on every incoming
+    /// path, and none of these scalar operands renewed afterwards. The caller
+    /// authenticates that operation and its captured operands separately. This
+    /// conservative query retains every syntactic path; it does not assume a
+    /// missing or contradictory path in order to prove a requested capture.
+    pub fn require(
+        &mut self,
+        source: DescriptorPosition,
+        observation: DescriptorPosition,
+        values: &[ValueId],
+    ) -> Result<(), ScalarCaptureFailure> {
+        if source == observation {
+            return Err(ScalarCaptureFailure::NotCompleted);
+        }
+        let source = *self
+            .positions
+            .get(&source)
+            .ok_or(ScalarCaptureFailure::UnknownPosition(source))?;
+        let observation = *self
+            .positions
+            .get(&observation)
+            .ok_or(ScalarCaptureFailure::UnknownPosition(observation))?;
+        let mut values = values.to_vec();
+        values.sort();
+        values.dedup();
+        let key = (source, observation, values);
+        if let Some(valid) = self.answers.get(&key) {
+            return if *valid {
+                Ok(())
+            } else {
+                Err(ScalarCaptureFailure::MissingOrRenewed)
+            };
+        }
+        if self.answers.len() >= 65_536 {
+            return Err(ScalarCaptureFailure::QueryBudget);
+        }
+        let valid = self.solve(source, observation, &key.2, |_, _| true)?;
+        self.answers.insert(key, valid);
+        if valid {
+            Ok(())
+        } else {
+            Err(ScalarCaptureFailure::MissingOrRenewed)
+        }
+    }
+
+    // The legacy wrapper retains its query-specific proved Boolean exclusions.
+    // It uses this same scalar renewal rule, without reusing an all-path cache
+    // answer for a different predecessor domain.
+    fn require_on_edges(
+        &mut self,
+        source: DescriptorPosition,
+        observation: DescriptorPosition,
+        values: &[ValueId],
+        includes_edge: impl Fn(DescriptorPosition, usize) -> bool,
+    ) -> Result<bool, ScalarCaptureFailure> {
+        let source = *self
+            .positions
+            .get(&source)
+            .ok_or(ScalarCaptureFailure::UnknownPosition(source))?;
+        let observation = *self
+            .positions
+            .get(&observation)
+            .ok_or(ScalarCaptureFailure::UnknownPosition(observation))?;
+        let mut values = values.to_vec();
+        values.sort();
+        values.dedup();
+        self.solve(source, observation, &values, includes_edge)
+    }
+
+    fn solve(
+        &mut self,
+        source: usize,
+        observation: usize,
+        values: &[ValueId],
+        includes_edge: impl Fn(DescriptorPosition, usize) -> bool,
+    ) -> Result<bool, ScalarCaptureFailure> {
+        self.versions.fill(None);
+        self.queued.fill(false);
+        self.pending.clear();
+        self.versions[self.entry] = Some(false);
+        self.queued[self.entry] = true;
+        self.pending.push_back(self.entry);
+        while let Some(current) = self.pending.pop_front() {
+            self.queued[current] = false;
+            let before = self.versions[current].ok_or(ScalarCaptureFailure::InvalidFlow)?;
+            let step = &self.steps[current];
+            let after = if current == source {
+                true
+            } else {
+                before
+                    && !step
+                        .definitions
+                        .iter()
+                        .any(|value| values.binary_search(value).is_ok())
+            };
+            for (ordinal, edge) in step.successors.iter().enumerate() {
+                if !includes_edge(self.coordinates[current], ordinal) {
+                    continue;
+                }
+                let arrival = after
+                    && !edge
+                        .parameters
+                        .iter()
+                        .any(|value| values.binary_search(value).is_ok());
+                let joined = self.versions[edge.target].map_or(arrival, |old| old && arrival);
+                if self.versions[edge.target] != Some(joined) {
+                    self.versions[edge.target] = Some(joined);
+                    if !self.queued[edge.target] {
+                        self.queued[edge.target] = true;
+                        self.pending.push_back(edge.target);
+                    }
+                }
+            }
+        }
+        Ok(self.versions[observation] == Some(true))
+    }
+}
+
 /// A current borrow resolves to this exact whole produced storage version.
 /// The producer's operation kind, selected provider and original input custody
 /// are deliberately absent: the consumer must authenticate those separately.
@@ -274,25 +483,25 @@ pub fn require_completed_scalar_capture(
         descriptor_machine(graph, identity).ok_or("evidence capture machine is absent")?;
     let relevant = super::payload_reachability::predecessors(machine, observation)
         .ok_or("evidence capture has unresolved incoming control flow")?;
-    let valid = version_flow(
-        &machine.flow,
-        machine.entry,
-        source,
-        observation,
-        |position, ordinal| relevant.includes_edge(position, ordinal),
-        |position, _| {
-            Ok(machine
-                .payload_scalar_definitions
-                .get(&position)
-                .is_some_and(|definitions| definitions.iter().any(|value| values.contains(value))))
-        },
-        |edge| {
-            machine
-                .payload_scalar_parameters
-                .get(&edge.target.0)
-                .is_some_and(|parameters| parameters.iter().any(|value| values.contains(value)))
-        },
-    )?;
+    // Both constructor failures name absent flow positions; keep the legacy
+    // caller diagnostic while delegating scalar renewal to the shared owner.
+    let mut analysis = ScalarCaptureAnalysis::new(machine)
+        .map_err(|_| "payload version flow names an absent position")?;
+    let valid = analysis
+        .require_on_edges(source, observation, values, |position, ordinal| {
+            relevant.includes_edge(position, ordinal)
+        })
+        .map_err(|reason| match reason {
+            ScalarCaptureFailure::UnknownPosition(_) => {
+                "payload version flow names an absent position"
+            }
+            ScalarCaptureFailure::InvalidFlow => "payload version arrival is absent",
+            ScalarCaptureFailure::NotCompleted => "evidence capture has not completed before use",
+            ScalarCaptureFailure::MissingOrRenewed => {
+                "evidence capture is absent or its SSA instance was renewed before use"
+            }
+            ScalarCaptureFailure::QueryBudget => "scalar capture query budget exceeded",
+        })?;
     if valid {
         Ok(())
     } else {
@@ -613,6 +822,82 @@ mod tests {
             normal_exits: vec![position(5)],
         };
         (types, machine)
+    }
+
+    #[test]
+    fn scalar_formal_renews_on_arrival_not_between_operations_in_its_block() {
+        let (_, mut machine) = copy_graph();
+        let entry = position(1);
+        let capture = (semantic_vocabulary::BlockId::new(2).unwrap(), 0);
+        let middle = (capture.0, 1);
+        let observation = (capture.0, 2);
+        let parameter = ValueId::new(8).unwrap();
+        let step = |target: Option<DescriptorPosition>| DescriptorFlowStep {
+            successors: target
+                .into_iter()
+                .map(|target| DescriptorFlowEdge {
+                    target,
+                    parameters: Vec::new(),
+                    bindings: Vec::new(),
+                })
+                .collect(),
+            ..Default::default()
+        };
+        machine.entry = entry;
+        machine.flow = BTreeMap::from([
+            (entry, step(Some(capture))),
+            (capture, step(Some(middle))),
+            (middle, step(Some(observation))),
+            (observation, step(None)),
+        ]);
+        machine.payload_scalar_parameters = BTreeMap::from([(capture.0, vec![parameter])]);
+        machine.payload_scalar_definitions.clear();
+        let mut analysis = ScalarCaptureAnalysis::new(&machine).unwrap();
+        analysis
+            .require(capture, observation, &[parameter])
+            .unwrap();
+        assert!(analysis.require(entry, observation, &[parameter]).is_err());
+        require_completed_scalar_capture(
+            std::slice::from_ref(&machine),
+            machine.id,
+            capture,
+            observation,
+            &[parameter],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn prepared_scalar_capture_refuses_renewed_operands_without_reusing_old_answers() {
+        let (_, mut machine) = copy_graph();
+        let status = ValueId::new(8).unwrap();
+        machine
+            .payload_scalar_definitions
+            .insert(position(1), vec![status]);
+        let mut original = ScalarCaptureAnalysis::new(&machine).unwrap();
+        original
+            .require(position(2), position(5), &[status])
+            .unwrap();
+        original
+            .require(position(2), position(5), &[status])
+            .unwrap();
+        assert_eq!(original.answers.len(), 1);
+
+        machine
+            .payload_scalar_definitions
+            .insert(position(4), vec![status]);
+        let mut renewed = ScalarCaptureAnalysis::new(&machine).unwrap();
+        assert!(
+            renewed
+                .require(position(2), position(5), &[status])
+                .is_err()
+        );
+        assert!(
+            renewed
+                .require(position(2), position(2), &[status])
+                .is_err()
+        );
+        assert!(renewed.require(position(2), position(5), &[]).is_ok());
     }
 
     #[test]
