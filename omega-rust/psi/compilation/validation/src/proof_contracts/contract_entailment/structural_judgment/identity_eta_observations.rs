@@ -98,6 +98,16 @@ fn trace_term(side: &str, value: &StructuralTerm, depth: usize, remaining: &mut 
         StructuralTerm::Variable(name) => {
             eprintln!("IDETA {side} depth={depth} variable={name}");
         }
+        StructuralTerm::BoundValue(symbol) => {
+            eprintln!("IDETA {side} depth={depth} bound_value={symbol:?}");
+        }
+        StructuralTerm::BoundProjection { subject, path } => {
+            eprintln!("IDETA {side} depth={depth} bound_projection={subject:?}/{path}");
+        }
+        StructuralTerm::Opaque(text) => {
+            let prefix = text.chars().take(160).collect::<String>();
+            eprintln!("IDETA {side} depth={depth} opaque={prefix:?}");
+        }
         StructuralTerm::CapturedValue {
             expression,
             statement,
@@ -114,5 +124,10 @@ fn trace_term(side: &str, value: &StructuralTerm, depth: usize, remaining: &mut 
             std::mem::discriminant(value)
         ),
     }
-    value.for_each_child(|child| trace_term(side, child, depth + 1, remaining));
+    if depth + 1 < 6 && *remaining != 0 {
+        value.any_child(|child| {
+            trace_term(side, child, depth + 1, remaining);
+            *remaining == 0
+        });
+    }
 }
