@@ -27155,8 +27155,7 @@ pass/range/data_parameter_counter_non_negative_exit rejected 10443ms check-targe
 	cannot prove index `main.i` is within length 2 in add::entry
 pass/range/runtime_funnel_guard_agreement_exit checked 88469ms check-target:macos_arm64 @4e466851bcbe
 pass/range/runtime_guarded_runtime_index_increment_exit checked 12584ms check-target:macos_arm64 @89d5d2d7655c
-pass/ranges/loop_saved_guard_disjoint_write_exit rejected 2618ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove index `main.index` is within length 3 in body::entry
+pass/ranges/loop_saved_guard_disjoint_write_exit checked 8907ms check-target:macos_arm64 @6d175b77abdc
 pass/ranges/runtime_array_element_full_width_receiving_exit checked 4151ms check-target:macos_arm64 @ccdb99ca2214
 pass/ranges/runtime_bounded_array_element_order_exit checked 5731ms check-target:macos_arm64 @911f6617ba9e
 pass/ranges/runtime_correlated_store_saved_values_exit checked 12690ms check-target:macos_arm64 @911f6617ba9e
