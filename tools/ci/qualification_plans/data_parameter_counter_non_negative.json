@@ -36,12 +36,10 @@
     "origin_run": 42407183694,
     "cache_key": "compiler-regression-Linux-X64-54779b37cdcc0463407f621719b14211931a27023dd1271d3b18373fa511953b-6d175b77abdcd16c707c80865f13fd0cdbfef419-prepared-v1-with-runner"
   },
-  "fixtures": [
-    "pass/range/data_parameter_counter_non_negative_exit",
-    "fail/ranges/index_signed_guard_below_zero",
-    "fail/ranges/loop_increment_index_unbounded"
-  ],
-  "source_only": true,
+  "fixtures": [],
+  "source_only": false,
   "samples": [],
-  "cli_fixtures": []
+  "cli_fixtures": [
+    "pass/range/data_parameter_counter_non_negative_exit"
+  ]
 }
