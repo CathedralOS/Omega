@@ -23,17 +23,17 @@ trait PairAgreement<Frame,
     machine encode_covers(value: Pair) reaches terminates
     ensures Encode::try_from(value) in Result::Ok;
     machine encode_valid(value: Pair, frame: Frame) reaches terminates
-    requires Encode::try_from(value) == (Result::Ok { value: frame })
+    requires core::Identity<Result<Frame, Failure>>(Encode::try_from(value), Result::Ok { value: frame })
     ensures Validity::valid(frame);
     machine decode_covers(frame: Frame) reaches terminates
     requires Validity::valid(frame)
     ensures Decode::try_from(frame) in Result::Ok;
     machine decode_rejects(frame: Frame) reaches terminates
     requires !Validity::valid(frame)
-    ensures Decode::try_from(frame) == (Result::Err { error: Failure::InvalidTag });
+    ensures core::Identity<Result<Pair, Failure>>(Decode::try_from(frame), Result::Err { error: Failure::InvalidTag });
     machine round_trip(value: Pair, frame: Frame) reaches terminates
-    requires Encode::try_from(value) == (Result::Ok { value: frame })
-    ensures Decode::try_from(frame) == (Result::Ok { value: value });
+    requires core::Identity<Result<Frame, Failure>>(Encode::try_from(value), Result::Ok { value: frame })
+    ensures core::Identity<Result<Pair, Failure>>(Decode::try_from(frame), Result::Ok { value: value });
 }
 
 WriteFirst satisfies TryFrom<Pair, FirstFrame, Failure> {
@@ -73,40 +73,40 @@ FirstAgreement satisfies PairAgreement<FirstFrame, WriteFirst, ReadFirst, FirstV
     machine encode_covers(value: Pair) reaches terminates
     ensures WriteFirst::try_from(value) in Result::Ok { }
     machine encode_valid(value: Pair, frame: FirstFrame) reaches terminates
-    requires WriteFirst::try_from(value) == (Result::Ok { value: frame })
+    requires core::Identity<Result<FirstFrame, Failure>>(WriteFirst::try_from(value), Result::Ok { value: frame })
     ensures FirstValidity::valid(frame) { }
     machine decode_covers(frame: FirstFrame) reaches terminates
     requires FirstValidity::valid(frame)
     ensures ReadFirst::try_from(frame) in Result::Ok { }
     machine decode_rejects(frame: FirstFrame) reaches terminates
     requires !FirstValidity::valid(frame)
-    ensures ReadFirst::try_from(frame) == (Result::Err { error: Failure::InvalidTag }) { }
+    ensures core::Identity<Result<Pair, Failure>>(ReadFirst::try_from(frame), Result::Err { error: Failure::InvalidTag }) { }
     machine round_trip(value: Pair, frame: FirstFrame) reaches terminates
-    requires WriteFirst::try_from(value) == (Result::Ok { value: frame })
-    ensures ReadFirst::try_from(frame) == (Result::Ok { value: value }) { }
+    requires core::Identity<Result<FirstFrame, Failure>>(WriteFirst::try_from(value), Result::Ok { value: frame })
+    ensures core::Identity<Result<Pair, Failure>>(ReadFirst::try_from(frame), Result::Ok { value: value }) { }
 }
 SecondAgreement satisfies PairAgreement<SecondFrame, WriteSecond, ReadSecond, SecondValidity> {
     machine encode_covers(value: Pair) reaches terminates
     ensures WriteSecond::try_from(value) in Result::Ok { }
     machine encode_valid(value: Pair, frame: SecondFrame) reaches terminates
-    requires WriteSecond::try_from(value) == (Result::Ok { value: frame })
+    requires core::Identity<Result<SecondFrame, Failure>>(WriteSecond::try_from(value), Result::Ok { value: frame })
     ensures SecondValidity::valid(frame) { }
     machine decode_covers(frame: SecondFrame) reaches terminates
     requires SecondValidity::valid(frame)
     ensures ReadSecond::try_from(frame) in Result::Ok { }
     machine decode_rejects(frame: SecondFrame) reaches terminates
     requires !SecondValidity::valid(frame)
-    ensures ReadSecond::try_from(frame) == (Result::Err { error: Failure::InvalidTag }) { }
+    ensures core::Identity<Result<Pair, Failure>>(ReadSecond::try_from(frame), Result::Err { error: Failure::InvalidTag }) { }
     machine round_trip(value: Pair, frame: SecondFrame) reaches terminates
-    requires WriteSecond::try_from(value) == (Result::Ok { value: frame })
-    ensures ReadSecond::try_from(frame) == (Result::Ok { value: value }) { }
+    requires core::Identity<Result<SecondFrame, Failure>>(WriteSecond::try_from(value), Result::Ok { value: frame })
+    ensures core::Identity<Result<Pair, Failure>>(ReadSecond::try_from(frame), Result::Ok { value: value }) { }
 }
 
 machine require_round_trip<Frame,
     Encode satisfies ValueConversion<Pair, Frame, Failure>,
     Decode satisfies ValueConversion<Frame, Pair, Failure>>
     (value: Pair, frame: Frame)
-requires Decode::try_from(frame) == (Result::Ok { value: value })
+requires core::Identity<Result<Pair, Failure>>(Decode::try_from(frame), Result::Ok { value: value })
 { }
 
 machine use_agreement<Frame,
@@ -115,7 +115,7 @@ machine use_agreement<Frame,
     Validity satisfies FrameValidity<Frame>,
     Agreement satisfies PairAgreement<Frame, Encode, Decode, Validity>>
     (value: Pair, frame: Frame, malformed: Frame)
-requires Encode::try_from(value) == (Result::Ok { value: frame })
+requires core::Identity<Result<Frame, Failure>>(Encode::try_from(value), Result::Ok { value: frame })
 requires !Validity::valid(malformed)
 {
     Agreement::encode_covers(value);
