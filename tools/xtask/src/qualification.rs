@@ -205,10 +205,10 @@ fn execute(
     if source["tracked_changes"] != "" {
         return Err("qualification requires a clean committed source tree".to_owned());
     }
-    let archive = directory.join("source.tar.gz");
+    let archive = directory.join("source.zip");
     let status = execution::run(
         Command::new("git")
-            .args(["archive", "--format=tar.gz", "-o"])
+            .args(["archive", "--format=zip", "-o"])
             .arg(&archive)
             .arg("HEAD")
             .current_dir(root)
@@ -221,7 +221,7 @@ fn execute(
     }
     execution::write_json(
         &directory.join("source-archive-metadata.json"),
-        &json!({"source": source, "sha256": execution::digest(&archive)?}),
+        &json!({"source": source, "path": archive, "sha256": execution::digest(&archive)?}),
     )?;
     let prepared = producer::prepare(
         root,
