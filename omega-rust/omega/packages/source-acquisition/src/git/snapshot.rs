@@ -1,4 +1,16 @@
-//! Authenticated Git tree materialization and immutable snapshot verification.
+// Authenticated Git tree materialization and immutable snapshot verification.
+//
+// `resolve_git_snapshot` and `publish_git_member_snapshot` preflight an
+// authenticated `GitTreeEntry` list (`preflight_git_snapshot`) to compute the
+// expected `GitSnapshotMetadata` before touching the snapshot collection. When
+// `tree-<object_id>` already exists on disk, we release the in-memory blob
+// payloads and re-verify the published snapshot's metadata, permissions,
+// directory/leaf shape, and content identity (`verify_git_snapshot`). When
+// materializing a new snapshot, we release the in-memory blob payloads before
+// re-reading the staged tree so verification never retains two package-sized
+// copies in memory, drop the open `source_directory` handle before atomic
+// publication so Windows permits the directory rename, and compute the
+// returned identity from the atomically published tree.
 
 use crate::SourceResolveError;
 use crate::custody::lock::CacheEntryLock;
@@ -63,13 +75,6 @@ pub(crate) fn resolve_git_snapshot(
     reconcile_git_cache_operation_result(result, snapshots.verify_identity(), None)
 }
 
-/// Publish an authenticated, re-rooted Git member tree directly beneath a
-/// retained workspace-member lane.
-///
-/// The tree object ID is the publication key. Reuse never trusts that key
-/// alone: metadata, custody, shape, modes, payload bytes, and reconstructed
-/// source identity are verified again while the exact lane and entry lock are
-/// retained.
 pub(crate) fn publish_git_member_snapshot(
     executor: &GitExecutor,
     lane: &RetainedStorageLane,
@@ -183,9 +188,6 @@ fn resolve_git_snapshot_in_collection(
         }
     }
 
-    // The staged source is re-read to bind publication identity. Release the
-    // shared batch payload first so that this verification does not retain a
-    // second package-sized in-memory copy.
     release_git_blob_payloads(&mut entries);
     let staged = capture_exact_materialized(&source, &source_directory, limits)?.normalized;
     if staged.file_count != expected.file_count
@@ -216,14 +218,9 @@ fn resolve_git_snapshot_in_collection(
             "finalized snapshot did not preserve the authenticated Git tree exactly",
         ));
     }
-    // Windows will not rename the retained stage while a descendant directory
-    // handle remains open. Verification is complete, so release it before the
-    // atomic publication rename.
     drop(source_directory);
     pending.publish(collection_path, &publication)?;
 
-    // The returned identity is always calculated from the atomically published tree, never from
-    // the staging directory or Git's mutable object-cache state.
     verify_git_snapshot(kind, &publication, expected, &entries, limits)
 }
 

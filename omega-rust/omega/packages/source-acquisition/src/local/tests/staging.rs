@@ -1,3 +1,7 @@
+// Unit tests for candidate local-source replacement staging, snapshot reuse
+// after landing the proposed edit, executable-bit and symlink preservation,
+// stale-digest rejection, and replacement byte budgets.
+
 use super::{
     LocalSourceLimits, SourceRelativePath, SourceResolveError, make_tree_owner_writable,
     resolve_local_source, resolve_local_source_snapshot_in_lane, resolve_materialized_source,

@@ -1,3 +1,17 @@
+/*
+Canonical source lineage (`SourceLineage`) and Git repository normalization
+(`GitHubRepositoryLineage`, `GitLabRepositoryLineage`, `GenericGitLineage`, and
+`GitTransport`).
+
+`SourceLineage::git_recovery_owned_bytes` computes the preflight owned payload
+allowance for `SourceLineage::git`, including discarded parser strings: the
+parsed user/host/port/path fit within the locator, GitHub/GitLab normalization
+copies at most the path once more, and scheme normalization (or its unsupported
+protocol error) is charged separately without counting a caller-owned locator
+copy. `hash_canonical` appends the lineage's canonical source-owned identity
+fields to a SHA-256 hasher.
+*/
+
 use super::locator::{
     CanonicalPort, ParsedGitLocator, is_github_owner, is_github_repository,
     validate_repository_path,
@@ -18,11 +32,6 @@ pub enum SourceLineage {
 }
 
 impl SourceLineage {
-    /// Preflight owned payload allowance for `git`, including discarded parser
-    /// strings. The parsed user/host/port/path together fit within the locator;
-    /// GitHub/GitLab normalization copies at most the path once more. Scheme
-    /// normalization (or its unsupported-protocol error) is charged separately.
-    /// No caller-owned locator copy is included.
     #[doc(hidden)]
     pub fn git_recovery_owned_bytes(locator: &str) -> Option<usize> {
         let scheme = locator
@@ -31,7 +40,6 @@ impl SourceLineage {
         locator.len().checked_mul(2)?.checked_add(scheme)
     }
 
-    /// Parses a locator already selected by the Git source adapter.
     pub fn git(locator: &str) -> Result<Self, IdentityError> {
         Self::git_with_transport(locator).map(|(lineage, _)| lineage)
     }
@@ -57,7 +65,6 @@ impl SourceLineage {
         }
     }
 
-    /// Append this lineage's canonical source-owned identity fields.
     #[doc(hidden)]
     pub fn hash_canonical(&self, hasher: &mut Sha256) {
         match self {
