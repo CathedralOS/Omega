@@ -94,3 +94,59 @@ impl EvaluatedWritePrefix {
         false
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::EvaluatedWritePrefix;
+
+    #[test]
+    fn accumulated_prefix_matches_the_call_frame_overlap_oracle() {
+        let observed = [
+            "packet",
+            "packet.value",
+            "packet.value.child",
+            "packet.value.child.nested",
+            "packet.value_suffix",
+            "packets.value",
+            "packet.cells",
+            "packet.cells[0]",
+            "packet.cells[0].field",
+            "packet.cells[1].field",
+            "packet.cells[*]",
+            "packet.cells.len",
+            "packet.side",
+        ];
+        let mut prefix = EvaluatedWritePrefix::default();
+        let mut linear = Vec::new();
+        for written in [
+            vec![],
+            vec!["packet.value.child"],
+            vec!["packets.value"],
+            vec!["packet.cells[0].field"],
+            vec!["packet.cells[*]"],
+            vec!["packet"],
+        ] {
+            prefix.extend(Some(
+                written.iter().map(|path| (*path).to_owned()).collect(),
+            ));
+            linear.extend(written);
+            for path in observed {
+                assert_eq!(
+                    prefix.overlaps(path),
+                    linear
+                        .iter()
+                        .any(|write| crate::machine_calls::calls::frame_paths_overlap(path, write)),
+                    "read {path}, evaluated writes {linear:?}",
+                );
+            }
+        }
+        prefix.extend(None);
+        assert!(prefix.is_unknown());
+        assert!(!prefix.is_empty());
+        prefix.extend(Some(Vec::new()));
+        assert!(prefix.is_unknown());
+        for path in observed {
+            assert!(prefix.overlaps(path));
+        }
+    }
+}
