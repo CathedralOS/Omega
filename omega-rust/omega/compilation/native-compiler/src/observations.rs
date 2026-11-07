@@ -1,9 +1,8 @@
-//! Invocation-local counts of actual native coordinator operations.
-//!
-//! These observations never supply semantic inputs, reuse decisions or
-//! admission evidence. A failed invocation retains its entered stages;
-//! independent callable bodies stay visible as separate units instead of being
-//! folded into an application's count.
+// Invocation-local counts of actual native coordinator operations across Omega
+// 00 through 09, fragment emission, and image emission. These observations
+// never supply semantic inputs, reuse decisions, or admission evidence; failed
+// invocations retain their entered stages on Drop, and independent callable
+// bodies remain visible as separate `NativePipelineUnit::Callable` scopes.
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -12,8 +11,6 @@ use target::TargetProfile;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativePipelineUnit {
     Application,
-    /// An independently admitted callable enters the shared body sequence at
-    /// Omega 01. Its earlier admission is owned by the callback/component caller.
     Callable,
 }
 
@@ -21,8 +18,7 @@ pub enum NativePipelineUnit {
 pub struct NativePipelineInvocation {
     pub profile: TargetProfile,
     pub unit: NativePipelineUnit,
-    /// Entry counts for numbered Omega 00 through 09, in order.
-    pub stages: [u64; 10],
+    pub stages: [u64; 10], // entry counts for numbered Omega 00 through 09, in order
     pub fragment_emission_attempts: u64,
     pub image_emission_attempts: u64,
     pub completed: bool,
@@ -31,9 +27,6 @@ pub struct NativePipelineInvocation {
 static ENABLED: AtomicBool = AtomicBool::new(false);
 static INVOCATIONS: Mutex<Vec<NativePipelineInvocation>> = Mutex::new(Vec::new());
 
-/// Completed observation scopes, including scopes whose compilation refused.
-/// Callers isolate their own process or compare against a prior snapshot;
-/// taking the initial snapshot enables recording for subsequent compilations.
 pub fn native_pipeline_invocations() -> Vec<NativePipelineInvocation> {
     ENABLED.store(true, Ordering::Relaxed);
     INVOCATIONS

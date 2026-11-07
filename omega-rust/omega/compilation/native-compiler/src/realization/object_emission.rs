@@ -1,10 +1,13 @@
-//! One abstract-to-object sequence, independent of optimization selection.
+// Application object emission (`emit_realization_object`) and Terminal-only
+// borrowed-storage layout lowering (`lower_borrowed_storage_layouts`). Root
+// fragment emission runs before `lower_callback_thunks` so optimization-pruned
+// callback references never demand unused private bodies.
 
 use crate::pipeline::{self, BodyEmissionError, TargetLoweringError};
 use crate::realization::callback_thunks::{
     PreparedCallbackObjects, lower_callback_thunks, prepare_installed_callbacks,
 };
-use crate::realization::realization_diagnostics::selected_physical_pipeline_failed;
+use crate::realization::selected_physical_pipeline_failed;
 use crate::request::NativeRealizationRequest;
 use abstract_operations_to_target_operations::{
     AdmittedBoundarySettlement, OptimizedTargetLoweringRequest,
@@ -13,19 +16,17 @@ use diagnostics::Diagnostic;
 use native_artifact::{
     FragmentObjectPublicationRequest, PublishedFragmentObject, publish_fragment_object,
 };
-use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
-use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
-use terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput;
 use terminal_psi_to_abstract_operations::provider_admission::realization_error;
+use terminal_psi_to_abstract_operations::{
+    AdmittedProviderInstallation, ValidatedNativeProgramEntrySettlement,
+    VerifiedNativeArtifactInput,
+};
 
 pub(crate) struct EmittedRealizationObject {
     pub object: PublishedFragmentObject,
     pub borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
 }
 
-/// Target lowering alone, for Terminal-only runtime admission: the same
-/// lowering an image would run, kept only for the borrowed-storage layouts that
-/// host adapters read. Physical selection and object publication never run.
 pub(crate) fn lower_borrowed_storage_layouts(
     input: VerifiedNativeArtifactInput,
     provider_installation: Option<AdmittedProviderInstallation>,
@@ -88,10 +89,6 @@ pub(crate) fn emit_realization_object(
             "admitted entries belong to another Terminal program",
         ));
     }
-    // Thunks are independent canonical artifacts: materialize them once the
-    // request's callback custody has been admitted, under the same effective
-    // selection as the entry. Target lowering rejoins the exact callback
-    // roster; physical and installation replay preserve its private addresses.
     let target = lower_target(input, provider_installation, settlements, request)?;
     let mut prepared_callbacks = PreparedCallbackObjects::new(request, program_provider_context)?;
     let physical_entry = program_entry
@@ -124,9 +121,6 @@ pub(crate) fn emit_realization_object(
             ),
             BodyEmissionError::Object(diagnostics) => diagnostics,
         })?;
-    // Emit the root first so optimization-pruned callback uses do not demand
-    // unused bodies. Each surviving symbolic reference retains its admitted
-    // occurrence; the body worklist follows the same rule in its own namespace.
     let private_functions = lower_callback_thunks(
         request,
         &native_callbacks,

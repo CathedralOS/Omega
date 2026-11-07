@@ -1,8 +1,13 @@
-//! Native publication: validate Terminal custody, admit providers, emit, and replay.
-//!
-//! The request supplies realization authority separately from the portable
-//! program, including the retained behavior-exclusion union; selected
-//! optimizations do not choose a different publication route.
+/*
+Native realization: validate Terminal custody, admit providers and program entry,
+emit objects and images, and capture Terminal-runtime provisions.
+
+`admit_realization` runs Omega 00 provider/entry admission and captures the
+admitted `TerminalRuntimeProvisions` before emission consumes the installation,
+so both `realize_native_artifact` and `admit_terminal_runtime` (`omega run
+--engine terminal`) settle the exact same providers, entry, and host
+realizations.
+*/
 
 mod callable_objects;
 mod callback_thunks;
@@ -13,26 +18,22 @@ pub(crate) use component_exports::{
     ComponentExportImage, ComponentExportRequest, emit_component_exports,
 };
 mod object_emission;
-pub(crate) mod realization_diagnostics;
 
 use crate::request::NativeRealizationRequest;
 use diagnostics::Diagnostic;
 use native_artifact::RequestedNativeArtifact;
 
 use self::object_emission::emit_realization_object;
+use terminal_psi_to_abstract_operations::provider_admission::realization_error;
 use terminal_psi_to_abstract_operations::{
     AdmittedNativeRealization, admit_prepared_native_realization,
 };
 
-/// Image and the exact source-free runtime provisions admitted beside it.
-/// The backend image does not own host interpretation policy or runtime state.
 pub struct RealizedNativeProduct {
     pub artifact: RequestedNativeArtifact,
     pub runtime_provisions: Option<native_artifact::TerminalRuntimeProvisions>,
 }
 
-/// Provider and entry admission of one Terminal artifact with the runtime
-/// provisions captured from that same admission, before anything is emitted.
 struct AdmittedRealization<'request> {
     admitted: AdmittedNativeRealization<'request>,
     entry_settlement:
@@ -40,9 +41,6 @@ struct AdmittedRealization<'request> {
     runtime_provisions: Option<native_artifact::TerminalRuntimeProvisions>,
 }
 
-/// Omega 00 admission shared by image realization and Terminal-only runtime
-/// admission, so `omega run --engine terminal` settles the same providers,
-/// entry and host realizations that a native image of this request would.
 fn admit_realization<'request>(
     artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     input: terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
@@ -58,35 +56,31 @@ fn admit_realization<'request>(
         request.program_entry,
         request.admission.providers.target(),
     )?;
-    // Capture before emission takes the installation. These are the admitted
-    // rows of this same image request, not reconstructed provider-name hints.
     let entry = request.program_entry;
-    let runtime_provisions = {
-        entry
-            .checked_entry
-            .map(|_| {
-                native_artifact::TerminalRuntimeProvisions::capture_native_admission(
-                    entry,
-                    input,
-                    providers
-                        .installation
-                        .as_ref()
-                        .map(|installation| installation.terminal_selection()),
-                    providers
-                        .settlements
-                        .iter()
-                        .map(|settlement| native_artifact::TerminalRuntimeHostProvision {
-                            boundary: settlement.boundary,
-                            realization: settlement.realization.clone(),
-                        })
-                        .collect(),
-                    request.admission.providers.selected_provider_plans,
-                    request.admission.providers.external_binding_rows,
-                )
-            })
-            .transpose()
-            .map_err(|message| vec![Diagnostic::error(message)])
-    }?;
+    let runtime_provisions = entry
+        .checked_entry
+        .map(|_| {
+            native_artifact::TerminalRuntimeProvisions::capture_native_admission(
+                entry,
+                input,
+                providers
+                    .installation
+                    .as_ref()
+                    .map(|installation| installation.terminal_selection()),
+                providers
+                    .settlements
+                    .iter()
+                    .map(|settlement| native_artifact::TerminalRuntimeHostProvision {
+                        boundary: settlement.boundary,
+                        realization: settlement.realization.clone(),
+                    })
+                    .collect(),
+                request.admission.providers.selected_provider_plans,
+                request.admission.providers.external_binding_rows,
+            )
+        })
+        .transpose()
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     Ok(AdmittedRealization {
         admitted,
         entry_settlement,
@@ -94,12 +88,6 @@ fn admit_realization<'request>(
     })
 }
 
-/// Realize one Terminal artifact using explicit image, custody, reuse, and
-/// behavior-exclusion inputs. The request's retained behavior-exclusion union
-/// is adjudicated against the mechanism-closure review by Omega 00,
-/// so a requested absence holds whether or not the request carries a receiver
-/// permission policy, and a violated exclusion publishes no product. The public
-/// compiler entrance retains the image request on every failure path.
 pub(crate) fn realize_native_artifact(
     artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     input: terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
@@ -132,8 +120,6 @@ pub(crate) fn realize_native_artifact(
             .with_target_provider_proposals(request.target_provider_proposals.to_vec())
     });
     let emitted = emitted.object;
-    // Build output configuration supplies the loader; the emitted object's own
-    // normalized ELF imports decide whether the output links dynamically.
     let image_request = request
         .image_request
         .clone()
@@ -159,10 +145,6 @@ pub(crate) fn realize_native_artifact(
     })
 }
 
-/// Admit one Terminal artifact for Terminal-only execution. Provider, entry
-/// and host admission are those of the image request; target lowering still
-/// derives the borrowed-storage layouts host adapters need, and the pipeline
-/// stops there: no physical selection, object, or image is produced.
 pub(crate) fn admit_terminal_runtime(
     artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     input: terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
@@ -191,4 +173,27 @@ pub(crate) fn admit_terminal_runtime(
             .with_borrowed_storage_layouts(borrowed_storage_layouts)
             .with_target_provider_proposals(request.target_provider_proposals.to_vec())
     }))
+}
+
+pub(crate) fn selected_physical_pipeline_failed(
+    selections: &optimization_core::OptimizationSelections,
+    error: impl std::fmt::Display,
+) -> Vec<Diagnostic> {
+    if selections.is_empty() {
+        return realization_error("identity physical pipeline", error);
+    }
+    let names = selections
+        .as_slice()
+        .iter()
+        .map(|optimization| optimization.build_case_name())
+        .collect::<Vec<_>>()
+        .join("`, `");
+    vec![Diagnostic::error(format!(
+        "selected optimization{} `{names}` failed in the complete verified optimizer pipeline during selected/physical validation: {error}; no alternate compiler route was run and no output was installed",
+        if selections.as_slice().len() == 1 {
+            ""
+        } else {
+            "s"
+        },
+    ))]
 }

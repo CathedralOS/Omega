@@ -1,8 +1,8 @@
-//! Realize one exact callable while retaining its original Terminal namespace.
-//!
-//! Callback and component export entries use the same source-free admission and
-//! native pipeline. Their identity, installation and publication contracts stay
-//! with the callers; this operation emits a body and grants no entry authority.
+// Realize one exact callable while retaining its original Terminal namespace.
+// Callback and component export entries use the same source-free admission and
+// native pipeline (`pipeline::lower_to_target` and `pipeline::emit_target`)
+// while leaving their identity, installation, and publication contracts with
+// the caller.
 
 use crate::pipeline::{self, BodyEmissionError, TargetLoweringError};
 use diagnostics::Diagnostic;

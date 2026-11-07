@@ -1,28 +1,33 @@
-//! Typed host implementations of the exact admitted inet address operations.
-//!
-//! A normalized libc locator selects an operation; neither guest requirement
-//! names nor carrier declaration spellings participate. Admission additionally
-//! checks the complete selected opaque application and recursive public C shape.
-//! Actual C return values live in this invocation's owned occurrence store.
-//! Moving an opaque guest value preserves its token; consuming an owned value
-//! removes that exact stored value. Checked Copy occurrences share immutable C
-//! bits, while the interpreter gives each copy its own guest home.
+/*
+We provide typed host implementations of the exact admitted inet_makeaddr and
+inet_lnaof address operations.
 
-mod admission;
-#[cfg(test)]
-mod tests;
+A normalized libc locator selects an operation without relying on guest
+requirement names or carrier declaration spellings, and admission checks the
+complete selected opaque application and recursive public C shape. Actual C
+return values live in an invocation-scoped owned occurrence store where slots
+are never recycled so stale consumed tokens cannot name replacements. Moving an
+opaque guest value preserves its token, consuming an affine or linear value
+removes that exact stored value before invoking C, and checked Copy occurrences
+share immutable C bits by value.
+*/
 
 use std::sync::{Arc, Mutex};
 
-use calling_conventions::BoundaryCallingApplication;
+use calling_conventions::{
+    BoundaryCallingApplication, BoundaryValueClass, BoundaryValueGraph, CallSignature, ValueShape,
+};
 use runtime_abi::HostInternetAddress;
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralTypeId};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType, StructuralTypeId};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
     TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue, TerminalStructuralValue,
 };
-use terminal_psi::{BoundaryMachineDeclaration, BoundaryMachineResult, StructuralMultiplicity};
+use terminal_psi::{
+    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, StructuralAccess,
+    StructuralMultiplicity,
+};
 
 use super::TerminalRuntimeError;
 
@@ -33,10 +38,7 @@ enum AddressOperation {
 }
 
 struct OwnedAddress {
-    // StructuralTypeId belongs to one artifact. Each adapter authenticates its
-    // own local formal above; only the exact target-closed opaque application
-    // can relate this owned payload across independently compiled components.
-    application: [u8; 32],
+    application: [u8; 32], // Target-closed opaque application commitment relating payloads across components.
     multiplicity: StructuralMultiplicity,
     value: HostInternetAddress,
 }
@@ -47,9 +49,6 @@ struct AddressContract {
     multiplicity: StructuralMultiplicity,
 }
 
-/// Slots are never recycled: a stale consumed token cannot name a replacement.
-/// Descending host identities are reserved by the interpreter on successful
-/// import, so its ascending local allocation cannot reuse a live host identity.
 #[derive(Default)]
 pub(super) struct AddressValues {
     values: Vec<Option<OwnedAddress>>,
@@ -71,12 +70,9 @@ impl AddressValues {
             return Err(invalid());
         }
         match multiplicity {
-            // Retire before invoking C, including when the host call fails.
             StructuralMultiplicity::Affine | StructuralMultiplicity::Linear => {
                 Ok(slot.take().ok_or_else(invalid)?.value)
             }
-            // Only a checked Copy occurrence can reach this admitted path.
-            // C receives bits by value; no guest authority is minted here.
             StructuralMultiplicity::Unrestricted => Ok(owned.value),
         }
     }
@@ -96,12 +92,11 @@ impl NetworkAddressImport {
         application: Option<&BoundaryCallingApplication>,
         values: Arc<Mutex<AddressValues>>,
     ) -> Result<Option<Self>, TerminalRuntimeError> {
-        let Some(operation) = admission::select(binding)? else {
+        let Some(operation) = select(binding)? else {
             return Ok(None);
         };
         let signature = TerminalImportSignature::from(declaration);
-        let contract =
-            admission::validate(declaration, binding, application, &signature, operation)?;
+        let contract = validate(declaration, binding, application, &signature, operation)?;
         Ok(Some(Self {
             signature,
             operation,
@@ -109,6 +104,165 @@ impl NetworkAddressImport {
             values,
         }))
     }
+}
+
+fn select(
+    binding: &NormalizedForeignCallBinding,
+) -> Result<Option<AddressOperation>, TerminalRuntimeError> {
+    for (symbol, operation) in [
+        (b"inet_makeaddr".as_slice(), AddressOperation::Make),
+        (b"inet_lnaof".as_slice(), AddressOperation::Host),
+    ] {
+        if super::matches_platform_c_symbol(
+            binding,
+            symbol,
+            &[b"/usr/lib/libSystem.B.dylib".as_slice()],
+            Some(runtime_abi::WINDOWS_INTERNET_PROVIDER_LIBRARY),
+        )? {
+            return Ok(Some(operation));
+        }
+    }
+    Ok(None)
+}
+
+fn validate(
+    declaration: &BoundaryMachineDeclaration,
+    binding: &NormalizedForeignCallBinding,
+    application: Option<&BoundaryCallingApplication>,
+    signature: &TerminalImportSignature,
+    operation: AddressOperation,
+) -> Result<AddressContract, TerminalRuntimeError> {
+    let invalid = TerminalRuntimeError::InvalidProvision;
+    let application = application.ok_or(TerminalRuntimeError::InvalidProvision(
+        "inet adapter requires the complete admitted opaque calling application",
+    ))?;
+    let word = IntegerType::new(IntegerSign::Unsigned, 32)
+        .map_err(|_| invalid("inet native u32 type is not admitted"))?;
+    let scalar = ScalarType::Integer(word);
+    let (structural_type, root, multiplicity) = match operation {
+        AddressOperation::Make => {
+            let BoundaryMachineResult::Structural(result) = &signature.result else {
+                return Err(invalid("inet_makeaddr requires one structural result"));
+            };
+            if signature.scalar_parameters != [scalar, scalar]
+                || !signature.structural_parameters.is_empty()
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || declaration.parameter_order != [BoundaryParameterKind::Scalar; 2]
+                || application.signature.parameters.len() != 2
+            {
+                return Err(invalid(
+                    "inet_makeaddr requires two u32 scalars and an unqualified result",
+                ));
+            }
+            for root in &application.signature.parameters {
+                let shape = application
+                    .signature
+                    .shapes
+                    .get(usize::from(*root))
+                    .ok_or_else(|| invalid("inet native signature references an absent shape"))?;
+                if shape.class != BoundaryValueClass::Integer
+                    || shape.byte_size != 4
+                    || shape.alignment != 4
+                {
+                    return Err(invalid(
+                        "inet_makeaddr native inputs must be aligned four-byte integers",
+                    ));
+                }
+            }
+            (
+                result.structural_type,
+                application
+                    .signature
+                    .result
+                    .ok_or_else(|| invalid("inet_makeaddr native result shape is absent"))?,
+                result.multiplicity,
+            )
+        }
+        AddressOperation::Host => {
+            let [parameter] = signature.structural_parameters.as_slice() else {
+                return Err(invalid(
+                    "inet_lnaof requires exactly one structural argument",
+                ));
+            };
+            if !signature.scalar_parameters.is_empty()
+                || signature.result != BoundaryMachineResult::Scalar(scalar.into())
+                || parameter.access != StructuralAccess::Owned
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+                || declaration.parameter_order != [BoundaryParameterKind::Structural]
+            {
+                return Err(invalid(
+                    "inet_lnaof requires one unqualified owned argument and a u32 result",
+                ));
+            }
+            let [root] = application.signature.parameters.as_slice() else {
+                return Err(invalid(
+                    "inet_lnaof native signature requires exactly one argument",
+                ));
+            };
+            let result = application
+                .signature
+                .result
+                .and_then(|root| application.signature.shapes.get(usize::from(root)))
+                .ok_or_else(|| invalid("inet native signature references an absent shape"))?;
+            if result.class != BoundaryValueClass::Integer
+                || result.byte_size != 4
+                || result.alignment != 4
+            {
+                return Err(invalid(
+                    "inet_lnaof native result must be an aligned four-byte integer",
+                ));
+            }
+            (parameter.structural_type, *root, parameter.multiplicity)
+        }
+    };
+    let envelope =
+        super::native_word::native_word_envelope(&application.signature, root).map_err(invalid)?;
+    if envelope.byte_size != 4 || envelope.alignment != 4 || !envelope.contains_record {
+        return Err(invalid(
+            "inet carrier must be a four-byte aligned C record ending in u32",
+        ));
+    }
+    if application.opaque_applications.len() != 1
+        || application.opaque_applications[0].shape_root != root
+        || application.opaque_applications[0].selected_application_commitment == [0; 32]
+        || application.opaque_applications[0].conformance_application_commitment == [0; 32]
+    {
+        return Err(TerminalRuntimeError::InvalidProvision(
+            "inet selected opaque application differs from its exact signature root",
+        ));
+    }
+    let graph = BoundaryValueGraph {
+        shapes: &application.signature.shapes,
+        fields: &application.signature.fields,
+    };
+    let policy = application.plan.plan().call.policy;
+    let native_signature = CallSignature {
+        parameters: application
+            .signature
+            .parameters
+            .iter()
+            .map(|root| graph.classify(*root, policy))
+            .collect::<Result<Vec<ValueShape>, _>>()
+            .map_err(|_| {
+                invalid("inet native shape cannot be classified under the selected calling policy")
+            })?,
+        result: application
+            .signature
+            .result
+            .map(|root| graph.classify(root, policy))
+            .transpose()
+            .map_err(|_| {
+                invalid("inet native shape cannot be classified under the selected calling policy")
+            })?,
+    };
+    super::admit_exact_foreign_call(signature, declaration, binding, &native_signature)?;
+    Ok(AddressContract {
+        structural_type,
+        application: application.opaque_applications[0].selected_application_commitment,
+        multiplicity,
+    })
 }
 
 impl TerminalImportAdapter for NetworkAddressImport {
@@ -166,9 +320,6 @@ impl TerminalEffectHandler for NetworkAddressImport {
                     .checked_sub(ordinal)
                     .filter(|value| *value != 0)
                     .ok_or_else(invalid)?;
-                // Admission checks the exact native symbol, target,
-                // complete by-value C signature and selected opaque geometry.
-                // These are the real function's arguments, never guest oracles.
                 let value = HostInternetAddress::make(network, host).ok_or_else(|| {
                     TerminalEffectRejection::new(
                         "native inet implementation is unavailable on this host",
@@ -206,13 +357,6 @@ impl TerminalEffectHandler for NetworkAddressImport {
                     self.contract.application,
                     self.contract.multiplicity,
                 )?;
-                // Whole semantic memberships do not change this bare C input's
-                // physical representation. Psi has already bound the actual
-                // input and checked any required authority; this adapter neither
-                // interprets those memberships nor issues them on a result.
-                // The exact owned value was produced by inet_makeaddr
-                // under this same selected opaque application. The C call takes
-                // the four-byte struct by value and retains no guest reference.
                 let host = value.host_number().ok_or_else(|| {
                     TerminalEffectRejection::new(
                         "native inet implementation is unavailable on this host",
@@ -222,6 +366,65 @@ impl TerminalEffectHandler for NetworkAddressImport {
                     scalar_type: word,
                     value: IntegerValue::Unsigned(host.into()),
                 }))
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stored_application_and_multiplicity_are_checked_before_consumption() {
+        let application = [7; 32];
+        for multiplicity in [
+            StructuralMultiplicity::Affine,
+            StructuralMultiplicity::Linear,
+            StructuralMultiplicity::Unrestricted,
+        ] {
+            let mut values = AddressValues {
+                values: vec![Some(OwnedAddress {
+                    application,
+                    multiplicity,
+                    value: HostInternetAddress::make(10, 66051).unwrap(),
+                })],
+            };
+            assert!(values.argument(0, [8; 32], multiplicity).is_err());
+            for other in [
+                StructuralMultiplicity::Affine,
+                StructuralMultiplicity::Linear,
+                StructuralMultiplicity::Unrestricted,
+            ] {
+                if other != multiplicity {
+                    assert!(values.argument(0, application, other).is_err());
+                }
+            }
+            assert_eq!(
+                values
+                    .argument(0, application, multiplicity)
+                    .unwrap()
+                    .host_number(),
+                Some(66051)
+            );
+            let again = values.argument(0, application, multiplicity);
+            if multiplicity != StructuralMultiplicity::Unrestricted {
+                assert!(again.is_err());
+                values.values.push(Some(OwnedAddress {
+                    application,
+                    multiplicity,
+                    value: HostInternetAddress::make(10, 1027).unwrap(),
+                }));
+                assert!(values.argument(0, application, multiplicity).is_err());
+                assert_eq!(
+                    values
+                        .argument(1, application, multiplicity)
+                        .unwrap()
+                        .host_number(),
+                    Some(1027)
+                );
+            } else {
+                assert_eq!(again.unwrap().host_number(), Some(66051));
             }
         }
     }

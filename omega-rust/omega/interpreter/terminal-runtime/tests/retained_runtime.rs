@@ -1,5 +1,6 @@
-//! Build produces one artifact; hosted execution borrows it without source work.
-//! One test owns the process-global decode counter for this binary.
+// Integration test verifying that `orchestration::build` produces a single
+// retained artifact and `terminal_runtime::execute` / `execute_sliced` borrows
+// and runs it without re-decoding the Terminal module.
 
 use orchestration::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
 use platform_custody::temporary_directory::TemporaryDirectory;
@@ -55,8 +56,6 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         x86_flags: terminal_runtime::capture_host_x86_flags(profile.target_name()).unwrap(),
         memory_ordering: None,
         work_budget: 100_000,
-        // This program returns normally; possession of its artifact does not
-        // supply process-domain death authority.
         domain_exit: TerminalDomainExitDelegation::Unprovided,
         standard_input: None,
         clock: None,
