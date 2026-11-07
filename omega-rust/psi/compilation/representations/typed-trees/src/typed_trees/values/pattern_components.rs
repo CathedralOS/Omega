@@ -8,13 +8,12 @@
 
 use crate::expression::{ExpressionHandle, ExpressionNode};
 use language_core::PatternComponent;
-use std::collections::BTreeMap;
 
 impl crate::TypedTrees {
     pub fn pattern_component(&self, expression: ExpressionHandle) -> Option<PatternComponent> {
         Query {
             program: self,
-            visited: BTreeMap::new(),
+            visited: Vec::new(),
         }
         .read(expression)
     }
@@ -22,9 +21,10 @@ impl crate::TypedTrees {
 
 struct Query<'a> {
     program: &'a crate::TypedTrees,
-    // Only actual transparent dependencies enter this request-local map.
+    // Only actual transparent dependencies enter these sorted request rows.
+    // Full handles retain their generations without allocating global ID gaps.
     // The initial None also refuses cycles, and shared aliases are read once.
-    visited: BTreeMap<ExpressionHandle, Option<PatternComponent>>,
+    visited: Vec<(ExpressionHandle, Option<PatternComponent>)>,
 }
 
 impl Query<'_> {
@@ -89,10 +89,13 @@ impl Query<'_> {
                 return self.read(source);
             }
         }
-        if let Some(component) = self.visited.get(&expression) {
-            return *component;
+        match self
+            .visited
+            .binary_search_by_key(&expression, |(expression, _)| *expression)
+        {
+            Ok(index) => return self.visited[index].1,
+            Err(index) => self.visited.insert(index, (expression, None)),
         }
-        self.visited.insert(expression, None);
         let result = if let Some(source) = source {
             self.read(source)
         } else {
@@ -109,7 +112,11 @@ impl Query<'_> {
             }
             selected
         };
-        self.visited.insert(expression, result);
+        let index = self
+            .visited
+            .binary_search_by_key(&expression, |(expression, _)| *expression)
+            .ok()?;
+        self.visited[index].1 = result;
         result
     }
 }
