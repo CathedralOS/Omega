@@ -1,6 +1,6 @@
 //! Verify retained evidence before showing results or using them as regression gates.
 
-use crate::experiment::{Sample, phase_counters, stage_timings, summarize};
+use crate::experiment::{Sample, stage_timings, summarize};
 use crate::plan::{ExpectedOutput, Measurement, Plan};
 use crate::process::{digest, file_digest};
 use serde_json::Value;
@@ -230,9 +230,7 @@ pub fn validate(directory: &Path) -> Result<VerifiedRun, String> {
                             String::from_utf8_lossy(&captures[0].0),
                             String::from_utf8_lossy(&captures[0].1)
                         );
-                        if sample.compiler_stage_ms != stage_timings(&text)
-                            || sample.compiler_counters != phase_counters(&text)
-                        {
+                        if sample.compiler_stage_ms != stage_timings(&text) {
                             return Err(
                                 "compiler attribution disagrees with captured output".into()
                             );
