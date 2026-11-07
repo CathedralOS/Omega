@@ -17675,6 +17675,8 @@ fail/recast/non_owning_erasure_preserves_scalar_field rejected 238ms expected @1
 	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
 fail/recast/non_owning_erasure_preserves_stored_alias rejected 235ms expected @1f01fe627c9b
 	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
+fail/recast/partial_ascii_recast_does_not_restore_field rejected 7434ms expected @62c64cd54815
+	cannot prove default-domain field requirement for return from corrupt at statement 4: packet.bytes requires [u8; N]::Ascii
 fail/recast/pending_layout_view_call_requires_establishment rejected 1431ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	argument `value` for state `consume::entry`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
 fail/recast/pending_layout_view_mutable_escape_preserves_source_padding rejected 1337ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
@@ -27274,13 +27276,9 @@ pass/recast/runtime_mutable_equivalent_record_recast_exit checked 53268ms check-
 pass/recast/runtime_nested_record_byte_store_exit checked 11560ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_nested_scalar_view_loan_exit checked 3302ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_nested_view_subregion_forwarding_exit checked 3688ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/runtime_offset_byte_recast_mutable_write_exit rejected 17004ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	cannot establish assignment invariants: source storage interpretation is unavailable
+pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 78759ms check-target:macos_arm64 @37fb8e132e53
 pass/recast/runtime_recast_record_view_indexed_write_exit checked 88827ms check-target:macos_arm64 @898dd1bf8987
-pass/recast/runtime_record_array_view_mutable_write_exit rejected 22967ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	cannot establish assignment invariants: source storage interpretation is unavailable
-	cannot establish assignment invariants: source storage interpretation is unavailable
-	cannot establish assignment invariants: source storage interpretation is unavailable
+pass/recast/runtime_record_array_view_mutable_write_exit checked 116156ms check-target:macos_arm64 @d0817f844d95
 pass/recast/runtime_restricted_field_call_arguments_exit checked 5182ms check-target:macos_arm64 @8fce926f9735
 pass/recast/runtime_restricted_field_loans_exit checked 9177ms check-target:macos_arm64 @8fce926f9735
 pass/recast/runtime_scalar_parameter_shared_views_exit checked 15484ms check-target:macos_arm64 @ccdb99ca2214
