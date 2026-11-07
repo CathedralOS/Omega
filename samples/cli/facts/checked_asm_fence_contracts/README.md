@@ -40,7 +40,7 @@ Pins are `tests/omega/{pass,fail}/facts/checked_asm_fence_contracts_through_*`.
 - Terminal realization: exact target and fence kind cross the canonical wire.
   Execution requires the receiving host's explicit private sequential memory
   model, records each completed fence in order, and retains progress across
-  fuel pauses. Missing supply and mismatched targets must reject before effects.
+  work-budget pauses. Missing supply and mismatched targets must reject before effects.
   This model supplies neither shared/device memory nor synchronization proofs.
 - Native realization: each emitted sequence passes the compiler's independent
   checks of instruction bytes, stack use and changed registers. This row
@@ -95,7 +95,7 @@ per-target entry as ordinary execution. The portable artifact has one default
 entry; it cannot stand in for distinct Build-selected entries on every target.
 The pins request the existing compiled-application cohort, which retains one
 shared artifact and each target's checked entry. All missing/wrong-model,
-exact-event, fuel-pause and unchanged-artifact checks remain in force.
+exact-event, work-budget-pause and unchanged-artifact checks remain in force.
 
 Fresh complete observations use source
 `d4c693b8b0f429a49b3f2d77a331bad656d8cda4`, including main's updated calling and
@@ -109,7 +109,7 @@ execution headers on compatible profiles and independent source-check plus
 publication-refusal evidence on incompatible profiles.
 
 All ten standard positives retain the exact fence streams on all four Terminal
-target installations, missing/wrong-model refusals, fuel-pause progress and
+target installations, missing/wrong-model refusals, work-budget-pause progress and
 unchanged artifact identity. Every current record uses this measured source;
 final README/record-only commits are not claimed executed. Earlier checkpoints,
 including their failed full jobs and later header corrections, remain tied to

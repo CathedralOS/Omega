@@ -129,7 +129,7 @@ on the optional tree-shaped segmented-copy policy.
    occurrence may clobber an independently live resident value. Compiler
    scratches and architectural implicit units remain distinct from semantic
    scalar residents.
-4. Preserve semantic bindings, source provenance, return/fuel metadata and
+4. Preserve semantic bindings, source provenance, return/work metadata and
    successor transports. Allocate fresh dense IDs under the ordinary work
    budget. Local placement must be correct on every predecessor path; no
    source-block-name or formatter-shape recognizer is allowed. Original

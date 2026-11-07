@@ -55,22 +55,22 @@ pub(crate) fn function_fragment_emission_statistics(
                     .unresolved_internal_machine_fixups
                     .checked_add(u64::from(row.internal_machine_fixup.is_some()))
                     .ok_or(FunctionFragmentStatisticsOverflow)?;
-                let mut fuel = row.provenance.fuel.len();
+                let mut work = row.provenance.work.len();
                 if let FunctionFragmentControlProvenance::ConditionalBranch {
                     when_taken,
                     when_fallthrough,
                     ..
                 } = &row.control
                 {
-                    fuel = fuel
-                        .checked_add(when_taken.fuel.len())
-                        .and_then(|fuel| fuel.checked_add(when_fallthrough.fuel.len()))
+                    work = work
+                        .checked_add(when_taken.work.len())
+                        .and_then(|work| work.checked_add(when_fallthrough.work.len()))
                         .ok_or(FunctionFragmentStatisticsOverflow)?;
                 }
-                result.logical_fuel_settlements = result
-                    .logical_fuel_settlements
+                result.logical_work_settlements = result
+                    .logical_work_settlements
                     .checked_add(
-                        u64::try_from(fuel).map_err(|_| FunctionFragmentStatisticsOverflow)?,
+                        u64::try_from(work).map_err(|_| FunctionFragmentStatisticsOverflow)?,
                     )
                     .ok_or(FunctionFragmentStatisticsOverflow)?;
             }

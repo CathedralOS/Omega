@@ -164,7 +164,7 @@ owns the source-to-Terminal route.
 
 ## Other observation domains
 
-Fuel exhaustion, evaluator timeout, and producer/checker incomplete outcomes are
+Work exhaustion, evaluator timeout, and producer/checker incomplete outcomes are
 consumer/product results, not Terminal program meaning. Compiler-product subjects
 add sealed inputs, source diagnostics, artifact bytes, and resource outcomes.
 Deployment separately admits the formal-target-to-silicon relationship.

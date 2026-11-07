@@ -115,7 +115,7 @@ fn evaluation_sponsor_limits(
     limits: &PackagePolicyEvaluationSponsorLimits,
 ) -> Result<(), PackageReviewEncodingError> {
     for (name, value) in [
-        ("maximum_fuel_units", limits.maximum_fuel_units),
+        ("work_budget", limits.work_budget),
         ("maximum_build_log_bytes", limits.maximum_build_log_bytes),
         (
             "maximum_filesystem_operation_attempts",

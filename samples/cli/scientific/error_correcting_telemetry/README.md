@@ -83,7 +83,7 @@ compiles this real entrypoint through ordinary accepted-package preparation,
 then replays all five frozen streams serially against one genuine Terminal
 artifact. It requires exact stdout, empty stderr, explicit process-exit completion
 and the frozen statuses 0/0/0/3/3. No clock or filesystem guest grant is supplied.
-The fixed sponsor allowance is 100 million fuel units per bounded stream;
+The fixed sponsor allowance is 100 million work units per bounded stream;
 exhaustion fails validation. Its successful build receipt binds generated source,
 manifest, lock, toolchain and executable hashes. Actual stream captures, typed
 status and artifact identity are retained under ignored `build/terminal-validation`.

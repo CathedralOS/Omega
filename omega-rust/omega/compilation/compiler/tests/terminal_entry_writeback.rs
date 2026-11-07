@@ -7,9 +7,9 @@ mod terminal_mutable_boundary;
 
 use compiler::{CheckedCompileRequest, CompilationSession};
 use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
+use psi_work::WorkMeter;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue};
 use terminal_codec::CanonicalTerminalArtifact;
-use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalScalarValue,
     TerminalStorageContents, TerminalStorageObservationError, TerminalStorageObservationValue,
@@ -111,7 +111,7 @@ fn entry_results_observe_source_calls_separately_from_the_final_result() {
         })
         .unwrap();
     assert!(instance.observed_entry_result(entry, calls[0].id).is_err());
-    let mut meter = TerminalFuelMeter::with_allowance(0);
+    let mut meter = WorkMeter::with_budget(0);
     let completed = loop {
         match instance.invoke(&mut meter).unwrap() {
             TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
@@ -228,9 +228,7 @@ fn invocation_code_cannot_publish_or_rejoin_another_owner() {
     let program = TerminalProgram::borrow(first_view);
     let mut instance = program.instantiate(Default::default()).unwrap();
     assert!(matches!(
-        instance
-            .invoke(&mut TerminalFuelMeter::unbounded())
-            .unwrap(),
+        instance.invoke(&mut WorkMeter::unbounded()).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarArray(_))
     ));
     instance.close().unwrap();
@@ -255,7 +253,7 @@ fn empty_array_descriptor_requires_a_live_cell() {
             .view(),
     );
     let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
     };
     for cells in [2, 1] {
@@ -273,7 +271,7 @@ fn empty_array_descriptor_requires_a_live_cell() {
                 ..Default::default()
             })
             .unwrap();
-        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
+        let mut meter = WorkMeter::with_invocation(account.clone(), Some(0)).unwrap();
         let result = loop {
             match instance.invoke(&mut meter) {
                 Ok(TerminalExecutionStatus::SponsorExhausted(_)) => meter.replenish(1).unwrap(),
@@ -293,7 +291,7 @@ fn empty_array_descriptor_requires_a_live_cell() {
         } else {
             let refusal = result.expect_err("an empty payload still needs its descriptor row");
             assert!(
-                format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+                format!("{refusal:?}").contains("BudgetExhausted(LiveStorage)"),
                 "{refusal:?}"
             );
             assert!(instance.result().is_none());
@@ -325,7 +323,7 @@ fn array_result_storage_outlives_the_completed_instance() {
             TerminalProgram::borrow(artifact.view())
         };
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         };
         let sponsor = BuildEvaluationSponsor::new_with_measurement(
@@ -341,7 +339,7 @@ fn array_result_storage_outlives_the_completed_instance() {
                 ..Default::default()
             })
             .unwrap();
-        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
+        let mut meter = WorkMeter::with_invocation(account.clone(), Some(0)).unwrap();
         let result = loop {
             match instance.invoke(&mut meter) {
                 Ok(TerminalExecutionStatus::SponsorExhausted(_)) => meter.replenish(1).unwrap(),
@@ -351,7 +349,7 @@ fn array_result_storage_outlives_the_completed_instance() {
         if should_refuse {
             let refusal = result.unwrap_err();
             assert!(
-                format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+                format!("{refusal:?}").contains("BudgetExhausted(LiveStorage)"),
                 "{refusal:?}"
             );
             assert!(instance.result().is_none());
@@ -456,7 +454,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                 instance.observe_borrowed_entry(0, &identifier_path),
                 Err(TerminalStorageObservationError::NormalReturnRequired)
             );
-            let mut meter = TerminalFuelMeter::with_allowance(0);
+            let mut meter = WorkMeter::with_budget(0);
             assert!(matches!(
                 instance.invoke(&mut meter).unwrap(),
                 TerminalExecutionStatus::SponsorExhausted(_)
@@ -614,9 +612,7 @@ fn owned_inputs_and_failed_activations_do_not_return_borrowed_storage() {
             Vec::new(),
         )];
         let mut instance = zeroed_instance(&program, &arguments);
-        let status = instance
-            .invoke(&mut TerminalFuelMeter::unbounded())
-            .unwrap();
+        let status = instance.invoke(&mut WorkMeter::unbounded()).unwrap();
         if machine == "consume" {
             assert_eq!(
                 status,
@@ -730,16 +726,16 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
                     .unwrap_err()
                     .contains("NormalReturnRequired")
             );
-            let mut fuel = TerminalFuelMeter::with_allowance(0);
+            let mut work = WorkMeter::with_budget(0);
             for _ in 0..2_000 {
-                match instance.invoke(&mut fuel).unwrap() {
+                match instance.invoke(&mut work).unwrap() {
                     TerminalExecutionStatus::SponsorExhausted(_) => {
                         assert!(
                             build_settings::settings::extract(&instance, admission, &initial)
                                 .unwrap_err()
                                 .contains("NormalReturnRequired")
                         );
-                        fuel.replenish(1).unwrap();
+                        work.replenish(1).unwrap();
                     }
                     TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => break,
                     status => panic!("{machine}: {status:?}"),
@@ -862,7 +858,7 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
     let (produced, admission, initial) = produce("build");
     let artifact = produced.artifact().expect("portable inspection product");
     let program = TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap();
-    let execute = |meter: &mut TerminalFuelMeter, completes: bool| {
+    let execute = |meter: &mut WorkMeter, completes: bool| {
         let original = TerminalStructuralValue::minted(
             79,
             program.entry().unwrap().structural_parameters[0].structural_type,
@@ -893,8 +889,7 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
         } else {
             let refusal = format!("{:?}", result.unwrap_err());
             assert!(
-                refusal.contains("InvocationCharge")
-                    && refusal.contains("AllowanceExhausted(Fuel)"),
+                refusal.contains("InvocationCharge") && refusal.contains("BudgetExhausted(Work)"),
                 "{refusal}"
             );
             assert!(instance.result().is_none());
@@ -919,12 +914,12 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
         drop(instance);
         assert_eq!(host.into_executed().unwrap().len(), 4);
     };
-    let mut baseline = TerminalFuelMeter::unbounded();
+    let mut baseline = WorkMeter::unbounded();
     execute(&mut baseline, true);
     let cost = baseline.usage().total_units();
     assert!(cost > 1);
     let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-        fuel_schedule: baseline.schedule().identity(),
+        work_schedule: baseline.schedule().identity(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
     };
     for budget in [2 * cost, 2 * cost - 1] {
@@ -935,14 +930,14 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
         .unwrap();
         for ordinal in 0..2 {
             let account = sponsor.begin_invocation(measurement, cost).unwrap();
-            let mut meter = TerminalFuelMeter::with_invocation(account.clone(), None).unwrap();
+            let mut meter = WorkMeter::with_invocation(account.clone(), None).unwrap();
             let completes = ordinal == 0 || budget == 2 * cost;
             execute(&mut meter, completes);
             let paid = if completes { cost } else { cost - 1 };
             assert_eq!(meter.usage().total_units(), paid);
-            assert_eq!(account.snapshot().unwrap().record().fuel_units, paid);
+            assert_eq!(account.snapshot().unwrap().record().work_units, paid);
         }
-        assert_eq!(sponsor.consumed_fuel_units(), budget);
+        assert_eq!(sponsor.consumed_work_units(), budget);
     }
 }
 
@@ -957,7 +952,7 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
     let program = TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap();
     let execute = |cell_limit, byte_limit, competing_cells, competing_bytes| {
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         };
         let sponsor = BuildEvaluationSponsor::new_with_measurement(
@@ -1000,7 +995,7 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
             })
             .unwrap();
         bind_build_hosts(&mut instance, &produced, &arguments[0], &host);
-        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
+        let mut meter = WorkMeter::with_invocation(account.clone(), Some(0)).unwrap();
         let result = loop {
             match instance.invoke(&mut meter) {
                 Ok(TerminalExecutionStatus::SponsorExhausted(_)) => {
@@ -1012,7 +1007,7 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
         if should_refuse {
             let refusal = result.unwrap_err();
             assert!(
-                format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+                format!("{refusal:?}").contains("BudgetExhausted(LiveStorage)"),
                 "{refusal:?}"
             );
             assert!(instance.result().is_none());
@@ -1073,7 +1068,7 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
             assert!(error.contains("uncommitted request"), "{error}");
         }
         let usage = account.snapshot().unwrap();
-        assert!(usage.record().fuel_units > 0);
+        assert!(usage.record().work_units > 0);
         *usage.record()
     };
     let baseline = execute(100_000, 100_000, 0, 0);
@@ -1099,7 +1094,7 @@ fn empty_frames_are_sponsored_before_entry_and_retire_after_nested_calls() {
     let (produced, _, _) = produce("frame_sequence");
     let artifact = produced.artifact().expect("portable inspection product");
     let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
     };
     for (loaded, limit) in [(false, 3), (true, 3), (true, 2)] {
@@ -1125,7 +1120,7 @@ fn empty_frames_are_sponsored_before_entry_and_retire_after_nested_calls() {
             1,
             "the empty root frame owns one cell"
         );
-        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
+        let mut meter = WorkMeter::with_invocation(account.clone(), Some(0)).unwrap();
         let result = loop {
             match instance.invoke(&mut meter) {
                 Ok(TerminalExecutionStatus::SponsorExhausted(_)) => {
@@ -1153,7 +1148,7 @@ fn empty_frames_are_sponsored_before_entry_and_retire_after_nested_calls() {
         } else {
             let refusal = result.unwrap_err();
             assert!(
-                format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+                format!("{refusal:?}").contains("BudgetExhausted(LiveStorage)"),
                 "{refusal:?}"
             );
             assert_eq!(sponsor.live_storage_cells(), 2);
@@ -1178,7 +1173,7 @@ fn empty_frames_are_sponsored_before_entry_and_retire_after_nested_calls() {
             .err()
             .expect("entry reservation must refuse before creating the root frame");
         assert!(
-            format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+            format!("{refusal:?}").contains("BudgetExhausted(LiveStorage)"),
             "{refusal:?}"
         );
         assert_eq!(sponsor.live_storage_cells(), limit);
@@ -1237,7 +1232,7 @@ fn a_fault_after_a_host_effect_cannot_reenter_the_same_call() {
             },
         )
         .unwrap();
-    let mut meter = TerminalFuelMeter::unbounded();
+    let mut meter = WorkMeter::unbounded();
     let failure = instance.invoke(&mut meter).unwrap_err();
     assert!(format!("{failure:?}").contains("host failed after its effect"));
     assert_eq!(calls.load(Ordering::Relaxed), 1);

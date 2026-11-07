@@ -240,7 +240,7 @@ environment:
 | Move a value | Read/write the same authorized typed places. |
 | Write a device port | Perform the exact port operation through the supplied environment. |
 | Change interrupt state | Update persistent modeled state that governs subsequent event delivery. |
-| Halt | Follow the processor model's halt and external-control contract, not report successful return or fuel exhaustion. |
+| Halt | Follow the processor model's halt and external-control contract, not report successful return or work-budget exhaustion. |
 
 The root and receiving host select/admit that environment. A simulated processor
 does not confer control of the real host processor. Device providers supply
@@ -248,7 +248,7 @@ mechanisms; Cathedral still executes its own drivers, scheduler and boot logic.
 No alternate body or `Binding` wrapper is required around every assembly block,
 and no full-host emulator is required simply to interpret value operations.
 
-Fuel pauses preserve the activation's scratch, persistent state and progress.
+Work pauses preserve the activation's scratch, persistent state and progress.
 Resumption does not repeat an already performed port write. Interrupt timing,
 ordering and legal external-entry points follow the target model; an interpreter
 step is not automatically a native instruction. Address IDs alone do not supply

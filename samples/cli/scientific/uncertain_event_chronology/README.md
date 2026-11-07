@@ -118,7 +118,7 @@ python3 -B "$APP/validation/validate.py" --route terminal --terminal-sponsor "$A
 SDK observations. It prepares this accepted origin through the package manager,
 compiles once, and consumes the retained native product's Terminal artifact and
 exact runtime provisions. Each frozen case receives a fresh finite input stream,
-host clock snapshot, isolated domain and ordinary 10,000,000 fuel budget.
+host clock snapshot, isolated domain and ordinary 10,000,000 work budget.
 `provider_proposal` remains `None`; no checked-tree fallback or reconstructed
 permission exists. The Terminal verifier uses a fresh output directory, requires
 all 44 ordered captures, and checks exact Terminal stdout, empty stderr and exits.

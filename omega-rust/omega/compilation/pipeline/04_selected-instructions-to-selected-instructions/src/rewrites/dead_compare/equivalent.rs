@@ -81,7 +81,7 @@ use selected_instructions::{
     EquivalentCompareIdentity, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::FuelScheduleIdentity;
+use semantic_vocabulary::WorkScheduleIdentity;
 
 pub(crate) use rewrite::remove_equivalent_compare;
 pub(crate) use validation::measured_steps;

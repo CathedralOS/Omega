@@ -31,7 +31,7 @@ pub(super) fn build_plan(
     functions.sort_by_key(|function| function.machine);
     Ok(SelectedInstructionPlan {
         psi: target.psi,
-        fuel_schedule: target.fuel_schedule,
+        work_schedule: target.work_schedule,
         target: target.target,
         entry: target.entry,
         functions: functions.into(),

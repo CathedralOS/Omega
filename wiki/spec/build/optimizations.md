@@ -111,11 +111,11 @@ accepted source-visible semantic contract declaring its observable differences,
 exact rule identity, and tests.
 
 Instruction count, code size, register pressure, compiler work, and elapsed time
-are costs, not [logical fuel](../resources/logical_work.md). The Terminal fuel
+are costs, not [logical work](../resources/logical_work.md). The Terminal work
 schedule is external deterministic accounting; exhaustion is an incomplete
-consumer outcome, not a source result, and native execution has no implicit fuel
-meter. Fixed-fuel certificates use the immutable Terminal subject. Relocating a
-source operation retains its exact fuel settlement and provenance at the new
+consumer outcome, not a source result, and native execution has no implicit work
+meter. Fixed-work certificates use the immutable Terminal subject. Relocating a
+source operation retains its exact work settlement and provenance at the new
 realization site; mutable IR cannot invent loop charges. An evaluator of
 optimized IR needs an explicit accounting contract before activation.
 
@@ -166,7 +166,7 @@ cannot be reused merely because their cached value remains available.
 
 A candidate binds source and selection identities; exact rule, candidate, and
 affected region; required analyses and typed facts; immutable patch or plan;
-any predicted cost; provenance/fuel mapping; and consumed work. Construction
+any predicted cost; provenance/work mapping; and consumed work. Construction
 does not mutate the input. Independent validation reconstructs preconditions,
 applies the plan to a fresh value, validates the result, and issues an
 identity-bound receipt. Only then may the manager commit the replacement.

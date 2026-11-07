@@ -1,2 +1,2 @@
 cannot prove requires contract for call parse
-fuel > 0
+remaining_steps > 0

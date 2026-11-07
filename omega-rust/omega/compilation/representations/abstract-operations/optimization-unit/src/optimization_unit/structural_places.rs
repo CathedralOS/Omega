@@ -1978,7 +1978,7 @@ pub fn receiver_custody_distinct(
 
 /// The exact block region and node custody a read roster carries, computed
 /// from the input function's coordinates. A `Constant` row folds its
-/// observation in place: the read's own provenance and fuel stay realized at
+/// observation in place: the read's own provenance and work stay realized at
 /// the same node. A `Forward` row retires its observation node: the read's
 /// custody lands at the node that inherits the vacated index — the next
 /// surviving input node — and every later node in the block shifts down one
@@ -2059,7 +2059,7 @@ pub fn field_value_accounting(
                 input: input_site,
                 disposition: ProvenanceDisposition::RealizedAt(output_site),
                 sources: node.provenance.clone(),
-                fuel: node.fuel.clone(),
+                work: node.work.clone(),
             });
         }
         if block_affected {

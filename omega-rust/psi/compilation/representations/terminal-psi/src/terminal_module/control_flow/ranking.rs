@@ -2,7 +2,7 @@ use arena::{Arena, HandleSpan};
 use semantic_vocabulary::{BlockId, EdgeId, IntegerType, ValueId};
 
 /// Private progress evidence for a machine's actual control graph. The
-/// representation grants no finite fuel or native realization on its own.
+/// representation grants no finite work or native realization on its own.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalRankedScc {
     Natural(Vec<TerminalNaturalCycle>),

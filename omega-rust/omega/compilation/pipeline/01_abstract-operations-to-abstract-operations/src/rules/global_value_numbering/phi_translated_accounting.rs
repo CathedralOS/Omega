@@ -42,7 +42,7 @@ pub(super) fn phi_translated_cse_accounting(
                 site,
                 site,
                 &edge.provenance,
-                &edge.fuel,
+                &edge.work,
             ));
         }
     }
@@ -63,7 +63,7 @@ pub(super) fn phi_translated_cse_accounting(
             PsiRealizationSite::Node(old),
             PsiRealizationSite::Node(new),
             &node.provenance,
-            &node.fuel,
+            &node.work,
         ));
     }
     for later in function.blocks.iter().skip(block_position + 1) {

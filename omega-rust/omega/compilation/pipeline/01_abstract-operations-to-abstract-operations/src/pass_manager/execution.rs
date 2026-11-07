@@ -69,7 +69,7 @@ fn run_registries_inner(
     .expect("the canonical Psi selection is duplicate-free");
     let initial_identity = session.unit.identity;
     let psi = session.unit.psi;
-    let fuel_schedule = session.unit.fuel_schedule;
+    let work_schedule = session.unit.work_schedule;
     let ordered_rules = steps
         .iter()
         .flat_map(PsiPassStep::ordered_rules)
@@ -149,7 +149,7 @@ fn run_registries_inner(
         ));
     }
     let output = unit.identity;
-    let ledger = chain_ledger(psi, fuel_schedule, initial_identity, output, &commits)?;
+    let ledger = chain_ledger(psi, work_schedule, initial_identity, output, &commits)?;
     let identity_bundle = OptimizationIdentityBundle::new(
         selections.identity(),
         ordered_rule_set,
@@ -195,7 +195,7 @@ fn run_unit_inner_with_retention(
 ) -> Result<OptimizationRunOutput, OptimizationRunError> {
     let initial_identity = unit.identity;
     let psi = unit.psi;
-    let fuel_schedule = unit.fuel_schedule;
+    let work_schedule = unit.work_schedule;
     let mut usage = OptimizationRunUsage::default();
     let mut commits = Vec::new();
     let mut candidate_decisions = Vec::new();
@@ -324,7 +324,7 @@ fn run_unit_inner_with_retention(
                 usage,
             )?;
             let output = unit.identity;
-            let ledger = chain_ledger(psi, fuel_schedule, initial_identity, output, &commits)?;
+            let ledger = chain_ledger(psi, work_schedule, initial_identity, output, &commits)?;
             return Ok((unit, commits, usage, decisions, pass_manifest, ledger));
         };
         let input_identity = unit.identity;
@@ -375,7 +375,7 @@ fn run_loop_invariant_scalar_motion_step(
     let contract = loop_invariant_scalar_motion::contract();
     let initial_identity = session.unit().identity;
     let psi = session.unit().psi;
-    let fuel_schedule = session.unit().fuel_schedule;
+    let work_schedule = session.unit().work_schedule;
     let mut usage = OptimizationRunUsage::default();
     let mut commits = Vec::new();
     let mut candidate_decisions = Vec::new();
@@ -423,7 +423,7 @@ fn run_loop_invariant_scalar_motion_step(
             return finish_loop_invariant_scalar_motion_step(
                 step,
                 psi,
-                fuel_schedule,
+                work_schedule,
                 initial_identity,
                 session,
                 commits,
@@ -489,7 +489,7 @@ fn run_loop_invariant_scalar_motion_step(
             return finish_loop_invariant_scalar_motion_step(
                 step,
                 psi,
-                fuel_schedule,
+                work_schedule,
                 initial_identity,
                 session,
                 commits,
@@ -545,14 +545,14 @@ fn run_loop_invariant_scalar_motion_step(
 /// commit, in the revision order the commits already established.
 fn chain_ledger(
     psi: terminal_psi::TerminalPsiIdentity,
-    fuel_schedule: terminal_fuel::FuelScheduleIdentity,
+    work_schedule: psi_work::WorkScheduleIdentity,
     initial_identity: OptimizationUnitIdentity,
     output: OptimizationUnitIdentity,
     commits: &[PsiOptimizationCommit],
 ) -> Result<PsiTransformationLedger, OptimizationRunError> {
     PsiTransformationLedger::new(
         psi,
-        fuel_schedule,
+        work_schedule,
         initial_identity,
         output,
         commits
@@ -577,7 +577,7 @@ fn chain_ledger(
 fn finish_loop_invariant_scalar_motion_step(
     step: &PsiPassStep,
     psi: terminal_psi::TerminalPsiIdentity,
-    fuel_schedule: terminal_fuel::FuelScheduleIdentity,
+    work_schedule: psi_work::WorkScheduleIdentity,
     initial_identity: OptimizationUnitIdentity,
     session: VerifiedPsiOptimizationSession,
     commits: Vec<PsiOptimizationCommit>,
@@ -595,7 +595,7 @@ fn finish_loop_invariant_scalar_motion_step(
         &candidate_decisions,
         usage,
     )?;
-    let ledger = chain_ledger(psi, fuel_schedule, initial_identity, output, &commits)?;
+    let ledger = chain_ledger(psi, work_schedule, initial_identity, output, &commits)?;
     let (_, unit) = session.into_parts();
     Ok((unit, commits, usage, decisions, pass_manifest, ledger))
 }

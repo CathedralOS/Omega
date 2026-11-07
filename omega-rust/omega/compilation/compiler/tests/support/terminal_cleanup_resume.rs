@@ -3,10 +3,10 @@
 //! semantic test sink, not native Console/provider qualification.
 use super::terminal_provision;
 
+use psi_work::{WorkChargeSite, WorkMeter};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
 use std::sync::{Arc, Mutex};
 use terminal_codec::CanonicalTerminalArtifact;
-use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalEffectRejection, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalImportSignature, TerminalInstanceCloseError,
@@ -21,7 +21,7 @@ pub(super) fn observe(artifact: &CanonicalTerminalArtifact) -> Result<(), String
     terminal_provision::result(|| exercise(artifact), "cleanup resume provision failed")
 }
 
-fn hook_sites(module: &terminal_psi::TerminalModule, machine: MachineId) -> Vec<FuelChargeSite> {
+fn hook_sites(module: &terminal_psi::TerminalModule, machine: MachineId) -> Vec<WorkChargeSite> {
     let hook = module.machine(machine).expect("exact cleanup target");
     assert!(hook.nominal_cleanup_subject.is_some());
     let sites = hook
@@ -31,8 +31,8 @@ fn hook_sites(module: &terminal_psi::TerminalModule, machine: MachineId) -> Vec<
             block
                 .operations
                 .iter()
-                .map(|operation| FuelChargeSite::Operation(operation.id))
-                .chain(block.terminator.edges().map(FuelChargeSite::Edge))
+                .map(|operation| WorkChargeSite::Operation(operation.id))
+                .chain(block.terminator.edges().map(WorkChargeSite::Edge))
         })
         .collect::<Vec<_>>();
     assert!(!sites.is_empty(), "retained executable nominal hook");
@@ -56,7 +56,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
                 .iter()
                 .any(|action| action.invoked_machine().is_some())
         })
-        .map(|(edge, _)| FuelChargeSite::Edge(edge))
+        .map(|(edge, _)| WorkChargeSite::Edge(edge))
         .collect::<Vec<_>>();
     assert!(
         !cleanup_edges.is_empty(),
@@ -225,14 +225,14 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
 
     let reference_bytes = Arc::new(Mutex::new(Vec::new()));
     let mut reference = instantiate(&reference_bytes);
-    let mut unbounded = TerminalFuelMeter::unbounded();
+    let mut unbounded = WorkMeter::unbounded();
     let complete = TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit);
     assert_eq!(reference.invoke(&mut unbounded).unwrap(), complete);
     assert_eq!(reference_bytes.lock().unwrap().as_slice(), EXPECTED);
 
     let paused_bytes = Arc::new(Mutex::new(Vec::new()));
     let mut paused = instantiate(&paused_bytes);
-    let mut meter = TerminalFuelMeter::with_allowance(0);
+    let mut meter = WorkMeter::with_budget(0);
     let mut before_cleanup = false;
     let mut inside_parent_after_write = false;
     let mut inside_child_after_write = false;
@@ -252,7 +252,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
                 assert_eq!(paused.close(), Err(TerminalInstanceCloseError::Busy));
                 assert!(!paused.is_closed(), "Busy retains the live activation");
                 let usage_before_retry = meter.usage().clone();
-                let allowance_before_retry = meter.remaining_allowance();
+                let allowance_before_retry = meter.work_remaining();
                 let schedule_before_retry = meter.schedule();
                 let effects_before_retry = paused.effects().to_vec();
                 assert_eq!(
@@ -264,7 +264,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
                     &usage_before_retry,
                     "unfunded retry charges nothing"
                 );
-                assert_eq!(meter.remaining_allowance(), allowance_before_retry);
+                assert_eq!(meter.work_remaining(), allowance_before_retry);
                 assert_eq!(meter.schedule(), schedule_before_retry);
                 assert_eq!(paused.effects(), effects_before_retry.as_slice());
                 assert_eq!(
@@ -309,7 +309,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     assert_eq!(paused.effects(), reference.effects());
     assert_eq!(meter.usage(), unbounded.usage(), "no paid site repeats");
     let effects = paused.effects().to_vec();
-    let mut empty_budget = TerminalFuelMeter::with_allowance(0);
+    let mut empty_budget = WorkMeter::with_budget(0);
     assert_eq!(paused.invoke(&mut empty_budget).unwrap(), complete);
     assert_eq!(empty_budget.usage().total_units(), 0);
     assert_eq!(paused.effects(), effects.as_slice());

@@ -90,7 +90,7 @@ Linux ARM64 native execution remains unmeasured.
    oracle, not a proof of a particular instruction or frame allocation.
 8. **Images and execution:** native and Terminal must independently complete
    with the authored result and checked cleanup frontier. Target bindings alone
-   establish no foreign-host execution. This row does not measure fuel/resume;
+   establish no foreign-host execution. This row does not measure work/resume;
    the projected nominal cleanup fixture's portable provision covers that contract.
 
 Authority: [source ownership](../../../../wiki/spec/language/ownership.md),

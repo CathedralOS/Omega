@@ -1,8 +1,8 @@
 //! Complete calling-plan scalar debts without reopening Source.
 
+use psi_work::WorkMeter;
 use semantic_vocabulary::ScalarApplicationId;
 use terminal_codec::CanonicalTerminalArtifact;
-use terminal_fuel::TerminalFuelMeter;
 use terminal_installation::{
     AdmittedProviderSelections, AdmittedScalarApplications, CallingAbiStorageDemand,
     ScalarAddressModel, ScalarApplicationClosure, ScalarApplicationObservations,
@@ -25,7 +25,7 @@ pub fn complete_calling_scalar_inputs(
     primary: target::TargetProfile,
     request: CallingScalarScope<'_>,
     providers: &AdmittedProviderSelections,
-    meter: &mut TerminalFuelMeter,
+    meter: &mut WorkMeter,
 ) -> Result<AdmittedScalarApplications, String> {
     let (mut closure, requested) = match &request {
         CallingScalarScope::Invocation {

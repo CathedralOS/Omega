@@ -45,9 +45,9 @@ until the user explicitly approved this inventory. Validation uses the approved
 host execution route so existing cache custody and filesystem/runtime authority
 checks remain active; no check or compiler identity is bypassed.
 
-The ordinary CLI default Terminal fuel declines the full-period workload.
+The ordinary CLI default Terminal work declines the full-period workload.
 `terminal_sdk.rs` instead executes the actual retained Terminal artifact through
-the public runtime API with bounded fuel 200,000,000 and captured stdin/stdout,
+the public runtime API with bounded work 200,000,000 and captured stdin/stdout,
 using normal package acceptance and exact executable identity. Exit parity alone
 is not accepted: all numerical output is checked, and native/Terminal streams
 must match byte for byte. This does not claim execution on other target hosts.

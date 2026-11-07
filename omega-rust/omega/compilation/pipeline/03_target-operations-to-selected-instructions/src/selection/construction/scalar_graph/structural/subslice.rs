@@ -102,7 +102,7 @@ pub(super) fn create(
             operations: vec![row.operation],
             values: vec![*start, *end, *length],
             obligations: vec![*obligation],
-            fuel: row.fuel.clone(),
+            work: row.work.clone(),
             ..Default::default()
         },
     )?;

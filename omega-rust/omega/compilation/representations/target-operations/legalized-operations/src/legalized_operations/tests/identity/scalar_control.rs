@@ -2,7 +2,7 @@ use super::super::super::{
     LegalizedScalarBlock, LegalizedScalarComparison, LegalizedScalarInstruction,
     LegalizedScalarSuccessor, LegalizedValueDefinition,
 };
-use super::super::{EffectLink, FuelSettlement, PsiProvenance};
+use super::super::{EffectLink, PsiProvenance, WorkSettlement};
 use super::{
     IntegerSign, IntegerType, LegalizedScalarInstructionKind, LegalizedScalarTerminator,
     OwnershipEvent, ScalarType, assert_identity_drift, id, legalized_operation_plan_identity,
@@ -19,7 +19,7 @@ fn shared_descriptor_return_identity_binds_source_and_transport_kind() {
         LegalizedScalarTerminator::Return(LegalizedScalarReturn {
             edge: id(500),
             value: LegalizedScalarReturnValue::SharedDescriptor { place: id(501) },
-            fuel: Vec::new(),
+            work: Vec::new(),
             effect: EffectLink {
                 input: 0,
                 output: 1,
@@ -64,7 +64,7 @@ fn structural_control_identity_binds_descriptor_telescope_and_actual_source() {
             edge: id(502),
             target: id(503),
             bindings: Vec::new(),
-            fuel: Vec::new(),
+            work: Vec::new(),
             structural_bindings: vec![crate::LegalizedStructuralBinding {
                 semantic: abstract_operations::AbstractStructuralBinding {
                     parameter: id(500),
@@ -130,7 +130,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
                 left: id(112),
                 right: id(114),
             },
-            fuel: vec![FuelSettlement {
+            work: vec![WorkSettlement {
                 site: PsiProvenance::Operation(id(120)),
                 units: 1,
             }],
@@ -150,7 +150,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
             argument: id(argument),
             scalar_type,
         }],
-        fuel: vec![FuelSettlement {
+        work: vec![WorkSettlement {
             site: PsiProvenance::Edge(id(edge)),
             units: 1,
         }],
@@ -184,7 +184,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
                 edge: id(125),
                 target: id(126),
                 bindings: vec![],
-                fuel: vec![FuelSettlement {
+                work: vec![WorkSettlement {
                     site: PsiProvenance::Edge(id(125)),
                     units: 1,
                 }],
@@ -224,7 +224,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
             3 => when_true.bindings[0].argument = id(999),
             4 => when_true.bindings[0].parameter = id(999),
             5 => when_true.bindings[0].scalar_type = ScalarType::Boolean,
-            6 => when_true.fuel[0].units += 1,
+            6 => when_true.work[0].units += 1,
             7 => std::mem::swap(when_true, when_false),
             8 => effect.output += 1,
             9 => ownership.push(OwnershipEvent::Cleanup(vec![])),
@@ -265,7 +265,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
                 match mutation {
                     18 => successor.edge = id(999),
                     19 => successor.target = id(999),
-                    20 => successor.fuel[0].units += 1,
+                    20 => successor.work[0].units += 1,
                     21 => effect.output += 1,
                     _ => ownership.push(OwnershipEvent::Cleanup(vec![])),
                 }
@@ -292,7 +292,7 @@ fn structural_edge_identity_and_liveness_retain_selector_evidence() {
             edge: id(502),
             target: id(503),
             bindings: Vec::new(),
-            fuel: Vec::new(),
+            work: Vec::new(),
             cleanup_calls: Vec::new(),
             structural_bindings: vec![crate::LegalizedStructuralBinding {
                 semantic: abstract_operations::AbstractStructuralBinding {

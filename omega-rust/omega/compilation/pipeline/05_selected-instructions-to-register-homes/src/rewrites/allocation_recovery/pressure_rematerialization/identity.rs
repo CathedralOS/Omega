@@ -25,7 +25,7 @@ pub(crate) fn encode_terminal_pressure_rematerialization_content(
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
+    push_encoded(&mut bytes, plan.work_schedule.marker().to_le_bytes());
     bytes.push(match plan.policy {
         PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1 => 0,
         PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1 => 1,

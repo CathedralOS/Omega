@@ -210,10 +210,10 @@ fn build_request(output: &mut Output, request: &RestrictedBuildRequest) -> fmt::
     match bounds.evaluation_sponsor_limits() {
         Some(limits) => writeln!(
             output,
-            "bounds evaluation-sponsor fuel={} log-bytes={} filesystem-attempts={} \
+            "bounds evaluation-sponsor work={} log-bytes={} filesystem-attempts={} \
              filesystem-handles={} live-cells={} live-text-bytes={} result-cells={} \
              result-text-bytes={}",
-            limits.maximum_fuel_units(),
+            limits.work_budget(),
             limits.maximum_build_log_bytes(),
             limits.maximum_filesystem_operation_attempts(),
             limits.maximum_live_filesystem_handles(),

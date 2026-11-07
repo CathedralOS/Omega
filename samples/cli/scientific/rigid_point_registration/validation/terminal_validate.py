@@ -24,6 +24,6 @@ def main():
     assert observed.returncode==0,(output/'observer.log').read_text();results=[]
     for name in oracle['cases']:
         results.append(check((output/f'{name}.terminal.stdout').read_bytes(),(output/f'{name}.terminal.stderr').read_bytes(),int((output/f'{name}.terminal.exit').read_text()),name,oracle))
-    record=dict(engine='retained canonical Terminal artifact; exact runtime provisions',producer=receipt,observer_sha256=digest(executable),source_hashes={str(path.relative_to(ROOT)):digest(path) for path in ROOT.rglob('*.omg') if 'build' not in path.relative_to(ROOT).parts},fuel_per_case=100000000,elapsed_seconds=time.monotonic()-started,cases=results)
+    record=dict(engine='retained canonical Terminal artifact; exact runtime provisions',producer=receipt,observer_sha256=digest(executable),source_hashes={str(path.relative_to(ROOT)):digest(path) for path in ROOT.rglob('*.omg') if 'build' not in path.relative_to(ROOT).parts},work_per_case=100000000,elapsed_seconds=time.monotonic()-started,cases=results)
     (output/'results.json').write_text(json.dumps(record,indent=2)+'\n');print('Terminal:',len(results),'actual frozen numerical/refusal cases matched')
 if __name__=='__main__':main()

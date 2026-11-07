@@ -124,7 +124,7 @@ pub(super) fn replace(
         super::runtime_address::Written::Structural,
     )?;
     builder.emit_store(descriptor_offset, 8, root, backing, provenance(row))?;
-    // The extent word commits the replacement and carries the fuel charge.
+    // The extent word commits the replacement and carries the work charge.
     footprint(
         builder,
         row,
@@ -141,7 +141,7 @@ pub(super) fn replace(
         extent,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
-            fuel: row.fuel.clone(),
+            work: row.work.clone(),
             ..Default::default()
         },
     )
