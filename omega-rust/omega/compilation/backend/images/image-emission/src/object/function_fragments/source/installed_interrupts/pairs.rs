@@ -295,12 +295,32 @@ pub(super) fn replay(
                             // selected writes happened. The right phase and
                             // left exit exclude a prior pair's cached load.
                             graph.require_loop_exit(left, load, expressions)?;
-                            if !graph.precedes(scan.count_init, load)?
-                                || !graph.precedes(load, scan.advance)?
-                            {
-                                return Err(Error::Mismatch(
-                                    "simultaneous range uses another pair's capture",
-                                ));
+                            let initialized = graph.precedes(scan.count_init, load)?;
+                            let before_advance = graph.precedes(load, scan.advance)?;
+                            if !initialized || !before_advance {
+                                let guards = graph.matching_guard_locations(
+                                    expressions,
+                                    &pair.disjoint,
+                                    load,
+                                    scan.count_next,
+                                ).unwrap_or_else(|error| format!("unavailable: {error}"));
+                                return Err(graph.pair_capture_error(format!(
+                                    "simultaneous range uses another pair's capture; \
+                                     pair {ordinal}, side {side}, endpoint {index} at home+{offset}; \
+                                     left_header {left}, right_header {header}; \
+                                     captures {:?} at {:?}, {:?} at {:?}; \
+                                     init {:?} at {:?}, matched {:?} at {:?}, \
+                                     load {load:?} at {:?}, advance {:?} at {:?}; \
+                                     init_precedes_load={initialized}, \
+                                     load_precedes_advance={before_advance}; \
+                                     disjoint_guard_candidates [{guards}]",
+                                    captures[0], graph.position(captures[0])?,
+                                    captures[1], graph.position(captures[1])?,
+                                    scan.count_init, graph.position(scan.count_init)?,
+                                    scan.count_next, graph.position(scan.count_next)?,
+                                    graph.position(load)?,
+                                    scan.advance, graph.position(scan.advance)?,
+                                )));
                             }
                             observed[index] = true;
                         }

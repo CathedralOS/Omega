@@ -448,7 +448,7 @@ impl<'a> BackingGeometry<'a> {
                 // follows its owned alternatives without cloning the caller roster.
                 let (caller, alternatives) =
                     self.incoming
-                        .substitute(index, &mut self.analysis, &origin)?;
+                        .substitute(index, &mut self.analysis, origin)?;
                 incoming = true;
                 for alternative in alternatives {
                     self.origin(caller, alternative, required, pending)?;

@@ -69,6 +69,11 @@ pub enum FunctionFragmentObjectArtifactError {
         operation: semantic_vocabulary::OperationId,
         detail: String,
     },
+    InstallationPairCapture {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+        detail: String,
+    },
     StructuralSourceHome {
         machine: semantic_vocabulary::MachineId,
         place: semantic_vocabulary::PlaceId,
@@ -152,6 +157,14 @@ impl std::fmt::Display for FunctionFragmentObjectArtifactError {
             } => write!(
                 formatter,
                 "installation is missing a dominating refusal guard at {machine:?}/{operation:?}: {detail}",
+            ),
+            Self::InstallationPairCapture {
+                machine,
+                operation,
+                detail,
+            } => write!(
+                formatter,
+                "installation stack-pair capture at {machine:?}/{operation:?}: {detail}",
             ),
             Self::StructuralSourceHome {
                 machine,

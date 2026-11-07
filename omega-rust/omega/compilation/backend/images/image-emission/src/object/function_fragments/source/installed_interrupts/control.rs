@@ -148,6 +148,40 @@ impl<'a> Graph<'a> {
             self.dominators[b][a]
         })
     }
+    pub(super) fn pair_capture_error(&self, detail: String) -> Error {
+        Error::InstallationPairCapture {
+            machine: self.function.machine,
+            operation: self.operation,
+            detail,
+        }
+    }
+
+    /// Show where this predicate is read when a capture check fails. Several
+    /// pairs can have the same expression, so these are diagnostic candidates,
+    /// not another judgment about which guard belongs to the current scan.
+    pub(super) fn matching_guard_locations(
+        &self,
+        expressions: &mut Expressions<'_>,
+        expected: &Expr,
+        load: SelectedInstructionId,
+        matched: SelectedInstructionId,
+    ) -> Result<String, Error> {
+        let mut sites = Vec::new();
+        for (index, block) in self.function.blocks.iter().enumerate() {
+            if let Some((actual, _, _)) = self.predicate(index, expressions)?
+                && actual == *expected
+            {
+                let branch = selected_instructions::terminator_instruction(&block.terminator).id;
+                sites.push(format!(
+                    "{branch:?} at {:?}: matched_precedes_guard={}, load_precedes_guard={}",
+                    self.position(branch)?,
+                    self.precedes(matched, branch)?,
+                    self.precedes(load, branch)?,
+                ));
+            }
+        }
+        Ok(sites.join("; "))
+    }
     pub(super) fn block_dominates(
         &self,
         block: SelectedBlockId,

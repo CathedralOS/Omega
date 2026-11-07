@@ -230,7 +230,7 @@ pub(super) fn inspect(
     Ok(())
 }
 
-/// Check a real returned slice without treating its descriptor as its backing.
+/// Check a local array slice without treating its descriptor as its backing.
 pub(super) fn inspect_container(
     report: &compilation_products::CompileReport,
     fixture: &Path,
@@ -330,22 +330,27 @@ pub(super) fn inspect_container(
             .place_types
             .get(&place)
             .ok_or("slice backing type is absent")?;
-        if !terminal_psi::find_structural_type(types, root).is_some_and(|row| {
-            matches!(
-                row.shape,
-                terminal_psi::StructuralTypeShape::FixedArray { .. }
-            )
-        }) || projection.exact
-            || projection.indirect
-        {
-            return Err("control did not retain its inexact direct array window".into());
+        if projection.exact || projection.indirect {
+            return Err("control did not retain its inexact direct field window".into());
         }
         let before = projection.clone();
         let container = terminal_semantics::inline_backing_container(types, root, &projection)
-            .ok_or("real returned window lost its inline container")?;
-        if container != [terminal_psi::StructuralPathSegment::FixedIndex(1)] || projection != before
+            .ok_or("real local window lost its inline container")?;
+        if !matches!(
+            container.as_slice(),
+            [terminal_psi::StructuralPathSegment::Field(_)]
+        ) || !terminal_semantics::runtime_structural_path_tip(types.iter(), root, &container)
+            .is_some_and(|row| {
+                matches!(
+                    row.shape,
+                    terminal_psi::StructuralTypeShape::FixedArray { .. }
+                )
+            })
+            || projection != before
         {
-            return Err("container changed the captured window or lost its selected row".into());
+            return Err(
+                "container changed the captured window or lost its inline array field".into(),
+            );
         }
         let allocated = rows
             .selected
@@ -355,11 +360,13 @@ pub(super) fn inspect_container(
             .iter()
             .filter(|slot| slot.id.structural_place() == Some(place))
             .collect::<Vec<_>>();
-        if !matches!(allocated.as_slice(), [slot] if slot.byte_size >= 24) {
-            return Err("window source has no real nested-array allocation".into());
+        if !matches!(allocated.as_slice(), [slot] if slot.byte_size >= 20) {
+            return Err("window source has no real record-and-array allocation".into());
         }
         let mut indirect = projection.clone();
         indirect.indirect = true;
+        let mut outside = container.clone();
+        outside.push(terminal_psi::StructuralPathSegment::FixedIndex(u64::MAX));
         if terminal_semantics::inline_backing_container(types, root, &indirect).is_some()
             || terminal_semantics::inline_backing_container(
                 types,
@@ -367,12 +374,8 @@ pub(super) fn inspect_container(
                 &projection,
             )
             .is_some()
-            || terminal_semantics::inline_backing_container(
-                types,
-                root,
-                &Projection::new(&[terminal_psi::StructuralPathSegment::FixedIndex(u64::MAX)]),
-            )
-            .is_some()
+            || terminal_semantics::inline_backing_container(types, root, &Projection::new(&outside))
+                .is_some()
             || terminal_semantics::inline_backing_container(
                 types,
                 formal.structural_type,
@@ -386,25 +389,28 @@ pub(super) fn inspect_container(
             );
         }
     }
-    let pointer = types
-        .iter()
-        .find(|row| {
-            matches!(
-                row.shape,
-                terminal_psi::StructuralTypeShape::Reference { .. }
-            )
-        })
-        .ok_or("control has no real reference declaration")?;
-    if terminal_semantics::inline_backing_container(types, pointer.id, &Projection::new(&[]))
-        .is_some()
-        || terminal_semantics::inline_backing_container(
-            types,
-            pointer.id,
-            &Projection::new(&[terminal_psi::StructuralPathSegment::Referent]),
+    if let Some(pointer) = types.iter().find(|row| {
+        matches!(
+            row.shape,
+            terminal_psi::StructuralTypeShape::Reference { .. }
         )
-        .is_some()
-    {
-        return Err("container treated reference metadata as its pointee".into());
+    }) {
+        if terminal_semantics::inline_backing_container(types, pointer.id, &Projection::new(&[]))
+            .is_some()
+            || terminal_semantics::inline_backing_container(
+                types,
+                pointer.id,
+                &Projection::new(&[terminal_psi::StructuralPathSegment::Referent]),
+            )
+            .is_some()
+        {
+            return Err("container treated reference metadata as its pointee".into());
+        }
+        eprintln!("inline-container controls: reference metadata checked");
+    } else {
+        eprintln!(
+            "inline-container controls: no reference declaration; required view-metadata checks passed"
+        );
     }
     Ok(())
 }
