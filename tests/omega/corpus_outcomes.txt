@@ -2245,11 +2245,11 @@ fail/build/installed_entry_ram_overlapping_exclusive_roots rejected 4046ms expec
 	state `touch` receives `view` as mutable more than once
 fail/build/installed_entry_ram_wrong_occurrence rejected 5158ms expected @ccdb99ca2214
 	private entry RAM initializer answers no declared entry position
-fail/build/interrupt_return_masked_enable rejected 85962ms expected @a8ccf4d4c552
+fail/build/interrupt_return_masked_enable rejected 76942ms expected @b8802407f2c4
 	native artifact callback entry ABI failed: masked interrupt handler can enable nested interrupts
-fail/build/interrupt_return_missing_gpr_restore rejected 46251ms expected @a8ccf4d4c552
+fail/build/interrupt_return_missing_gpr_restore rejected 44598ms expected @b8802407f2c4
 	calling policy accepted an invalid plan: permitted transitive machine-state use includes interrupted state the entry stub does not save
-fail/build/interrupt_return_vector_helper rejected 82094ms expected @a8ccf4d4c552
+fail/build/interrupt_return_vector_helper rejected 79663ms expected @b8802407f2c4
 	native artifact callback entry ABI failed: native entry transport: native entry bridge failed: interrupt handler uses machine state its entry does not permit, save and restore
 fail/build/native_locator_nonzero_unused_coordinate rejected 290ms expected @b852a38544d0
 	StructuralArgumentPreparation { stage: "execute captured host call", detail: "EffectRejected { operation: OperationId(9), rejection: TerminalEffectRejection { reason: \\"PeByName VersionLength must be zero for this locator case\\" } }" } in MachineId(1)/BlockId(5) at Some(OperationId(9))
@@ -15704,7 +15704,7 @@ fail/layouts/private_callback_fragments_destination_overlap rejected 45351ms exp
 	private callback fragments overlap in destination storage
 fail/layouts/private_callback_fragments_incomplete_source rejected 44218ms expected @72079e22578e+wt
 	private callback fragments do not cover the complete target pointer
-fail/layouts/private_callback_inherited_policy_missing rejected 40019ms expected @26231d1dbd74+wt
+fail/layouts/private_callback_inherited_policy_missing rejected 44811ms expected @b8802407f2c4
 	foreign callback registration requires an explicit selected callback calling plan
 fail/layouts/private_callback_slot_wrong_layout rejected 237ms expected @2ba727eefb59+wt
 	policy `Spread::plan` selected private slot `WrongLayoutSlot` for a different exact fixed-layout implementation application
@@ -19988,9 +19988,9 @@ pass/build/generated_source_selects_authored rejected 1413ms published:none regr
 	published outputs [] differ from expected_published.txt [files/generated.omg]
 pass/build/installed_entry_ram_stack_occurrence_exit checked 4719ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/installed_entry_ram_two_occurrences_exit checked 4044ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/interrupt_return_cathedral_ack checked 115605ms check-target:linux_x86_64 @dd80ecfff375
-pass/build/interrupt_return_debug_marker checked 107071ms check-target:linux_x86_64 @dd80ecfff375
-pass/build/interrupt_return_helper_debug_marker checked 86672ms check-target:linux_x86_64 @dd80ecfff375
+pass/build/interrupt_return_cathedral_ack checked 87729ms check-target:linux_x86_64 @b8802407f2c4
+pass/build/interrupt_return_debug_marker checked 82959ms check-target:linux_x86_64 @b8802407f2c4
+pass/build/interrupt_return_helper_debug_marker checked 81840ms check-target:linux_x86_64 @b8802407f2c4
 pass/build/layout_query_constant_exit checked 3647ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/named_map_target_family_rows_exit rejected 16933ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	selected provider requirement `named-callable(path(Gate::open),parameters(),result-dispatch())` has duplicate canonical realizations
