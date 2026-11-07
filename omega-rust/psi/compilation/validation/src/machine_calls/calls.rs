@@ -154,16 +154,7 @@ pub(crate) fn validate_call_node(
     };
     let receiver_members = program.statement_table.name_path_members(call.receiver);
     let arguments = program.statement_table.expression_handles(call.arguments);
-    crate::proof_contracts::contract_entailment::validate_const_range_call_in_environment(
-        program,
-        current_machine,
-        current_state,
-        call.target_symbol,
-        &call.machine_arguments,
-        arguments,
-        Some(value_environment),
-        diagnostics,
-    );
+
     if call_gates::validate_named_conformance_call(
         &scope,
         arguments,
@@ -606,17 +597,6 @@ pub(crate) fn validate_call_arguments(
     if report_argument_count_mismatch(target_name, parameters, arguments, diagnostics) {
         return;
     }
-
-    argument_bounds::report_declared_referent_ranges(
-        program,
-        current_machine,
-        current_state,
-        prior_statements,
-        arguments,
-        parameters,
-        target_name,
-        diagnostics,
-    );
 
     for (argument_index, (argument, parameter)) in
         arguments.iter().zip(parameters.iter()).enumerate()

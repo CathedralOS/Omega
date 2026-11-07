@@ -41,7 +41,6 @@ node_kinds!(TypeKind, type_kind for TypeReferenceNode {
 
 node_kinds!(ConstraintKind, constraint_kind for TypeConstraintNode {
     Named => TypeConstraintNode::Named(_),
-    Range => TypeConstraintNode::Range { .. },
     ArithmeticDomain => TypeConstraintNode::ArithmeticDomain(_),
     Domain => TypeConstraintNode::Domain(_),
 });

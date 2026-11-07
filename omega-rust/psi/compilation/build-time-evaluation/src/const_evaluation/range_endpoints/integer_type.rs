@@ -25,7 +25,6 @@ use crate::BuildTimeAdmissionPlan;
 use crate::build_time_evaluation::type_reference_table;
 use crate::const_evaluation::const_domain_facts::evaluate_closed_membership;
 use crate::const_evaluation::const_generic_expressions::exact_probe_destination;
-use validation::closed_integer_range_maximum;
 
 /// A callee parameter, or an argument-position call result, is either an
 /// integer position or a bare Boolean. The range bound itself never takes
@@ -39,9 +38,7 @@ pub(super) enum ScalarPosition {
 impl ScalarPosition {
     pub(super) fn prepare(
         program: &TypedTrees,
-        original: &TypedTrees,
         reference: TypeReferenceHandle,
-        authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
     ) -> Result<Self, String> {
         // A qualified Boolean (`bool in Domain`) has no closed proof route
         // here; only the bare builtin leaf is a Boolean position.
@@ -50,14 +47,13 @@ impl ScalarPosition {
         {
             return Ok(Self::Boolean);
         }
-        IntegerPosition::prepare(program, original, reference, authority).map(Self::Integer)
+        IntegerPosition::prepare(program, reference).map(Self::Integer)
     }
 }
 
 pub(super) struct IntegerPosition {
     pub(super) primitive: PrimitiveType,
     pub(super) policy: ArithmeticDomain,
-    ranges: Vec<(BigInt, BigInt)>,
     /// Declared domain symbols with their diagnostic spellings.
     domains: Vec<(symbols::SymbolHandle, String)>,
 }
@@ -65,12 +61,9 @@ pub(super) struct IntegerPosition {
 impl IntegerPosition {
     pub(super) fn prepare(
         program: &TypedTrees,
-        original: &TypedTrees,
         mut reference: TypeReferenceHandle,
-        authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
     ) -> Result<Self, String> {
         let mut policy = None;
-        let mut ranges = Vec::new();
         let mut domains = Vec::new();
         let mut visited = Vec::new();
         loop {
@@ -93,32 +86,6 @@ impl IntegerPosition {
             }
             for constraint in rows {
                 match constraint {
-                    TypeConstraintNode::Range {
-                        minimum,
-                        maximum,
-                        end_inclusive,
-                    } => {
-                        // A callee's own signature bound must already be closed in
-                        // the tree these positions read. Under an explicit static
-                        // application that tree is the prepared program, whose
-                        // cloned instance bound never sees the working tree's
-                        // folds, so a named endpoint call inside a template's
-                        // bound is reported here as an unclosed signature bound.
-                        for expression in [*minimum, *maximum] {
-                            crate::machine_execution::admission::require_closed_integer_argument(
-                                original, program, expression, authority,
-                            )
-                            .map_err(|reason| {
-                                format!("range endpoint signature bound is not closed: {reason}")
-                            })?;
-                        }
-                        let minimum = validation::closed_integer_range_bound(program, *minimum)
-                            .ok_or("range endpoint type needs a closed minimum")?;
-                        let maximum =
-                            closed_integer_range_maximum(program, *maximum, *end_inclusive)
-                                .ok_or("range endpoint type needs a closed maximum")?;
-                        ranges.push((minimum, maximum));
-                    }
                     // The typed lowering's carrier-aware normalization binds a
                     // declared domain's exact symbol before this pass; an
                     // unbound or compiler-owned subject has no proof route.
@@ -157,7 +124,6 @@ impl IntegerPosition {
         Ok(Self {
             primitive,
             policy: policy.unwrap_or(ArithmeticDomain::Exact),
-            ranges,
             domains,
         })
     }
@@ -174,13 +140,6 @@ impl IntegerPosition {
         // value, never a signed compatibility interval or merely its kind.
         typed_trees::closed_numeric::land_integer(value, self.primitive)
             .ok_or("range endpoint value does not fit its declared integer carrier")?;
-        for (minimum, maximum) in &self.ranges {
-            if value < minimum || value > maximum {
-                return Err(format!(
-                    "range endpoint value `{value}` is outside declared range `{minimum}..={maximum}`"
-                ));
-            }
-        }
         for (symbol, name) in &self.domains {
             match evaluate_closed_membership(program, admission, *symbol, value)? {
                 Some(true) => {}

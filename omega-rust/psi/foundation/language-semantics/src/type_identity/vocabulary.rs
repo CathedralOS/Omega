@@ -177,8 +177,6 @@ vocabulary! {
         DeclaredDomain = "declared-domain",
         /// `compiler-domain(family(<family>),...)`
         CompilerDomain = "compiler-domain",
-        /// `range(minimum(<endpoint>),maximum(<endpoint>))`
-        Range = "range",
     }
 
     /// The `family(...)` of a compiler domain.
@@ -280,9 +278,6 @@ vocabulary! {
         Match = "match",
         /// `saved-subject(depth(<digits>),<index>)`
         SavedSubject = "saved-subject",
-        /// `exclusive-end(<index>)`: the outermost wrapper of an open range
-        /// endpoint whose end does not belong to the range.
-        ExclusiveEnd = "exclusive-end",
         /// `static-application(<index>,<argument or lifetime(<text>)>*)`: a
         /// selected declaration with its static operands.
         StaticApplication = "static-application",
@@ -328,8 +323,6 @@ vocabulary! {
         Atom = "atom",
         Type = "type",
         Encoding = "encoding",
-        Minimum = "minimum",
-        Maximum = "maximum",
         Family = "family",
         Permission = "permission",
         Domain = "domain",

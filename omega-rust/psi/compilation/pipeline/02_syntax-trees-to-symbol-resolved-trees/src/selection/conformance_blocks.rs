@@ -1019,7 +1019,7 @@ fn collect_result_dispatch(
                             alias_stack,
                         );
                     }
-                    TypeConstraint::Named(_) | TypeConstraint::Range { .. } => {}
+                    TypeConstraint::Named(_) => {}
                 }
             }
         }

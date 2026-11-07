@@ -95,7 +95,6 @@ pub(crate) mod statement_predicates;
 
 pub(crate) use construction_predicates::construction_predicate_judgments;
 pub(crate) mod call_projection_identity;
-mod const_ranges;
 pub(crate) mod content_conservation;
 mod contract_refinement;
 mod declaration_projections;
@@ -143,10 +142,7 @@ pub(crate) mod transparent_applications;
 
 pub(crate) use completed_observations::completed_value_fits_integer_interval;
 pub(crate) use completed_values::expression_statement_index;
-pub(crate) use const_ranges::{
-    const_range_bound_is_admitted, selected_const_call_result_bounds, symbolic_range_contains,
-    validate_const_range_call, validate_const_range_call_in_environment,
-};
+
 pub(crate) use contract_refinement::{
     CallableContract, CallableContractRefinement, check_contract_refinement,
 };

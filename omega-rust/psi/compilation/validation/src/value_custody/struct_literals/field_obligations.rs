@@ -544,24 +544,7 @@ fn check_array_literal_elements_for_shape(
                     &owner,
                     diagnostics,
                     formation_obligations,
-                    |scalar, diagnostics| {
-                        let Some(scalar) = scalar else {
-                            return;
-                        };
-                        // Closed receiving bounds belong to the bounded-initializer
-                        // obligations, including values beyond the i64 analysis
-                        // interval. Symbolic endpoints consume this exact environment.
-                        crate::proof_contracts::arithmetic_domains::enforce_symbolic_range(
-                            program,
-                            machine,
-                            Some(state),
-                            element_type,
-                            *element,
-                            &scalar.environment,
-                            &owner,
-                            diagnostics,
-                        );
-                    },
+                    |_, _| {},
                 );
             }
         }

@@ -905,7 +905,8 @@ def expected_pin_violations(changes: list, before, after) -> list:
 
     `before(path)` and `after(path)` return the file at the base and at HEAD.
     A newly added expected.txt may pin a new fixture. Changing or deleting the
-    fragments of an expected.txt that already existed on the base may not.
+    fragments of an expected.txt that already existed on the base may not,
+    except the exact scalar-bracket retirement transition below.
     """
     violations = []
     for status, path in changes:
@@ -914,6 +915,19 @@ def expected_pin_violations(changes: list, before, after) -> list:
         old = diagnostic_fragments(before(path))
         new = frozenset() if status == "D" else diagnostic_fragments(after(path))
         if old == new:
+            continue
+        # One ratified syntax retirement changes this existing control from
+        # mathematical elaboration refusal to type-parser refusal. Keep its
+        # exact original source; every other pin change remains forbidden.
+        retired_formal = "tests/omega/fail/proofs/mathematical_constrained_scalar_formal/"
+        if (status == "M" and path == retired_formal + "expected.txt"
+                and old == frozenset({"cannot be a borrow, constraint or dynamic trait"})
+                and new == frozenset({"type brackets are retired"})
+                and before(retired_formal + "main.omg")
+                == after(retired_formal + "main.omg")
+                == ("// Operand interval projection does not admit constrained mathematical formals.\n"
+                    "let same(value:i64 [0..=4]):core::Strict<0> = value == value;\n"
+                    "machine main() {}\n")):
             continue
         if status == "D":
             detail = "removed the file and its pinned diagnostic"

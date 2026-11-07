@@ -53,23 +53,6 @@ pub fn scalar_representation_range(
                         }
                         *found = true;
                     }
-                    if let TypeConstraintNode::Range {
-                        minimum: lower,
-                        maximum: upper,
-                        end_inclusive,
-                    } = constraint
-                    {
-                        let lower = crate::closed_integer_range_bound(program, *lower)?;
-                        let upper =
-                            crate::closed_integer_range_maximum(program, *upper, *end_inclusive)?;
-                        if lower > *minimum {
-                            *minimum = lower;
-                        }
-                        if upper < *maximum {
-                            *maximum = upper;
-                        }
-                        *found = true;
-                    }
                 }
                 collect(program, primitive, *base_type, minimum, maximum, found)
             }

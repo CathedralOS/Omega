@@ -2081,16 +2081,6 @@ pub fn visit_type_reference(
             visit_type_reference(program, retained, *base_type);
             for constraint in program.type_reference_table.constraints(*constraints) {
                 match constraint {
-                    crate::types::TypeConstraintNode::Range {
-                        minimum, maximum, ..
-                    } => {
-                        if retained.type_expression(*minimum) {
-                            visit_expression(program, retained, *minimum);
-                        }
-                        if retained.type_expression(*maximum) {
-                            visit_expression(program, retained, *maximum);
-                        }
-                    }
                     crate::types::TypeConstraintNode::Domain(domain) => {
                         visit_symbol(retained, domain.symbol);
                         for argument in &domain.arguments {

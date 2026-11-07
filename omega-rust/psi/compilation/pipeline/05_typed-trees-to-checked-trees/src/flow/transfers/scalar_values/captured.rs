@@ -12,8 +12,8 @@ use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
 use validation::{
     CanonicalPlace, SelectedScalarIntervalSource, carrier_integer_range,
-    expression_type_reference_in_state, frozen_declared_integer_range, integer_range_contains,
-    selected_boolean_decision, selected_scalar_interval,
+    expression_type_reference_in_state, integer_range_contains, selected_boolean_decision,
+    selected_scalar_interval,
 };
 
 use super::ScalarValue;
@@ -253,8 +253,7 @@ impl CapturedValue for IntegerRange {
         parameter: &StateParameter,
     ) -> Option<Self> {
         let primitive = program.primitive_type_reference(parameter.type_reference)?;
-        frozen_declared_integer_range(program, parameter.type_reference, primitive)
-            .or_else(|| carrier_integer_range(primitive))
+        carrier_integer_range(primitive)
     }
 
     fn operand(

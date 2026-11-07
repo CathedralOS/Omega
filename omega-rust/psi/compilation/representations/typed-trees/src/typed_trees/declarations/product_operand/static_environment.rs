@@ -504,15 +504,7 @@ impl Capture<'_> {
             types::TypeConstraintNode::ArithmeticDomain(policy) => {
                 ProductOperandConstraint::Arithmetic(*policy)
             }
-            types::TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => ProductOperandConstraint::Range {
-                minimum: self.expression(*minimum)?,
-                maximum: self.expression(*maximum)?,
-                inclusive: *end_inclusive,
-            },
+
             types::TypeConstraintNode::Domain(domain) => {
                 let args = domain
                     .arguments

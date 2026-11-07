@@ -27,7 +27,6 @@
 //! `Nest<[T; 2]>` in a growing recursive family.
 
 use crate::expression_roots::{append_statement_roots, visit_post_order};
-use crate::tables::expressions_of;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 use symbols::SymbolKind;
@@ -35,7 +34,6 @@ use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
 use typed_trees::data::DataMember;
 use typed_trees::data::TypeParameterKind;
-use typed_trees::expression::ExpressionHandle;
 use typed_trees::name::Identifier;
 use typed_trees::type_identity::applied_type_identity;
 use typed_trees::types::FixedArrayLength;
@@ -468,18 +466,8 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
             } => {
                 pending.push(*base_type);
                 for constraint in program.type_reference_table.constraints(*constraints) {
-                    match constraint {
-                        TypeConstraintNode::Domain(domain) => {
-                            pending.extend(domain.arguments.iter().copied())
-                        }
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } if !closed_expression(program, *minimum)
-                            || !closed_expression(program, *maximum) =>
-                        {
-                            return false;
-                        }
-                        _ => {}
+                    if let TypeConstraintNode::Domain(domain) = constraint {
+                        pending.extend(domain.arguments.iter().copied())
                     }
                 }
             }
@@ -578,17 +566,6 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
         }
     }
     true
-}
-
-fn closed_expression(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    let mut expressions = Vec::new();
-    validation::collect_expression_tree(program, expression, &mut expressions);
-    !expressions.iter().any(|expression| {
-        matches!(expressions_of(program).expression(*expression),
-            typed_trees::expression::ExpressionNode::Name(path)
-                if path.symbol.is_valid() && matches!(program.symbols.get(path.symbol).kind,
-                    SymbolKind::TypeParameter | SymbolKind::Parameter | SymbolKind::Local))
-    })
 }
 
 #[derive(Clone, Copy)]

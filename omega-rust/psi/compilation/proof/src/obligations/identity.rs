@@ -156,10 +156,6 @@ pub fn proof_obligation_key(
                 ),
                 atom!("base" => program.package_qualified_type_identity_text(obligation.base_type)),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
-                compound(
-                    "sibling",
-                    [expression_identity(program, obligation.sibling_argument)],
-                ),
             ],
         ),
         ProofObligation::BoundedInitializer(obligation) => compound(
@@ -230,10 +226,6 @@ pub fn proof_obligation_key(
                         .refuted_exit_guards
                         .iter()
                         .map(|guard| expression_identity(program, *guard)),
-                ),
-                compound(
-                    "sibling",
-                    [expression_identity(program, obligation.sibling_argument)],
                 ),
             ],
         ),
@@ -414,40 +406,7 @@ fn constraint_identity(constraint: &ProofConstraint) -> String {
         ProofConstraint::IntegerRange { minimum, maximum } => {
             compound("integer-range", [minimum.to_string(), maximum.to_string()])
         }
-        ProofConstraint::IntegerRangeRecipe { minimum, maximum } => {
-            let bound = |bound: &crate::obligations::RecipeRangeBound| match bound {
-                crate::obligations::RecipeRangeBound::Closed(value) => value.to_string(),
-                crate::obligations::RecipeRangeBound::Recipe { recipe, offset } => compound(
-                    "recipe",
-                    [recipe.arena_index().to_string(), offset.to_string()],
-                ),
-            };
-            compound("integer-range-recipe", [bound(minimum), bound(maximum)])
-        }
-        ProofConstraint::IntegerRangeSymbolicMax {
-            minimum,
-            max_field,
-            max_offset,
-        } => compound(
-            "symbolic-max",
-            [
-                minimum.to_string(),
-                atom("field", max_field.as_str()),
-                max_offset.to_string(),
-            ],
-        ),
-        ProofConstraint::IntegerRangeSiblingLenMax {
-            minimum,
-            sibling,
-            max_offset,
-        } => compound(
-            "sibling-len",
-            [
-                minimum.to_string(),
-                atom("sibling", sibling.as_str()),
-                max_offset.to_string(),
-            ],
-        ),
+
         ProofConstraint::FloatRange {
             minimum,
             maximum,

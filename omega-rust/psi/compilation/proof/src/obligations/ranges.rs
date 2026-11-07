@@ -7,10 +7,8 @@ use crate::obligations::plan::{ConstraintBuffer, FloatRange};
 use crate::obligations::{IntegerRange, ProofConstraint};
 use arena::HandleSpan;
 use numerics::bignum::BigInt;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
+use typed_trees::expression::BinaryOperator;
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn integer_constraints_are_exact(constraints: &ConstraintBuffer) -> bool {
     has_named_constraint(constraints, "exact")
@@ -205,43 +203,6 @@ pub(crate) fn float_binary_range(
         | BinaryOperator::ShiftLeft
         | BinaryOperator::ShiftRight
         | BinaryOperator::CaseMembership => None,
-    }
-}
-
-/// The proof window for one authored floating range endpoint, read at the
-/// range's DECLARED carrier (`validation::closed_float_range_endpoint`'s
-/// twin). An f32 endpoint reads its spelling directly at binary32 and widens
-/// exactly into the f64 window -- the widened f32 grid is what every landed
-/// argument compares against -- while an f64 endpoint keeps its authored
-/// landing (`0.3f32` under `f64[...]` means the widened f32 value). An
-/// f64-landed literal cannot narrow through the f32 read, so it is not an
-/// endpoint at all. Integer endpoints convert once into the carrier, exactly
-/// as the retained interchange bits do.
-pub(crate) fn float_range_bound(
-    program: &dyn ::validation::CheckingInput,
-    base_type: TypeReferenceHandle,
-    expression: ExpressionHandle,
-) -> Option<f64> {
-    let carrier = program.primitive_type_reference(base_type);
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Float(value) => match carrier {
-            Some(PrimitiveType::F32) => (value.landing()
-                != Some(numerics::literals::FloatFormat::F64))
-            .then(|| f64::from(value.value_f32())),
-            _ => Some(value.landed_f64()),
-        },
-        // Mixed floating ranges may have integer endpoints, but that does not
-        // erase their selected landing or authorize a same-spelled constant.
-        // A failed exact endpoint cannot fall back to its raw literal text.
-        ExpressionNode::Integer(_) | ExpressionNode::Name(_) => {
-            validation::closed_integer_range_bound(program, expression)
-                .and_then(|value| value.to_i64())
-                .map(|value| match carrier {
-                    Some(PrimitiveType::F32) => f64::from(value as f32),
-                    _ => value as f64,
-                })
-        }
-        _ => None,
     }
 }
 

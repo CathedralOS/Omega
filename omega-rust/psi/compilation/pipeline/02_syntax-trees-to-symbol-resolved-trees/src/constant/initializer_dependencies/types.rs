@@ -146,15 +146,6 @@ impl<'program> Collector<'program, '_> {
                 }
                 for constraint in constraints {
                     match constraint {
-                        TypeConstraint::Range {
-                            minimum, maximum, ..
-                        } => {
-                            self.queue_expressions(
-                                [*minimum, *maximum]
-                                    .into_iter()
-                                    .filter(|expression| expression.is_valid()),
-                            );
-                        }
                         TypeConstraint::Domain(domain) => self.type_arguments(domain.arguments)?,
                         TypeConstraint::Named(_) | TypeConstraint::ArithmeticDomain(_) => {}
                     }

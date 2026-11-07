@@ -8,7 +8,7 @@ use super::{
 };
 use crate::CheckingInput;
 use crate::frozen_program::expression_table;
-use crate::queries::expression_traversal::children;
+
 use diagnostics::Diagnostic;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceHandle;
@@ -43,55 +43,6 @@ pub(crate) fn anonymous_integer_landing_warnings(program: &dyn CheckingInput) ->
             );
         }
     });
-    // Integer range endpoints land in proof-integer arithmetic. Keeping the
-    // authored roots lets cancellation preserve its fractional-origin warning.
-    for (_, base, constraints) in program
-        .type_reference_table
-        .constrained_type_reference_sites()
-    {
-        if !program
-            .primitive_type_reference(base)
-            .is_some_and(|primitive| primitive.accepts_integer_literal())
-        {
-            continue;
-        }
-        for constraint in program.type_reference_table.constraints(constraints) {
-            if let typed_trees::types::TypeConstraintNode::Range {
-                minimum, maximum, ..
-            } = constraint
-            {
-                for endpoint in [*minimum, *maximum] {
-                    if crate::closed_integer_range_bound(program, endpoint).is_none() {
-                        continue;
-                    }
-                    let mut pending = vec![endpoint];
-                    while let Some(expression) = pending.pop() {
-                        // An anonymous subtree lands once at its typed parent or
-                        // range boundary; nested typed operations own their peers.
-                        if anonymous_numeric_value(program, expression, &mut |expression| {
-                            has_anonymous_operator_meaning(program, expression)
-                        })
-                        .is_some()
-                        {
-                            append_integer_landing_warning(
-                                program,
-                                None,
-                                expression,
-                                &mut warned,
-                                &mut warnings,
-                            );
-                        } else {
-                            children(
-                                program,
-                                expression_table(program).expression(expression),
-                                |child| pending.push(child),
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
     for (expression, node) in expression_table(program).iter_expressions() {
         let ExpressionNode::Binary(binary) = node else {
             continue;
