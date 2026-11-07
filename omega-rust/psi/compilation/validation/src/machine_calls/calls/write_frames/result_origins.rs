@@ -253,12 +253,25 @@ pub(super) fn state_result_origins<'program>(
     // sources. Provisional unions and state-only memo entries stay unspecialized.
     if let Some(origins) = &mut result {
         selected_sources::retain_reachable_sources(program, state, &values, origins);
+        let mut entry_symbols = program
+            .state_parameters(state)
+            .iter()
+            .map(|parameter| {
+                (
+                    parameter.symbol.arena_index(),
+                    parameter.symbol.generation(),
+                )
+            })
+            .collect::<Vec<_>>();
+        entry_symbols.sort_unstable();
         for leaf in &mut origins.references {
             if let Some(ReferenceSource::Symbolic(origin)) = &mut leaf.origin
-                && program
-                    .state_parameters(state)
-                    .iter()
-                    .any(|parameter| parameter.symbol == origin.source.root)
+                && entry_symbols
+                    .binary_search(&(
+                        origin.source.root.arena_index(),
+                        origin.source.root.generation(),
+                    ))
+                    .is_ok()
             {
                 // Crossing a namespace already erased unresolved selectors;
                 // only surviving entry coordinates can use these actuals.
