@@ -190,14 +190,6 @@ pub(super) fn derive_summaries(
         .map(|(index, reads)| reads.contains(&index))
         .collect();
     let schedule = MachineCallComponents::new(&reads);
-    phase_profile::count(
-        "psi.05.build_check_facts.post_flow_facts.termination.progress.call_components",
-        schedule.component_count() as u64,
-    );
-    phase_profile::count(
-        "psi.05.build_check_facts.post_flow_facts.termination.progress.callee_first_waves",
-        schedule.callee_first_wave_count() as u64,
-    );
     let inputs = ProgressInputs {
         program,
         flow,

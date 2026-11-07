@@ -23,7 +23,7 @@
 //! ```omega
 //! data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
 //! data Optimization { case ControlFlowCleanup; /* ... */ }
-//! data Optimizations { control_flow_cleanup: u8 in Trapping; /* ... */ }
+//! data Optimizations { human_report: u8 in Saturating; selected: [u8 in Saturating; 55]; }
 //! data Build { subsystem: Subsystem; freestanding: bool; optimizations: Optimizations; }
 //! machine build(build: &mut Build) {
 //!     build.subsystem = Subsystem::EfiApplication;

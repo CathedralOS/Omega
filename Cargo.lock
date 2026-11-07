@@ -207,7 +207,6 @@ dependencies = [
  "layout-plans",
  "optimization-core",
  "package-compilation",
- "phase-profile",
  "provider-admission",
  "provider-planning",
  "psi-compiler",
@@ -247,7 +246,6 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
- "phase-profile",
  "psi-terminal-production",
  "semantic-vocabulary",
  "source",
@@ -406,7 +404,6 @@ dependencies = [
  "lowered-psi",
  "numerics",
  "optimization",
- "phase-profile",
  "proof-admission",
  "semantic-vocabulary",
  "source",
@@ -451,7 +448,6 @@ dependencies = [
  "object-file",
  "optimization-core",
  "package-compilation",
- "phase-profile",
  "platform-custody",
  "program-entry-plan",
  "provider-planning",
@@ -509,7 +505,7 @@ dependencies = [
  "lowered-psi",
  "mimalloc",
  "native-artifact",
- "native-production",
+ "native-compiler",
  "numerics",
  "object-file",
  "optimization",
@@ -521,7 +517,6 @@ dependencies = [
  "package-evidence",
  "package-manager",
  "package-source",
- "phase-profile",
  "platform-custody",
  "proof-admission",
  "provider-planning",
@@ -1334,7 +1329,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "native-production"
+name = "native-compiler"
 version = "0.1.0"
 dependencies = [
  "abstract-operations-to-abstract-operations",
@@ -1351,7 +1346,6 @@ dependencies = [
  "machine-emission",
  "native-artifact",
  "optimization-core",
- "phase-profile",
  "post-allocation-machine-to-selected-form-encoding",
  "register-environment",
  "register-homes-to-post-allocation-machine",
@@ -1475,7 +1469,6 @@ dependencies = [
  "package-compilation",
  "package-manager",
  "package-source",
- "phase-profile",
  "platform-custody",
  "resolver-execution",
  "semantic-vocabulary",
@@ -1559,10 +1552,9 @@ dependencies = [
  "compiler",
  "diagnostics",
  "image-emission",
- "native-production",
+ "native-compiler",
  "package-compilation",
  "package-manager",
- "phase-profile",
  "platform-custody",
  "semantic-vocabulary",
  "target",
@@ -1695,10 +1687,6 @@ dependencies = [
  "sha2",
  "source",
 ]
-
-[[package]]
-name = "phase-profile"
-version = "0.1.0"
 
 [[package]]
 name = "physical-instructions"
@@ -1914,7 +1902,6 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "optimization",
- "phase-profile",
  "psi-terminal-production",
  "rayon",
  "representation-planning",
@@ -2204,7 +2191,6 @@ dependencies = [
  "isa-x86_64",
  "optimization-core",
  "optimization-unit",
- "phase-profile",
  "register-environment",
  "register-homes",
  "register-model",
@@ -2245,7 +2231,6 @@ dependencies = [
  "legalized-operations",
  "optimization-core",
  "optimization-unit",
- "phase-profile",
  "register-environment",
  "register-homes",
  "register-model",
@@ -2270,7 +2255,6 @@ dependencies = [
  "legalized-operations",
  "optimization-core",
  "optimization-unit",
- "phase-profile",
  "register-environment",
  "register-homes",
  "register-model",
@@ -2788,7 +2772,6 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
- "phase-profile",
  "semantic-vocabulary",
  "serde",
  "serde_json",
@@ -2812,7 +2795,6 @@ dependencies = [
  "layout-plans",
  "numerics",
  "optimization",
- "phase-profile",
  "proof",
  "proof-admission",
  "rayon",
@@ -2837,7 +2819,6 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
- "phase-profile",
  "proof",
  "representation-selections",
  "source",
@@ -2874,7 +2855,6 @@ dependencies = [
  "layout-plans",
  "numerics",
  "optimization",
- "phase-profile",
  "proof-admission",
  "rayon",
  "representation-selections",

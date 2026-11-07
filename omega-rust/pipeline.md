@@ -494,7 +494,7 @@ foundations, product reports and publication keep independent ownership.
 
 These are destination owners, not extra facades above the current compiler.
 Dismantle the existing product coordinator into its actual owners. Reuse the
-source-free `native-production` implementation as the Omega driver. Move paths
+source-free `native-compiler` implementation as the Omega driver. Move paths
 only as their responsibilities and callers migrate; do not create a second
 live driver to satisfy this table. Build-effect evaluation retains a cohesive
 owner outside the language transformation stages.
@@ -1105,7 +1105,7 @@ coordinates. Neither consumer rediscovers specialization or source satisfaction;
 the exact application's existing body span supplies its executable alternatives.
 
 `omega/compilation/compiler/` owns only compilation orchestration.
-[`omega/compilation/native-production/`](omega/compilation/native-production/README.md)
+[`omega/compilation/native-compiler/`](omega/compilation/native-compiler/README.md)
 owns the source-free Terminal-to-image sequence. Its entry is
 `compile.rs`; `pipeline.rs` owns shared abstract-to-object sequencing for
 application entries, callbacks and component exports. Realization captures runtime provisions before the

@@ -35,26 +35,16 @@ pub(crate) fn prepare_typed_program<'program>(
     // Quotient requests are judged after the checked termination facts exist
     // (`lower_typed_trees` calls `admit_checked_quotient_requests` beside
     // `build_check_facts`); validation keeps formation checking here.
-    let mut validated = phase_profile::scope("psi.05.prepare_typed_program.validate", || {
-        validation::prepare_specialized_program(
-            program,
-            opaque_properties,
-            prior_dependency_bodies,
-            prior_frozen_bodies,
-            record_dependency_bodies,
-        )
-    })?;
+    let mut validated = validation::prepare_specialized_program(
+        program,
+        opaque_properties,
+        prior_dependency_bodies,
+        prior_frozen_bodies,
+        record_dependency_bodies,
+    )?;
 
-    let decisions = phase_profile::scope("psi.05.prepare_typed_program.check_proof_plan", || {
-        proof::checker::check_proof_plan_with_decisions(&proof_plan)
-    })
-    .and_then(|decisions| {
-        phase_profile::scope(
-            "psi.05.prepare_typed_program.bare_boundary_trait_values",
-            || validate_no_bare_boundary_trait_values(program),
-        )
-        .map(|()| decisions)
-    });
+    let decisions = proof::checker::check_proof_plan_with_decisions(&proof_plan)
+        .and_then(|decisions| validate_no_bare_boundary_trait_values(program).map(|()| decisions));
     let proof::checker::ProofDecisions {
         integer_assignments,
         constant_recipe_obligations,

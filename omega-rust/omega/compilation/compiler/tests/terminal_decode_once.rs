@@ -135,9 +135,9 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     // measurement starts here so it attributes only the realization.
     let before = terminal_codec::module_decode_count();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
-    let mut prepared_native = native_production::prepare(
+    let mut prepared_native = native_compiler::prepare(
         &retained,
-        native_production::NativeCompileRequest {
+        native_compiler::NativeCompileRequest {
             private_entry_ram: &[],
             optimization_selections: &optimizations,
             terminal_authority_policy: provider_admission::terminal_authority_policy_with_rows(
@@ -204,7 +204,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
         .expect("scalar completion");
         completion.complete(completed).expect("one completion");
     }
-    let product = native_production::compile(prepared_native)
+    let product = native_compiler::compile(prepared_native)
         .unwrap_or_else(|(_, diagnostics)| panic!("{FIXTURE} must realize: {diagnostics:#?}"));
     let realization_decodes = terminal_codec::module_decode_count() - before;
     let native_artifact::RequestedNativeArtifact::Direct(artifact) = product.artifact else {

@@ -141,7 +141,7 @@ ordinary trust settlement, and requested compiler observations remain intact.
 Reporting uses the retained checked root; it does not run Build again.
 
 Check-only observation without a lock is permitted but creates no accepted state
-or native-production authority. Malformed and older locks reject rather than
+or native-compiler authority. Malformed and older locks reject rather than
 becoming absent acceptance. Full-package discovery/bound review remains an
 explicit review, acceptance, or update operation.
 

@@ -116,7 +116,7 @@ jobs:
         run: python tools/ci/compiler_cleanup.py
       - name: Check native provider frames and retained mapped homes
         if: ${{ inputs.foreign_records && !inputs.foreign_records_only }}
-        run: cargo test --locked -p native-production -p machine-emission -p native-provider-runtime
+        run: cargo test --locked -p native-compiler -p machine-emission -p native-provider-runtime
       - name: Check typed scalar aggregate result boundaries
         if: ${{ inputs.foreign_records && !inputs.foreign_records_only && !inputs.runtime_value_generics }}
         run: |

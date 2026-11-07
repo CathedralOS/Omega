@@ -19,7 +19,7 @@ class NativeBoundaryTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(__file__).resolve().parents[2]
         self.metadata = {"workspace_root": str(self.root), "packages": []}
-        self.native = self.package("native-production", NATIVE_ROOT)
+        self.native = self.package("native-compiler", NATIVE_ROOT)
         self.evidence = self.package(
             "effects", "omega-rust/omega/compilation/backend/plans/effects"
         )
@@ -56,7 +56,7 @@ class NativeBoundaryTests(unittest.TestCase):
         self.edge(self.evidence, typed, rename="trees")
         violations = dependency_violations(self.metadata)
         self.assertEqual(len(violations), 1)
-        self.assertIn("native-production -> effects -> typed-trees", violations[0])
+        self.assertIn("native-compiler -> effects -> typed-trees", violations[0])
 
     def test_optional_foreign_target_build_dependency_is_checked(self):
         interpreter = self.package(
@@ -113,7 +113,7 @@ class NativeBoundaryTests(unittest.TestCase):
         violations = dependency_violations(self.metadata, PROVIDER_SELECTION_ROOT, PROVIDER_SELECTION_OWNERS)
         self.assertEqual(len(violations), 2)
         self.assertTrue(any("provider-selection -> typed-trees" in violation for violation in violations))
-        self.assertTrue(any("provider-selection -> native-production" in violation for violation in violations))
+        self.assertTrue(any("provider-selection -> native-compiler" in violation for violation in violations))
 
     def test_native_worker_consumes_artifacts_without_a_compiler(self):
         worker = self.package("native-provider-runtime", NATIVE_PROVIDER_RUNTIME_ROOT)
@@ -123,7 +123,7 @@ class NativeBoundaryTests(unittest.TestCase):
         self.edge(artifacts, self.native, optional=True, target='cfg(windows)')
         failures = dependency_violations(self.metadata, NATIVE_PROVIDER_RUNTIME_ROOT, NATIVE_PROVIDER_RUNTIME_OWNERS)
         self.assertEqual(len(failures), 1)
-        self.assertIn("native-provider-runtime -> native-artifact -> native-production", failures[0])
+        self.assertIn("native-provider-runtime -> native-artifact -> native-compiler", failures[0])
 
     def test_trust_admission_consumes_declarations_without_source_or_native_compilation(self):
         trust = self.package("trust-model", TRUST_ROOT)
@@ -144,7 +144,7 @@ class NativeBoundaryTests(unittest.TestCase):
         failures = dependency_violations(self.metadata, TRUST_ROOT, TRUST_OWNERS)
         self.assertEqual(len(failures), 2)
         self.assertTrue(any("trust-model -> checked-trees" in failure for failure in failures))
-        self.assertTrue(any("trust-model -> native-production" in failure for failure in failures))
+        self.assertTrue(any("trust-model -> native-compiler" in failure for failure in failures))
 
     def test_psi_cannot_reach_omega_through_inactive_production_edges(self):
         psi = self.package("psi-compiler", "omega-rust/psi/compilation/psi-compiler")
@@ -154,7 +154,7 @@ class NativeBoundaryTests(unittest.TestCase):
         self.edge(foundation, self.native, kind="build", optional=True, target='cfg(windows)')
         failures = psi_omega_dependency_violations(self.metadata)
         self.assertEqual(len(failures), 1)
-        self.assertIn("language-semantics -> native-production", failures[0])
+        self.assertIn("language-semantics -> native-compiler", failures[0])
         self.edge(psi, self.native, kind="dev")
         self.assertEqual(len(psi_omega_dependency_violations(self.metadata)), 2)
 

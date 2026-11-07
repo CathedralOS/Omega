@@ -64,7 +64,6 @@ fn latest_loan_release_boundary(
     loans: HandleSpan<BorrowLoanFact>,
     release: impl Fn(Handle<BorrowLoanFact>) -> Option<u32>,
 ) -> Option<u32> {
-    let _profile = phase_profile::guard("psi.05.unit.reference_retirement.loan_boundary");
     facts
         .borrow
         .loan_group(loans)?
@@ -266,7 +265,6 @@ fn custody_transferred(
     binding_ordinal: u32,
     operations: &[OperationPlan],
 ) -> Option<bool> {
-    let _profile = phase_profile::guard("psi.05.unit.reference_retirement.transferred_paths");
     Some(
         super::reference_retirement::transferred_paths(
             program,
@@ -305,7 +303,6 @@ fn captured_storage_lifetime(
     results: &[(BindingPlan, PlaceRoot)],
     result: &BindingPlan,
 ) -> Option<(u32, Vec<Handle<BorrowLoanFact>>)> {
-    let _profile = phase_profile::guard("psi.05.unit.reference_retirement.storage_lifetime");
     let mut owners = results.iter().filter(|(binding, _)| binding == result);
     let (_, owner) = owners.next()?;
     if owners.next().is_some() {
@@ -356,7 +353,6 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
     operation: &'operation OperationPlan,
     operations: &[OperationPlan],
 ) -> Option<CapturedReferenceResult<'operation>> {
-    let _profile = phase_profile::guard("psi.05.unit.reference_retirement.captured_result");
     let direct = match operation {
         OperationPlan::EstablishReference { result, .. } => {
             local_reference_loans(facts, machine, state, result, results)
@@ -519,7 +515,6 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     operations: &mut Vec<OperationPlan>,
     trace: &super::super::super::LocalConstructionTrace,
 ) -> Option<()> {
-    let _profile = phase_profile::guard("psi.05.unit.reference_retirement");
     trace.phase("reference retirement: transport");
     let authored_state = program.state_by_symbol(state)?;
     let borrowing = unique_borrow_state(facts, machine, state)?;
@@ -1250,9 +1245,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 .iter()
                 .find(|(result, _)| result.binding_ordinal == *binding_ordinal)?;
             if !retirement.carrier_children_retired(result) {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
-                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
-                {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
                     eprintln!(
                         "CHECKSITE exit-reference-pending state={state:?} result={} reason=carrier-children scheduled={} loans={loans:?}",
                         result.binding_ordinal,
@@ -1269,9 +1262,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 }
                 retired
             }) {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
-                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
-                {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
                     eprintln!(
                         "CHECKSITE exit-reference-pending state={state:?} result={} reason=storage-holder scheduled={} storage_loans={storage_loans:?} waiting={waiting_storage:?} row={:?}",
                         result.binding_ordinal,
@@ -1286,9 +1277,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 .loan_group(*loans)?
                 .all(|(loan, _)| retirement.children_retired(loan))
             {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
-                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
-                {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
                     eprintln!(
                         "CHECKSITE exit-reference-pending state={state:?} result={} reason=loan-children scheduled={} rows={:?}",
                         result.binding_ordinal,
@@ -1330,9 +1319,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         }
         if releases.is_empty() {
             if !pending.is_empty() {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
-                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
-                {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
                     for (_, operation, storage_loans) in &pending {
                         let OperationPlan::ReleaseReference {
                             source: SourcePlan::StructuralResult { binding_ordinal },

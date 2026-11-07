@@ -357,25 +357,21 @@ fn observed_byte_predicate(
 }
 
 pub(super) fn terminal_scalar_literal(
-    machine: &terminal_psi::TerminalMachine,
+    index: &crate::MachineScalarIndex<'_>,
     value: ValueId,
 ) -> Option<ScalarTerm> {
     use terminal_psi::OperationKind;
-    if let Some(literal) = machine.operations().find_map(|operation| {
-        let result = operation.result.scalar_ref()?;
-        if result.id != value {
-            return None;
-        }
-        match operation.kind {
+    if let Some(literal) = index
+        .definitions(value)
+        .find_map(|operation| match operation.kind {
             OperationKind::BooleanConstant { value } => Some(ScalarTerm::Boolean(value)),
             _ => None,
-        }
-    }) {
+        })
+    {
         return Some(literal);
     }
-    let (scalar_type, literal) = crate::scalar_constant_value(value, |value| {
-        crate::machine_scalar_constant_origin(machine, value)
-    })?;
+    let (scalar_type, literal) =
+        crate::scalar_constant_value(value, |value| index.constant_origin(value))?;
     let ScalarType::Integer(integer) = scalar_type else {
         return None;
     };
@@ -429,7 +425,7 @@ pub fn scalar_payload_expression(
 /// type table. Retaining it here changes preparation, not expression expansion:
 /// literal recovery, definition order, failure and recursion budgets stay intact.
 pub(super) struct TerminalScalarExpressions<'machine> {
-    machine: &'machine terminal_psi::TerminalMachine,
+    index: crate::MachineScalarIndex<'machine>,
     types: std::collections::BTreeMap<ValueId, ScalarType>,
 }
 
@@ -446,25 +442,23 @@ impl<'machine> TerminalScalarExpressions<'machine> {
             )
             .map(|value| (value.id, value.scalar_type))
             .collect();
-        Self { machine, types }
+        Self {
+            index: crate::MachineScalarIndex::new(machine),
+            types,
+        }
     }
 
     pub(super) fn expression(&self, value: semantic_vocabulary::ValueId) -> Option<ScalarTerm> {
-        let machine = self.machine;
+        let index = &self.index;
         let types = &self.types;
         scalar_payload_expression(value, &|value| {
             let scalar_type = *types.get(&value)?;
-            if let Some(literal) = terminal_scalar_literal(machine, value) {
+            if let Some(literal) = terminal_scalar_literal(index, value) {
                 return Some((scalar_type, Some(literal)));
             }
-            let denotation = machine
-                .operations()
-                .find(|operation| {
-                    operation
-                        .result
-                        .scalar_ref()
-                        .is_some_and(|result| result.id == value)
-                })
+            let denotation = index
+                .definitions(value)
+                .next()
                 .and_then(|operation| {
                     crate::goal_free_scalar_leaf_semantics(operation, types)
                         .ok()

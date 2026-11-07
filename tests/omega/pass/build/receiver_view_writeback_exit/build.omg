@@ -35,7 +35,7 @@ machine configure_all_settings(builder: &mut Build) {
     builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
     builder.privileged_services.port_io = true;
     builder.elf_interpreter.linux_arm64 = "/lib/omega-loader.so";
-    builder.optimizations.control_flow_cleanup = 1;
+    builder.optimizations.selected[0] = 1;
     builder.optimizations.human_report = 1;
 }
 
@@ -48,7 +48,7 @@ machine configure_invalid_loader(builder: &mut Build) {
 }
 
 machine configure_duplicate_optimization(builder: &mut Build) {
-    builder.optimizations.control_flow_cleanup = 2;
+    builder.optimizations.selected[0] = 2;
 }
 
 boundary trait ObserveBuild {

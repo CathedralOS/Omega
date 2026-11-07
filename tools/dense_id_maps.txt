@@ -292,8 +292,6 @@
 2 omega-rust/psi/compilation/representations/terminal-psi/src/artifacts/machine_provenance.rs
 25 omega-rust/psi/compilation/representations/typed-trees/src/references.rs
 1 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees.rs
-2 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/data_definitions.rs
-1 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declaration_index.rs
 1 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declaration_tables.rs
 2 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declarations/domain.rs
 2 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declarations/product_operand/input_selections.rs

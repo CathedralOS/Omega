@@ -110,25 +110,27 @@ pub fn captured_numeric_observations(
     in_transition_target: bool,
     demand: NumericObservationDemand,
 ) -> CapturedNumericObservations {
-    let memos = crate::frozen_program::frozen_program_memos(program).filter(|_| {
-        program
-            .machine(machine.symbol)
-            .is_some_and(|stored| std::ptr::eq(stored, machine))
-            && program
-                .state_in_machine(machine, state.symbol)
-                .is_some_and(|stored| std::ptr::eq(stored, state))
-    });
+    let stored = program
+        .machine(machine.symbol)
+        .is_some_and(|stored| std::ptr::eq(stored, machine))
+        && program
+            .state_in_machine(machine, state.symbol)
+            .is_some_and(|stored| std::ptr::eq(stored, state));
+    let memos = crate::frozen_program::frozen_program_memos(program).filter(|_| stored);
     let site = NumericSite {
         machine: machine.symbol,
         state: state.symbol,
         demand,
         in_transition_target,
     };
-    if let Some(observed) =
-        memos.and_then(|memos| memos.numeric_observations.observed(site, statement_index))
+    if stored
+        && let Some(observed) = crate::frozen_program::readable_memos(program)
+            .find_map(|memos| memos.numeric_observations.observed(site, statement_index))
     {
         return observed;
     }
+    // Rows that read no cut of this input's ancestry hold in every context.
+    let guard = crate::frozen_program::CutGuard::start(program);
     let Some(query) = CheckingQuery::numeric_observation(program, machine.symbol, state.symbol)
     else {
         return CapturedNumericObservations::default();
@@ -139,7 +141,7 @@ pub fn captured_numeric_observations(
         .statements(state.statement_nodes)
         .len();
     // One-shot inputs keep no table, so they keep the exact-prefix selection.
-    let Some(memos) = memos else {
+    if memos.is_none() {
         return collect_numeric_observations(
             input,
             machine,
@@ -149,7 +151,7 @@ pub fn captured_numeric_observations(
             demand,
         )
         .0;
-    };
+    }
     if !in_transition_target
         && demand.scalar_values != ScalarObservationDemand::StatePrefix
         && statement_index <= statement_count
@@ -157,14 +159,16 @@ pub fn captured_numeric_observations(
         let batch = collect_state_numeric_observations_batch(input, machine, state, demand);
         let observed = batch[statement_index].0.clone();
         let context_free = !query.met_enclosing_cut();
-        memos.numeric_observations.record(
-            site,
-            batch
-                .into_iter()
-                .enumerate()
-                .filter(|(_, (_, complete))| context_free || *complete)
-                .map(|(index, (observations, _))| (index, observations)),
-        );
+        if let Some(memos) = guard.memos() {
+            memos.numeric_observations.record(
+                site,
+                batch
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(_, (_, complete))| context_free || *complete)
+                    .map(|(index, (observations, _))| (index, observations)),
+            );
+        }
         return observed;
     }
     let (observations, complete) = collect_numeric_observations(
@@ -175,7 +179,9 @@ pub fn captured_numeric_observations(
         in_transition_target,
         demand,
     );
-    if complete || !query.met_enclosing_cut() {
+    if (complete || !query.met_enclosing_cut())
+        && let Some(memos) = guard.memos()
+    {
         memos.numeric_observations.record(
             site,
             std::iter::once((statement_index, observations.clone())),
@@ -321,7 +327,6 @@ fn collect_state_numeric_observations_batch(
     let mut statement_results = vec![Vec::new(); statements.len()];
     let mut state_candidates = Vec::new();
 
-    let _scan_guard = phase_profile::guard("psi.05.numeric.scan");
     let mut statement_has_integer_read = vec![false; statements.len()];
     for (index, statement) in statements.iter().enumerate() {
         if !demand.scalar_values.requested() && !needs_relations {
@@ -450,18 +455,17 @@ fn collect_state_numeric_observations_batch(
         });
     }
 
-    drop(_scan_guard);
     let mut results = vec![(CapturedNumericObservations::default(), true); total_sites];
     if visitors.is_empty() {
         return results;
     }
-    let valid = phase_profile::scope("psi.05.numeric.observe_prefixes", || {
+    let valid = {
         let mut refs: Vec<&mut dyn StructuralPrefixVisitor> = visitors
             .iter_mut()
             .map(|visitor| visitor as &mut dyn StructuralPrefixVisitor)
             .collect();
         observe_runtime_state_prefixes(program, machine, state, &mut refs)
-    });
+    };
     for ((statement_index, visitor), is_valid) in
         visitor_indices.into_iter().zip(visitors).zip(valid)
     {
@@ -775,7 +779,6 @@ impl Observations {
         {
             return;
         }
-        let _reads_guard = phase_profile::guard("psi.05.numeric.assoc.reads");
         let mut current_reads = Vec::new();
         for (read, value) in judge.current_scalar_reads() {
             let Some(carrier) =
@@ -792,14 +795,12 @@ impl Observations {
                 current_reads.push(entry);
             }
         }
-        drop(_reads_guard);
         if current_reads.is_empty() {
             for &expression in expressions {
                 self.intersect_associations(expression, Vec::new());
             }
             return;
         }
-        let _build_guard = phase_profile::guard("psi.05.numeric.assoc.build_preds");
         // The equality batch owns numeric projection and proof. Normalizing
         // these operands here first repeats its premise preparation without
         // establishing an association. Keep the exact completed operands;
@@ -849,15 +850,8 @@ impl Observations {
                 destinations.push((position, read_index));
             }
         }
-        drop(_build_guard);
-        phase_profile::count(
-            "psi.05.numeric.assoc.candidate_pairs",
-            predicates.len() as u64,
-        );
         if !predicates.is_empty() {
-            let proven_list = phase_profile::scope("psi.05.numeric.assoc.prove", || {
-                judge.prove_observed_predicates(&predicates, 0)
-            });
+            let proven_list = judge.prove_observed_predicates(&predicates, 0);
             for ((position, read_index), proven) in destinations.into_iter().zip(proven_list) {
                 let place = &current_reads[read_index].0;
                 if proven && !current[position].contains(place) {

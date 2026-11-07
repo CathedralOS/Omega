@@ -272,7 +272,7 @@ reads the allowed lanes from this table:
 | `psi` | Target-neutral source semantics through Terminal Psi in `omega-rust/psi/` or `source/psi/`. |
 | `omega` | The Terminal-Psi-consuming compiler stage in `omega-rust/omega/compilation/{representations,pipeline,realization}/` or `source/omega/`. |
 | `backend` | Target, ISA, ABI, object/image encoding, layout, and execution primitives in `omega-rust/omega/compilation/backend/`. |
-| `compiler` | Product compilation coordination in `omega-rust/omega/compilation/compiler/` and `native-production/`, or an inseparable contract change spanning Psi and Omega. |
+| `compiler` | Product compilation coordination in `omega-rust/omega/compilation/compiler/` and `native-compiler/`, or an inseparable contract change spanning Psi and Omega. |
 | `build` | Build system in `omega-rust/omega/build-system/` (`orchestration/`, `build-settings/`) and `build.omg` declarations. |
 | `packages` | Package acquisition, graphs, review, admission, and update workflows in `omega-rust/omega/packages/`. |
 | `cli` | Command parsing, flags, help, and dispatch in `omega-rust/omega/application/cli/src/`. |

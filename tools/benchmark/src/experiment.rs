@@ -30,7 +30,6 @@ pub(crate) struct Sample {
     pub primary_value: Option<f64>,
     pub observations: Vec<Observation>,
     pub compiler_stage_ms: BTreeMap<String, f64>,
-    pub compiler_counters: BTreeMap<String, u64>,
     pub artifact_sha256: Option<String>,
     pub artifact_bytes: Option<u64>,
     pub artifact_relative_path: Option<String>,
@@ -184,7 +183,7 @@ pub fn compare(plan_path: &Path, output: &Path) -> Result<Report, String> {
             "logical_cpus":std::thread::available_parallelism().ok().map(usize::from),
             "processor":std::env::var("PROCESSOR_IDENTIFIER").ok().or_else(||std::fs::read_to_string("/proc/cpuinfo").ok().and_then(|text|text.lines().find_map(|line|line.strip_prefix("model name").and_then(|line|line.split_once(':')).map(|(_,name)|name.trim().to_owned())))),
             "host_id_sha256":host_identifier()},
-        "inherited_settings":(["OMEGA_PHASE_PROFILE","OMEGA_REVIEW_TIMINGS","OMEGA_ALLOCATION_PROFILE","RUST_MIN_STACK","RAYON_NUM_THREADS"].into_iter().filter_map(|name|std::env::var(name).ok().map(|value|(name,value))).collect::<BTreeMap<_,_>>()),
+        "inherited_settings":(["OMEGA_REVIEW_TIMINGS","OMEGA_ALLOCATION_PROFILE","RUST_MIN_STACK","RAYON_NUM_THREADS"].into_iter().filter_map(|name|std::env::var(name).ok().map(|value|(name,value))).collect::<BTreeMap<_,_>>()),
         "resource_limits":{"address_space_bytes":crate::process::address_space_limit(), "process_memory_bytes":8589934592_u64,
             "aggregate_memory_bytes":8589934592_u64, "active_processes":64, "capture_bytes_per_stream":1048576},
         "timing_boundary":"process wall includes startup, capture and cleanup; reported_work is child-instrumented",
@@ -387,16 +386,6 @@ pub(crate) fn summarize(plan: &Plan, samples: &[Sample]) -> Result<Report, Strin
                     after.push(*value);
                 }
             }
-            for (name, value) in &sample.compiler_counters {
-                let (before, after) = additional_samples
-                    .entry(format!("compiler_events:{name}"))
-                    .or_default();
-                if role == "baseline" {
-                    before.push(*value as f64);
-                } else {
-                    after.push(*value as f64);
-                }
-            }
             if let Some(bytes) = sample.artifact_bytes {
                 let (before, after) = additional_samples
                     .entry("native_image_bytes".into())
@@ -511,7 +500,6 @@ pub(crate) fn measure(
                 String::from_utf8_lossy(&captured.stderr)
             );
             sample.compiler_stage_ms = stage_timings(&compiler_text);
-            sample.compiler_counters = phase_counters(&compiler_text);
             let published: Vec<_> = compiler_text
                 .lines()
                 .filter_map(|line| line.strip_prefix("published native output to "))
@@ -586,31 +574,10 @@ pub(crate) fn stage_timings(text: &str) -> BTreeMap<String, f64> {
             && duration.is_finite()
             && duration >= 0.0
         {
-            let name = label
-                .trim()
-                .split_once(" x  ")
-                .filter(|(count, _)| count.trim().parse::<u64>().is_ok())
-                .map_or(label.trim(), |(_, name)| name);
-            *stages.entry(name.to_owned()).or_default() += duration;
+            *stages.entry(label.trim().to_owned()).or_default() += duration;
         }
     }
     stages
-}
-
-pub(crate) fn phase_counters(text: &str) -> BTreeMap<String, u64> {
-    let mut counters = BTreeMap::new();
-    for line in text.lines() {
-        let line = line.trim();
-        let timed = line
-            .split_once(" ms  ")
-            .and_then(|(_, label)| label.trim().split_once(" x  "));
-        if let Some((count, name)) = timed.or_else(|| line.split_once(" n  "))
-            && let Ok(count) = count.trim().parse::<u64>()
-        {
-            *counters.entry(name.to_owned()).or_default() += count;
-        }
-    }
-    counters
 }
 
 pub(crate) fn snapshot(plan: &Plan, plan_path: &Path) -> Result<BTreeMap<String, String>, String> {
