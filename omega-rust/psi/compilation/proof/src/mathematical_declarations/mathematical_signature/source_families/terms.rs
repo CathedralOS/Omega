@@ -395,7 +395,7 @@ struct Builder<'a> {
     type_parameters: &'a [SymbolHandle],
     external_actuals: &'a [(SymbolHandle, TermHandle)],
     payload_level: Level,
-    payload_lifts: &'a [(SymbolHandle, TermHandle)],
+    payload_lifts: &'a [TermHandle],
 }
 impl Builder<'_> {
     fn type_actual(&self, symbol: SymbolHandle) -> S {
@@ -461,20 +461,61 @@ impl Builder<'_> {
         }
         payload
     }
-    fn payload_type(&mut self, case: usize) -> S {
+    fn raw_payload_type(&self, case: usize) -> S {
         let mut body = self.constraint_application(case);
         for (symbol, ty) in self.cases[case].payload.iter().rev() {
             body = sigma(Key::Source(*symbol), self.domain(*symbol, *ty), body);
         }
-        if !self.payload_lifts.is_empty() {
-            for (symbol, domain) in self.payload_lifts.iter().rev() {
-                let carrier = self.domain(*symbol, *domain);
-                let (unit, _) = self.terms.level_unit(carrier);
-                let binder = self.terms.fresh();
-                body = sigma(binder, unit, body);
-            }
+        body
+    }
+    fn common_application(&self, mut function: S) -> S {
+        for symbol in self.type_parameters {
+            function = app(function, self.type_actual(*symbol));
+        }
+        for (symbol, _) in self
+            .common
+            .iter()
+            .filter(|(symbol, _)| !self.type_parameters.contains(symbol))
+        {
+            function = app(function, S::Var(Key::Source(*symbol)));
+        }
+        function
+    }
+    fn payload_type(&mut self, case: usize) -> S {
+        let mut body = self.raw_payload_type(case);
+        for &function in self.payload_lifts.iter().rev() {
+            let carrier = self.common_application(S::Closed(function));
+            let (unit, _) = self.terms.level_unit(carrier);
+            let binder = self.terms.fresh();
+            body = sigma(binder, unit, body);
         }
         body
+    }
+    fn payload_type_functions(
+        &self,
+        arena: &mut TermArena,
+        type_domains: &[TermHandle],
+    ) -> Result<Vec<TermHandle>, &'static str> {
+        if type_domains.len() != self.type_parameters.len() {
+            return Err("source payload lift lost its exact Type telescope");
+        }
+        (0..self.cases.len())
+            .map(|case| {
+                let mut body = self.raw_payload_type(case);
+                for &(symbol, domain) in self
+                    .common
+                    .iter()
+                    .rev()
+                    .filter(|(symbol, _)| !self.type_parameters.contains(symbol))
+                {
+                    body = lam(Key::Source(symbol), self.domain(symbol, domain), body);
+                }
+                for (&symbol, &domain) in self.type_parameters.iter().zip(type_domains).rev() {
+                    body = lam(Key::Source(symbol), S::Closed(domain), body);
+                }
+                body.term(arena, &mut Vec::new())
+            })
+            .collect()
     }
     fn sum_type(&mut self, start: usize) -> S {
         if start == self.cases.len() {
@@ -631,7 +672,10 @@ pub(super) fn constructor_children(
 
 pub(super) struct SourceDescription {
     pub family: IndexedFamily,
-    pub payload_lifts: Vec<(SymbolHandle, TermHandle)>,
+    /// Unpadded complete case types, each abstracted over the ordered Type
+    /// parameters then common value fields. All constructor and eliminator
+    /// paths use these same functions as the universe lift's carriers.
+    pub payload_lifts: Vec<TermHandle>,
 }
 
 /// Each multi-case payload is explicitly lifted by the same contractible
@@ -652,17 +696,6 @@ pub(super) fn description(
     type_domains: &[TermHandle],
     level_arity: u32,
 ) -> Result<SourceDescription, String> {
-    let payload_level = payload_sort_level(arena, declarations, cases, level_arity)?;
-
-    debug_assert_eq!(type_domains.len(), external_parameters.len());
-    let payload_lifts = if cases.len() > 1 && payload_level != Level::Constant(0) {
-        cases
-            .iter()
-            .flat_map(|case| case.payload.iter().copied())
-            .collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    };
     let mut b = Builder {
         terms: SourceTerms::default(),
         common,
@@ -670,9 +703,27 @@ pub(super) fn description(
         cases,
         type_parameters,
         external_actuals: &[],
-        payload_level: payload_level.clone(),
-        payload_lifts: &payload_lifts,
+        payload_level: Level::Constant(0),
+        payload_lifts: &[],
     };
+    // Close every entire branch type over the shared telescope. A constraint
+    // can live above all case-local fields, so field domains alone cannot
+    // supply the required lift. No inhabitant of another case is assumed.
+    let functions = b.payload_type_functions(arena, type_domains)?;
+    let context = proof_admission::Context::with_level_arity(level_arity).with_signature(
+        proof_admission::Signature::from_declarations(declarations.to_vec()),
+    );
+    let mut payload_level = Level::Constant(0);
+    for &function in &functions {
+        payload_level = payload_level.maximum(result_sort_level_in(arena, &context, function)?);
+    }
+    let payload_lifts = if cases.len() > 1 && payload_level != Level::Constant(0) {
+        functions
+    } else {
+        Vec::new()
+    };
+    b.payload_level = payload_level.clone();
+    b.payload_lifts = &payload_lifts;
     let carrier = b.carrier();
     let index = b.index_type()?;
     let a = b.terms.fresh();
@@ -1073,7 +1124,7 @@ pub(super) fn induction(
     declarations: &mut Vec<Declaration>,
     type_parameters: &[SymbolHandle],
     external_actuals: &[(SymbolHandle, TermHandle)],
-    payload_lifts: &[(SymbolHandle, TermHandle)],
+    payload_lifts: &[TermHandle],
 ) -> Result<(TermHandle, TermHandle, TermHandle, TermHandle), String> {
     let level_arity = proof_admission::universe_parameter_arity(
         arena,
@@ -1332,6 +1383,163 @@ mod induction_tests {
                 &mut Budget::default()
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn shared_high_universe_constraint_is_lifted_without_assuming_its_truth() {
+        let mut arena = TermArena::new();
+        let mut declarations = indexed_scheme(&mut arena);
+        let a_symbol = SymbolHandle::from_arena_index(71);
+        let x_symbol = SymbolHandle::from_arena_index(72);
+        let y_symbol = SymbolHandle::from_arena_index(73);
+        let a = Key::Source(a_symbol);
+        let x = Key::Source(x_symbol);
+        let y = Key::Source(y_symbol);
+        let sort = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+        let field = lam(a, S::Closed(sort), S::Var(a))
+            .term(&mut arena, &mut Vec::new())
+            .unwrap();
+        let mut terms = SourceTerms::default();
+        let unit = terms.unit().term(&mut arena, &mut Vec::new()).unwrap();
+        let unit_value = terms
+            .unit_value()
+            .term(&mut arena, &mut Vec::new())
+            .unwrap();
+        let high = S::Identity(
+            Box::new(S::Var(a)),
+            Box::new(S::Var(x)),
+            Box::new(S::Var(y)),
+        );
+        let close = |body: S| {
+            lam(
+                a,
+                S::Closed(sort),
+                lam(x, S::Var(a), lam(y, S::Var(a), body)),
+            )
+        };
+        let high = close(high).term(&mut arena, &mut Vec::new()).unwrap();
+        let low = close(S::Closed(unit))
+            .term(&mut arena, &mut Vec::new())
+            .unwrap();
+        let cases = [
+            Case {
+                payload: Vec::new(),
+                constraints: high,
+                child_indices: Vec::new(),
+            },
+            Case {
+                payload: Vec::new(),
+                constraints: low,
+                child_indices: Vec::new(),
+            },
+        ];
+        let described = description(
+            &mut arena,
+            &[(x_symbol, field), (y_symbol, field)],
+            &[],
+            &cases,
+            &[a_symbol],
+            &[a_symbol],
+            &declarations,
+            &[sort],
+            1,
+        )
+        .unwrap();
+        assert_eq!(described.payload_lifts.len(), 2);
+        let family =
+            intern_description(&mut arena, &mut declarations, described.family, &[sort], 1)
+                .unwrap();
+        let signature = check_signature(&mut arena, &declarations, &mut Budget::default()).unwrap();
+        let two = arena.insert(Term::Two);
+        let zero = arena.insert(Term::TwoZero);
+        let one = arena.insert(Term::TwoOne);
+        let mut carrier =
+            proof_admission::instantiate_levels(&mut arena, family.carrier, &[Level::Constant(0)])
+                .unwrap();
+        carrier = arena.insert(Term::Apply {
+            function: carrier,
+            argument: two,
+        });
+        let mut lift_domains = Vec::new();
+        for function in described.payload_lifts {
+            let mut domain =
+                proof_admission::instantiate_levels(&mut arena, function, &[Level::Constant(0)])
+                    .unwrap();
+            for argument in [two, zero, one] {
+                let Term::Lambda { body, .. } = arena.get(domain) else {
+                    unreachable!()
+                };
+                domain = substitute(&mut arena, body, argument);
+            }
+            lift_domains.push(domain);
+        }
+        let lifted = lift_payload(&mut arena, &lift_domains, unit_value).unwrap();
+        let mut label = arena.insert(Term::Pair {
+            first: one,
+            second: lifted,
+        });
+        label = arena.insert(Term::Pair {
+            first: one,
+            second: label,
+        });
+        label = arena.insert(Term::Pair {
+            first: zero,
+            second: label,
+        });
+        check_type(
+            &mut arena,
+            &Context::empty().with_signature(signature),
+            label,
+            carrier,
+            &mut Budget::default(),
+        )
+        .unwrap();
+        // The other branch's Id Two zero one is uninhabited. Its lift needs
+        // only the TYPE, and cannot turn the low branch into that proof.
+        assert!(
+            check_type(
+                &mut arena,
+                &Context::empty(),
+                unit_value,
+                lift_domains[0],
+                &mut Budget::default()
+            )
+            .is_err()
+        );
+
+        // An unused high-universe argument is outside the represented sum.
+        let phantom = lam(a, S::Closed(sort), S::Closed(unit))
+            .term(&mut arena, &mut Vec::new())
+            .unwrap();
+        let phantom_cases = [
+            Case {
+                payload: Vec::new(),
+                constraints: phantom,
+                child_indices: Vec::new(),
+            },
+            Case {
+                payload: Vec::new(),
+                constraints: phantom,
+                child_indices: Vec::new(),
+            },
+        ];
+        let phantom_description = description(
+            &mut arena,
+            &[],
+            &[],
+            &phantom_cases,
+            &[a_symbol],
+            &[a_symbol],
+            &declarations,
+            &[sort],
+            1,
+        )
+        .unwrap();
+        assert!(phantom_described.payload_lifts.is_empty());
+        assert_eq!(
+            phantom_described.family.levels,
+            [Level::Constant(0), Level::Constant(0), Level::Constant(0)]
         );
     }
 

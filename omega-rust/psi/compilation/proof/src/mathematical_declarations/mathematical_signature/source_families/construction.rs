@@ -667,9 +667,12 @@ impl Elaborator<'_> {
         }
         if !family.payload_lifts.is_empty() {
             let mut lift_domains = Vec::new();
-            for &(_, function) in &family.payload_lifts {
+            for &function in &family.payload_lifts {
                 let mut domain = function;
-                for &actual in &type_actuals {
+                for &actual in type_actuals
+                    .iter()
+                    .chain(common.iter().skip(stored_type_count))
+                {
                     let Term::Lambda { body, .. } = self.arena.get(domain) else {
                         return Err(
                             self.refuse("source payload lift lost its Type telescope".into())

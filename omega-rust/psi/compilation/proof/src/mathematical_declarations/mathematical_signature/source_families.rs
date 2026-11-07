@@ -366,7 +366,8 @@ pub(super) struct SourceFamily {
     pub symbol: SymbolHandle,
     pub parameters: Vec<TypeParameter>,
     pub type_levels: Vec<Level>,
-    pub payload_lifts: Vec<(SymbolHandle, TermHandle)>,
+    /// Complete case-type functions over Type parameters and common values.
+    pub payload_lifts: Vec<TermHandle>,
     pub common: Vec<DataField>,
     pub cases: Vec<SourceCase>,
     description_template: IndexedFamily,
@@ -417,7 +418,7 @@ impl SourceFamily {
             out: instantiate(arena, self.description_template.out)?,
             next: instantiate(arena, self.description_template.next)?,
         };
-        for (_, domain) in &mut result.payload_lifts {
+        for domain in &mut result.payload_lifts {
             *domain = instantiate(arena, *domain)?;
         }
         for case in &mut result.cases {
@@ -864,6 +865,11 @@ impl Elaborator<'_> {
                     .insert(Term::Sort(Sort::Type(type_levels[ordinal].clone())))
             })
             .collect::<Vec<_>>();
+        let type_domains = type_levels
+            .iter()
+            .cloned()
+            .map(|level| self.arena.insert(Term::Sort(Sort::Type(level))))
+            .collect::<Vec<_>>();
         let description = terms::description(
             &mut self.arena,
             &common_pairs,
@@ -872,7 +878,7 @@ impl Elaborator<'_> {
             &type_symbols,
             &external_symbols,
             &self.declarations,
-            &external_domains,
+            &type_domains,
             type_levels.len() as u32,
         )
         .map_err(|error| self.refuse(error.into()))?;

@@ -1377,6 +1377,7 @@ impl Scope<'_> {
                             .iter()
                             .any(|(_, carrier)| {
                                 carrier.domains.is_empty()
+                                    && carrier.level_arity == 0
                                     && carrier.type_identity == evidence.type_identity
                                     && carrier.ty == evidence.ty
                             })

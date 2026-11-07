@@ -298,7 +298,7 @@ impl Elaborator<'_> {
             .source_carriers
             .iter()
             .filter_map(|(_, carrier)| {
-                carrier.domains.is_empty().then_some((
+                (carrier.domains.is_empty() && carrier.level_arity == 0).then_some((
                     carrier.source_type,
                     carrier.type_identity,
                     carrier.ty,
