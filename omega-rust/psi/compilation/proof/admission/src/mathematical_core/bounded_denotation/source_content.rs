@@ -41,8 +41,8 @@ impl SourceContentTheory {
 mod tests {
     use super::*;
     use crate::{
-        Budget, Context, DEFAULT_CONVERSION_STEPS, Signature, Sort, Term, check_signature,
-        check_type, convertible,
+        Budget, Context, DEFAULT_CONVERSION_STEPS, Sort, Term, check_signature, check_type,
+        convertible,
     };
 
     #[test]
@@ -97,36 +97,30 @@ mod tests {
                 Level::Constant(0),
             )
             .unwrap();
-        let signature = Signature::from_declarations(declarations);
-        check_signature(
+        let signature = check_signature(
             &mut arena,
-            &signature,
+            &declarations,
             &mut Budget::new(DEFAULT_CONVERSION_STEPS),
         )
         .unwrap();
         let context = Context::empty().with_signature(signature);
-        check_type(
-            &mut arena,
-            &context,
-            concrete,
-            type_zero,
-            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
-        )
-        .unwrap();
-        check_type(
-            &mut arena,
-            &context,
-            higher,
-            type_zero,
-            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
-        )
-        .unwrap();
+        for value in [applied, concrete, higher, intervals] {
+            check_type(
+                &mut arena,
+                &context,
+                value,
+                type_zero,
+                &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+            )
+            .unwrap();
+        }
         assert!(
             convertible(
                 &mut arena,
                 &context,
                 applied,
                 concrete,
+                type_zero,
                 &mut Budget::new(DEFAULT_CONVERSION_STEPS)
             )
             .unwrap()
@@ -137,6 +131,7 @@ mod tests {
                 &context,
                 concrete,
                 intervals,
+                type_zero,
                 &mut Budget::new(DEFAULT_CONVERSION_STEPS)
             )
             .unwrap()
