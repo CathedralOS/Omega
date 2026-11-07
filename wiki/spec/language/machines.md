@@ -287,7 +287,7 @@ An ordinary call resumes its continuation on normal return. A machine call in a
 terminal `transition` arm forwards its normal result as the current invocation's
 result, with no continuation in that invocation. A nested machine's return is
 local to that invocation: it does not return from arbitrary lexical ancestors.
-Both forms use the same contract, exact call acknowledgements and explicit
+Both forms use the same contract, required call acknowledgements and explicit
 arguments. The distinction is call position, never nesting depth.
 [Invocation contracts](state_contracts.md#terminal-calls-in-transition-arms)
 owns argument, result, cleanup and fact obligations.

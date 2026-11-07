@@ -78,11 +78,11 @@ command list below does not imply a new build-dependency CLI option.
 ## Install and update
 
 ```text
-omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>]
-omega update [package-or-alias...] [--to <revision>]
-omega install --resume
-omega update --resume
-omega <install|update> --discard-review
+omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>]
+omega packages update [package-or-alias...] [--to <revision>]
+omega packages install --resume
+omega packages update --resume
+omega packages <install|update> --discard-review
 ```
 
 The command resolves and checks the candidate, then compares it with `omega.lock`.
@@ -151,7 +151,7 @@ Project package acceptance and build-host grants do not authorize execution ther
 ## Inspect without accepting
 
 ```text
-omega audit packages [--project <dir>] [--target <name>]... [--details]
+omega packages audit [--project <dir>] [--target <name>]... [--details]
 ```
 
 Inspection shows fresh graph, API, authority, and assumption findings beside

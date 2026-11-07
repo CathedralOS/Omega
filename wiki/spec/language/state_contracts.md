@@ -165,7 +165,7 @@ Argument admission, result compatibility, machine postconditions, cleanup,
 crash and no-normal-return behavior are the ordinary call-and-completion rules.
 Only the selected arm executes, with ordinary once-only operand evaluation.
 
-Terminal machine calls accept the same exact operational acknowledgements as
+Terminal machine calls accept the same operational acknowledgements as
 other calls:
 
 ```omega
@@ -184,10 +184,11 @@ Tail-call lowering may remove unnecessary control state only while preserving
 all live backing, loans, custody and completion obligations. Recursive runtime
 calls still obey the no-accumulated-frames rule.
 
-Nested machine calls have no marker exemption. Their exact call envelope
-determines `suspend` and `block`, including in terminal position, even when
-lowering later implements the call with a jump. Markers do not redirect name
-resolution. Missing, partial or redundant call markers reject under
+Nested machine calls have no marker exemption. Their checked call envelope
+determines the required `suspend` and `block` acknowledgements, including in
+terminal position, even when lowering later implements the call with a jump.
+Markers do not redirect name resolution. Missing or partial acknowledgements
+reject; redundant markers remain permitted under
 [effects](effects.md#call-site-acknowledgements). The same
 [borrow/carry requirements](../resources/carry.md#borrows-across-suspension)
 apply in a terminal arm as at any other suspending call.

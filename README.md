@@ -523,7 +523,7 @@ not host paths. A directory includes its subtree. Include every consumed root
 source file; missing required entries, duplicate or nested declarations reject.
 Optional missing entries stay absent. Package preparation captures the editable
 project without changing its permissions; dependencies retain their own inputs.
-The options apply to compilation, `--check`, `omega audit packages`, and new
+The options apply to compilation, `--check`, `omega packages audit`, and new
 package install/update commands, not `run`. Pass the same inventory through
 review, audit, and compilation. A pending review retains its selection;
 `--resume` uses it without repeating or overriding the input flags. Audit never
@@ -534,7 +534,8 @@ still needs ordinary package acceptance.
 
 For a full application, start with the [CLI example](samples/cli/basics/cli_mvp/README.md).
 Its instructions distinguish the intended result from the current compiler
-limitations.
+limitations. The [command-line contract](wiki/spec/build/command_line.md) defines
+subsystem routing, optional source rewriting and independent validator selection.
 
 ## Compiler Pipeline
 
@@ -548,10 +549,10 @@ flowchart LR
     psi --> interpret["Interpreter"]
 ```
 
-Terminal Psi is the portable output of source checking. Interpreters and native
+Psi is the portable output of source checking. Interpreters and native
 backends consume the same program; receivers check its structure, contracts and
 authority while relying on Psi's source judgments. Development tests compare
-native execution with the Terminal interpreter using `omega run --both`.
+native execution with the Psi interpreter using `omega run --both`.
 The compiler's transformations remain trusted; execution agreement covers the
 tested inputs and observations.
 [Follow the pipeline →](omega-rust/pipeline.md#verification-placement)

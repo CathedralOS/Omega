@@ -453,7 +453,7 @@ machine start() reaches Console + ProcessExit {
           { for: 2, text: "`Build::application` declares an executable root (libraries use `Build::package`; workspaces use `Build::member`). Mixing or repeating kinds is rejected." },
           { for: 3, text: "`Build::depend` pulls in the standard library from a source path or Git revision so `main.omg` can `use omega_language_std::console`." },
           { for: 6, text: "`Build::bind` connects a target's `ProgramEntry` slot to the free entry machine `start`. Naming `start` selects the entry without allocating hidden state." },
-          { for: 8, text: "Because `ProgramEntry`'s schema comes from a dependency (`std`), the package manager requires an accepted `omega update` review recorded in `omega.lock`." },
+          { for: 8, text: "Because `ProgramEntry`'s schema comes from a dependency (`std`), the package manager requires an accepted `omega packages update` review recorded in `omega.lock`." },
           { for: 11, text: "Each hosted target (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) binds its own `ProgramEntry` to the same portable `start` machine." },
           { text: "Read `build.omg` first when reviewing a package: it shows every dependency, provider selection, and target entry point in one place." },
         ],
@@ -527,14 +527,14 @@ machine main() reaches Console + ProcessExit {
           head: ["Verification step", "What it actually establishes"],
           rows: [
             ["`omega --check` passes", "Types, range proofs, affine moves, exhaustive transitions, and `reaches` ceilings all hold statically."],
-            ["`omega run --both` passes", "The Terminal Psi reference interpreter and the compiled native binary execute and agree on the outcome."],
+            ["`omega run --both` passes", "The Psi reference interpreter and the compiled native binary execute and agree on the outcome."],
             ["Output bytes inspected", "Stdout bytes, space padding, line endings, and the exit code match the specification."],
             ["`--check` alone", "Proves the program is safe to run, not that a constant return or wrong formula solved the problem."],
           ],
         },
         notes: [
           { text: "Choose test inputs whose expected result can only appear if the state machine genuinely ran its loop." },
-          { text: "In the Omega repository, every capability fact row must pass `omega run --both` (Terminal Psi + native execution agreement), not `--check` alone." },
+          { text: "In the Omega repository, every capability fact row must pass `omega run --both` (Psi + native execution agreement), not `--check` alone." },
         ],
       },
       {

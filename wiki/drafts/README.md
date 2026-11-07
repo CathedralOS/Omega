@@ -148,6 +148,10 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Conservative markers and subsystem CLI](designs/operational_markers_and_cli.md):
+  migration and acceptance for source rewriting, validator selection and public
+  Psi naming; delete when the owning implementation tasks close.
+
 - [Callback composition and explicit field omissions](designs/callback_composition_and_explicit_defaults.md):
   ratified source rules and compiler acceptance for `..`, forwarded callback
   requirements and suspension/blocking dependencies; delete this migration

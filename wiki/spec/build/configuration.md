@@ -141,7 +141,7 @@ or execution authority. Those remain subject to
 
 [Requirement-based tests](testing.md) register exact product machine requirements
 through `builder.tests.group<Requirement>()`. Each enabled group collects its
-package-local concrete satisfiers for Terminal Psi execution before successful
+package-local concrete satisfiers for Psi execution before successful
 publication. Groups own provider configuration, not new authority. Root grants
 can only be attenuated; selecting a real provider cannot escape virtual backing.
 The group and global `disabled` fields default to false. No registered groups

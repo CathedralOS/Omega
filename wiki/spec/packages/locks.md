@@ -134,7 +134,7 @@ occurrence's source identity and compiler input identity with the lock. This
 includes the local root: source edits are not an exception. A match consumes
 the occurrence's accepted bindings without package-review discovery/bound
 passes. A mismatch rejects, names the package, and directs the user to
-`omega update`; compilation does not audit inline or silently renew acceptance.
+`omega packages update`; compilation does not audit inline or silently renew acceptance.
 Dependency product checking follows the modules named by the consumer's `use`
 items and their transitive imports, not each dependency's package root.
 

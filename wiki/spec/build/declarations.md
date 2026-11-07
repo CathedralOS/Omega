@@ -18,7 +18,7 @@ Project description is one logical interpreted Omega activation, not a
 privileged syntax subset or replayed discovery program. Psi checks and admits
 the initial prefix against core, local Build declarations and available exact
 dependencies, then resumes subsequent checked continuations as dependencies
-are explicitly prepared. The Terminal interpreter preserves the same mutable
+are explicitly prepared. The Psi interpreter preserves the same mutable
 Build and live storage without rerunning earlier statements. The compiler owns
 stage checking, dependency/source identity and publication; ordinary libraries
 own filesystem and attenuation algorithms. No source-text call scanner decides
