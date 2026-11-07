@@ -479,7 +479,7 @@ pub(crate) fn retained_callable_signatures(
     program
         .traits()
         .iter()
-        .flat_map(|definition| program.trait_machine_signatures(definition))
+        .flat_map(move |definition| program.trait_machine_signatures(definition))
         .chain(program.prepared_callable_signatures())
         .chain(
             machine_parameter_contract_signatures(program)
