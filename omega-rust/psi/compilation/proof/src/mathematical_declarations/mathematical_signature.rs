@@ -225,7 +225,7 @@ struct Elaborator<'a> {
     identity_declaration: Option<u32>,
     type_returning_declarations: Vec<SymbolHandle>,
     identity_emissions: Vec<identity::IdentityEmission>,
-    identity_emissions_by_owner: Vec<(SymbolHandle, Vec<usize>)>,
+    identity_requirements_by_owner: Vec<identity::IdentityRequirements>,
 }
 
 /// Elaborate every mathematical declaration of `program` into a kernel
@@ -291,8 +291,8 @@ pub(crate) fn check_mathematical_signature(
         identity_declaration: None,
         type_returning_declarations: Vec::new(),
         identity_emissions: Vec::new(),
-        identity_emissions_by_owner: vec![
-            (SymbolHandle::default(), Vec::new());
+        identity_requirements_by_owner: vec![
+            identity::IdentityRequirements::default();
             program.symbols.symbols().len()
         ],
     };
@@ -524,7 +524,9 @@ impl<'a> Elaborator<'a> {
                     .to_vec();
                 if symbol.is_valid() {
                     let name = members.last().cloned().unwrap_or_default();
-                    return self.named_term(symbol, &name);
+                    let term = self.named_term(symbol, &name)?;
+                    self.transport_identity_value(symbol, &[], &[], term, &[])?;
+                    return Ok(term);
                 }
                 match members.as_slice() {
                     [name] => {
@@ -602,7 +604,7 @@ impl<'a> Elaborator<'a> {
                     });
                     inputs.push(input);
                 }
-                self.transport_identity_emissions(&call, callee, &inputs)?;
+                self.transport_identity_requirements(&call, callee, &inputs)?;
                 Ok(self.apply_source_inputs(handle, callee, inputs))
             }
             ExpressionNode::Integer(literal) => {

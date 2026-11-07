@@ -181,18 +181,30 @@ fn replace_endpoint(module: &mut terminal_psi::TerminalModule) -> Result<usize, 
             domains.push(domain);
             body = next;
         }
+        let original = body;
         body = weak_head_normalize(&mut decoded.arena, &signature, body, &mut Budget::default())
             .map_err(|error| format!("Id subject mutant reduction: {error:?}"))?;
-        let Term::Id { ty, left, right } = decoded.arena.get(body) else {
+        let Term::Id { left, right, .. } = decoded.arena.get(body) else {
             continue;
         };
         if decoded.arena.structurally_equal(left, right) {
             continue;
         }
-        body = decoded.arena.insert(Term::Id {
-            ty,
-            left,
-            right: left,
+        // Keep the emitted sealed application itself. Unfolding it to raw
+        // Id would change the exact source judgment even without a tamper.
+        let Term::Apply { function, .. } = decoded.arena.get(original) else {
+            return Err("Id subject mutant has no emitted endpoint application".into());
+        };
+        let Term::Apply {
+            argument: original_left,
+            ..
+        } = decoded.arena.get(function)
+        else {
+            return Err("Id subject mutant lost its first endpoint".into());
+        };
+        body = decoded.arena.insert(Term::Apply {
+            function,
+            argument: original_left,
         });
         for domain in domains.into_iter().rev() {
             body = decoded.arena.insert(Term::Lambda { domain, body });

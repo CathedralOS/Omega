@@ -22,9 +22,11 @@ pub(super) struct SourceAlias {
     pub carrier: ScalarCarrier,
 }
 
+#[derive(Clone)]
 pub(super) struct SourceInput {
     pub expression: ExpressionHandle,
     pub term: TermHandle,
+    pub identity_emissions: std::ops::Range<usize>,
     /// A source-typed ordinary value's complete domain. Mathematical function
     /// terms instead use their instantiated calculus telescope directly.
     pub domain: Option<TermHandle>,
@@ -84,12 +86,15 @@ impl Elaborator<'_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Result<SourceInput, Vec<Diagnostic>> {
+        let emission_start = self.identity_emissions.len();
         let term = self.elaborate_expression(expression)?;
+        let emissions = emission_start..self.identity_emissions.len();
         let domain = self.source_expression_domain(expression)?;
         Ok(SourceInput {
             expression,
             term,
             domain,
+            identity_emissions: emissions,
         })
     }
 
@@ -144,6 +149,7 @@ impl Elaborator<'_> {
             expression,
             term,
             domain: None,
+            identity_emissions: 0..0,
         })
     }
 
@@ -266,6 +272,7 @@ impl Elaborator<'_> {
                     expression,
                     term,
                     domain,
+                    identity_emissions: 0..0,
                 },
             },
             domains: self.scope.iter().map(|entry| entry.domain).collect(),

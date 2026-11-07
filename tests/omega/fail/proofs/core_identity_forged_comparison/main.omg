@@ -13,6 +13,5 @@ requires left == right
 {
     require_identity(left, right);
 }
-machine main() {
-    forged(Pair { first: 1u8, last: 2u8 }, Pair { first: 3u8, last: 4u8 });
-}
+// The checked body above must reject under the selected comparison premise.
+machine main() { }

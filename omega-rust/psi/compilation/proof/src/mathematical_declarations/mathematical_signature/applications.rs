@@ -288,6 +288,7 @@ impl Elaborator<'_> {
                 expression: ExpressionHandle::default(),
                 term,
                 domain,
+                identity_emissions: 0..0,
             })
             .collect();
         Ok(self.apply_source_inputs(expression, callee, inputs))

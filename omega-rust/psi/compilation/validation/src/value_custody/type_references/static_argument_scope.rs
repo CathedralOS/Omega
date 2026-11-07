@@ -18,6 +18,12 @@ impl<'program> StaticTypeArgumentOwner<'program> {
         if let Some(machine) = program.machine_declaration_for_lexical_scope(owner) {
             return Some(Self::Machine(machine));
         }
+        if let Some((declaration, signature)) = program.trait_machine_signature(owner) {
+            return Some(Self::TraitSignature {
+                declaration,
+                signature,
+            });
+        }
         if let Some(data) = program.data_definition_by_symbol(owner) {
             return Some(Self::Data(data));
         }
@@ -52,6 +58,20 @@ impl<'program> StaticTypeArgumentOwner<'program> {
                 Cow::Borrowed(data.lifetime_parameters.as_slice()),
                 data.symbol,
             ),
+            Self::TraitSignature {
+                declaration,
+                signature,
+            } => {
+                let mut types = program.state_signature_type_parameters(signature).to_vec();
+                let mut lifetimes = signature.lifetime_parameters.clone();
+                append_scope(
+                    &mut types,
+                    &mut lifetimes,
+                    program.trait_type_parameters(declaration),
+                    &declaration.lifetime_parameters,
+                );
+                (Cow::Owned(types), Cow::Owned(lifetimes), signature.symbol)
+            }
             Self::Constant { symbol, .. } => {
                 let (types, lifetimes) = constant_parameters(program, symbol);
                 (Cow::Owned(types), Cow::Owned(lifetimes), symbol)

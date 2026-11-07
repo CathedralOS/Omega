@@ -97,6 +97,10 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 pub enum StaticTypeArgumentOwner<'program> {
     Machine(&'program typed_trees::machine::Machine),
     Data(&'program typed_trees::data::DataDefinition),
+    TraitSignature {
+        declaration: &'program typed_trees::trait_definition::TraitDefinition,
+        signature: &'program typed_trees::signature::StateSignature,
+    },
     Constant {
         symbol: symbols::SymbolHandle,
         name: &'program str,
@@ -365,6 +369,16 @@ impl fmt::Display for TypeReferenceOwner<'_> {
                     }
                     StaticTypeArgumentOwner::Data(data) => {
                         write!(formatter, "data `{}`", data.name)?;
+                    }
+                    StaticTypeArgumentOwner::TraitSignature {
+                        declaration,
+                        signature,
+                    } => {
+                        write!(
+                            formatter,
+                            "trait `{}` requirement `{}`",
+                            declaration.name, signature.name
+                        )?;
                     }
                     StaticTypeArgumentOwner::Constant { name, .. } => {
                         write!(formatter, "constant `{name}`")?;

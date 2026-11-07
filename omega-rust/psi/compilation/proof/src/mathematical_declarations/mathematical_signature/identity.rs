@@ -144,17 +144,19 @@ impl Elaborator<'_> {
                 body: abstraction,
             });
         }
-        let Some((owner, emissions)) = self
-            .identity_emissions_by_owner
+        let Some(requirements) = self
+            .identity_requirements_by_owner
             .get_mut(self.source_owner.arena_index() as usize)
         else {
             return Err(self.refuse("Id emission has no retained source owner".into()));
         };
-        if *owner != self.source_owner {
-            *owner = self.source_owner;
-            emissions.clear();
+        if requirements.owner != self.source_owner {
+            *requirements = IdentityRequirements {
+                owner: self.source_owner,
+                ..Default::default()
+            };
         }
-        emissions.push(self.identity_emissions.len());
+        requirements.emissions.push(self.identity_emissions.len());
         self.identity_emissions.push(IdentityEmission {
             value,
             abstraction,
@@ -166,24 +168,68 @@ impl Elaborator<'_> {
         Ok(())
     }
 
-    pub(super) fn transport_identity_emissions(
+    pub(super) fn transport_identity_requirements(
         &mut self,
         call: &TableCallExpression,
+        callee: TermHandle,
+        inputs: &[super::source_domains::SourceInput],
+    ) -> Result<(), Vec<Diagnostic>> {
+        let actuals = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments);
+        self.transport_identity_value(
+            call.target_symbol,
+            &call.machine_arguments,
+            actuals,
+            callee,
+            inputs,
+        )
+    }
+
+    pub(super) fn transport_identity_value(
+        &mut self,
+        target: SymbolHandle,
+        static_arguments: &[StaticMachineArgument],
+        actuals: &[ExpressionHandle],
         mut callee: TermHandle,
         inputs: &[super::source_domains::SourceInput],
     ) -> Result<(), Vec<Diagnostic>> {
-        let emitted = self
-            .identity_emissions_by_owner
-            .get(call.target_symbol.arena_index() as usize)
-            .filter(|(owner, _)| *owner == call.target_symbol)
-            .into_iter()
-            .flat_map(|(_, positions)| positions)
-            .map(|position| self.identity_emissions[*position].clone())
-            .collect::<Vec<_>>();
-        if emitted.is_empty() {
+        if !self.authored_index.contains_key(&target) {
+            if self.scope.iter().any(|entry| entry.symbol == Some(target)) {
+                let mut value = callee;
+                for input in inputs {
+                    value = self.arena.insert(Term::Apply {
+                        function: value,
+                        argument: input.term,
+                    });
+                }
+                self.record_identity_application(IdentityApplication {
+                    parameter: target,
+                    value,
+                    abstraction: value,
+                    arguments: inputs.iter().map(|input| input.expression).collect(),
+                    source_scopes: Vec::new(),
+                    pending: Vec::new(),
+                })?;
+            }
             return Ok(());
         }
-        let Some(&index) = self.authored_index.get(&call.target_symbol) else {
+        let requirements = self
+            .identity_requirements_by_owner
+            .get(target.arena_index() as usize)
+            .filter(|requirements| requirements.owner == target)
+            .cloned()
+            .unwrap_or_default();
+        if requirements.emissions.is_empty() && requirements.applications.is_empty() {
+            return Ok(());
+        }
+        let emitted = requirements
+            .emissions
+            .iter()
+            .map(|position| self.identity_emissions[*position].clone())
+            .collect::<Vec<_>>();
+        let Some(&index) = self.authored_index.get(&target) else {
             return Err(self.refuse("Id value lost its mathematical declaration owner".into()));
         };
         let definition = &self.program.mathematical_definitions()[index];
@@ -191,15 +237,11 @@ impl Elaborator<'_> {
             .program
             .data_type_parameters
             .span_or_empty(definition.binders);
-        let plan = source_generic_argument_plan(
-            self.program,
-            binders,
-            &call.machine_arguments,
-            &self.fixed_core,
-        )
-        .ok_or_else(|| {
-            self.refuse("Id value lost its checked generic application telescope".into())
-        })?;
+        let plan =
+            source_generic_argument_plan(self.program, binders, static_arguments, &self.fixed_core)
+                .ok_or_else(|| {
+                    self.refuse("Id value lost its checked generic application telescope".into())
+                })?;
         let mut arguments = Vec::new();
         for slot in plan {
             if matches!(slot.kind, MathematicalBinderKind::Level) {
@@ -214,10 +256,6 @@ impl Elaborator<'_> {
             ));
         }
         let formals = self.program.mathematical_parameters(definition.parameters);
-        let actuals = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
         arguments.extend(
             formals.iter().zip(actuals).map(|(formal, actual)| {
                 (formal.symbol, IdentitySourceArgument::Expression(*actual))
@@ -238,37 +276,35 @@ impl Elaborator<'_> {
             return Err(self.refuse("Id application has no checked constant spine".into()));
         };
         for row in emitted {
-            let mut value =
-                proof_admission::instantiate_levels(&mut self.arena, row.abstraction, &levels)
-                    .map_err(|level| {
-                        self.refuse(format!("Id application lost universe parameter {level}"))
-                    })?;
-            for argument in &operands {
-                value = self.arena.insert(Term::Apply {
-                    function: value,
-                    argument: *argument,
+            let value =
+                self.instantiate_identity_requirement(row.abstraction, &levels, &operands)?;
+            self.retain_instantiated_identity(row, value, &scope, formals, actuals, &[])?;
+        }
+        let static_arity = operands.len() - inputs.len();
+        for mut application in requirements.applications {
+            let ordinal = formals
+                .iter()
+                .position(|formal| formal.symbol == application.parameter)
+                .or_else(|| {
+                    application
+                        .pending
+                        .iter()
+                        .position(|parameter| parameter.binder == application.parameter)
+                        .map(|position| formals.len() + position)
                 });
-            }
-            // New caller scopes precede the retained callee scopes: each
-            // supplied operand sees its original outer telescope once.
-            let mut scopes = Vec::with_capacity(row.source_scopes.len() + 1);
-            scopes.push(scope.clone());
-            scopes.extend(row.source_scopes);
-            let trailing = actuals.iter().skip(formals.len()).collect::<Vec<_>>();
-            for (parameter, actual) in row.pending.iter().zip(&trailing) {
-                let Some(scope) = scopes
-                    .iter_mut()
-                    .find(|scope| scope.declaration == parameter.declaration)
-                else {
-                    return Err(
-                        self.refuse("Id prefix application lost its supplying telescope".into())
-                    );
-                };
-                scope.arguments.push((
-                    parameter.binder,
-                    IdentitySourceArgument::Expression(**actual),
-                ));
-            }
+            let Some(ordinal) = ordinal else {
+                return Err(self.refuse("Id function application lost its exact formal".into()));
+            };
+            let trailing = actuals
+                .iter()
+                .skip(formals.len())
+                .copied()
+                .collect::<Vec<_>>();
+            self.complete_identity_scopes(
+                &mut application.source_scopes,
+                &application.pending,
+                &trailing,
+            )?;
             let mut pending = formals
                 .iter()
                 .skip(actuals.len())
@@ -277,15 +313,170 @@ impl Elaborator<'_> {
                     binder: formal.symbol,
                 })
                 .collect::<Vec<_>>();
-            pending.extend(row.pending.into_iter().skip(trailing.len()));
-            self.record_identity_emission(
-                value,
-                row.source_type,
-                row.source_owner,
-                scopes,
-                pending,
-            )?;
+            pending.extend(application.pending.iter().skip(trailing.len()).cloned());
+            application.pending = pending;
+            let Some(input) = inputs.get(ordinal) else {
+                // An unapplied function formal stays in the checked closure;
+                // the next prefix application will supply its requirements.
+                let value = self.instantiate_identity_requirement(
+                    application.abstraction,
+                    &levels,
+                    &operands,
+                )?;
+                let mut application = application;
+                application.value = value;
+                application.source_scopes.insert(0, scope.clone());
+                self.record_identity_application(application)?;
+                continue;
+            };
+            let rows = input
+                .identity_emissions
+                .clone()
+                .map(|position| self.identity_emissions[position].clone())
+                .collect::<Vec<_>>();
+            for row in rows {
+                let mut actuals = operands.clone();
+                actuals[static_arity + ordinal] = row.value;
+                let value = self.instantiate_identity_requirement(
+                    application.abstraction,
+                    &levels,
+                    &actuals,
+                )?;
+                let mut row = row;
+                row.source_scopes
+                    .splice(0..0, application.source_scopes.clone());
+                self.retain_instantiated_identity(
+                    row,
+                    value,
+                    &scope,
+                    formals,
+                    actuals,
+                    &application.arguments,
+                )?;
+            }
+            if let typed_trees::expression::ExpressionNode::Name(path) =
+                self.program.expression_table.expression(input.expression)
+                && self
+                    .scope
+                    .iter()
+                    .any(|entry| entry.symbol == Some(path.symbol))
+            {
+                let value = self.instantiate_identity_requirement(
+                    application.abstraction,
+                    &levels,
+                    &operands,
+                )?;
+                let mut application = application;
+                application.parameter = path.symbol;
+                application.value = value;
+                application.source_scopes.insert(0, scope.clone());
+                self.record_identity_application(application)?;
+            }
         }
+        Ok(())
+    }
+
+    fn instantiate_identity_requirement(
+        &mut self,
+        abstraction: TermHandle,
+        levels: &[Level],
+        arguments: &[TermHandle],
+    ) -> Result<TermHandle, Vec<Diagnostic>> {
+        let mut value = proof_admission::instantiate_levels(&mut self.arena, abstraction, levels)
+            .map_err(|level| {
+            self.refuse(format!("Id application lost universe parameter {level}"))
+        })?;
+        for argument in arguments {
+            value = self.arena.insert(Term::Apply {
+                function: value,
+                argument: *argument,
+            });
+        }
+        Ok(value)
+    }
+
+    fn retain_instantiated_identity(
+        &mut self,
+        row: IdentityEmission,
+        value: TermHandle,
+        scope: &IdentitySourceScope,
+        formals: &[typed_trees::mathematical::MathematicalParameter],
+        actuals: &[ExpressionHandle],
+        function_arguments: &[ExpressionHandle],
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut scopes = Vec::with_capacity(row.source_scopes.len() + 1);
+        scopes.push(scope.clone());
+        scopes.extend(row.source_scopes);
+        let trailing = actuals
+            .iter()
+            .skip(formals.len())
+            .copied()
+            .collect::<Vec<_>>();
+        let supplied = function_arguments
+            .iter()
+            .copied()
+            .chain(trailing)
+            .collect::<Vec<_>>();
+        self.complete_identity_scopes(&mut scopes, &row.pending, &supplied)?;
+        let mut pending = formals
+            .iter()
+            .skip(actuals.len())
+            .map(|formal| IdentitySourceParameter {
+                declaration: scope.declaration,
+                binder: formal.symbol,
+            })
+            .collect::<Vec<_>>();
+        pending.extend(row.pending.into_iter().skip(supplied.len()));
+        self.record_identity_emission(value, row.source_type, row.source_owner, scopes, pending)
+    }
+
+    fn complete_identity_scopes(
+        &self,
+        scopes: &mut [IdentitySourceScope],
+        pending: &[IdentitySourceParameter],
+        supplied: &[ExpressionHandle],
+    ) -> Result<(), Vec<Diagnostic>> {
+        for (parameter, actual) in pending.iter().zip(supplied) {
+            let Some(scope) = scopes
+                .iter_mut()
+                .find(|scope| scope.declaration == parameter.declaration)
+            else {
+                return Err(
+                    self.refuse("Id prefix application lost its supplying telescope".into())
+                );
+            };
+            scope.arguments.push((
+                parameter.binder,
+                IdentitySourceArgument::Expression(*actual),
+            ));
+        }
+        Ok(())
+    }
+
+    fn record_identity_application(
+        &mut self,
+        mut application: IdentityApplication,
+    ) -> Result<(), Vec<Diagnostic>> {
+        application.abstraction = application.value;
+        for entry in self.scope.iter().rev() {
+            application.abstraction = self.arena.insert(Term::Lambda {
+                domain: entry.domain,
+                body: application.abstraction,
+            });
+        }
+        let Some(requirements) = self
+            .identity_requirements_by_owner
+            .get_mut(self.source_owner.arena_index() as usize)
+        else {
+            return Err(self.refuse("Id function application has no retained source owner".into()));
+        };
+        if requirements.owner != self.source_owner {
+            *requirements = IdentityRequirements {
+                owner: self.source_owner,
+                ..Default::default()
+            };
+        }
+        requirements.applications.push(application);
         Ok(())
     }
 
@@ -404,4 +595,24 @@ enum IdentitySourceArgument {
 struct IdentitySourceParameter {
     declaration: SymbolHandle,
     binder: SymbolHandle,
+}
+
+/// Requirements are retained on the checked mathematical value's owner. A
+/// function formal records its typed application closure until an actual
+/// supplies the emissions; the same level/beta substitution transports both.
+#[derive(Clone, Default)]
+pub(super) struct IdentityRequirements {
+    owner: SymbolHandle,
+    emissions: Vec<usize>,
+    applications: Vec<IdentityApplication>,
+}
+
+#[derive(Clone)]
+struct IdentityApplication {
+    parameter: SymbolHandle,
+    value: TermHandle,
+    abstraction: TermHandle,
+    arguments: Vec<ExpressionHandle>,
+    source_scopes: Vec<IdentitySourceScope>,
+    pending: Vec<IdentitySourceParameter>,
 }
