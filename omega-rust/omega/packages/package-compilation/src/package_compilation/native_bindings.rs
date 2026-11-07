@@ -1,6 +1,8 @@
-//! Native choices are a facet of the one complete dependency Build handoff.
-//! Formation, evaluated locators and the original Terminal execution travel
-//! together; this retained output supplies no foreign execution authority.
+// Native binding declarations, evaluated locators, and Terminal evaluation
+// custody (`NativeBuildOutputs`, `NativeBindingProduction`,
+// `PackageNativeBindingOrigin`) carried inside `PackageBuildHandoff`. Admitting
+// native declarations into a receiving compilation uses the same immutable
+// source admission as retained provider selections.
 
 use super::PackageBuildHandoff;
 use effects::provider_plan::EvaluatedNativeBinding;
@@ -82,9 +84,6 @@ impl NativeBuildOutputs {
 }
 
 impl super::PackageCompilationInputs {
-    /// Admit native declaration anchors by the same immutable source operation
-    /// as retained provider choices. Psi independently rejoins exact symbols
-    /// and checks the original direct dependency and temporal scope afterward.
     pub fn admit_package_native_declarations(
         &self,
         handoff: &PackageBuildHandoff,
@@ -101,8 +100,6 @@ impl super::PackageCompilationInputs {
             .collect()
     }
 
-    /// Relative import purpose, rather than the producer's own purpose, decides
-    /// whether these outputs may supply the receiving Product.
     pub fn product_dependency_native_handoffs(&self) -> impl Iterator<Item = &PackageBuildHandoff> {
         self.dependency_build_handoff_instances()
             .filter(|(scope, _)| *scope == build_declarations::DependencyPurpose::Product)

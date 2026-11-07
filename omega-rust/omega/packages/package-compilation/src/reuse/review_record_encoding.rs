@@ -1,19 +1,14 @@
-//! Encoding vocabulary shared by both halves of the compiled-review cache:
-//! the input digests and build-record codec in this crate, and the package
-//! manager's record key and record codec.
-//!
-//! Each tag table exists once, so a digest and a record can never disagree
-//! about the byte a value takes. The tags are persisted wire format: an
-//! existing tag never changes meaning, and a new variant takes a new tag.
-//! Length framing itself (`push_framed`, `ObservationCursor`) is the checked
-//! interpreter's observation codec.
+// Shared wire-encoding tag tables for both halves of the compiled-review cache:
+// the input digests and build-record codec in `package-compilation`, and the
+// package manager's persisted review record keys and codecs. Each tag table
+// exists once so digests and persisted records never diverge on wire byte
+// values.
 
 use crate::{AcceptedSemanticBindingRole, BuildDeclarationKind};
 use build_declarations::DependencyPurpose;
 use effects::TerminalAuthorityClass;
 use filesystem_authority::observation_codec::ObservationCursor;
 
-/// Write `0` for an absent value, or `1` followed by the encoded value.
 pub fn encode_optional<T>(value: Option<&T>, out: &mut Vec<u8>, encode: impl Fn(&T, &mut Vec<u8>)) {
     match value {
         Some(value) => {
@@ -24,8 +19,6 @@ pub fn encode_optional<T>(value: Option<&T>, out: &mut Vec<u8>, encode: impl Fn(
     }
 }
 
-/// Read what `encode_optional` wrote. Any presence byte other than `0` or
-/// `1`, or a present value that fails to decode, is a decode failure.
 pub fn recover_optional<'a, T>(
     cursor: &mut ObservationCursor<'a>,
     decode: impl Fn(&mut ObservationCursor<'a>) -> Option<T>,

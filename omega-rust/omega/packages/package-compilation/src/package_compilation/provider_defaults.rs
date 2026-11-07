@@ -1,8 +1,10 @@
-//! Completed default choices retain their actual supplier and Build observation.
-//!
-//! Package and captured toolchain sources keep distinct custody. This value
-//! transports executed choices; it grants neither private nameability nor
-//! Build execution authority. Product source still rejoins exact declarations.
+// Completed default provider choices (`CompletedProviderDefaults`) and their
+// admission contract (`ProviderDefaultsAdmission`). Package handoffs and
+// captured `core` toolchain builds keep distinct source custody; rejoining
+// default selections into a receiving `Product` or `Build` compilation verifies
+// that the supplier's captured source bytes and `BuildObservationSummary`
+// match the receiving compilation's admitted sources before rebinding exact
+// declaration handles.
 
 use super::{PackageBuildHandoff, PackageCompilationInputs};
 use crate::{BuildObservationSummary, CapturedLocalSource};
@@ -28,7 +30,6 @@ enum ProviderDefaultSupplier {
     },
 }
 
-/// The receiving invocation's admitted source, not authority inferred from rows.
 #[derive(Clone, Copy)]
 pub enum ProviderDefaultsAdmission<'source> {
     Package(&'source PackageCompilationInputs),
@@ -49,9 +50,6 @@ impl CompletedProviderDefaults {
         }))
     }
 
-    /// Capture actual completed choices from the checked core Build. Its
-    /// complete input inventory must match the original execution observation.
-    /// A retained row's source spelling cannot establish toolchain custody.
     pub fn from_captured_toolchain(
         capture: CapturedLocalSource,
         build_sources: &crate::AnonymousSourceCapture,
@@ -166,8 +164,6 @@ impl CompletedProviderDefaults {
             {
                 continue;
             }
-            // Every other admitted Product input still belongs to the closed
-            // core. An unused foreign helper cannot disappear in projection.
             admit_toolchain_source(&capture, &capture, file)?;
         }
 
@@ -277,8 +273,6 @@ impl CompletedProviderDefaults {
             let ProviderDefaultSupplier::CapturedToolchain { capture, .. } = &self.supplier else {
                 return Err(wrong_supplier());
             };
-            // This supplier owns the core portion only. Other independently
-            // admitted toolchain contract roots keep their own source custody.
             for file in source
                 .typed()
                 .symbols
@@ -343,9 +337,6 @@ impl CompletedProviderDefaults {
         Ok(selections)
     }
 
-    /// Rejoin completed core choices in an independently checked Build view.
-    /// Only exact captured declarations cross the scope boundary. Their original
-    /// selection activation and author remain unchanged.
     pub fn rejoin_build(
         &self,
         program: &mut typed_trees::TypedTrees,
