@@ -20,7 +20,7 @@ machine direct() -> bool {
     let tag_correct: bool = first.tag == 37;
     consume(envelope.cell, first) && envelope.marker == 73 && tag_correct
 }
-machine selected(select: bool, inner: bool) -> bool {
+machine selected(select: bool, inner: bool, expected_tag: u64) -> bool {
     let mut envelope: Envelope = Envelope { cell: Amount { value: 48 }, marker: 29 };
     let held: &mut u64 = &mut envelope.marker;
     let first: Reply = match select {
@@ -31,7 +31,6 @@ machine selected(select: bool, inner: bool) -> bool {
         false -> set(&mut envelope.cell, 47),
     };
     held = 73;
-    let expected_tag: u64 = match select { true -> match inner { true -> 41, false -> 43 }, false -> 47 };
     let tag_correct: bool = first.tag == expected_tag;
     consume(envelope.cell, first) && envelope.marker == 73 && tag_correct
 }
@@ -60,8 +59,8 @@ machine repeated(select: bool) -> bool {
     correct && cell.value == 32
 }
 machine main() crashes Trap {
-    let correct: bool = direct() && selected(true, true) && selected(true, false)
-        && selected(false, true) && selected(false, false) && repeated(true) && repeated(false);
+    let correct: bool = direct() && selected(true, true, 41) && selected(true, false, 43)
+        && selected(false, true, 47) && selected(false, false, 47) && repeated(true) && repeated(false);
     transition correct { true -> done() _ -> failed() }
     machine done() {}
     machine failed() { crash Trap; }
