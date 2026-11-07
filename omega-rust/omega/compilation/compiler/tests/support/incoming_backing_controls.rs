@@ -257,6 +257,14 @@ pub(super) fn inspect_container(
     let source = current.optimized_target().optimized().plan();
     let types = source.structural_types.as_slice();
     let target = current.optimized_target().target_operations();
+    let graph =
+        optimization_unit_semantics::descriptor_results::abstract_borrowed_storage_catalog_graph(
+            &source.functions,
+            &source.boundary_machines,
+            types,
+            &source.dynamic_dispatch,
+        )
+        .ok_or("container control needs a complete descriptor graph")?;
     let mut calls = Vec::new();
     for caller in &target.functions {
         for row in caller.graph.operations() {
@@ -287,38 +295,58 @@ pub(super) fn inspect_container(
                     )
                 },
             ) {
-                calls.push((caller.machine, *psi_operation, callee, formal));
+                let formal_origin =
+                    DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                        source: formal.place,
+                        projection: Projection::new(&[]),
+                    });
+                let origins = object
+                    .observe_invocation_input_sources(
+                        caller.machine,
+                        CallSiteOwner::Operation(*psi_operation),
+                        callee,
+                        &formal_origin,
+                    )
+                    .map_err(|error| error.to_string())?;
+                let body = descriptor_machine(&graph, caller.machine)
+                    .ok_or("actual slice caller is absent")?;
+                // Forwarding calls also take slices. This control needs the call
+                // that first borrows the actual array field in its caller.
+                let field_window = !origins.is_empty()
+                    && origins.iter().all(|origin| {
+                        let DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                            source: place,
+                            projection,
+                        }) = origin
+                        else {
+                            return false;
+                        };
+                        let Some(root) = body.place_types.get(place) else {
+                            return false;
+                        };
+                        !projection.exact
+                            && !projection.indirect
+                            && terminal_semantics::inline_backing_container(
+                                types, *root, projection,
+                            )
+                            .is_some_and(|path| {
+                                matches!(
+                                    path.as_slice(),
+                                    [terminal_psi::StructuralPathSegment::Field(_)]
+                                )
+                            })
+                    });
+                if field_window {
+                    calls.push((caller.machine, *psi_operation, callee, formal, origins));
+                }
             }
         }
     }
-    let [(caller, operation, callee, formal)] = calls.as_slice() else {
-        return Err("control needs one real slice-input call".into());
+    let [(caller, _operation, _callee, formal, origins)] = calls.as_slice() else {
+        return Err("control needs one actual array-field slice call".into());
     };
-    let formal_origin = DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
-        source: formal.place,
-        projection: Projection::new(&[]),
-    });
-    let origins = object
-        .observe_invocation_input_sources(
-            *caller,
-            CallSiteOwner::Operation(*operation),
-            *callee,
-            &formal_origin,
-        )
-        .map_err(|error| error.to_string())?;
-    if origins.is_empty() {
-        return Err("slice call has no actual sources".into());
-    }
-    let graph =
-        optimization_unit_semantics::descriptor_results::abstract_borrowed_storage_catalog_graph(
-            &source.functions,
-            &source.boundary_machines,
-            types,
-            &source.dynamic_dispatch,
-        )
-        .ok_or("container control needs a complete descriptor graph")?;
     let body = descriptor_machine(&graph, *caller).ok_or("actual slice caller is absent")?;
-    for origin in origins {
+    for origin in origins.iter().cloned() {
         let DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
             source: place,
             projection,

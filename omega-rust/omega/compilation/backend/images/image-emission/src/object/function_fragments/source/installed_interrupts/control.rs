@@ -156,32 +156,6 @@ impl<'a> Graph<'a> {
         }
     }
 
-    /// Show where this predicate is read when a capture check fails. Several
-    /// pairs can have the same expression, so these are diagnostic candidates,
-    /// not another judgment about which guard belongs to the current scan.
-    pub(super) fn matching_guard_locations(
-        &self,
-        expressions: &mut Expressions<'_>,
-        expected: &Expr,
-        load: SelectedInstructionId,
-        matched: SelectedInstructionId,
-    ) -> Result<String, Error> {
-        let mut sites = Vec::new();
-        for (index, block) in self.function.blocks.iter().enumerate() {
-            if let Some((actual, _, _)) = self.predicate(index, expressions)?
-                && actual == *expected
-            {
-                let branch = selected_instructions::terminator_instruction(&block.terminator).id;
-                sites.push(format!(
-                    "{branch:?} at {:?}: matched_precedes_guard={}, load_precedes_guard={}",
-                    self.position(branch)?,
-                    self.precedes(matched, branch)?,
-                    self.precedes(load, branch)?,
-                ));
-            }
-        }
-        Ok(sites.join("; "))
-    }
     pub(super) fn block_dominates(
         &self,
         block: SelectedBlockId,
@@ -804,6 +778,28 @@ impl Graph<'_> {
         advance: SelectedInstructionId,
         refusal: SelectedBlockId,
     ) -> Result<Expr, Error> {
+        self.require_iteration_guard_with_site(
+            expressions,
+            expected,
+            header,
+            matched,
+            advance,
+            refusal,
+        )
+        .map(|(predicate, _)| predicate)
+    }
+
+    /// Keep the exact guard instruction with its predicate. A matched-only
+    /// observation need not dominate the advance taken by unmatched iterations.
+    pub(super) fn require_iteration_guard_with_site(
+        &self,
+        expressions: &mut Expressions<'_>,
+        expected: &Expr,
+        header: usize,
+        matched: SelectedInstructionId,
+        advance: SelectedInstructionId,
+        refusal: SelectedBlockId,
+    ) -> Result<(Expr, SelectedInstructionId), Error> {
         let (start, _) = self.position(matched)?;
         let (sink, _) = self.position(advance)?;
         let mut found = None;
@@ -822,7 +818,7 @@ impl Graph<'_> {
             {
                 continue;
             }
-            if found.replace(predicate).is_some() {
+            if found.replace((predicate, branch)).is_some() {
                 return Err(Error::Mismatch(
                     "installation matched iteration has ambiguous guards",
                 ));
