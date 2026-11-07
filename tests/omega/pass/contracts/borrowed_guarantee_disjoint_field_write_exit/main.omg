@@ -45,6 +45,8 @@ ensures cell.value == 32 {
     transition { _ -> again(cell, select, count) }
     machine again(cell: &mut Amount, select: bool, count: u64) -> bool
     requires cell.value == 32 {
+        // Refresh must restore the value on every iteration.
+        cell.value = 31;
         let zero: u64 = match select { true -> refresh(cell), false -> refresh(cell) };
         transition count == 0 { true -> complete(cell, zero) _ -> again(cell, !select, count - 1) }
     }
