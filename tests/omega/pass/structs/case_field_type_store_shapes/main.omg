@@ -96,8 +96,10 @@ machine Main::check_common_fields(main: &mut Main) reaches Console {
 
     machine payload_beside_common(main: &mut Main) {
         transition main.event {
-            Event::Treasure { consumed as _, bonus as _, gold } -> treasure_gold(main, gold)
-            _ -> fail(main, 3)
+            Event { consumed as _, bonus as _, case as operation } -> match operation {
+                Event::Treasure { gold } -> treasure_gold(main, gold)
+                _ -> fail(main, 3)
+            }
         }
     }
 
@@ -111,8 +113,10 @@ machine Main::check_common_fields(main: &mut Main) reaches Console {
     machine store_common(main: &mut Main) {
         main.event.bonus = 9;
         transition main.event {
-            Event::Treasure { consumed as _, bonus as _, gold } -> stored_common(main, gold)
-            _ -> fail(main, 5)
+            Event { consumed as _, bonus as _, case as operation } -> match operation {
+                Event::Treasure { gold } -> stored_common(main, gold)
+                _ -> fail(main, 5)
+            }
         }
     }
 
@@ -134,8 +138,10 @@ machine Main::check_common_fields(main: &mut Main) reaches Console {
 
     machine fight_payload(main: &mut Main) {
         transition main.event {
-            Event::Fight { consumed as _, bonus as _, strength, speed } -> fight_values(main, strength, speed)
-            _ -> fail(main, 8)
+            Event { consumed as _, bonus as _, case as operation } -> match operation {
+                Event::Fight { strength, speed } -> fight_values(main, strength, speed)
+                _ -> fail(main, 8)
+            }
         }
     }
 
@@ -252,8 +258,10 @@ machine Main::store_local_level(main: &mut Main) {
 machine Main::check_local_stores(main: &mut Main) reaches Console {
     Main::store_local_event(main);
     transition main.event {
-        Event::Treasure { consumed as _, bonus as _, gold } -> mixed_values(main, gold)
-        _ -> fail(main, 16)
+        Event { consumed as _, bonus as _, case as operation } -> match operation {
+            Event::Treasure { gold } -> mixed_values(main, gold)
+            _ -> fail(main, 16)
+        }
     }
 
     machine mixed_values(main: &mut Main, gold: i32) {

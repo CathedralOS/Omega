@@ -1,0 +1,29 @@
+// Expected exit: 0
+// Borrowing the case view keeps its payload and the original backing intact.
+data Message [copy] {
+    stamp: u64;
+    case Received(value: u64);
+    case Empty;
+}
+
+machine inspect(message: &Message) -> u64 {
+    match message {
+        Message { stamp as _, case as operation } -> match &operation {
+            Message::Received { value } -> value
+            _ -> 99
+        }
+    }
+}
+
+machine main() crashes Trap {
+    let received: Message = Message::Received { stamp: 11, value: 7 };
+    let empty: Message = Message::Empty { stamp: 19 };
+    let payload: u64 = inspect(&received);
+    let fallback: u64 = inspect(&empty);
+    transition payload == 7 && fallback == 99 && received.stamp == 11 && empty.stamp == 19 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
