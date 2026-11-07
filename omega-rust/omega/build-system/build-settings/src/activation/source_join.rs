@@ -1,14 +1,29 @@
-//! Join the activation's complete request ledger to package-owned acquisitions.
-//! These selections describe resolved source work, never review grants. The
-//! compiler authenticates the return and compares its retained graph at completion.
+/*
+Join the activation's complete dependency-request ledger to the package
+manager's acquired source graph (`BuildDependencySelection`,
+`join_preacquired_sources`, `join_dependency_sources`, `validate_source_join`).
+
+Why an alias graph alone never discharges the `Build` request ledger:
+1. Every `BuildRequest::Dependency` issued during `Build` execution is assigned a
+   purpose-local ordinal (`Product` or `Build`). `validate_dependency_sources`
+   checks that the root package name and role match the executed
+   `BuildDeclaration`, that every issued dependency request matches its exact
+   `BuildDependencySelection` and `dependency_acquisitions` record in ordinal
+   order, that the joined graph contains no unrequested direct dependencies, and
+   that every dependency actually consumed during `Build` (`demanded_sources`)
+   is present in the joined selections.
+2. Before Product compilation begins, `validate_source_join` verifies that the
+   `PackageCompilationInputs` passed to Product preparation carry the exact
+   `PackageCompilationSourceInputs` that were joined on `ReturnedBuild` (and
+   rejects unbound contexts that attempt to adopt a multi-package dependency
+   graph without executed-request settlement).
+*/
 
 use super::ReturnedBuild;
 use build_declarations::{BuildDeclaration, BuildRequest, DependencyPurpose};
 use package_compilation::PackageCompilationInputs;
 use semantic_vocabulary::PackageKeyIdentity;
 
-/// One package-manager selection at an issued purpose-local request ordinal.
-/// Selections retain request order within each purpose.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildDependencySelection {
     pub purpose: DependencyPurpose,
@@ -17,10 +32,6 @@ pub struct BuildDependencySelection {
 }
 
 impl ReturnedBuild {
-    /// Rejoin sources acquired before this bound compilation began. They must
-    /// retain the exact request values as well as the alias graph; a graph alone
-    /// never settles an issued request. Anonymous discovery still joins through
-    /// its resolver after executing the selected sources.
     pub fn join_preacquired_sources(
         &mut self,
         inputs: &PackageCompilationInputs,
@@ -62,9 +73,6 @@ impl ReturnedBuild {
         self.join_dependency_sources(inputs, &selections)
     }
 
-    /// The host resolver supplies the sources it acquired for these actual
-    /// requests. This joins every ordinal and alias, then retains the exact
-    /// graph; it neither acquires sources nor accepts a static declaration roster.
     pub fn join_dependency_sources(
         &mut self,
         inputs: &PackageCompilationInputs,
@@ -84,8 +92,6 @@ impl ReturnedBuild {
         Ok(())
     }
 
-    /// Before Product preparation, reject a different graph from the one whose
-    /// requests joined. Unbound contexts cannot gain undeclared dependency names.
     pub fn validate_source_join(
         &self,
         inputs: Option<&PackageCompilationInputs>,

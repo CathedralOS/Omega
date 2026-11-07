@@ -1,6 +1,18 @@
-//! Admission: fixing the exact entry, target inputs and authority of one
-//! build occurrence into an opaque `AdmittedBuildProgram` before anything
-//! runs.
+/*
+Bind the admitted `Build` entry, operational reach, and host filesystem scope
+into an activation-local `AdmittedBuildProgram` checkpoint before any authored
+code runs (`admit_build_program`).
+
+`AdmittedBuildProgram` is the sole capability token accepted by
+`PreparedBuildExecution::prepare`:
+- `restricted_build_requests` projects the normalized `RestrictedBuildRequest`
+  list in issue order (using package vocabulary rather than host paths or live
+  handles) so `prepare_build_evaluation` can enforce caller consent before
+  execution.
+- `pure_consumption_inputs` constructs the immutable `CompletedPureBuildInputs`
+  lookup key only when the `Build` machine is `Pure`, has no reachable
+  filesystem operations, and projects no restricted host requests.
+*/
 
 use build_time_evaluation::{BuildEvaluationSponsor, PreparedBuildMachineProgram};
 use diagnostics::Diagnostic;
@@ -9,9 +21,6 @@ use package_compilation::build_execution::RestrictedBuildRequest;
 use package_compilation::build_execution::{SelectedBuildMachine, admit_build_machine};
 use symbols::SymbolHandle;
 
-/// Private activation-local checkpoint. Entry selection and authority bind to
-/// the prepared program; only the complete evaluation protocol can issue and
-/// consume this value.
 #[must_use = "an admitted build program must prepare its execution"]
 pub(crate) struct AdmittedBuildProgram {
     pub(crate) prepared: PreparedBuildMachineProgram,
@@ -20,22 +29,13 @@ pub(crate) struct AdmittedBuildProgram {
     pub(crate) filesystem_scope: BuildMachineFilesystemScope,
     pub(crate) evaluation_sponsor: Option<BuildEvaluationSponsor>,
     pub(crate) execution_profile: Option<target::TargetProfile>,
-    /// The validated `Build::artifact_only(builder)` application modifier. An
-    /// artifact-only activation publishes retained outputs only: it may not
-    /// bind executable roots or select boundary providers, and it must
-    /// complete at least one required-output obligation.
-    pub(crate) artifact_only: bool,
+    pub(crate) artifact_only: bool, // Validated `Build::artifact_only(builder)` modifier: publishes retained outputs only, forbids executable roots/providers, and requires at least one required output.
     pub(crate) default_source: bool,
     pub(crate) default_sources:
         Option<std::sync::Arc<package_compilation::PackageCompilationSourceInputs>>,
 }
 
 impl AdmittedBuildProgram {
-    /// The normalized restricted build-host requests this activation asks of
-    /// the host, in issue order. They describe the admitted authority in
-    /// package vocabulary — never the host paths or live handles it binds —
-    /// so a consumer may retain accepted request meaning separately from the
-    /// actual invocation grants.
     pub fn restricted_build_requests(&self) -> Vec<RestrictedBuildRequest> {
         self.filesystem_scope.restricted_build_requests(
             self.evaluation_sponsor.as_ref(),
@@ -44,9 +44,6 @@ impl AdmittedBuildProgram {
         )
     }
 
-    /// Fresh admission may identify an output-free Pure consumption candidate.
-    /// This records immutable content only; it retains neither our entry token
-    /// nor filesystem/evaluation grants. Restricted requests never qualify.
     pub(crate) fn pure_consumption_inputs(
         &self,
         packages: Option<&package_compilation::PackageCompilationInputs>,
@@ -77,12 +74,6 @@ impl AdmittedBuildProgram {
     }
 }
 
-/// Prepare and admit the program's exact build-machine activation.
-///
-/// Entry discovery, semantic checking and optional package authority have finished.
-/// This stage binds that exact checked entry and admits its operational contract and
-/// host grants without executing authored code. The returned carrier owns the
-/// only entry token accepted by its prepared program.
 pub(crate) fn admit_build_program(
     prepared: PreparedBuildMachineProgram,
     providers: super::provider_execution::BuildProviderPlans,

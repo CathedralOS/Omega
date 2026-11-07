@@ -83,7 +83,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
     let sha = std::env::var("GITHUB_SHA").unwrap_or_else(|_| "HEAD".to_owned());
     println!("Source: {sha}");
-    println!("Command: cargo {}", command_args.join(" "));
+    println!("Command: mbx {}", command_args.join(" "));
 
     let root = repo_root();
     let _ = Command::new("rustc")
@@ -91,7 +91,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         .current_dir(&root)
         .status();
 
-    let mut child = Command::new("cargo")
+    let mut child = Command::new("mbx")
         .args(&command_args)
         .current_dir(&root)
         .stdin(Stdio::null())
@@ -99,7 +99,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         .stderr(Stdio::inherit())
         .spawn()
         .map_err(|e| {
-            eprintln!("focused-test: failed to start cargo: {e}");
+            eprintln!("focused-test: failed to start mbx (mbx is required; run `bash tools/agent_setup.sh`): {e}");
             1u8
         })?;
 

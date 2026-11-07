@@ -148,7 +148,7 @@ single GitHub push destination. `--repository PATH` selects another worktree.
 ## Admission is not release qualification
 
 The only required status is `compiler-check` from GitHub Actions. It executes
-`python tools/fmt.py --check` and `cargo clippy --locked -p omega -- -D warnings`
+`mbx xtask fmt --check` and `mbx clippy --locked -p omega -- -D warnings`
 on Linux for PR and `merge_group` candidates, so formatting drift and warnings
 in the `omega` crate graph are refused. Run both before pushing.
 There are no path skips and no required full suite, customer boot, platform

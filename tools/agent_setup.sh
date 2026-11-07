@@ -23,10 +23,22 @@ MBX_VERSION=1.29.2
 NEXTEST_VERSION=0.9.150
 
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+os=$(uname -s)
 arch=$(uname -m)
-if [ "$(id -u)" = 0 ]; then bin=/usr/local/bin; else bin=$HOME/.local/bin; fi
+if [ "$arch" = "arm64" ]; then arch="aarch64"; fi
+case "$os" in
+  Darwin)
+    mbx_target="aarch64-apple-darwin"
+    nextest_target="universal-apple-darwin"
+    ;;
+  *)
+    mbx_target="$arch-unknown-linux-gnu"
+    nextest_target="$arch-unknown-linux-gnu"
+    ;;
+esac
+if [ "$(id -u)" = 0 ]; then bin=/usr/local/bin; else bin=$HOME/.cargo/bin; fi
 mkdir -p "$bin"
-export PATH="$bin:$HOME/.cargo/bin:$PATH"
+export PATH="$bin:$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
@@ -48,19 +60,24 @@ step "pinned Rust toolchain (rust-toolchain.toml)"
 
 step "mbx $MBX_VERSION"
 if [ "$(mbx --version 2>/dev/null)" != "mbx $MBX_VERSION" ]; then
-  archive=mbx-$arch-unknown-linux-gnu.tar.gz
+  archive=mbx-$mbx_target.tar.gz
   release=https://github.com/jdx/mr-boxington/releases/download/v$MBX_VERSION
   (cd "$work" &&
     curl -fsSLO "$release/$archive" && curl -fsSLO "$release/SHA256SUMS" &&
-    grep " $archive\$" SHA256SUMS | sha256sum --check --strict - &&
+    if command -v sha256sum >/dev/null; then
+      grep " $archive\$" SHA256SUMS | sha256sum --check --strict -
+    else
+      grep " $archive\$" SHA256SUMS | shasum -a 256 --check -
+    fi &&
     tar -xzf "$archive" -C "$bin" mbx)
 fi
 mbx --version
+mbx setup --yes || true
 
 step "cargo-nextest $NEXTEST_VERSION"
 if ! cargo nextest --version 2>/dev/null | grep -q "^cargo-nextest $NEXTEST_VERSION "; then
   # get.nexte.st is not reachable from cloud sessions; GitHub releases are.
-  curl -fsSL "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-$NEXTEST_VERSION/cargo-nextest-$NEXTEST_VERSION-$arch-unknown-linux-gnu.tar.gz" |
+  curl -fsSL "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-$NEXTEST_VERSION/cargo-nextest-$NEXTEST_VERSION-$nextest_target.tar.gz" |
     tar -xzf - -C "$bin"
 fi
 cargo nextest --version | head -n 1
