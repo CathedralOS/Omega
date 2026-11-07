@@ -1,0 +1,144 @@
+{
+  "kind": "Exactly four nonignored current-source formation and payload-history controls, each selected by its full name",
+  "source": "88acbdf1f4eb3b7eecb72b7e566d2699624f6686",
+  "expected_total_passes": 4,
+  "owner_source_map_sha256": "59f28908dedc1cac43b054955e3840506f43d50b57710d194f5dff040ddac945",
+  "groups": [
+    {
+      "package": "optimization-unit-semantics",
+      "filter": "reference_outputs::tests::formation_memberships::fresh_reference_uses_current_write_and_refuses_false_unknown_or_missing_write",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "reference_outputs::tests::formation_memberships::fresh_reference_uses_current_write_and_refuses_false_unknown_or_missing_write"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/tests.rs",
+          "sha256": "1339b2942cff563954ecb85f04ec5034720455bdc1a99b24a135d1491fb48a2a"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/result_composition_tests.rs",
+          "sha256": "58a607806bd5e8a7167720bda8baab9a346eeaaefaa5c2118cbc727911578e9f"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/unchanged_ingress_tests.rs",
+          "sha256": "7dd117df1eb7ab95c86fdcbcd3bcfb97a11644084cc08aa6f67bf2e09a960860"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs.rs",
+          "sha256": "d3e68bb7a7fb2a2d23dab7f8852c5d235d82eec96667d9879975ebbedea7affe"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/Cargo.toml",
+          "sha256": "d613e7b87f224c3fbf90d99b8db8ff48409a70d5db1b0dbfef92a9be02914db5"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/tests/formation_memberships.rs",
+          "sha256": "eed0f33bbf62f04a945d5089b8021ec21052bc6850ad7299558ca19c1cf4c6ba"
+        }
+      ]
+    },
+    {
+      "package": "optimization-unit-semantics",
+      "filter": "reference_outputs::tests::formation_memberships::fresh_reference_cannot_reuse_a_previous_storage_version",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "reference_outputs::tests::formation_memberships::fresh_reference_cannot_reuse_a_previous_storage_version"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/tests.rs",
+          "sha256": "1339b2942cff563954ecb85f04ec5034720455bdc1a99b24a135d1491fb48a2a"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/result_composition_tests.rs",
+          "sha256": "58a607806bd5e8a7167720bda8baab9a346eeaaefaa5c2118cbc727911578e9f"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/unchanged_ingress_tests.rs",
+          "sha256": "7dd117df1eb7ab95c86fdcbcd3bcfb97a11644084cc08aa6f67bf2e09a960860"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs.rs",
+          "sha256": "d3e68bb7a7fb2a2d23dab7f8852c5d235d82eec96667d9879975ebbedea7affe"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/Cargo.toml",
+          "sha256": "d613e7b87f224c3fbf90d99b8db8ff48409a70d5db1b0dbfef92a9be02914db5"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/tests/formation_memberships.rs",
+          "sha256": "eed0f33bbf62f04a945d5089b8021ec21052bc6850ad7299558ca19c1cf4c6ba"
+        }
+      ]
+    },
+    {
+      "package": "optimization-unit-semantics",
+      "filter": "reference_outputs::tests::formation_memberships::mutable_reference_retains_every_declared_source_duty",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "reference_outputs::tests::formation_memberships::mutable_reference_retains_every_declared_source_duty"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/tests.rs",
+          "sha256": "1339b2942cff563954ecb85f04ec5034720455bdc1a99b24a135d1491fb48a2a"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/result_composition_tests.rs",
+          "sha256": "58a607806bd5e8a7167720bda8baab9a346eeaaefaa5c2118cbc727911578e9f"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/unchanged_ingress_tests.rs",
+          "sha256": "7dd117df1eb7ab95c86fdcbcd3bcfb97a11644084cc08aa6f67bf2e09a960860"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs.rs",
+          "sha256": "d3e68bb7a7fb2a2d23dab7f8852c5d235d82eec96667d9879975ebbedea7affe"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/Cargo.toml",
+          "sha256": "d613e7b87f224c3fbf90d99b8db8ff48409a70d5db1b0dbfef92a9be02914db5"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/tests/formation_memberships.rs",
+          "sha256": "eed0f33bbf62f04a945d5089b8021ec21052bc6850ad7299558ca19c1cf4c6ba"
+        }
+      ]
+    },
+    {
+      "package": "terminal-semantics",
+      "filter": "descriptors::descriptor_results::payload_history::tests::requested_reference_predicate_uses_current_payload_without_growing_old_duties",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "descriptors::descriptor_results::payload_history::tests::requested_reference_predicate_uses_current_payload_without_growing_old_duties"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history.rs",
+          "sha256": "4d126e534cc46c734a6d4fd64657c00eaab457c7d6e465891206b05c51253d3f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml",
+          "sha256": "971a5ef96616c40c8283caa70e38bcd57f138989f19befd591eea61aca7fab3e"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        }
+      ]
+    }
+  ]
+}
