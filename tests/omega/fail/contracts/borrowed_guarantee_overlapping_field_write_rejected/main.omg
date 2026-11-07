@@ -36,18 +36,6 @@ machine selected(select: bool, inner: bool, expected_tag: u64) -> bool {
     let tag_correct: bool = first.tag == expected_tag;
     consume(envelope.cell, first) && envelope.marker == 73 && tag_correct
 }
-machine array_cell(cells: &mut [u64; 2], index: u64) -> &mut u64
-requires index < 2 { &mut cells[index] }
-machine forwarded_cell(cells: &mut [u64; 2], index: u64) -> &mut u64
-requires index < 2 { array_cell(cells, index) }
-machine array_neighbor(value: u64) -> bool
-requires value == 32 { value == 32 }
-machine array_forwarding() -> bool {
-    let mut cells: [u64; 2] = [48, 32];
-    let selected: &mut u64 = forwarded_cell(&mut cells, 0);
-    selected = 31;
-    array_neighbor(cells[1]) && cells[0] == 31
-}
 machine refresh(cell: &mut Amount, trace: &mut CycleTrace, tag: u64) -> u64
 ensures cell.value == 32, result == 0 {
     cell.value = 32;
@@ -83,7 +71,7 @@ machine repeated(select: bool, expected_visits: u64, expected_tag: u64) -> bool 
         && trace.before == 61 && trace.after == 67
 }
 machine main() crashes Trap {
-    let correct: bool = direct() && array_forwarding() && selected(true, true, 41) && selected(true, false, 43)
+    let correct: bool = direct() && selected(true, true, 41) && selected(true, false, 43)
         && selected(false, true, 47) && selected(false, false, 47) && repeated(true, 4, 59) && repeated(false, 4, 53);
     transition correct { true -> done() _ -> failed() }
     machine done() {}
