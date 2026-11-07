@@ -100,8 +100,8 @@ pub use activation::scalar_completion;
 pub use activation::completed_pure_build::PureBuildCompilation;
 pub use activation::preparation::PreparedBuildExecution;
 pub use activation::{
-    BuildDependencySelection, ReturnedBuild, TerminalBuildActivation, TerminalBuildHost,
-    TerminalBuildStep,
+    BuildDependencySelection, BuildSourceResult, ReturnedBuild, TerminalBuildActivation,
+    TerminalBuildHost, TerminalBuildStep,
 };
 use admission::program::{AdmittedBuildProgram, admit_build_program};
 pub use admission::target_helpers::select_build_helpers;

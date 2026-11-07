@@ -212,6 +212,14 @@ impl ResolvedBuildSources {
         root: PackageKeyIdentity,
         returned: &mut build_settings::ReturnedBuild,
     ) -> Result<PackageCompilationInputs, String> {
+        self.join_source_result(root, &mut returned.source_result())
+    }
+
+    pub fn join_source_result(
+        &self,
+        root: PackageKeyIdentity,
+        result: &mut build_settings::BuildSourceResult<'_>,
+    ) -> Result<PackageCompilationInputs, String> {
         let custody = self
             .closure
             .custodies()
@@ -220,7 +228,7 @@ impl ResolvedBuildSources {
             .ok_or("Build does not belong to this resolved source graph")?;
         let requests =
             crate::declarations::dependencies::read::DependencyProjections::from_executed_requests(
-                returned.requests().iter().map(|issued| issued.request()),
+                result.requests(),
             )?;
         if &requests != custody.dependency_projections() {
             return Err("Build source requests differ from the executed acquisition ledger".into());
@@ -240,7 +248,7 @@ impl ResolvedBuildSources {
             })
             .collect::<Vec<_>>();
         let inputs = self.compilation_inputs(root)?;
-        returned.join_dependency_sources(&inputs, &selections)?;
+        result.join_dependency_sources(&inputs, &selections)?;
         Ok(inputs)
     }
 

@@ -132,16 +132,14 @@ impl PreparedPackageInvocation {
     }
     pub(super) fn settle_catalog(
         self,
-        returned: build_settings::ReturnedBuild,
+        returned: Option<build_settings::ReturnedBuild>,
     ) -> Result<super::package_compilation::SourceBuildDeclaration, CompileFailure> {
         let capture = self.capture.ok_or_else(|| {
             vec![Diagnostic::error(
                 "workspace settlement requires acquired unbound source custody",
             )]
         })?;
-        let settled = self
-            .source
-            .settle(Some(returned), None, Some(self.target))?;
+        let settled = self.source.settle(returned, None, Some(self.target))?;
         let declaration = settled
             .evaluated
             .configuration
@@ -163,10 +161,10 @@ impl PreparedPackageInvocation {
         ))
     }
     pub(super) fn observe_declaration(
-        &self,
-        returned: &build_settings::ReturnedBuild,
+        &mut self,
+        returned: Option<&mut build_settings::ReturnedBuild>,
     ) -> Result<super::package_compilation::SourceBuildDeclaration, CompileFailure> {
-        self.source.validate_return(returned)?;
+        let result = self.source.source_result(returned)?;
         let capture = self.capture.as_ref().ok_or_else(|| {
             vec![Diagnostic::error(
                 "source declaration observation requires acquired unbound source custody",
@@ -174,12 +172,18 @@ impl PreparedPackageInvocation {
         })?;
         Ok(super::package_compilation::SourceBuildDeclaration::new(
             capture.clone(),
-            returned.declaration().cloned().ok_or_else(|| {
+            result.declaration().cloned().ok_or_else(|| {
                 vec![Diagnostic::error(
                     "default Build has no authored named project declaration",
                 )]
             })?,
         ))
+    }
+    pub(super) fn source_result<'result>(
+        &'result mut self,
+        returned: Option<&'result mut build_settings::ReturnedBuild>,
+    ) -> Result<build_settings::BuildSourceResult<'result>, CompileFailure> {
+        self.source.source_result(returned)
     }
     pub(super) fn join_product_context(
         &mut self,
