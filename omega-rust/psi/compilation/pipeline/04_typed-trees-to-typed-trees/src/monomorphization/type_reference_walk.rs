@@ -1,23 +1,15 @@
 //! The shared type-reference tree walk: every nested reference enqueues once,
-//! each `Range` constraint's endpoints report to the caller's hook, and either
-//! hook may stop the walk early.
+//! and the caller may stop the walk early.
 
-use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// Depth-first traversal of the type references nested under `roots`. `on_node`
-/// inspects each visited node before its children enqueue and `on_range`
-/// receives each `Range` constraint's endpoints; returning true from either
+/// inspects each visited node before its children enqueue; returning true
 /// stops the walk and propagates true.
 pub(crate) fn for_each_type_reference(
     program: &dyn ::validation::CheckingInput,
     roots: &[TypeReferenceHandle],
     mut on_node: impl FnMut(&dyn ::validation::CheckingInput, &TypeReferenceNode) -> bool,
-    mut on_range: impl FnMut(
-        &dyn ::validation::CheckingInput,
-        ExpressionHandle,
-        ExpressionHandle,
-    ) -> bool,
 ) -> bool {
     let mut pending = roots.to_vec();
     let mut visited = std::collections::HashSet::new();
@@ -41,13 +33,7 @@ pub(crate) fn for_each_type_reference(
                         TypeConstraintNode::Domain(domain) => {
                             pending.extend(domain.arguments.iter().copied());
                         }
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } => {
-                            if on_range(program, *minimum, *maximum) {
-                                return true;
-                            }
-                        }
+
                         TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
                     }
                 }

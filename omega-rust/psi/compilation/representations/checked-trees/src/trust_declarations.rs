@@ -46,7 +46,7 @@ pub(crate) fn collect(checked: &CheckedTrees) -> TrustDeclarations {
             let mut contracts = checked
                 .facts
                 .contract_plans
-                .machines
+                .machines()
                 .iter()
                 .filter(|plan| plan.machine == machine.symbol);
             let contract = match (contracts.next(), contracts.next()) {

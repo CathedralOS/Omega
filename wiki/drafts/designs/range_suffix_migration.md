@@ -1181,3 +1181,30 @@ retains this establishment through nine places and tests missing-bound,
 out-of-bound-store and unauthorized-read controls. Final producer and execution
 observations are recorded with the owning PR; this inventory does not close the
 remaining historical audit or authorize suffix-parser retirement.
+
+
+## Record ranges and returned record views
+
+On Linux x86_64, the unchanged [copied](../../../tests/omega/pass/borrows/runtime_copied_range_record_domains_exit/main.omg)
+and [measured](../../../tests/omega/pass/borrows/runtime_measured_range_record_domains_exit/main.omg)
+record-range programs returned 0 in native and Terminal execution; the
+[forwarded-view program](../../../tests/omega/pass/borrows/runtime_forwarded_view_field_domain_exit/main.omg)
+returned 70, and the [generic-return program](../../../tests/omega/run/domains/qualified_fixed_byte_array_generic_view_return_exit/main.omg)
+returned 0. They retain the Utf8 or Ascii requirements on their text fields
+through bounded ranges, saved views and returned references, and check the
+selected values and neighboring text at runtime. The existing mutation,
+missing-membership and unselected-lifetime controls still reject for their
+intended obligations. No program, Build binding, oracle or rejection pin changed.
+
+[Source run 42334912961](https://github.com/CathedralOS/Omega/actions/runs/42334912961)
+records the three borrow positives and controls at `8ade856e00f6`.
+[Replay 42335998626](https://github.com/CathedralOS/Omega/actions/runs/42335998626)
+ran the three CLI programs at consumer `98d54ac0c79` with that same authenticated
+optimized producer. The later backend repair preserves their accepted backing
+paths; it admits ordinary record arrivals with field predicates while keeping
+view descriptors under their existing separate checks.
+[Run 42338824785](https://github.com/CathedralOS/Omega/actions/runs/42338824785)
+records the generic program's source check and both-engine agreement with its
+own optimized producer at `071034107c35`. Source records retain the authored
+`macos_arm64` checking target; execution observations are Linux x86_64 only.
+Other hosts and the parent scalar migration remain open.

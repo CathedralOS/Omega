@@ -121,10 +121,6 @@ being emitted. A body reached by no row or entry remains source-checked without
 speculative target geometry; selecting it later can expose a latent layout error
 and must validate it before successful consumption or realization.
 
-`BUILD-OWNED-TARGET-SELECTION` in [the task board](../../../TASKS.md)
-tracks the end-to-end migration off the retired family model; the target
-prefix is not an alternate API.
-
 ### Generic selected requirements
 
 A boundary requirement may bind named implementation evidence, like an ordinary
@@ -169,8 +165,7 @@ locator, evaluated plan, or sealed catalog entry changes artifact identity and
 requires fresh admission; Build records binding intent, not mutable trusted
 plans. Stable native-provider identity retains exact requirement, target,
 supplying package, locator, calling policy, and authored provenance even without
-a forwarding machine. `BUILD-OWNED-NATIVE-BINDINGS` in
-[the task board](../../../TASKS.md) owns implementation of this accepted form.
+a forwarding machine.
 
 Overrides outrank target defaults and retain authored selection identity/order.
 Missing, private, ambiguous, foreign, and duplicate candidates reject. A selected
@@ -241,8 +236,7 @@ After installation, calls use the exact static `R::operation(arguments)` slot.
 Readiness returns no routing value and resumes the same Terminal continuation
 without replay. Ordinary product `Build::select_provider` rows do not select or
 authorize this Build-host slot. See [Build execution](execution.md#admission-before-execution)
-for preparation and admission order. This is the accepted contract; provider
-readiness and deferred backing resolution remain implementation work.
+for preparation and admission order.
 
 ## Toolchain-selected checked implementations
 

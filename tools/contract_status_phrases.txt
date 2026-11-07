@@ -2,8 +2,6 @@
 # "Implementation status" heading, ...) per contract file.
 # Counts may only fall: put open work on its TASKS.md item, not in the contract.
 # Written by `python tools/check_rules.py --update-status-phrases`.
-1 wiki/spec/build/compiler_request.md
-1 wiki/spec/build/component_publication.md
 1 wiki/spec/build/configuration.md
 1 wiki/spec/build/embedding.md
 1 wiki/spec/build/entry_roots.md
@@ -13,15 +11,12 @@
 1 wiki/spec/language/conformances.md
 1 wiki/spec/language/counts_and_addresses.md
 1 wiki/spec/language/dependent_values.md
-1 wiki/spec/language/numeric_values.md
 1 wiki/spec/language/ownership.md
 1 wiki/spec/layouts/recasts.md
 1 wiki/spec/packages/resolver_security.md
 1 wiki/spec/packages/review.md
-3 wiki/spec/packages/topology.md
-1 wiki/spec/proofs/kernel_metatheory.md
+2 wiki/spec/packages/topology.md
 1 wiki/spec/resources/allocation.md
-1 wiki/spec/resources/bounded_input.md
 1 wiki/spec/terminal-psi/byte_views.md
 1 wiki/spec/terminal-psi/encoding.md
 1 wiki/spec/terminal-psi/fact_validity.md

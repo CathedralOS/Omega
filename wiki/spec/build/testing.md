@@ -5,8 +5,6 @@ requirement. Build configuration selects test roots and their execution
 environment; it does not introduce a machine species, trusted boundary, or
 special calling permission. The runner executes each enabled test across its
 configured target/engine plan before reporting the requested build successful.
-These are accepted contracts; [implementation tasks](../../../TASKS.md#requirement-based-tests)
-track delivery.
 
 Interpreted runner instances use the same [embedding lifecycle](embedding.md) as
 other Psi consumers, with selected group providers and fresh guest state. Native
@@ -163,7 +161,7 @@ Simulation does not validate real hardware timing or device behavior.
 Target environment and execution engine are independent, as in
 [embedding](embedding.md#target-environments-and-execution-engines). For each
 enabled group and selected target, the default is to run every applicable,
-permitted engine available on the executing host, currently interpreted and
+permitted engine available on the executing host, including interpreted and
 native. Cross-compilation support alone is not execution availability. Ordinary
 Build group configuration can narrow engines or require particular target/engine
 combinations. Unset engine configuration uses this default; it does not disable

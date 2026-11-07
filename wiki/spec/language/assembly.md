@@ -419,5 +419,4 @@ scoped installation authority and reach; ordinary bytes cannot supply them.
 
 [Hardware materialization](../build/hardware_materialization.md) separates checked
 writers, consumer validation and publication. The instruction catalog owns `lidt`
-requirements, not an OS's table carrier or lifecycle. Current catalog coverage
-and source realization limits live [beside the catalog](../../../omega-rust/psi/foundation/language-core/inline_assembly.md).
+requirements, not an OS's table carrier or lifecycle.

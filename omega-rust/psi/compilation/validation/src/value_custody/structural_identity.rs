@@ -57,8 +57,7 @@ pub fn structural_identity_type(
                             .any(|constraint| {
                                 use typed_trees::types::TypeConstraintNode;
                                 match constraint {
-                                    TypeConstraintNode::Range { .. }
-                                    | TypeConstraintNode::Named(_) => true,
+                                    TypeConstraintNode::Named(_) => true,
                                     TypeConstraintNode::Domain(domain) => domain.subject
                                         != typed_trees::types::DomainConstraintSubject::Value(
                                             language_semantics::value_domain::ValueDomain::Finite,

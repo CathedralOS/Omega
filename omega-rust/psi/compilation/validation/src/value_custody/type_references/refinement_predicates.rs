@@ -131,49 +131,7 @@ fn scalar_type_refinements(
                     }
                     _ => return None,
                 },
-                TypeConstraintNode::Range {
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } if matches!(
-                    primitive,
-                    typed_trees::types::PrimitiveType::F32 | typed_trees::types::PrimitiveType::F64
-                ) =>
-                {
-                    // Float endpoints retain their carrier and exclusive end;
-                    // integer predecessor arithmetic would change IEEE meaning.
-                    let minimum = crate::closed_float_range_endpoint(program, *minimum, primitive)?;
-                    let maximum = crate::closed_float_range_endpoint(program, *maximum, primitive)?;
-                    predicates.push(CheckedBooleanExpression::And {
-                        left: Box::new(CheckedBooleanExpression::ScalarIeeeFloatComparison {
-                            kind: checked_trees::CheckedIeeeFloatComparisonKind::LessOrEqual,
-                            left: Box::new(CheckedScalarExpression::IeeeFloatLiteral {
-                                value: minimum,
-                            }),
-                            right: Box::new(subject.clone()),
-                        }),
-                        right: Box::new(CheckedBooleanExpression::ScalarIeeeFloatComparison {
-                            kind: if *end_inclusive {
-                                checked_trees::CheckedIeeeFloatComparisonKind::LessOrEqual
-                            } else {
-                                checked_trees::CheckedIeeeFloatComparisonKind::LessThan
-                            },
-                            left: Box::new(subject.clone()),
-                            right: Box::new(CheckedScalarExpression::IeeeFloatLiteral {
-                                value: maximum,
-                            }),
-                        }),
-                    });
-                    continue;
-                }
-                TypeConstraintNode::Range {
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } => (
-                    crate::closed_integer_range_bound(program, *minimum)?,
-                    crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)?,
-                ),
+
                 _ => return None,
             };
             let minimum = crate::land_integer_value(&bounds.0, primitive)?;

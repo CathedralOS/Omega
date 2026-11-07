@@ -27,12 +27,6 @@ impl StateValueScope<'_, '_> {
                 self.type_reference(*base_type, diagnostics);
                 for constraint in table.constraints(*constraints) {
                     match constraint {
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } => {
-                            self.expression(*minimum, diagnostics);
-                            self.expression(*maximum, diagnostics);
-                        }
                         TypeConstraintNode::Domain(domain) => {
                             for argument in &domain.arguments {
                                 self.type_reference(*argument, diagnostics);

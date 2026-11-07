@@ -34,7 +34,6 @@
 //! domain-membership obligations and cannot restore a fact after a mutation.
 
 use crate::checks::type_multiplicity;
-use crate::values::float_predicates::declared_type_predicates;
 use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint,
     QualificationEvidence,
@@ -375,23 +374,6 @@ pub(super) fn append_state_parameter_domain_facts(
                         }
                     }
                     continue;
-                }
-                let mut predicates = Vec::new();
-                declared_type_predicates(program, parameter.type_reference, &mut predicates);
-                if !predicates.is_empty() {
-                    let place = facts.append_symbol_place(parameter.symbol);
-                    for predicate in predicates {
-                        let fact = facts.append_fact(Fact {
-                            place: FactPlace::Place(place),
-                            point: state_point(machine.symbol, state.symbol),
-                            // Numeric range admission already has its own
-                            // incoming-value obligation, not a membership row.
-                            origin: FactOrigin::StatementTransfer,
-                            evidence: propagated_evidence(state.symbol),
-                            payload: FactPayload::FloatPredicate { predicate },
-                        });
-                        facts.append_ref(&mut refs, fact);
-                    }
                 }
                 let mut has_resource_claim = false;
                 for (domain_symbol, semantic_domain) in

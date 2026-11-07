@@ -35,8 +35,8 @@ use super::Execution;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     FlowCallFact, FlowCapturedReferenceLeaf as ReferenceLeaf, FlowCaseAccessFact,
-    FlowConstraintKind, FlowConstraintRef, FlowOperandCompletion, FlowOperandFact,
-    FlowOperandReferent, FlowOperandRetainedSupplier, FlowReferentFormation,
+    FlowConstraintKind, FlowConstraintRef, FlowOperandAddressProjection, FlowOperandCompletion,
+    FlowOperandFact, FlowOperandReferent, FlowOperandRetainedSupplier, FlowReferentFormation,
     FlowReferentFormationEvidence as FormationEvidence,
 };
 use facts::{
@@ -760,7 +760,7 @@ impl Execution<'_, '_, '_> {
         constraints: HandleSpan<FlowConstraintRef>,
         case_access: &mut Handle<FlowCaseAccessFact>,
         possible_storage: &mut Option<HandleSpan<FlowOperandReferent>>,
-        address_projection: &mut Option<HandleSpan<PlaceSegment>>,
+        address_projection: &mut Option<FlowOperandAddressProjection>,
     ) -> HandleSpan<FlowOperandReferent> {
         let is_view = expression != self.reference_slot_target
             && self
@@ -781,12 +781,12 @@ impl Execution<'_, '_, '_> {
         path.push(PlaceSegment::Field { symbol });
         // The field is relative to the evaluated receiver, even when a returned
         // view has no absolute address in the source place namespace.
-        *address_projection = Some(
+        *address_projection = Some(FlowOperandAddressProjection::Place(
             self.context
                 .control
                 .operand_child_paths
                 .insert_many(path.iter().copied()),
-        );
+        ));
         let carrier = reference_shell(self.program, receiver.type_reference)
             .map_or(receiver.type_reference, |shell| shell.referee);
         if !is_view && owned_projection_type_reference(self.program, carrier, &path).is_some() {
@@ -1237,7 +1237,7 @@ impl Execution<'_, '_, '_> {
         start: &FlowOperandFact,
         end: Option<&FlowOperandFact>,
         possible_storage: &mut Option<HandleSpan<FlowOperandReferent>>,
-        address_projection: &mut Option<HandleSpan<PlaceSegment>>,
+        address_projection: &mut Option<FlowOperandAddressProjection>,
     ) -> HandleSpan<FlowOperandReferent> {
         if !indexed_operation_has_builtin_meaning(
             self.program,
@@ -1282,7 +1282,7 @@ impl Execution<'_, '_, '_> {
             // even when its runtime extent remains symbolic. This equality
             // uses selected builtin meaning, not a declaration's initializer.
             if start_coordinate == Some(0) && !end.expression.is_valid() && !range.end_inclusive {
-                *address_projection = Some(HandleSpan::empty());
+                *address_projection = Some(FlowOperandAddressProjection::View(HandleSpan::empty()));
                 *possible_storage = self.project_possible_storage(collection, &[]);
                 return self.append_captured_references(&places);
             }
@@ -1327,12 +1327,16 @@ impl Execution<'_, '_, '_> {
                 },
             }
         };
-        *address_projection = Some(
-            self.context
-                .control
-                .operand_child_paths
-                .insert_many([geometry]),
-        );
+        let segments = self
+            .context
+            .control
+            .operand_child_paths
+            .insert_many([geometry]);
+        *address_projection = Some(if end.is_some() {
+            FlowOperandAddressProjection::View(segments)
+        } else {
+            FlowOperandAddressProjection::Place(segments)
+        });
         // Element selection may read a stored reference descriptor. A range
         // instead forms a view of the collection and keeps its window address.
         let reads_descriptor = end.is_none()

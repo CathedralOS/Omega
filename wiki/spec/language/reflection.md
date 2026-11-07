@@ -4,8 +4,6 @@ Reflection describes an explicitly selected type and specializes ordinary checke
 machines over its members. Libraries own inspection, encoding, editing, ordering,
 and migration policy. No format-specific compiler operation, expansion keyword,
 AST quotation, mandatory object header, or implicit runtime registry follows.
-Implementation work is tracked under `WIRE-CODEC-LIBRARY` (including
-`SEMANTIC-REFLECTION`) in [TASKS.md](../../../TASKS.md).
 
 ## Semantic descriptions
 
@@ -32,7 +30,7 @@ and provenance under [domains](domains.md) and [dependent values](dependent_valu
 Descriptions have no language-level 32-field or 4096-byte cutoff. Storage and
 evaluation sponsorship remain explicit ordinary limits: inability to produce a
 complete description reports exhaustion or unsupported production, not a
-truncated schema. Current fixed capacities in `core::layout::Schema` do not define
+truncated schema. Fixed capacities in an implementation of `core::layout::Schema` do not define
 the semantic reflection contract.
 
 `reflect::type_key<T>()` provides a comparable descriptive key for a fully static

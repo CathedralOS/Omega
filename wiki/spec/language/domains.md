@@ -553,6 +553,13 @@ and proved representable narrowing are carrier coercions. Domain-specific scale
 changes and other policy-bearing conversions are ordinary named machines or
 explicitly selected operators, never ambient conversion discovery.
 
+For an anonymous expression, `as` to an integer destination explicitly lands
+the complete operand under the [numeric landing rules](numeric_values.md#fractional-intermediate-diagnostics).
+It acknowledges fractional intermediates while requiring an integral, in-range
+final value and all target obligations. For example, `((5 / 2) * 2) as u32`
+is `5`, while `(5 / 2) as u32` rejects. This does not change the rules for
+already-typed carrier coercions or floating landing.
+
 | Use | Obligation |
 | --- | --- |
 | Predicate qualification | Prove the target predicates. |

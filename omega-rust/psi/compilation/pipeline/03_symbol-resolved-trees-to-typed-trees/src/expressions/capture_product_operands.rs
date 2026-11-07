@@ -379,15 +379,6 @@ impl Capture<'_> {
                 name: self.name(&value.name, SymbolHandle::invalid()),
                 arguments: self.types(value.arguments)?,
             },
-            source_types::TypeConstraint::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => ProductOperandConstraint::Range {
-                minimum: self.expression(*minimum)?,
-                maximum: self.expression(*maximum)?,
-                inclusive: *end_inclusive,
-            },
         })
     }
     fn expression_span(

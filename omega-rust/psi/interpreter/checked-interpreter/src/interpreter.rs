@@ -9,7 +9,7 @@ mod evaluator;
 use crate::interpreter::evaluator::filesystem::real::RealFs;
 use crate::{
     BuildTimeOperationEvaluation, EvaluationUsage, FilesystemAccess, FilesystemMetadataLayout,
-    InterpretOutcome, MeasuredEvaluation, SelectedBuildTimeBinaryOperator,
+    InterpretOutcome, SelectedBuildTimeBinaryOperator,
 };
 use build_time_values::BuildTimeValue;
 use checked_trees::CheckedTrees;
@@ -17,6 +17,30 @@ pub use evaluation_error::{BuildMachineEvaluationError, UnavailableStaticInput};
 use evaluator::{CONST_EVAL_STEP_BUDGET, Evaluator, Halt, ambient_step_budget};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+
+const INTERPRETER_STACK_SIZE: usize = 256 * 1024 * 1024;
+
+thread_local! {
+    static ON_INTERPRETER_STACK: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+fn run_with_interpreter_stack<Output: Send>(
+    work: impl FnOnce() -> Output + Send,
+) -> std::thread::Result<Output> {
+    if ON_INTERPRETER_STACK.get() {
+        return std::panic::catch_unwind(std::panic::AssertUnwindSafe(work));
+    }
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(INTERPRETER_STACK_SIZE)
+            .spawn_scoped(scope, || {
+                ON_INTERPRETER_STACK.set(true);
+                work()
+            })
+            .expect("spawn interpreter worker thread")
+            .join()
+    })
+}
 
 /// Options for [`interpret_entry`]. `Default` selects the hermetic
 /// virtual filesystem and the compiler host's checked standard metadata
@@ -60,75 +84,26 @@ pub fn interpret_entry(
 ) -> InterpretOutcome {
     // Run on a worker thread with a generous stack: the tree-walker recurses with the
     // program's call/expression nesting, which can exceed the default test-thread stack on
-    // deep programs even with the call-depth budget. A scoped thread lets us keep the
-    // borrow of `checked`/`stdin`.
-    std::thread::scope(|scope| {
-        std::thread::Builder::new()
-            .stack_size(256 * 1024 * 1024)
-            .spawn_scoped(scope, || {
-                interpret_on_current_thread(checked, entry, stdin, options)
-            })
-            .expect("spawn interpreter worker thread")
-            .join()
-            .unwrap_or_else(|_| {
-                InterpretOutcome::error(
-                    "interpreter thread panicked",
-                    Vec::new(),
-                    Vec::new(),
-                    EvaluationUsage::empty(ambient_step_budget()),
-                )
-            })
-    })
-}
-
-/// CONST EVALUATION (comptime stage 1): evaluate the zero-argument machine
-/// `machine_name` at compile time, returning its terminal value width-adjusted
-/// to the machine's declared integer return type (TARGET widths -- the same
-/// wrap-on-write the differential interpreter applies -- never host widths).
-///
-/// The CALLER owns the legality gate (the machine's inferred transitive effect
-/// surface must be empty and it must take no parameters -- frozen decision 12's
-/// purity predicate); this entry owns evaluation only. Termination rides the
-/// language's existing discipline (no general recursion, loops carry
-/// decreases); a small evaluator-step ceiling (~100k units) backstops checker
-/// gaps. Errors are human-readable reasons for the compile diagnostic at the
-/// const site.
-///
-/// Works over `TypedTrees` (pre-checking) so the compiler pipeline can
-/// substitute results BEFORE range checking and layout consume the lengths.
-pub fn evaluate_const_machine(
-    program: &typed_trees::TypedTrees,
-    machine_name: &str,
-) -> Result<i64, String> {
-    evaluate_const_machine_measured(program, machine_name).map(MeasuredEvaluation::into_value)
-}
-
-/// [`evaluate_const_machine`] with its deterministic evaluator usage.
-pub fn evaluate_const_machine_measured(
-    program: &typed_trees::TypedTrees,
-    machine_name: &str,
-) -> Result<MeasuredEvaluation<i64>, String> {
-    std::thread::scope(|scope| {
-        std::thread::Builder::new()
-            .stack_size(256 * 1024 * 1024)
-            .spawn_scoped(scope, || {
-                evaluate_const_on_current_thread(program, machine_name)
-            })
-            .expect("spawn const-eval worker thread")
-            .join()
-            .unwrap_or_else(|_| Err("const evaluator thread panicked".to_owned()))
-    })
+    // deep programs even with the call-depth budget.
+    run_with_interpreter_stack(|| interpret_on_current_thread(checked, entry, stdin, options))
+        .unwrap_or_else(|_| {
+            InterpretOutcome::error(
+                "interpreter thread panicked",
+                Vec::new(),
+                Vec::new(),
+                EvaluationUsage::empty(ambient_step_budget()),
+            )
+        })
 }
 
 // STRUCTURED build-time evaluation (wiki/spec/language/evaluation.md;
 // the R2 layouts enabler): invoke the effect-free machine `machine_name`
 // with compiler-built arguments and read back its terminal value as a
-// structured tree. As with [`evaluate_const_machine`], the CALLER owns the
-// legality gate (decision 12's transitive effect surface must be empty and
-// parameters must be by-value); this entry owns evaluation, positional
-// argument binding (count-checked), and the evaluator-step ceiling. No keyword
-// marks build-time machines -- the position makes the evaluation build-time,
-// and the effect system makes it legal.
+// structured tree. The CALLER owns the legality gate (decision 12's transitive
+// effect surface must be empty and parameters must be by-value); this entry
+// owns evaluation, positional argument binding (count-checked), and the
+// evaluator-step ceiling. No keyword marks build-time machines -- the position
+// makes the evaluation build-time, and the effect system makes it legal.
 
 /// Which build-time machine an evaluation runs.
 #[derive(Clone, Copy, Debug)]
@@ -287,16 +262,6 @@ pub const fn pure_evaluation_step_ceiling() -> u64 {
     CONST_EVAL_STEP_BUDGET
 }
 
-/// Evaluate one build-time machine for its structured return value and the
-/// private layout placements it issued. Selected operators are honored; the
-/// evaluation is pure and unsponsored.
-pub fn evaluate_build_time_machine(
-    program: &TypedTrees,
-    request: BuildMachineEvaluationRequest<'_>,
-) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, BuildMachineEvaluationError> {
-    evaluate_prepared_build_time_machine(BuildMachineProgram::Typed(program), request)
-}
-
 /// Ordinary early-job preparation retains its checked facts when returning a
 /// value, just as Build activation does when observing argument storage. Both
 /// entrances use this existing evaluator; Terminal-only execution will replace
@@ -312,24 +277,6 @@ pub fn evaluate_prepared_build_time_machine(
         request.operators,
         request.machine_bodies,
     )
-}
-
-fn evaluate_const_on_current_thread(
-    program: &TypedTrees,
-    machine_name: &str,
-) -> Result<MeasuredEvaluation<i64>, String> {
-    let mut evaluator = Evaluator::new(program, &[]);
-    evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, None);
-    let result = evaluator.run_const_machine(machine_name);
-    evaluator.finish_cell_usage();
-    let mut usage = evaluator.usage;
-    match result {
-        Ok(value) => {
-            usage.record_result_custody(1, 0);
-            Ok(MeasuredEvaluation::new(value, usage))
-        }
-        Err(halt) => Err(structured_return_halt_error(halt).to_string()),
-    }
 }
 
 /// The value-returning evaluation's halt text: an explicit exit reports its
@@ -371,55 +318,49 @@ fn evaluate_structured_return(
             "selected operator crash invocations have no build-time execution support".into(),
         ));
     }
-    std::thread::scope(|scope| {
-        std::thread::Builder::new()
-            .stack_size(256 * 1024 * 1024)
-            .spawn_scoped(scope, || {
-                let mut evaluator = Evaluator::new_build(program);
-                evaluator.selected_build_time_operators = operators;
-                evaluator.selected_build_time_machine_bodies = machine_bodies;
-                evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, None);
-                let result = match entry {
-                    BuildMachineEntry::Name(machine_name) => {
-                        evaluator.run_build_time_machine(machine_name, arguments)
-                    }
-                    BuildMachineEntry::Symbol(machine_symbol) => {
-                        evaluator.run_build_time_machine_symbol(machine_symbol, arguments)
-                    }
-                };
-                evaluator.finish_cell_usage();
-                let mut usage = evaluator.usage;
-                match result {
-                    Ok(value) => {
-                        let (result_cells, result_text_bytes) =
-                            build_time_result_custody(std::slice::from_ref(&value)).ok_or_else(
-                                || "build-time evaluator result-cell count overflowed".to_owned(),
-                            )?;
-                        usage.record_result_custody(result_cells, result_text_bytes);
-                        for receipt in &evaluator.private_layout_placements {
-                            let (cells, text_bytes) =
-                                build_time_result_custody(std::slice::from_ref(&receipt.placement))
-                                    .ok_or_else(|| {
-                                        "private placement result-cell count overflowed".to_owned()
-                                    })?;
-                            usage.record_result_custody(cells, text_bytes);
-                        }
-                        Ok(BuildTimeOperationEvaluation::new(
-                            value,
-                            usage,
-                            evaluator.private_layout_placements,
-                        ))
-                    }
-                    Err(halt) => Err(structured_return_halt_error(halt)),
+    run_with_interpreter_stack(|| {
+        let mut evaluator = Evaluator::new_build(program);
+        evaluator.selected_build_time_operators = operators;
+        evaluator.selected_build_time_machine_bodies = machine_bodies;
+        evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, None);
+        let result = match entry {
+            BuildMachineEntry::Name(machine_name) => {
+                evaluator.run_build_time_machine(machine_name, arguments)
+            }
+            BuildMachineEntry::Symbol(machine_symbol) => {
+                evaluator.run_build_time_machine_symbol(machine_symbol, arguments)
+            }
+        };
+        evaluator.finish_cell_usage();
+        let mut usage = evaluator.usage;
+        match result {
+            Ok(value) => {
+                let (result_cells, result_text_bytes) =
+                    build_time_result_custody(std::slice::from_ref(&value)).ok_or_else(|| {
+                        "build-time evaluator result-cell count overflowed".to_owned()
+                    })?;
+                usage.record_result_custody(result_cells, result_text_bytes);
+                for receipt in &evaluator.private_layout_placements {
+                    let (cells, text_bytes) =
+                        build_time_result_custody(std::slice::from_ref(&receipt.placement))
+                            .ok_or_else(|| {
+                                "private placement result-cell count overflowed".to_owned()
+                            })?;
+                    usage.record_result_custody(cells, text_bytes);
                 }
-            })
-            .expect("spawn build-time evaluation worker thread")
-            .join()
-            .unwrap_or_else(|_| {
-                Err(BuildMachineEvaluationError::Rejected(
-                    "build-time evaluator thread panicked".to_owned(),
+                Ok(BuildTimeOperationEvaluation::new(
+                    value,
+                    usage,
+                    evaluator.private_layout_placements,
                 ))
-            })
+            }
+            Err(halt) => Err(structured_return_halt_error(halt)),
+        }
+    })
+    .unwrap_or_else(|_| {
+        Err(BuildMachineEvaluationError::Rejected(
+            "build-time evaluator thread panicked".to_owned(),
+        ))
     })
 }
 

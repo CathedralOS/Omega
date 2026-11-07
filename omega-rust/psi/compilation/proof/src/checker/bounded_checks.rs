@@ -9,11 +9,7 @@ use crate::checker::certificate::{
     CertificateVerdict, bounded_integer_value_verdict, guarded_transition_integer_verdict_measured,
     state_return_integer_verdict,
 };
-use crate::checker::dependent_bounds::{
-    dependent_call_field_floor, dependent_field_floor, guard_proves_dependent_upper,
-    guard_proves_sibling_len_upper, incoming_guard_proves_dependent_call_upper,
-    sibling_len_from_constraints, state_preserves_field, symbolic_max_from_constraints,
-};
+
 use crate::checker::derivation_cache::DerivationConsultation;
 use crate::checker::diagnostics::{
     cannot_prove_bounded_assignment_float, cannot_prove_bounded_assignment_integer,
@@ -21,8 +17,6 @@ use crate::checker::diagnostics::{
     cannot_prove_bounded_initializer_float, cannot_prove_bounded_initializer_integer,
     cannot_prove_bounded_return_float, cannot_prove_bounded_return_integer,
     cannot_prove_bounded_transition_float, cannot_prove_bounded_transition_integer,
-    cannot_prove_dependent_call_bound, cannot_prove_dependent_transition_bound,
-    expression_display_name,
 };
 use crate::checker::float_ranges::{
     float_range_for_assignment, float_range_for_call_argument, float_range_for_initializer,
@@ -32,8 +26,7 @@ use crate::checker::float_ranges::{
 use crate::checker::integer_ranges::{
     guarded_integer_range_for_assignment_with_context,
     guarded_integer_range_for_transition_argument, integer_range_for_call_argument,
-    integer_range_for_initializer, integer_range_for_state_return, integer_range_from_constraints,
-    type_constraints,
+    integer_range_for_initializer, integer_range_from_constraints, type_constraints,
 };
 use crate::checker::measurement::ProofPlanMeasurements;
 use crate::checker::named_constraints::{
@@ -46,11 +39,10 @@ use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, ProofPlan,
 };
-use crate::obligations::{FloatRange, IntegerRange, ProofConstraint, RecipeRangeBound};
-use crate::typed_expressions::{expression_contains_call_node, expression_table};
+use crate::obligations::{FloatRange, IntegerRange, ProofConstraint};
+use crate::typed_expressions::expression_contains_call_node;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
-use semantic_vocabulary::ScalarConditionRole;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::state::state_by_symbol;
 use typed_trees::statement::StatementNode;
@@ -61,7 +53,7 @@ pub(crate) fn check_bounded_assignment<'program>(
     context: &AssignmentRangeContext<'program>,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
-    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
+    _recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) -> Option<IntegerRange> {
@@ -77,22 +69,6 @@ pub(crate) fn check_bounded_assignment<'program>(
     let diagnostics_before = diagnostics.len();
     let mut checked_range = None;
     check_assignment_named_constraints(proof_plan, obligation, diagnostics);
-    discharge_recipe_range(
-        proof_plan,
-        obligation.machine_symbol,
-        ScalarConditionRole::Prerequisite,
-        obligation.constraints,
-        guarded_integer_range_for_assignment_with_context(proof_plan, obligation, context),
-        obligation.value,
-        format!(
-            "assignment to `{}` in `{}.{}`",
-            expression_table(proof_plan.program).display_name(obligation.target),
-            obligation.machine,
-            obligation.state
-        ),
-        diagnostics,
-        recipe_obligations,
-    );
 
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
@@ -166,32 +142,6 @@ pub(crate) fn check_bounded_assignment<'program>(
     } else {
         None
     }
-}
-
-/// Whether this assignment's value is overwritten before it can be observed.
-///
-/// Calls and transitions are unconditional consumption points. Reads of the
-/// place and writes that may alias it also close the window. Pure work over
-/// disjoint places may occur between the opening write and its repair.
-/// The shared atom leg of the dependent-bound discharge: the argument's
-/// symbolic maximum must restate this field at a tighter-or-equal floor and
-/// the state must preserve the field.
-fn dependent_atom_proves(
-    proof_plan: &ProofPlan,
-    argument_constraints: arena::HandleSpan<ProofConstraint>,
-    machine: &str,
-    state: &str,
-    max_field: &typed_trees::name::Identifier,
-    minimum: i64,
-    max_offset: i64,
-) -> bool {
-    symbolic_max_from_constraints(type_constraints(proof_plan, argument_constraints)).is_some_and(
-        |(arg_min, arg_field, arg_offset)| {
-            arg_field.as_str() == max_field.as_str()
-                && arg_offset <= max_offset
-                && arg_min >= minimum
-        },
-    ) && state_preserves_field(proof_plan, machine, state, max_field)
 }
 
 fn assignment_is_overwritten_before_consumption(
@@ -298,22 +248,11 @@ pub(crate) fn check_bounded_initializer(
     obligation: &BoundedInitializerObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
-    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
+    _recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_initializer_named_constraints(proof_plan, obligation, diagnostics);
-    discharge_recipe_range(
-        proof_plan,
-        obligation.owner.machine_symbol().unwrap_or_default(),
-        ScalarConditionRole::Prerequisite,
-        obligation.constraints,
-        integer_range_for_initializer(proof_plan, obligation),
-        obligation.value,
-        "initializer".to_owned(),
-        diagnostics,
-        recipe_obligations,
-    );
 
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
@@ -391,22 +330,11 @@ pub(crate) fn check_bounded_state_return<'program>(
     context: &AssignmentRangeContext<'program>,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
-    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
+    _recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_return_named_constraints(proof_plan, obligation, diagnostics);
-    discharge_recipe_range(
-        proof_plan,
-        obligation.machine_symbol,
-        ScalarConditionRole::Result,
-        obligation.constraints,
-        integer_range_for_state_return(proof_plan, obligation),
-        obligation.value,
-        format!("return from `{}.{}`", obligation.machine, obligation.state),
-        diagnostics,
-        recipe_obligations,
-    );
 
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
@@ -470,25 +398,11 @@ pub(crate) fn check_bounded_call_argument(
     obligation: &BoundedCallArgumentObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
-    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
+    _recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_call_named_constraints(proof_plan, obligation, diagnostics);
-    discharge_recipe_range(
-        proof_plan,
-        obligation.machine_symbol,
-        ScalarConditionRole::Prerequisite,
-        obligation.constraints,
-        integer_range_for_call_argument(proof_plan, obligation),
-        obligation.argument,
-        format!(
-            "call argument for parameter `{}` of `{}`",
-            obligation.parameter, obligation.target
-        ),
-        diagnostics,
-        recipe_obligations,
-    );
 
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
@@ -553,61 +467,10 @@ pub(crate) fn check_bounded_call_argument(
     // calls (the recognizer's `self.<field>` names the callee's data, which
     // for a self-call IS this machine's; cross-machine dependent params are
     // the R4 boundary-witness rung). Anything else refuses loudly.
-    if let Some((minimum, max_field, max_offset)) =
-        symbolic_max_from_constraints(type_constraints(proof_plan, obligation.constraints))
-    {
-        let self_receiver = obligation
-            .receiver
-            .as_ref()
-            .is_none_or(|receiver| receiver.is_self_receiver());
-        let argument_range = integer_range_for_call_argument(proof_plan, obligation);
-        // Route (c), as on transitions: a same-field tighter-or-equal
-        // dependent argument forwards (self-receiver keeps `self.<field>`
-        // the same place).
-        let atom_proves = dependent_atom_proves(
-            proof_plan,
-            obligation.argument_constraints,
-            obligation.machine.as_str(),
-            obligation.state.as_str(),
-            max_field,
-            minimum,
-            max_offset,
-        );
-        let proven = self_receiver
-            && (atom_proves
-                || incoming_guard_proves_dependent_call_upper(
-                    proof_plan, obligation, max_field, max_offset,
-                )
-                || argument_range.is_some_and(|range| {
-                    range.minimum >= BigInt::from_i64(minimum)
-                        && dependent_call_field_floor(proof_plan, obligation, max_field)
-                            .and_then(|floor| floor.checked_add(max_offset))
-                            .is_some_and(|cap| range.maximum <= BigInt::from_i64(cap))
-                }));
-        if !proven {
-            diagnostics.push(cannot_prove_dependent_call_bound(
-                proof_plan, obligation, minimum, max_field, max_offset,
-            ));
-        }
-    }
 
     // Sibling-length params on CALL arguments: a call has no co-located
     // guard and a slice length has no static floor, so no rung-A discharge
     // exists -- refuse with the route hint.
-    if let Some((_, max_offset)) =
-        sibling_len_from_constraints(type_constraints(proof_plan, obligation.constraints))
-    {
-        let _ = max_offset;
-        diagnostics.push(Diagnostic::error(format!(
-            "cannot prove call argument `{}` satisfies sibling-length parameter `{}` for `{}` in `{}.{}`; route the call through a transition whose arm guards `{} < <items>.len`",
-            expression_display_name(proof_plan, obligation.argument),
-            obligation.parameter,
-            obligation.target,
-            obligation.machine,
-            obligation.state,
-            expression_display_name(proof_plan, obligation.argument),
-        )));
-    }
 
     if discharge_declared_float_range(
         proof_plan,
@@ -624,24 +487,11 @@ pub(crate) fn check_bounded_transition_argument(
     obligation: &BoundedTransitionArgumentObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
-    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
+    _recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     mut derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_transition_named_constraints(proof_plan, obligation, diagnostics);
-    discharge_recipe_range(
-        proof_plan,
-        obligation.machine_symbol,
-        ScalarConditionRole::Prerequisite,
-        obligation.constraints,
-        Some(guarded_integer_range_for_transition_argument(
-            proof_plan, obligation,
-        )),
-        obligation.argument,
-        "transition argument".to_owned(),
-        diagnostics,
-        recipe_obligations,
-    );
 
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
@@ -731,71 +581,11 @@ pub(crate) fn check_bounded_transition_argument(
     // case through the field's OWN enforced literal range (`arg_max <=
     // min(count) + offset` holds for every runtime count). The lower half is
     // the literal minimum, checked against the guarded argument range.
-    if let Some((minimum, max_field, max_offset)) =
-        symbolic_max_from_constraints(type_constraints(proof_plan, obligation.constraints))
-    {
-        let argument_range = guarded_integer_range_for_transition_argument(proof_plan, obligation);
-        // Route (c): the ARGUMENT is itself dependent-ranged on the SAME
-        // field with a tighter-or-equal bound (`i: [0..=self.count]`
-        // forwarded into `k: [0..=self.count]`; the exclusive sugar's -1
-        // offset forwards into the inclusive form). Transitions stay within
-        // one machine, so the field is the same place.
-        let atom_proves = dependent_atom_proves(
-            proof_plan,
-            obligation.argument_constraints,
-            obligation.machine.as_str(),
-            obligation.state.as_str(),
-            max_field,
-            minimum,
-            max_offset,
-        );
-        let lower_proven = atom_proves || argument_range.minimum >= BigInt::from_i64(minimum);
-        let upper_proven = atom_proves
-            || guard_proves_dependent_upper(proof_plan, obligation, max_field, max_offset)
-            || dependent_field_floor(proof_plan, obligation, max_field)
-                .and_then(|floor| floor.checked_add(max_offset))
-                .is_some_and(|cap| argument_range.maximum <= BigInt::from_i64(cap));
-        if !lower_proven || !upper_proven {
-            diagnostics.push(cannot_prove_dependent_transition_bound(
-                proof_plan, obligation, minimum, max_field, max_offset,
-            ));
-        }
-    }
 
     // R1 sibling-length maximum (`index: u64 [0..items.len]`): the argument
     // must sit under the SIBLING ARGUMENT's length at this call -- and slice
     // lengths have no static floor, so the only discharge is the co-located
     // guard relating the argument to `<sibling-arg>.len` tightly enough.
-    if let Some((minimum, max_offset)) =
-        sibling_len_from_constraints(type_constraints(proof_plan, obligation.constraints))
-    {
-        let argument_range = guarded_integer_range_for_transition_argument(proof_plan, obligation);
-        let lower_proven = argument_range.minimum >= BigInt::from_i64(minimum);
-        let upper_proven = obligation.sibling_argument.is_valid()
-            && guard_proves_sibling_len_upper(
-                proof_plan,
-                obligation.argument,
-                &obligation.guard,
-                obligation.sibling_argument,
-                max_offset,
-            );
-        if !lower_proven || !upper_proven {
-            diagnostics.push(Diagnostic::error(format!(
-                "cannot prove transition argument `{}` satisfies sibling-length parameter `{}` in `{}.{}`; expected {minimum}..=<sibling>.len{} -- relate them on the arm (`{} < {}.len`)",
-                expression_display_name(proof_plan, obligation.argument),
-                obligation.parameter,
-                obligation.machine,
-                obligation.state,
-                if max_offset == 0 { String::new() } else { format!(" {:+}", max_offset) },
-                expression_display_name(proof_plan, obligation.argument),
-                if obligation.sibling_argument.is_valid() {
-                    expression_display_name(proof_plan, obligation.sibling_argument)
-                } else {
-                    "<sibling>".to_string()
-                },
-            )));
-        }
-    }
 
     // The declared range is the goal. A co-located comparison of this
     // argument and surviving refuted exits constrain its ordered values.
@@ -838,89 +628,4 @@ fn discharge_declared_float_range<O>(
         diagnostics.push(refuse(proof_plan, obligation, target_range));
     }
     false
-}
-
-/// Decide a declared range with a retained constant recipe at an endpoint.
-/// The value's own range is the judgment's evidence: a closed endpoint is
-/// compared here, a recipe endpoint becomes a recorded comparison the target
-/// closure discharges against the closed value. A value without a bounded
-/// range has nothing to compare and refuses now.
-/// The caller records whether this comparison admits a use or checks a return;
-/// the endpoint recipe itself does not determine when the condition is owed.
-fn discharge_recipe_range(
-    proof_plan: &ProofPlan,
-    owner: symbols::SymbolHandle,
-    role: ScalarConditionRole,
-    constraints: arena::HandleSpan<ProofConstraint>,
-    value_range: Option<IntegerRange>,
-    value: typed_trees::expression::ExpressionHandle,
-    description: String,
-    diagnostics: &mut Vec<Diagnostic>,
-    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
-) {
-    for constraint in type_constraints(proof_plan, constraints) {
-        let ProofConstraint::IntegerRangeRecipe { minimum, maximum } = constraint else {
-            continue;
-        };
-        let source_span = proof_plan.program.expression_table.source_span(value);
-        let Some(value_range) = value_range.as_ref() else {
-            diagnostics.push(
-                Diagnostic::error(format!(
-                    "cannot prove {description} has a bounded value to compare with its declared range fixed at target closure"
-                ))
-                .with_source_span(source_span),
-            );
-            return;
-        };
-        match minimum {
-            RecipeRangeBound::Closed(bound) => {
-                if value_range.minimum < *bound {
-                    diagnostics.push(
-                        Diagnostic::error(format!(
-                            "cannot prove {description} is at least {bound}; its value may be as low as {}",
-                            value_range.minimum
-                        ))
-                        .with_source_span(source_span),
-                    );
-                }
-            }
-            RecipeRangeBound::Recipe { recipe, offset } => {
-                recipe_obligations.push(checked_trees::ConstantRecipeObligation::retain(
-                    owner,
-                    role,
-                    *recipe,
-                    checked_trees::ConstantRecipeRequirement::AtMost(
-                        value_range.minimum.sub(&BigInt::from_i64(*offset)),
-                    ),
-                    source_span,
-                    format!("{description} (declared minimum)"),
-                ));
-            }
-        }
-        match maximum {
-            RecipeRangeBound::Closed(bound) => {
-                if value_range.maximum > *bound {
-                    diagnostics.push(
-                        Diagnostic::error(format!(
-                            "cannot prove {description} is at most {bound}; its value may be as high as {}",
-                            value_range.maximum
-                        ))
-                        .with_source_span(source_span),
-                    );
-                }
-            }
-            RecipeRangeBound::Recipe { recipe, offset } => {
-                recipe_obligations.push(checked_trees::ConstantRecipeObligation::retain(
-                    owner,
-                    role,
-                    *recipe,
-                    checked_trees::ConstantRecipeRequirement::AtLeast(
-                        value_range.maximum.sub(&BigInt::from_i64(*offset)),
-                    ),
-                    source_span,
-                    format!("{description} (declared maximum)"),
-                ));
-            }
-        }
-    }
 }

@@ -93,7 +93,7 @@ fn published_graph_preserves_nested_bindings_and_declaration_membership() {
     // Missing source summaries do not become empty summaries during capture.
     assert!(
         !portable_calls
-            .machines
+            .machines()
             .iter()
             .any(|(_, row)| row.machine == 108)
     );

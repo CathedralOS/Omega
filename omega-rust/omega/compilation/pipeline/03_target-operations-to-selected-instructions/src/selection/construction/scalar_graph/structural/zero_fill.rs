@@ -9,15 +9,7 @@ use crate::selection::construction::scalar_graph::structural::provenance;
 use selected_instructions::VirtualRegisterId;
 use semantic_vocabulary::{IntegerValue, PlaceId};
 
-/// The largest home expanded into per-leaf or byte-chunk stores. Up to one 4 KiB page
-/// every leaf store addresses the home from its base pointer with an
-/// encodable displacement on both ISAs (AArch64's unsigned scaled
-/// immediate reaches byte 4095), and the straight-line sequence stays
-/// bounded by the home's size. Above it the per-leaf sequence grows with
-/// the leaf count — the product lexer's home has about 230k leaves, about
-/// 1 MB of stores per establishment — and its stores start paying address
-/// arithmetic, so one fixed loop over the whole extent replaces it.
-pub(super) const INLINE_HOME_MAX_BYTES: u32 = 4096;
+pub(super) use crate::selection::extent_copy::INLINE_MAX_BYTES as INLINE_HOME_MAX_BYTES;
 
 /// Write zero over the home's whole byte extent `[0, byte_size)` from its
 /// base pointer. The count is a materialized constant equal to the

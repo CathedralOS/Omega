@@ -93,7 +93,7 @@ fn source_failure_summary_distinguishes_unknown_from_proved_empty() {
         let plan = checked
             .facts
             .contract_plans
-            .machines
+            .machines_mut()
             .iter_mut()
             .find(|plan| plan.machine == owner)
             .expect("exact plan");

@@ -20,8 +20,9 @@ pub use placement::{
     AccessRamCorrespondence, AccessRamFieldCorrespondence, AccessorScalarBoundaryDemand,
     ResidentReferenceSource, TerminalAccessFieldPlan, TerminalAccessLifecycleExecution,
     TerminalAccessLifecycleOperation, TerminalAccessLifecyclePlan, TerminalAccessOwner,
-    TerminalAccessProfileRequirement, TerminalAccessStorage, TerminalAccessViewInput,
-    TerminalAccessViewPlan, TerminalAccessor, TerminalAccessorKind, canonical_access_view_identity,
+    TerminalAccessProfileOperand, TerminalAccessProfileRequirement, TerminalAccessStorage,
+    TerminalAccessViewInput, TerminalAccessViewPlan, TerminalAccessor, TerminalAccessorKind,
+    canonical_access_view_identity,
 };
 pub use suspension::{
     TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,

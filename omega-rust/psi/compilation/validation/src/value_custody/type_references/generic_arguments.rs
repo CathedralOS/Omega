@@ -858,15 +858,7 @@ pub(crate) fn validate_const_data_argument(
             )));
             return;
         };
-        validate_const_integer_range(
-            program,
-            base_name,
-            parameter,
-            parameter_type,
-            primitive,
-            value,
-            diagnostics,
-        );
+        validate_const_integer_carrier(base_name, parameter, primitive, value, diagnostics);
         return;
     }
 
@@ -1602,11 +1594,9 @@ fn validate_typed_const_index_type(
     }
 }
 
-fn validate_const_integer_range(
-    program: &dyn CheckingInput,
+fn validate_const_integer_carrier(
     base_name: &str,
     parameter: &TypeParameter,
-    mut parameter_type: TypeReferenceHandle,
     primitive: PrimitiveType,
     value: i128,
     diagnostics: &mut Vec<Diagnostic>,
@@ -1617,45 +1607,10 @@ fn validate_const_integer_range(
             parameter.name,
             primitive.name()
         )));
-        return;
-    }
-    let exact_value = numerics::bignum::BigInt::from_i128(value);
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = program.type_reference_table.type_reference(parameter_type)
-    {
-        for constraint in program.type_reference_table.constraints(*constraints) {
-            let typed_trees::types::TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-            else {
-                continue;
-            };
-            let bounds = crate::closed_integer_range_bound(program, *minimum).zip(
-                crate::closed_integer_range_maximum(program, *maximum, *end_inclusive),
-            );
-            let Some((minimum, maximum)) = bounds else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "const argument `{value}` for `{base_name}::{}` cannot establish its declared range from closed integer bounds",
-                    parameter.name,
-                )));
-                continue;
-            };
-            if exact_value < minimum || exact_value > maximum {
-                diagnostics.push(Diagnostic::error(format!(
-                    "const argument `{value}` for `{base_name}::{}` is outside its declared range `[{minimum}..={maximum}]`",
-                    parameter.name,
-                )));
-            }
-        }
-        parameter_type = *base_type;
     }
 }
 
-/// The declaration twin of `validate_const_integer_range`. An integer const
+/// The declaration twin of `validate_const_integer_carrier`. An integer const
 /// or value binder's carrier range is established by each argument from
 /// closed integer bounds, so a range that does not close (`const N: u64
 /// [0..K]`, naming a sibling binder) admits no argument. Psi 02 also leaves
@@ -1697,39 +1652,6 @@ pub(crate) fn validate_const_binder_carriers(
             scope,
             formation_obligations,
         );
-        let Some(primitive_type) = program
-            .type_reference_table
-            .primitive_type(carrier)
-            .filter(|primitive_type| primitive_type.accepts_integer_literal())
-        else {
-            continue;
-        };
-        let (ranges, _) = super::integer_ranges::constrained_range_constraints(program, carrier);
-        for (minimum, maximum, end_inclusive) in ranges {
-            let closes = crate::closed_integer_range_bound(program, minimum).is_some()
-                && crate::closed_integer_range_maximum(program, maximum, end_inclusive).is_some();
-            // The same pending admission formation applies to a declared
-            // range: every leaf closes or is a marked endpoint call.
-            let mut found_pending = false;
-            let pending = [minimum, maximum].into_iter().all(|endpoint| {
-                let (closed, marked) =
-                    super::constraint_validation::range_bound_pending_evaluation_shape(
-                        program,
-                        primitive_type,
-                        endpoint,
-                    );
-                found_pending |= marked;
-                closed
-            }) && found_pending;
-            if !closes && !pending {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} parameter `{}` declares a range that does not close over \
-                     integers; an argument establishes its declared range from closed \
-                     integer bounds",
-                    parameter.name,
-                )));
-            }
-        }
     }
 }
 

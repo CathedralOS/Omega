@@ -88,7 +88,7 @@ optimization infallible.
 
 | Boundary | Checks and evidence | What remains trusted |
 | --- | --- | --- |
-| Source to checked trees | Parsing, typing, ownership and contract checking, including admitted mathematical proofs; positive and rejection tests exercise these judgments. | The source checker, proof kernel and explicitly admitted premises. |
+| Source to checked trees | Parsing, typing, ownership and [source contract automation](psi/compilation/validation/README.md#source-proof-automation), including admitted mathematical proofs; positive and rejection tests exercise these judgments. | The source checker, proof kernel and explicitly admitted premises. Contract automation remains trusted wherever it accepts an obligation without kernel-checked evidence. Not every source obligation passes through the proof kernel. |
 | Checked trees to Terminal Psi | Lowering and selected Psi transformations; focused tests and independent validators exercise their contracts. | Preservation of the checked source's meaning and obligations through these transformations. |
 | Terminal Psi to native execution | Target realization and publication checks; `omega run --both` compares native execution with the Terminal interpreter. | Backend correctness beyond the executions and observations compared, plus the interpreter and shared semantics. |
 | Received artifacts and installed providers | Canonical decoding and consumer-owned structural, contract, authority and installation checks. | Psi's discharged source judgments and the accepted provenance and external contracts. |

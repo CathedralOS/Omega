@@ -83,8 +83,7 @@ fn graph(
 }
 
 fn compare(program: &TypedTrees, definition: &DataDefinition, expected: bool) -> (usize, usize) {
-    let facts = CheckedOperatorFacts::default();
-    let operators = DeclaredOperators::new(&facts);
+    let operators = CheckedOperatorFacts::default();
     let mut own_evaluations = 0;
     assert_eq!(
         original_definition_storage(
@@ -110,7 +109,7 @@ fn compare(program: &TypedTrees, definition: &DataDefinition, expected: bool) ->
     );
     assert!(visited.is_empty());
     assert_eq!(
-        declaration_facts_carried(program, &facts, definition),
+        declaration_facts_carried(program, &operators, definition),
         expected
     );
     (own_evaluations, checked_own.len())
@@ -149,15 +148,11 @@ fn own_fact_reuse_preserves_original_storage_walks_and_alias_cycles() {
     alias.symbol = symbols[2]; // B1 and B2: same active identity, different rows.
     program.retain_data_application_definition(references[3], alias, true);
     assert!(program.data_definitions().iter().all(|definition| {
-        definition_own_facts_carried(
-            &program,
-            &DeclaredOperators::new(&CheckedOperatorFacts::default()),
-            definition,
-        )
+        definition_own_facts_carried(&program, &CheckedOperatorFacts::default(), definition)
     }));
     assert!(definition_own_facts_carried(
         &program,
-        &DeclaredOperators::new(&CheckedOperatorFacts::default()),
+        &CheckedOperatorFacts::default(),
         program.data_application_definition(references[3]).unwrap(),
     ));
     compare(
@@ -209,8 +204,7 @@ fn own_fact_reuse_preserves_original_storage_walks_and_alias_cycles() {
     let root = program
         .unique_data_definition_by_symbol(symbols[0])
         .unwrap();
-    let facts = CheckedOperatorFacts::default();
-    let operators = DeclaredOperators::new(&facts);
+    let operators = CheckedOperatorFacts::default();
     let mut checked = Vec::new();
     assert!(!complete_definition_storage(
         &program,
@@ -302,7 +296,7 @@ fn own_fact_reuse_preserves_original_storage_walks_and_alias_cycles() {
 // Literal pre-edit DFS, with only test names and own-check counting added.
 fn original_definition_storage(
     program: &dyn crate::CheckingInput,
-    operators: &DeclaredOperators<'_>,
+    operators: &CheckedOperatorFacts,
     definition: &DataDefinition,
     visited: &mut Vec<StorageDefinitionIdentity>,
     own_evaluations: &mut usize,
@@ -333,7 +327,7 @@ fn original_definition_storage(
 
 fn original_owned_storage(
     program: &dyn crate::CheckingInput,
-    operators: &DeclaredOperators<'_>,
+    operators: &CheckedOperatorFacts,
     reference: TypeReferenceHandle,
     visited: &mut Vec<StorageDefinitionIdentity>,
     own_evaluations: &mut usize,

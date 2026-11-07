@@ -186,51 +186,6 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
                     if matches!(constraint, typed_trees::types::TypeConstraintNode::Named(_)) {
                         return None;
                     }
-                    if let typed_trees::types::TypeConstraintNode::Range {
-                        minimum,
-                        maximum,
-                        end_inclusive,
-                    } = constraint
-                        && matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
-                    {
-                        // IEEE endpoints are values of the field's own format,
-                        // not integer bounds: the restriction is the ordered
-                        // comparison pair a parameter's range publishes.
-                        let next = float_range_predicate(
-                            program,
-                            primitive,
-                            *minimum,
-                            *maximum,
-                            *end_inclusive,
-                        )?;
-                        predicate = Some(match predicate {
-                            None => next,
-                            Some(previous) => checked_trees::CheckedBooleanExpression::And {
-                                left: Box::new(previous),
-                                right: Box::new(next),
-                            },
-                        });
-                    } else if let typed_trees::types::TypeConstraintNode::Range {
-                        minimum,
-                        maximum,
-                        end_inclusive,
-                    } = constraint
-                    {
-                        // Use the same closed-expression evaluation as source range
-                        // validation. Failure is unsupported, never an unbounded field.
-                        let lower = validation::closed_integer_range_bound(program, *minimum)?;
-                        let upper = validation::closed_integer_range_maximum(
-                            program,
-                            *maximum,
-                            *end_inclusive,
-                        )?;
-                        declared_bounds = Some(match declared_bounds {
-                            Some((previous_lower, previous_upper)) => {
-                                (previous_lower.max(lower), previous_upper.min(upper))
-                            }
-                            None => (lower, upper),
-                        });
-                    }
                 }
                 type_reference = *base_type;
             }
@@ -323,48 +278,4 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
         return Some(FieldType::AtomicBoundedInteger(bounds));
     }
     validation::scalar_field_restriction(primitive, Some(bounds), predicate)
-}
-
-/// `minimum <= value` and `value <= maximum` (`<` when exclusive) over the
-/// field's IEEE format. Ordered comparisons reject NaN, as the range does.
-fn float_range_predicate(
-    program: &dyn ::validation::CheckingInput,
-    primitive: PrimitiveType,
-    minimum: typed_trees::expression::ExpressionHandle,
-    maximum: typed_trees::expression::ExpressionHandle,
-    end_inclusive: bool,
-) -> Option<checked_trees::CheckedBooleanExpression> {
-    use checked_trees::CheckedIeeeFloatComparisonKind as Kind;
-    use checked_trees::CheckedScalarExpression as Scalar;
-    let endpoint = |expression| {
-        Some(Box::new(Scalar::IeeeFloatLiteral {
-            value: validation::closed_float_range_endpoint(program, expression, primitive)?,
-        }))
-    };
-    let subject = || {
-        Box::new(Scalar::Parameter {
-            position: 0,
-            primitive_type: primitive,
-        })
-    };
-    Some(checked_trees::CheckedBooleanExpression::And {
-        left: Box::new(
-            checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison {
-                kind: Kind::LessOrEqual,
-                left: endpoint(minimum)?,
-                right: subject(),
-            },
-        ),
-        right: Box::new(
-            checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison {
-                kind: if end_inclusive {
-                    Kind::LessOrEqual
-                } else {
-                    Kind::LessThan
-                },
-                left: subject(),
-                right: endpoint(maximum)?,
-            },
-        ),
-    })
 }

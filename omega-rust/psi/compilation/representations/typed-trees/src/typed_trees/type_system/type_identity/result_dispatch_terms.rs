@@ -51,7 +51,7 @@ pub(crate) fn collect_result_dispatch_terms(
                             ));
                         }
                     }
-                    TypeConstraintNode::Named(_) | TypeConstraintNode::Range { .. } => {}
+                    TypeConstraintNode::Named(_) => {}
                 }
             }
         }

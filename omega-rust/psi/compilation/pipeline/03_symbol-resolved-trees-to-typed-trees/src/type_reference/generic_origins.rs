@@ -8,9 +8,7 @@
 //! not the syntax producer's interval observations or its synthetic names.
 use super::{Diagnostic, resolved, typed};
 use crate::expressions::expression::lower_expression_handle_from_table;
-use crate::tables::type_constraints;
 use arena::{Handle, HandleSpan};
-use numerics::bignum::BigInt;
 use resolved::name::DiagnosticName;
 use resolved::types::{FixedArrayLength, TypeConstraint, TypeReference};
 use symbols::{SymbolHandle, SymbolKind};
@@ -22,22 +20,19 @@ pub(crate) fn validate_computed_arguments(
     typed: &typed::TypedTrees,
 ) -> Result<(), Diagnostic> {
     if source.tables.types.generic_application_origins.is_empty()
-        || (!type_constraints(source)
-            .iter()
-            .any(|(_, constraint)| matches!(constraint, TypeConstraint::Range { .. }))
-            && !source
-                .tables
-                .bodies
-                .expressions
-                .iter_expressions()
-                .any(|(expression, _)| {
-                    source
-                        .tables
-                        .bodies
-                        .expressions
-                        .materialization_source(expression)
-                        .is_valid()
-                }))
+        || (!source
+            .tables
+            .bodies
+            .expressions
+            .iter_expressions()
+            .any(|(expression, _)| {
+                source
+                    .tables
+                    .bodies
+                    .expressions
+                    .materialization_source(expression)
+                    .is_valid()
+            }))
     {
         return Ok(());
     }
@@ -663,27 +658,7 @@ impl Equality<'_, '_> {
                     .is_some_and(|symbol| Some(symbol) == self.domain(&right.name, right_carrier))
                     && self.arguments(left.arguments, right.arguments)
             }
-            (
-                TypeConstraint::Range {
-                    minimum: first,
-                    maximum: second,
-                    end_inclusive: left_inclusive,
-                },
-                TypeConstraint::Range {
-                    minimum: third,
-                    maximum: fourth,
-                    end_inclusive: right_inclusive,
-                },
-                // Numeric equality must wait for completed symbols and operators;
-                // validate_computed_arguments performs that rejoin before publication.
-            ) => {
-                self.typed.is_none()
-                    || self
-                        .closed_range(*first, *second, *left_inclusive)
-                        .is_some_and(|left| {
-                            Some(left) == self.closed_range(*third, *fourth, *right_inclusive)
-                        })
-            }
+
             _ => false,
         }
     }
@@ -735,26 +710,6 @@ impl Equality<'_, '_> {
                 None
             }
         }
-    }
-
-    // Recompute from each retained application, not from syntax synthesis's
-    // observation or expression-handle equality. Equivalent exclusive/inclusive
-    // spellings must agree, while an invalid landed endpoint cannot be erased
-    // by sharing a previously generated carrier.
-    fn closed_range(
-        &mut self,
-        minimum: resolved::expression::ExpressionHandle,
-        maximum: resolved::expression::ExpressionHandle,
-        end_inclusive: bool,
-    ) -> Option<(BigInt, BigInt)> {
-        let expressions = &self.source.tables.bodies.expressions;
-        let typed = self.typed.as_mut()?.get_mut();
-        let minimum = lower_expression_handle_from_table(expressions, typed, minimum).ok()?;
-        let maximum = lower_expression_handle_from_table(expressions, typed, maximum).ok()?;
-        Some((
-            typed.closed_integer_expression_value(minimum)?,
-            typed.closed_integer_range_endpoint(maximum, end_inclusive)?,
-        ))
     }
 
     // The shared carrier binds regions positionally; the use retains the

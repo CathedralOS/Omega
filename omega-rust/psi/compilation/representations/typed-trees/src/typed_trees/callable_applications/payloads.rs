@@ -180,15 +180,7 @@ impl CallableApplication {
                                 .map(|_| domain.semantic_id);
                             types::TypeConstraintNode::Domain(domain)
                         }
-                        types::TypeConstraintNode::Range {
-                            minimum,
-                            maximum,
-                            end_inclusive,
-                        } => types::TypeConstraintNode::Range {
-                            minimum: self.expression(program, minimum)?,
-                            maximum: self.expression(program, maximum)?,
-                            end_inclusive,
-                        },
+
                         constraint => constraint,
                     });
                 }

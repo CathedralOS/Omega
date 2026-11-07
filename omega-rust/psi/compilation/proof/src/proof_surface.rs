@@ -516,22 +516,7 @@ fn constraint_handle_name(
         output.push_str(&match constraint {
             TypeConstraintNode::Named(name) => name.as_str(syntax_trees).to_owned(),
             TypeConstraintNode::Domain(name) => format!("in {}", name.name.as_str(syntax_trees)),
-            TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => format!(
-                "{}..{}{}",
-                syntax_trees
-                    .expressions
-                    .expression(*minimum)
-                    .display_name(syntax_trees),
-                if *end_inclusive { "=" } else { "" },
-                syntax_trees
-                    .expressions
-                    .expression(*maximum)
-                    .display_name(syntax_trees)
-            ),
+
             TypeConstraintNode::ArithmeticDomain(domain) => domain.name().to_owned(),
         });
     }

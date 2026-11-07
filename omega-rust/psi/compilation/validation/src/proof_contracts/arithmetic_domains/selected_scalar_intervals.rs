@@ -27,9 +27,7 @@ use numerics::arithmetic::ArithmeticDomain;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 use typed_trees::expression::BinaryOperator;
-use typed_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
+use typed_trees::types::PrimitiveType;
 
 /// The live facts a selected scalar plan reads. Every answer is the interval
 /// of the value at that operand position now; `None` is "no bound", never a
@@ -546,65 +544,6 @@ fn quotient(dividend: &IntegerRange, divisor: &IntegerRange) -> Option<IntegerRa
     super::BigIntInterval::from_closed(dividend.clone())
         .divide(&super::BigIntInterval::from_closed(divisor.clone()))
         .into_closed()
-}
-
-/// Read the declared `Range` constraints on an exact integer reference. Those
-/// constraints are storage invariants: construction and every write must
-/// satisfy them, so a read can use them even when no value snapshot is live.
-/// A non-Exact arithmetic domain does not range-check its stores, so such a
-/// reference supplies no declared bound and the caller keeps the raw carrier.
-/// An exclusive borrow can be reborrowed through a pointee type that drops
-/// declared constraints, so only a frozen reference chain keeps them.
-/// `None` also means "no tightening available"; it is never an error.
-pub fn frozen_declared_integer_range(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-    primitive_type: PrimitiveType,
-) -> Option<IntegerRange> {
-    let mut walked = reference;
-    loop {
-        match program.type_reference_table.type_reference(walked) {
-            TypeReferenceNode::Reference {
-                referee, access, ..
-            } => {
-                if access.is_exclusive() {
-                    return None;
-                }
-                walked = *referee;
-            }
-            TypeReferenceNode::Constrained { base_type, .. } => walked = *base_type,
-            _ => break,
-        }
-    }
-    let shells = crate::value_custody::type_shapes::exact_constrained_shells(program, reference)?;
-    let declared = shells
-        .iter()
-        .flat_map(|constraints| constraints.iter())
-        .filter_map(|constraint| match constraint {
-            TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => {
-                // The same closed-endpoint evaluation as source range
-                // validation; failure is no bound, never a guessed one.
-                let low = crate::closed_integer_range_bound(program, *minimum)?;
-                let high = crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)?;
-                Some(IntegerRange {
-                    minimum: low,
-                    maximum: high,
-                })
-            }
-            _ => None,
-        })
-        .reduce(|previous, next| IntegerRange {
-            minimum: previous.minimum.max(next.minimum),
-            maximum: previous.maximum.min(next.maximum),
-        })?;
-    let carrier = carrier_integer_range(primitive_type)?;
-    let minimum = declared.minimum.max(carrier.minimum);
-    let maximum = declared.maximum.min(carrier.maximum);
-    (minimum <= maximum).then_some(IntegerRange { minimum, maximum })
 }
 
 /// Whether `inner` is a nonempty interval inside `outer`.

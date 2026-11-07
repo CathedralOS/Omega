@@ -73,9 +73,8 @@ The compiler derives the native candidate and executable plan from that intent.
 Exact contract, lifetime, memory-access, calling-policy, native applicability,
 foreign admission, provenance, and runtime-authority obligations remain.
 There is no source `via` clause or per-symbol forwarding realization, and no
-author API for manufacturing trusted plan rows. This accepted operation is
-implementation work under `BUILD-OWNED-NATIVE-BINDINGS`; it does not change the
-existing entry-binding overload of `Build::bind`.
+author API for manufacturing trusted plan rows.
+The entry-binding overload of `Build::bind` is a separate operation.
 
 ## Project role
 
@@ -269,8 +268,6 @@ semantic definition of a source. There is no independent package version field:
 the exact resolved source supplies instance identity.
 
 The workspace owns its lock; dependency locks do not pin the consumer's graph.
-Membership does not merge acceptance across roots. The current
-[lock codec](../../../omega-rust/omega/packages/package-manager/src/lock/README.md)
-retains one selected source closure with target sections, not a complete
-multi-root workspace lock. Multi-root storage remains implementation work;
+Membership does not merge acceptance across roots. A multi-root workspace lock
+must retain each root's source closure, target sections and acceptance separately;
 neither catalog membership nor another root's acceptance can fill missing state.

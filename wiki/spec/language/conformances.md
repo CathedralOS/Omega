@@ -29,15 +29,9 @@ operation at free or module scope; keep trait requirements and named
 implementation members under their code-owning declarations. A data type is
 neither an implementation nor a machine namespace. `main` gains no exception.
 
-These are the governing source rules. Existing compiler support, fixtures and
-library declarations using data-subject conformances are migration debt, not
-an alternative dialect. The migration may break old tests and source APIs;
-remove the old paths rather than add compatibility inference, aliases or modes.
-Replacement tests must retain the actual behavior and safety obligations.
-Implementation work is on the [execution board](../../../TASKS.md) under
-`NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION`,
-`TRAIT-IMPLEMENTATION-SOURCE-MIGRATION`, and
-`DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION`.
+Data-subject conformances are not an alternative dialect. Compatibility
+inference, aliases or modes must not reintroduce them. Named implementations
+retain the behavior and safety obligations of their selected requirements.
 
 ## Declaration and selection
 
@@ -72,8 +66,7 @@ ordinary machine rules; there is no requirement-to-machine assignment syntax.
 
 Named decision: `inline-conformance-members`, settled 2026-10-16. Reference
 rows (`Trait::member = Existing::machine;`) are retired, not an alternate
-implementation form. Existing source and compiler support for them are migration
-debt owned by the named-implementation and source-migration tasks above.
+implementation form.
 Defaults and authorized core synthesis remain unchanged.
 
 The conformance has its own package-scoped name, visibility, binder telescope,
@@ -224,6 +217,10 @@ labels a requirement-local satisfier group; it
 creates neither an independently selectable conformance nor standalone
 visibility. In a whole-conformance selection position, `as Name` instead names
 an already-declared map. Neither use is an overload selector.
+
+Inferring a wrapper's [forwarded callback requirements](generics.md#forwarded-callback-requirements)
+does not infer any of these implementation edges or a named conformance map.
+It retains requirements the caller's explicitly selected machine must satisfy.
 
 The edge's explicit trait application binds its contract parameters. A
 realization parameter used in that application, including inside a compound

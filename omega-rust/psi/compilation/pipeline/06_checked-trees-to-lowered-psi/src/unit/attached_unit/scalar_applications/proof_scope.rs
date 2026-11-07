@@ -181,7 +181,7 @@ fn retain_selected_algebra_calls(
             position + selected[position..].partition_point(|(candidate, _)| *candidate == owner);
         let declaration = identity(owner)?;
         if let Some((row, span)) = graph
-            .machines
+            .machines()
             .iter()
             .find_map(|(handle, row)| (row.machine == declaration).then_some((handle, row.calls)))
         {
@@ -197,7 +197,8 @@ fn retain_selected_algebra_calls(
                     },
                 );
             }
-            graph.machines.get_mut(row).calls = graph.calls.insert_many(calls);
+            let calls = graph.calls.insert_many(calls);
+            graph.update_machine(row, |machine| machine.calls = calls);
         }
         position = end;
     }

@@ -12,9 +12,11 @@
 //! off that route, while still publishing exact lifetime-bound loan receipts.
 
 mod borrowed_fields;
+mod lifecycle_backing;
 mod partitioned_results;
 mod structural_sources;
 
+pub(super) use lifecycle_backing::lifecycle_backing_transfers;
 pub(crate) use partitioned_results::check_boundary_partition_results;
 
 use crate::flow::expressions;

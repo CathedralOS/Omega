@@ -46,10 +46,10 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Run migrated POSIX (`pass/filesystem/`, `runtime_posix_*`) and Windows GUI (`runtime_{gui,windows}_*`, `window_demo`) customers via `omega run --both`.
   Acceptance: POSIX and Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
 
-- **OPERATOR-MACHINE-SUPPLY.** Run declared operations and premises; migrate [index identity and compatibility](wiki/drafts/designs/index_identity.md).
-  - Separate fixed identity from budgeted, evidence-producing algebra proofs.
-  - Carry generic compatibility through specialization, retire the `operator` introducer ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)), and lower `f64 in D` / `i32 in D` operator shapes.
-  Acceptance: `declared_operator_match_result` and `body_bearing_comparison`/`generic_comparison_body`/`open_index_distributivity` pass `--both`.
+- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md) and [landing](wiki/drafts/designs/explicit_integer_landing.md).
+  - Separate fixed identity from budgeted algebra proofs; carry generic evidence through specialization.
+  - Retire `operator` ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)); lower `f64 in D` / `i32 in D`.
+  Acceptance: `declared_operator_match_result`, `body_bearing_comparison`, `generic_comparison_body`, `open_index_distributivity` and landing controls pass `--both`.
 
 ## Pipeline route
 
@@ -133,7 +133,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## P3 - Terminal Psi, proofs, and observation
 
-- **STRUCTURAL-BORROW-IDENTITY.** (covers **WRITE-ONLY-BORROW**, **PLACED-ACCESS-NATIVE-OPS**, **GENERIC-FIXED-ARRAY-VIEWS**, **BORROW-PROOF-CONVERGENCE**, **TERMINAL-SLICE-VIEW-VOCABULARY**) Complete [`&write T` and structural borrows](wiki/spec/terminal-psi/structural_access.md), [loans](wiki/spec/terminal-psi/loans.md), and [slice views](wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views) (`view_subslice.rs`).
+- **STRUCTURAL-BORROW-IDENTITY.** (covers **WRITE-ONLY-BORROW**, **PLACED-ACCESS-NATIVE-OPS**, **GENERIC-FIXED-ARRAY-VIEWS**, **BORROW-PROOF-CONVERGENCE**, **TERMINAL-SLICE-VIEW-VOCABULARY**) Finish [structural borrows](wiki/spec/terminal-psi/structural_access.md), [loans](wiki/spec/terminal-psi/loans.md) and [slice views](wiki/spec/terminal-psi/byte_views.md), including nested element-view copies.
   Acceptance: `write_only`, `computed_nested_state_loan`, [reference_recast_backing_footprint](samples/cli/facts/reference_recast_backing_footprint/README.md), `disjoint_mut_subslice_windows_compile`, and `fletcher_checksum` pass `--both`.
 
 <a id="normalized-abi-lowering"></a>
@@ -141,7 +141,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 - **NORMALIZED-ABI-LOWERING.** (covers **OPAQUE-BY-VALUE-BOUNDARY-ABI**, **FOREIGN-RETAINED-ARGUMENT-BACKING**) Complete [calling plans](wiki/spec/build/calling_plans.md) and [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody) (`boundary_signatures.rs`, `retained_borrow_custody.rs`).
   Acceptance: `samples/cli/facts/{opaque_closed_carrier_exchange,foreign_retained_*,foreign_nested_record_backing}` and `providers/foreign_*` pass `omega run --both`.
 
-- **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**) Complete [proofs](wiki/spec/proofs/foundation.md), [quotients](wiki/spec/proofs/quotients.md), and [identity](wiki/drafts/designs/explicit_identity.md).
+- **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**) Finish [proofs](wiki/spec/proofs/foundation.md), identity and metatheory; source mutual/nested/derivation families, higher indices and open carrier transport; polymorphic-identity storage receipts and UIP/extensionality rejection controls.
   Acceptance: `samples/cli/facts/{closed_integer_bound,negated_mathematical_order,source_indexed_*,erased_reference_contract}` and `proofs/quotient_*` pass `--both`.
 
 ## Build-level behavior exclusions
@@ -161,7 +161,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## Embedding and interpreted components
 
-- **EMBEDDING-SOURCE-TO-HOST.** (covers **INTERPRETED-CATHEDRAL**) Implement [embedding](wiki/spec/build/embedding.md) (`embedding/{program,instance,adapters}.rs`, `composition_modes.rs`) and run Cathedral startup/events/replacement in `terminal-interpreter`.
+- **EMBEDDING-SOURCE-TO-HOST.** (covers **INTERPRETED-CATHEDRAL**) Finish [embedding](wiki/spec/build/embedding.md), evidence-bearing qualified host inputs, and interpreted Cathedral.
   Acceptance: embedding host-import/fuel-pause/replacement fixtures and Cathedral's interpreted startup/event/replacement sequence pass.
 
 ## Parallel language and compiler lanes
@@ -181,7 +181,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## Rust compiler release closure
 
-- **RC-RELEASE-RECORD-AND-CLOSURE.** (covers **RC-BUILD-AND-PACKAGES**, **MACOS-X64-HOST-PROFILE**) Produce the 4-host release record via `tools/release/release_record.py` under [rust_compiler_completion.md](wiki/drafts/reference/rust_compiler_completion.md).
+- **RC-RELEASE-RECORD-AND-CLOSURE.** (covers **RC-BUILD-AND-PACKAGES**, **MACOS-X64-HOST-PROFILE**) Deliver the 4-host [release record](wiki/drafts/reference/rust_compiler_completion.md) and multi-root workspace locks with per-root closure/target/acceptance isolation.
   Acceptance: `fmt.py --check`, Clippy, nextest, `RC-NATIVE-MATRIX`, `RC-BUILD-AND-PACKAGES`, and `sample_native_gate.py` pass across all 4 hosts.
 
 ## Omega-written compiler (after Rust completion)

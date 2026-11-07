@@ -10,8 +10,7 @@ and existence evidence. No `forall`, `exists`, `claim`, `proposition`, or
 proposition-returning machines remain optional, unaccepted naming proposals.
 
 Psi owns elaboration to the common calculus, with independently checked terms,
-contracts and assumption closure. `PROOF-CONTRACT-MIGRATION` in
-[TASKS.md](../../../TASKS.md) owns the connected source/evidence implementation.
+contracts and assumption closure.
 The sealed core mathematical declaration `core::Identity<T>(left, right)`
 exposes proof-relevant identity, with its type/universe and exact subjects
 checked by the existing `Id` formation rules. It does not return an executable
@@ -190,8 +189,7 @@ Construction establishes the complete default domain; zero storage is not
 evidence of `P(value)`. The mathematical interpretation retains the witness and
 checked predicate evidence (using the core's strict/relevant bridge where needed).
 No authored proof field is needed for this strict constraint. That fact is not
-permission to drop derivation or assumption dependencies, nor evidence that the
-general interpretation is already implemented.
+permission to drop derivation or assumption dependencies.
 
 `core::Squash<Witness<u,v,A,P>>` expresses witness-hidden existence. Ordinary
 squash elimination may reason into an eligible strict conclusion; it does not

@@ -33,12 +33,14 @@ pub(crate) fn compile_returned(
         timings: request.timings,
         product: request.product,
     };
-    let mut completed = Vec::with_capacity(builds.len());
-    for build in builds {
-        let inputs = build.package_inputs().clone();
-        match build.settle(&mut session.compiler, execution_profile, inputs) {
-            Ok(build) => completed.push(build),
-            Err(error) => {
+    let mut completed =
+        match crate::compile::build_execution::source_resolution::settle_source_builds(
+            builds,
+            &mut session.compiler,
+            execution_profile,
+        ) {
+            Ok(completed) => completed,
+            Err(crate::ProjectSourceResolutionError::Compilation(error)) => {
                 let mut reason = error
                     .into_diagnostics()
                     .iter()
@@ -50,8 +52,14 @@ pub(crate) fn compile_returned(
                 }
                 return request.refuse(reason);
             }
-        }
-    }
+            Err(error) => {
+                let mut reason = error.to_string();
+                if let Err(error) = session.close() {
+                    reason.push_str(&format!("; session disposal: {error}"));
+                }
+                return request.refuse(reason);
+            }
+        };
     let admitted = package_manager::operations::admit_project_products(
         request,
         &mut session.packages,

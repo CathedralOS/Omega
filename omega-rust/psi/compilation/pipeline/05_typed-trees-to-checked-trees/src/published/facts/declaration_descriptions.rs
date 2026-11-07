@@ -13,10 +13,10 @@ use checked_trees::{
 use symbols::SymbolHandle;
 
 pub(crate) fn retain_declaration_descriptions(checked: &mut CheckedTrees) {
-    let mut descriptions = CheckedDeclarationDescriptions::default();
-    descriptions.selections = validation::checked_selection_requirements(checked);
-    descriptions.evaluation_dependencies =
-        validation::compiler_evaluation::checked_dependencies(checked);
+    let mut descriptions = CheckedDeclarationDescriptions::with_requirements(
+        validation::checked_selection_requirements(checked),
+        validation::compiler_evaluation::checked_dependencies(checked),
+    );
     let sidecars = typed_trees::references::MachineSidecarIndex::build(&checked.typed);
     // Invocation summaries are keyed by exact machine, not iteration position.
     // Sort borrowed rows once rather than scanning the whole table per header.
@@ -59,7 +59,7 @@ pub(crate) fn retain_declaration_descriptions(checked: &mut CheckedTrees) {
                 reason,
             },
         };
-        descriptions.machines.insert(row);
+        descriptions.insert_machine(row);
     }
     // Preserve any previously retained dormant declaration. A missing body is
     // not authority to invent a replacement description or erase its identity.
@@ -83,26 +83,24 @@ pub(crate) fn retain_declaration_descriptions(checked: &mut CheckedTrees) {
             descriptions.headers.insert(header);
         }
     }
-    for (_, row) in previous.machines.iter() {
+    for (_, row) in previous.machines().iter() {
         if checked.machine(row.machine()).is_some() {
             continue;
         }
         let mut row = row.clone();
         if let CheckedDeclarationDescription::Machine(description) = &mut row {
             let Some(parameters) = previous.parameters.span(description.parameters) else {
-                descriptions
-                    .machines
-                    .insert(CheckedDeclarationDescription::Unavailable {
-                        machine: description.machine,
-                        reason: "checked declaration lost its retained parameter identities".into(),
-                    });
+                descriptions.insert_machine(CheckedDeclarationDescription::Unavailable {
+                    machine: description.machine,
+                    reason: "checked declaration lost its retained parameter identities".into(),
+                });
                 continue;
             };
             description.parameters = descriptions
                 .parameters
                 .insert_many(parameters.iter().cloned());
         }
-        descriptions.machines.insert(row);
+        descriptions.insert_machine(row);
     }
     descriptions.index_machines();
     checked.facts.declaration_descriptions = descriptions;

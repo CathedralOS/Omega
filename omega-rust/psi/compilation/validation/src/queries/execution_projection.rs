@@ -785,6 +785,7 @@ mod lifecycle_projection_tests {
                     target: None,
                     placement: placement.clone(),
                     storage: Default::default(),
+                    profile_carrier: None,
                 });
         }
         apply_declaration_sidecar_pruning(&mut program, &HashSet::from([owner]));

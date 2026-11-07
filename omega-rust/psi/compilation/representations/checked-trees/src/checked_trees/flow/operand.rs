@@ -289,6 +289,23 @@ impl FlowDescriptorPermission {
     }
 }
 
+/// The evaluated receiver path and whether it loads a value or forms a view.
+/// A formed view keeps the collection's address; a reference-valued place loads
+/// a descriptor whose own permission must be selected separately.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum FlowOperandAddressProjection {
+    Place(HandleSpan<facts::PlaceSegment>),
+    View(HandleSpan<facts::PlaceSegment>),
+}
+
+impl FlowOperandAddressProjection {
+    pub fn segments(self) -> HandleSpan<facts::PlaceSegment> {
+        match self {
+            Self::Place(segments) | Self::View(segments) => segments,
+        }
+    }
+}
+
 /// Facts at completion of one evaluated operand or stored value. Scalar copies and
 /// by-value carriers with stable observable contents keep this value's facts
 /// even if a later operand changes its former source storage — the bound
@@ -317,7 +334,7 @@ pub struct FlowOperandFact {
     /// Typed path below the completed address receiver. Present even when its
     /// absolute address is unavailable; None withholds projection evidence,
     /// while Some(empty) denotes the same complete receiver window.
-    pub address_projection: Option<HandleSpan<facts::PlaceSegment>>,
+    pub address_projection: Option<FlowOperandAddressProjection>,
     /// Captured computation operands in evaluation order, including a selected
     /// short-circuit route. Presence alone does not guarantee execution on every
     /// completion. These are neither stored children nor extra backing loans.

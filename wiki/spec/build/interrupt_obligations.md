@@ -50,8 +50,7 @@ exact entry, completion operation, provider execution, policy, and token lineage
 and replays the provider-selected completion reach when settling debt. The
 installation closure substitutes every bounded row and rejects unresolved rows;
 ordinary exported callable contracts bind providers first or publish a fixed
-conservative ceiling. `TOP-LEVEL-BOUNDARY-REQUIREMENTS` in
-[TASKS.md](../../../TASKS.md) tracks source selection/lineage integration.
+conservative ceiling.
 
 A deferred acknowledgement leases the installed root and controller configuration
 until completion. Reconfiguration, shutdown, CPU removal, relevant power

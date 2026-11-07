@@ -87,6 +87,7 @@ pub(super) fn encode(
                         terminal_psi::TerminalAccessLifecycleOperation::Initialize => 0,
                         terminal_psi::TerminalAccessLifecycleOperation::MoveOut => 1,
                         terminal_psi::TerminalAccessLifecycleOperation::View => 2,
+                        terminal_psi::TerminalAccessLifecycleOperation::Relocate => 3,
                     });
                     for argument in operands.arguments() {
                         super::structural_types::encode_structural_argument(bytes, argument);

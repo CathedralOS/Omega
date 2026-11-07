@@ -3,7 +3,9 @@
 mod lifecycle_execution;
 mod primitive_selection;
 mod sealed_accessors;
-pub use lifecycle_execution::{AccessContentShape, AccessExecutionDeclaration};
+pub use lifecycle_execution::{
+    AccessBackingOutcome, AccessBackingTransfer, AccessContentShape, AccessExecutionDeclaration,
+};
 pub use primitive_selection::AccessorPrimitive;
 pub use sealed_accessors::{ScalarAccessorDeclaration, ScalarAccessorOperation};
 
@@ -32,6 +34,9 @@ pub enum AccessLifecyclePlan {
         target: Option<layout_plans::LayoutTargetFacts>,
         placement: access_plans::ValidatedAccessPlan,
         storage: AccessLifecycleStorage,
+        /// Common profile carrier checked across every supply operand. Lowering
+        /// publishes this type instead of rechecking the source signature.
+        profile_carrier: Option<TypeReferenceHandle>,
     },
 }
 
@@ -65,6 +70,7 @@ pub enum AccessLifecycleOperation {
     Initialize,
     MoveOut,
     View,
+    Relocate,
 }
 
 impl AccessLifecyclePlan {

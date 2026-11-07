@@ -297,7 +297,7 @@ required on the returning branch.
 The exact independently declared static cleanup target is a compiler-owned edge
 dependency with an explicit mutable value parameter, not a data-owned method,
 source-selectable call or static-machine value. Legacy `T::drop` attachment and
-name discovery are migration debt. Source
+name discovery are not accepted. Source
 [`dropped by` composition](../language/domains.md#domain-selected-automatic-cleanup)
 supplies the unique owner-authorized machine application and retained qualified
 subject obligations. Distinct selections on the same subject reject before
@@ -358,8 +358,5 @@ Coalescing unchanged loop-carried large values is a performance acceptance
 requirement, never permission to accept an invalid transfer. An address-stability promise is instead
 a soundness obligation, whether realized by coalescing or another valid plan.
 
-Current producer and ABI limits are documented beside
-[Terminal production](../../../omega-rust/psi/compilation/psi-compiler/terminal-production/README.md#partial-ownership-and-cleanup)
-and [native lowering](../../../omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md#structural-results-and-residual-cleanup).
 Admitting a Terminal claim or result does not establish native storage or cleanup
-support.
+support; each realization must discharge those obligations.

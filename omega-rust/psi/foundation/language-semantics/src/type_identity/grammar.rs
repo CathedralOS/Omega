@@ -248,18 +248,6 @@ fn constraint(
         }
         ConstraintForm::DeclaredDomain => compound(reader, visitor, declared_domain),
         ConstraintForm::CompilerDomain => compound(reader, visitor, compiler_domain),
-        ConstraintForm::Range => compound(reader, visitor, |reader, visitor| {
-            for (position, endpoint) in [Label::Minimum, Label::Maximum].into_iter().enumerate() {
-                if position != 0 {
-                    reader.expect(b',')?;
-                }
-                let encoded = reader.atom(endpoint, visitor)?;
-                let mut nested = Reader::new(&encoded);
-                index::range_endpoint(&mut nested, visitor)?;
-                nested.finish()?;
-            }
-            Ok(())
-        }),
     }
 }
 

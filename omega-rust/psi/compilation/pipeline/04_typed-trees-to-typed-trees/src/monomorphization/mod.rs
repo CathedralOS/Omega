@@ -81,7 +81,6 @@ pub(crate) use requirement_providers::generate_requirement_provider_specializati
 pub(crate) use type_reference_walk::for_each_type_reference;
 mod const_values;
 pub(crate) use const_values::value as materialize_static_value;
-mod range_arguments;
 mod result_locals;
 pub(crate) use result_locals::refresh as refresh_inferred_result_locals;
 mod saved_calls;
@@ -388,7 +387,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         }
         let (contract_expressions, logical_selections) = {
             let scopes = selection::contract_expression_scopes(program);
-            let expressions = selection::contract_expression_handles(program);
+            let expressions = selection::contract_expression_handles_from_scopes(program, &scopes);
             let selections =
                 collect_contract_call_selections(program, &scopes, &candidates, &callee_states);
             (expressions, selections)
@@ -629,12 +628,10 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
             types.push((*symbol, name.clone()));
         }
     }
-    range_arguments::collect_literals(program, &mut literals);
     // Open declared-range endpoints keep their exact binder identity the same
     // way open array extents do: a forwarded const binder occurring as an
     // endpoint gets a named reference so range inference can propose the
     // structural equation rather than a value leaf.
-    range_arguments::collect_binders(program, &mut types);
     literals.sort();
     literals.dedup();
     for literal in literals {

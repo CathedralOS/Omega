@@ -4,17 +4,12 @@
 //! authored range shell; unsupported bounds must not disappear through an
 //! optional interval query that also represents absence of a range.
 
-use super::{Interval, ValueEnvironment};
-use crate::proof_contracts::arithmetic_domains::integer_ranges::{
-    known_u64_value, primitive_range,
-};
+use super::ValueEnvironment;
+use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use diagnostics::Diagnostic;
-use typed_trees::expression::{ExpressionHandle, TableCastExpression};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
 
 /// The expression scanner owns selected reachability and calls this only for
 /// an executing cast. Arithmetic analysis owns the proof from the current live
@@ -33,12 +28,6 @@ pub(crate) fn validate_range_cast_at_use(
     if cast.form.is_recast() {
         return;
     }
-    let mut has_range = false;
-    walk_constrained_bases(program, cast.target_type, |constraints| {
-        has_range |= constraints
-            .iter()
-            .any(|constraint| matches!(constraint, TypeConstraintNode::Range { .. }));
-    });
     // Every integer target demands an exact fit, independently of result policy.
     // In call arguments the
     // expression scanner is the validation owner; collecting successful cast
@@ -48,7 +37,7 @@ pub(crate) fn validate_range_cast_at_use(
     let integer_target = program
         .primitive_type_reference(cast.target_type)
         .is_some_and(|primitive| primitive_range(primitive).is_some());
-    if !has_range && !integer_target {
+    if !integer_target {
         return;
     }
     let owner = format!(
@@ -79,211 +68,6 @@ pub(crate) fn validate_range_cast_at_use(
         if !duplicate {
             diagnostics.push(diagnostic);
         }
-    }
-}
-
-pub(super) fn validate_target_ranges(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
-    cast: &TableCastExpression,
-    source_interval: Interval,
-    source_primitive: Option<PrimitiveType>,
-    environment: &ValueEnvironment,
-    owner: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let source_bounds = source_primitive.and_then(|primitive| {
-        let carrier = primitive_range(primitive)?;
-        if let Some(value) = known_u64_value(program, environment, cast.value) {
-            let value = i128::from(value);
-            return Some((value, value));
-        }
-        Some((
-            i128::from(source_interval.low.or(carrier.low)?),
-            source_interval
-                .high
-                .or(carrier.high)
-                .map(i128::from)
-                .or_else(|| {
-                    matches!(primitive, PrimitiveType::U64 | PrimitiveType::Addr)
-                        .then_some(i128::from(u64::MAX))
-                })?,
-        ))
-    });
-    validate_target_range_membership(
-        program,
-        cast.value,
-        cast.target_type,
-        source_primitive,
-        source_bounds,
-        &|expression| {
-            super::float_source_bounds(program, machine.symbol, environment, expression, &|value| {
-                state
-                    .and_then(|state| {
-                        crate::value_custody::expression_types::expression_result_type_reference(
-                            program, machine, state, value,
-                        )
-                    })
-                    .or_else(|| {
-                        crate::value_custody::places::declared_place_type_raw(
-                            program, machine, state, value,
-                        )
-                    })
-            })
-        },
-        owner,
-        diagnostics,
-    );
-}
-
-/// Prove target range membership from a source owner's completed evidence.
-/// Executable and abstract declarations share this obligation; the target is
-/// inspected only for predicates to prove, never to obtain source bounds.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn validate_target_range_membership(
-    program: &dyn crate::CheckingInput,
-    operand: ExpressionHandle,
-    target: TypeReferenceHandle,
-    source_primitive: Option<PrimitiveType>,
-    source_bounds: Option<(i128, i128)>,
-    float_bounds: &dyn Fn(ExpressionHandle) -> Option<super::FloatSourceBounds>,
-    owner: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    walk_constrained_bases(program, target, |constraints| {
-        for constraint in constraints {
-            let TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-            else {
-                continue;
-            };
-            let integer_proven = source_primitive.and_then(primitive_range).is_some()
-                && program
-                    .primitive_type_reference(target)
-                    .and_then(primitive_range)
-                    .is_some()
-                && integer_bound(program, *minimum)
-                    .zip(
-                        crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)
-                            .and_then(|value| {
-                                value
-                                    .to_i64()
-                                    .map(i128::from)
-                                    .or_else(|| value.to_u64().map(i128::from))
-                            }),
-                    )
-                    .is_some_and(|(minimum, maximum)| {
-                        minimum <= maximum
-                            && source_bounds.is_some_and(|(low, high)| {
-                                minimum <= low && low <= high && high <= maximum
-                            })
-                    });
-            let float_proven = float_membership(
-                program,
-                operand,
-                target,
-                float_bounds,
-                *minimum,
-                *maximum,
-                *end_inclusive,
-            );
-            if !integer_proven && !float_proven {
-                let span = program.expression_table.source_span(operand);
-                if span.span.start < span.span.end
-                    && diagnostics.iter().any(|existing| {
-                        existing.source_span == Some(span)
-                            && existing.message.starts_with("cast target range in ")
-                    })
-                {
-                    continue;
-                }
-                diagnostics.push(Diagnostic::error(format!(
-                    "cast target range in {owner} is not proven from the source value; all target predicates must hold before policy qualification (unknown numeric bounds or unsupported non-integer membership require an explicit proof)"
-                )).with_source_span(span));
-            }
-        }
-    });
-}
-
-fn float_membership(
-    program: &dyn crate::CheckingInput,
-    operand: ExpressionHandle,
-    target: TypeReferenceHandle,
-    float_bounds: &dyn Fn(ExpressionHandle) -> Option<super::FloatSourceBounds>,
-    minimum: ExpressionHandle,
-    maximum: ExpressionHandle,
-    end_inclusive: bool,
-) -> bool {
-    let Some(target @ (PrimitiveType::F32 | PrimitiveType::F64)) =
-        program.primitive_type_reference(target)
-    else {
-        return false;
-    };
-    let source = float_bounds(operand);
-    let endpoint_bounds = |expression| {
-        if let Some(endpoint) = crate::closed_float_range_endpoint(program, expression, target) {
-            let value = match endpoint {
-                semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
-                    f64::from(f32::from_bits(bits))
-                }
-                semantic_vocabulary::IeeeFloatValue::Binary64(bits) => f64::from_bits(bits),
-            };
-            return Some((value, value));
-        }
-        let bounds = float_bounds(expression)?;
-        Some((bounds.minimum, bounds.maximum))
-    };
-    match (source, endpoint_bounds(minimum), endpoint_bounds(maximum)) {
-        (Some(source), Some((_, minimum_high)), Some((maximum_low, _))) => {
-            minimum_high <= source.minimum
-                && if end_inclusive {
-                    source.maximum <= maximum_low
-                } else {
-                    source.maximum < maximum_low
-                }
-        }
-        _ => false,
-    }
-}
-
-fn integer_bound(
-    program: &dyn crate::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<i128> {
-    let value = crate::closed_integer_range_bound(program, expression)?;
-    value
-        .to_i64()
-        .map(i128::from)
-        .or_else(|| value.to_u64().map(i128::from))
-}
-
-/// Walk the `Constrained` base chain once: `visit` sees each level's
-/// constraint roster until a non-Constrained reference or a revisit.
-fn walk_constrained_bases(
-    program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
-    mut visit: impl FnMut(&[TypeConstraintNode]),
-) {
-    let mut visited = Vec::new();
-    while program
-        .type_reference_table
-        .contains_type_reference(reference)
-        && !visited.contains(&reference)
-    {
-        visited.push(reference);
-        let TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } = program.type_reference_table.type_reference(reference)
-        else {
-            break;
-        };
-        visit(program.type_reference_table.constraints(*constraints));
-        reference = *base_type;
     }
 }
 

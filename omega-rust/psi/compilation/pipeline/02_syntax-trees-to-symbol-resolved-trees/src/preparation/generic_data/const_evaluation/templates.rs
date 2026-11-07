@@ -288,12 +288,6 @@ fn collect_type_expression_handles(
             collect_type_expression_handles(syntax, *base_type, expressions, type_references);
             for constraint in syntax.type_references.constraints(*constraints) {
                 match constraint {
-                    TypeConstraintNode::Range {
-                        minimum, maximum, ..
-                    } => {
-                        collect_expression_handles(syntax, *minimum, expressions);
-                        collect_expression_handles(syntax, *maximum, expressions);
-                    }
                     TypeConstraintNode::Domain(domain) => {
                         for argument in
                             syntax_type_references(syntax).type_reference_handles(domain.arguments)

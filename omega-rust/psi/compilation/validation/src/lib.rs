@@ -117,8 +117,7 @@ pub use proof_contracts::arithmetic_domains::{
 };
 pub use proof_contracts::arithmetic_domains::{
     SelectedScalarIntervalSource, carrier_integer_range, checked_integer_binary_kind,
-    frozen_declared_integer_range, integer_range_contains, selected_boolean_decision,
-    selected_scalar_interval,
+    integer_range_contains, selected_boolean_decision, selected_scalar_interval,
 };
 pub use proof_contracts::collection_predicates::{
     PredicateBooleanSubject, PredicateCondition, PredicateIntegerOperand,
@@ -183,7 +182,7 @@ pub use value_custody::claim_frontier::{
     ClaimFrontierClaim, linear_claim_frontier, owned_receiver_claims,
     type_carries_linear_obligation,
 };
-pub use value_custody::constants::validate_constant_literal_integer_ranges;
+pub use value_custody::constants::validate_constant_literal_fields;
 pub use value_custody::content_classes::classify_program_content_classes;
 pub use value_custody::content_conservation::{data_variant_name, push_structural_field};
 pub use value_custody::dispatch_extraction::DispatchExtraction;
@@ -219,9 +218,7 @@ pub use value_custody::structural_identity::{
     structural_identity_type, structural_storage_type, structural_type_identity,
 };
 pub use value_custody::transition_operand_moves::transition_operand_moves;
-pub use value_custody::type_shapes::{
-    exact_constrained_shells, exact_shells_symbolic_range_maximum,
-};
+pub use value_custody::type_shapes::exact_constrained_shells;
 pub use value_custody::wire::validate_wire_protocol;
 pub use value_custody::{
     collect_executable_value_origins, visit_executable_value_occurrences,
@@ -470,8 +467,7 @@ pub use value_custody::resident_content::{
 pub use value_custody::type_references::normalize_open_index_expressions;
 pub use value_custody::type_references::{
     closed_float_range_endpoint, closed_integer_range_bound, closed_integer_range_maximum,
-    constrained_range_bounds, declared_integer_range, ieee_float_range_ordered,
-    is_arithmetic_policy_only_integer, is_plain_scalar_storage,
+    ieee_float_range_ordered, is_arithmetic_policy_only_integer, is_plain_scalar_storage,
     scalar_result_contract_is_represented, unrestricted_builtin_primitive,
 };
 
@@ -651,11 +647,11 @@ pub use value_custody::places::{
     parameter_source_type_application, place_root_may_be_symbol,
     project_type_reference_from_segments, projected_statement_receiver_place,
     projected_statement_receiver_type_reference, push_field_place_segments,
-    qualification_storage_path, receiver_projections, resolve_member_symbol_from_place,
-    resolve_member_symbol_from_type_symbol, runtime_field_subject,
-    source_type_application_from_segments, state_scoped_name_symbol, storage_operand,
-    storage_place_from_expression_in_state, structural_member_identity, symbol_type_symbol,
-    unique_data_definition_by_symbol, whole_collection_view_source,
+    qualification_storage_path, qualification_storage_type_reference, receiver_projections,
+    resolve_member_symbol_from_place, resolve_member_symbol_from_type_symbol,
+    runtime_field_subject, source_type_application_from_segments, state_scoped_name_symbol,
+    storage_operand, storage_place_from_expression_in_state, structural_member_identity,
+    symbol_type_symbol, unique_data_definition_by_symbol, whole_collection_view_source,
 };
 
 /// Walk a type-reference table once into a positional row vector: row 0 is

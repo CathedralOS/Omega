@@ -4,9 +4,10 @@ Omega programs use explicit data shapes and ordinary machines. This chapter
 introduces values; [data and literal rules](../spec/language/data_and_literals.md)
 specify the source contract.
 
-Fields have no hidden default initializers. A constructor may omit a runtime field only
-when zero satisfies the complete data validity requirements. Nonzero defaults
-belong in ordinary constructor machines.
+Fields have no hidden default initializers. A record or case literal supplies
+every runtime field unless it ends with `..`. That marker requests zero for
+omitted fields, and construction must prove all field and aggregate validity
+requirements. Nonzero defaults belong in ordinary constructor machines.
 Erased proof fields use their [construction rule](../spec/proofs/contracts.md#explicit-erased-bindings),
 not zero-filling.
 
@@ -71,6 +72,33 @@ own fields. `player.health` identifies stored state, while `amount` is another
 explicit input. Call it as `Player::take_damage(&mut player, amount)`. The
 preconditions establish that the subtraction is in range.
 
+## Explicit Zero Defaults
+
+An exhaustive literal asks the compiler to catch any field you forgot. Add
+`..` only when you intend omitted fields, including future additions, to use
+valid zero values:
+
+```omega
+data Options {
+    timeout_ms: u32;
+    retries: u32;
+}
+
+let exact: Options = Options { timeout_ms: 1000, retries: 0 };
+let defaults: Options = Options { timeout_ms: 1000, .. };
+let forgotten: Options = Options { timeout_ms: 1000 }; // Rejected.
+```
+
+If Options gains another runtime field, `exact` requires an update; `defaults`
+accepts its zero value only if the complete value remains valid. If a predicate
+requires `retries > 0`, the defaulted construction also rejects. The marker
+does not invent a nonzero default or call a constructor.
+
+`Options { .. }` requests zero for every runtime field. The marker is last,
+occurs at most once and has no operand. It is not record update syntax. An
+explicitly written nested literal needs its own `..` if it omits fields.
+Erased-field construction retains its independent proof rules.
+
 ## Case Members (Sum Shapes)
 
 Alternatives are cases inside ordinary data:
@@ -101,6 +129,8 @@ data RoomEvent {
 }
 
 let event: RoomEvent = RoomEvent::Treasure { consumed: true, gold: 5 };
+let unconsumed: RoomEvent = RoomEvent::Treasure { gold: 5, .. };
+let empty: RoomEvent = RoomEvent::Nothing { .. };
 ```
 
 This mixed shape has `consumed` in every case, with a case-specific payload.
@@ -116,9 +146,12 @@ can bind `(consumed, action)`. An inner match on action then handles Nothing or
 Treasure's gold. Case patterns bind payload fields only, never consumed again.
 See [data and case patterns](chapter_6_pattern_matching_dispatch.md#data-and-case-patterns).
 
-Omitted fields still need valid zero values. Zeroed storage selects the first
-case, but observation requires its common fields and active payload to be
-established. Zero does not prove an authority qualification or mean “empty.”
+In a case literal, `..` covers omitted common fields and active payload fields;
+the case itself is still selected explicitly. A bare payload-free case cannot
+silently omit runtime common fields: RoomEvent::Nothing needs the literal above.
+Omitted fields still need valid zero values. Separately, zeroed storage selects
+the first case, but observation requires its common fields and active payload
+to be established. Zero does not prove an authority qualification or mean “empty.”
 [Chapter 20](chapter_20_memory_layout_abi.md#zeroed-storage-and-establishment)
 explains that distinction.
 

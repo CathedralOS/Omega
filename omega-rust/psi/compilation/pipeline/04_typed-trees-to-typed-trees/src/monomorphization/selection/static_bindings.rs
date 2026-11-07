@@ -6,7 +6,7 @@
 
 use super::proposals::{BindingContext, StaticProposals};
 use crate::monomorphization::{
-    HandleSpan, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, range_arguments,
+    HandleSpan, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use typed_trees::types::DomainConstraint;
 
@@ -150,15 +150,9 @@ pub(crate) fn infer_static_bindings(
                 constraints: actual_constraints,
             },
         ) => {
-            // Inspect the entire constrained shell once below. Peeling a
-            // range or policy here must not expose a different endpoint.
-            infer_static_bindings(
-                context.without_fixed_ranges(),
-                *required_base,
-                *actual_base,
-                proposals,
-            );
-            range_arguments::infer(context, required, actual, proposals);
+            // Infer the carrier first, then retain each declared domain's
+            // argument bindings from the complete constrained shell.
+            infer_static_bindings(context, *required_base, *actual_base, proposals);
             infer_domain_argument_bindings(
                 context,
                 *required_constraints,

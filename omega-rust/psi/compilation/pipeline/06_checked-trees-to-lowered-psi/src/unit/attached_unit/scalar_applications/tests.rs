@@ -81,7 +81,7 @@ fn checked_with_scope(program: typed_trees::TypedTrees) -> CheckedTrees {
         // second plan is competing evidence, so admission reads it as absent.
         facts
             .contract_plans
-            .machines
+            .machines_mut()
             .push(checked_trees::MachineContractPlan {
                 machine: machine.symbol,
                 closed_scalar_values: Default::default(),

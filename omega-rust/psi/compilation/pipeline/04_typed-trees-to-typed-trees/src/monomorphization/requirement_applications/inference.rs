@@ -274,7 +274,7 @@ fn infer(
             ))
         })
         .collect::<Vec<_>>();
-    let context = selection::BindingContext::new(program, &types, &constants, None, 0);
+    let context = selection::BindingContext::new(program, &types, &constants, 0);
     let mut proposals = selection::StaticProposals::default();
     for (required, actual) in &invocation.operands {
         selection::infer_static_bindings(context, *required, *actual, &mut proposals);

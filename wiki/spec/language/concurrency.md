@@ -127,8 +127,7 @@ not cross-core or device observation; exact installed-root evidence is required
 under [external-root admission](../build/external_roots.md#interruption-ordering).
 
 The rules here preserve the required source guarantees; instruction selection
-does not by itself constitute the formal memory model. Implementation coverage belongs beside
-the [atomic vocabulary note](../../../omega-rust/psi/foundation/language-core/atomic_operations.md).
+does not by itself constitute the formal memory model.
 
 ## Protocol proofs
 

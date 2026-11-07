@@ -77,6 +77,89 @@ class CompilerPilotTests(unittest.TestCase):
                 patch.object(pilot.corpus_gate, "require_optimized", side_effect=self.retained_profile):
             yield
 
+    def test_harness_check_failure_retains_receipts_before_any_executable_build(self):
+        import build_slot
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = self.retained_producer(root)
+            environment = {"CARGO_TARGET_DIR": str(root / "harness-target")}
+
+            def refuse_harness(arguments, **options):
+                options["stdout"].write("checking corpus_runner\n")
+                options["stderr"].write("error[E0004]: non-exhaustive patterns\n")
+                return Mock(returncode=101)
+
+            with self.producer_environment(root, source), \
+                    patch.object(pilot.shutil, "which", return_value="/tools/mbx"), \
+                    patch.object(pilot.corpus_gate, "runner_build_environment", return_value=environment), \
+                    patch.object(build_slot, "hold") as slot, \
+                    patch.object(pilot.subprocess, "run", side_effect=refuse_harness) as run, \
+                    patch.object(pilot.corpus_gate, "build_runner") as build_runner, \
+                    patch.object(pilot, "execute") as execute:
+                self.assertEqual(pilot.run_suite("failed", ("pass/example/exit",), (), phase="prepare"), 1)
+            run.assert_called_once()
+            self.assertEqual(run.call_args.args[0],
+                             ["mbx", "check", "--locked", "-p", "compiler", "--test", "corpus_runner"])
+            self.assertEqual(run.call_args.kwargs["cwd"], root)
+            self.assertEqual(run.call_args.kwargs["env"], environment)
+            self.assertEqual(run.call_args.kwargs["stdin"], pilot.subprocess.DEVNULL)
+            slot.assert_called_once_with(root)
+            build_runner.assert_not_called()
+            execute.assert_not_called()
+            output = root / "build/failed"
+            preparation = json.loads((output / "preparation.json").read_text())
+            self.assertFalse(preparation["passed"])
+            self.assertIn("corpus harness check failed (101)", preparation["error"])
+            self.assertFalse((output / "producer.json").exists())
+            receipts, = output.glob("producer-*")
+            self.assertEqual({path.name for path in receipts.iterdir()},
+                             {"runner-check.stdout", "runner-check.stderr"})
+            self.assertIn("E0004", (receipts / "runner-check.stderr").read_text())
+            self.assertEqual((receipts / "runner-check.stdout").read_text(), "checking corpus_runner\n")
+
+    def test_fresh_preparation_checks_only_requested_harness_before_cli_build(self):
+        import build_slot
+        for need_runner in (False, True):
+            with self.subTest(need_runner=need_runner), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                source = self.retained_producer(root)
+                Path(str(source.runner) + ".compiler-profile.json").write_text("{}")
+                stages = []
+
+                def prepare_command(arguments, **options):
+                    if arguments[1] == "check":
+                        stages.append("check harness")
+                    else:
+                        stages.append("build CLI")
+                        options["stdout"].write(json.dumps(dict(reason="compiler-artifact",
+                            target=dict(name="omega"), executable=str(source.cli))) + "\n")
+                        options["stdout"].write(json.dumps(dict(reason="build-finished", success=True)) + "\n")
+                    return Mock(returncode=0)
+
+                def build_harness():
+                    stages.append("build harness")
+                    return source.runner
+
+                with self.producer_environment(root, source), \
+                        patch.object(pilot.shutil, "which", return_value=None), \
+                        patch.object(build_slot, "hold") as slot, \
+                        patch.object(pilot.subprocess, "run", side_effect=prepare_command) as run, \
+                        patch.object(pilot.corpus_gate, "build_runner", side_effect=build_harness):
+                    prepared = pilot.prepare_producer(root / "prepared", need_runner=need_runner)
+                    prepared.verify()
+                self.assertEqual(stages, ["check harness", "build CLI", "build harness"]
+                                 if need_runner else ["build CLI"])
+                self.assertEqual(slot.call_count, 2 if need_runner else 1)
+                self.assertTrue(all(call.args[0][0] == "cargo" for call in run.call_args_list))
+                self.assertEqual(prepared.cli_profile, source.cli_profile)
+                self.assertEqual(prepared.runner_profile, source.runner_profile if need_runner else None)
+                self.assertEqual(prepared.runner is not None, need_runner)
+                self.assertEqual((prepared.cli.parent / "runner-check.stdout").exists(), need_runner)
+                for binary, profile in prepared._artifacts():
+                    recorded = json.loads(Path(str(binary) + ".verified-profile.json").read_text())
+                    self.assertEqual(recorded["source_revision"], source.revision)
+                    self.assertEqual(recorded["observation"], profile)
+
     def test_prepared_manifest_round_trip_checks_both_and_cli_only_producers(self):
         for runner in (False, True):
             with self.subTest(runner=runner), tempfile.TemporaryDirectory() as temporary:

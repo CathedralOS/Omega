@@ -17,8 +17,10 @@ use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 
 use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment;
 use crate::shared::terminal_identities::edge_id;
+mod restored_memberships;
 pub(crate) use lowered_psi::LoweredSourceCallOrigin as SourceInvocation;
 pub(crate) use lowered_psi::LoweredStatementCallCoordinate as SourceCallCoordinate;
+use restored_memberships::RestoredCallMemberships;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SourceQuotientCall {
@@ -328,6 +330,7 @@ pub(crate) struct OperationBuffer {
     pub(crate) reference_formations:
         std::sync::Arc<crate::emission::reference_formations::ReferenceFormations>,
     pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
+    restored_memberships: RestoredCallMemberships,
     /// The module's selector interfaces and tables, by identity.
     pub(crate) dynamic_dispatch:
         std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
@@ -594,42 +597,48 @@ impl OperationBuffer {
         Ok(())
     }
 
-    /// Add domain qualifications restored on a structural home, including
-    /// guarantees published by completed calls on borrowed parameters.
-    pub(crate) fn add_structural_qualifications(
+    /// Keep later call facts beside their occurrence, never on a home's birth
+    /// contract. A consumer must independently prove each candidate at its read.
+    pub(crate) fn record_call_memberships(
         &mut self,
+        coordinate: SourceCallCoordinate,
         place: PlaceId,
         qualifications: &[semantic_vocabulary::StructuralDomainId],
-        projected_qualifications: &[terminal_psi::StructuralPathQualification],
-    ) {
-        for operation in self.operations.iter_mut().rev() {
-            if let OperationResult::Structural(result) = &mut operation.result
-                && result.place == place
-            {
-                result.qualifications.extend_from_slice(qualifications);
-                result.qualifications.sort();
-                result.qualifications.dedup();
-                result
-                    .projected_qualifications
-                    .extend_from_slice(projected_qualifications);
-                result.projected_qualifications.sort();
-                result.projected_qualifications.dedup();
-            }
+        projected: &[terminal_psi::StructuralPathQualification],
+    ) -> Result<(), &'static str> {
+        let mut calls = self.source_calls.iter().filter(|call| {
+            call.matches_statement(
+                coordinate.state,
+                coordinate.statement_index,
+                coordinate.call_ordinal,
+            )
+        });
+        let call = calls
+            .next()
+            .ok_or("restored memberships have no emitted source call")?;
+        if calls.next().is_some() {
+            return Err("restored memberships have multiple emitted source calls");
         }
-        for (_, binding) in &mut self.structural_values {
-            if let StructuralBinding::OperationResult(result) = binding
-                && result.place == place
-            {
-                result.qualifications.extend_from_slice(qualifications);
-                result.qualifications.sort();
-                result.qualifications.dedup();
-                result
-                    .projected_qualifications
-                    .extend_from_slice(projected_qualifications);
-                result.projected_qualifications.sort();
-                result.projected_qualifications.dedup();
-            }
-        }
+        let LoweredSourceCallSite::Operation(operation) = call.terminal_site else {
+            return Err("restored memberships require a normal call completion");
+        };
+        self.restored_memberships
+            .record(place, coordinate, operation, qualifications, projected)
+    }
+
+    pub(crate) fn call_membership_candidates(
+        &self,
+        place: PlaceId,
+        state: symbols::SymbolHandle,
+        statement: u32,
+    ) -> impl Iterator<Item = &restored_memberships::RestoredCallMembership> {
+        self.restored_memberships
+            .candidates(place)
+            .iter()
+            .filter(move |row| {
+                row.coordinate.state == state
+                    && row.coordinate.statement_index <= statement as usize
+            })
     }
 
     /// Allocate the read obligation that canonically certifies the next
@@ -686,6 +695,7 @@ impl OperationBuffer {
             loan_captures: Vec::new(),
             reference_formations,
             loan_completions: Vec::new(),
+            restored_memberships: RestoredCallMemberships::default(),
             selected_comparisons: Vec::new(),
             source_checked_obligations: Vec::new(),
             claim_introductions: Vec::new(),

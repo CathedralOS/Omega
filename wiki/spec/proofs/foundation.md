@@ -27,9 +27,7 @@ interface, without new kernel reduction rules. These choices are settled;
 their combined metatheory, checked encodings and implementation remain required
 before claiming a complete verified profile. The reference paper does not supply
 those results automatically. [Typed function eta](inductive_profile.md#typed-function-eta)
-is an explicit conversion extension, not function extensionality. Source
-elaboration has a separately named owner. The existing Rust
-and bootstrap checkers do not implement this general core yet.
+is an explicit conversion extension, not function extensionality.
 
 ## Separate judgments
 
@@ -208,7 +206,7 @@ them into the common core. Terminal obligations and native refinement retain
 their distinct subjects; [fact validity](../terminal-psi/fact_validity.md)
 governs which premises a Terminal obligation may use.
 Selecting a mathematical core does not prove an operational interpretation or
-turn the current Gamma checker into a general proof kernel.
+establish a general proof kernel merely by reusing a bootstrap checker.
 
 Independent checking removes the need to trust the proof's producer. Humans
 still review whether the statement is the intended one and whether its
@@ -240,8 +238,7 @@ foundational axiom is implied by this contract.
 
 ## Migration acceptance
 
-The [execution board](../../../TASKS.md) owns implementation, not a second design
-ledger. Each example needs a valid derivation and an invalid control:
+Each example needs a valid derivation and an invalid control:
 
 - A universe-polymorphic theorem over arbitrary predicates, plus dependent
   witness packages, identity transport and inductive reasoning.

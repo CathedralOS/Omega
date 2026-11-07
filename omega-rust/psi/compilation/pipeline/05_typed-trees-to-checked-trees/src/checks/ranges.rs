@@ -12,8 +12,7 @@
 //! invariants (`loop_invariants`). For each state it starts a new
 //! `facts::RangeFacts`, defines the state parameters as locals, and seeds, in
 //! order: the state's `requires` (`requirements`), the state argument facts,
-//! dependent parameter orderings (`dependent_params`), the incoming guard
-//! facts and the loop invariant facts. It then runs
+//! the incoming guard facts and the loop invariant facts. It then runs
 //! `statements::check_statement` on each statement.
 //! Branch-local facts share the state's collection query context. Exact bounds
 //! consume the normal-return observation owner used by call requirements and
@@ -33,9 +32,7 @@
 //! `ranges_seam_owns` for the operator `requires` check.
 
 // What a state starts with before its statements run: its `requires`, the
-// facts its incoming edges' arguments carry, dependent parameter orderings,
-// incoming guards and loop invariants.
-mod dependent_params;
+// facts its incoming edges' arguments carry, incoming guards and loop invariants.
 pub(in crate::checks) mod incoming_guards;
 mod loop_invariants;
 pub(in crate::checks) mod requirements;
@@ -65,7 +62,6 @@ pub(crate) mod types;
 use ::diagnostics::Diagnostic;
 use arrays::fixed_array_field_lengths;
 pub(in crate::checks) use arrays::fixed_array_type_length;
-use dependent_params::seed_dependent_param_orderings;
 pub(in crate::checks) use expressions::folded_integer_binary;
 use facts::RangeFacts;
 use incoming_guards::{IncomingGuardIndex, seed_incoming_guard_facts};
@@ -208,7 +204,6 @@ pub(crate) fn check_indexed_accesses(
                             || {
                                 seed_state_requires(program, &mut facts, machine, state);
                                 seed_state_argument_facts(&mut facts, state, &state_argument_facts);
-                                seed_dependent_param_orderings(program, &mut facts, machine, state);
                                 seed_incoming_guard_facts(
                                     program,
                                     machine,

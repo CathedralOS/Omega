@@ -12,10 +12,15 @@ Anonymous landing and builtin `Int` arithmetic are separate from embedding.
 trees as exact rationals and checks fixed-integer integrality and carrier bounds
 at the destination. It does not evaluate arbitrary named values, calls, casts,
 or target observations. Its caller retains operator-selection evidence.
-[Destination discovery](src/value_custody/literals/integer_landing/destinations.rs) retains
-the first fractional source occurrence and emits warnings after successful
-validation, including for supported proof-`Int` peers. This is not complete
-warning-suppression or reporting support.
+[Destination discovery](src/value_custody/literals/integer_landing/destinations.rs)
+retains the first fractional source occurrence, including for supported
+proof-`Int` peers. The [landing contract](../../../../wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics)
+requires rejection at implicit integer destinations and permits explicit
+`as` on a complete anonymous operand after exact final-value checks.
+[Implementation migration](../../../../wiki/drafts/designs/explicit_integer_landing.md)
+moves the existing post-validation warning into admission and removes suppression.
+The acknowledgement belongs to the exact landing occurrence, not every value
+derived from the same source expression.
 
 [Arithmetic entailment](src/proof_contracts/contract_entailment/arithmetic_judgment.rs) evaluates
 closed builtin proof-integer quotient/remainder with unbounded `div_rem`.

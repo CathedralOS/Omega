@@ -111,6 +111,7 @@ pub(super) fn validate(
                 &mut Vec::new(),
                 &mut selected,
                 &mut arena::Arena::new(),
+                &mut super::permission_sources::PermissionFailures::default(),
             ) {
                 return refusal(
                     "view formation has incomplete permission suppliers at its captured source",

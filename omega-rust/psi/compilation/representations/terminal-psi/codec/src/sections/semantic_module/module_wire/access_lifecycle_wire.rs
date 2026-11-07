@@ -48,24 +48,29 @@ pub(super) fn encode(
         TerminalAccessLifecycleOperation::Initialize => 0,
         TerminalAccessLifecycleOperation::MoveOut => 1,
         TerminalAccessLifecycleOperation::View => 2,
+        TerminalAccessLifecycleOperation::Relocate => 3,
     });
     match &plan.execution {
         TerminalAccessLifecycleExecution::SelectedProvider => writer.u8(0),
         TerminalAccessLifecycleExecution::CompilerPrimitive {
             profile_type,
-            profile_requirement,
+            profile_requirements,
         } => {
             writer.u8(1);
             writer.u8(u8::from(profile_type.is_some()));
             if let Some(profile_type) = profile_type {
                 writer.id(*profile_type);
             }
-            writer.u8(u8::from(profile_requirement.is_some()));
-            if let Some(requirement) = profile_requirement {
-                writer.id(requirement.boundary);
-                writer.u32(requirement.owner.identity().0);
-                writer.u32(requirement.callable.0);
-            }
+            writer.counted(
+                "placement profile requirements",
+                profile_requirements,
+                |writer, requirement| {
+                    writer.id(requirement.boundary);
+                    writer.u32(requirement.owner.identity().0);
+                    writer.u32(requirement.callable.0);
+                    Ok(())
+                },
+            )?;
         }
     }
     writer.id(plan.schema);
@@ -136,6 +141,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TerminalAccessLifecycleP
         0 => TerminalAccessLifecycleOperation::Initialize,
         1 => TerminalAccessLifecycleOperation::MoveOut,
         2 => TerminalAccessLifecycleOperation::View,
+        3 => TerminalAccessLifecycleOperation::Relocate,
         tag => return Err(CodecError::InvalidTag("access lifecycle operation", tag)),
     };
     let execution = match reader.u8()? {
@@ -146,23 +152,16 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TerminalAccessLifecycleP
                 1 => Some(reader.id("placement profile type")?),
                 tag => return Err(CodecError::InvalidTag("placement profile presence", tag)),
             };
-            let profile_requirement = match reader.u8()? {
-                0 => None,
-                1 => Some(TerminalAccessProfileRequirement {
+            let profile_requirements = decode_counted(reader, |reader| {
+                Ok(TerminalAccessProfileRequirement {
                     boundary: reader.id("placement profile requirement")?,
                     owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
                     callable: TerminalIdentityIndex(reader.u32()?),
-                }),
-                tag => {
-                    return Err(CodecError::InvalidTag(
-                        "placement profile requirement presence",
-                        tag,
-                    ));
-                }
-            };
+                })
+            })?;
             TerminalAccessLifecycleExecution::CompilerPrimitive {
                 profile_type,
-                profile_requirement,
+                profile_requirements,
             }
         }
         tag => return Err(CodecError::InvalidTag("access lifecycle execution", tag)),
