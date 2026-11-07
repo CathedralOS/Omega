@@ -10,8 +10,6 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-use super::StructuralTerm;
-
 pub(in crate::proof_contracts::contract_entailment) fn has_identity_equality_meaning(
     program: &dyn crate::CheckingInput,
     scope: SymbolHandle,
