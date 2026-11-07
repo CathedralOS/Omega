@@ -438,6 +438,12 @@ impl StructuralJudge<'_> {
                 && left_arguments.len() == right_arguments.len()
                 && self.identity_application_arity(*left_target) == Some(left_arguments.len()) =>
             {
+                // A licensed whole-value equality can permute operands that
+                // are not positionally identical. Try that proof before a
+                // child search spends the shared allowance on those pairs.
+                if self.identity_algebra_equal(&left, &right) {
+                    return StructuralJudgment::Proven;
+                }
                 let mut verdict = StructuralJudgment::Proven;
                 for (left, right) in left_arguments.iter().zip(right_arguments) {
                     if !matches!(
@@ -452,13 +458,7 @@ impl StructuralJudge<'_> {
                         verdict = StructuralJudgment::Unknown;
                     }
                 }
-                if matches!(verdict, StructuralJudgment::Proven)
-                    || self.identity_algebra_equal(&left, &right)
-                {
-                    StructuralJudgment::Proven
-                } else {
-                    StructuralJudgment::Unknown
-                }
+                verdict
             }
             _ => {
                 if self.exact_record_eta(&left, &right, depth + 1, remaining)
