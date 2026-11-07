@@ -16,7 +16,7 @@
 mod construction;
 pub(super) use construction::SourceConstructorContext;
 mod induction;
-mod terms;
+pub(super) mod terms;
 
 use super::{Elaborator, ScalarCarrier};
 use crate::typed_expressions::type_reference_table;

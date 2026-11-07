@@ -490,6 +490,15 @@ impl Elaborator<'_> {
                     ));
                 }
             }
+            let outer_types = if family.external_parameter_indices.is_empty() {
+                Vec::new()
+            } else {
+                telescope
+                    .iter()
+                    .filter(|(_, _, reference)| reference.is_none())
+                    .map(|(symbol, _, _)| *symbol)
+                    .collect::<Vec<_>>()
+            };
             if !family.external_parameter_indices.is_empty() {
                 // Uniform declaration Types stay arbitrary outer carriers,
                 // not changing value indices of the induction invariant.
@@ -497,6 +506,20 @@ impl Elaborator<'_> {
             }
             if telescope.len() > family.index_parameter_indices.len() {
                 continue;
+            }
+            let saved_constructor_context = std::mem::take(&mut self.source_constructor_context);
+            let mut outer_parameters = Vec::new();
+            let mut lifted_declarations = Vec::new();
+            for symbol in outer_types {
+                let domain = self
+                    .arena
+                    .insert(Term::Sort(Sort::Type(Level::Constant(0))));
+                let position = self.declarations.len() as u32;
+                self.declarations
+                    .push(proof_admission::Declaration::assumption(0, domain));
+                let term = self.constant(position);
+                self.source_constructor_context.values.push((symbol, term));
+                outer_parameters.push((position, symbol, domain));
             }
             self.source_owner = machine.symbol;
             self.scope.clear();
@@ -539,6 +562,7 @@ impl Elaborator<'_> {
             }
             if mapping.len() != telescope.len() {
                 self.scope.clear();
+                self.source_constructor_context = saved_constructor_context;
                 continue;
             }
             let expressions = self
@@ -592,7 +616,41 @@ impl Elaborator<'_> {
                     body: proposition,
                 });
                 self.scope.clear();
-                let theorem = self.source_family_induction(symbol, invariant, &actuals)?;
+                let mut theorem = self.source_family_induction(symbol, invariant, &actuals)?;
+                (theorem.theorem, theorem.ty) =
+                    super::source_families::terms::abstract_parameter_closure(
+                        &mut self.arena,
+                        &mut self.declarations,
+                        theorem.theorem,
+                        theorem.ty,
+                        &outer_parameters,
+                        &mut lifted_declarations,
+                    )
+                    .map_err(|reason| self.refuse(reason.into()))?;
+                if !super::source_families::terms::excludes_parameters(
+                    &self.arena,
+                    &self.declarations,
+                    &[theorem.theorem, theorem.ty],
+                    &outer_parameters,
+                ) {
+                    return Err(self.refuse(
+                        "source induction retains an outer Type assumption after abstraction"
+                            .into(),
+                    ));
+                }
+                check_type(
+                    &mut self.arena,
+                    &Context::empty()
+                        .with_signature(Signature::from_declarations(self.declarations.clone())),
+                    theorem.theorem,
+                    theorem.ty,
+                    &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                )
+                .map_err(|error| {
+                    self.refuse(format!(
+                        "abstracted source Type theorem fails kernel checking: {error:?}"
+                    ))
+                })?;
                 let signature = Signature::from_declarations(self.declarations.clone());
                 let closure = judgment_assumption_closure(
                     &self.arena,
@@ -622,6 +680,7 @@ impl Elaborator<'_> {
                     self.push_scope(Some(*symbol), name.clone(), domain);
                 }
             }
+            self.source_constructor_context = saved_constructor_context;
         }
         self.scope.clear();
         Ok(())

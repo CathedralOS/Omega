@@ -705,20 +705,31 @@ pub(super) fn abstract_parameters(
     ty: TermHandle,
     parameters: &[(u32, SymbolHandle, TermHandle)],
 ) -> Result<(TermHandle, TermHandle), &'static str> {
+    abstract_parameters_with_declarations(arena, proof, ty, parameters, &[])
+}
+
+fn abstract_parameters_with_declarations(
+    arena: &mut TermArena,
+    proof: TermHandle,
+    ty: TermHandle,
+    parameters: &[(u32, SymbolHandle, TermHandle)],
+    lifted: &[Option<u32>],
+) -> Result<(TermHandle, TermHandle), &'static str> {
     fn go(
         arena: &mut TermArena,
         term: TermHandle,
         parameters: &[(u32, SymbolHandle, TermHandle)],
+        lifted: &[Option<u32>],
         depth: u32,
     ) -> Result<TermHandle, &'static str> {
         macro_rules! at {
             ($value:expr) => {
-                go(arena, $value, parameters, depth)?
+                go(arena, $value, parameters, lifted, depth)?
             };
         }
         macro_rules! under {
             ($value:expr) => {
-                go(arena, $value, parameters, depth + 1)?
+                go(arena, $value, parameters, lifted, depth + 1)?
             };
         }
         let node = match arena.get(term) {
@@ -734,6 +745,21 @@ pub(super) fn abstract_parameters(
                         return Err("source value placeholder acquired universe arguments");
                     }
                     Term::Variable(depth + (parameters.len() - ordinal - 1) as u32)
+                } else if let Some(Some(replacement)) = lifted.get(declaration as usize) {
+                    let mut term = arena.insert(Term::Constant {
+                        declaration: *replacement,
+                        levels,
+                    });
+                    for ordinal in 0..parameters.len() {
+                        let argument = arena.insert(Term::Variable(
+                            depth + (parameters.len() - ordinal - 1) as u32,
+                        ));
+                        term = arena.insert(Term::Apply {
+                            function: term,
+                            argument,
+                        });
+                    }
+                    return Ok(term);
                 } else {
                     return Ok(term);
                 }
@@ -838,12 +864,12 @@ pub(super) fn abstract_parameters(
         };
         Ok(arena.insert(node))
     }
-    let mut body = go(arena, proof, parameters, 0)?;
-    let mut statement = go(arena, ty, parameters, 0)?;
+    let mut body = go(arena, proof, parameters, lifted, 0)?;
+    let mut statement = go(arena, ty, parameters, lifted, 0)?;
     for (ordinal, &(_, _, domain)) in parameters.iter().enumerate().rev() {
         // A child/premise domain may depend on earlier value parameters. Its
         // binder is formed under that prefix, not under the full body scope.
-        let domain = go(arena, domain, &parameters[..ordinal], 0)?;
+        let domain = go(arena, domain, &parameters[..ordinal], lifted, 0)?;
         body = arena.insert(Term::Lambda { domain, body });
         statement = arena.insert(term!(Pi => domain => statement));
     }
@@ -1359,8 +1385,8 @@ mod induction_tests {
                 child_indices: vec![child_index; count],
             })
             .collect::<Vec<_>>();
-        let family = description(&mut arena, &[(field, two)], &[field], &cases, &[]).unwrap();
-        let family = intern_description(&mut arena, &mut declarations, family).unwrap();
+        let family = description(&mut arena, &[(field, two)], &[field], &cases, &[], &[]).unwrap();
+        let family = intern_description(&mut arena, &mut declarations, family, 0).unwrap();
         let index = arena.insert(Term::Variable(0));
         let reflexive = arena.insert(Term::Id {
             ty: two,
@@ -1406,6 +1432,7 @@ mod induction_tests {
             invariant,
             &lemmas,
             &mut declarations,
+            &[],
             &[],
         )
         .unwrap();
@@ -1453,28 +1480,131 @@ pub(super) fn excludes_parameters(
     roots: &[TermHandle],
     parameters: &[(u32, SymbolHandle, TermHandle)],
 ) -> bool {
-    let mut pending = roots.to_vec();
     let mut seen_terms = std::collections::HashSet::new();
-    let mut seen_declarations = std::collections::HashSet::new();
+    let Some(references) = collect_constant_references(arena, roots, &mut seen_terms) else {
+        return false;
+    };
+    let mut pending = references.into_iter().collect::<Vec<_>>();
+    let mut seen = vec![false; declarations.len()];
+    while let Some(position) = pending.pop() {
+        if parameters
+            .iter()
+            .any(|(parameter, _, _)| *parameter == position)
+        {
+            return false;
+        }
+        let Some(declaration) = declarations.get(position as usize) else {
+            return false;
+        };
+        if std::mem::replace(&mut seen[position as usize], true) {
+            continue;
+        }
+        let roots = std::iter::once(declaration.ty)
+            .chain(declaration.body)
+            .collect::<Vec<_>>();
+        let Some(references) = collect_constant_references(arena, &roots, &mut seen_terms) else {
+            return false;
+        };
+        pending.extend(references);
+    }
+    true
+}
+
+/// Close an outer source telescope through shared generated definitions.
+/// Dependent definitions are copied once as parameterized definitions; existing
+/// declarations/caches remain immutable and no assumption gains authority.
+pub(super) fn abstract_parameter_closure(
+    arena: &mut TermArena,
+    declarations: &mut Vec<Declaration>,
+    proof: TermHandle,
+    ty: TermHandle,
+    parameters: &[(u32, SymbolHandle, TermHandle)],
+    lifted: &mut Vec<Option<u32>>,
+) -> Result<(TermHandle, TermHandle), &'static str> {
+    if parameters.is_empty() {
+        return Ok((proof, ty));
+    }
+    let original_len = declarations.len();
+    lifted.resize(original_len, None);
+    let first = parameters
+        .iter()
+        .map(|(position, _, _)| *position as usize)
+        .min()
+        .ok_or("source telescope is empty")?;
+    let mut edges = vec![None; original_len];
+    let mut pending = constant_references(arena, &[proof, ty])
+        .ok_or("source theorem has a dummy term")?
+        .into_iter()
+        .collect::<Vec<_>>();
+    while let Some(position) = pending.pop() {
+        let position = position as usize;
+        if position >= original_len {
+            return Err("source theorem has an unformed declaration");
+        }
+        if position <= first || lifted[position].is_some() || edges[position].is_some() {
+            continue;
+        }
+        let declaration = &declarations[position];
+        let roots = std::iter::once(declaration.ty)
+            .chain(declaration.body)
+            .collect::<Vec<_>>();
+        let references = constant_references(arena, &roots)
+            .ok_or("source theorem declaration has a dummy term")?;
+        if references
+            .iter()
+            .any(|&reference| reference as usize >= position)
+        {
+            return Err("source theorem changed its declaration prefix");
+        }
+        pending.extend(references.iter().copied());
+        edges[position] = Some(references);
+    }
+    for position in first + 1..original_len {
+        let Some(references) = &edges[position] else {
+            continue;
+        };
+        if !references.iter().any(|reference| {
+            parameters
+                .iter()
+                .any(|(parameter, _, _)| parameter == reference)
+                || lifted[*reference as usize].is_some()
+        }) {
+            continue;
+        }
+        let declaration = declarations[position].clone();
+        let Some(body) = declaration.body else {
+            return Err("source theorem retains an unabstracted dependent assumption");
+        };
+        let (body, ty) =
+            abstract_parameters_with_declarations(arena, body, declaration.ty, parameters, lifted)?;
+        let replacement = declarations.len() as u32;
+        declarations.push(Declaration::definition(declaration.level_arity, ty, body));
+        lifted[position] = Some(replacement);
+    }
+    abstract_parameters_with_declarations(arena, proof, ty, parameters, lifted)
+}
+
+fn constant_references(
+    arena: &TermArena,
+    roots: &[TermHandle],
+) -> Option<std::collections::BTreeSet<u32>> {
+    collect_constant_references(arena, roots, &mut std::collections::HashSet::new())
+}
+
+fn collect_constant_references(
+    arena: &TermArena,
+    roots: &[TermHandle],
+    seen_terms: &mut std::collections::HashSet<TermHandle>,
+) -> Option<std::collections::BTreeSet<u32>> {
+    let mut pending = roots.to_vec();
+    let mut constants = std::collections::BTreeSet::new();
     while let Some(term) = pending.pop() {
         if !seen_terms.insert(term) {
             continue;
         }
         match arena.get(term) {
             Term::Constant { declaration, .. } => {
-                if parameters
-                    .iter()
-                    .any(|(position, _, _)| *position == declaration)
-                {
-                    return false;
-                }
-                if seen_declarations.insert(declaration) {
-                    let Some(declaration) = declarations.get(declaration as usize) else {
-                        return false;
-                    };
-                    pending.push(declaration.ty);
-                    pending.extend(declaration.body);
-                }
+                constants.insert(declaration);
             }
             Term::Pi { domain, codomain } | Term::Sigma { domain, codomain } => {
                 pending.extend([domain, codomain])
@@ -1519,7 +1649,7 @@ pub(super) fn excludes_parameters(
                 body,
                 scrutinee,
             } => pending.extend([motive, body, scrutinee]),
-            Term::Dummy => return false,
+            Term::Dummy => return None,
             Term::Variable(_)
             | Term::Sort(_)
             | Term::Two
@@ -1528,7 +1658,114 @@ pub(super) fn excludes_parameters(
             | Term::Empty => {}
         }
     }
-    true
+    Some(constants)
+}
+
+#[cfg(test)]
+mod outer_type_closure_tests {
+    use super::*;
+    use proof_admission::{
+        Budget, Context, check_signature, check_type, judgment_assumption_closure,
+    };
+
+    #[test]
+    fn closes_shared_type_dependent_definitions_without_granting_an_assumption() {
+        let mut arena = TermArena::new();
+        let sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+        let parameter = SymbolHandle::from_arena_index(1);
+        let mut declarations = vec![Declaration::assumption(0, sort)];
+        let carrier = arena.insert(Term::Constant {
+            declaration: 0,
+            levels: vec![],
+        });
+        let value = arena.insert(Term::Variable(0));
+        let relation = arena.insert(Term::Id {
+            ty: carrier,
+            left: value,
+            right: value,
+        });
+        let ty = arena.insert(Term::Pi {
+            domain: carrier,
+            codomain: relation,
+        });
+        let reflexive = arena.insert(Term::Refl { ty: carrier, value });
+        let body = arena.insert(Term::Lambda {
+            domain: carrier,
+            body: reflexive,
+        });
+        declarations.push(Declaration::definition(0, ty, body));
+        let shared = arena.insert(Term::Constant {
+            declaration: 1,
+            levels: vec![],
+        });
+        declarations.push(Declaration::definition(0, ty, shared));
+        let proof = arena.insert(Term::Constant {
+            declaration: 2,
+            levels: vec![],
+        });
+        check_signature(&mut arena, &declarations, &mut Budget::default()).unwrap();
+        let parameters = [(0, parameter, sort)];
+        let mut lifted = Vec::new();
+        let (closed, statement) = abstract_parameter_closure(
+            &mut arena,
+            &mut declarations,
+            proof,
+            ty,
+            &parameters,
+            &mut lifted,
+        )
+        .unwrap();
+        assert!(excludes_parameters(
+            &arena,
+            &declarations,
+            &[closed, statement],
+            &parameters
+        ));
+        let signature = check_signature(&mut arena, &declarations, &mut Budget::default()).unwrap();
+        check_type(
+            &mut arena,
+            &Context::empty().with_signature(signature.clone()),
+            closed,
+            statement,
+            &mut Budget::default(),
+        )
+        .unwrap();
+        assert!(judgment_assumption_closure(&arena, &signature, &[closed, statement]).is_empty());
+        let count = declarations.len();
+        let _ = abstract_parameter_closure(
+            &mut arena,
+            &mut declarations,
+            proof,
+            ty,
+            &parameters,
+            &mut lifted,
+        )
+        .unwrap();
+        assert_eq!(
+            declarations.len(),
+            count,
+            "shared dependent definitions are lifted once"
+        );
+
+        // An arbitrary inhabitant cannot become a polymorphic theorem.
+        let assumed = declarations.len() as u32;
+        declarations.push(Declaration::assumption(0, carrier));
+        let assumed = arena.insert(Term::Constant {
+            declaration: assumed,
+            levels: vec![],
+        });
+        assert!(
+            abstract_parameter_closure(
+                &mut arena,
+                &mut declarations,
+                assumed,
+                carrier,
+                &parameters,
+                &mut lifted
+            )
+            .is_err()
+        );
+    }
 }
 
 #[cfg(test)]
@@ -1782,8 +2019,8 @@ mod indexed_vector_budget_tests {
         // alias domains remain in the constraint/invariant functions above.
         let common = [(length_symbol, integer), (total_symbol, integer)];
         let indices = [length_symbol, total_symbol];
-        let family = description(&mut arena, &common, &indices, &cases, &[]).unwrap();
-        let family = intern_description(&mut arena, &mut declarations, family).unwrap();
+        let family = description(&mut arena, &common, &indices, &cases, &[], &[]).unwrap();
+        let family = intern_description(&mut arena, &mut declarations, family, 0).unwrap();
         let i = arena.insert(Term::Variable(0));
         let length = arena.insert(Term::Fst { pair: i });
         let total = arena.insert(Term::Snd { pair: i });
@@ -1904,6 +2141,7 @@ mod indexed_vector_budget_tests {
             invariant,
             &lemmas,
             &mut declarations,
+            &[],
             &[],
         )
         .unwrap();

@@ -294,14 +294,23 @@ impl Elaborator<'_> {
         let type_sort = self
             .arena
             .insert(Term::Sort(Sort::Type(Level::Constant(0))));
-        let stored_type_symbols = type_symbols
+        let mut external_slots = vec![false; family.parameters.len()];
+        for &position in &family.external_parameter_indices {
+            external_slots[position] = true;
+        }
+        let stored_type_slots = family
+            .parameters
             .iter()
-            .copied()
-            .filter(|symbol| {
-                !external_actuals
-                    .iter()
-                    .any(|(external, _)| external == symbol)
+            .enumerate()
+            .filter(|(_, parameter)| matches!(parameter.kind, TypeParameterKind::Type))
+            .enumerate()
+            .filter_map(|(type_slot, (position, _))| {
+                (!external_slots[position]).then_some(type_slot)
             })
+            .collect::<Vec<_>>();
+        let stored_type_symbols = stored_type_slots
+            .iter()
+            .map(|&slot| type_symbols[slot])
             .collect::<Vec<_>>();
         common.splice(
             0..0,
@@ -340,13 +349,9 @@ impl Elaborator<'_> {
                         .then_some(all_parameter_actuals[position])
                 })
                 .collect::<Vec<_>>();
-            let type_positions = type_symbols
-                .iter()
-                .enumerate()
-                .map(|(position, symbol)| (*symbol, position))
-                .collect::<std::collections::BTreeMap<_, _>>();
-            for &(field, mut domain) in &fields {
-                if !type_symbols.contains(&field) {
+            for (field_ordinal, &(field, mut domain)) in fields.iter().enumerate() {
+                let type_slot = stored_type_slots.get(field_ordinal).copied();
+                if type_slot.is_none() {
                     for actual in &type_actuals {
                         domain = self.arena.insert(Term::Apply {
                             function: domain,
@@ -364,8 +369,8 @@ impl Elaborator<'_> {
                 });
                 parameters.push((position, field, domain));
                 let value = self.constant(position);
-                if let Some(&type_position) = type_positions.get(&field) {
-                    type_actuals[type_position] = value;
+                if let Some(type_slot) = type_slot {
+                    type_actuals[type_slot] = value;
                 }
                 values.push(value);
             }
