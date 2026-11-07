@@ -113,16 +113,23 @@ its structural places. It is proof-only, does not copy an owned value, and is
 not general historical quantification. `separate(a, b, ...)` is proof-only
 partial n-ary algebra composition; it generates compatibility and separation
 obligations. Both are compiler-owned call-shaped operations, erased rather than
-executed or overridden by packages. For example:
+executed or overridden by packages. For an extent's `Granted` projection to
+`IntervalSet<Nat>`:
 
 ```omega
 ensures
-    Granted::content(old(&whole))
-    == separate(
-        Granted::content(&result.left),
-        Granted::content(&result.right),
+    core::Identity<IntervalSet<Nat>>(
+        Granted::content(old(&whole)),
+        separate(
+            Granted::content(&result.left),
+            Granted::content(&result.right),
+        )
     );
 ```
+
+Identity here compares canonical set elements. The underlying claim occurrences
+keep their separate authority and lineage; forming this statement proves neither
+separation nor conservation.
 
 Terminal represents entry/current revision on structural-place terms, sharing
 revision identity with scoped facts and borrow certificates. Paths retain exact
