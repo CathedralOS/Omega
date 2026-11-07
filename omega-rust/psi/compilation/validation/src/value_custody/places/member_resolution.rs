@@ -773,9 +773,7 @@ pub(super) fn effective_member_symbol_from_position(
     receiver_position: Option<MemberPosition>,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
-    if expression_table(program).pattern_component(receiver)
-        == language_core::PatternComponent::Case
-    {
+    if program.pattern_component(receiver) != Some(language_core::PatternComponent::Fields) {
         return SymbolHandle::invalid();
     }
     if let ExpressionNode::SavedSubject(saved) = expression_table(program).expression(receiver) {

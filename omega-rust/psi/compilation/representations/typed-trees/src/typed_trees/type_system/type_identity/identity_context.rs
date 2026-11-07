@@ -912,7 +912,8 @@ pub(crate) fn normalize_index_expression(
                 substitution::index(program, symbol, &fallback, context).unwrap_or_else(|| {
                     substitution::index_name(program, symbol, fallback.as_str(), context)
                 });
-            if path.component == language_core::PatternComponent::Case {
+            if program.pattern_component(expression) == Some(language_core::PatternComponent::Case)
+            {
                 compound(IndexForm::CaseComponent, [identity])
             } else {
                 identity

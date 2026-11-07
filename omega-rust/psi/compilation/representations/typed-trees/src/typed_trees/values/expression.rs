@@ -113,6 +113,7 @@ pub struct ExpressionTable {
     /// their stable handles when a compilation projects a closed body roster.
     expression_roots: Arena<ExpressionHandle>,
     source_spans: Vec<SourceSpan>,
+    pattern_components: Vec<language_core::PatternComponent>,
     /// Original checked computation of a materialized static value. This
     /// provenance edge preserves invocation custody without executing it again.
     materialization_sources: Vec<ExpressionHandle>,
@@ -179,18 +180,6 @@ macro_rules! expression_node_accessors {
 }
 
 impl ExpressionTable {
-    /// The component changes which patterns can decompose this read, while
-    /// its carrier and backing remain those of the completed subject.
-    pub fn pattern_component(
-        &self,
-        expression: ExpressionHandle,
-    ) -> language_core::PatternComponent {
-        match self.expression(expression) {
-            ExpressionNode::SavedSubject(saved) => saved.component,
-            ExpressionNode::Name(name) => name.component,
-            _ => language_core::PatternComponent::Fields,
-        }
-    }
     pub fn insert_static_member(
         &mut self,
         member: StaticMachineArgument,
@@ -485,6 +474,7 @@ impl ExpressionTable {
             build_selection_requests: Arena::default(),
             expression_roots: Arena::with_capacity(capacity.expressions),
             source_spans: Vec::with_capacity(capacity.expressions),
+            pattern_components: Vec::with_capacity(capacity.expressions),
             materialization_sources: Vec::new(),
             constructed_value_types: Arena::default(),
             constructed_value_type_handles: Vec::new(),
@@ -762,7 +752,39 @@ impl ExpressionTable {
         self.static_machine_arguments.span_mut_or_empty(arguments)
     }
 
+    pub fn direct_pattern_component(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<language_core::PatternComponent> {
+        self.expression_is_valid(expression)
+            .then(|| {
+                self.pattern_components
+                    .get(source_span_index(expression))
+                    .copied()
+            })
+            .flatten()
+    }
+
+    /// A component belongs to the produced occurrence, not the current node
+    /// shape. Replacing a name by its captured place must retain this view.
+    pub fn set_pattern_component(
+        &mut self,
+        expression: ExpressionHandle,
+        component: language_core::PatternComponent,
+    ) {
+        let slot = &mut self.pattern_components[source_span_index(expression)];
+        if *slot != component {
+            *slot = component;
+            // Role changes invalidate the same derived readers as node changes.
+            let _ = self.expressions.get_mut(expression);
+        }
+    }
+
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
+        let component = match &expression {
+            ExpressionNode::SavedSubject(saved) => saved.component,
+            _ => language_core::PatternComponent::Fields,
+        };
         let capture = match &expression {
             ExpressionNode::Match(dispatch) => dispatch.capture,
             _ => Handle::invalid(),
@@ -788,6 +810,7 @@ impl ExpressionTable {
         }
         self.expression_roots.insert(handle);
         self.source_spans.push(SourceSpan::default());
+        self.pattern_components.push(component);
         self.materialization_sources
             .push(ExpressionHandle::invalid());
         self.authored_selection_occurrences
@@ -1342,7 +1365,10 @@ impl ExpressionTable {
         if a == b {
             return true;
         }
-        if !a.is_valid() || !b.is_valid() {
+        if !a.is_valid()
+            || !b.is_valid()
+            || self.direct_pattern_component(a) != self.direct_pattern_component(b)
+        {
             return false;
         }
         match (self.expression(a), self.expression(b)) {
@@ -1381,8 +1407,7 @@ impl ExpressionTable {
                 left == right
             }
             (ExpressionNode::Name(x), ExpressionNode::Name(y)) => {
-                x.component == y.component
-                    && x.head_symbol == y.head_symbol
+                x.head_symbol == y.head_symbol
                     && x.symbol == y.symbol
                     && identifier_texts_equal(
                         self.name_path_members(x.members),
@@ -1892,7 +1917,6 @@ pub struct EvidenceProjection {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableNamePath {
-    pub component: language_core::PatternComponent,
     pub members: HandleSpan<Identifier>,
     pub member_symbols: HandleSpan<SymbolHandle>,
     pub head_symbol: SymbolHandle,
@@ -1910,7 +1934,6 @@ impl TableNamePath {
         symbol: SymbolHandle,
     ) -> Self {
         Self {
-            component: language_core::PatternComponent::Fields,
             members,
             member_symbols,
             head_symbol,

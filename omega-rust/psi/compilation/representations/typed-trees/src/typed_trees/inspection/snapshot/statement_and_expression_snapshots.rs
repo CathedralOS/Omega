@@ -598,7 +598,9 @@ pub(crate) fn expression_snapshot(
             value: Box::new(expression_snapshot(program, value.target)),
         },
         ExpressionNode::Name(path) => ExpressionSnapshot::Name {
-            component: (path.component == language_core::PatternComponent::Case).then_some("case"),
+            component: (program.pattern_component(expression)
+                == Some(language_core::PatternComponent::Case))
+            .then_some("case"),
             path: path_snapshot(program.expression_table.name_path_members(path.members)),
         },
         ExpressionNode::Range(range) => ExpressionSnapshot::Range {

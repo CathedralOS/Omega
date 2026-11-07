@@ -470,7 +470,6 @@ pub fn resolve_named_result_overloads(
             program
                 .expression_table
                 .insert(ExpressionNode::Name(TableNamePath {
-                    component: Default::default(),
                     members,
                     member_symbols: arena::HandleSpan::empty(),
                     head_symbol: call.receiver_root_symbol,

@@ -54,6 +54,7 @@ pub(crate) fn structural_match_pattern_case_for_subject(
     subject: typed_trees::expression::ExpressionHandle,
     pattern: MatchPattern,
 ) -> Option<SymbolHandle> {
+    program.pattern_component(subject)?;
     let reference = structural_match_subject_type_for_subject(program, machine, state, subject)?;
     let data = crate::value_custody::places::data_definition_for_type(program, reference)?;
     let head = match pattern {
@@ -81,8 +82,7 @@ pub(crate) fn structural_match_pattern_case_for_subject(
         // cannot be extracted under their sum owner without selecting a case.
         if matches!(pattern, MatchPattern::Destructure(_))
             && name.symbol == data.symbol
-            && expression_table(program).pattern_component(subject)
-                == language_core::PatternComponent::Fields
+            && program.pattern_component(subject) == Some(language_core::PatternComponent::Fields)
         {
             return Some(SymbolHandle::invalid());
         }
@@ -311,8 +311,8 @@ pub(crate) fn validate_for_subject(
         if field.component == language_core::PatternComponent::Case {
             if case.is_valid()
                 || !has_cases
-                || expression_table(program).pattern_component(subject)
-                    != language_core::PatternComponent::Fields
+                || program.pattern_component(subject)
+                    != Some(language_core::PatternComponent::Fields)
                 || fields[..ordinal]
                     .iter()
                     .any(|prior| prior.component == language_core::PatternComponent::Case)

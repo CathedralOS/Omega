@@ -159,7 +159,6 @@ fn expression_places_preserve_roots_and_segments() {
     let name = program
         .expression_table
         .insert(ExpressionNode::Name(TableNamePath {
-            component: Default::default(),
             members,
             member_symbols,
             head_symbol: root_symbol,
@@ -463,7 +462,6 @@ fn expression_places_resolve_attached_data_members() {
     let main_expression = program
         .expression_table
         .insert(ExpressionNode::Name(TableNamePath {
-            component: Default::default(),
             members: HandleSpan::empty(),
             member_symbols: HandleSpan::empty(),
             head_symbol: main_parameter_symbol,
@@ -619,7 +617,6 @@ fn expression_places_resolve_exact_local_and_collection_element_types() {
         let mut receiver = program
             .expression_table
             .insert(ExpressionNode::Name(TableNamePath {
-                component: Default::default(),
                 members,
                 member_symbols,
                 head_symbol: root_symbol,

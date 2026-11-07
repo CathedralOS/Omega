@@ -186,17 +186,17 @@ impl ExpressionTableLowerer<'_, '_, '_> {
             if saved.component == language_core::PatternComponent::Fields {
                 return Ok(subject);
             }
-            let typed::expression::ExpressionNode::Name(mut name) =
-                *self.target().expression(subject)
-            else {
+            if !matches!(
+                self.target().expression(subject),
+                typed::expression::ExpressionNode::Name(_)
+            ) {
                 return Err(Diagnostic::error(
-                    "transition case component has no completed subject local",
+                    "transition case component lost its completed subject local",
                 ));
-            };
-            name.component = saved.component;
-            return Ok(self
-                .target()
-                .insert(typed::expression::ExpressionNode::Name(name)));
+            }
+            let copy = self.target().insert_copy(subject);
+            self.target().set_pattern_component(copy, saved.component);
+            return Ok(copy);
         }
         let capture = self
             .match_captures
