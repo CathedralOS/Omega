@@ -36,6 +36,7 @@ use super::windows_handle_inputs::{
 use super::windows_handle_lifetimes::{
     HandleLifetimes, NativeOccurrence, ScalarOccurrence, ScalarUseSite,
 };
+use super::windows_handle_scalar_table::HandleScalarTable;
 use super::windows_handle_storage::{
     CapturedHandleReferences, CapturedHandleSequence, CapturedHandleStorage, HandlePointerKind,
     HandleReferences, HandleScalarSelection, HandleScalarStorage, HandleStorageBindings,
@@ -319,7 +320,7 @@ struct CanonicalHandleState {
     aliases: HandleAliases,
     references: HandleReferences,
     cases: BTreeMap<HandleStorageRange, CapturedCaseTag>,
-    constants: IdTable<ValueId, Option<KnownHandleScalar>>,
+    constants: HandleScalarTable<Option<KnownHandleScalar>>,
     stored_constants: BTreeMap<HandleStorageRange, KnownHandleScalar>,
     bindings: HandleStorageBindings,
 }
@@ -2239,7 +2240,7 @@ impl CanonicalHandleState {
             )?,
             references: self.references.clone(),
             cases: self.cases.clone(),
-            constants: expressions.definitions.map(|_, _| None),
+            constants: HandleScalarTable::from_table(expressions.definitions.map(|_, _| None)),
             stored_constants: self.stored_constants.clone(),
             bindings: HandleStorageBindings::new(body)?,
         })

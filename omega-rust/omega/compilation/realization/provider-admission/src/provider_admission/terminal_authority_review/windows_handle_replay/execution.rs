@@ -177,18 +177,24 @@ impl Eq for ResourceWork {}
 
 fn join_numbers(retained: &mut CanonicalHandleState, incoming: &CanonicalHandleState) -> bool {
     let mut changed = false;
-    retained.constants = retained.constants.map(|id, value| {
-        value.as_ref().map(|value| {
-            if *value != KnownHandleScalar::Unknown
-                && incoming.constants.get(id).and_then(Option::as_ref) != Some(value)
-            {
-                changed = true;
-                KnownHandleScalar::Unknown
-            } else {
-                value.clone()
-            }
+    let updates = retained
+        .constants
+        .iter()
+        .filter_map(|(id, value)| {
+            let value = value.as_ref()?;
+            (*value != KnownHandleScalar::Unknown
+                && incoming.constants.get(id).and_then(Option::as_ref) != Some(value))
+            .then_some(id)
         })
-    });
+        .collect::<Vec<_>>();
+    changed |= !updates.is_empty();
+    for id in updates {
+        *retained
+            .constants
+            .get_mut(id)
+            .expect("numeric join retains its resource-key namespace") =
+            Some(KnownHandleScalar::Unknown);
+    }
     retained.stored_constants.retain(|range, value| {
         let keep = incoming.stored_constants.get(range) == Some(value);
         changed |= !keep;
@@ -872,7 +878,7 @@ pub(super) fn derive(
         aliases: HandleAliases::default(),
         references: HandleReferences::default(),
         cases: BTreeMap::new(),
-        constants: IdTable::default(),
+        constants: HandleScalarTable::default(),
         stored_constants: BTreeMap::new(),
         bindings: HandleStorageBindings::new(body)?,
     }
@@ -1021,8 +1027,10 @@ mod tests {
             aliases,
             references: HandleReferences::default(),
             cases: BTreeMap::new(),
-            constants: IdTable::from_rows_with_gaps([(value, Some(integer(1))), (later, None)], 4)
-                .unwrap(),
+            constants: HandleScalarTable::from_table(
+                IdTable::from_rows_with_gaps([(value, Some(integer(1))), (later, None)], 4)
+                    .unwrap(),
+            ),
             stored_constants: BTreeMap::from([(home(1), integer(1))]),
             bindings: HandleStorageBindings::new(&body).unwrap(),
         }

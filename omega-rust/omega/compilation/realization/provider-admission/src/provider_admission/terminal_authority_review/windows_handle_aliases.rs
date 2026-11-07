@@ -11,6 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use semantic_vocabulary::{IdTable, MachineId, PlaceId, ScalarType, ValueId};
 
 use super::windows_handle_lifetimes::HandleInstance;
+use super::windows_handle_scalar_table::HandleScalarTable;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct HandleWordAliases {
@@ -244,7 +245,7 @@ impl CapturedHandleRegion {
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct HandleAliases {
     // Outer Some is an original declared binder; inner Some is its current capture.
-    scalars: IdTable<ValueId, Option<Option<HandleWordAliases>>>,
+    scalars: HandleScalarTable<Option<Option<HandleWordAliases>>>,
     cells: BTreeMap<HandleStorageRange, HandleWordAliases>,
     regions: BTreeMap<HandleStorageRange, BTreeSet<HandleInstance>>,
 }
@@ -295,7 +296,7 @@ impl HandleAliases {
         let scalars = IdTable::from_rows_with_gaps(rows, 65_536)
             .map_err(|reason| format!("handle alias scalar inventory is invalid: {reason:?}"))?;
         Ok(Self {
-            scalars,
+            scalars: HandleScalarTable::from_table(scalars),
             cells: BTreeMap::new(),
             regions: BTreeMap::new(),
         })

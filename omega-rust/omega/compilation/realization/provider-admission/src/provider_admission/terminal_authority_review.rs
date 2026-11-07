@@ -23,6 +23,7 @@ mod windows_handle_origins;
 #[cfg(test)]
 mod windows_handle_paths;
 mod windows_handle_replay;
+mod windows_handle_scalar_table;
 mod windows_handle_storage;
 mod windows_handle_values;
 
