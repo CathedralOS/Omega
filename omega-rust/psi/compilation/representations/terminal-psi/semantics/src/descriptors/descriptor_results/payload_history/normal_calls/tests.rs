@@ -5,6 +5,7 @@ use terminal_psi::{StructuralDomainDeclaration, TerminalIdentityIndex};
 mod incoming_stores;
 mod primitive_writes;
 mod reference_words;
+mod selected_lender_geometry;
 
 #[test]
 fn normal_return_keeps_complete_original_duties_without_old_scalar_contents() {

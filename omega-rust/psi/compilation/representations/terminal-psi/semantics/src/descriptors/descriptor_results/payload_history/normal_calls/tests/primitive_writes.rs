@@ -417,6 +417,47 @@ fn scalar_field_preservation_proves_the_whole_rule_from_each_writers_actual_valu
         Ok(()),
         "an ordinary sibling write leaves the second field unchanged"
     );
+    let projected_domain = StructuralDomainId::new(2).unwrap();
+    let mut boolean_domain = module.structural_domains[0].clone();
+    boolean_domain.id = projected_domain;
+    boolean_domain.semantic_domain = DomainSemanticId::new(2).unwrap();
+    boolean_domain.identity = TerminalIdentityIndex(30);
+    boolean_domain.carrier = module.structural_types[0].id;
+    boolean_domain.predicate = Some(StructuralDomainPredicate {
+        subject,
+        proposition: semantic_vocabulary::Proposition::Equal(
+            ScalarTerm::boolean_field_path(subject, Vec::new()),
+            ScalarTerm::Boolean(true),
+        ),
+    });
+    module.structural_domains.push(boolean_domain);
+    let StructuralTypeShape::Record {
+        fields: record_fields,
+        ..
+    } = &module.structural_types.last().unwrap().shape
+    else {
+        unreachable!()
+    };
+    let projected = PayloadMembershipContract {
+        carrier: record,
+        qualifications: Vec::new(),
+        projected_qualifications: vec![StructuralPathQualification {
+            path: vec![StructuralPathSegment::Field(record_fields[1].identity)],
+            domain: projected_domain,
+        }],
+        scalar_observations: Vec::new(),
+        scalar_requirements: Vec::new(),
+    };
+    assert_eq!(
+        super::super::primitive_writes::preserves_roster(
+            &module,
+            &projected,
+            &path,
+            &ScalarTerm::Boolean(false),
+        ),
+        Ok(()),
+        "ordinary sibling storage preserves the untouched projected duty"
+    );
     let StructuralTypeShape::Record {
         storage,
         fields: view_fields,
@@ -444,5 +485,15 @@ fn scalar_field_preservation_proves_the_whole_rule_from_each_writers_actual_valu
         ),
         Err("scalar preservation needs independently proved external record geometry"),
         "different view field names do not prove their backing bytes are separate"
+    );
+    assert_eq!(
+        super::super::primitive_writes::preserves_roster(
+            &module,
+            &projected,
+            &path,
+            &ScalarTerm::Boolean(false),
+        ),
+        Err("scalar preservation needs independently proved external record geometry"),
+        "projected duties cannot use field names to separate overlapping view storage"
     );
 }

@@ -20,10 +20,10 @@ fn builtin_range_opaque_slot_cannot_reuse_container_address() {
         .unwrap_or_else(|reason| panic!("formed range lost its owned backing: {reason}"));
     assert_eq!(addresses.len(), 1);
     assert_eq!(addresses[0].place.root, fixture.original_address.root);
-    assert_eq!(
-        addresses[0].place.segments,
-        fixture.original_address.segments
-    );
+    // This owned receiver supplies its enclosing storage, without a separate
+    // projectable pointer-coordinate proof. The fixture independently checks
+    // the range's exact 0..2 value geometry through project_call_place.
+    assert!(addresses[0].place.segments.is_empty());
     assert_eq!(
         addresses[0].selected,
         checked_trees::CheckedBorrowSourceOccurrence::DirectStorage,

@@ -178,6 +178,13 @@ impl TerminalArtifactProductionError {
     }
 }
 
-diagnostics::debug_display!(TerminalArtifactProductionError);
+impl std::fmt::Display for TerminalArtifactProductionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Lowering(error) => write!(formatter, "Lowering({error})"),
+            _ => write!(formatter, "{self:?}"),
+        }
+    }
+}
 
 impl std::error::Error for TerminalArtifactProductionError {}
