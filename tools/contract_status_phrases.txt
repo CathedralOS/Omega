@@ -11,7 +11,6 @@
 1 wiki/spec/language/conformances.md
 1 wiki/spec/language/counts_and_addresses.md
 1 wiki/spec/language/dependent_values.md
-1 wiki/spec/language/numeric_values.md
 1 wiki/spec/language/ownership.md
 1 wiki/spec/layouts/recasts.md
 1 wiki/spec/packages/resolver_security.md
