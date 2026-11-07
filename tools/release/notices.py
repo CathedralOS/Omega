@@ -85,4 +85,3 @@ def collect(destination, repository, host):
     sysroot = subprocess.check_output(["rustc", "--print", "sysroot"],
                                      cwd=repository, text=True, encoding="utf-8").strip()
     stage_dependency_notices(destination, metadata, sysroot)
-

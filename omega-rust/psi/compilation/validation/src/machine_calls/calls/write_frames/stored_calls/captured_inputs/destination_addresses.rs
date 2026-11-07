@@ -119,12 +119,7 @@ pub(in crate::machine_calls::calls::write_frames::stored_calls) fn assignment_ad
             .enter_referee()
             .ok_or("destination result has no reference backing")?;
     }
-    if program.normalized_type_identity(
-        cursor
-            .finish()
-            .ok_or("destination has no complete owned endpoint")?,
-    ) != program.normalized_type_identity(receiving)
-    {
+    if !cursor.has_declared_type(receiving) {
         return Err("destination projection changes its receiving storage type");
     }
     let (mut origins, start) = if let Some((captured, start)) = descriptor {
@@ -141,12 +136,7 @@ pub(in crate::machine_calls::calls::write_frames::stored_calls) fn assignment_ad
                 .advance(segment)
                 .ok_or("destination suffix is not owned by its captured descriptor")?;
         }
-        if program.normalized_type_identity(
-            owned
-                .finish()
-                .ok_or("destination suffix has no complete endpoint")?,
-        ) != program.normalized_type_identity(receiving)
-        {
+        if !owned.has_declared_type(receiving) {
             return Err("captured descriptor suffix changes the receiving type");
         }
         let (sources, _) = partition_sources(

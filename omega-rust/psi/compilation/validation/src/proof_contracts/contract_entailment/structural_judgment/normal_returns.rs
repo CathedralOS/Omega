@@ -2010,9 +2010,12 @@ impl<'program> StructuralJudge<'program> {
                         NormalReturnPath::unobserved(judge).at_expression(expression, demand),
                     ]);
                 }
-                let receiver_changed =
-                    (field_storage_read || scalar_storage_read || scalar_reference_read)
-                        && judge.storage_write_sequence != receiver_write_sequence;
+                let receiver_changed = (field_storage_read
+                    || scalar_storage_read
+                    || scalar_reference_read)
+                    && judge.storage_write_sequence != receiver_write_sequence
+                    && !(scalar_storage_read
+                        && judge.completed_read_address_is_current(scope.0, scope.1, expression));
                 // Keep an already observed shared binding's selected contents.
                 // Otherwise every possible supplier contributes a proof path.
                 // Neither route narrows physical origins or grants permission.

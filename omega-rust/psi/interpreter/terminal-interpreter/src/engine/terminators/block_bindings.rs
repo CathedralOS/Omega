@@ -22,10 +22,9 @@
 //! result appears to leak its claim, or retirement removes a fresh binding.
 
 use crate::engine::custody::{
-    BlockArgumentProvenance, bind_active_block_arguments, bind_active_structural_arguments,
-    bind_affine_frontier, bind_arguments, projected_ownership_claims,
-    resolve_single_structural_argument, validate_nominal_cleanup_action, verified_structural_place,
-    whole_path_discard,
+    bind_active_retained_arguments, bind_active_structural_arguments, bind_affine_frontier,
+    bind_arguments, projected_ownership_claims, resolve_single_structural_argument,
+    validate_nominal_cleanup_action, verified_structural_place, whole_path_discard,
 };
 use crate::storage::runtime_rows::RuntimeRows;
 use crate::storage::scalar_storage::ScalarCell;
@@ -811,32 +810,8 @@ impl TerminalExecution<'_> {
         // Source parameters already hold their admitted owner/loan relation.
         // Relabeling those same runtime places preserves it on another edge;
         // a new independent input never acquires that provenance.
-        let provenance = descriptor_arguments
-            .iter()
-            .map(|argument| {
-                let reference_projection = if argument.access != StructuralAccess::Owned
-                    && argument
-                        .path
-                        .contains(&terminal_psi::StructuralPathSegment::Referent)
-                {
-                    self.resolve_reference_storage_projection(
-                        self.structural_value(argument.place)?,
-                        &argument.path,
-                        argument.access,
-                    )?
-                    .map(|projection| {
-                        crate::boundary::values::StructuralRuntimePlace::from(&projection.value)
-                    })
-                } else {
-                    None
-                };
-                Ok(BlockArgumentProvenance {
-                    parameter: self.owned_block_source(argument.place),
-                    reference_projection,
-                })
-            })
-            .collect::<Result<Vec<_>, TerminalInterpretError>>()?;
-        let mut structural = bind_active_block_arguments(
+        let provenance = self.structural_argument_provenance(descriptor_arguments)?;
+        let mut structural = bind_active_retained_arguments(
             descriptor_parameters,
             descriptor_arguments,
             &resolved_arguments,

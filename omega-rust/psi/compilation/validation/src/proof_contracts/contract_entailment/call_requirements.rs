@@ -454,6 +454,7 @@ fn prepare_requirement<'p>(
         inherited: inherited.cloned(),
         seen: false,
         proven: true,
+        isolated_judges: false,
     };
     PreparedRequirement::Walk(Box::new(RequirementWalk {
         requirement,
@@ -575,7 +576,7 @@ pub(super) struct CallRequirement<'program> {
     /// Owned when the selected call's scope was derived, so a prepared
     /// requirement can outlive the query that built it (shared proof walks).
     parameters: std::borrow::Cow<'program, [typed_trees::signature::StateParameter]>,
-    call_site: Option<crate::CallSite<'program>>,
+    pub(super) call_site: Option<crate::CallSite<'program>>,
     pub(super) call_expression: ExpressionHandle,
     leading_operands: usize,
     arguments: &'program [ExpressionHandle],
@@ -583,6 +584,10 @@ pub(super) struct CallRequirement<'program> {
     inherited: Option<InheritedPredicate>,
     seen: bool,
     proven: bool,
+    /// Judge every observation from fresh query caches, so a member of a
+    /// shared walk neither reads nor leaves cache entries another member
+    /// made (`shared_proof_walks`).
+    pub(super) isolated_judges: bool,
 }
 
 impl CallRequirement<'_> {
@@ -625,6 +630,9 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
         observation: PrefixObservation<'_, 'program>,
     ) {
         let (program, machine, state, mut judge, environment) = observation;
+        if self.isolated_judges {
+            judge = judge.with_fresh_query_state();
+        }
         if !judge.has_runtime_body_values() {
             intake_state_induction(
                 program,
@@ -643,6 +651,9 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             return;
         }
         let (program, machine, state, mut judge, environment) = observation;
+        if self.isolated_judges {
+            judge = judge.with_fresh_query_state();
+        }
         // Runtime invocations transport only checked tag guarantees. Their saved
         // results are individual values, not mathematical applications or an IH.
         if !judge.has_runtime_body_values() {
