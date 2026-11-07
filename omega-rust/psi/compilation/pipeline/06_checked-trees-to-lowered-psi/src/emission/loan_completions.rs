@@ -163,7 +163,9 @@ pub(crate) fn prepare(
         }
         let mut qualifications = Vec::new();
         for fact in qualification_facts(checked, region) {
-            if super::call_qualifications::declaration_represents(identities, checked, fact)? {
+            let representation =
+                super::call_qualifications::declaration_represents(identities, checked, fact)?;
+            if representation.is_complete() {
                 continue;
             }
             let Some(place_handle) = fact.place.as_place() else {
@@ -186,7 +188,12 @@ pub(crate) fn prepare(
                 validation::qualification_storage_path(&checked.typed, reference, segments)
                     .map_err(|reason| {
                         LoweringError::qualification_storage_path(
-                            checked, coordinate, reference, segments, reason,
+                            checked,
+                            coordinate,
+                            reference,
+                            segments,
+                            reason,
+                            representation,
                         )
                     })?;
             let selected = validation::project_type_reference_from_segments(

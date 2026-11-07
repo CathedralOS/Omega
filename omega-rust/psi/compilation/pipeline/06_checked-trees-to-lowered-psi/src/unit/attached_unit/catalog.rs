@@ -1087,7 +1087,7 @@ pub(super) fn lower_unit_structural_domains(
             continue;
         }
         for fact in crate::emission::loan_completions::qualification_facts(checked, region) {
-            if declaration_represents(identities, checked, fact)? {
+            if declaration_represents(identities, checked, fact)?.is_complete() {
                 continue;
             }
             if let Some((_, _, _, domain)) = fact.payload.domain_membership()
@@ -1128,7 +1128,7 @@ pub(super) fn lower_unit_structural_domains(
             for fact in for_call(checked, machine.symbol, coordinate, |root| {
                 homes.contains(&root)
             }) {
-                if declaration_represents(identities, checked, fact)? {
+                if declaration_represents(identities, checked, fact)?.is_complete() {
                     continue;
                 }
                 if let Some((_, _, _, domain)) = fact.payload.domain_membership()

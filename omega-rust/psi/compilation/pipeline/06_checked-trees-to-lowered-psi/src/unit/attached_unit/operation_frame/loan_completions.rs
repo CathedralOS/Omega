@@ -149,8 +149,11 @@ impl OperationFrame<'_, '_> {
                 self.checked,
                 &self.operations.reference_formations,
                 fact,
-            ) || declaration_represents(identities, self.checked, fact)?
-            {
+            ) {
+                continue;
+            }
+            let representation = declaration_represents(identities, self.checked, fact)?;
+            if representation.is_complete() {
                 continue;
             }
             let segments = self
@@ -191,6 +194,7 @@ impl OperationFrame<'_, '_> {
                             reference,
                             segments,
                             reason,
+                            representation,
                         )
                     })?;
             let selected = validation::project_type_reference_from_segments(

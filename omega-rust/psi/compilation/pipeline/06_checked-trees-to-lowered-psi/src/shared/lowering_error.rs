@@ -141,6 +141,7 @@ pub enum LoweringError {
         call_ordinal: usize,
         segments: Vec<facts::PlaceSegment>,
         segment_count: usize,
+        declaration: crate::emission::call_qualifications::DeclarationRepresentation,
     },
     InvalidSuspensionPlan(&'static str),
     Unsupported(&'static str),
@@ -337,6 +338,7 @@ impl LoweringError {
         reference: typed_trees::types::TypeReferenceHandle,
         segments: &[facts::PlaceSegment],
         reason: &'static str,
+        declaration: crate::emission::call_qualifications::DeclarationRepresentation,
     ) -> Self {
         // One failed join needs its carrier and path, not a global fact dump.
         Self::InvalidQualificationStoragePath {
@@ -357,6 +359,7 @@ impl LoweringError {
             call_ordinal: coordinate.call_ordinal,
             segments: segments.iter().take(32).copied().collect(),
             segment_count: segments.len(),
+            declaration,
         }
     }
 
