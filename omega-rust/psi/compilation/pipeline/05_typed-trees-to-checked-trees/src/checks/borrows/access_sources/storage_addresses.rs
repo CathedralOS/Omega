@@ -178,7 +178,7 @@ fn project_address(
             } else {
                 for backing in super::resolve_captured_all(
                     program,
-                    facts,
+                    facts.view(),
                     loan_occurrences,
                     state,
                     operand.statement_index,

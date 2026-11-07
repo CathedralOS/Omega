@@ -77,7 +77,7 @@ pub(crate) fn selected_cleanup_leaves(
         .iter()
         .map(|place| dispositions.segments.span(place.segments))
         .collect::<Option<Vec<_>>>()?;
-    let case_evidence = super::CleanupCaseEvidence::new(program, facts, disposition)?;
+    let case_evidence = super::CleanupCaseEvidence::new(program, facts.view(), disposition)?;
     if removed.iter().any(|removed| path.starts_with(removed)) {
         return Some(Vec::new());
     }
@@ -100,7 +100,7 @@ pub(crate) fn selected_cleanup_leaves(
             && crate::checks::storage_path_compatibility(
                 program,
                 crate::checks::StorageSelectorFacts {
-                    flow: &facts.flow,
+                    flow: facts.flow.view(),
                     semantic: &facts.semantic,
                 },
                 path,
@@ -111,7 +111,12 @@ pub(crate) fn selected_cleanup_leaves(
                 .zip(case_evidence.contexts().as_ref())
                 .is_some_and(|(state, contexts)| {
                     crate::checks::captured_storage_paths_are_disjoint(
-                        program, facts, state, contexts, path, excluded,
+                        program,
+                        facts.view(),
+                        state,
+                        contexts,
+                        path,
+                        excluded,
                     )
                 })
         {

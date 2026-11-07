@@ -132,530 +132,537 @@ pub(crate) fn prepare_permission_events(
         state_flows.into_iter().zip(prepared_walks).enumerate()
     {
         claim_identities.begin_state(position);
-        let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
-            continue;
-        };
-        let Some(state) = program.state_by_symbol(state_flow.state_symbol) else {
-            continue;
-        };
-        let statements = program.statement_table.statements(state.statement_nodes);
-        let remaining = RemainingCustody::for_state(program, state);
-        let mut places =
-            initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
+        // The state walks through `CheckFactsWalk` alone; its control row takes the
+        // storage-transfer span only after the walk, as before.
+        let storage_transfers = {
+            let facts = &mut facts.walk();
+            let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
+                continue;
+            };
+            let Some(state) = program.state_by_symbol(state_flow.state_symbol) else {
+                continue;
+            };
+            let statements = program.statement_table.statements(state.statement_nodes);
+            let remaining = RemainingCustody::for_state(program, state);
+            let mut places =
+                initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
 
-        for place in places.iter_mut().filter(|place| {
-            place.ever_established
-                && (place.multiplicity == Multiplicity::Linear || place.conditional)
-        }) {
-            let claim_identity = claim_identities.mint(
-                state_flow.machine_symbol,
-                state.symbol,
-                PermissionEventSource::StateEntry,
-            );
-            place.claim_identity = Some(claim_identity);
-            let segments = facts
-                .flow
-                .ownership
-                .segments
-                .insert_many(place.path.iter().copied());
-            permission_events.push(EventFact {
-                expression: Default::default(),
-                evaluation: checked_trees::FlowPermissionEvaluation::Statement,
-                machine_symbol: state_flow.machine_symbol,
-                state_symbol: state.symbol,
-                source: PermissionEventSource::StateEntry,
-                kind: PermissionEventKind::Establish,
-                multiplicity: place.multiplicity,
-                access: PermissionAccess::Owned,
-                claim_identity,
-                provenance: place.provenance.expect("entry place has provenance"),
-                root: place.root,
-                segments,
-                obligation_live: true,
-            });
-        }
-
-        // A bodyless contract still names ingress claims for its signature,
-        // but has no executable evaluation or scope-exit cleanup. Walking an
-        // empty declaration would fabricate a FinalExpression death with no
-        // semantic outgoing edge. Actual provider/member bodies own disposal
-        // and returned custody; their schedules remain checked normally.
-        if machine.has_bodyless_signature() {
-            continue;
-        }
-
-        let mut moves = crate::flow::discover_state_move_events(
-            program,
-            &facts.borrow,
-            &facts.operators,
-            machine,
-            state,
-            &mut facts.flow.ownership.segments,
-        );
-        // Publish one exact storage coordinate for each actual owned move.
-        // Every downstream custody/cleanup reader consumes this same path;
-        // unresolved selectors retain their conservative original identity.
-        for event in &mut moves {
-            let original = facts
-                .flow
-                .ownership
-                .segments
-                .span_or_empty(event.segments)
-                .to_vec();
-            let statement_index = event_statement_index(event.source)
-                .expect("every discovered move belongs to a statement");
-            if !original
-                .iter()
-                .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
-                || !super::transfers_owned_storage(
-                    program,
+            for place in places.iter_mut().filter(|place| {
+                place.ever_established
+                    && (place.multiplicity == Multiplicity::Linear || place.conditional)
+            }) {
+                let claim_identity = claim_identities.mint(
+                    state_flow.machine_symbol,
                     state.symbol,
-                    statement_index,
-                    event,
-                    &original,
-                )
-            {
+                    PermissionEventSource::StateEntry,
+                );
+                place.claim_identity = Some(claim_identity);
+                let segments = facts
+                    .flow
+                    .ownership
+                    .segments
+                    .insert_many(place.path.iter().copied());
+                permission_events.push(EventFact {
+                    expression: Default::default(),
+                    evaluation: checked_trees::FlowPermissionEvaluation::Statement,
+                    machine_symbol: state_flow.machine_symbol,
+                    state_symbol: state.symbol,
+                    source: PermissionEventSource::StateEntry,
+                    kind: PermissionEventKind::Establish,
+                    multiplicity: place.multiplicity,
+                    access: PermissionAccess::Owned,
+                    claim_identity,
+                    provenance: place.provenance.expect("entry place has provenance"),
+                    root: place.root,
+                    segments,
+                    obligation_live: true,
+                });
+            }
+
+            // A bodyless contract still names ingress claims for its signature,
+            // but has no executable evaluation or scope-exit cleanup. Walking an
+            // empty declaration would fabricate a FinalExpression death with no
+            // semantic outgoing edge. Actual provider/member bodies own disposal
+            // and returned custody; their schedules remain checked normally.
+            if machine.has_bodyless_signature() {
                 continue;
             }
-            let lookup = selector_lookup
-                .get_or_insert_with(|| validation::ImmutableBoundLookup::new(program));
-            let mut selected = original.clone();
-            for segment in &mut selected {
-                let facts::PlaceSegment::Index { expression } = *segment else {
+
+            let mut moves = crate::flow::discover_state_move_events(
+                program,
+                facts.borrow,
+                facts.operators,
+                machine,
+                state,
+                &mut facts.flow.ownership.segments,
+            );
+            // Publish one exact storage coordinate for each actual owned move.
+            // Every downstream custody/cleanup reader consumes this same path;
+            // unresolved selectors retain their conservative original identity.
+            for event in &mut moves {
+                let original = facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span_or_empty(event.segments)
+                    .to_vec();
+                let statement_index = event_statement_index(event.source)
+                    .expect("every discovered move belongs to a statement");
+                if !original
+                    .iter()
+                    .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
+                    || !super::transfers_owned_storage(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        event,
+                        &original,
+                    )
+                {
                     continue;
-                };
-                if let Some(index) = crate::checks::captured_storage_index(
-                    program,
-                    crate::checks::StorageSelectorFacts {
-                        flow: &facts.flow,
-                        semantic: &facts.semantic,
-                    },
-                    lookup,
-                    expression,
-                ) {
-                    *segment = facts::PlaceSegment::FixedIndex { index };
+                }
+                let lookup = selector_lookup
+                    .get_or_insert_with(|| validation::ImmutableBoundLookup::new(program));
+                let mut selected = original.clone();
+                for segment in &mut selected {
+                    let facts::PlaceSegment::Index { expression } = *segment else {
+                        continue;
+                    };
+                    if let Some(index) = crate::checks::captured_storage_index(
+                        program,
+                        crate::checks::StorageSelectorFacts {
+                            flow: facts.flow.view(),
+                            semantic: facts.semantic,
+                        },
+                        lookup,
+                        expression,
+                    ) {
+                        *segment = facts::PlaceSegment::FixedIndex { index };
+                    }
+                }
+                if selected != original {
+                    event.segments = facts.flow.ownership.segments.insert_many(selected);
                 }
             }
-            if selected != original {
-                event.segments = facts.flow.ownership.segments.insert_many(selected);
-            }
-        }
-        // Snapshot the state's ordered calls once while permission production
-        // mutates ownership arenas. Each evaluation selects from this snapshot.
-        let calls = crate::flow::call_flows(&facts.flow.control, state_flow.calls).to_vec();
-        let completion_regions = if !places
-            .iter()
-            .any(|place| place.multiplicity == Multiplicity::Linear)
-        {
-            Vec::new()
-        } else {
-            match regions_for_calls(
-                program,
-                facts,
-                machine.symbol,
-                state.symbol,
-                &calls,
-                call_frames,
-                mutation_summaries,
-            ) {
-                Ok(regions) => regions,
+            // Snapshot the state's ordered calls once while permission production
+            // mutates ownership arenas. Each evaluation selects from this snapshot.
+            let calls = crate::flow::call_flows(facts.flow.control, state_flow.calls).to_vec();
+            let completion_regions = if !places
+                .iter()
+                .any(|place| place.multiplicity == Multiplicity::Linear)
+            {
+                Vec::new()
+            } else {
+                match regions_for_calls(
+                    program,
+                    facts.view(),
+                    machine.symbol,
+                    state.symbol,
+                    &calls,
+                    call_frames,
+                    mutation_summaries,
+                ) {
+                    Ok(regions) => regions,
+                    Err(diagnostic) => {
+                        selection_diagnostics.push(diagnostic);
+                        continue;
+                    }
+                }
+            };
+            let call_writes = prepared.call_writes;
+            let temporary_owners = match prepared.temporary_owners {
+                Ok(owners) => owners,
                 Err(diagnostic) => {
                     selection_diagnostics.push(diagnostic);
                     continue;
                 }
+            };
+            // Expression-owned completions need the same claim namespace as
+            // named destinations. A name/projection already refers to existing
+            // custody; only a real expression root reserves a new owner here.
+            let mut completed_temporaries_by_statement = Vec::with_capacity(statements.len());
+            let mut observed_receivers_by_statement = Vec::with_capacity(statements.len());
+            for ((statement_index, statement), temporary_occurrences) in statements
+                .iter()
+                .enumerate()
+                .zip(prepared.temporary_occurrences)
+            {
+                for &(expression, reference) in &temporary_occurrences.completed {
+                    reserve_owner_places(
+                        program,
+                        facts::PlaceRoot::Expression(expression),
+                        reference,
+                        &mut places,
+                    );
+                }
+                // One preparation retains both roles without treating an
+                // unobserved completed child as an independent exit owner.
+                completed_temporaries_by_statement.push(temporary_occurrences.completed);
+                observed_receivers_by_statement.push(temporary_occurrences.observed);
+                for (expression, _) in completed_statement_values(program, statement) {
+                    let Some(place) = place_at(program, state.symbol, statement_index, expression)
+                    else {
+                        continue;
+                    };
+                    if place.root != facts::PlaceRoot::Expression(expression) {
+                        continue;
+                    }
+                    if let Some(reference) = validation::canonical_place_type_reference(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        &place,
+                    ) {
+                        reserve_owner_places(program, place.root, reference, &mut places);
+                    }
+                }
             }
-        };
-        let call_writes = prepared.call_writes;
-        let temporary_owners = match prepared.temporary_owners {
-            Ok(owners) => owners,
-            Err(diagnostic) => {
-                selection_diagnostics.push(diagnostic);
-                continue;
-            }
-        };
-        // Expression-owned completions need the same claim namespace as
-        // named destinations. A name/projection already refers to existing
-        // custody; only a real expression root reserves a new owner here.
-        let mut completed_temporaries_by_statement = Vec::with_capacity(statements.len());
-        let mut observed_receivers_by_statement = Vec::with_capacity(statements.len());
-        for ((statement_index, statement), temporary_occurrences) in statements
-            .iter()
-            .enumerate()
-            .zip(prepared.temporary_occurrences)
-        {
-            for &(expression, reference) in &temporary_occurrences.completed {
+            for owner in &temporary_owners {
                 reserve_owner_places(
                     program,
-                    facts::PlaceRoot::Expression(expression),
-                    reference,
+                    facts::PlaceRoot::Expression(owner.expression),
+                    owner.type_reference,
                     &mut places,
                 );
             }
-            // One preparation retains both roles without treating an
-            // unobserved completed child as an independent exit owner.
-            completed_temporaries_by_statement.push(temporary_occurrences.completed);
-            observed_receivers_by_statement.push(temporary_occurrences.observed);
-            for (expression, _) in completed_statement_values(program, statement) {
-                let Some(place) = place_at(program, state.symbol, statement_index, expression)
-                else {
-                    continue;
-                };
-                if place.root != facts::PlaceRoot::Expression(expression) {
-                    continue;
-                }
-                if let Some(reference) = validation::canonical_place_type_reference(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    &place,
-                ) {
-                    reserve_owner_places(program, place.root, reference, &mut places);
-                }
+            if moves
+                .iter()
+                .any(|event| event.evaluation == checked_trees::FlowPermissionEvaluation::Unknown)
+            {
+                selection_diagnostics.push(Diagnostic::error(
+                    "ownership occurrence has no exact source evaluation region",
+                ));
+                continue;
             }
-        }
-        for owner in &temporary_owners {
-            reserve_owner_places(
-                program,
-                facts::PlaceRoot::Expression(owner.expression),
-                owner.type_reference,
-                &mut places,
-            );
-        }
-        if moves
-            .iter()
-            .any(|event| event.evaluation == checked_trees::FlowPermissionEvaluation::Unknown)
-        {
-            selection_diagnostics.push(Diagnostic::error(
-                "ownership occurrence has no exact source evaluation region",
-            ));
-            continue;
-        }
-        let state_needs_case_exclusions = !places.is_empty()
-            || !moves.is_empty()
-            || !temporary_owners.is_empty()
-            || statements.iter().any(|statement| {
-                statement.as_local_data().is_some_and(|local| {
-                    !local.relevance.is_erased()
+            let state_needs_case_exclusions = !places.is_empty()
+                || !moves.is_empty()
+                || !temporary_owners.is_empty()
+                || statements.iter().any(|statement| {
+                    statement.as_local_data().is_some_and(|local| {
+                        !local.relevance.is_erased()
+                            && validation::reference_result_custody::result_multiplicity(
+                                program,
+                                local.type_reference,
+                            ) != Multiplicity::Unrestricted
+                    })
+                })
+                || program.state_parameters(state).iter().any(|parameter| {
+                    !parameter.relevance.is_erased()
                         && validation::reference_result_custody::result_multiplicity(
                             program,
-                            local.type_reference,
+                            parameter.type_reference,
                         ) != Multiplicity::Unrestricted
-                })
-            })
-            || program.state_parameters(state).iter().any(|parameter| {
-                !parameter.relevance.is_erased()
-                    && validation::reference_result_custody::result_multiplicity(
-                        program,
-                        parameter.type_reference,
-                    ) != Multiplicity::Unrestricted
-            });
-        // `walk` visits the same step sequence for any custody value, so the
-        // visit ordinal selects the exclusions prepared for this exact step.
-        let mut visit = 0;
-        super::permission_schedule::walk(
-            program,
-            state,
-            &calls,
-            (
-                places,
-                remaining,
-                owned_selection::SelectionOccurrences::default(),
-                SelectedCleanup::default(),
-                InstructionDispositions::default(),
-            ),
-            |step, custody| {
-                let (places, remaining, selections, selected_cleanup, instruction_dispositions) =
-                    custody;
-                let excluded = &prepared.case_exclusions[visit];
-                visit += 1;
-                if state_needs_case_exclusions && let Some(excluded) = excluded {
-                    for case in excluded.iter() {
-                        exclude_case(case, places, Some(&mut *remaining));
-                    }
-                }
-                match step {
-                    PermissionStep::Evaluate {
-                        statement: statement_index,
-                        evaluation,
-                    } => {
-                        if !matches!(
-                            evaluation,
-                            checked_trees::FlowPermissionEvaluation::TransitionTarget(_)
-                        ) && let Err(diagnostic) = selections.check_statement(
-                            program,
-                            facts,
-                            machine,
-                            state,
-                            statement_index,
-                            &statements[statement_index],
-                        ) {
-                            selection_diagnostics.push(diagnostic);
-                            return;
+                });
+            // `walk` visits the same step sequence for any custody value, so the
+            // visit ordinal selects the exclusions prepared for this exact step.
+            let mut visit = 0;
+            super::permission_schedule::walk(
+                program,
+                state,
+                &calls,
+                (
+                    places,
+                    remaining,
+                    owned_selection::SelectionOccurrences::default(),
+                    SelectedCleanup::default(),
+                    InstructionDispositions::default(),
+                ),
+                |step, custody| {
+                    let (places, remaining, selections, selected_cleanup, instruction_dispositions) =
+                        custody;
+                    let excluded = &prepared.case_exclusions[visit];
+                    visit += 1;
+                    if state_needs_case_exclusions && let Some(excluded) = excluded {
+                        for case in excluded.iter() {
+                            exclude_case(case, places, Some(&mut *remaining));
                         }
-                        let capture = match owned_selection::SelectionProduction::for_statement(
-                            program,
-                            facts,
-                            machine.symbol,
-                            state.symbol,
-                            statement_index,
+                    }
+                    match step {
+                        PermissionStep::Evaluate {
+                            statement: statement_index,
                             evaluation,
-                            places,
-                        ) {
-                            Ok(capture) => capture,
-                            Err(diagnostic) => {
-                                selection_diagnostics.push(diagnostic);
-                                return;
-                            }
-                        };
-                        let occurrences =
-                            crate::checks::ownership_occurrences::statement_steps_at_evaluation(
+                        } => {
+                            if !matches!(
+                                evaluation,
+                                checked_trees::FlowPermissionEvaluation::TransitionTarget(_)
+                            ) && let Err(diagnostic) = selections.check_statement(
                                 program,
+                                facts.view(),
                                 machine,
                                 state,
                                 statement_index,
                                 &statements[statement_index],
-                                &moves,
-                                &facts.operators,
-                                Some(evaluation),
-                            );
-                        let selected = occurrences
-                            .iter()
-                            .filter_map(|occurrence| match occurrence.step {
-                                crate::checks::ownership_occurrences::StatementStep::Move {
-                                    event,
-                                    conditional: true,
-                                    ordered: true,
-                                } if moves[event].evaluation == evaluation => {
-                                    Some(moves[event].expression)
-                                }
-                                _ => None,
-                            })
-                            .collect::<Vec<_>>();
-                        let event_start = permission_events.len();
-                        remaining.reserve(program, &statements[statement_index]);
-                        let evaluated = match evaluate_statement_permissions(
-                            program,
-                            facts,
-                            state_flow.machine_symbol,
-                            state.symbol,
-                            &moves,
-                            &occurrences,
-                            &completed_temporaries_by_statement[statement_index],
-                            &calls,
-                            &completion_regions,
-                            &call_writes,
-                            &temporary_owners,
-                            statement_index,
-                            &statements[statement_index],
-                            evaluation,
-                            capture.as_ref(),
-                            places,
-                            remaining,
-                            &mut permission_events,
-                            &mut claim_identities,
-                            &mut conditional_carrier_transfers,
-                            selections,
-                            &mut cleanup_dispositions,
-                            claim_outcomes,
-                            &prepared.conservation_candidates,
-                        ) {
-                            Ok(Some(evaluated)) => evaluated,
-                            Ok(None) => return,
-                            Err(diagnostic) => {
+                            ) {
                                 selection_diagnostics.push(diagnostic);
                                 return;
                             }
-                        };
-                        let routes = ExpressionRoutes::from_steps(&occurrences);
-                        if let Some(capture) = &capture {
-                            if let Err(diagnostic) = capture.record(
+                            let capture = match owned_selection::SelectionProduction::for_statement(
+                                program,
+                                facts.view(),
+                                machine.symbol,
+                                state.symbol,
+                                statement_index,
+                                evaluation,
+                                places,
+                            ) {
+                                Ok(capture) => capture,
+                                Err(diagnostic) => {
+                                    selection_diagnostics.push(diagnostic);
+                                    return;
+                                }
+                            };
+                            let occurrences =
+                                crate::checks::ownership_occurrences::statement_steps_at_evaluation(
+                                    program,
+                                    machine,
+                                    state,
+                                    statement_index,
+                                    &statements[statement_index],
+                                    &moves,
+                                    facts.operators,
+                                    Some(evaluation),
+                                );
+                            let selected = occurrences
+                                .iter()
+                                .filter_map(|occurrence| match occurrence.step {
+                                    crate::checks::ownership_occurrences::StatementStep::Move {
+                                        event,
+                                        conditional: true,
+                                        ordered: true,
+                                    } if moves[event].evaluation == evaluation => {
+                                        Some(moves[event].expression)
+                                    }
+                                    _ => None,
+                                })
+                                .collect::<Vec<_>>();
+                            let event_start = permission_events.len();
+                            remaining.reserve(program, &statements[statement_index]);
+                            let evaluated = match evaluate_statement_permissions(
+                                program,
+                                facts,
+                                state_flow.machine_symbol,
+                                state.symbol,
+                                &moves,
+                                &occurrences,
+                                &completed_temporaries_by_statement[statement_index],
+                                &calls,
+                                &completion_regions,
+                                &call_writes,
+                                &temporary_owners,
+                                statement_index,
+                                &statements[statement_index],
+                                evaluation,
+                                capture.as_ref(),
+                                places,
+                                remaining,
+                                &mut permission_events,
+                                &mut claim_identities,
+                                &mut conditional_carrier_transfers,
+                                selections,
+                                &mut cleanup_dispositions,
+                                claim_outcomes,
+                                &prepared.conservation_candidates,
+                            ) {
+                                Ok(Some(evaluated)) => evaluated,
+                                Ok(None) => return,
+                                Err(diagnostic) => {
+                                    selection_diagnostics.push(diagnostic);
+                                    return;
+                                }
+                            };
+                            let routes = ExpressionRoutes::from_steps(&occurrences);
+                            if let Some(capture) = &capture {
+                                if let Err(diagnostic) = capture.record(
+                                    program,
+                                    facts,
+                                    machine.symbol,
+                                    state.symbol,
+                                    statement_index,
+                                    &evaluated.transfers,
+                                    &evaluated.observations,
+                                    &routes,
+                                    &calls,
+                                    &permission_events[event_start..],
+                                    call_frames,
+                                ) {
+                                    selection_diagnostics.push(diagnostic);
+                                    return;
+                                }
+                                if let Some((handle, _receipt)) =
+                                    facts.flow.ownership.owned_selection_at_evaluation(
+                                        state.symbol,
+                                        statement_index as u32,
+                                        evaluation,
+                                    )
+                                    && let Err(diagnostic) = selected_cleanup.observe_selection(
+                                        program,
+                                        handle,
+                                        facts.flow.ownership,
+                                        &evaluated.transfers,
+                                        &evaluated.observations,
+                                        &permission_events[event_start..],
+                                        &occurrences,
+                                    )
+                                {
+                                    selection_diagnostics.push(diagnostic);
+                                    return;
+                                }
+                            }
+                            let produced_storage = match complete_statement_permissions(
                                 program,
                                 facts,
                                 machine.symbol,
                                 state.symbol,
                                 statement_index,
-                                &evaluated.transfers,
-                                &evaluated.observations,
-                                &routes,
-                                &calls,
-                                &permission_events[event_start..],
-                                call_frames,
+                                &statements[statement_index],
+                                evaluation,
+                                evaluated,
+                                places,
+                                remaining,
+                                &mut permission_events,
+                                &mut claim_identities,
+                                &mut conditional_carrier_transfers,
+                                selections,
+                                &mut cleanup_dispositions,
+                                claim_outcomes,
+                                &prepared.conservation_candidates,
                             ) {
-                                selection_diagnostics.push(diagnostic);
-                                return;
-                            }
-                            if let Some((handle, _receipt)) =
+                                Ok(produced) => produced,
+                                Err(diagnostic) => {
+                                    selection_diagnostics.push(diagnostic);
+                                    return;
+                                }
+                            };
+                            if let Some((_, receipt)) =
                                 facts.flow.ownership.owned_selection_at_evaluation(
                                     state.symbol,
                                     statement_index as u32,
                                     evaluation,
                                 )
-                                && let Err(diagnostic) = selected_cleanup.observe_selection(
+                            {
+                                owned_selection::apply_availability(
                                     program,
-                                    handle,
-                                    &facts.flow.ownership,
-                                    &evaluated.transfers,
-                                    &evaluated.observations,
+                                    facts.flow.ownership,
+                                    receipt,
+                                    places,
+                                );
+                                owned_selection::retire_source_storage(
+                                    facts.flow.ownership,
+                                    receipt,
+                                    places,
+                                    remaining,
+                                );
+                                selections.consume(program, facts.flow.ownership, receipt);
+                            }
+                            instruction_dispositions.statement(
+                                program,
+                                facts,
+                                machine,
+                                state,
+                                statement_index,
+                                evaluation,
+                                places,
+                                &mut permission_events,
+                            );
+                            if !selected_cleanup.is_empty()
+                                || !selected.is_empty()
+                                || permission_events.len() > event_start
+                            {
+                                if let Err(diagnostic) = selected_cleanup.observe(
+                                    program,
+                                    &selected,
+                                    &produced_storage.transfers,
+                                    &routes,
+                                    &calls,
                                     &permission_events[event_start..],
                                     &occurrences,
-                                )
-                            {
-                                selection_diagnostics.push(diagnostic);
-                                return;
+                                    &produced_storage.establishments,
+                                    &produced_storage.binding_changes,
+                                    facts.flow.ownership,
+                                    &mut cleanup_dispositions,
+                                ) {
+                                    selection_diagnostics.push(diagnostic);
+                                    return;
+                                }
+                                // The producer already retained canonical storage
+                                // moves and joined expression custody. Rebuilding it
+                                // from leaf claim events would resurrect transferred
+                                // transparent homes and schedule duplicate cleanup.
+                                let receiving = produced_storage
+                                    .establishments
+                                    .iter()
+                                    .filter(|establishment| {
+                                        establishment.event_ordinal
+                                            >= produced_storage.evaluated_events
+                                    })
+                                    .map(|establishment| StorageEstablishment {
+                                        event_ordinal: establishment.event_ordinal
+                                            - produced_storage.evaluated_events,
+                                        destination: establishment.destination.clone(),
+                                        prior_value_transferred: establishment
+                                            .prior_value_transferred,
+                                    })
+                                    .collect::<Vec<_>>();
+                                if let Err(diagnostic) = remaining.observe_evaluation(
+                                    program,
+                                    &routes,
+                                    &calls,
+                                    &permission_events
+                                        [event_start + produced_storage.evaluated_events..],
+                                    &facts.flow.ownership.segments,
+                                    &mut cleanup_dispositions,
+                                    &receiving,
+                                ) {
+                                    selection_diagnostics.push(diagnostic);
+                                }
                             }
                         }
-                        let produced_storage = match complete_statement_permissions(
-                            program,
-                            facts,
-                            machine.symbol,
-                            state.symbol,
-                            statement_index,
-                            &statements[statement_index],
-                            evaluation,
-                            evaluated,
-                            places,
-                            remaining,
-                            &mut permission_events,
-                            &mut claim_identities,
-                            &mut conditional_carrier_transfers,
-                            selections,
-                            &mut cleanup_dispositions,
-                            claim_outcomes,
-                            &prepared.conservation_candidates,
-                        ) {
-                            Ok(produced) => produced,
-                            Err(diagnostic) => {
-                                selection_diagnostics.push(diagnostic);
-                                return;
-                            }
-                        };
-                        if let Some((_, receipt)) =
-                            facts.flow.ownership.owned_selection_at_evaluation(
-                                state.symbol,
-                                statement_index as u32,
-                                evaluation,
-                            )
-                        {
-                            owned_selection::apply_availability(
+                        PermissionStep::Exit {
+                            coordinate,
+                            crash: false,
+                        } => {
+                            let event_start = permission_events.len();
+                            instruction_dispositions.exit(
                                 program,
-                                &facts.flow.ownership,
-                                receipt,
+                                facts,
+                                machine,
+                                state,
+                                coordinate,
                                 places,
+                                &mut permission_events,
                             );
-                            owned_selection::retire_source_storage(
-                                &facts.flow.ownership,
-                                receipt,
+                            append_owned_cleanup_permission_events(
+                                program,
+                                &observed_receivers_by_statement,
+                                state,
+                                state_flow.machine_symbol,
+                                coordinate,
                                 places,
                                 remaining,
+                                &mut facts.flow.ownership.segments,
+                                &mut permission_events,
                             );
-                            selections.consume(program, &facts.flow.ownership, receipt);
-                        }
-                        instruction_dispositions.statement(
-                            program,
-                            facts,
-                            machine,
-                            state,
-                            statement_index,
-                            evaluation,
-                            places,
-                            &mut permission_events,
-                        );
-                        if !selected_cleanup.is_empty()
-                            || !selected.is_empty()
-                            || permission_events.len() > event_start
-                        {
-                            if let Err(diagnostic) = selected_cleanup.observe(
+                            if let Err(diagnostic) = selected_cleanup.finish(
                                 program,
-                                &selected,
-                                &produced_storage.transfers,
-                                &routes,
-                                &calls,
+                                state,
+                                coordinate,
                                 &permission_events[event_start..],
-                                &occurrences,
-                                &produced_storage.establishments,
-                                &produced_storage.binding_changes,
-                                &mut facts.flow.ownership,
+                                remaining,
+                                facts.flow.ownership,
                                 &mut cleanup_dispositions,
-                            ) {
-                                selection_diagnostics.push(diagnostic);
-                                return;
-                            }
-                            // The producer already retained canonical storage
-                            // moves and joined expression custody. Rebuilding it
-                            // from leaf claim events would resurrect transferred
-                            // transparent homes and schedule duplicate cleanup.
-                            let receiving = produced_storage
-                                .establishments
-                                .iter()
-                                .filter(|establishment| {
-                                    establishment.event_ordinal >= produced_storage.evaluated_events
-                                })
-                                .map(|establishment| StorageEstablishment {
-                                    event_ordinal: establishment.event_ordinal
-                                        - produced_storage.evaluated_events,
-                                    destination: establishment.destination.clone(),
-                                    prior_value_transferred: establishment.prior_value_transferred,
-                                })
-                                .collect::<Vec<_>>();
-                            if let Err(diagnostic) = remaining.observe_evaluation(
-                                program,
-                                &routes,
-                                &calls,
-                                &permission_events
-                                    [event_start + produced_storage.evaluated_events..],
-                                &facts.flow.ownership.segments,
-                                &mut cleanup_dispositions,
-                                &receiving,
                             ) {
                                 selection_diagnostics.push(diagnostic);
                             }
                         }
+                        PermissionStep::Exit { crash: true, .. } | PermissionStep::MissedGuard => {}
                     }
-                    PermissionStep::Exit {
-                        coordinate,
-                        crash: false,
-                    } => {
-                        let event_start = permission_events.len();
-                        instruction_dispositions.exit(
-                            program,
-                            facts,
-                            machine,
-                            state,
-                            coordinate,
-                            places,
-                            &mut permission_events,
-                        );
-                        append_owned_cleanup_permission_events(
-                            program,
-                            &observed_receivers_by_statement,
-                            state,
-                            state_flow.machine_symbol,
-                            coordinate,
-                            places,
-                            remaining,
-                            &mut facts.flow.ownership.segments,
-                            &mut permission_events,
-                        );
-                        if let Err(diagnostic) = selected_cleanup.finish(
-                            program,
-                            state,
-                            coordinate,
-                            &permission_events[event_start..],
-                            remaining,
-                            &mut facts.flow.ownership,
-                            &mut cleanup_dispositions,
-                        ) {
-                            selection_diagnostics.push(diagnostic);
-                        }
-                    }
-                    PermissionStep::Exit { crash: true, .. } | PermissionStep::MissedGuard => {}
-                }
-            },
-        );
-        // Publish the source storage occurrences, not expanded claim events.
-        // Loan exclusion needs even a claim-free or inactive carrier's move.
-        // The edit keys no grouping, so later states keep the warm roster.
-        let storage_transfers = facts.flow.ownership.storage_transfers.insert_many(moves);
+                },
+            );
+            // Publish the source storage occurrences, not expanded claim events.
+            // Loan exclusion needs even a claim-free or inactive carrier's move.
+            // The edit keys no grouping, so later states keep the warm roster.
+            facts.flow.ownership.storage_transfers.insert_many(moves)
+        };
         facts.flow.control.states.update_row(state_handle, |row| {
             row.storage_transfers = storage_transfers
         });

@@ -22,6 +22,11 @@ pub mod operators;
 pub mod proof;
 pub mod statement;
 pub mod values;
+pub mod views;
+pub use views::{
+    CheckFactsRef, CheckFactsWalk, ContentProjectionFactsRef, ContentProjectionFactsWalk,
+    FlowFactsRef, FlowFactsWalk, QualificationFactsRef, QualificationFactsWalk,
+};
 
 pub use keyed_rows::{DurableRows, KeyedRows};
 

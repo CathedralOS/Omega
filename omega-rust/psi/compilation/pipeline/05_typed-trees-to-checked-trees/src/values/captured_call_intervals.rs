@@ -34,7 +34,7 @@ impl<'a> CapturedCallIntervals<'a> {
             return None;
         }
         let (operands, receiver_offset) =
-            crate::flow::captured_call_operands(program, flow, state, call)?;
+            crate::flow::captured_call_operands(program, flow.view(), state, call)?;
         let arguments = crate::shared::call_formals::arguments_aligned_to_formals(
             program,
             call.target_symbol,
@@ -67,7 +67,7 @@ impl<'a> CapturedCallIntervals<'a> {
         let operand = self.arguments.get(ordinal)?;
         let values = crate::flow::captured_operand_values(
             self.program,
-            self.flow,
+            self.flow.view(),
             self.semantic,
             self.state,
             crate::flow::CapturedOperand::unrecorded(operand),
@@ -90,14 +90,18 @@ impl<'a> CapturedCallIntervals<'a> {
                     value.observation,
                     value.observation_type,
                     &value.observation_projection,
-                    crate::flow::captured_observation_places(self.program, self.flow, &value),
+                    crate::flow::captured_observation_places(
+                        self.program,
+                        self.flow.view(),
+                        &value,
+                    ),
                     self.call.entry_constraints,
                 ),
                 (
                     value.operand,
                     value.type_reference,
                     &value.projection,
-                    crate::flow::captured_value_places(self.program, self.flow, &value),
+                    crate::flow::captured_value_places(self.program, self.flow.view(), &value),
                     value.producer_invocation(self.call.entry_constraints),
                 ),
             ] {
