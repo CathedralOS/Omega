@@ -1940,6 +1940,18 @@ impl CanonicalHandleState {
                         operand,
                     )?)
                 }
+                OperationKind::ByteSequenceRead { source, index, .. } => {
+                    let location = DescriptorLocation::whole(*source);
+                    Some(
+                        geometry
+                            .sequence(&location, &self.references)?
+                            .byte_scalar_selection(
+                                location,
+                                result.scalar_type,
+                                operand(*index)?,
+                            )?,
+                    )
+                }
                 OperationKind::ElementViewRead {
                     source,
                     index,
@@ -1988,32 +2000,6 @@ impl CanonicalHandleState {
                             known: KnownHandleScalar::Unknown,
                         }
                     }
-                }
-            } else if let OperationKind::ByteSequenceRead { source, index, .. } = &operation.kind {
-                let location = DescriptorLocation::whole(*source);
-                self.require_active_payload(&location, geometry)?;
-                let captured = geometry.sequence(&location, &self.references)?;
-                if captured.element.is_some() || captured.stride != 1 {
-                    return Err("handle byte read changes its original byte window".into());
-                }
-                let range = match operand(*index)?.filter(|_| captured.precise) {
-                    Some(index) => geometry.sequence_element(&captured, index)?,
-                    None => captured.range,
-                };
-                // A byte observation can transport a dependency but cannot
-                // recreate an exact whole HANDLE, even from a singleton view.
-                CapturedHandleScalar {
-                    word: HandleWordAliases::derived(
-                        result.scalar_type,
-                        [
-                            self.aliases.stored_word(&range, result.scalar_type),
-                            HandleWordAliases::derived_from_dependencies(
-                                result.scalar_type,
-                                captured.dependencies,
-                            ),
-                        ],
-                    ),
-                    known: KnownHandleScalar::Unknown,
                 }
             } else if !reads.is_empty() {
                 let [(source, ScalarTerm::Value { id, scalar_type })] = reads else {

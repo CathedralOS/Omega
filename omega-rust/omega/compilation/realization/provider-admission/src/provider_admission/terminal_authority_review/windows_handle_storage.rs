@@ -49,6 +49,50 @@ pub(super) struct CapturedHandleSequence {
 }
 
 impl CapturedHandleSequence {
+    fn element_range(&self, ordinal: u64, byte_length: u64) -> Result<HandleStorageRange, String> {
+        if !self.precise || self.length.is_none_or(|length| ordinal >= length) {
+            return Err("handle collection has no exact selected element".into());
+        }
+        let start = ordinal
+            .checked_mul(self.stride)
+            .and_then(|offset| self.range.byte_offset().checked_add(offset))
+            .ok_or("handle collection pointer offset overflows")?;
+        let result = HandleStorageRange::new(self.range.backing(), start, byte_length)?;
+        if !self.range.contains(&result) {
+            return Err("handle collection pointer exceeds its actual data window".into());
+        }
+        Ok(result)
+    }
+
+    /// Reading a view element observes captured data, not a byte inside its
+    /// descriptor. Unknown selectors keep the complete possible data range;
+    /// even one selected byte retains every dependency of its captured address.
+    pub(super) fn byte_scalar_selection(
+        self,
+        location: DescriptorLocation,
+        expected: ScalarType,
+        index: Option<u64>,
+    ) -> Result<HandleScalarSelection, String> {
+        if !matches!(expected, ScalarType::Integer(integer)
+            if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8)
+            || self.element.is_some()
+            || self.stride != 1
+        {
+            return Err("handle byte read changes its original byte window or scalar codec".into());
+        }
+        let range = match index.filter(|_| self.precise) {
+            Some(index) => self.element_range(index, 1)?,
+            None => self.range,
+        };
+        // This remains a content observation with no exact numeric value.
+        // Byte dependencies cannot reconstruct a complete HANDLE identity.
+        Ok(HandleScalarSelection::Family {
+            location,
+            range,
+            dependencies: self.dependencies,
+        })
+    }
+
     pub(super) fn subslice(
         &self,
         start: Option<u64>,
@@ -539,23 +583,12 @@ impl<'a> HandleStorageGeometry<'a> {
         sequence: &CapturedHandleSequence,
         ordinal: u64,
     ) -> Result<HandleStorageRange, String> {
-        if !sequence.precise || sequence.length.is_none_or(|length| ordinal >= length) {
-            return Err("handle collection pointer census has no exact selected element".into());
-        }
         let byte_length = match sequence.element {
             Some(element) => self.region(element, &[])?.byte_length,
             None if sequence.stride == 1 => 1,
             None => return Err("handle byte collection changes its original unit stride".into()),
         };
-        let start = ordinal
-            .checked_mul(sequence.stride)
-            .and_then(|offset| sequence.range.byte_offset().checked_add(offset))
-            .ok_or("handle collection pointer offset overflows")?;
-        let result = HandleStorageRange::new(sequence.range.backing(), start, byte_length)?;
-        if !sequence.range.contains(&result) {
-            return Err("handle collection pointer exceeds its actual data window".into());
-        }
-        Ok(result)
+        sequence.element_range(ordinal, byte_length)
     }
 
     /// Enumerate only pointer carriers resident in this original typed value.
@@ -670,6 +703,14 @@ impl<'a> HandleStorageGeometry<'a> {
                             return Err("unknown handle element cannot select a resident reference's pointee".into());
                         }
                         let source = self.location(place, &selected)?;
+                        if self.is_byte_view(&source)? {
+                            if !path[ordinal + 1..].is_empty() {
+                                return Err("handle byte endpoint has another projection".into());
+                            }
+                            return self
+                                .sequence(&source, references)?
+                                .byte_scalar_selection(source, expected, None);
+                        }
                         let captured = self.sequence(&source, references)?;
                         return Ok(HandleScalarSelection::Family {
                             range: captured.range,
@@ -682,9 +723,39 @@ impl<'a> HandleStorageGeometry<'a> {
                 selected.push(part.clone());
             }
         }
+        if let Some((terminal_psi::StructuralPathSegment::FixedIndex(index), prefix)) =
+            selected.split_last()
+        {
+            let source = self.location(place, prefix)?;
+            if self.is_byte_view(&source)? {
+                return self.sequence(&source, references)?.byte_scalar_selection(
+                    source,
+                    expected,
+                    Some(*index),
+                );
+            }
+        }
         let location = self.location(place, &selected)?;
         let storage = self.scalar(&location, references, expected)?;
         Ok(HandleScalarSelection::Exact { location, storage })
+    }
+
+    fn is_byte_view(&self, location: &DescriptorLocation) -> Result<bool, String> {
+        let carrier = match self.carrier(location)? {
+            Some(carrier) => {
+                match terminal_psi::find_structural_type(&self.module.structural_types, carrier)
+                    .map(|declaration| &declaration.shape)
+                {
+                    Some(StructuralTypeShape::ByteSequence(carrier)) => *carrier,
+                    _ => return Ok(false),
+                }
+            }
+            None => self.inline_byte_carrier(location)?,
+        };
+        Ok(matches!(
+            carrier,
+            terminal_psi::byte_sequence_view_carrier_pattern!()
+        ))
     }
 
     pub(super) fn element_stride(&self, element: StructuralTypeId) -> Result<u64, String> {
@@ -1601,13 +1672,21 @@ mod tests {
 
     #[test]
     fn captured_windows_do_not_recover_an_unknown_selected_address() {
+        use super::super::windows_handle_lifetimes::{
+            HandleLifetimes, NativeOccurrence, ScalarOccurrence, ScalarUseSite,
+        };
+        use semantic_vocabulary::{
+            BoundaryMachineId, IntegerSign, IntegerType, InvocationSite, MachineId, OperationId,
+        };
+        let byte = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let handle = HandleInstance(0);
         let source = CapturedHandleSequence {
             range: range(1, 32, 24),
             element: None,
             stride: 1,
             length: Some(24),
             precise: true,
-            dependencies: BTreeSet::new(),
+            dependencies: BTreeSet::from([handle]),
         };
         let selected = source.subslice(Some(5), Some(9), BTreeSet::new()).unwrap();
         assert_eq!(selected.range, range(1, 37, 4));
@@ -1622,6 +1701,94 @@ mod tests {
         assert!(
             source
                 .subslice(Some(25), Some(26), BTreeSet::new())
+                .is_err()
+        );
+
+        let carrier = DescriptorLocation::whole(PlaceId::new(3).unwrap());
+        let HandleScalarSelection::Family {
+            location,
+            range: byte_range,
+            dependencies,
+        } = source
+            .clone()
+            .byte_scalar_selection(carrier.clone(), byte, Some(5))
+            .unwrap()
+        else {
+            panic!("byte data selection cannot claim an exact whole HANDLE");
+        };
+        assert_eq!(location, carrier);
+        assert_eq!(byte_range, range(1, 37, 1));
+        assert_eq!(dependencies, BTreeSet::from([handle]));
+        for (window, index) in [(source.clone(), None), (unknown.clone(), Some(0))] {
+            let HandleScalarSelection::Family { range, .. } = window
+                .byte_scalar_selection(carrier.clone(), byte, index)
+                .unwrap()
+            else {
+                panic!("unknown byte address must keep its possible data family");
+            };
+            assert_eq!(range, source.range);
+        }
+        assert!(
+            source
+                .clone()
+                .byte_scalar_selection(carrier.clone(), byte, Some(24))
+                .is_err()
+        );
+        let mut missing_length = source.clone();
+        missing_length.length = None;
+        assert!(
+            missing_length
+                .byte_scalar_selection(carrier.clone(), byte, Some(0))
+                .is_err()
+        );
+        let wide = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        assert!(
+            source
+                .clone()
+                .byte_scalar_selection(carrier.clone(), wide, Some(0))
+                .is_err()
+        );
+        let mut wrong_stride = source.clone();
+        wrong_stride.stride = 2;
+        assert!(
+            wrong_stride
+                .byte_scalar_selection(carrier.clone(), byte, Some(0))
+                .is_err()
+        );
+        let mut other_elements = source.clone();
+        other_elements.element = Some(StructuralTypeId::new(1).unwrap());
+        assert!(
+            other_elements
+                .byte_scalar_selection(carrier, byte, Some(0))
+                .is_err()
+        );
+
+        // A byte that carries an address dependency still observes that
+        // resource. Selecting it cannot discard the dependency after close.
+        let native = |ordinal| NativeOccurrence {
+            machine: MachineId::new(1).unwrap(),
+            site: InvocationSite::Operation(OperationId::new(ordinal).unwrap()),
+            context: [1; 32],
+            boundary: BoundaryMachineId::new(1).unwrap(),
+        };
+        let occurrence = ScalarOccurrence {
+            machine: MachineId::new(1).unwrap(),
+            site: ScalarUseSite::Operation(OperationId::new(3).unwrap()),
+            context: [1; 32],
+        };
+        let word = HandleWordAliases::derived_from_dependencies(byte, dependencies);
+        assert!(word.exact_handle().is_err());
+        let mut ledger = HandleLifetimes::default();
+        ledger.acquire_file(handle, native(1), 0).unwrap();
+        assert!(
+            ledger
+                .observe_scalars(word.dependencies(), occurrence)
+                .is_ok()
+        );
+        ledger.release_file(handle, native(2)).unwrap();
+        assert!(
+            ledger
+                .observe_scalars(word.dependencies(), occurrence)
                 .is_err()
         );
     }
