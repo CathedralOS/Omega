@@ -143,6 +143,7 @@ pub enum LoweringError {
         segment_count: usize,
         declaration: crate::emission::call_qualifications::DeclarationRepresentation,
     },
+    InvalidCallMembershipSource(&'static str),
     InvalidSuspensionPlan(&'static str),
     Unsupported(&'static str),
     CompilerEvaluationAdmission(String),

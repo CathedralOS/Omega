@@ -34,41 +34,6 @@ impl OperationFrame<'_, '_> {
                 )
             },
         )?;
-        for completion in &prepared {
-            let mut qualifications = Vec::new();
-            let mut projected_qualifications = Vec::new();
-            for (semantic_domain, path, carrier) in &completion.qualifications {
-                let domain = lookup_domain_id_for_carrier(
-                    self.callees.domain_ids,
-                    *semantic_domain,
-                    *carrier,
-                )?;
-                if path.is_empty() {
-                    qualifications.push(domain);
-                } else {
-                    projected_qualifications.push(terminal_psi::StructuralPathQualification {
-                        path: path.clone(),
-                        domain,
-                    });
-                }
-            }
-            qualifications.sort();
-            qualifications.dedup();
-            projected_qualifications.sort();
-            projected_qualifications.dedup();
-            if !qualifications.is_empty() || !projected_qualifications.is_empty() {
-                for (_, parameter) in &mut self.evaluation.structural_parameters {
-                    if parameter.place == completion.place {
-                        merge_rosters(parameter, &qualifications, &projected_qualifications);
-                    }
-                }
-                for parameter in &mut self.evaluation.block_structural_parameters {
-                    if parameter.place == completion.place {
-                        merge_rosters(parameter, &qualifications, &projected_qualifications);
-                    }
-                }
-            }
-        }
         crate::emission::loan_completions::emit(
             &prepared,
             coordinate,
@@ -240,54 +205,15 @@ impl OperationFrame<'_, '_> {
                     }],
                 )
             };
-            self.operations.add_structural_qualifications(
-                owner.place,
-                &qualifications,
-                &projected_qualifications,
-            );
-            for (_, parameter) in &mut self.evaluation.structural_parameters {
-                if parameter.place == owner.place {
-                    merge_rosters(parameter, &qualifications, &projected_qualifications);
-                }
-            }
-            for parameter in &mut self.evaluation.block_structural_parameters {
-                if parameter.place == owner.place {
-                    merge_rosters(parameter, &qualifications, &projected_qualifications);
-                }
-            }
+            self.operations
+                .record_call_memberships(
+                    coordinate,
+                    owner.place,
+                    &qualifications,
+                    &projected_qualifications,
+                )
+                .map_err(LoweringError::InvalidCallMembershipSource)?;
         }
         Ok(())
-    }
-}
-
-/// Merge one owner's qualification rosters into a declaration that names its
-/// place, keeping both rosters sorted and duplicate-free.
-fn merge_rosters(
-    parameter: &mut terminal_psi::StructuralParameterDeclaration,
-    qualifications: &[semantic_vocabulary::StructuralDomainId],
-    projected_qualifications: &[terminal_psi::StructuralPathQualification],
-) {
-    merge_sorted(&mut parameter.qualifications, qualifications);
-    merge_sorted(
-        &mut parameter.projected_qualifications,
-        projected_qualifications,
-    );
-}
-
-/// Every call publishes its completions into the same declarations, so the
-/// roster is usually already sorted and duplicate-free and already holds most
-/// additions. Insert only the missing rows rather than re-sorting the whole
-/// roster; an unsorted roster still takes the complete sort.
-fn merge_sorted<Row: Ord + Clone>(roster: &mut Vec<Row>, additions: &[Row]) {
-    if !roster.is_sorted_by(|left, right| left < right) {
-        roster.extend_from_slice(additions);
-        roster.sort();
-        roster.dedup();
-        return;
-    }
-    for addition in additions {
-        if let Err(position) = roster.binary_search(addition) {
-            roster.insert(position, addition.clone());
-        }
     }
 }

@@ -340,11 +340,14 @@ pub(crate) fn emit(
         projected_qualifications.sort();
         projected_qualifications.dedup();
         if !qualifications.is_empty() || !projected_qualifications.is_empty() {
-            operations.add_structural_qualifications(
-                completion.place,
-                &qualifications,
-                &projected_qualifications,
-            );
+            operations
+                .record_call_memberships(
+                    coordinate,
+                    completion.place,
+                    &qualifications,
+                    &projected_qualifications,
+                )
+                .map_err(LoweringError::InvalidCallMembershipSource)?;
         }
     }
     operations.loan_completions.sort_by(|left, right| {
