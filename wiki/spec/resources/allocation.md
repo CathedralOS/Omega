@@ -47,11 +47,29 @@ placement. These are distinct premises.
 ## Dense collections over allocated backing
 
 A library `Vec<T>` uses a [live typed run](typed_runs.md) for its established
-prefix and adjacent granted vacant backing for spare capacity. Push initializes
-one spare cell and joins it to the run; pop transfers the last cell out and
-returns its vacant range to the spare portion. Growth acquires compatible backing
-and moves the live run before returning the old backing under its allocation
-contract. Neither operation creates allocator authority.
+prefix and adjacent granted vacant backing for spare capacity. Its library
+implementation composes the compiler-realized cell operations with ordinary
+vacant-extent transformations:
+
+| Operation | Checked steps |
+| --- | --- |
+| Push within available capacity | Use `split_vacant_extent` to take one cell's footprint from the front of spare backing; call `Run::initialize_cell`; merge the successful singleton onto the live run with `Run::merge`. |
+| Rejected initialization | Recover the returned vacant cell and original input value; use `merge_vacant_extents` to restore the spare tail before returning the value. The existing live run remains unchanged. |
+| Pop from a nonempty vector | Use `Run::split` at count minus one; extract the last singleton with `Run::extract_cell`; merge its vacated backing onto the front of the spare tail with `merge_vacant_extents`. |
+
+The vector's invariant relates both fields to the same allocated region. Taking
+and returning a cell at their shared boundary supplies the adjacency facts for
+these calls. Each successful primitive's contract must carry those facts to the
+next call. A rejected initialization restores the original spare geometry and
+custody; a failure after partial establishment must account for the actual live
+outputs before claiming vacancy. The completed operation restores the vector's
+invariant on every returning path.
+
+Growth acquires compatible backing and relocates the live run before returning
+the old backing under its allocation contract. Rejected acquisition or relocation
+preserves the original live run and accounts for any newly acquired backing.
+Allocation, capacity checks, growth and recovery remain ordinary library code.
+These operations conserve existing allocator authority.
 
 This representation has no per-element occupancy tag. Linear values, contained
 loans and cleanup obligations remain owned by the live run. A zero-sized element
@@ -59,6 +77,14 @@ still contributes one logical cell and its obligations even though it consumes
 no payload bytes. Allocation failure preserves the existing vector and accounts
 for any attempted input. Growth policy and fallible versus pre-proved capacity
 remain ordinary library choices.
+
+Acceptance requires one integrated Vec implementation covering linear elements,
+zero-sized elements with cleanup obligations, contained loans, fallible growth,
+and rejected initialization after splitting the spare tail. It must preserve
+element order and exactly-once disposition, restore the spare tail on rejection,
+and reject duplicate ownership or invalidated loans. Split and merge obey the
+[constant runtime cost contract](typed_runs.md#cost-and-compiler-boundary)
+through both execution routes, including during element-by-element disposal.
 
 ## Reuse and fragmentation
 

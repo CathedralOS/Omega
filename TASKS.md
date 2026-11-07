@@ -176,8 +176,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## P5 - Cathedral over general Omega primitives
 
-- **EXTENT-LIBRARY-TRANSFORMS.** (covers **CONSERVATION-CONTRACT**, **TERMINAL-CONTENT-CLAIMS**, **BOUNDARY-ISSUANCE**, **BUMP-ALLOCATOR-CANARY**, **UEFI-PHYSICAL-SEMANTIC-ENTRY**, **AP-BRINGUP**, **ADDRESS-TRANSLATION-CANARY**, **EXCEPTION-ROOTS-AND-TIMER**) Complete [content custody](wiki/spec/resources/content_custody.md), `alloc/{bump,vec}.omg` ([typed_runs.md](wiki/spec/resources/typed_runs.md)), [UEFI handoff](wiki/spec/build/uefi_entry.md), and Cathedral AP/MMU/interrupt canaries.
-  Acceptance: `core/content_*`, `typed_run`, `bump_allocator_canary`, `uefi_os_handoff_invocation`, and `secondary_processor`/`address_translation`/`interrupt_table` canaries pass.
+- **EXTENT-LIBRARY-TRANSFORMS.** (covers **CONSERVATION-CONTRACT**, **TERMINAL-CONTENT-CLAIMS**, **BOUNDARY-ISSUANCE**, **BUMP-ALLOCATOR-CANARY**, **UEFI-PHYSICAL-SEMANTIC-ENTRY**, **AP-BRINGUP**, **ADDRESS-TRANSLATION-CANARY**, **EXCEPTION-ROOTS-AND-TIMER**) Complete [extent/run contracts](wiki/spec/resources/typed_runs.md#split-and-merge-contracts), core primitives, Vec/bump, UEFI handoff and Cathedral AP/MMU/interrupt canaries.
+  Acceptance: [Vec integration](wiki/spec/resources/allocation.md#dense-collections-over-allocated-backing), extent/content and UEFI/AP/MMU/interrupt canaries pass.
 
 ## Rust compiler release closure
 
