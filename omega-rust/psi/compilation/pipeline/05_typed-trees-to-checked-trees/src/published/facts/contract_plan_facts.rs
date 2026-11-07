@@ -511,7 +511,7 @@ fn validate_checked_resource_envelope_coverage(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     for (machine_index, machine) in program.machines().iter().enumerate() {
         let contract = plans
-            .machines
+            .machines()
             .get(machine_index)
             .filter(|contract| contract.machine == machine.symbol)
             .or_else(|| plans.for_machine(machine.symbol))

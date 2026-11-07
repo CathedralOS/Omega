@@ -183,7 +183,7 @@ pub(crate) struct TypingCohort<'completed> {
     pub(crate) generic_application_origins: usize,
     /// Retained machine bodies this run completes in place, in declaration
     /// order. Their destinations land beside the appended machines'.
-    pub(crate) completed_machines: &'completed [SymbolHandle],
+    completed_machines: &'completed [SymbolHandle],
     /// `completed_machines` as sorted symbol keys. Every machine of the run
     /// asks whether it is completed; scanning the list made that quadratic
     /// when a run completes every machine.

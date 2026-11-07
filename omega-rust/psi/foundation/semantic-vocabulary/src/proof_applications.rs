@@ -721,7 +721,9 @@ pub trait ProofApplicationCalls<Declaration> {
 /// scope are published; effect summaries remain with their existing owner.
 #[derive(Debug, Clone, Default)]
 pub struct ProofCallGraph<Declaration: 'static> {
-    pub machines: Arena<ProofCallMachine<Declaration>>,
+    /// Private: the only writers are `insert_machine` and `update_machine`, so
+    /// `machine_index` and its revision stamp always describe this arena.
+    machines: Arena<ProofCallMachine<Declaration>>,
     pub calls:
         Arena<ProofApplicationCall<Declaration, HandleSpan<ProofStaticBinding<Declaration>>>>,
     pub bindings: Arena<ProofStaticBinding<Declaration>>,
@@ -805,6 +807,31 @@ where
                 visit(*target);
             }
         }
+    }
+}
+
+impl<Declaration: Default + 'static> ProofCallGraph<Declaration> {
+    /// Every machine row, in arena order.
+    pub fn machines(&self) -> &Arena<ProofCallMachine<Declaration>> {
+        &self.machines
+    }
+
+    /// Append one machine row. The index stops matching the arena revision,
+    /// so lookups read the rows until `index_machines` runs again.
+    pub fn insert_machine(
+        &mut self,
+        row: ProofCallMachine<Declaration>,
+    ) -> arena::Handle<ProofCallMachine<Declaration>> {
+        self.machines.insert(row)
+    }
+
+    /// Edit one machine row, with the same index rule as `insert_machine`.
+    pub fn update_machine(
+        &mut self,
+        row: arena::Handle<ProofCallMachine<Declaration>>,
+        edit: impl FnOnce(&mut ProofCallMachine<Declaration>),
+    ) {
+        edit(self.machines.get_mut(row));
     }
 }
 
@@ -986,7 +1013,7 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofCallGraph<Declaration> {
             let cleanup = result
                 .cleanup
                 .insert_many(cleanup.into_iter().collect::<Result<Vec<_>, Error>>()?);
-            result.machines.insert(ProofCallMachine {
+            result.insert_machine(ProofCallMachine {
                 machine: map(machine)?,
                 calls,
                 cleanup,

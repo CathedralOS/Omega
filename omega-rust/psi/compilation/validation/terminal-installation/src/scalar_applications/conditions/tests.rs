@@ -29,7 +29,7 @@ fn fixture() -> (ProofApplicationScope, ScalarConditions) {
         callee: ProofDeclarationId(6),
         ..Default::default()
     }]);
-    scope.calls.machines.insert(ProofCallMachine {
+    scope.calls.insert_machine(ProofCallMachine {
         machine: ProofDeclarationId(1),
         calls: call,
         ..Default::default()

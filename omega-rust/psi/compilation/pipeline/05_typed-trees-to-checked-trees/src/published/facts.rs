@@ -777,13 +777,8 @@ fn finish_check_facts(
 /// during checked-fact validation. Refresh only that independently mutable
 /// axis so the realized envelope cannot retain the earlier pre-check snapshot.
 pub(crate) fn refresh_realized_contract_envelopes(facts: &mut CheckFacts) {
-    let machines = &facts.contract_plans.machines;
-    for (index, envelope) in facts
-        .contract_plans
-        .realized_envelopes
-        .iter_mut()
-        .enumerate()
-    {
+    let (machines, envelopes) = facts.contract_plans.machines_and_envelopes_mut();
+    for (index, envelope) in envelopes.iter_mut().enumerate() {
         let contract = machines
             .get(index)
             .filter(|contract| contract.machine == envelope.machine)

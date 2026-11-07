@@ -1199,7 +1199,7 @@ pub(crate) fn record_crash_frontier_lower_bounds(
         );
     }
 
-    for contract in &mut facts.contract_plans.machines {
+    facts.contract_plans.update_plans(|contract| {
         let checked_sites = contract
             .crash
             .checked_sites()
@@ -1223,7 +1223,7 @@ pub(crate) fn record_crash_frontier_lower_bounds(
             .clone()
             .with_checked_sites(checked_sites)
             .expect("derived crash frontiers retain valid checked-site identity");
-    }
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
