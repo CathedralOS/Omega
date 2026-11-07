@@ -1,0 +1,20 @@
+// The selected forwarding body calls a different exact completion, despite
+// retaining the same owned Ack type and same underlying PIC action.
+use installed::ArrivalForwarding;
+use installed::PicTimerAcknowledgement;
+use installed::start;
+use omega::language::core::interrupt;
+use omega::language::core::static_interrupt;
+public WrongArrivalForwarding satisfies ArrivalForwarding {
+    machine forward(acknowledgement: InterruptAcknowledgement in Pending)
+    reaches MachineControl + PortIo {
+        complete_installed_interrupt<OtherCompletion::complete>(acknowledgement);
+    }
+}
+OtherCompletion satisfies InterruptAcknowledgementCompletion {
+    machine complete(acknowledgement: InterruptAcknowledgement)
+    requires acknowledgement in InterruptAcknowledgement::Pending
+    reaches PortIo {
+        PicTimerAcknowledgement::complete(acknowledgement);
+    }
+}

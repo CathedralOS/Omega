@@ -1,0 +1,22 @@
+use omega::language::core::static_interrupt;
+use installed::CathedralAcknowledgementRepresentation;
+use installed::BootstrapInterruptRegistrar;
+use installed::CheckedBootstrapInterruptRegistrar;
+use installed::TaskStatePreparation;
+use installed::BootstrapTaskStatePreparation;
+use installed::ArrivalForwarding;
+use installed::start;
+machine build(builder: &mut Build) {
+    Build::application(builder, "installed_arrival_wrong_controller");
+    builder.freestanding = true;
+    Build::depend_as(builder, "std", Source::Path { location: "../../../../../source/library/std" });
+    Build::depend_as(builder, "installed", Source::Path { location: "../installed_arrival_without_context" });
+    Build::select_representation<InterruptAcknowledgement, CathedralAcknowledgementRepresentation>(builder);
+    Build::select_representation<StaticInterruptCompletionPermit, StaticInterruptCompletionPermitRepresentation>(builder);
+    Build::select_provider<BootstrapInterruptRegistrar, CheckedBootstrapInterruptRegistrar>(builder, linux_x86_64);
+    Build::select_provider<TaskStatePreparation, BootstrapTaskStatePreparation>(builder, linux_x86_64);
+    Build::select_provider<ArrivalForwarding, WrongArrivalForwarding>(builder, linux_x86_64);
+    Build::accept_boundary<TaskRegisterControl>(builder);
+    Build::select_provider<TaskRegisterControl, X86TaskRegisterControl>(builder, linux_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, start);
+}
