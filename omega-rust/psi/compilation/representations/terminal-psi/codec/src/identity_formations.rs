@@ -256,7 +256,8 @@ mod tests {
         let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
         let owner = identities.intern("quantified-owner");
         let source_carrier = identities.intern("source-carrier");
-        let mut module = TerminalModule::for_entry(Default::default());
+        let entry = semantic_vocabulary::MachineId::new(1).unwrap();
+        let mut module = TerminalModule::for_entry(entry);
         module.identities = identities.build();
         module
             .identity_formations
