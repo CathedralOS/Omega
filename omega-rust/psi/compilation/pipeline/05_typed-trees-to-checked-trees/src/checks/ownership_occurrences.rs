@@ -616,12 +616,7 @@ impl StatementOrder<'_> {
                     }
                     let prefix = self.route.len();
                     let arms = super::multiplicity::reachable_arms(self.program, dispatch.arms);
-                    for (decision, (source_ordinal, arm)) in arms.iter().enumerate() {
-                        let source_arm = dispatch
-                            .arms
-                            .handles()
-                            .nth(*source_ordinal)
-                            .unwrap_or_default();
+                    for (decision, &(source_arm, arm)) in arms.iter().enumerate() {
                         for pattern in self
                             .program
                             .expression_table
