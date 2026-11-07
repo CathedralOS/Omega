@@ -148,19 +148,19 @@ fn shared_terminal_fusion_accounting(
             input_edge,
             output_clone,
             &incoming.provenance,
-            &incoming.fuel,
+            &incoming.work,
         ),
         provenance_realized_at(
             input_terminal,
             output_clone,
             &terminal.provenance,
-            &terminal.fuel,
+            &terminal.work,
         ),
         provenance_realized_at(
             input_terminal,
             input_terminal,
             &terminal.provenance,
-            &terminal.fuel,
+            &terminal.work,
         ),
     ];
     provenance.sort_by_key(ProvenanceRewrite::canonical_sort_key);

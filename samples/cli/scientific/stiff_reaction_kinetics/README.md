@@ -81,7 +81,7 @@ Direct Terminal validation links `validation/terminal_sdk.rs` against the exact
 compiler build and executes its retained Terminal artifact with original runtime
 provisions and fresh input for every fixture. The driver publishes that same retained native product through the canonical
 product publisher; it does not repeat compilation for native qualification.
-Its 100000000 fuel sponsor budget
+Its 100000000 work sponsor budget
 is explicit. `run --both` compares exits only; it does not validate Terminal
 numeric output. Use both validation routes:
 

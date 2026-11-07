@@ -10,12 +10,12 @@ use optimization_core::{
     OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
     OptimizationValidatorIdentity, TransformationLedgerIdentity,
 };
-use semantic_vocabulary::{BlockId, EdgeId, FuelScheduleIdentity, MachineId, OperationId};
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, WorkScheduleIdentity};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use crate::{
-    FuelSettlement, NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance,
-    PsiRealizationSite,
+    NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance, PsiRealizationSite,
+    WorkSettlement,
 };
 
 mod codec;
@@ -33,7 +33,7 @@ use validation::validate_provenance;
 impl PsiTransformationLedger {
     pub fn new(
         psi: TerminalPsiIdentity,
-        fuel_schedule: FuelScheduleIdentity,
+        work_schedule: WorkScheduleIdentity,
         input: OptimizationUnitIdentity,
         output: OptimizationUnitIdentity,
         records: Vec<PsiTransformationRecord>,
@@ -72,7 +72,7 @@ impl PsiTransformationLedger {
         }
         let identity = TransformationLedgerIdentity::from_canonical_bytes(&encode_ledger(
             psi,
-            fuel_schedule,
+            work_schedule,
             input,
             output,
             &records,
@@ -80,7 +80,7 @@ impl PsiTransformationLedger {
         Ok(Self {
             identity,
             psi,
-            fuel_schedule,
+            work_schedule,
             input,
             output,
             records,

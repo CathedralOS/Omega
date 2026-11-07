@@ -1,9 +1,9 @@
 //! Immutable transformation-ledger records and accessors.
 
 use super::{
-    FuelScheduleIdentity, MachineId, OptimizationCandidateIdentity, OptimizationRuleIdentity,
-    OptimizationUnitIdentity, OptimizationValidatorIdentity, ProvenanceRewrite,
-    TerminalPsiIdentity, TransformationLedgerIdentity,
+    MachineId, OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
+    OptimizationValidatorIdentity, ProvenanceRewrite, TerminalPsiIdentity,
+    TransformationLedgerIdentity, WorkScheduleIdentity,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -27,7 +27,7 @@ pub struct PsiTransformationRecord {
 pub struct PsiTransformationLedger {
     pub(super) identity: TransformationLedgerIdentity,
     pub(super) psi: TerminalPsiIdentity,
-    pub(super) fuel_schedule: FuelScheduleIdentity,
+    pub(super) work_schedule: WorkScheduleIdentity,
     pub(super) input: OptimizationUnitIdentity,
     pub(super) output: OptimizationUnitIdentity,
     pub(super) records: Vec<PsiTransformationRecord>,
@@ -42,8 +42,8 @@ impl PsiTransformationLedger {
         self.psi
     }
 
-    pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
-        self.fuel_schedule
+    pub const fn work_schedule(&self) -> WorkScheduleIdentity {
+        self.work_schedule
     }
 
     pub const fn input(&self) -> OptimizationUnitIdentity {

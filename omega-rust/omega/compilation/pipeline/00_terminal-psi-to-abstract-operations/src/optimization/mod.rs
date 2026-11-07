@@ -20,10 +20,10 @@ use terminal_installation::{
 /// Terminal-Psi artifact.
 pub fn build_verified_psi_optimization_unit(
     input: VerifiedPsiOptimizationInput,
-    fuel_schedule: semantic_vocabulary::FuelScheduleIdentity,
+    work_schedule: semantic_vocabulary::WorkScheduleIdentity,
 ) -> Result<VerifiedPsiOptimizationUnit, VerifiedPsiOptimizationUnitBuildError> {
     let mut seed =
-        optimization_unit::reconstruct_psi_optimization_unit_seed(input.plan(), fuel_schedule)?;
+        optimization_unit::reconstruct_psi_optimization_unit_seed(input.plan(), work_schedule)?;
     let context = input.context();
     optimization_unit::attach_verified_module_context(&mut seed, context.module())
         .map_err(VerifiedPsiOptimizationUnitBuildError::MissingStructuralCatalogMachine)?;

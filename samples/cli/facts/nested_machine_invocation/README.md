@@ -112,7 +112,7 @@ The row establishes static binder identity, explicit argument composition,
 result checking, continuation, and end-to-end erasure/realization for these
 calls. All four hosted target bindings are authored; executable observations
 are Windows x86-64, not runs on the other three hosts. The corpus long-cycle
-witness supplies ten million units of interpreter sponsor fuel.
+witness supplies ten million units of interpreter sponsor work.
 
 The parent outcome remains open: complete call-contract/custody acceptance,
 joint ranking and physical stack-bound evidence, product-compiler support,

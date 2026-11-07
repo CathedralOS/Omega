@@ -854,7 +854,7 @@ where
             definition_site: node.definitions[0].site,
         }),
         kind,
-        fuel: node.fuel.clone(),
+        work: node.work.clone(),
         effect: node.effect,
         ownership: node.ownership.clone(),
     })

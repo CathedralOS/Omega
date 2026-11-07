@@ -299,18 +299,18 @@ fn evaluate(
     closure.raw(&source_occurrence_digest);
     let closure = EvaluatedBindingProducerClosureDigest::from_bytes(closure.finish())?;
     let usage = supply.evaluation.usage;
-    let (fuel_schedule, storage_schedule) = match usage.measurement {
+    let (work_schedule, storage_schedule) = match usage.measurement {
         evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
-            fuel_schedule,
+            work_schedule,
             storage_schedule,
-        } => (fuel_schedule.marker(), storage_schedule.marker()),
+        } => (work_schedule.marker(), storage_schedule.marker()),
         _ => return Err("native Build evidence has a different evaluator measurement".into()),
     };
     let retained_usage = EvaluatedBindingUsage::from_evaluator(
         usage.usage_schema_version,
         usage.step_schedule_marker,
-        usage.fuel_units,
-        usage.invocation_fuel_ceiling,
+        usage.work_units,
+        usage.invocation_work_budget,
         usage.build_log_bytes,
         usage.filesystem_operation_attempts,
         usage.peak_live_storage_cells,
@@ -340,7 +340,7 @@ fn evaluate(
         author_identity,
         identities,
         closure,
-        fuel_schedule,
+        work_schedule,
         retained_usage,
         evaluation,
         2,
@@ -352,7 +352,7 @@ fn evaluate(
             requirement_identity,
             source_occurrence_digest,
             terminal_code: supply.evaluation.terminal_code,
-            fuel_schedule,
+            work_schedule,
             storage_schedule,
             observation_digest: supply.evaluation.observation_digest,
         },

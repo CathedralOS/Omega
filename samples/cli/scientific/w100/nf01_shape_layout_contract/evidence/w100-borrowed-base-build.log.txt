@@ -195,7 +195,7 @@ warning: `package-source` (lib) generated 6 warnings
    Compiling abstract-operations v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/compilation/representations/abstract-operations)
    Compiling function-identity v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/foundation/function-identity)
    Compiling target-operations v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/compilation/representations/target-operations)
-   Compiling terminal-fuel v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/terminal-psi/fuel)
+   Compiling psi-work v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/terminal-psi/work)
    Compiling installation-evidence v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/compilation/backend/runtime/installation-evidence)
    Compiling terminal-semantics v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/terminal-psi/semantics)
    Compiling terminal-codec v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/terminal-psi/codec)

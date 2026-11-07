@@ -108,7 +108,7 @@ pub enum MachineEffectError {
     ConstraintOperandMismatch {
         instruction: SelectedInstructionId,
     },
-    FuelProvenanceMismatch {
+    WorkProvenanceMismatch {
         instruction: SelectedInstructionId,
     },
     NonCanonicalFunction,

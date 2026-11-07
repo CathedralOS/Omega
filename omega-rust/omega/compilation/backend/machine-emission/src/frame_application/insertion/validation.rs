@@ -69,7 +69,7 @@ fn same_plan_roots(
     candidate: &FunctionFragmentEmissionPlan,
 ) -> bool {
     source.psi == candidate.psi
-        && source.fuel_schedule == candidate.fuel_schedule
+        && source.work_schedule == candidate.work_schedule
         && source.selected == candidate.selected
         && source.target == candidate.target
         && source.entry == candidate.entry

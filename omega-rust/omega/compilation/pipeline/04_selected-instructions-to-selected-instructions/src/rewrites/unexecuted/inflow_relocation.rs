@@ -56,7 +56,7 @@
 //! traversal crosses no inflow edge at all, and the predecessor may not
 //! be the member's own block, which is the in-block family's case with a
 //! back-edge reading. The crossed edge itself must be a plain semantic
-//! successor: case custody, fuel, and structural transfers are boundary
+//! successor: case custody, work, and structural transfers are boundary
 //! effects the move does not cross. The other inflow edges are never
 //! crossed — whatever they carry runs before the member's old position on
 //! their own arrivals — so they join only the dead-path audit's boundary

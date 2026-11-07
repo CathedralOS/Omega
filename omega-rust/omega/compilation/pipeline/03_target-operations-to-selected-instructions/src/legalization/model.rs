@@ -32,7 +32,7 @@ pub(crate) struct LegalizationValidationReceipt {
     pub(super) identity: LegalizedOperationPlanIdentity,
     pub(super) validator: OptimizationValidatorIdentity,
     pub(super) optimization_unit: optimization_core::OptimizationUnitIdentity,
-    pub(super) fuel_schedule: semantic_vocabulary::FuelScheduleIdentity,
+    pub(super) work_schedule: semantic_vocabulary::WorkScheduleIdentity,
     pub(super) target: target::NativeTarget,
     pub(super) function_count: usize,
 }
@@ -50,8 +50,8 @@ impl LegalizationValidationReceipt {
         self.optimization_unit
     }
 
-    pub const fn fuel_schedule(self) -> semantic_vocabulary::FuelScheduleIdentity {
-        self.fuel_schedule
+    pub const fn work_schedule(self) -> semantic_vocabulary::WorkScheduleIdentity {
+        self.work_schedule
     }
 }
 

@@ -49,7 +49,7 @@ point-local reloads for fixed uses and recomputes strict allocation facts. Exist
 alias separation remains. Independent review found this sufficient in mechanism;
 complete application and expanded regression execution establish its sufficiency
 for this outcome. The final candidate therefore omits the duplicate stage-03
-repair. No guard, proof, source origin, fuel or numerical oracle is weakened.
+repair. No guard, proof, source origin, work or numerical oracle is weakened.
 
 Main's ordinary repeated/aliased division fixture and its Arm bindings are
 preserved. The distinct `runtime_fixed_input_policy_reuse_exit` regression adds

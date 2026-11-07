@@ -3,7 +3,7 @@ Execute a retained Terminal calling-policy machine on a canonical boundary
 signature (`evaluate_terminal_calling_policy`).
 
 `provider_planning` prepares the canonical `CallingPolicySignature`, the selected
-callable entry, and the invocation fuel/memory account, then invokes
+callable entry, and the invocation work/memory account, then invokes
 `evaluate_terminal_calling_policy` through the evaluator function pointer stored
 on its `CallingProgram`.
 
@@ -33,7 +33,7 @@ use provider_planning::calling_policy_plans::{
     CallingScalarScope, TerminalCallingPolicyInvocation, complete_calling_scalar_inputs,
     decode_boundary_plan_result, encode_calling_policy_signature, validate_calling_policy_result,
 };
-use terminal_fuel::{TerminalFuelMeter, TerminalFuelUsage};
+use psi_work::{WorkMeter, WorkUsage};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation, TerminalProgram,
     TerminalRuntimeSupplyRequest, TerminalStructuralInputs, TerminalStructuralValue,
@@ -43,7 +43,7 @@ use values::{input_contents, result_value};
 
 pub fn evaluate_terminal_calling_policy(
     invocation: TerminalCallingPolicyInvocation<'_>,
-) -> Result<(ValidatedBoundaryEntryPlan, TerminalFuelUsage), String> {
+) -> Result<(ValidatedBoundaryEntryPlan, WorkUsage), String> {
     let TerminalCallingPolicyInvocation {
         artifact,
         entry,
@@ -111,8 +111,8 @@ pub fn evaluate_terminal_calling_policy(
             demanded.push(application);
         }
     }
-    let mut meter = TerminalFuelMeter::with_invocation(account.clone(), None)
-        .map_err(|error| format!("calling policy fuel: {error:?}"))?;
+    let mut meter = WorkMeter::with_invocation(account.clone(), None)
+        .map_err(|error| format!("calling policy work: {error:?}"))?;
     let declaration = artifact
         .semantic_module()
         .scalar_applications

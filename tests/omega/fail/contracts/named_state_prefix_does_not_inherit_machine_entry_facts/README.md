@@ -1,6 +1,6 @@
 A machine entry requires value == 1, but passes 2 into a recurrent named
 state with a distinct value formal. The state's call to accept cannot use the
-machine entry fact. Its fuel countdown is valid independently, so rejection
+machine entry fact. Its work countdown is valid independently, so rejection
 must identify accept's unsatisfied Requires rather than a ranking failure.
 
 This exact source has SHA256

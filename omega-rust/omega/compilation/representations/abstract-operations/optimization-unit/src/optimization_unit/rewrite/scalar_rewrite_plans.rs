@@ -19,7 +19,7 @@ pub struct BooleanConstantRewrite {
 }
 
 /// Remove one unused, independently total scalar-producing node. Its source
-/// occurrence and fuel are fused into the immediately following direct node.
+/// occurrence and work are fused into the immediately following direct node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeadScalarNodeRewrite {
     pub location: NodeLocation,
@@ -105,7 +105,7 @@ pub enum ProofCertifiedScalarIdentityKind {
 
 /// Remove one proof-certified integer identity and replace every use of its
 /// live result with the equivalent existing operand. The removed occurrence
-/// and fuel remain realized at the next co-executed node.
+/// and work remain realized at the next co-executed node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProofCertifiedScalarIdentityRewrite {
     pub location: NodeLocation,

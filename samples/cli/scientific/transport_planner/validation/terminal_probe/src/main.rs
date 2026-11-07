@@ -61,7 +61,7 @@ fn main() {
             provider_proposal: None,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
-            fuel_allowance: 10_000_000,
+            work_budget: 10_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(Cursor::new(input.into_bytes()))),
             clock: None,
@@ -101,7 +101,7 @@ fn main() {
             provider_proposal: None,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
-            fuel_allowance: 10_000_000,
+            work_budget: 10_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(Cursor::new(
                 input.as_str().unwrap().as_bytes().to_vec(),

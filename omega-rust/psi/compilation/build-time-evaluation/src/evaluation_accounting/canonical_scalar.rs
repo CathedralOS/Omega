@@ -1,7 +1,7 @@
 //! Source-free inputs and actual charges for canonical scalar entry jobs.
 //! Descriptive provider inputs are retained, never a serialized admission.
 
-use super::{PURE_TERMINAL_FUEL_CEILING, PureTerminalEvaluationOutcome};
+use super::{PURE_PSI_WORK_BUDGET, PureTerminalEvaluationOutcome};
 use compiler_storage::{Record, RecordError, RecordReader};
 use semantic_vocabulary::{ScalarApplicationId, ScalarType, ValueId};
 use std::sync::Arc;
@@ -88,7 +88,7 @@ impl CanonicalScalarScope {
     }
 }
 
-/// One actual entry invocation, with its finite per-invocation allowance.
+/// One actual entry invocation, with its finite per-invocation budget.
 /// Earlier scalar values are inputs, not results fabricated for this entry.
 #[derive(Debug, Clone, Record)]
 pub struct CanonicalScalarEvaluationReceipt {
@@ -97,7 +97,7 @@ pub struct CanonicalScalarEvaluationReceipt {
     values: Vec<(ScalarApplicationId, TerminalScalarValue)>,
     captures: Vec<(ValueId, ScalarType)>,
     outcome: PureTerminalEvaluationOutcome,
-    usage: terminal_fuel::TerminalFuelUsage,
+    usage: psi_work::WorkUsage,
 }
 
 impl CanonicalScalarEvaluationReceipt {
@@ -107,7 +107,7 @@ impl CanonicalScalarEvaluationReceipt {
         values: Vec<(ScalarApplicationId, TerminalScalarValue)>,
         captures: Vec<(ValueId, ScalarType)>,
         outcome: PureTerminalEvaluationOutcome,
-        usage: terminal_fuel::TerminalFuelUsage,
+        usage: psi_work::WorkUsage,
     ) -> Self {
         Self {
             scope,
@@ -131,7 +131,7 @@ impl CanonicalScalarEvaluationReceipt {
     pub fn outcome(&self) -> &PureTerminalEvaluationOutcome {
         &self.outcome
     }
-    pub fn usage(&self) -> &terminal_fuel::TerminalFuelUsage {
+    pub fn usage(&self) -> &psi_work::WorkUsage {
         &self.usage
     }
 
@@ -140,10 +140,10 @@ impl CanonicalScalarEvaluationReceipt {
     }
 
     pub fn validate_charge(&self) -> Result<(), String> {
-        if self.usage.schedule() != terminal_fuel::TerminalFuelSchedule::CURRENT.identity()
-            || self.usage.total_units() > PURE_TERMINAL_FUEL_CEILING
+        if self.usage.schedule() != psi_work::WorkSchedule::CURRENT.identity()
+            || self.usage.total_units() > PURE_PSI_WORK_BUDGET
         {
-            return Err("canonical scalar evaluation fuel policy changed".into());
+            return Err("canonical scalar evaluation work policy changed".into());
         }
         let total = self
             .usage

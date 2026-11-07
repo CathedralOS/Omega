@@ -19,7 +19,7 @@ fn main() {
     let sample = PathBuf::from(&arguments[0]);
     let output = PathBuf::from(&arguments[1]);
     // Match the shipped compiler worker stack; this is its documented current
-    // embedding requirement, not an interpreter recursion or guest fuel change.
+    // embedding requirement, not an interpreter recursion or guest work change.
     let result = std::thread::Builder::new()
         .name("w2-07-validation".into())
         .stack_size(256 * 1024 * 1024)
@@ -91,7 +91,7 @@ fn validate(sample: &Path, output: &Path) -> Result<(), String> {
             artifact,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
-            fuel_allowance: 100_000_000,
+            work_budget: 100_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(Cursor::new(input))),
             clock: None, // This sample demands no clock import.

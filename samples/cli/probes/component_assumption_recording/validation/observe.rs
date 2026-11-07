@@ -99,7 +99,7 @@ fn runtime(root: &Path, output: &Path) {
         artifact: artifact.psi_artifact(),
         target: Some("linux_x86_64"),
         provisions: report.runtime_provisions(),
-        fuel_allowance: 1_000_000,
+        work_budget: 1_000_000,
         domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: None,
         clock: None,

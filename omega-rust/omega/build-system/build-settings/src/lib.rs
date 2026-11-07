@@ -61,7 +61,7 @@ The crate is organized along that lifecycle:
   `provider_installation.rs`, `scalar_completion.rs`, `source_join.rs`,
   `source_result.rs`), plus invocation-local `Pure` build value reuse
   (`completed_pure_build.rs`), which charges each reused evaluation to the
-  current fuel sponsor without fabricating interpreter execution or live-resource
+  current work sponsor without fabricating interpreter execution or live-resource
   peaks.
 - `host/` implements the host imports callable from `build(build: &mut Build)`:
   root bindings and product entry queries (`bindings.rs`, `native_bindings.rs`,

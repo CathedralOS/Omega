@@ -1,4 +1,4 @@
-//! What an execution reports: its result, status, crash site and the fuel
+//! What an execution reports: its result, status, crash site and the work
 //! measure around it.
 
 use crate::boundary::errors::TerminalInterpretError;
@@ -6,11 +6,11 @@ use crate::boundary::values::{
     TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralValue,
 };
 use crate::storage::scalar_array::TerminalScalarArrayResult;
+use psi_work::{WorkBudgetExhausted, WorkMeterError};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, MachineId, OperationId,
     StructuralFieldId,
 };
-use terminal_fuel::{FuelExhaustion, FuelMeterError};
 use terminal_psi::CrashCause;
 
 /// The normal result of terminal-Psi execution.
@@ -117,22 +117,22 @@ impl PartialEq for ScalarCaseStorage {
 impl Eq for ScalarCaseStorage {}
 
 pub(crate) fn meter_status(
-    error: FuelMeterError,
+    error: WorkMeterError,
 ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
     match error {
-        FuelMeterError::Exhausted(exhaustion) => {
+        WorkMeterError::Exhausted(exhaustion) => {
             Ok(TerminalExecutionStatus::SponsorExhausted(exhaustion))
         }
-        other => Err(TerminalInterpretError::Fuel(other)),
+        other => Err(TerminalInterpretError::Work(other)),
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalExecutionStatus {
     Complete(TerminalExecutionResult),
-    SponsorExhausted(FuelExhaustion),
+    SponsorExhausted(WorkBudgetExhausted),
     /// The checked call retains its operands and loans; no completion or
-    /// writeback has occurred. Readiness is independent of scheduling fuel.
+    /// writeback has occurred. Readiness is independent of scheduling work.
     AwaitingEffect(TerminalEffectWait),
     /// Executor-local pause for a synchronous host result, not a guest task
     /// suspension or permission to release the invocation's live storage.

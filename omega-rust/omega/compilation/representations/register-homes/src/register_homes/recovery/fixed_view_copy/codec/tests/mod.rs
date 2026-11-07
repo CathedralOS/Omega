@@ -4,7 +4,7 @@ use crate::{
     FixedViewCopyDestination, FixedViewCopyPolicy,
 };
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
+use optimization_unit::{PsiProvenance, ValueDefinitionSite, WorkSettlement};
 use register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
     RegisterViewId, TargetRegisterEnvironmentIdentity,
@@ -17,8 +17,8 @@ use selected_instructions::{
     VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
-    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
-    ScalarType, ValueId,
+    BlockId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType, ValueId,
+    WorkScheduleIdentity,
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -85,7 +85,7 @@ fn return_successor(edge: u64, block: u32, source: u64) -> SelectedSuccessor {
         block: SelectedBlockId(block),
         source_target: BlockId::new(source).unwrap(),
         bindings: Vec::new(),
-        fuel: Vec::new(),
+        work: Vec::new(),
     }
 }
 
@@ -223,7 +223,7 @@ pub(super) fn successor_parameter_function() -> SelectedFunction {
                     parameter: VirtualRegisterId(2),
                 },
             }],
-            fuel: Vec::new(),
+            work: Vec::new(),
         },
     };
     function.blocks.truncate(2);
@@ -362,8 +362,8 @@ pub(super) fn plan(policy: FixedViewCopyPolicy) -> FixedViewCopyPlan {
         .push(operation);
     function.blocks[0].instructions[0]
         .provenance
-        .fuel
-        .push(FuelSettlement {
+        .work
+        .push(WorkSettlement {
             site: PsiProvenance::Operation(operation),
             units: 7,
         });
@@ -389,7 +389,7 @@ pub(super) fn plan(policy: FixedViewCopyPolicy) -> FixedViewCopyPlan {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([6; 32]),
             },
-            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+            work_schedule: WorkScheduleIdentity::new(1).unwrap(),
             target: target::NativeTarget::linux_x64(),
             entry: function.machine,
             functions: vec![function].into(),

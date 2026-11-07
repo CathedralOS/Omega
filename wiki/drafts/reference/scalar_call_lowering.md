@@ -144,7 +144,7 @@ while an earlier immutable snapshot retains its original value. Local assignment
 use the same primitive-store operation as reference parameters. Source replay
 retains declaration, initializer, destination, borrow occurrence, and read identity.
 The interpreter uses fresh activation-local identities and preserves them across
-fuel suspension. Ordinary Unit calls rejoin their authored local actual and
+work suspension. Ordinary Unit calls rejoin their authored local actual and
 complete borrow event; agreeing cached operands cannot substitute another local.
 Readable primitive-reference initializers retain their original input place,
 independently of dense scalar parameter positions. Write-only reads reject.
@@ -152,7 +152,7 @@ The ordinary native graph realizes fixed 8/16/32/64-bit integer, Boolean, and
 IEEE binary32/binary64 locals, exact-width fresh reads, and borrowed calls.
 [`primitive_local_unit_calls.rs`](../../../omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/tests/primitive_local_unit_calls.rs)
 checks source/borrow substitutions, crash-route arguments, read access, and
-canonical interpretation with one-unit fuel pauses.
+canonical interpretation with one-unit work-budget pauses.
 Checked computation calls retain whole primitive borrows alongside dense scalar
 operands and use the same shared callee closure. Nested calls in ordinary Unit
 operands preserve earlier scalar snapshots, later reads of mutated locals, and
@@ -161,7 +161,7 @@ the ordered borrow observations; exclusive aliases remain invalid. Source replay
 rejoins mutable reads inside computation operands as well as direct arguments.
 The source-to-artifact regressions in
 [`borrowed_computation_arguments.rs`](../../../omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/tests/borrowed_computation_arguments.rs)
-reload and independently verify the artifact, then execute with one-unit fuel
+reload and independently verify the artifact, then execute with one-unit work
 pauses.
 
 Single-state scalar-result graphs also accept plain primitive-reference formals
@@ -172,7 +172,7 @@ catalog before expanding computations. Standalone roots and ordinary Unit
 consumers use the same graph body and `CallStructuralScalar`; there is no Unit
 wrapper. Existing call-free reference leaves retain their scalar-return owner.
 [`borrowed_scalar_root.rs`](../../../omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/tests/borrowed_scalar_root.rs)
-checks returned snapshots, ordered mutations, selected calls, fuel suspension,
+checks returned snapshots, ordered mutations, selected calls, work suspension,
 and source-custody rejection.
 
 Single-state scalar-result graphs also establish initialized primitive locals
@@ -186,7 +186,7 @@ Scalar-only callers of helpers with local storage use the same closure and
 `CallStructuralScalar`, even when the helper has no structural formals.
 [`scalar_local_borrows.rs`](../../../omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/tests/scalar_local_borrows.rs)
 checks canonical reload, independent verification, local identity, ordered
-mutations, snapshots, and one-unit fuel suspension without replay.
+mutations, snapshots, and one-unit work suspension without replay.
 
 Ordinary Unit calls also occupy their authored positions among scalar bindings
 and before scalar control. Their checked call coordinates remain separate from
@@ -203,7 +203,7 @@ Unit body owner; the graph receiver independently rejoins retained source and
 contract custody and rejects mutations without selecting a fallback plan.
 [`scalar_unit_calls.rs`](../../../omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/tests/scalar_unit_calls.rs)
 exercises this composition and rejects omitted, duplicated, reordered, and
-substituted call custody under canonical replay and one-unit fuel suspension.
+substituted call custody under canonical replay and one-unit work suspension.
 The native receiving checks reject substituted or unavailable read homes.
 
 Immutable whole owned inputs retain their authored Affine or Unrestricted
@@ -221,7 +221,7 @@ Claims, nominal cleanup, partial moves, and mutable owned formals remain outside
 this graph route. Affine permission alone never licenses erasing selected cleanup.
 [`owned_scalar_graphs.rs`](../../../omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/tests/owned_scalar_graphs.rs)
 checks canonical publication, source-custody rejection, selected transfers, and
-integer/Boolean field execution under one-unit fuel pauses. The interpreter accepts
+integer/Boolean field execution under one-unit work-budget pauses. The interpreter accepts
 explicit typed scalar-field inputs; it never invents missing field contents.
 Single-state scalar loops carry whole plain-owned inputs through exact block
 parameters, separately from one-shot invocation inputs. The body reads the current
@@ -235,7 +235,7 @@ inventing a termination guarantee. Borrowed loop formals and multiple mixed stat
 signatures remain outside this producer route.
 [`owned_scalar_cycles.rs`](../../../omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/tests/owned_scalar_cycles.rs)
 checks the guarded customer below, canonical reload, independent verification,
-selected calls, exact owned arrivals, ranking mutations, and fuel-paused execution.
+selected calls, exact owned arrivals, ranking mutations, and work-budget-paused execution.
 Owned integer-field native lowering remains unfinished. The primitive-local
 native regressions below are separate from these Terminal interpretation checks.
 
@@ -323,7 +323,7 @@ cargo nextest run -p checked-trees-to-lowered-psi --test owned_scalar_cycles --n
 
 On the legacy fixture,
 `omega inspect-terminal --machine walk --target macos_arm64 main.omg` reports
-the verified Natural component and `fixed_fuel status=unknown`: the existing
+the verified Natural component and `fixed_work status=unknown`: the existing
 fixed-work deriver does not close this graph. The
 [inspection command](../../../omega-rust/omega/application/cli/tests/inspect_terminal.rs)
 keeps proof checking mandatory and fixed-work evidence separate; termination

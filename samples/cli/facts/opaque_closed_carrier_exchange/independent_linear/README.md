@@ -34,8 +34,8 @@ The ownership path retains the following requirements:
   discards nor creates a semantic occurrence.
 
 The local corpus pin additionally observes six actual component calls on one
-retained compiled product. One-unit fuel slices must preserve the normal result,
-all call effects and exact fuel attribution; only fresh instance namespace labels
+retained compiled product. One-unit work slices must preserve the normal result,
+all call effects and exact work attribution; only fresh instance namespace labels
 are normalized. Two separate invocations with one unit less than the required
 budget must exhaust. These three extra interpreter invocations are separate from
 the ordinary native/Terminal pair.

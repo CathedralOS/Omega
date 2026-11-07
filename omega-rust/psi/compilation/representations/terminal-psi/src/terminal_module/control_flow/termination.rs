@@ -97,7 +97,7 @@ pub enum Terminator {
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     /// Transfer one structural value and its complete live claim set to the
-    /// machine result. Fuel is charged before any transfer or cleanup commits.
+    /// machine result. Work is charged before any transfer or cleanup commits.
     ReturnStructural {
         edge: EdgeId,
         source: PlaceId,

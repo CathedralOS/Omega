@@ -162,7 +162,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 ## Embedding and interpreted components
 
 - **EMBEDDING-SOURCE-TO-HOST.** (covers **INTERPRETED-CATHEDRAL**) Finish [embedding](wiki/spec/build/embedding.md), evidence-bearing qualified host inputs, and interpreted Cathedral.
-  Acceptance: embedding host-import/fuel-pause/replacement fixtures and Cathedral's interpreted startup/event/replacement sequence pass.
+  Acceptance: embedding host-import/work-pause/replacement fixtures and Cathedral's interpreted startup/event/replacement sequence pass.
 
 ## Parallel language and compiler lanes
 

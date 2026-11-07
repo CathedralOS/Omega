@@ -9,7 +9,7 @@ use crate::{
     SelectedBlockId, SelectedFunction, SelectedFunctions, SelectedInstructionPlan,
     selected_instruction_plan_identity,
 };
-use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -38,7 +38,7 @@ fn plan(functions: Vec<SelectedFunction>) -> SelectedInstructionPlan {
             vocabulary_marker: VocabularyMarker::CURRENT,
             program_fingerprint: SemanticFingerprint::from_bytes([1; 32]),
         },
-        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+        work_schedule: WorkScheduleIdentity::new(1).unwrap(),
         target: NativeTarget::linux_x64(),
         entry: MachineId::new(1).unwrap(),
         functions: SelectedFunctions::from(functions),

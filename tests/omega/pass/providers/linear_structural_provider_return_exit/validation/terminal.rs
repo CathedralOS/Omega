@@ -24,7 +24,7 @@ fn main() {
     let sample = PathBuf::from(&arguments[0]);
     let output = PathBuf::from(&arguments[1]);
     // Match the shipped compiler worker stack; this is its documented current
-    // embedding requirement, not an interpreter recursion or guest fuel change.
+    // embedding requirement, not an interpreter recursion or guest work change.
     let result = std::thread::Builder::new()
         .name("linear-provider-validation".into())
         .stack_size(256 * 1024 * 1024)
@@ -150,7 +150,7 @@ fn validate(sample: &Path, output: &Path, resume: bool) -> Result<(), String> {
         // This authored pure entry has no arrival parameters or host imports.
         // Use the report's exact installation and target selections; provide
         // no synthetic values, binding roster, grants or effect handler.
-        use terminal_fuel::TerminalFuelMeter;
+        use psi_work::WorkMeter;
         use terminal_interpreter::{
             TerminalProgram, TerminalRuntimeSupplyRequest, TerminalStructuralInputs,
         };
@@ -189,17 +189,17 @@ fn validate(sample: &Path, output: &Path, resume: bool) -> Result<(), String> {
                 .instantiate_installed(&[], TerminalStructuralInputs::default(), &installation)
                 .map_err(|error| format!("{error:?}"))?;
             let first = instance
-                .invoke(&mut TerminalFuelMeter::with_allowance(allowance))
+                .invoke(&mut WorkMeter::with_budget(allowance))
                 .map_err(|error| format!("{error:?}"))?;
             match first {
                 TerminalExecutionStatus::SponsorExhausted(_) => paused += 1,
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => direct += 1,
-                other => return Err(format!("fuel {allowance}: {other:?}")),
+                other => return Err(format!("work {allowance}: {other:?}")),
             }
             if !instance.is_finished() {
                 let final_status = instance
-                    .invoke(&mut TerminalFuelMeter::with_allowance(100_000_000))
-                    .map_err(|error| format!("fuel {allowance} resume: {error:?}"))?;
+                    .invoke(&mut WorkMeter::with_budget(100_000_000))
+                    .map_err(|error| format!("work {allowance} resume: {error:?}"))?;
                 assert_eq!(
                     final_status,
                     TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
@@ -209,14 +209,14 @@ fn validate(sample: &Path, output: &Path, resume: bool) -> Result<(), String> {
         }
         assert!(paused > 0 && direct > 0);
         std::fs::write(
-            output.join("fuel-resume.txt"),
+            output.join("work-resume.txt"),
             format!(
                 "paused={paused} direct={direct} total={}\n",
                 paused + direct
             ),
         )
         .map_err(|error| error.to_string())?;
-        println!("fuel-resume preserved actual custody: {paused} paused, {direct} direct");
+        println!("work-resume preserved actual custody: {paused} paused, {direct} direct");
     }
     let mut fixtures: Vec<PathBuf> = if resume {
         Vec::new()
@@ -249,7 +249,7 @@ fn validate(sample: &Path, output: &Path, resume: bool) -> Result<(), String> {
             artifact,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
-            fuel_allowance: 100_000_000,
+            work_budget: 100_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(Cursor::new(input))),
             clock: None, // This sample demands no clock import.

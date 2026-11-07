@@ -1,7 +1,6 @@
 //! Canonical version-1 publication encoding, not admission against a source.
 use super::{
-    FuelScheduleIdentity, FunctionFragmentObjectContainerManifest,
-    FunctionFragmentObjectContainerManifestDecodeError,
+    FunctionFragmentObjectContainerManifest, FunctionFragmentObjectContainerManifestDecodeError,
     FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentObjectContainerStage,
     FunctionFragmentObjectContainerStatistics, FunctionFragmentObjectContainerUnavailableData,
     FunctionFragmentTextSectionManifestIdentity, MachineId, NativeTarget, ObjectLocalSymbolId,
@@ -9,6 +8,7 @@ use super::{
     RelocationFreeObjectPlanIdentity, RelocationFreeObjectRelocationRequirements,
     RelocationFreeObjectSymbolPolicy, SelectedInstructionPlanIdentity, SemanticFingerprint,
     TerminalPsiIdentity, TerminalRelocationFreeTextSectionIdentity, VocabularyMarker,
+    WorkScheduleIdentity,
 };
 use crate::cursor::Cursor;
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTOM\0\0";
@@ -59,9 +59,9 @@ impl FunctionFragmentObjectContainerManifest {
             vocabulary_marker,
             program_fingerprint: SemanticFingerprint::from_bytes(cursor.array()?),
         };
-        let fuel = cursor.u32()?;
-        let fuel_schedule = FuelScheduleIdentity::new(fuel)
-            .ok_or(FunctionFragmentObjectContainerManifestDecodeError::InvalidFuelSchedule)?;
+        let work = cursor.u32()?;
+        let work_schedule = WorkScheduleIdentity::new(work)
+            .ok_or(FunctionFragmentObjectContainerManifestDecodeError::InvalidWorkSchedule)?;
         let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
         let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
         let target = NativeTarget::from_wire_identity_bytes(&cursor.array()?)?;
@@ -110,7 +110,7 @@ impl FunctionFragmentObjectContainerManifest {
             source_text_section_manifest,
             text_section,
             psi,
-            fuel_schedule,
+            work_schedule,
             selections,
             selected,
             target,
@@ -140,7 +140,7 @@ pub(super) fn encode_manifest_content(record: &FunctionFragmentObjectContainerMa
     bytes.extend_from_slice(&record.text_section.bytes());
     crate::codec_bytes::push_encoded(&mut bytes, record.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(record.psi.program_fingerprint.as_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, record.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.work_schedule.marker().to_le_bytes());
     bytes.extend_from_slice(&record.selections.bytes());
     bytes.extend_from_slice(&record.selected.bytes());
     bytes.extend_from_slice(&record.target.wire_identity_bytes());

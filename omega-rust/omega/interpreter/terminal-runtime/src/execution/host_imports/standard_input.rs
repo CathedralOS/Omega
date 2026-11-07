@@ -116,7 +116,7 @@ impl TerminalEffectHandler for ReadByteImport<'_> {
         let mut byte = [0u8];
         // This leaf promises one read attempt. Even an interrupted attempt
         // follows its declared Trap route; retrying would hide a host failure
-        // and consume extra effects outside the guest operation's fuel charge.
+        // and consume extra effects outside the guest operation's work charge.
         let read = input.read(&mut byte);
         let (result_case, fields) = match read {
             Ok(0) => (self.empty_case, Vec::new()),

@@ -28,7 +28,7 @@ pub(in crate::selection) trait InvocationArgumentSource {
     fn invocation_site(&self) -> semantic_vocabulary::InvocationSite;
     fn invocation_call_plan(&self) -> Option<&calling_conventions::CallPlan>;
     fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent];
-    fn invocation_fuel(&self) -> &[optimization_unit::FuelSettlement];
+    fn invocation_work(&self) -> &[optimization_unit::WorkSettlement];
     fn invocation_argument_place(&self, position: usize) -> Option<semantic_vocabulary::PlaceId>;
 }
 
@@ -50,8 +50,8 @@ impl InvocationArgumentSource for LegalizedScalarInstruction {
     fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent] {
         &self.ownership
     }
-    fn invocation_fuel(&self) -> &[optimization_unit::FuelSettlement] {
-        &self.fuel
+    fn invocation_work(&self) -> &[optimization_unit::WorkSettlement] {
+        &self.work
     }
     fn invocation_argument_place(&self, position: usize) -> Option<semantic_vocabulary::PlaceId> {
         match &self.kind {
@@ -78,7 +78,7 @@ pub(super) struct TerminalInvocation<'a> {
     pub edge: semantic_vocabulary::EdgeId,
     pub call: &'a LegalizedScalarCall,
     pub ownership: &'a [optimization_unit::OwnershipEvent],
-    pub fuel: &'a [optimization_unit::FuelSettlement],
+    pub work: &'a [optimization_unit::WorkSettlement],
 }
 
 impl InvocationArgumentSource for TerminalInvocation<'_> {
@@ -91,8 +91,8 @@ impl InvocationArgumentSource for TerminalInvocation<'_> {
     fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent] {
         self.ownership
     }
-    fn invocation_fuel(&self) -> &[optimization_unit::FuelSettlement] {
-        self.fuel
+    fn invocation_work(&self) -> &[optimization_unit::WorkSettlement] {
+        self.work
     }
     fn invocation_argument_place(&self, position: usize) -> Option<semantic_vocabulary::PlaceId> {
         match self.call.arguments.get(position)? {

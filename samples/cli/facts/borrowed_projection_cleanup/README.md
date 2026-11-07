@@ -94,7 +94,7 @@ coverage of that production, not execution of these new compositions.
 This completed CML4 row establishes normal death after borrowed supplier reads.
 Its nine places run on macOS ARM64, including the reference-free projected
 supplier. The separate ordered-edge controls run on Linux x86-64 and Windows
-x86-64. Producer `b457b1978b87` refreshes the macOS row and fuel/retry provision;
+x86-64. Producer `b457b1978b87` refreshes the macOS row and work/retry provision;
 the Linux/Windows runs cover the ordered-edge controls and returned-linear row.
 
 ```sh

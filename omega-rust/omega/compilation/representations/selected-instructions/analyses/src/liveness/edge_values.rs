@@ -175,7 +175,7 @@ pub(crate) fn validate_transports(
                 || instruction.kind != selected_instructions::SelectedInstructionKind::Crash
                 || instruction.provenance.operations.as_slice() != [*operation]
                 || !instruction.provenance.edges.is_empty()
-                || !instruction.provenance.fuel.is_empty())
+                || !instruction.provenance.work.is_empty())
         {
             return Err(mismatch());
         }
@@ -201,7 +201,7 @@ pub(crate) fn validate_transports(
                     | SelectedBlockOrigin::CaseDispatch { .. }
                     | SelectedBlockOrigin::Operation { .. },
                     SelectedSuccessorRole::CaseDispatchContinuation,
-                ) if edge.fuel.is_empty()
+                ) if edge.work.is_empty()
                     && edge.bindings.is_empty()
                     && edge.structural_bindings.is_empty()
                     && edge.structural_case.is_none()
@@ -213,7 +213,7 @@ pub(crate) fn validate_transports(
                     SelectedBlockOrigin::Source(_) | SelectedBlockOrigin::Operation { .. },
                     SelectedSuccessorRole::OperationContinuation { operation },
                 ) if edge.source_target == block.source_block()
-                    && edge.fuel.is_empty()
+                    && edge.work.is_empty()
                     && edge.bindings.is_empty()
                     && edge.structural_bindings.is_empty()
                     && edge.structural_case.is_none()
@@ -227,7 +227,7 @@ pub(crate) fn validate_transports(
                         .is_empty()
                     && selected_instructions::terminator_instruction(&block.terminator)
                         .provenance
-                        .fuel
+                        .work
                         .is_empty() => {}
                 (
                     SelectedBlockOrigin::EdgeTransfer {
@@ -237,7 +237,7 @@ pub(crate) fn validate_transports(
                     SelectedSuccessorRole::EdgeTransferContinuation,
                 ) if Some(owner) == edge.psi_edge
                     && target == edge.source_target
-                    && edge.fuel.is_empty()
+                    && edge.work.is_empty()
                     && matches!(block.terminator, SelectedTerminator::Jump { .. }) => {}
                 _ => return Err(mismatch()),
             }

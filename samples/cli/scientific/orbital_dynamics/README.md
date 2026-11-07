@@ -88,13 +88,13 @@ python3 -B "$project/validation/check_output.py" /path/to/terminal-observations
 Std source-risk disclosures do not authorize host access. Package preparation
 and the Terminal observer retain the normal acceptance, executable identity,
 provider, authority and custody checks. Denial is a blocker. `run --both` checks
-termination parity when both routes complete. Its default reference fuel can be
+termination parity when both routes complete. Its default reference work can be
 exhausted by a complete one-period numerical report; that DECLINED result does
-not establish parity. The public observer uses a bounded 200-million-unit fuel
+not establish parity. The public observer uses a bounded 200-million-unit work
 allowance. Numerical acceptance comes from the actual captured outputs.
 The observer executes the exact retained Terminal artifact using the ordinary
 runtime provisions of the accepted native product, with finite stdin and bounded
-fuel. It never substitutes source interpretation or reconstructed grants.
+work. It never substitutes source interpretation or reconstructed grants.
 
 `controls/intended_invalid/main.omg` independently calls the same coordinate
 bound contract with `1000001.0`. It must be rejected because that precondition is

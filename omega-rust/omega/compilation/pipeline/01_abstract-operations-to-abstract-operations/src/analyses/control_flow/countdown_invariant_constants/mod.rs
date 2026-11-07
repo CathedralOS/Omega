@@ -2,9 +2,8 @@
 
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
-    EffectLink, FuelSettlement, NodeLocation, OptimizationBlock, OptimizationNode,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinition,
-    ValueDefinitionSite,
+    EffectLink, NodeLocation, OptimizationBlock, OptimizationNode, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiProvenance, ValueDefinition, ValueDefinitionSite, WorkSettlement,
 };
 
 use crate::validation::ValidatedOptimizerCycleComponents;
@@ -51,7 +50,7 @@ pub(crate) struct CountdownInvariantIntegerConstant {
     pub value: IntegerValue,
     pub definition: ValueDefinition,
     pub provenance: Vec<PsiProvenance>,
-    pub fuel: Vec<FuelSettlement>,
+    pub work: Vec<WorkSettlement>,
     pub effect: EffectLink,
 }
 
@@ -293,7 +292,7 @@ pub(crate) fn invariant_constant_row(
         value,
         definition: *definition,
         provenance: node.provenance.clone(),
-        fuel: node.fuel.clone(),
+        work: node.work.clone(),
         effect: node.effect,
     })
 }
