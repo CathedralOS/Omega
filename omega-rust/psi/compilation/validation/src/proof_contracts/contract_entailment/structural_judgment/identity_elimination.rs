@@ -83,20 +83,18 @@ impl StructuralJudge<'_> {
         // Normalize before installing this premise. Its desired consequence
         // cannot supply an operand's missing formation or call admission.
         let normalized = [left.clone(), right.clone()].map(|value| self.resolve(value));
-        self.retain_identity_pair(left, right);
+        if !left.same_resolution_payload(&normalized[0])
+            || !right.same_resolution_payload(&normalized[1])
+        {
+            self.retain_identity_pair(left, right);
+        }
         self.eliminate_identity(normalized[0].clone(), normalized[1].clone(), 0);
         self.activate_conditional_guarantees();
     }
 
     fn retain_identity_pair(&mut self, left: StructuralTerm, right: StructuralTerm) {
-        if !self.captured_result_equations.iter().any(|known| {
-            known.is_data_identity()
-                && known.left.same_resolution_payload(&left)
-                && known.right.same_resolution_payload(&right)
-        }) {
-            Arc::make_mut(&mut self.captured_result_equations)
-                .push(super::normal_returns::CapturedResultEquation::data_identity((left, right)));
-        }
+        Arc::make_mut(&mut self.captured_result_equations)
+            .push(super::normal_returns::CapturedResultEquation::data_identity((left, right)));
     }
 
     fn eliminate_identity(&mut self, left: StructuralTerm, right: StructuralTerm, depth: usize) {
