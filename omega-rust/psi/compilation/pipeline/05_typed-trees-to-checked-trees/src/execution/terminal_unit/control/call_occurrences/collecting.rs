@@ -401,6 +401,17 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         calls,
         &mut consumed,
     )?;
+    if selected.is_some() {
+        if selected
+            .as_deref()?
+            .operands_reschedule_producer(call, &consumed.calls)
+        {
+            return None;
+        }
+        // Release the borrowed common prefix before joining branch-local work.
+        let calls = consumed.calls;
+        return selected.as_deref_mut()?.account(facts, call, &calls);
+    }
     let scheduled_subject = |candidate: &checked_trees::FlowCallFact| {
         scheduled_dispatch_subject(
             program,
@@ -420,12 +431,6 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         .any(|handle| scheduled_subject(facts.flow.control.calls.get(*handle)))
     {
         return None;
-    }
-    if selected.is_some() {
-        // The branch owns these rows; release the borrowed common prefix
-        // before recording its completed inventory on the selection.
-        let calls = consumed.calls;
-        return selected.as_deref_mut()?.account(facts, call, &calls);
     }
     let active_arm = validation::transition_call_target(
         program,
@@ -572,28 +577,42 @@ pub(super) fn scheduled_dispatch_subject(
     calls: &[checked_trees::FlowCallFact],
     predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
 ) -> bool {
-    let Some((statement, expression)) = validation::saved_dispatch_call(
+    super::dispatch_producers::authenticated_producer(
         program,
+        facts,
         state,
-        candidate.statement_index,
-        candidate.authored_expression,
-    ) else {
-        return false;
-    };
-    let mut producers = calls.iter().filter(|producer| {
-        producer.statement_index == statement && producer.authored_expression == expression
-    });
-    let Some(producer) = producers.next() else {
-        return false;
-    };
-    if producers.next().is_some()
-        || facts.flow.control.is_retired(state.symbol, producer)
-        || producer.target_symbol != candidate.target_symbol
-        || (producer.statement_index, producer.call_ordinal)
-            >= (invocation.statement_index, invocation.call_ordinal)
-    {
-        return false;
-    }
+        candidate,
+        |statement, expression| {
+            let mut producers = calls.iter().filter(|producer| {
+                producer.statement_index == statement && producer.authored_expression == expression
+            });
+            let producer = producers.next()?;
+            producers.next().is_none().then_some(producer)
+        },
+        |producer| {
+            scheduled_owner_count(
+                program,
+                facts,
+                machine,
+                state,
+                producer,
+                calls,
+                predecessors,
+            )
+        },
+    )
+    .is_some_and(|producer| producer < (invocation.statement_index, invocation.call_ordinal))
+}
+
+fn scheduled_owner_count(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    producer: &checked_trees::FlowCallFact,
+    calls: &[checked_trees::FlowCallFact],
+    predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
+) -> Option<usize> {
     let mut owners = 0;
     for operation in predecessors {
         let Some(planned) = operation.call() else {
@@ -604,10 +623,10 @@ pub(super) fn scheduled_dispatch_subject(
                 && candidate.call_ordinal == planned.coordinate.call_ordinal as usize
         });
         let Some(prior) = occurrences.next() else {
-            return false;
+            return None;
         };
         if occurrences.next().is_some() || facts.flow.control.is_retired(state.symbol, prior) {
-            return false;
+            return None;
         }
         if std::ptr::eq(prior, producer) {
             owners += 1;
@@ -625,7 +644,7 @@ pub(super) fn scheduled_dispatch_subject(
             prior.statement_index,
             prior.call_ordinal,
         ) else {
-            return false;
+            return None;
         };
         let mut consumed = super::CallOccurrenceLedger::default();
         if collect_argument_calls(
@@ -640,7 +659,7 @@ pub(super) fn scheduled_dispatch_subject(
         )
         .is_none()
         {
-            return false;
+            return None;
         }
         if consumed
             .iter()
@@ -649,7 +668,7 @@ pub(super) fn scheduled_dispatch_subject(
             owners += 1;
         }
     }
-    owners == 1
+    Some(owners)
 }
 
 pub(super) fn collect_argument_calls(

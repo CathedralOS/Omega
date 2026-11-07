@@ -46,7 +46,7 @@ pub(super) fn build(
     let call_roster = facts.flow.control.calls.span_or_empty(flow.calls);
     trace.phase("Unit completion: shared occurrence prefix");
     trace.statement(Some(statement));
-    let mut selected = control::SelectedInvocationAccounting::new(program, facts, root)?;
+    let mut selected = control::SelectedInvocationAccounting::new(program, facts, root, preamble)?;
     let mut bind_call =
         |node: &checked_trees::CheckedCompletionExpression,
          source_call: arena::Handle<checked_trees::FlowCallFact>| {

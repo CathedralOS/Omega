@@ -2,6 +2,7 @@
 //! unscheduled work on the current branch. Each leaf still proves its complete
 //! operand custody. Only the final all-leaf join can cover the statement.
 
+use super::dispatch_producers::{CallOrder, DispatchProducers};
 use super::{CallOccurrenceLedger, CallOccurrencePrefix, CheckFacts, SymbolHandle};
 use arena::{Handle, HandleSpan};
 use checked_trees::{CheckedCompletionExpressionKind as Kind, FlowCallFact};
@@ -19,6 +20,8 @@ pub(in crate::execution::terminal_unit) struct SelectedInvocationAccounting {
     accounted: BTreeSet<CallKey>,
     prefix: CallOccurrencePrefix,
     guard_maximum: Option<usize>,
+    producers: DispatchProducers,
+    prefix_producer_minimum: Option<CallOrder>,
     first: Handle<FlowCallFact>,
     expression_calls: BTreeMap<(usize, u32, u32), Option<Handle<FlowCallFact>>>,
 }
@@ -40,6 +43,7 @@ impl SelectedInvocationAccounting {
         program: &dyn validation::CheckingInput,
         facts: &CheckFacts,
         root: &checked_trees::CheckedCompletionRoot,
+        predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
     ) -> Option<Self> {
         if root.refusal.is_some() {
             return None;
@@ -123,6 +127,24 @@ impl SelectedInvocationAccounting {
         {
             return None;
         }
+        let machine = program.machine_by_symbol(root.machine)?;
+        let state = program.state_in_machine(machine, root.state)?;
+        let producers = DispatchProducers::prepare(
+            program,
+            facts,
+            machine,
+            state,
+            roster,
+            root.statement_ordinal as usize,
+            predecessors,
+        );
+        // Any prefix producer preceding this leaf is forbidden. Its minimum
+        // order answers that question without revisiting the shared prefix.
+        let prefix_producer_minimum = prefix
+            .calls
+            .iter()
+            .filter_map(|handle| producers.producer(*handle))
+            .min();
         let accounted = prefix.calls.iter().copied().map(key).collect();
         let computations = prefix
             .accounted_computations
@@ -154,6 +176,8 @@ impl SelectedInvocationAccounting {
                 computations,
             },
             guard_maximum,
+            producers,
+            prefix_producer_minimum,
             first,
             expression_calls,
         })
@@ -196,6 +220,18 @@ impl SelectedInvocationAccounting {
             },
             self.guard_maximum,
         )
+    }
+
+    pub(super) fn operands_reschedule_producer(
+        &self,
+        call: &FlowCallFact,
+        operands: &[Handle<FlowCallFact>],
+    ) -> bool {
+        self.prefix_producer_minimum
+            .is_some_and(|producer| producer < (call.statement_index, call.call_ordinal))
+            || operands
+                .iter()
+                .any(|handle| self.producers.before(*handle, call))
     }
 
     pub(super) fn account(
@@ -300,16 +336,12 @@ impl SelectedInvocationAccounting {
                     .calls
                     .handle_of(call)
                     .is_some_and(|handle| self.accounted.contains(&key(handle)))
-                    || super::collecting::scheduled_dispatch_subject(
-                        program,
-                        facts,
-                        machine,
-                        state,
-                        first,
-                        call,
-                        calls,
-                        predecessors,
-                    )
+                    || facts
+                        .flow
+                        .control
+                        .calls
+                        .handle_of(call)
+                        .is_some_and(|handle| self.producers.before(handle, first))
                     || super::collecting::scheduled_by_active_arm(call, predecessors)
                     || super::collecting::other_transition_arm(
                         program, machine, state, active_arm, call,

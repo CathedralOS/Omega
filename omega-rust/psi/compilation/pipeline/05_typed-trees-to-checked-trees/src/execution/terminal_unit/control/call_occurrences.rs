@@ -113,6 +113,7 @@ impl CallOccurrenceLedger<'_> {
 /// Return the authored identity to join captured occurrences; the call builder
 /// separately resolves the callee's executable entry and signature.
 mod collecting;
+mod dispatch_producers;
 mod selected_calls;
 mod structural_values;
 mod traced;
