@@ -389,7 +389,8 @@ impl Replay {
             };
             let metadata = fs::symlink_metadata(&file.path);
             let permissions_changed = metadata.as_ref().map_or(true, |value| {
-                !permissions_match(&value.permissions(), &file.permissions)
+                !value.file_type().is_file()
+                    || !permissions_match(&value.permissions(), &file.permissions)
             });
             if actual.as_ref().map_or(true, |value| value != expected) || permissions_changed {
                 self.preserve_input(file, &format!("{phase}-{point}"))?;
@@ -501,7 +502,8 @@ impl Replay {
                     || fs::symlink_metadata(&file.path)
                         .as_ref()
                         .map_or(true, |value| {
-                            !permissions_match(&value.permissions(), &file.permissions)
+                            !value.file_type().is_file()
+                                || !permissions_match(&value.permissions(), &file.permissions)
                         })
                 {
                     self.preserve_input(
