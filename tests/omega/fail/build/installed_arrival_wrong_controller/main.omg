@@ -1,8 +1,8 @@
 // The selected forwarding body calls a different exact completion, despite
 // retaining the same owned Ack type and same underlying PIC action.
-use installed::ArrivalForwarding;
-use installed::PicTimerAcknowledgement;
-use installed::start;
+use installed::build::ArrivalForwarding;
+use installed::build::PicTimerAcknowledgement;
+use installed::build::start;
 use omega::language::core::interrupt;
 use omega::language::core::static_interrupt;
 public WrongArrivalForwarding satisfies ArrivalForwarding {

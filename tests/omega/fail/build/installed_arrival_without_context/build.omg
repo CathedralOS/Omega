@@ -1,14 +1,15 @@
 use omega::language::core::static_interrupt;
 machine build(builder: &mut Build) {
-    Build::package(builder, "installed_arrival_without_context");
+    Build::application(builder, "installed_arrival_without_context");
     builder.freestanding = true;
     Build::depend_as(builder, "std", Source::Path { location: "../../../../../source/library/std" });
-    Build::select_representation<InterruptAcknowledgement, CathedralAcknowledgementRepresentation>(builder);
+    Build::depend_as(builder, "installed", Source::Path { location: "../../../packages/installed-arrival-floor" });
+    Build::select_representation<InterruptAcknowledgement, installed::build::CathedralAcknowledgementRepresentation>(builder);
     Build::select_representation<StaticInterruptCompletionPermit, StaticInterruptCompletionPermitRepresentation>(builder);
-    Build::select_provider<BootstrapInterruptRegistrar, CheckedBootstrapInterruptRegistrar>(builder, linux_x86_64);
-    Build::select_provider<TaskStatePreparation, BootstrapTaskStatePreparation>(builder, linux_x86_64);
-    Build::select_provider<ArrivalForwarding, CheckedArrivalForwarding>(builder, linux_x86_64);
+    Build::select_provider<installed::build::BootstrapInterruptRegistrar, installed::build::CheckedBootstrapInterruptRegistrar>(builder, linux_x86_64);
+    Build::select_provider<installed::build::TaskStatePreparation, installed::build::BootstrapTaskStatePreparation>(builder, linux_x86_64);
+    Build::select_provider<installed::build::ArrivalForwarding, installed::build::CheckedArrivalForwarding>(builder, linux_x86_64);
     Build::accept_boundary<TaskRegisterControl>(builder);
     Build::select_provider<TaskRegisterControl, X86TaskRegisterControl>(builder, linux_x86_64);
-    Build::bind(builder, linux_x86_64::ProgramEntry, start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, installed::build::start);
 }
