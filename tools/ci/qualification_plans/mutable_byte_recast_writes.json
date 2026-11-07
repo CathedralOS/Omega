@@ -37,15 +37,7 @@
     "cache_key": "compiler-regression-Linux-X64-e7d7bc45fcf8344150b4b21d2d5cf72f236f5b35a741236d042b173e80e89d00-746f6e54dbfac01d8a96515fe8fbdbff551e8c77-prepared-v1-with-runner"
   },
   "fixtures": [
-    "pass/recast/runtime_record_array_view_mutable_write_exit",
-    "fail/recast/borrowed_byte_offset_short",
-    "fail/recast/borrowed_byte_mutable_source_facts",
-    "fail/recast/borrowed_byte_overlapping_loan",
-    "fail/recast/borrowed_byte_shared_to_mutable",
-    "fail/recast/byte_record_field_predicate",
-    "fail/recast/partial_ascii_recast_does_not_restore_field",
-    "fail/collections/guarded_computed_index_overrun",
-    "fail/collections/private_cycle_unguarded_reentry"
+    "pass/recast/runtime_record_array_view_mutable_write_exit"
   ],
   "source_only": true,
   "samples": [],
