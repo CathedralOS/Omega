@@ -4,6 +4,7 @@
 
 pub(crate) mod proof_bearing_scalar;
 pub(crate) mod scalar_array;
+pub mod scalar_demand;
 pub(crate) mod scalar_field_requirements;
 pub(crate) mod scalar_leaf_schema;
 pub(crate) mod scalar_leaf_semantics;
