@@ -126,27 +126,60 @@ pub(super) fn guarded(
             // custody owners; they cannot be relabeled as fresh value returns.
             return None;
         };
-        let expression = match crate::flow::state_statements(program, state.statement_nodes)
-            .get(*statement_ordinal as usize)?
-        {
-            StatementNode::Expression(expression) if !is_continuation => *expression,
-            StatementNode::Transition(transition)
-                if transition.exit == TransitionExit::Ordinary =>
+        let (expression, target) =
+            match crate::flow::state_statements(program, state.statement_nodes)
+                .get(*statement_ordinal as usize)?
             {
-                let target = if *is_continuation {
-                    transition.continuation
-                } else {
-                    transition.target
-                };
-                let TransitionTargetNode::Value(expression) =
-                    program.statement_table.transition_target(target)
-                else {
-                    return None;
-                };
-                *expression
+                StatementNode::Expression(expression) if !is_continuation => {
+                    (*expression, Default::default())
+                }
+                StatementNode::Transition(transition)
+                    if transition.exit == TransitionExit::Ordinary =>
+                {
+                    let target = if *is_continuation {
+                        transition.continuation
+                    } else {
+                        transition.target
+                    };
+                    let TransitionTargetNode::Value(expression) =
+                        program.statement_table.transition_target(target)
+                    else {
+                        return None;
+                    };
+                    (*expression, target)
+                }
+                _ => return None,
+            };
+        let flow = state_flow(facts, machine.symbol, state.symbol)?;
+        let mut outgoing = facts
+            .flow
+            .control
+            .outgoing
+            .span(flow.outgoing)?
+            .iter()
+            .filter(|row| {
+                row.machine_symbol == machine.symbol
+                    && row.state_symbol == state.symbol
+                    && row.statement_index == *statement_ordinal as usize
+                    && row.transition_target == target
+            });
+        let copied_payloads = outgoing.next()?.copied_payloads;
+        if outgoing.next().is_some() {
+            return None;
+        }
+        for copy in facts.flow.control.operands.span(copied_payloads)? {
+            if copy.state_symbol != state.symbol
+                || copy.statement_index != *statement_ordinal as usize
+                || copy.evaluation
+                    != checked_trees::FlowPermissionEvaluation::TransitionTarget(target)
+                || !matches!(
+                    copy.completion,
+                    checked_trees::FlowOperandCompletion::Copied { .. }
+                )
+            {
+                return None;
             }
-            _ => return None,
-        };
+        }
         if validation::completing_call_transfer(program, expression)
             .is_some_and(|transfer| fused_target_index(program, fused, transfer.target).is_some())
         {
@@ -167,7 +200,12 @@ pub(super) fn guarded(
             expression,
             trace,
         )?;
-        return_values.push(operation);
+        return_values.push(checked_trees::CheckedGuardedReturnValue {
+            statement_ordinal: *statement_ordinal,
+            transition_target: target,
+            operation,
+            copied_payloads,
+        });
         preamble.extend(operand_calls);
     }
     Some((

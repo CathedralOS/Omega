@@ -79,6 +79,16 @@ pub fn state_position(
     states.iter().position(|candidate| candidate.state == state)
 }
 
+/// One selected return and the payload copies completed before its operands.
+/// The producer joins the exact outgoing target; lowering consumes this list.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedGuardedReturnValue {
+    pub statement_ordinal: u32,
+    pub transition_target: typed_trees::statement::TransitionTargetHandle,
+    pub operation: CheckedUnitEffectOperationPlan,
+    pub copied_payloads: arena::HandleSpan<crate::FlowOperandFact>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedControlResultPlan {
     Unit,
@@ -319,7 +329,7 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
     Guarded {
         arms: arena::HandleSpan<CheckedScalarGuardedExit>,
         fallback: Option<CheckedScalarBranchDestination>,
-        return_values: Vec<CheckedUnitEffectOperationPlan>,
+        return_values: Vec<CheckedGuardedReturnValue>,
     },
     Jump {
         successor: CheckedStructuralControlSuccessorPlan,
@@ -426,9 +436,9 @@ impl CheckedComposedUnitControlTerminatorPlan {
                     } => return_values
                         .iter()
                         .find(|operation| {
-                            operation.source_statement_index() == Some(*statement_ordinal)
+                            operation.operation.source_statement_index() == Some(*statement_ordinal)
                         })
-                        .is_none_or(CheckedUnitEffectOperationPlan::has_normal_continuation),
+                        .is_none_or(|returned| returned.operation.has_normal_continuation()),
                     CheckedScalarBranchDestination::Jump(_) => true,
                 };
                 guarded_exits
@@ -696,7 +706,10 @@ impl CheckedComposedUnitControlStatePlan {
     pub fn operation_dependencies(&self) -> impl Iterator<Item = &CheckedUnitEffectOperationPlan> {
         let selected: Vec<_> = match &self.terminator {
             CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
-                return_values.iter().collect()
+                return_values
+                    .iter()
+                    .map(|returned| &returned.operation)
+                    .collect()
             }
             _ => self
                 .terminator

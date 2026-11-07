@@ -112,7 +112,9 @@ pub(super) fn account<'calls>(
     let guarded_return_construction_uses = match terminator {
         TerminatorPlan::Guarded { return_values, .. } => return_values
             .iter()
-            .map(|value| construction_local_uses(facts, state.symbol, std::iter::once(value)))
+            .map(|value| {
+                construction_local_uses(facts, state.symbol, std::iter::once(&value.operation))
+            })
             .collect::<Option<Vec<_>>>()?,
         _ => Vec::new(),
     };
@@ -858,7 +860,7 @@ pub(super) fn account<'calls>(
                         return None;
                     };
                     let transfers = prefix_transfers
-                        + value.definite_call_transfers(
+                        + value.operation.definite_call_transfers(
                             &facts.values,
                             call_schedules,
                             operation,

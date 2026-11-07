@@ -79,7 +79,7 @@ impl ScalarCallSite<'_> {
             } = &state.terminator
             {
                 for returned in return_values {
-                    let dependencies = vec![returned];
+                    let dependencies = vec![&returned.operation];
                     if owns(&dependencies) && selected.replace(dependencies).is_some() {
                         return None;
                     }

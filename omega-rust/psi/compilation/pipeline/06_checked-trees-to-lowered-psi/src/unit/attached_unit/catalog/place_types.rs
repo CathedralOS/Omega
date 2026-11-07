@@ -78,7 +78,10 @@ fn collect_scope<'plans>(
         };
         if let Terminator::Guarded { return_values, .. } = &control.terminator {
             for operation in return_values {
-                collector.operations(std::iter::once(operation), &mut namespace.clone())?;
+                collector.operations(
+                    std::iter::once(&operation.operation),
+                    &mut namespace.clone(),
+                )?;
             }
         }
         for arm in control.terminator.return_arms() {

@@ -184,7 +184,7 @@ pub(super) fn emit_return(
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     destination: &checked_trees::CheckedScalarBranchDestination,
-    operation: &CheckedUnitEffectOperationPlan,
+    returned: &checked_trees::CheckedGuardedReturnValue,
     catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
     claims: crate::emission::claim_bindings::PublishedClaims<'_>,
@@ -198,10 +198,12 @@ pub(super) fn emit_return(
     owner: symbols::SymbolHandle,
     sequence: &mut crate::unit::attached_unit::composed_control::emission::OperationSequence,
 ) -> Result<Terminator, LoweringError> {
+    let operation = &returned.operation;
     let copied_values = DispatchCopies::new(checked, state, owner, catalogs, erased_parameters)
-        .capture_return(
+        .capture(
             identities,
-            destination,
+            returned.statement_ordinal,
+            returned.copied_payloads,
             parameters,
             FrameValues {
                 source_value_count: values.len(),

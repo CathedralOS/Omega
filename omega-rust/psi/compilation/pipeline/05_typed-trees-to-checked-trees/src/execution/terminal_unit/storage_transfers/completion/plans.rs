@@ -340,14 +340,14 @@ impl<'a> ComposedCompletion<'a> {
                     output.push(self.scalar_destination(
                         &arm.destination,
                         &guards,
-                        &return_values[index],
+                        &return_values[index].operation,
                     )?);
                 }
                 if let Some(fallback) = fallback {
                     output.push(self.scalar_destination(
                         fallback,
                         &guards,
-                        &return_values[arms.len()],
+                        &return_values[arms.len()].operation,
                     )?);
                 }
             }

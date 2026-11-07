@@ -45,58 +45,11 @@ impl<'a, 'c> DispatchCopies<'a, 'c> {
         }
     }
 
-    /// The checked return selects its original target, including continuation.
-    /// Neither source syntax nor the primary arm can substitute that identity.
-    pub(in crate::unit::attached_unit::composed_control::state_graph) fn capture_return(
-        &mut self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        destination: &checked_trees::CheckedScalarBranchDestination,
-        parameters: &[StructuralParameterDeclaration],
-        frame: FrameValues<'_>,
-        sequence: &mut crate::unit::attached_unit::composed_control::emission::OperationSequence,
-    ) -> Result<Vec<CompletedCopy>, LoweringError> {
-        let checked_trees::CheckedScalarBranchDestination::Return {
-            statement_ordinal,
-            is_continuation,
-        } = destination
-        else {
-            return unsupported("selected return has no checked return destination");
-        };
-        let Some(transition) = self
-            .checked
-            .facts
-            .executable_bindings
-            .transition(self.state.state, *statement_ordinal as usize)
-        else {
-            if *is_continuation {
-                return unsupported("selected continuation lost its checked transition");
-            }
-            // A body's final expression has no selected transition payloads.
-            return Ok(Vec::new());
-        };
-        let target = if *is_continuation {
-            transition.continuation
-        } else {
-            transition.primary
-        };
-        if !target.is_valid() {
-            return unsupported("selected return lost its exact checked target");
-        }
-        self.capture(
-            identities,
-            *statement_ordinal,
-            target,
-            parameters,
-            frame,
-            sequence,
-        )
-    }
-
     pub(in crate::unit::attached_unit::composed_control::state_graph) fn capture(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         statement_ordinal: u32,
-        target: typed_trees::statement::TransitionTargetHandle,
+        copied_payloads: arena::HandleSpan<checked_trees::FlowOperandFact>,
         parameters: &[StructuralParameterDeclaration],
         frame: FrameValues<'_>,
         sequence: &mut crate::unit::attached_unit::composed_control::emission::OperationSequence,
@@ -113,28 +66,10 @@ impl<'a, 'c> DispatchCopies<'a, 'c> {
             operations,
             ..
         } = frame;
-        let Some(flow_state) = checked.facts.flow.control.unique_state(owner, state.state) else {
-            return Ok(Vec::new());
-        };
-        let mut outgoing_rows = flow_facts(checked)
-            .control
-            .outgoing
-            .span_or_empty(flow_state.outgoing)
-            .iter()
-            .filter(|outgoing| {
-                outgoing.statement_index == statement_ordinal as usize
-                    && outgoing.transition_target == target
-            });
-        let Some(outgoing) = outgoing_rows.next() else {
-            return Ok(Vec::new());
-        };
-        if outgoing_rows.next().is_some() {
-            return unsupported("selected payload entry has ambiguous completed flow");
-        }
         let copies = flow_facts(checked)
             .control
             .operands
-            .span_or_empty(outgoing.copied_payloads);
+            .span_or_empty(copied_payloads);
         let mut completed = Vec::new();
         for copy in copies {
             if checked
@@ -276,6 +211,30 @@ impl StateGraphEmission<'_, '_> {
         else {
             return Ok(Vec::new());
         };
+        let Some(flow_state) = self
+            .checked
+            .facts
+            .flow
+            .control
+            .unique_state(self.admitted.authored[position].0.symbol, state.state)
+        else {
+            return Ok(Vec::new());
+        };
+        let mut outgoing_rows = flow_facts(self.checked)
+            .control
+            .outgoing
+            .span_or_empty(flow_state.outgoing)
+            .iter()
+            .filter(|outgoing| {
+                outgoing.statement_index == statement_ordinal as usize
+                    && outgoing.transition_target == transition.primary
+            });
+        let Some(outgoing) = outgoing_rows.next() else {
+            return Ok(Vec::new());
+        };
+        if outgoing_rows.next().is_some() {
+            return unsupported("selected payload entry has ambiguous completed flow");
+        }
         DispatchCopies::new(
             self.checked,
             state,
@@ -286,7 +245,7 @@ impl StateGraphEmission<'_, '_> {
         .capture(
             identities,
             statement_ordinal,
-            transition.primary,
+            outgoing.copied_payloads,
             parameters,
             FrameValues {
                 source_value_count: values.len(),
