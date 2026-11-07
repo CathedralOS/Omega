@@ -361,12 +361,12 @@ fn describe_return_value(value: &CapturedReturnValue) -> String {
                     bounded_diagnostic(format!("scalar={value:?}"))
                 }
                 CapturedCallArgument::Bytes(value) => format!(
-                    "memory cases={} first_case={:?} constants={} first_constant={:?} dependencies={:?}",
+                    "memory cases={} first_case={:?} constants={} first_constant={:?} captured_words={}",
                     value.cases.len(),
                     value.cases.first(),
                     value.constants.len(),
                     value.constants.first(),
-                    value.words.dependencies()
+                    bounded_diagnostic(format!("{:?}", value.words))
                 ),
             };
             format!("carrier={carrier:?} {details}")
