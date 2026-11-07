@@ -307,13 +307,12 @@ impl StructuralJudge<'_> {
             })?),
             None => None,
         };
-        let fields = self.program.data_member_fields(members).chain(
-            variant
-                .into_iter()
-                .flat_map(|variant| self.program.data_payload_fields(variant)),
-        );
+        let fields = self
+            .program
+            .data_construction_fields(members, variant.map(|variant| variant.symbol));
         Some(
             fields
+                .into_iter()
                 .map(|field| (field.name.as_str().to_owned(), field.type_reference))
                 .collect(),
         )
