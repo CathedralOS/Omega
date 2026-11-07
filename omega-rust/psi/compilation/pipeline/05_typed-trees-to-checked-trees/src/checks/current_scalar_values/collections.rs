@@ -433,6 +433,14 @@ impl CurrentScalarValues<'_> {
                     .collect()
             }
             ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                if !validation::value_has_builtin_coordinates(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    expression,
+                ) {
+                    return Vec::new();
+                }
                 let Some((owner, prefix)) =
                     super::descriptor_storage_path(self.program, expression)
                 else {

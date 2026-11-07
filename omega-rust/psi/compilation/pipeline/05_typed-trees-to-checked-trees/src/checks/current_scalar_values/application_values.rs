@@ -63,10 +63,19 @@ impl CurrentScalarValues<'_> {
                     };
                     let actual = (*actual)?;
                     owner = self.program.symbols.get(root).parent;
+                    let parameters = validation::call_target_parameters(self.program, owner)?;
+                    // Declaration operators need their own lexical telescope;
+                    // an authored index's result type is not a storage path.
+                    validation::parameter_source_type_application(
+                        self.program,
+                        owner,
+                        parameters,
+                        member.receiver,
+                    )?;
                     let receiver = validation::parameter_expression_result_type_reference(
                         self.program,
                         owner,
-                        &[],
+                        parameters,
                         member.receiver,
                     )?;
                     let value = if validation::collection_operations::collection_measure_member(

@@ -657,6 +657,12 @@ impl<'program> CurrentScalarValues<'program> {
                         values.replace_conditions(owner, &path, conditions);
                     }
                     if target_remains_current
+                        && validation::value_has_builtin_coordinates(
+                            program,
+                            machine,
+                            state,
+                            assignment.target,
+                        )
                         && let Some((owner, path)) =
                             descriptor_storage_path(program, assignment.target)
                     {
