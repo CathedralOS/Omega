@@ -2,7 +2,7 @@
 
 The minimum call's checked IEEE meaning survives transport and discharges `require_min` for its exact captured result.
 
-This row qualifies the named-operator write-origin prerequisite of **R5** in `TASKS.md`. The source imports the selected float operator roster explicitly. `forward` returns `F32::minimum(left, right)` and proves its declared `FloatMeaning` equation. The caller transports that captured result, then consumes the equation in `require_min`. Every invalid twin changes only the implementation expression from `F32::minimum` to `F32::maximum`, retaining the minimum guarantee and its consumer. It must reject with `ensures contract proof fact`.
+This row qualifies the named-operator write-origin prerequisite of **R5** in `TASKS.md`. The source imports the selected float operator roster explicitly. `forward` returns `F32::minimum(left, right)` and proves exact identity of its declared `FloatMeaning` with `core::Identity<FloatMeaning>`. The runtime result check still uses ordinary IEEE comparison. The caller transports that captured result, then consumes the equation in `require_min`. Every invalid twin changes only the implementation expression from `F32::minimum` to `F32::maximum`, retaining the minimum guarantee and its consumer. It must reject with `ensures contract proof fact`.
 
 The repair shares the ordinary exact operator selection, formal operand types, chronological origin capture and signature write ceiling. It adds no float-specific proof rule. The declaration namespace is not runtime receiver storage; treating it as an unknown receiver had made the empty completion frame opaque and discarded the equation's input observations. Mutable explicit arguments and operand effects still contribute their full writes.
 
