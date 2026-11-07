@@ -72,6 +72,7 @@ pub(crate) fn apply_recorded_statement_events(
         statement_index,
         evaluation,
         &facts.operators,
+        &facts.flow.control,
     );
     let calls = facts
         .flow

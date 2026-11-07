@@ -23,6 +23,12 @@ pub(in crate::checks::multiplicity) struct SelectionSite {
     pub evaluation: FlowPermissionEvaluation,
 }
 
+#[derive(Clone, Copy)]
+pub(in crate::checks::multiplicity) struct SelectionEntry<'routes> {
+    pub site: SelectionSite,
+    pub routes: &'routes super::ExpressionRoutes,
+}
+
 fn arrival(place: &LinearPlace) -> Result<FlowSelectionPlaceArrival, Diagnostic> {
     let (Some(claim_identity), Some(provenance)) = (place.claim_identity, place.provenance) else {
         return Err(Diagnostic::error(format!(
@@ -61,7 +67,7 @@ pub(in crate::checks::multiplicity) fn enter_produced(
     selected: &mut SelectedEvaluation<(Vec<LinearPlace>, RemainingCustody)>,
     route: &[EvaluationBranch],
     current: &mut (Vec<LinearPlace>, RemainingCustody),
-    site: SelectionSite,
+    entry: SelectionEntry<'_>,
     ownership: &mut FlowOwnershipFacts,
     identities: &mut ClaimIdentityAllocator,
     mut leave: impl FnMut(
@@ -70,13 +76,18 @@ pub(in crate::checks::multiplicity) fn enter_produced(
         &mut FlowOwnershipFacts,
     ) -> Result<(), Diagnostic>,
 ) -> Result<(), Diagnostic> {
+    let site = entry.site;
     // Cleanup may use ownership's segment arena at each departing scope.
     // Stage join bindings until that ordered walk completes so both
     // operations have one visible mutable owner rather than aliased callbacks.
     let mut bindings = Vec::new();
-    selected.enter(
+    selected.enter_with(
         route,
         current,
+        |branch, current| {
+            entry.routes.observe_owned_case(branch, &mut current.1);
+            Ok(())
+        },
         |branch, current| leave(branch, current, ownership),
         |branch, current, sibling| {
             join_places(&mut current.0, &sibling.0, |place, other| {
