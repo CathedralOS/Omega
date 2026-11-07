@@ -12,6 +12,7 @@ use proof_admission::{
     Signature, Sort, Term, check_type, infer_sort, infer_type, judgment_assumption_closure,
     substitute,
 };
+use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::static_applications::StaticMachineBindingValue;
@@ -269,11 +270,18 @@ impl Elaborator<'_> {
     pub(super) fn retain_checked_source_application(
         &mut self,
         expression: ExpressionHandle,
+        owner: SymbolHandle,
         term: TermHandle,
         context: &Context,
         signature: &Signature,
     ) -> Result<(), Vec<Diagnostic>> {
-        let Some(reference) = self.source_operand_type_reference(expression) else {
+        let Some(reference) =
+            validation::mathematical_applications::operand_type_reference_in_declaration(
+                self.program,
+                owner,
+                expression,
+            )
+        else {
             return Ok(());
         };
         if !self.known_source_family(reference) || !self.scope.is_empty() {

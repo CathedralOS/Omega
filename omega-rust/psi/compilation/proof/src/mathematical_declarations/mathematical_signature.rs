@@ -808,7 +808,9 @@ impl<'a> Elaborator<'a> {
                     ))
                 })?;
             if captures.is_empty() {
-                self.retain_checked_source_application(expression, term, &context, &signature)?;
+                self.retain_checked_source_application(
+                    expression, owner, term, &context, &signature,
+                )?;
             }
             let term = normalization::normalize(
                 &mut self.arena,
