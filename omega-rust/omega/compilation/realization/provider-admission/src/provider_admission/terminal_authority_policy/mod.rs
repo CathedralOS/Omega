@@ -16,6 +16,7 @@ mod normalized_foreign;
 mod parameterized_intrinsics;
 mod syscall;
 mod time_host;
+mod windows_imports;
 
 pub use filesystem::filesystem_host_permission_rows;
 pub use model::TerminalAuthorityPolicy;
@@ -36,7 +37,7 @@ use effects::{
 
 /// Version of the receiving-realization policy table over D45's shared
 /// role-tagged terminal-mechanism identity.
-pub(crate) const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 9;
+pub(crate) const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 10;
 
 pub fn terminal_authority_policy_with_rows(
     explicit_rows: Vec<TerminalAuthorityPolicyRow>,
@@ -55,6 +56,14 @@ pub(crate) fn cohort_mechanism_row(
     schema: &ServiceSchema,
     method: &ServiceMethod,
 ) -> Option<TerminalAuthorityPolicyRow> {
+    // Windows foreign imports have their own reviewed physical meanings.
+    // A readable portable/Console/Time method name cannot classify an unknown
+    // export or replace an import's complete admitted argument contract.
+    if let TerminalMechanismIdentity::NormalizedForeign(foreign) = mechanism
+        && foreign.target() == target::TargetProfile::WindowsX64
+    {
+        return windows_imports::mechanism_row(foreign);
+    }
     filesystem::filesystem_mechanism_row(mechanism, method)
         .or_else(|| time_host::time_host_mechanism_row(mechanism, method))
         .or_else(|| console_host::console_mechanism_row(mechanism, method))
