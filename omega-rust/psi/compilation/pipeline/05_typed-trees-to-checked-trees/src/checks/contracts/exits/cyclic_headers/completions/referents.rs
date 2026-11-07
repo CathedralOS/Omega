@@ -33,12 +33,19 @@ impl ReferentGoal {
         remaining: &mut usize,
     ) -> Option<Self> {
         let owner = machine.symbol;
+        let trace = std::env::var_os("OMEGA_STRUCT_TRACE").is_some();
         let entry = program.machine_states(machine).first()?;
         if !crate::checks::contracts::prover::has_builtin_operators(
             program,
             &facts.operators,
             expression,
         ) {
+            if trace {
+                eprintln!(
+                    "STRUCT terminal-referent declined owner={} reason=operator-meaning",
+                    machine.name
+                );
+            }
             return None;
         }
         let mut tree = Vec::new();
@@ -49,6 +56,12 @@ impl ReferentGoal {
                 ExpressionNode::Call(_)
             ) || super::super::is_result_reference(program, machine, *operand)
         }) {
+            if trace {
+                eprintln!(
+                    "STRUCT terminal-referent declined owner={} reason=call-or-result",
+                    machine.name
+                );
+            }
             return None;
         }
         let mut reads = Vec::new();
@@ -101,12 +114,25 @@ impl ReferentGoal {
                 entry,
                 parameter.symbol,
             ) {
+                if trace {
+                    eprintln!(
+                        "STRUCT terminal-referent declined owner={} reason=unstable-reference parameter={:?}",
+                        machine.name, parameter.symbol
+                    );
+                }
                 return None;
             }
             reads.push(operand);
             places.push(place);
         }
         if reads.is_empty() {
+            if trace {
+                eprintln!(
+                    "STRUCT terminal-referent declined owner={} reason=no-scalar-reference parameters={:?}",
+                    machine.name,
+                    program.state_parameters(entry)
+                );
+            }
             return None;
         }
         let origins = crate::flow::activation_parameter_origins(program, machine);
@@ -133,11 +159,23 @@ impl ReferentGoal {
                 })
                 .collect::<Option<Vec<_>>>();
             let Some(places) = mapped else {
+                if trace {
+                    eprintln!(
+                        "STRUCT terminal-referent declined owner={} reason=initial-subjects state={:?} origins={origins:?}",
+                        machine.name, state.symbol
+                    );
+                }
                 return None;
             };
             initial.push(places);
         }
 
+        if trace {
+            eprintln!(
+                "STRUCT terminal-referent prepared owner={} reads={reads:?} initial={initial:?}",
+                machine.name
+            );
+        }
         Some(Self {
             owner,
             expression,
@@ -161,7 +199,14 @@ impl ReferentGoal {
             state,
             call,
             program.state_parameters(target),
-        )?;
+        );
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT terminal-referent forward caller={} target={:?} writes_complete={} subjects={places:?} correspondence={correspondence:?}",
+                machine.name, target.symbol, call.normal_return_writes_complete
+            );
+        }
+        let correspondence = correspondence?;
         *remaining = remaining.checked_sub(correspondence.len())?;
         let comparison_work = correspondence
             .iter()
@@ -228,16 +273,26 @@ impl ReferentGoal {
             })
             .collect::<Option<Vec<_>>>();
         let Some(bindings) = bindings else {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT terminal-referent leaf-unavailable owner={} state={:?} subjects={places:?}",
+                    machine.name, state.symbol
+                );
+            }
             return false;
         };
-        values.proves(
-            program,
-            machine,
-            &ScopedArithmeticExpression {
-                owner: self.owner,
-                expression: self.expression,
-                bindings,
-            },
-        )
+        let goal = ScopedArithmeticExpression {
+            owner: self.owner,
+            expression: self.expression,
+            bindings,
+        };
+        let proven = values.proves(program, machine, &goal);
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT terminal-referent leaf owner={} state={:?} goal={goal:?} proven={proven}",
+                machine.name, state.symbol
+            );
+        }
+        proven
     }
 }
