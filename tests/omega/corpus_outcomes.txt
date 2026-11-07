@@ -19720,11 +19720,7 @@ pass/borrows/runtime_mutable_reference_array_bounded_read_exit checked 57413ms c
 pass/borrows/runtime_mutable_reference_captures_selector_exit checked 21771ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_mutable_window_parent_restoration_exit checked 3598ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_named_scalar_receiver_index_order_exit checked 16761ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_nested_array_range_record_domains_exit rejected 3054ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.groups[0][0].room.label requires [u8; N]::Utf8
-	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.groups[0][1].room.label requires [u8; N]::Utf8
-	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.groups[1][0].room.label requires [u8; N]::Utf8
-	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.groups[1][1].room.label requires [u8; N]::Utf8
+pass/borrows/runtime_nested_array_range_record_domains_exit checked 6553ms check-target:macos_arm64 @ca68589a3988
 pass/borrows/runtime_nested_byte_field_capture_exit checked 1105ms check-target:macos_arm64 @7b9a72614daf
 pass/borrows/runtime_nested_callable_field_regions_exit checked 3416ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit checked 78835ms check-target:macos_arm64 @911f6617ba9e

@@ -593,6 +593,9 @@ pub fn source_type_application_from_segments(
             facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
                 reference = collection_element_type_reference(program, reference)?;
             }
+            extent if *extent == crate::field_domains::WHOLE_ELEMENT_EXTENT => {
+                reference = collection_element_type_reference(program, reference)?;
+            }
             facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
                 return None;
             }
@@ -751,6 +754,9 @@ impl ProjectionTypeCursor {
                 field_type_reference(program, self.current, *symbol, &mut self.substitutions)?
             }
             facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
+                indexed_element_type_reference(program, self.current, &self.substitutions)?
+            }
+            extent if *extent == crate::field_domains::WHOLE_ELEMENT_EXTENT => {
                 indexed_element_type_reference(program, self.current, &self.substitutions)?
             }
             facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
