@@ -1159,7 +1159,7 @@ fail/borrows/conditional_reference_replacement_false_first_stale_index rejected 
 	cannot prove index `holder.value` is within length 2 in exercise::entry
 fail/borrows/conditional_reference_replacement_true_first_stale_index rejected 2009ms expected @ccdb99ca2214
 	cannot prove index `holder.value` is within length 2 in exercise::entry
-fail/borrows/conditional_returned_descriptor_local_escape rejected 5278ms expected @923ef974b33c
+fail/borrows/conditional_returned_descriptor_local_escape rejected 6877ms expected @af4614055bdd
 	machine `select` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/constant_temporary_reference_escape rejected 2541ms expected @ccdb99ca2214
 	machine `escape` returns a view borrowing temporary storage, which does not outlive the call; return a view of storage that outlives the invocation instead
@@ -1303,9 +1303,9 @@ fail/borrows/exclusive_reference_array_copy rejected 1965ms expected @ccdb99ca22
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `invalid`, state `entry` (statement 0)
 fail/borrows/expression_stored_carrier_requires_complete_relation rejected 1685ms expected @ccdb99ca2214
 	statement 5 mutates `right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 6 and it is released at state exit)
-fail/borrows/fixed_array_return_depth_bound rejected 1963ms expected @ccdb99ca2214
+fail/borrows/fixed_array_return_depth_bound rejected 5994ms expected @af4614055bdd
 	cannot prove index `depth` is within length 33 in invalid::entry
-fail/borrows/fixed_array_return_live_parent_write rejected 2153ms expected @ccdb99ca2214
+fail/borrows/fixed_array_return_live_parent_write rejected 6087ms expected @af4614055bdd
 	statement 1 mutates `matrix[2][0]` while local borrow `row` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/fixed_array_return_local rejected 2049ms expected @ccdb99ca2214
 	machine `invalid` returns a view borrowing the local `row`, which does not outlive the call; return a view of storage that outlives the invocation instead
@@ -19522,8 +19522,7 @@ pass/borrows/enum_selected_view_reference_exit checked 16593ms check-target:maco
 pass/borrows/exclusive_array_parameter_shared_lend_exit checked 16453ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/explicit_lifetime_select checked 3214ms @ccdb99ca2214
 pass/borrows/fixed_array_reference_backing_exit checked 3715ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/fixed_array_reference_results_exit incomplete 4154ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	`entry_start` calls `Main::main`, which calls `Main::main::depth`, which calls `Main::main::add`; `Main::main::add` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `Main::main::add::entry`, statement 0
+pass/borrows/fixed_array_reference_results_exit checked 8069ms check-target:macos_arm64 @af4614055bdd
 pass/borrows/foreign_output_captured_reference_exit checked 9150ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/foreign_output_copied_lifetime_last_use checked 2399ms @ccdb99ca2214
 pass/borrows/foreign_output_exclusive_anchor_exit checked 7469ms check-target:macos_arm64 @911f6617ba9e
