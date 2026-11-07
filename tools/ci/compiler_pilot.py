@@ -437,9 +437,27 @@ def prepare_producer(output, *, need_runner=True):
     return producer
 
 
+def inspection_selection(selected, *, retained):
+    """Inspection is a separate retained-CLI observation, never engine evidence."""
+    machine = os.environ.get("OMEGA_COMPILER_PILOT_INSPECTION_MACHINE") or None
+    if machine is None:
+        return None
+    if (not retained or not isinstance(machine, str)
+            or any(character.isspace() for character in machine)
+            or os.environ.get("OMEGA_COMPILER_PILOT_RECORD_RESULTS") == "true"
+            or len(selected["cli_fixtures"]) != 1
+            or any(selected[key] for key in ("positives", "negatives", "checking_only", "samples"))):
+        raise ValueError("inspection requires one retained CLI fixture, an exact machine, and recording off")
+    return machine
+
+
 def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checking_only=(), producer=None, samples=(), cli_fixtures=()):
     if not (positives or negatives or checking_only or samples or cli_fixtures):
         raise ValueError("pilot requires at least one fixture")
+    inspection = inspection_selection(
+        dict(positives=positives, negatives=negatives, checking_only=checking_only,
+             samples=samples, cli_fixtures=cli_fixtures),
+        retained=producer is not None and bool(getattr(producer, "replay_origin", None)))
     record_results = os.environ.get("OMEGA_COMPILER_PILOT_RECORD_RESULTS") == "true"
     if record_results and not (positives or negatives or checking_only):
         raise ValueError("recording requires an exact corpus fixture selection")
@@ -542,22 +560,33 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         def ordinary_cli():
             rows = []
             errors = []
-            summary["cli_observations"] = rows
+            summary["inspection_observations" if inspection else "cli_observations"] = rows
             for fixture in cli_fixtures:
-                row = ordinary_cli_fixture.observe(ROOT, producer, fixture, output / "ordinary-cli" / fixture)
+                options = {"inspection_only": inspection} if inspection else {}
+                row = ordinary_cli_fixture.observe(
+                    ROOT, producer, fixture, output / "ordinary-cli" / fixture, **options)
                 compact = {key: value for key, value in row.items() if key not in ("inputs", "producer")}
                 compact["input_count"] = len(row.get("inputs", {}))
                 compact["input_manifest_sha256"] = hashlib.sha256(
                     json.dumps(row.get("inputs", {}), sort_keys=True).encode("utf-8")).hexdigest()
                 compact["full_observation"] = str(output / "ordinary-cli" / fixture / "observation.json")
                 rows.append(compact)
-                (output / "cli.json").write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+                report = "inspection.json" if inspection else "cli.json"
+                (output / report).write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
                 producer.verify()
+                if inspection and (row.get("observation_kind") != "inspection"
+                                   or row.get("inspection_machines") != (inspection,)
+                                   or len(row.get("inspections", [])) != 1
+                                   or not row["inspections"][0].get("passed")
+                                   or any(key in row for key in ("native_exit", "terminal_exit"))):
+                    errors.append(f"{fixture}: incomplete inspection or unexpected engine observation")
                 if row.get("passed") is not True:
                     errors.append(f"{fixture}: {row.get('error', 'ordinary CLI observation failed')}")
             if errors:
                 raise ValueError("; ".join(errors))
-        observe("ordinary CLI package admission and native/Terminal execution", ordinary_cli)
+        name = ("ordinary CLI package admission and Terminal inspection" if inspection
+                else "ordinary CLI package admission and native/Terminal execution")
+        observe(name, ordinary_cli)
     if samples:
         def fact_samples():
             report = output / "samples.json"
@@ -629,6 +658,7 @@ def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fi
             raise ValueError("recording requires exact fixture IDs or a replay plan")
         selected, replay = selected_consumers(positives, negatives, checking_only, fixtures=fixtures,
                                              samples=samples, cli_fixtures=cli_fixtures, check_only=check_only)
+        inspection_selection(selected, retained=replay is not None)
         if replay is not None:
             if producer is not None:
                 raise ValueError("a replay plan owns its producer and complete consumer selection")

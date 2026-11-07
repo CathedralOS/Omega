@@ -118,10 +118,14 @@ def inspect_kept_artifact(producer, products, runtime, command):
     return diagnostic
 
 
-def observe(root, producer, fixture, output, *, dependency_projects=()):
+def observe(root, producer, fixture, output, *, dependency_projects=(), inspection_only=None):
     # The child runs inside the copied workspace, so project and library paths must be absolute.
     output = output.absolute()
     expected = expected_exit(root, fixture, producer.target)
+    if inspection_only is not None and (
+            not isinstance(inspection_only, str) or not inspection_only
+            or any(character.isspace() for character in inspection_only)):
+        raise ValueError("inspection requires one exact machine name")
     output.mkdir(parents=True, exist_ok=False)
     workspace = output / "workspace"
     project_relative = relative_project(root, fixture)
@@ -207,7 +211,8 @@ def observe(root, producer, fixture, output, *, dependency_projects=()):
         if code != 0 or not (project / "omega.lock").is_file():
             raise ValueError(f"ordinary CLI package admission refused ({code})")
         (output / "accepted.omega.lock").write_bytes((project / "omega.lock").read_bytes())
-        record["inspection_machines"] = inspection_machines(project)
+        record["inspection_machines"] = ((inspection_only,) if inspection_only is not None
+                                         else inspection_machines(project))
         record["inspections"] = []
         for index, machine in enumerate(record["inspection_machines"]):
             artifact = output / "inspections" / f"{index}.oterm"
@@ -222,11 +227,25 @@ def observe(root, producer, fixture, output, *, dependency_projects=()):
             code = command(reloaded, [producer.cli, "inspect-terminal", "--artifact", artifact], workspace, 240)
             if code != 0:
                 raise ValueError(f"named inspection canonical reload refused: {machine} ({code})")
+            if inspection_only is not None:
+                captured = (artifact, *(output / f"{name}.{stream}"
+                            for name in (stage, reloaded) for stream in ("stdout", "stderr")))
+                if any(path.stat().st_size > 16 * 1024 * 1024 for path in captured):
+                    raise ValueError("inspection output exceeds its 16 MiB member bound")
+                record["inspection_files"] = {
+                    path.relative_to(output).as_posix(): dict(
+                        bytes=path.stat().st_size,
+                        sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+                    for path in captured
+                }
             identity = validate_inspection(machine,
                 (output / f"{stage}.stdout").read_text(encoding="utf-8"),
                 (output / f"{reloaded}.stdout").read_text(encoding="utf-8"))
             record["inspections"].append(dict(machine=machine, passed=True, program_fingerprint=identity,
                                              artifact_sha256=hashlib.sha256(artifact.read_bytes()).hexdigest()))
+        if inspection_only is not None:
+            record.update(passed=True, observation_kind="inspection")
+            return record
         runtime = output / "runtime"
         runtime.mkdir()
         code = command("both", [producer.cli, "run", "--both", "--keep", project / "main.omg"],

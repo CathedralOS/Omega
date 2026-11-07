@@ -473,6 +473,81 @@ class CompilerPilotTests(unittest.TestCase):
                                                     check_only=True, **selectors), 1)
                     execute.assert_not_called()
 
+    def test_retained_inspection_refuses_builds_recording_and_mixed_consumers(self):
+        selected = dict(positives=(), negatives=(), checking_only=(), samples=(),
+                        cli_fixtures=("pass/text/one",))
+        with patch.dict(os.environ, {"OMEGA_COMPILER_PILOT_INSPECTION_MACHINE": "main"}, clear=True):
+            self.assertEqual(pilot.inspection_selection(selected, retained=True), "main")
+            with self.assertRaisesRegex(ValueError, "one retained CLI fixture"):
+                pilot.inspection_selection(selected, retained=False)
+            with self.assertRaisesRegex(ValueError, "one retained CLI fixture"):
+                pilot.inspection_selection(dict(selected, negatives=("fail/example/control",)), retained=True)
+            with patch.dict(os.environ, {"OMEGA_COMPILER_PILOT_RECORD_RESULTS": "true"}):
+                with self.assertRaisesRegex(ValueError, "recording off"):
+                    pilot.inspection_selection(selected, retained=True)
+
+    def test_retained_inspection_reuses_package_journey_and_never_runs_engines(self):
+        fixture = "pass/text/inspection_exit"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, fixture)
+            project = root / "tests/omega" / fixture
+            (project / "build.omg").write_text("ProgramEntry")
+            (project / "expected_native_exit.txt").write_text("0")
+            paths = ["tests/omega/" + fixture + "/" + name
+                     for name in ("main.omg", "build.omg", "expected_native_exit.txt")]
+            output = root / "observation"
+            producer = Mock(cli=Path("/retained/omega"), target="linux_x86_64")
+            producer.record.return_value = {"revision": "a" * 40}
+            invoked = []
+
+            def consume(arguments, **kwargs):
+                invoked.append(arguments[1])
+                if arguments[1] == "update":
+                    copied = Path(arguments[arguments.index("--project") + 1])
+                    (copied / "omega.lock").write_text("reviewed lock")
+                elif "--output" in arguments:
+                    Path(arguments[arguments.index("--output") + 1]).write_bytes(b"canonical artifact")
+                    kwargs["stdout"].write(("terminal selected_machine=main entry=MachineId(1)\n"
+                        + "terminal program_fingerprint=" + "a" * 64 + "\n").encode())
+                elif "--artifact" in arguments:
+                    kwargs["stdout"].write(("terminal selected_machine=artifact entry=MachineId(1)\n"
+                        + "terminal program_fingerprint=" + "a" * 64 + "\n").encode())
+                else:
+                    self.fail("inspection requested an engine")
+                return Mock(returncode=0)
+
+            with patch.object(pilot.ordinary_cli_fixture.subprocess, "check_output", return_value="\n".join(paths)), \
+                    patch.object(pilot.ordinary_cli_fixture.subprocess, "run", side_effect=consume):
+                row = pilot.ordinary_cli_fixture.observe(
+                    root, producer, fixture, output, inspection_only="main")
+            self.assertTrue(row["passed"], row.get("error"))
+            self.assertEqual(row["observation_kind"], "inspection")
+            self.assertEqual(invoked, ["update", "inspect-terminal", "inspect-terminal"])
+            self.assertEqual(len(row["inspection_files"]), 5)
+            self.assertNotIn("native_exit", row)
+            self.assertNotIn("terminal_exit", row)
+
+    def test_inspection_report_cannot_credit_engine_observations(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            producer = Mock(consumer_revision="a" * 40, revision="b" * 40,
+                            target="linux_x86_64", runner_profile=None,
+                            replay_origin={"run": 1})
+            row = dict(passed=True, observation_kind="inspection", inspection_machines=("main",),
+                       inspections=[dict(passed=True)], native_exit=0)
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                    patch.dict(os.environ, {"GITHUB_SHA": "a" * 40,
+                        "OMEGA_COMPILER_PILOT_INSPECTION_MACHINE": "main"}), \
+                    patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+                    patch.object(pilot.ordinary_cli_fixture, "observe", return_value=row):
+                summary = {}
+                with self.assertRaisesRegex(ValueError, "unexpected engine observation"):
+                    pilot.execute(output, summary, positives=(), negatives=(),
+                                  cli_fixtures=("pass/text/one",), producer=producer)
+            self.assertNotIn("cli_observations", summary)
+            self.assertIn("inspection_observations", summary)
+
     def fixture_root(self, root, *fixtures):
         for fixture in fixtures:
             directory = root / "tests" / "omega" / fixture

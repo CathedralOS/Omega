@@ -44,6 +44,10 @@ on:
         description: Run public source-produced Build consent and filesystem isolation controls
         type: boolean
         default: false
+      inspection_machine:
+        description: Nonexecuting named Terminal inspection of one retained CLI fixture
+        type: string
+        default: ''
       native_host:
         description: Matching native host for manual executable observations
         type: choice
@@ -108,6 +112,21 @@ jobs:
       - name: Provision Windows rooted temporary directory for hosted applications
         if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
+      - name: Validate the retained inspection request
+        if: github.event_name == 'workflow_dispatch' && inputs.inspection_machine != ''
+        env:
+          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
+          OMEGA_COMPILER_PILOT_INSPECTION_MACHINE: ${{ inputs.inspection_machine }}
+          OMEGA_COMPILER_PILOT_RECORD_RESULTS: ${{ inputs.record_results }}
+        run: |
+          python - <<'PY'
+          import os
+          from tools.ci import compiler_pilot
+          selected, replay = compiler_pilot.selected_consumers(
+              (), (), (), fixtures=os.environ['OMEGA_COMPILER_PILOT_FIXTURES'],
+              samples=None, cli_fixtures=None, check_only=False)
+          compiler_pilot.inspection_selection(selected, retained=replay is not None)
+          PY
       - name: Select the retained compiler cache from its validated plan
         id: replay-cache
         if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
@@ -181,6 +200,7 @@ jobs:
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
           OMEGA_COMPILER_PILOT_RECORD_RESULTS: ${{ inputs.record_results }}
+          OMEGA_COMPILER_PILOT_INSPECTION_MACHINE: ${{ inputs.inspection_machine }}
         run: python tools/ci/compiler_pilot.py --phase prepare
       - name: Upload the prepared producer and build receipts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -220,10 +240,11 @@ jobs:
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
           OMEGA_COMPILER_PILOT_RECORD_RESULTS: ${{ inputs.record_results }}
+          OMEGA_COMPILER_PILOT_INSPECTION_MACHINE: ${{ inputs.inspection_machine }}
         run: python tools/ci/compiler_pilot.py --phase consume
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('preparation.json', 'summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
+        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('preparation.json', 'summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'inspection.json', 'build-consent-controls.json') if (root / name).is_file()]"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         with:
