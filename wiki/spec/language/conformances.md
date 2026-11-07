@@ -113,21 +113,25 @@ a named implementation map, discharge laws, or establish runtime operation-recor
 laws. Complete provider schema coverage and exact requirement contracts still apply; checked adapters
 remain ordinary named implementations with real bodies.
 
-This same selection supplies operation and law requirements for computed static
-indices. A generic consumer requiring commutativity takes an ordinary conformance
-binder whose trait contains that law for the selected operation. The index
-checker consumes the selected evidence; it does not search for an algebra or
-infer one from operator punctuation. [Licensed normalization](../proofs/contracts.md#licensed-normalization)
-defines which transformations that evidence permits.
+This same selection supplies operations and checked law requirements for
+computed static indices. A generic consumer requesting commutativity takes an
+ordinary conformance binder whose trait contains that law for the selected
+operation. The compatibility prover consumes its exact evidence; it does not
+search for an algebra or infer one from punctuation.
 
-Different algebras can coexist, but index normalization retains each exact
-applied conformance and cannot borrow another selection's laws. Changing a
-trait's laws changes its published contract; below-budget preservation of
-identifications is subject to the explicit
-[mutual-distributivity exception](../proofs/contracts.md#bounded-canonical-index-normalization).
-Neither policy names nor an added law promise unconditional preservation across
-expansion cutoffs. The identity profile and its provenance remain shared across
-producers, not selected by a caller's local proof-work allowance.
+[Stable index identity](../proofs/contracts.md#stable-canonical-index-identity)
+preserves selected operations and applications. Only fixed core-operation rules
+simplify open canonical keys. Selected user laws, including inherited laws,
+literal connections and distributivity, establish compatibility instead.
+Adding a valid law does not turn off another proof or alter the canonical
+rewriting rules. Changing an actual operation or a published trait contract
+still has its ordinary API/dependency consequences.
+
+Conformance matching uses canonical identity without heuristic theorem search.
+An exact conformance application for one symbolic index form does not match
+another solely because their indices are provably equal. Value transport under
+checked evidence does not reselect a map or rewrite its identity. Generic
+conformances over a common index and explicit contracts remain available.
 
 Generic conformances own their telescopes independently of data declarations.
 Select one through a nested application with every type, const,

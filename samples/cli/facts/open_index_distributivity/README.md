@@ -1,8 +1,17 @@
 # Open index distributivity
 
-A selected open index operation records the distributivity law its trait declares, so a generic body takes a value indexed `A * (B + C)` as `A * B + A * C`, and the call records that identity.
+A generic body takes a value indexed `A * (B + C)` as `A * B + A * C`
+using the selected algebra's checked distributivity law. The ratified
+[identity/compatibility split](../../../../wiki/spec/proofs/contracts.md#licensed-normalization)
+keeps those open canonical keys distinct and carries a compatibility proof.
 
-Owning task: **OPERATOR-MACHINE-SUPPLY** (`TASKS.md`). The requirement this row establishes is the `OpenIndexOperationSelection` bullet's distributivity clause: the selection the checker emits for an index operation records, beside commutativity and associativity, the additive requirements its trait distributes over, and the normalizer that consumes the selection expands a product over a sum factor under that record, through specialization. Literal-linked zero and one identities are witnessed under `tests/omega/pass/indexes/literal_linked_index_identity`. Bounded canonical normalization stays open ([What remains open](#what-remains-open)).
+Owning task: **OPERATOR-MACHINE-SUPPLY** in [TASKS.md](../../../../TASKS.md).
+The implementation, control classifications and execution records below describe
+the earlier law-sensitive canonical normalizer at their named source versions.
+They are historical evidence, not validation of the 2026-11-06 design.
+In particular, mutual distributivity is no longer grounds by itself to refuse
+a valid compatibility proof. Literal connections are also moving from user-law
+identity rewriting into proof admission. See [What remains open](#what-remains-open).
 
 Every place copies that sentence and the same operation. The trait `IndexSemiring` declares `add` (`+`), `multiply` (`*`) and the law `multiply(a, add(b, c)) == add(multiply(a, b), multiply(a, c))`. The conformance `Canonical` selects both operations as constant three and proves the law through a satisfier that requires it. The generic body is
 
@@ -90,6 +99,8 @@ The row is pinned by 26 fixtures: `tests/omega/pass/facts/open_index_distributiv
 
 ## Requirements and Evidence
 
+These points describe the historical implementation and observations above.
+
 1. **Establishment:** the generic body establishes `Indexed<A * B + A * C>` from `Indexed<A * (B + C)>` through the law its trait declares and its conformance proves. The conformance member calls a satisfier whose premise is the law itself, which is provable only because the selected operations satisfy it (`unproved_law`), and a conformance that omits the member is incomplete (`missing_law_member`). No caller guard or equality fact establishes the identity.
 2. **Identity and lifetime:** the evidence is the pair of selections' provider, trait and requirement. A same-named requirement of another trait licenses nothing (`foreign_addition`). The specialized instance re-checks the identity over literal leaves with the selection copied from the template.
 3. **Composition:** the record composes with commutativity and associativity (`commutative_semiring`; an unpinned probe with commutativity and distributivity but no associativity also passed), flattens nested sums, and expands nested sums. Nine transports carry the call, including a forwarding generic (`other_machine`).
@@ -101,8 +112,9 @@ The row is pinned by 26 fixtures: `tests/omega/pass/facts/open_index_distributiv
 
 ## What remains open
 
-- **Canonical policy implementation.** [Bounded canonical index normalization](../../../../wiki/spec/proofs/contracts.md#bounded-canonical-index-normalization) is ratified: expand toward sums of products under exact selected laws, share canonical identity encoding across producers, and keep internal repeat counts distinct from authored numerals. The source and execution records above describe the earlier implementation with `normalizer_version` 3, not validation of the ratified policy. Complete-chain normalization must repair the reported checking-only counterexample `(A * (B + C)) * D` against `A * ((B + C) * D)` under associative but noncommutative multiplication with left distributivity. This docs-only change neither reproduces nor repairs that report.
-- **Cutoff coherence and evidence.** Implement the canonical pre-expansion 64-summand measure, coherent unexpanded fallback, cutoff-aware compatibility diagnostics, fixed-law determinism/idempotence, and below-budget law-addition preservation subject to the mutual-distributivity exception. Pin boundary and regrouping productions without changing the existing row's fact or oracle; retain positive/reject fixtures. A large well-formed index alone must not reject, and direct checked theorem guarantees remain an escape route.
-- **Specialization and closed keys.** Transport checked generic compatibility derivations under exact substitutions instead of rediscovering them with another expansion attempt. Fully closed selected operations require admitted concrete evaluation to canonical value keys. These are implementation acceptance under **OPERATOR-MACHINE-SUPPLY**, not fresh observations or new owner decisions.
+- **Stable keys and proved compatibility.** Implement the [ratified migration](../../../../wiki/drafts/designs/index_identity.md): fixed core-operation canonical rules, no distributive or user-law identity rewriting, and automatic checked algebraic transport. Preserve the original source/value/custody oracles across the nine places. The earlier `normalizer_version` 3 results above do not validate this policy.
+- **Policy and evidence.** Implement root `builder.proof.index_expansion_terms`, default 64, with recorded sponsorship/usage. Exercise 64/65 terms, larger allowances, theorem-assisted equality, separate canonical keys and exact matching. Prove associative noncommutative chains and computed substitutions through compatibility rather than forcing a shared expanded key. Carry generic and published derivations without re-searching under smaller consumer allowances.
+- **Control migration.** Audit the old mutual-distributivity rejection under the new rule: a valid forward law remains usable when the reverse is present. Reclassify only after actual verification; retain false/missing/foreign-law and unproved-premise negatives. The historical pins above are not an instruction to keep the retired no-expansion exception.
+- **Specialization and closed keys.** Transport exact checked evidence while retaining distinct symbolic specialization keys; fully closed equal indices still evaluate to a common value. Update artifact/profile provenance coherently. This documentation changes no program, diagnostic pin or recorded outcome.
 - **Computed index arguments.** A binder substituted by a computed expression contributes the expression's identity text as one leaf, so a sum arriving as a call argument is not expanded further. No fixture here passes one.
 - **Hosted targets.** Native execution was observed on `windows_x86_64` locally. `linux_x86_64`, `macos_arm64` and `linux_arm64` are bound in every `build.omg` and realized by binding; hosted evidence is recorded in the landing pull request.
