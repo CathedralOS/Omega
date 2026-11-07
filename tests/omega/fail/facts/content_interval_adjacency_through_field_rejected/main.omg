@@ -15,8 +15,10 @@ data Pair { left: Region in Held; right: Region in Held; }
 data Holder { pair: Pair; }
 machine forward(left: Region in Held, right: Region in Held) -> Pair
 requires embed(left.base) + embed(left.length) >= embed(right.base)
-ensures separate(Held::content(old(&left)), Held::content(old(&right)))
-    == separate(Held::content(&result.left), Held::content(&result.right))
+ensures core::Identity<IntervalSet<Nat>>(
+    separate(Held::content(old(&left)), Held::content(old(&right))),
+    separate(Held::content(&result.left), Held::content(&result.right))
+)
 {
     let holder: Holder = Holder { pair: Pair { left: left, right: right } };
     holder.pair

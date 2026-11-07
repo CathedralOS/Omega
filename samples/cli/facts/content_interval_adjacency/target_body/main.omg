@@ -34,24 +34,33 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedForward {
     machine forward(left: Region in Held, right: Region in Held) -> Pair
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(left.base) + embed(left.length) == embed(right.base) ensures separate(Held::content(old(&left)), Held::content(old(&right))) == separate(Held::content(&result.left), Held::content(&result.right));
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(left.base) + embed(left.length) == embed(right.base) ensures core::Identity<IntervalSet<Nat>>(
+            separate(Held::content(old(&left)), Held::content(old(&right))),
+            separate(Held::content(&result.left), Held::content(&result.right))
+        );
 }
 
 X86Forward satisfies SelectedForward {
     machine forward(left: Region in Held, right: Region in Held) -> Pair
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(left.base) + embed(left.length) == embed(right.base) ensures separate(Held::content(old(&left)), Held::content(old(&right))) == separate(Held::content(&result.left), Held::content(&result.right))
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(left.base) + embed(left.length) == embed(right.base) ensures core::Identity<IntervalSet<Nat>>(
+            separate(Held::content(old(&left)), Held::content(old(&right))),
+            separate(Held::content(&result.left), Held::content(&result.right))
+        )
     {
         SelectedBodyCheck::require_tag(17u64);
-     Pair { left: left, right: right } 
+     Pair { left: left, right: right }
     }
 }
 
 ArmForward satisfies SelectedForward {
     machine forward(left: Region in Held, right: Region in Held) -> Pair
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(left.base) + embed(left.length) == embed(right.base) ensures separate(Held::content(old(&left)), Held::content(old(&right))) == separate(Held::content(&result.left), Held::content(&result.right))
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires embed(left.base) + embed(left.length) == embed(right.base) ensures core::Identity<IntervalSet<Nat>>(
+            separate(Held::content(old(&left)), Held::content(old(&right))),
+            separate(Held::content(&result.left), Held::content(&result.right))
+        )
     {
         SelectedBodyCheck::require_tag(29u64);
-     Pair { left: left, right: right } 
+     Pair { left: left, right: right }
     }
 }
 
