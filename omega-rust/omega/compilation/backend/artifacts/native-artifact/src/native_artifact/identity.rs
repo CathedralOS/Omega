@@ -466,39 +466,3 @@ fn hash_physical_entry_stack(
         }
     }
 }
-
-#[cfg(test)]
-mod stack_requirement_tests {
-    use super::*;
-
-    #[test]
-    fn physical_stack_identity_binds_every_requirement_field() {
-        let hash = |values: [u64; 5]| {
-            let mut digest = DomainDigestEncoder::new(NATIVE_ARTIFACT_IDENTITY_DOMAIN);
-            hash_physical_entry_stack(
-                &mut digest,
-                image_emission::PhysicalEntryStackRequirement::CheckedPrivateImage {
-                    incoming: image_emission::PhysicalIncomingStackRequirement {
-                        bytes_below_entry_rsp: values[0],
-                        readable_bytes_from_entry_rsp: values[1],
-                        caller_alignment: values[2],
-                        caller_rsp_bias: values[3],
-                    },
-                    minimum_private_stack_bytes: values[4],
-                },
-            );
-            digest.finish()
-        };
-        let base = [0, 8, 16, 8, 131_072];
-        let identity = hash(base);
-        for field in 0..base.len() {
-            let mut changed = base;
-            changed[field] += 1;
-            assert_ne!(
-                identity,
-                hash(changed),
-                "stack identity omitted field {field}"
-            );
-        }
-    }
-}

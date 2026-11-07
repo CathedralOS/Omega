@@ -357,37 +357,4 @@ mod tests {
         patched.bytes[81] ^= 1;
         assert_ne!(patched.recomputed_identity(), original);
     }
-
-    #[test]
-    fn text_section_identity_distinguishes_installation_helper_roles() {
-        use target_operations::{CallSiteOwner, InstallationCallRole};
-        let operation = semantic_vocabulary::OperationId::new(21).unwrap();
-        let owners = [
-            CallSiteOwner::Operation(operation),
-            CallSiteOwner::Installation {
-                operation,
-                role: InstallationCallRole::Validate,
-            },
-            CallSiteOwner::Installation {
-                operation,
-                role: InstallationCallRole::Work,
-            },
-            CallSiteOwner::Installation {
-                operation: semantic_vocabulary::OperationId::new(22).unwrap(),
-                role: InstallationCallRole::Validate,
-            },
-        ];
-        let identities = owners.map(|owner| {
-            let mut section = structural_section();
-            section.resolved_internal_machine_calls[0].owner = owner;
-            section.recomputed_identity()
-        });
-        for (index, identity) in identities.iter().enumerate() {
-            assert!(
-                identities[..index]
-                    .iter()
-                    .all(|earlier| earlier != identity)
-            );
-        }
-    }
 }

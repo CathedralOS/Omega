@@ -96,7 +96,7 @@ pub use image::final_image_validation::native_code_layouts::{
 pub use image::image_output::{
     ExecutableImage, ExecutableImageEmissionRequest, ImageApplicationMetadataError,
     ObjectContainer, RequestedExecutableImage, can_emit_executable_image, emit_executable_image,
-    validate_direct_executable_image,
+    validate_direct_executable_image, validate_direct_executable_image_output,
 };
 
 pub use installation_record::InstallationError;

@@ -157,6 +157,8 @@ mod entry_inputs;
 mod fixture_package_inputs;
 #[path = "support/native_component_descriptions.rs"]
 mod native_component_descriptions;
+#[path = "support/native_entry_controls.rs"]
+mod native_entry_controls;
 #[path = "support/native_fixture_cohort.rs"]
 mod native_fixture_cohort;
 use native_fixture_cohort::retained_native_terminal;

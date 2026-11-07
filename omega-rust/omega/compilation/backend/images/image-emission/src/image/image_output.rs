@@ -363,6 +363,17 @@ pub fn validate_direct_executable_image(
     artifact: &ObjectArtifact,
     image: &ExecutableImage,
 ) -> Result<(), Diagnostic> {
+    validate_direct_executable_image_output(artifact, image, image.output())
+}
+
+/// Check observed output against its retained source object and image identity.
+/// The borrowed output is untrusted data: successful comparison grants no
+/// publication or execution authority and creates no accepted image.
+pub fn validate_direct_executable_image_output(
+    artifact: &ObjectArtifact,
+    image: &ExecutableImage,
+    output: &EmittedImageOutput,
+) -> Result<(), Diagnostic> {
     crate::object::function_fragments::replay::validate(artifact)?;
     if artifact.psi() != image.psi()
         || artifact.target() != image.target()
@@ -406,7 +417,7 @@ pub fn validate_direct_executable_image(
         prepared.relocations,
         prepared.text_bytes,
         prepared.entry_shim.clone(),
-        image.output(),
+        output,
     )?;
     if let Some(shim) = prepared.entry_shim.as_ref()
         && shim.surface == crate::entries::hosted_unit_entry::EntrySurface::ProvisionedUnit
@@ -417,20 +428,17 @@ pub fn validate_direct_executable_image(
             prepared.object,
             prepared.text_bytes,
             prepared.relocations,
-            image.output(),
+            output,
         )?;
     }
-    let function_validation = crate::object::function_fragments::reporting::summarize(
-        artifact,
-        image.output(),
-        &recomputed,
-    )?;
-    if image.output().compiler_text_validation != Some(recomputed) {
+    let function_validation =
+        crate::object::function_fragments::reporting::summarize(artifact, output, &recomputed)?;
+    if output.compiler_text_validation != Some(recomputed) {
         return Err(Diagnostic::error(
             "terminal executable image retained stale final-text validation evidence",
         ));
     }
-    if image.output().compiler_function_validation != function_validation {
+    if output.compiler_function_validation != function_validation {
         return Err(Diagnostic::error(
             "terminal executable image retained stale compiler-function validation evidence",
         ));

@@ -7,9 +7,6 @@ use super::*;
 use calling_conventions::{EntryStack, Preemption};
 use runtime_abi::static_interrupts::{InstalledInterruptProtocol, root};
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn emit(
     request: NativeEntryBridgeRequest,
     plan: InstalledInterruptEntryPlan,

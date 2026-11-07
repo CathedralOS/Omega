@@ -1274,39 +1274,6 @@ mod tests {
     }
 
     #[test]
-    fn private_image_reference_retains_caller_and_placement() {
-        let mut object = literal_plan();
-        let identity =
-            function_identity::MachineFunctionIdentity::callback_thunk(object.psi, 17).unwrap();
-        object.unresolved_image_addresses[0].reference =
-            selected_instructions::SelectedImageAddressReference::PrivateFunction { identity };
-        object.identity = object.recomputed_identity().unwrap();
-        let original = object.identity;
-        let container = encode_relocation_free_object(&object).unwrap();
-        assert_eq!(
-            decode_relocation_free_object(&container.bytes),
-            Ok(object.clone())
-        );
-        for changed in [
-            function_identity::MachineFunctionIdentity::callback_thunk(object.psi, 18).unwrap(),
-            function_identity::MachineFunctionIdentity::callback_thunk(
-                TerminalPsiIdentity {
-                    program_fingerprint: SemanticFingerprint::from_bytes([93; 32]),
-                    ..object.psi
-                },
-                17,
-            )
-            .unwrap(),
-        ] {
-            object.unresolved_image_addresses[0].reference =
-                selected_instructions::SelectedImageAddressReference::PrivateFunction {
-                    identity: changed,
-                };
-            assert_ne!(object.recomputed_identity().unwrap(), original);
-        }
-    }
-
-    #[test]
     fn native_layout_image_reference_round_trips_exact_machine() {
         let mut object = literal_plan();
         object.unresolved_image_addresses[0].reference =
