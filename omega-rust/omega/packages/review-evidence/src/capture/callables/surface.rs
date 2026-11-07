@@ -1,4 +1,10 @@
-//! Shared exact callable associations, before evidence or policy behavior projection.
+// Shared exact callable surface projection before evidence or policy behavior
+// projection. Checked bodies retain their authored service-reach ceiling (including
+// explicit empty) or `None` for inference, while bodyless supplies retain their
+// governing published ceiling. Opaque realizations without a body inherit the
+// governing contract of the requirement they satisfy (`language/effects.md`,
+// "Opaque supplies inherit"), and both persisted review forms retain the authored
+// operator spelling token.
 
 use super::super::behavior::{
     canonical_checked_invocation_targets, project_installation_reaches, project_service_row,
@@ -40,19 +46,11 @@ pub(super) struct CallableSurface {
     pub(super) operator_realizations: Vec<PackageReviewOperatorRealization>,
     pub(super) requirement_realizations: Vec<crate::record::PackageReviewRequirementRealization>,
     pub(super) contracts: Vec<PackageReviewCallableContract>,
-    /// Checked bodies retain their authored ceiling, including explicit empty,
-    /// or `None` for inference. Bodyless supplies retain their governing
-    /// published ceiling; omission never infers authority from an unknown body.
     pub(super) declared_service_reach: Option<Vec<PackageReviewNominalIdentity>>,
     pub(super) checked_service_reach: PackageReviewCheckedServiceReach,
     pub(super) unresolved_installation_reaches: Vec<PackageReviewInstallationReach>,
-    /// `Some` preserves a published direct synchronous-invocation ceiling,
-    /// including an explicitly empty one. Targets retain parameter ordinals
-    /// or package-qualified service identities, never display strings.
     pub(super) declared_synchronous_invocations: Option<Vec<PackageReviewSynchronousInvocation>>,
     pub(super) realized_synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
-    /// Exact checked operational summary. Published callable surfaces expose
-    /// their authored may-ceiling; the build-machine lane may remain inferred.
     pub(super) checked_may_suspend: bool,
     pub(super) checked_may_block: bool,
     pub(super) declared_may_suspend: Option<bool>,
@@ -298,10 +296,6 @@ pub(super) fn project<'a>(
         }
     };
 
-    // An opaque realization has no body to infer from: it publishes the
-    // contract it inherits from the requirement it satisfies, which checking
-    // joined into its realized behavior, so its own omitted clauses are not its
-    // ceiling (language/effects.md, "Opaque supplies inherit").
     let inherits_governing_contract = !machine.body_is_present
         && matches!(
             machine.supply_mode,
@@ -312,9 +306,6 @@ pub(super) fn project<'a>(
         surface: CallableSurface {
             identity,
             supply,
-            // Both persisted review forms retain the authored token. A named
-            // callable coordinate or a satisfier row cannot reconstruct this
-            // declaration-owned part of its public signature.
             spelling: machine.spelling,
             lifetime_parameter_count: lifetime_parameters.len(),
             policy_type_parameters,

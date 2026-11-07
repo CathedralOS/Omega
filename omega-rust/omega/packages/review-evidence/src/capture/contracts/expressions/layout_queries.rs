@@ -1,4 +1,6 @@
-//! Exact checked layout observations in inert review expressions.
+// Checked layout-query (`size` / `alignment`) projection in inert review expressions.
+// Normalized type identity owns query denotation, while the remaining static payload
+// verifies resolved source correspondence against immutable compiler custody.
 
 use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
@@ -63,9 +65,6 @@ pub(super) fn project_layout_query(
     if operand != expected {
         return Err(context.rejected("layout-query operand differs from immutable source custody"));
     }
-    // Normalized type owns query denotation. The remaining static payload is
-    // retained source correspondence: verify its complete resolved application,
-    // independently in each namespace, rather than comparing arena coordinates.
     if query.operand.path != original_query.operand.path
         || source_operand(compilation, context, &query.operand)?
             != source_operand(&original, context, &original_query.operand)?
