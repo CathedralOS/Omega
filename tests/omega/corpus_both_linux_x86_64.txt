@@ -1,0 +1,32 @@
+# Omega corpus outcomes, written by `python tools/corpus_gate.py --record`.
+# One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
+# `expected` or `unexpected` when its expected.txt fragments were weighed,
+# then any execution facts such as exit:70 or stdout:match, then
+# `regressed-from:<status>[+fact]*` when the row has lost a success it used
+# to record, then `@<revision>` recording which commit measured the row
+# (`+wt` = dirty tree; rows measured before stamping have no token).
+# Tab-indented lines under a fixture are its diagnostics, in order.
+# A `# context: {...}` line records the conditions of the --record run.
+# context: {"cpus": 4, "jobs": "1", "load1_end": 2.37, "load1_start": 2.87, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/borrows/branch_selected_record_composed_receiver_exit built 19646ms exit:70 interpreter-exit:70 interpreter:agrees @a5b74c596d2d
+pass/borrows/completed_selector_value_composition_exit built 6424ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/borrows/nested_machine_carried_recurrent_selector_exit built 17230ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/borrows/runtime_forwarded_indexed_reference_exit built 6739ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/borrows/runtime_result_element_call_selector_capture_exit built 6424ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/contracts/borrowed_guarantee_disjoint_field_write_exit built 6939ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/contracts/scalar_reference_unit_completion_exit built 6679ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_call_result_exit built 7739ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_const_name_exit built 7818ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_field_exit built 7804ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_local_exit built 7948ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_match_join_exit built 7968ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_other_machine_exit built 7916ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_other_state_exit built 7791ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_parameter_exit built 7831ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_target_body_exit built 10284ms exit:0 interpreter-exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @a5b74c596d2d
+pass/ownership/selected_storage_join_backedge_exit built 8076ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/ownership/selected_storage_join_borrowed_ingress_exit built 8323ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/ownership/selected_storage_join_held_address_exit built 8327ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/ownership/selected_storage_join_nested_exit built 8325ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/ownership/selected_storage_join_returned_owner_exit built 8250ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
+pass/ownership/selected_storage_join_scalar_result_exit built 8253ms exit:0 interpreter-exit:0 interpreter:agrees @a5b74c596d2d
