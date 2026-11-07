@@ -43,7 +43,41 @@ struct DeclinedStep {
     phase: &'static str,
 }
 
+/// Preserve a specific attempted plan's refusal if every alternative fails.
+/// Successful alternatives explicitly discard the note; early refusal through
+/// `?` keeps the original statement and owner instead of the last fallback.
+pub(crate) struct DeferredFailure<'a> {
+    trace: &'a LocalConstructionTrace,
+    at: Option<DeclineMark>,
+}
+
+impl DeferredFailure<'_> {
+    pub(crate) fn retain(&mut self) {
+        self.at = Some(self.trace.decline_mark());
+    }
+
+    pub(crate) fn succeeded(&mut self) {
+        self.at = None;
+    }
+}
+
+impl Drop for DeferredFailure<'_> {
+    fn drop(&mut self) {
+        if let Some(at) = self.at {
+            self.trace.restore(&at.position);
+            self.trace.state.set(at.state);
+        }
+    }
+}
+
 impl LocalConstructionTrace {
+    pub(crate) fn deferred_failure(&self) -> DeferredFailure<'_> {
+        DeferredFailure {
+            trace: self,
+            at: None,
+        }
+    }
+
     /// Enter a phase; the statement position resets with it.
     pub(crate) fn phase(&self, phase: &'static str) {
         self.declined_step.set(None);

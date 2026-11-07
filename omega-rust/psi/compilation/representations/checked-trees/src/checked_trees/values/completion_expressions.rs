@@ -22,6 +22,40 @@ pub struct CheckedCompletionRoot {
     pub statement_ordinal: u32,
     pub expression: ExpressionHandle,
     pub root: CheckedCompletionExpressionHandle,
+    pub refusal: Option<CheckedCompletionRefusal>,
+}
+
+/// Why the exact selected completion could not be produced. This is diagnostic
+/// data, not a partial executable plan or permission to omit a selected call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedCompletionRefusal {
+    pub expression: ExpressionHandle,
+    pub reason: CheckedCompletionRefusalReason,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedCompletionRefusalReason {
+    Cycle,
+    CallResult,
+    CallOccurrence,
+    DispatchOperands,
+    Comparison,
+    ExpressionKind,
+    NormalCompletion,
+}
+
+impl CheckedCompletionRefusalReason {
+    pub fn phase(self) -> &'static str {
+        match self {
+            Self::Cycle => "Unit completion: cyclic expression dependency",
+            Self::CallResult => "Unit completion: selected call has no Unit result",
+            Self::CallOccurrence => "Unit completion: selected call has no exact flow occurrence",
+            Self::DispatchOperands => "Unit completion: dispatch operands unavailable",
+            Self::Comparison => "Unit completion: pattern comparison unavailable",
+            Self::ExpressionKind => "Unit completion: result is not a selected invocation",
+            Self::NormalCompletion => "Unit completion: normal-return observation unavailable",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]

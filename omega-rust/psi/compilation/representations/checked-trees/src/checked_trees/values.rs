@@ -55,7 +55,7 @@ mod completion_expressions;
 pub use completion_expressions::{
     CheckedCompletionArm, CheckedCompletionComparison, CheckedCompletionExpression,
     CheckedCompletionExpressionHandle, CheckedCompletionExpressionKind, CheckedCompletionPlans,
-    CheckedCompletionRoot,
+    CheckedCompletionRefusal, CheckedCompletionRefusalReason, CheckedCompletionRoot,
 };
 mod structural_values;
 pub use structural_values::{

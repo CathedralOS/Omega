@@ -32,6 +32,13 @@ pub(super) fn build(
 ) -> Option<CheckedUnitCompletionPlan> {
     let plans = &facts.values.completions;
     let root = plans.root_at(machine.symbol, state.symbol, statement, expression)?;
+    if let Some(refusal) = root.refusal {
+        trace.phase(refusal.reason.phase());
+        trace.statement(Some(statement));
+        return None;
+    }
+    trace.phase("Unit completion: checked dispatch root");
+    trace.statement(Some(statement));
     if !matches!(plans.nodes.get(root.root).kind, Kind::Dispatch { .. }) {
         return None;
     }
@@ -40,6 +47,8 @@ pub(super) fn build(
     let mut bind_call =
         |node: &checked_trees::CheckedCompletionExpression,
          source_call: arena::Handle<checked_trees::FlowCallFact>| {
+            trace.phase("Unit completion: exact selected call occurrence");
+            trace.statement(Some(statement));
             let offset = source_call
                 .arena_index()
                 .checked_sub(flow.calls.start().arena_index())?;
@@ -97,7 +106,14 @@ pub(super) fn build(
             };
             Some(operations)
         };
-    let expression = bind_expression(plans, root.root, &mut BTreeSet::new(), &mut bind_call)?;
+    let expression = bind_expression(
+        plans,
+        root.root,
+        &mut BTreeSet::new(),
+        &mut bind_call,
+        trace,
+        statement,
+    )?;
     Some(CheckedUnitCompletionPlan {
         statement_ordinal: statement,
         expression,
@@ -115,7 +131,11 @@ fn bind_expression(
         &checked_trees::CheckedCompletionExpression,
         arena::Handle<checked_trees::FlowCallFact>,
     ) -> Option<checked_trees::CheckedOperandSequence>,
+    trace: &control::LocalConstructionTrace,
+    statement: u32,
 ) -> Option<CheckedUnitCompletionExpression> {
+    trace.phase("Unit completion: selected expression binding");
+    trace.statement(Some(statement));
     let key = (handle.arena_index(), handle.generation());
     if !handle.is_valid() || !active.insert(key) {
         return None;
@@ -157,7 +177,14 @@ fn bind_expression(
                         selected.push(CheckedUnitScalarCompletionArm {
                             source_arm: arm.source_arm,
                             condition,
-                            completion: bind_expression(plans, arm.completion, active, bind_call)?,
+                            completion: bind_expression(
+                                plans,
+                                arm.completion,
+                                active,
+                                bind_call,
+                                trace,
+                                statement,
+                            )?,
                         });
                     }
                     CheckedUnitCompletionKind::Selection(CheckedUnitCompletionSelection::Scalar {
@@ -186,7 +213,14 @@ fn bind_expression(
                         selected.push(CheckedUnitStructuralCompletionArm {
                             source_arm: arm.source_arm,
                             predicate,
-                            completion: bind_expression(plans, arm.completion, active, bind_call)?,
+                            completion: bind_expression(
+                                plans,
+                                arm.completion,
+                                active,
+                                bind_call,
+                                trace,
+                                statement,
+                            )?,
                         });
                     }
                     CheckedUnitCompletionKind::Selection(

@@ -247,6 +247,7 @@ pub(super) fn build(
             Some(selected_exit),
         ));
     }
+    let mut unit_completion_failure = trace.deferred_failure();
     if result == CheckedControlResultPlan::Unit {
         let expression = match statements.get(terminator_index)? {
             StatementNode::Expression(expression) => Some(*expression),
@@ -262,6 +263,7 @@ pub(super) fn build(
             }
             _ => None,
         };
+        let before_unit_completion = trace.mark();
         if let Some(completion) = expression.and_then(|expression| {
             super::unit_completions::build(
                 program,
@@ -280,6 +282,9 @@ pub(super) fn build(
             )
         }) {
             return Some((TerminatorPlan::CompleteExpression { completion }, None));
+        }
+        if trace.mark() != before_unit_completion {
+            unit_completion_failure.retain();
         }
     }
     let before_closed_sum = trace.mark();
@@ -457,6 +462,7 @@ pub(super) fn build(
                     && transition_on_erased_dispatch_subject(program, state, when_true)
                     && transition_on_erased_dispatch_subject(program, state, when_false)
                 {
+                    unit_completion_failure.succeeded();
                     return Some(erased_proof_completion(state, statements, terminator_index));
                 }
                 trace.phase("state graph: terminator: conditional successors: guard expression");
@@ -695,6 +701,7 @@ pub(super) fn build(
                         })
                     })
                 {
+                    unit_completion_failure.succeeded();
                     return Some(erased_proof_completion(state, statements, terminator_index));
                 }
                 trace.phase("state graph: terminator: guarded jump successors: roster");
@@ -917,6 +924,7 @@ pub(super) fn build(
             }
         }
     };
+    unit_completion_failure.succeeded();
     Some((terminator, None))
 }
 
