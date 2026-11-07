@@ -919,16 +919,8 @@ pub(in super::super) fn scalar_control(
     } else {
         let copies =
             super::selected_copies::SelectedCopies::new(program, facts, machine.symbol, state)?;
-        terminator
-            .returning_paths(&facts.flow.guarded_exits)
-            .ok()?
-            .iter()
-            .map(|path| {
-                copies
-                    .for_destination(&path.destination)
-                    .map(|(_, copy)| copy)
-            })
-            .collect::<Option<Vec<_>>>()?
+        let paths = terminator.returning_paths(&facts.flow.guarded_exits).ok()?;
+        copies.for_destinations(paths.iter().map(|path| &path.destination))?
     };
     Some((
         checked_trees::CheckedUnitScalarControlPlan {

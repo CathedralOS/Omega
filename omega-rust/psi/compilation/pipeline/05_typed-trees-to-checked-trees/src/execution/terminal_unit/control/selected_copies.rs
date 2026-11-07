@@ -112,6 +112,29 @@ impl<'a> SelectedCopies<'a> {
             .collect()
     }
 
+    /// Several decision paths may enter one authored return. Publish its birth
+    /// and cleanup coordinate once, in first-use order; disagreement refuses.
+    pub(in crate::execution::terminal_unit) fn for_destinations<'b>(
+        &self,
+        destinations: impl IntoIterator<Item = &'b CheckedScalarBranchDestination>,
+    ) -> Option<Vec<CheckedScalarReturnCopies>> {
+        let mut positions = BTreeMap::new();
+        let mut selected = Vec::new();
+        for destination in destinations {
+            let (_, row) = self.for_destination(destination)?;
+            let key = (row.statement_ordinal, row.is_continuation);
+            if let Some(&position) = positions.get(&key) {
+                if selected.get(position) != Some(&row) {
+                    return None;
+                }
+            } else {
+                positions.insert(key, selected.len());
+                selected.push(row);
+            }
+        }
+        Some(selected)
+    }
+
     pub(in crate::execution::terminal_unit) fn for_destination(
         &self,
         destination: &CheckedScalarBranchDestination,
