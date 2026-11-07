@@ -152,3 +152,8 @@ path = "tests/package_review.rs"
 [[test]]
 name = "executed_fixture_discovery"
 path = "tests/executed_fixture_discovery.rs"
+
+# Independent receiver admission of the existing Windows filesystem customer.
+[[test]]
+name = "filesystem_receiver"
+path = "tests/filesystem_receiver.rs"

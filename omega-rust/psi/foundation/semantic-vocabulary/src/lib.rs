@@ -59,7 +59,7 @@ pub use storage::reference_origins::ReferenceOriginExtent;
 
 pub use byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
 pub use fnv1a::Fnv1a;
-pub use id_table::{IdSet, IdTable, NonDenseIdentities};
+pub use id_table::{IdSet, IdTable, IdTableBuildError, NonDenseIdentities};
 pub use identity::{
     AdmissionSiteId, BlockId, BoundaryCompletion, BoundaryMachineId, BoundaryRequirementKind,
     CallingAbiIdentity, CallingDeclarationOwner, CallingGenericFormal, CallingOperandKind,

@@ -15,7 +15,7 @@ use std::marker::PhantomData;
 use crate::PsiSemanticId;
 
 /// One value per identity in a contiguous run `first..first + len`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct IdTable<Id, T> {
     first: u64,
     values: Vec<T>,
@@ -27,6 +27,14 @@ pub struct IdTable<Id, T> {
 pub struct NonDenseIdentities {
     pub expected: u64,
     pub found: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdTableBuildError {
+    RepeatedOrUnordered { previous: u64, found: u64 },
+    SpanOverflow,
+    SpanLimit { span: u64, maximum: usize },
+    AllocationFailed,
 }
 
 impl<Id: PsiSemanticId, T> IdTable<Id, T> {
@@ -48,6 +56,72 @@ impl<Id: PsiSemanticId, T> IdTable<Id, T> {
                 });
             }
             values.push(value);
+        }
+        Ok(Self {
+            first,
+            values,
+            identity: PhantomData,
+        })
+    }
+
+    /// Retain an ordered subset without renaming its identities. Missing
+    /// coordinates contain Default, not an invented declared row or value.
+    /// Consumers use Option rows or explicit presence bits where needed.
+    pub fn from_rows_with_gaps(
+        rows: impl IntoIterator<Item = (Id, T)>,
+        maximum_span: usize,
+    ) -> Result<Self, IdTableBuildError>
+    where
+        T: Default,
+    {
+        let mut rows = rows.into_iter();
+        let Some((first, value)) = rows.next() else {
+            return Ok(Self::default());
+        };
+        let first = first.get();
+        if maximum_span == 0 {
+            return Err(IdTableBuildError::SpanLimit {
+                span: 1,
+                maximum: maximum_span,
+            });
+        }
+        let mut values = Vec::new();
+        values
+            .try_reserve(1)
+            .map_err(|_| IdTableBuildError::AllocationFailed)?;
+        values.push(value);
+        let mut previous = first;
+        for (identity, value) in rows {
+            let raw = identity.get();
+            if raw <= previous {
+                return Err(IdTableBuildError::RepeatedOrUnordered {
+                    previous,
+                    found: raw,
+                });
+            }
+            let span = raw
+                .checked_sub(first)
+                .and_then(|offset| offset.checked_add(1))
+                .ok_or(IdTableBuildError::SpanOverflow)?;
+            if span > maximum_span as u64 {
+                return Err(IdTableBuildError::SpanLimit {
+                    span,
+                    maximum: maximum_span,
+                });
+            }
+            let offset = raw
+                .checked_sub(first)
+                .and_then(|offset| usize::try_from(offset).ok())
+                .ok_or(IdTableBuildError::SpanOverflow)?;
+            let target_len = offset
+                .checked_add(1)
+                .ok_or(IdTableBuildError::SpanOverflow)?;
+            values
+                .try_reserve(target_len - values.len())
+                .map_err(|_| IdTableBuildError::AllocationFailed)?;
+            values.resize_with(offset, T::default);
+            values.push(value);
+            previous = raw;
         }
         Ok(Self {
             first,
@@ -205,6 +279,37 @@ mod tests {
         );
         assert!(IdTable::from_rows([(id(2), ()), (id(1), ())]).is_err());
         assert!(IdTable::from_rows([(id(2), ()), (id(2), ())]).is_err());
+    }
+
+    #[test]
+    fn subset_rows_keep_coordinates_and_refuse_invalid_or_excessive_spans() {
+        let rows =
+            IdTable::from_rows_with_gaps([(id(4), Some('a')), (id(7), Some('b'))], 4).unwrap();
+        assert_eq!(rows.get(id(4)), Some(&Some('a')));
+        assert_eq!(rows.get(id(5)), Some(&None));
+        assert_eq!(rows.get(id(7)), Some(&Some('b')));
+        assert_eq!(rows.get(id(8)), None);
+        assert_eq!(
+            rows.keys().collect::<Vec<_>>(),
+            [id(4), id(5), id(6), id(7)]
+        );
+        let high = IdTable::from_rows_with_gaps([(id(u64::MAX), Some('z'))], 1).unwrap();
+        assert_eq!(high.get(id(u64::MAX)), Some(&Some('z')));
+        assert!(matches!(
+            IdTable::from_rows_with_gaps([(id(4), Some('a'))], 0),
+            Err(IdTableBuildError::SpanLimit {
+                span: 1,
+                maximum: 0
+            })
+        ));
+        // The strict complete-roster constructor still refuses these holes.
+        assert!(IdTable::from_rows([(id(4), ()), (id(7), ())]).is_err());
+        assert!(IdTable::from_rows_with_gaps([(id(7), Some('b')), (id(7), Some('c'))], 4).is_err());
+        assert!(IdTable::from_rows_with_gaps([(id(7), Some('b')), (id(4), Some('c'))], 4).is_err());
+        assert!(matches!(
+            IdTable::from_rows_with_gaps([(id(1), Some('a')), (id(u64::MAX), Some('b'))], 16),
+            Err(IdTableBuildError::SpanLimit { .. }) | Err(IdTableBuildError::SpanOverflow)
+        ));
     }
 
     #[test]

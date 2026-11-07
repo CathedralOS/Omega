@@ -7,6 +7,31 @@ mod operations;
 pub(crate) mod reachability;
 mod reviewer;
 
+// Compile the checked-flow controls while the production replay is being wired.
+// These modules cannot yet supply a narrowed authority row in ordinary review.
+#[cfg(test)]
+mod windows_handle_activations;
+#[cfg(test)]
+mod windows_handle_aliases;
+#[cfg(test)]
+mod windows_handle_arguments;
+#[cfg(test)]
+mod windows_handle_calls;
+#[cfg(test)]
+mod windows_handle_conditions;
+#[cfg(test)]
+mod windows_handle_contracts;
+#[cfg(test)]
+mod windows_handle_inputs;
+#[cfg(test)]
+mod windows_handle_lifetimes;
+#[cfg(test)]
+mod windows_handle_origins;
+#[cfg(test)]
+mod windows_handle_paths;
+#[cfg(test)]
+mod windows_handle_values;
+
 use effects::{SelectedProviderPlanFacts, TerminalAuthorityClosureReviewReceipt};
 
 use super::{TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy};
@@ -27,6 +52,7 @@ pub(crate) fn review_terminal_authority_closure(
     physical_policy: &TerminalAuthorityPolicy,
     permission_policy: Option<&TerminalAuthorityPermissionPolicy>,
     mechanisms: &[AdmittedTerminalMechanism],
+    settlements: &[crate::AdmittedBoundarySettlement<'_>],
     installed_candidates: &[terminal_psi::ProviderCandidateConformance],
     components: &[crate::provider_admission::NativeProviderSettlement<'_>],
 ) -> Result<TerminalAuthorityClosureReviewReceipt, String> {
@@ -37,6 +63,7 @@ pub(crate) fn review_terminal_authority_closure(
         physical_policy,
         permission_policy,
         mechanisms,
+        settlements,
         installed_candidates,
         components,
     )?;

@@ -95,7 +95,7 @@ impl<'a> Reviewer<'a> {
             // call and is reviewed separately. Do not invent a provider/service
             // identity for the primitive, or silently skip a missing settlement.
             let expected = TerminalMechanismIdentity::CompilerIntrinsic(intrinsic);
-            if self.context.mechanisms.get(&boundary) != Some(&expected) {
+            if self.context.mechanism(boundary) != Some(&expected) {
                 return Err(format!(
                     "private lifecycle {boundary:?} has no exact admitted execution"
                 ));
@@ -124,12 +124,7 @@ impl<'a> Reviewer<'a> {
             .identities
             .text(declaration.identity)
             .unwrap_or_default();
-        let supplied_requirement = self
-            .context
-            .selected
-            .assumed_supplier_identity(requirement)?;
-        let (selected_plan, selected_row, specialization) =
-            self.context.selected_requirement(requirement)?;
+        let (selected_plan, selected_row, _) = self.context.selected_requirement(requirement)?;
         if let Some(authority) = self.context.component_authority(boundary)? {
             // This witness came from actual producer native admission, not a
             // descriptive receipt reconstructed by the receiver. Every leaf is
@@ -160,47 +155,10 @@ impl<'a> Reviewer<'a> {
             return Ok(());
         }
         match &selected_row.binding {
-            ProviderBinding::CheckedAdapter {
-                machine_identity,
-                machine_package_identity,
-            } => {
-                if selected_plan.provider_type.is_empty()
-                    || !machine_identity.is_valid()
-                    || *machine_package_identity != selected_plan.origin_package_identity
-                {
-                    return Err(format!(
-                        "selected checked adapter for `{requirement}` has incomplete or substituted provider custody"
-                    ));
-                }
-                // Recover the exact installed row, without treating an absent
-                // catalog or projection as successful installation. The trust
-                // boundary reports missing custody rather than panicking.
-                // The installed candidate names the specialized provider
-                // instance for a closed requirement; the selected row's
-                // binding retains the authored generic provider template.
-                let realization_identity = specialization
-                    .and_then(|row| {
-                        self.context
-                            .selected
-                            .identities()
-                            .text(row.machine_identity)
-                    })
-                    .unwrap_or(selected_plan.identity_text(*machine_identity));
-                let candidate = self
-                    .context
-                    .installed_candidates
-                    .iter()
-                    .find(|candidate| {
-                        self.context.input.plan().identities.text(candidate.requirement_identity) == Some(supplied_requirement)
-                            && self.context.input.plan().identities.text(candidate.provider_identity) == Some(selected_plan.provider_type.as_str())
-                            && self.context.input.plan().identities.text(candidate.candidate_identity) == Some(realization_identity)
-                    })
-                    .ok_or_else(|| {
-                        format!(
-                            "reachable requirement `{requirement}` has no admitted installation for selected provider `{}` adapter `{realization_identity}`",
-                            selected_plan.provider_type
-                        )
-                    })?;
+            ProviderBinding::CheckedAdapter { .. } => {
+                let candidate = self.context.checked_adapter(requirement)?.ok_or_else(|| {
+                    format!("checked adapter for `{requirement}` lost its selected role")
+                })?;
                 let schema = selected_plan.schema_identity_digest();
                 let provider_plan = selected_plan.identity_digest();
                 let nested = self

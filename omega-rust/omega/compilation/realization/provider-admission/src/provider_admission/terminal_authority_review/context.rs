@@ -13,6 +13,11 @@ use crate::provider_admission::{
     AdmittedTerminalMechanism, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
 
+struct AdmittedMechanismRow<'a> {
+    mechanism: TerminalMechanismIdentity,
+    foreign: Option<&'a target_operations::NormalizedForeignCallBinding>,
+}
+
 pub(super) struct ReviewContext<'a> {
     pub(super) input: &'a crate::AdmissionSource<'a>,
     pub(super) graph: AuthorityGraph<'a>,
@@ -25,7 +30,7 @@ pub(super) struct ReviewContext<'a> {
     /// allow-all: leaves then record classification and exercised authority
     /// with no adjudicated permission.
     pub(super) permission_policy: Option<&'a TerminalAuthorityPermissionPolicy>,
-    pub(super) mechanisms: BTreeMap<BoundaryMachineId, TerminalMechanismIdentity>,
+    mechanisms: BTreeMap<BoundaryMachineId, AdmittedMechanismRow<'a>>,
     pub(super) installed_candidates: &'a [terminal_psi::ProviderCandidateConformance],
     target_profile: target::TargetProfile,
     components: &'a [crate::provider_admission::NativeProviderSettlement<'a>],
@@ -39,6 +44,7 @@ impl<'a> ReviewContext<'a> {
         physical_policy: &'a TerminalAuthorityPolicy,
         permission_policy: Option<&'a TerminalAuthorityPermissionPolicy>,
         mechanisms: &[AdmittedTerminalMechanism],
+        settlements: &'a [crate::AdmittedBoundarySettlement<'_>],
         installed_candidates: &'a [terminal_psi::ProviderCandidateConformance],
         components: &'a [crate::provider_admission::NativeProviderSettlement<'a>],
     ) -> Result<Self, String> {
@@ -59,13 +65,41 @@ impl<'a> ReviewContext<'a> {
         let mut mechanism_map = BTreeMap::new();
         for admitted in mechanisms {
             if mechanism_map
-                .insert(admitted.boundary, admitted.mechanism)
+                .insert(
+                    admitted.boundary,
+                    AdmittedMechanismRow {
+                        mechanism: admitted.mechanism,
+                        foreign: None,
+                    },
+                )
                 .is_some()
             {
                 return Err(format!(
                     "native settlement repeats terminal mechanism for boundary {:?}",
                     admitted.boundary
                 ));
+            }
+        }
+        // The settlement belongs to the already indexed admitted mechanism.
+        // Carry that association on its row instead of allocating a second
+        // boundary-ID inventory or scanning settlements at each use.
+        for settlement in settlements {
+            if let target_operations::BoundarySettlementRealization::NormalizedForeignCall(
+                binding,
+            ) = &settlement.realization
+            {
+                let row = mechanism_map.get_mut(&settlement.boundary).ok_or_else(|| {
+                    format!(
+                        "foreign settlement {:?} has no admitted mechanism",
+                        settlement.boundary
+                    )
+                })?;
+                if row.foreign.replace(binding).is_some() {
+                    return Err(format!(
+                        "native settlement repeats an admitted foreign execution for boundary {:?}",
+                        settlement.boundary
+                    ));
+                }
             }
         }
         Ok(Self {
@@ -80,6 +114,26 @@ impl<'a> ReviewContext<'a> {
             target_profile,
             components,
         })
+    }
+
+    pub(super) fn mechanism(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> Option<&TerminalMechanismIdentity> {
+        self.mechanisms.get(&boundary).map(|row| &row.mechanism)
+    }
+
+    #[cfg(test)]
+    pub(super) fn target_profile(&self) -> target::TargetProfile {
+        self.target_profile
+    }
+
+    #[cfg(test)]
+    pub(super) fn foreign_binding(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> Option<&'a target_operations::NormalizedForeignCallBinding> {
+        self.mechanisms.get(&boundary).and_then(|row| row.foreign)
     }
 
     pub(super) fn component_authority(
@@ -103,6 +157,64 @@ impl<'a> ReviewContext<'a> {
             return Err("component authority has competing separately emitted executions for one receiving boundary".into());
         }
         Ok(result)
+    }
+
+    /// The checked body already admitted for this exact selected requirement.
+    /// Closure expansion and argument/lifetime replay share this custody join;
+    /// neither may choose a body from an implementation's display name alone.
+    pub(super) fn checked_adapter(
+        &self,
+        requirement: &str,
+    ) -> Result<Option<&'a terminal_psi::ProviderCandidateConformance>, String> {
+        let supplied_requirement = self.selected.assumed_supplier_identity(requirement)?;
+        let (plan, row, specialization) = self.selected_requirement(requirement)?;
+        let ProviderBinding::CheckedAdapter {
+            machine_identity,
+            machine_package_identity,
+        } = &row.binding
+        else {
+            return Ok(None);
+        };
+        if plan.provider_type.is_empty()
+            || !machine_identity.is_valid()
+            || *machine_package_identity != plan.origin_package_identity
+        {
+            return Err(format!(
+                "selected checked adapter for `{requirement}` has incomplete or substituted provider custody"
+            ));
+        }
+        let realization_identity = specialization
+            .and_then(|row| self.selected.identities().text(row.machine_identity))
+            .unwrap_or(plan.identity_text(*machine_identity));
+        let mut candidates = self.installed_candidates.iter().filter(|candidate| {
+            self.input
+                .plan()
+                .identities
+                .text(candidate.requirement_identity)
+                == Some(supplied_requirement)
+                && self
+                    .input
+                    .plan()
+                    .identities
+                    .text(candidate.provider_identity)
+                    == Some(plan.provider_type.as_str())
+                && self
+                    .input
+                    .plan()
+                    .identities
+                    .text(candidate.candidate_identity)
+                    == Some(realization_identity)
+        });
+        let candidate = candidates.next().ok_or_else(|| format!(
+            "reachable requirement `{requirement}` has no admitted installation for selected provider `{}` adapter `{realization_identity}`",
+            plan.provider_type,
+        ))?;
+        if candidates.next().is_some() {
+            return Err(format!(
+                "reachable requirement `{requirement}` repeats its exact admitted adapter"
+            ));
+        }
+        Ok(Some(candidate))
     }
 
     /// The selected plan row serving one reachable requirement, plus the
@@ -194,7 +306,7 @@ impl<'a> ReviewContext<'a> {
         boundary: BoundaryMachineId,
         binding: &ProviderBinding,
     ) -> Result<TerminalMechanismIdentity, String> {
-        let mechanism = self.mechanisms.get(&boundary).copied().ok_or_else(|| {
+        let mechanism = self.mechanism(boundary).copied().ok_or_else(|| {
             format!("reachable terminal boundary {boundary:?} has no admitted physical mechanism")
         })?;
         let role_matches = match (binding, mechanism) {

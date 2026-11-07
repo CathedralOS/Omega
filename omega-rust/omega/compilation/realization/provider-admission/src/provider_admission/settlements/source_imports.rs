@@ -205,12 +205,22 @@ fn settled_host_cohort_row(
     row: &ProviderPlanRow,
     mechanism: effects::TerminalMechanismIdentity,
 ) -> Option<TerminalAuthorityPolicyRow> {
-    let method = provider_plan
+    let requirement = provider_plan.identities.text(row.requirement_identity);
+    let mut methods = provider_plan
         .schema
         .declaration
         .methods
         .iter()
-        .find(|method| method.name == row.method)?;
+        .filter(|method| {
+            provider_plan
+                .schema
+                .identity_text(method.requirement_identity)
+                == requirement
+        });
+    let method = methods.next()?;
+    if methods.next().is_some() {
+        return None;
+    }
     crate::provider_admission::terminal_authority_policy::cohort_mechanism_row(
         mechanism,
         &provider_plan.schema,
