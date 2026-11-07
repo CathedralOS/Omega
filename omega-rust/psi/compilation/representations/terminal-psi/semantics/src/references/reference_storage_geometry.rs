@@ -892,7 +892,8 @@ where
     let mut selected_scalar = None;
     let mut fragments = None;
     let mut window: Option<ReferenceArrayWindow> = None;
-    for segment in path {
+    let mut segments = path.iter();
+    while let Some(segment) = segments.next() {
         if let StructuralPathSegment::RepresentationView {
             structural_type,
             stored_scalar,
@@ -954,6 +955,62 @@ where
         }
         let shape = &crate::structural_shape(types.clone(), carrier)?;
         match (shape, segment) {
+            (
+                StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. },
+                StructuralPathSegment::Field(_) | StructuralPathSegment::Case(_),
+            ) => {
+                let (common, cases) = match shape {
+                    StructuralTypeShape::Sum { cases } => (&[][..], cases),
+                    StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
+                    _ => return None,
+                };
+                // Common and payload fields have separate logical namespaces.
+                // Both offsets come from the same selected sum packer as the
+                // complete extent and discriminator; a Case step grants no
+                // access to the payload and cannot be an address by itself.
+                let layout = sum_layout(
+                    types.clone(),
+                    common,
+                    cases,
+                    &mut vec![carrier],
+                    carriers,
+                    records,
+                    &mut |application| extents(application).map(Some),
+                )
+                .ok()??;
+                let (field, offset) = match segment {
+                    StructuralPathSegment::Field(identity) => {
+                        let (ordinal, field) = terminal_psi::live_field_entry(common, *identity)?;
+                        (field, *layout.common_field_offsets.get(ordinal)?)
+                    }
+                    StructuralPathSegment::Case(case) => {
+                        let (ordinal, selected) =
+                            cases.iter().enumerate().find(|(_, row)| row.id == *case)?;
+                        let StructuralPathSegment::Field(identity) = segments.next()? else {
+                            return None;
+                        };
+                        let (field_ordinal, field) =
+                            terminal_psi::live_field_entry(&selected.fields, *identity)?;
+                        (
+                            field,
+                            *layout.case_field_offsets.get(ordinal)?.get(field_ordinal)?,
+                        )
+                    }
+                    _ => return None,
+                };
+                let recipe = field.storage.as_ref();
+                if matches!(recipe, Some(AuthoredFieldStorage::Fragmented(_))) {
+                    return None;
+                }
+                byte_offset = byte_offset.checked_add(offset)?;
+                selected_storage = recipe.and_then(AuthoredFieldStorage::stored_scalar);
+                repeated_stride = recipe.and_then(AuthoredFieldStorage::element_stride);
+                if let Some(logical_scalar) = field.field_type.scalar_type() {
+                    selected_scalar = Some(logical_scalar);
+                    continue;
+                }
+                carrier = field.field_type.as_structural()?;
+            }
             (
                 StructuralTypeShape::Record { fields, storage },
                 StructuralPathSegment::Field(identity),
@@ -1139,7 +1196,10 @@ mod tests {
                             identity: TerminalIdentityIndex(11),
                             fields: vec![
                                 field(1, StructuralFieldType::Scalar(scalar(8)), None),
-                                field(2, StructuralFieldType::Scalar(scalar(64)), None),
+                                StructuralFieldDeclaration {
+                                    identity: TerminalIdentityIndex(5),
+                                    ..field(2, StructuralFieldType::Scalar(scalar(64)), None)
+                                },
                             ],
                         },
                     ],
@@ -1150,6 +1210,39 @@ mod tests {
                 StructuralTypeShape::FixedArray {
                     element: identity(1),
                     length: terminal_psi::ArrayExtent::Literal(3),
+                },
+            ),
+            declaration(
+                3,
+                StructuralTypeShape::Record {
+                    storage: StructuralRecordStorage::Packed,
+                    fields: vec![
+                        field(1, StructuralFieldType::Scalar(scalar(32)), None),
+                        StructuralFieldDeclaration {
+                            identity: TerminalIdentityIndex(5),
+                            ..field(2, StructuralFieldType::Structural(identity(1)), None)
+                        },
+                    ],
+                },
+            ),
+            declaration(
+                4,
+                StructuralTypeShape::Sum {
+                    cases: vec![terminal_psi::StructuralCaseDeclaration {
+                        id: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
+                        identity: TerminalIdentityIndex(11),
+                        fields: vec![StructuralFieldDeclaration {
+                            identity: TerminalIdentityIndex(5),
+                            ..field(
+                                2,
+                                StructuralFieldType::Scalar(scalar(64)),
+                                Some(AuthoredFieldStorage::Scalar {
+                                    byte_offset: 0,
+                                    stored_scalar: Some(scalar(32)),
+                                }),
+                            )
+                        }],
+                    }],
                 },
             ),
         ];
@@ -1180,6 +1273,55 @@ mod tests {
             assert_eq!(geometry.layout(identity(1)), Ok((extent, 8)));
             assert_eq!(sum.storage.byte_size, extent);
             assert_eq!(geometry.layout(identity(2)), Ok((3 * extent, 8)));
+            let common_region = geometry
+                .region(
+                    identity(1),
+                    &[StructuralPathSegment::Field(TerminalIdentityIndex(4))],
+                )
+                .unwrap();
+            assert_eq!(
+                (common_region.byte_offset, common_region.byte_length),
+                (common, 2)
+            );
+            let selected = [
+                StructuralPathSegment::Case(semantic_vocabulary::StructuralCaseId::new(2).unwrap()),
+                StructuralPathSegment::Field(TerminalIdentityIndex(5)),
+            ];
+            let region = geometry.region(identity(1), &selected).unwrap();
+            assert_eq!((region.byte_offset, region.byte_length), (payload + 8, 8));
+            assert_eq!(region.scalar.unwrap().logical_scalar, scalar(64));
+            let narrow = geometry.region(identity(4), &selected).unwrap();
+            assert_eq!((narrow.byte_offset, narrow.byte_length), (tag_size, 4));
+            assert_eq!(narrow.scalar.unwrap().logical_scalar, scalar(64));
+            assert_eq!(narrow.scalar.unwrap().stored_scalar, scalar(32));
+            let mut nested = vec![StructuralPathSegment::Field(TerminalIdentityIndex(5))];
+            nested.extend_from_slice(&selected);
+            let region = geometry.region(identity(3), &nested).unwrap();
+            assert_eq!(
+                (region.byte_offset, region.byte_length),
+                (8 + payload + 8, 8)
+            );
+            let mut indexed = vec![StructuralPathSegment::FixedIndex(2)];
+            indexed.extend_from_slice(&selected);
+            let region = geometry.region(identity(2), &indexed).unwrap();
+            assert_eq!(
+                (region.byte_offset, region.byte_length),
+                (2 * extent + payload + 8, 8)
+            );
+            assert!(geometry.region(identity(1), &selected[..1]).is_none());
+            assert!(
+                geometry
+                    .region(
+                        identity(1),
+                        &[
+                            StructuralPathSegment::Case(
+                                semantic_vocabulary::StructuralCaseId::new(1).unwrap()
+                            ),
+                            StructuralPathSegment::Field(TerminalIdentityIndex(5)),
+                        ]
+                    )
+                    .is_none()
+            );
         }
     }
 
