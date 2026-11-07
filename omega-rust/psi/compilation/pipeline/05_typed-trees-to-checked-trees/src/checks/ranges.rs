@@ -221,22 +221,40 @@ pub(crate) fn check_indexed_accesses(
                     let _s = phase_profile::guard(
                         "psi.05.check_checked_facts.check_indexed_accesses.check_statements",
                     );
-                    for (statement_index, statement) in program
-                        .statement_table
-                        .admitted_execution_statements(state.statement_nodes)
-                    {
-                        facts.statement_index = statement_index;
-                        check_statement(
-                            program,
-                            machine,
-                            state,
-                            call_frames,
-                            &mut facts,
-                            statement,
-                            &mut machine_diagnostics,
-                            &mut machine_verdicts,
-                        );
-                    }
+                    // First retain only the expensive bounds demands the
+                    // ordinary range walk cannot settle. Their exact prefix
+                    // observations share one walk, then a fresh range replay
+                    // publishes the final diagnostics and verdicts. Neither
+                    // provisional failure nor a later statement seeds a proof.
+                    let check = |mut facts: RangeFacts<'_>| {
+                        let mut diagnostics = Vec::new();
+                        let mut verdicts = indexes::IndexVerdicts::default();
+                        for (statement_index, statement) in program
+                            .statement_table
+                            .admitted_execution_statements(state.statement_nodes)
+                        {
+                            facts.statement_index = statement_index;
+                            check_statement(
+                                program,
+                                machine,
+                                state,
+                                call_frames,
+                                &mut facts,
+                                statement,
+                                &mut diagnostics,
+                                &mut verdicts,
+                            );
+                        }
+                        (diagnostics, verdicts)
+                    };
+                    let provisional = check(facts.clone());
+                    let (diagnostics, verdicts) = if collection_bounds.resolve_deferred() {
+                        check(facts)
+                    } else {
+                        provisional
+                    };
+                    machine_diagnostics.extend(diagnostics);
+                    machine_verdicts.extend(verdicts);
                 }
                 Some((machine_diagnostics, machine_verdicts))
             })

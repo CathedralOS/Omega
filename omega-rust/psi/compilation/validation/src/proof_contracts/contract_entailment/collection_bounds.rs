@@ -21,6 +21,14 @@ pub struct CollectionBoundsObservations<'program> {
     machine: &'program Machine,
     state: &'program State,
     acyclic: std::cell::Cell<Option<bool>>,
+    demands: std::cell::RefCell<Vec<BoundsDemand>>,
+    resolved: std::cell::Cell<bool>,
+}
+
+struct BoundsDemand {
+    statement: usize,
+    expression: ExpressionHandle,
+    proven: bool,
 }
 
 impl<'program> CollectionBoundsObservations<'program> {
@@ -34,11 +42,124 @@ impl<'program> CollectionBoundsObservations<'program> {
             machine,
             state,
             acyclic: std::cell::Cell::new(None),
+            demands: std::cell::RefCell::new(Vec::new()),
+            resolved: std::cell::Cell::new(false),
         }
     }
 
+    /// The inexpensive range walk records only obligations it could not close.
+    /// Until resolution, false is provisional and cannot publish a proof.
     pub fn proves(&self, statement_index: usize, expression: ExpressionHandle) -> bool {
-        let mut query = Bounds {
+        let mut demands = self.demands.borrow_mut();
+        if let Some(demand) = demands
+            .iter()
+            .find(|demand| demand.statement == statement_index && demand.expression == expression)
+        {
+            return demand.proven;
+        }
+        // A replayed request absent from the collected roster still gets the
+        // original judgment. Batching cannot turn a missed demand into a new
+        // refusal or an assumed proof.
+        let proven = if self.resolved.get() {
+            drop(demands);
+            let proven = self.prove_one(statement_index, expression);
+            demands = self.demands.borrow_mut();
+            proven
+        } else {
+            false
+        };
+        demands.push(BoundsDemand {
+            statement: statement_index,
+            expression,
+            proven,
+        });
+        proven
+    }
+
+    /// Resolve actual deferred demands together. A successful result causes the
+    /// caller to replay its cheap range walk from the same initial facts; failed
+    /// batches retain the original single-occurrence fallback below.
+    pub fn resolve_deferred(&self) -> bool {
+        self.resolved.set(true);
+        let mut demands = std::mem::take(&mut *self.demands.borrow_mut());
+        if demands.is_empty() {
+            return false;
+        }
+        let mut queries = demands
+            .iter()
+            .map(|demand| self.query(demand.statement, demand.expression))
+            .collect::<Vec<_>>();
+        let recognized = {
+            let mut visitors = queries
+                .iter_mut()
+                .map(|query| query as &mut dyn StructuralPrefixVisitor)
+                .collect::<Vec<_>>();
+            if self.is_acyclic() {
+                let recognized = super::structural_prefix::observe_acyclic_invocation_prefixes(
+                    self.program,
+                    self.machine,
+                    &mut visitors,
+                )
+                .is_some();
+                vec![recognized; visitors.len()]
+            } else {
+                super::structural_prefix::observe_runtime_state_prefixes(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    &mut visitors,
+                )
+            }
+        };
+        for ((demand, query), recognized) in demands.iter_mut().zip(&queries).zip(recognized) {
+            demand.proven = recognized && query.seen && query.proven;
+        }
+        let pending = demands
+            .iter()
+            .enumerate()
+            .filter_map(|(index, demand)| (!demand.proven).then_some(index))
+            .collect::<Vec<_>>();
+        if !pending.is_empty() {
+            let accepted = {
+                let mut members = queries
+                    .iter_mut()
+                    .zip(&demands)
+                    .filter_map(|(query, demand)| {
+                        if demand.proven {
+                            return None;
+                        }
+                        query.seen = false;
+                        query.proven = true;
+                        Some(query)
+                    })
+                    .collect::<Vec<_>>();
+                super::structural_prefix::observe_private_arrivals_batch(
+                    self.program,
+                    self.machine,
+                    &mut members,
+                    false,
+                )
+                .into_iter()
+                .zip(members)
+                .map(|(recognized, query)| recognized == Some(true) && query.seen && query.proven)
+                .collect::<Vec<_>>()
+            };
+            for (index, accepted) in pending.into_iter().zip(accepted) {
+                demands[index].proven = accepted;
+            }
+        }
+        for demand in &mut demands {
+            if !demand.proven {
+                demand.proven = self.prove_one(demand.statement, demand.expression);
+            }
+        }
+        let proven = demands.iter().any(|demand| demand.proven);
+        *self.demands.borrow_mut() = demands;
+        proven
+    }
+
+    fn query(&self, statement_index: usize, expression: ExpressionHandle) -> Bounds {
+        Bounds {
             site: StructuralPrefixSite {
                 state: self.state.symbol,
                 statement_index,
@@ -52,8 +173,11 @@ impl<'program> CollectionBoundsObservations<'program> {
             expression,
             seen: false,
             proven: true,
-        };
-        let acyclic = self.acyclic.get().unwrap_or_else(|| {
+        }
+    }
+
+    fn is_acyclic(&self) -> bool {
+        self.acyclic.get().unwrap_or_else(|| {
             let computed = self
                 .program
                 .machine_states(self.machine)
@@ -67,8 +191,12 @@ impl<'program> CollectionBoundsObservations<'program> {
                 });
             self.acyclic.set(Some(computed));
             computed
-        });
-        let recognized = if acyclic {
+        })
+    }
+
+    fn prove_one(&self, statement_index: usize, expression: ExpressionHandle) -> bool {
+        let mut query = self.query(statement_index, expression);
+        let recognized = if self.is_acyclic() {
             super::structural_prefix::observe_acyclic_invocation_prefix(
                 self.program,
                 self.machine,
