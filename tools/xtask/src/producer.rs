@@ -78,6 +78,7 @@ fn optimized(profile: &Value, flags: &Value) -> Result<(), String> {
 
 fn unit_fingerprints(directory: &Path, name: &str) -> Result<Vec<PathBuf>, String> {
     let mut paths = Vec::new();
+    let suffix = format!("-{name}.json");
     for entry in
         fs::read_dir(directory).map_err(|e| format!("read {}: {e}", directory.display()))?
     {
