@@ -754,7 +754,7 @@ def run_runner(binary: Path, root: Path = ROOT, *, freshly_built=False) -> list[
             elif (line.startswith("corpus_runner:")
                   or structural_trace
                   or phase_profile and profile_output.fullmatch(line)
-                  or check_sites and line.startswith(("CHECKSITE ", "CLEANUP_EXCLUSION_"))):
+                  or check_sites and line.startswith("CHECKSITE ")):
                 sys.stderr.write(line)
                 sys.stderr.flush()
             else:
