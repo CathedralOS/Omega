@@ -19,7 +19,7 @@ pub(super) fn selected_actions(
     target: SymbolHandle,
     root: facts::PlaceRoot,
     source: CheckedUnitStructuralArgumentSourcePlan,
-) -> Result<Vec<CheckedNormalCleanupAction>, super::CleanupFailure> {
+) -> Result<Vec<CheckedNormalCleanupAction>, &'static str> {
     let machine = super::owning_cleanup_machine(program, state);
     let mut actions = Vec::new();
     let mut retirement = None;
@@ -104,7 +104,7 @@ pub(super) fn owner_group_actions(
     shapes: &mut ShapeCollector<'_>,
     disposition: arena::Handle<checked_trees::ContextualCleanupDisposition>,
     source: CheckedUnitStructuralArgumentSourcePlan,
-) -> Result<Vec<CheckedNormalCleanupAction>, super::CleanupFailure> {
+) -> Result<Vec<CheckedNormalCleanupAction>, &'static str> {
     let row = facts.contextual_cleanup.dispositions.get(disposition);
     let PermissionEventSource::Call {
         statement_index,
@@ -112,9 +112,7 @@ pub(super) fn owner_group_actions(
         target_symbol,
     } = row.source
     else {
-        return Err(super::CleanupFailure::Borrowed(
-            "retained owner disposition is not a call source",
-        ));
+        return Err("retained owner disposition is not a call source");
     };
     selected_actions(
         program,

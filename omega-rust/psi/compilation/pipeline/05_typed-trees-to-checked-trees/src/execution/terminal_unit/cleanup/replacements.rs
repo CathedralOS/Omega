@@ -29,7 +29,7 @@ pub(super) fn actions(
     state: SymbolHandle,
     parameters: &[CheckedUnitStructuralParameterPlan],
     operation: &CheckedUnitEffectOperationPlan,
-) -> Result<super::temporary_actions::SelectedActions, super::CleanupFailure> {
+) -> Result<super::temporary_actions::SelectedActions, &'static str> {
     (|| {
         let CheckedUnitEffectOperationPlan::ContinuationCleanup {
             boundary:
@@ -42,9 +42,7 @@ pub(super) fn actions(
             ..
         } = operation
         else {
-            return Err(super::CleanupFailure::Borrowed(
-                "continuation cleanup boundary is not a replacement",
-            ));
+            return Err("continuation cleanup boundary is not a replacement");
         };
         let machine = super::owning_cleanup_machine(program, state);
         let source = &destination.source;
@@ -67,11 +65,7 @@ pub(super) fn actions(
                         .symbol,
                 )
             }
-            _ => {
-                return Err(super::CleanupFailure::Borrowed(
-                    "replacement destination root is not a local or parameter",
-                ));
-            }
+            _ => return Err("replacement destination root is not a local or parameter"),
         };
         let displaced = old_value.source != *source;
         let replaced_place = match program.state_by_symbol(state).and_then(|declaration| {
@@ -216,9 +210,7 @@ pub(super) fn actions(
                 || !declaration.descriptor_cleanup
                 || old_value.type_identity != destination.type_identity
             {
-                return Err(super::CleanupFailure::Borrowed(
-                    "replacement carrier descriptor cannot be discarded",
-                ));
+                return Err("replacement carrier descriptor cannot be discarded");
             }
             Some(CheckedNormalCleanupAction::Discard(
                 checked_trees::CheckedUnitPartialAffineDiscardPlan {
@@ -303,9 +295,7 @@ pub(super) fn actions(
                 // Owned replacements clean in place; borrowing cannot manufacture an
                 // absent displaced value before this static continuation is chosen.
                 if displaced {
-                    return Err(super::CleanupFailure::Borrowed(
-                        "displaced old value already has a selected disposition",
-                    ));
+                    return Err("displaced old value already has a selected disposition");
                 }
                 let mut region = super::actions::selected_region(
                     program,
@@ -338,9 +328,7 @@ pub(super) fn actions(
                     CheckedNormalCleanupAction::Discard(action) => &action.path,
                     CheckedNormalCleanupAction::InvokeNominal(action) => &action.path,
                     CheckedNormalCleanupAction::RetireHome { .. } => {
-                        return Err(super::CleanupFailure::Borrowed(
-                            "replacement cannot retire a home at its destination",
-                        ));
+                        return Err("replacement cannot retire a home at its destination");
                     }
                 };
                 if !action_path.starts_with(&destination.path) {
@@ -351,9 +339,7 @@ pub(super) fn actions(
                     // it. An enclosing hook observes the whole value and cannot
                     // run piecewise.
                     let CheckedNormalCleanupAction::Discard(_) = action else {
-                        return Err(super::CleanupFailure::Borrowed(
-                            "enclosing replacement action is not a discard",
-                        ));
+                        return Err("enclosing replacement action is not a discard");
                     };
                     action = CheckedNormalCleanupAction::Discard(
                         checked_trees::CheckedUnitPartialAffineDiscardPlan {
@@ -391,9 +377,7 @@ pub(super) fn actions(
                             (&mut action.source, &mut action.path)
                         }
                         CheckedNormalCleanupAction::RetireHome { .. } => {
-                            return Err(super::CleanupFailure::Borrowed(
-                                "displaced replacement cannot retire a home",
-                            ));
+                            return Err("displaced replacement cannot retire a home");
                         }
                     };
                     *path = path
@@ -417,9 +401,7 @@ pub(super) fn actions(
         // An occupied affine value cannot silently become a raw discard when its
         // source death is absent. The producer must supply that occurrence first.
         if actions.is_empty() && !selected_disposition {
-            return Err(super::CleanupFailure::Borrowed(
-                "replacement selected no cleanup actions and no disposition",
-            ));
+            return Err("replacement selected no cleanup actions and no disposition");
         }
         if selected_regions
             .iter()

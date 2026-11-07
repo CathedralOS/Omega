@@ -489,7 +489,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                         program,
                         plan.machine,
                         GapSite::State(state),
-                        GapReason::Unsupported(construct),
+                        GapReason::Unsupported(std::borrow::Cow::Borrowed(construct)),
                     )
                 });
             false

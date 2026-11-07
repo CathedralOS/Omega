@@ -39,10 +39,6 @@ pub(crate) use nominal_requirements::{
 };
 pub(crate) use partial_affine_cleanup::partial_affine_residuals;
 
-/// Ordinary refusals borrow their static reason; only a failed request with
-/// retained details owns a bounded diagnostic allocation.
-pub(in crate::execution::terminal_unit) type CleanupFailure = std::borrow::Cow<'static, str>;
-
 use super::{
     CheckFacts, CheckedNominalAffineUnitCleanupMachinePlan, CheckedStructuralAccess,
     CheckedUnitEffectOperationPlan, CheckedUnitPartialAffineDiscardPlan,

@@ -221,7 +221,7 @@ pub(in crate::execution::terminal_unit) fn operations(
     state: SymbolHandle,
     parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     operations: &[CheckedUnitEffectOperationPlan],
-) -> Result<OperationSelections, super::CleanupFailure> {
+) -> Result<OperationSelections, &'static str> {
     let release_owned = release_owned_dispositions(operations, &shapes.cleanup_control)
         .ok_or("release-owned owner cleanup span missing")?;
     sequence_actions(
@@ -250,7 +250,7 @@ fn sequence_actions(
     sequence: OperationSequence<'_>,
     completion: Option<(&CheckedUnitEffectOperationPlan, OperationSequence<'_>)>,
     release_owned: &[arena::Handle<checked_trees::ContextualCleanupDisposition>],
-) -> Result<OperationSelections, super::CleanupFailure> {
+) -> Result<OperationSelections, &'static str> {
     (|| {
         let mut selected = OperationSelections::default();
         for operation_index in 0..sequence.len() {
@@ -276,9 +276,7 @@ fn sequence_actions(
                         owner.owner.source,
                     )?;
                     if actions.is_empty() {
-                        return Err(super::CleanupFailure::Borrowed(
-                            "release reference owner group selected no cleanup actions",
-                        ));
+                        return Err("release reference owner group selected no cleanup actions");
                     }
                     let actions = shapes.cleanup_control.actions.insert_many(actions);
                     let handle = owner_cleanups.handle_at(
@@ -353,9 +351,7 @@ fn sequence_actions(
                                 continue;
                             }
                             if local.replace(candidate).is_some() {
-                                return Err(super::CleanupFailure::Borrowed(
-                                    "call boundary names two local producers",
-                                ));
+                                return Err("call boundary names two local producers");
                             }
                         }
                     }
@@ -364,16 +360,14 @@ fn sequence_actions(
                     });
                     let (consumer, producers) = match (local, enclosing) {
                         (Some(_), Some(_)) => {
-                            return Err(super::CleanupFailure::Borrowed(
-                                "call boundary has both a local and a completion producer",
-                            ));
+                            return Err("call boundary has both a local and a completion producer");
                         }
                         (Some(consumer), None) => (consumer, prior),
                         (None, Some(completion)) => completion,
                         (None, None) => {
-                            return Err(super::CleanupFailure::Borrowed(
+                            return Err(
                                 "call boundary has no producer in its prefix or completion",
-                            ));
+                            );
                         }
                     };
                     let actions = call_actions(
@@ -407,7 +401,7 @@ fn value_call_actions(
     parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     call: &checked_trees::CheckedStructuralValueCall,
     release_owned: &[arena::Handle<checked_trees::ContextualCleanupDisposition>],
-) -> Result<CallSelections, super::CleanupFailure> {
+) -> Result<CallSelections, &'static str> {
     let preparation = OperationSequence::operands(call.operands());
     Ok(CallSelections {
         operands: sequence_actions(
@@ -452,7 +446,7 @@ fn call_actions(
     producers: OperationSequence<'_>,
     cleanup_actions: &[CheckedNormalCleanupAction],
     release_owned: &[arena::Handle<checked_trees::ContextualCleanupDisposition>],
-) -> Result<SelectedActions, super::CleanupFailure> {
+) -> Result<SelectedActions, &'static str> {
     (|| {
         let machine = super::owning_cleanup_machine(program, state);
         let coordinate = consumer
@@ -479,9 +473,7 @@ fn call_actions(
                     .filter(|action| action.source() == source)
                     .any(|action| !matches!(action, CheckedNormalCleanupAction::Discard(_)))
                 {
-                    return Err(super::CleanupFailure::Borrowed(
-                        "discarded call result also carries a non-discard cleanup",
-                    ));
+                    return Err("discarded call result also carries a non-discard cleanup");
                 }
                 completed.extend(
                     cleanup_actions
@@ -510,9 +502,7 @@ fn call_actions(
                                 continue;
                             }
                             if producer.replace(candidate).is_some() {
-                                return Err(super::CleanupFailure::Borrowed(
-                                    "cleanup source names two result producers",
-                                ));
+                                return Err("cleanup source names two result producers");
                             }
                         }
                     }
@@ -525,11 +515,7 @@ fn call_actions(
                     expression,
                     ..
                 } => Some(facts::PlaceRoot::Expression(expression)),
-                _ => {
-                    return Err(super::CleanupFailure::Borrowed(
-                        "cleanup source is neither a call result nor an expression",
-                    ));
-                }
+                _ => return Err("cleanup source is neither a call result nor an expression"),
             };
             let contextual = root.is_some_and(|root| {
                 facts
@@ -554,9 +540,7 @@ fn call_actions(
                     action.source() == source
                         && matches!(action, CheckedNormalCleanupAction::RetireHome { .. })
                 }) {
-                    return Err(super::CleanupFailure::Borrowed(
-                        "home retirement without a contextual call disposition",
-                    ));
+                    return Err("home retirement without a contextual call disposition");
                 }
                 completed.extend(
                     cleanup_actions
@@ -832,7 +816,6 @@ pub(crate) fn finalize_completion_actions(
                 call,
                 &context.release_owned,
             )
-            .map_err(|reason| refusal = reason.into_owned())
             .ok()?;
             if !selected.is_empty() {
                 value_calls.push((handle, selected));
@@ -1078,7 +1061,6 @@ pub(crate) fn finalize_completion_actions(
                         logical_root_type_identity: None,
                     },
                 )
-                .map_err(|reason| refusal = format!("{site}: {reason}"))
                 .ok()?;
                 owners.push((
                     operand.argument_ordinal,
