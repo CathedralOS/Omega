@@ -947,7 +947,6 @@ impl OperationFrame<'_, '_> {
                     self.checked,
                     &mut arguments,
                     &[declaration],
-                    &[],
                     self.values,
                     self.next_place,
                     self.private_places,

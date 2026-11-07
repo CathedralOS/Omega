@@ -8,12 +8,14 @@
 
 use super::{
     Evaluation, LoweringError, OperationBuffer, Terminator, ValueDeclaration, allocate_dense,
-    block_id, declarations, edge_id,
+    block_id, declarations, edge_id, value_id,
 };
 use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
 use crate::unit::unit_cleanup::CleanupRegion;
-use semantic_vocabulary::{BlockId, EdgeId, ProofTerm};
-use terminal_psi::{Block, OperationKind, SuccessorEdge, TerminalAffineCleanupAction};
+use semantic_vocabulary::{BlockId, EdgeId, ProofTerm, ScalarType};
+use terminal_psi::{
+    Block, OperationKind, OperationResult, SuccessorEdge, TerminalAffineCleanupAction,
+};
 
 mod case_observations;
 
@@ -316,21 +318,19 @@ impl Evaluation {
         checked: &checked_trees::CheckedTrees,
         arguments: &mut Vec<terminal_psi::StructuralArgument>,
         declarations: &[terminal_psi::StructuralParameterDeclaration],
-        regions: &[CleanupRegion],
         values: &mut Vec<ValueDeclaration>,
         next_place: &mut u64,
         places: &mut Vec<terminal_psi::StructuralPlaceDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
         next_edge: &mut u64,
-        operations: &mut OperationBuffer,
+        operations: &OperationBuffer,
     ) -> Result<(), LoweringError> {
         self.cleanup_emission(checked, &mut Vec::new())
             .capture_arguments(
                 identities,
                 arguments,
                 declarations,
-                regions,
                 values,
                 next_place,
                 places,
@@ -389,14 +389,13 @@ impl CleanupEmission<'_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         arguments: &mut Vec<terminal_psi::StructuralArgument>,
         declarations: &[terminal_psi::StructuralParameterDeclaration],
-        regions: &[CleanupRegion],
         values: &mut Vec<ValueDeclaration>,
         next_place: &mut u64,
         places: &mut Vec<terminal_psi::StructuralPlaceDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
         next_edge: &mut u64,
-        operations: &mut OperationBuffer,
+        operations: &OperationBuffer,
     ) -> Result<(), LoweringError> {
         if arguments.len() != declarations.len() {
             return Err(LoweringError::Unsupported(
@@ -406,10 +405,6 @@ impl CleanupEmission<'_> {
         if arguments.is_empty() {
             return Ok(());
         }
-        // All authored operands have completed. Capture the required case
-        // decisions while the original owner is whole, before this edge moves
-        // its selected children into the cleanup continuation.
-        self.capture_transfer_cases(regions, arguments, next_value, operations)?;
         let target = block_id(allocate_dense(next_block)?);
         let parameters = super::declarations(
             &values
@@ -830,7 +825,34 @@ impl CleanupEmission<'_> {
             } else {
                 (join, join_parameters.to_vec())
             };
-            let observation = self.observe_case(condition, next_value, operations)?;
+            let observation = if let Some(observed) = self.retained_case(condition, operations) {
+                observed
+            } else {
+                let value = ValueDeclaration {
+                    id: value_id(allocate_dense(next_value)?),
+                    scalar_type: ScalarType::Boolean,
+                    qualifications: Default::default(),
+                };
+                let producer = operations.push_leaf(
+                    OperationResult::Scalar(value),
+                    OperationKind::StructuralCaseMembership {
+                        source: condition.place,
+                        path: condition.path.clone(),
+                        case: condition.case,
+                    },
+                );
+                operations.storage_observations.cases.push(
+                    crate::emission::operation_emission::buffer::CapturedStructuralCaseObservation {
+                        source: condition.place,
+                        path: condition.path.clone(),
+                        structural_type: condition.structural_type,
+                        case: condition.case,
+                        value,
+                        producer,
+                    },
+                );
+                value
+            };
             // The first discriminator dominates every arrival at this dispatch's
             // join. Observations made inside an arm or its later false-chain do
             // not: preserve only this common scope after the complete dispatch.
