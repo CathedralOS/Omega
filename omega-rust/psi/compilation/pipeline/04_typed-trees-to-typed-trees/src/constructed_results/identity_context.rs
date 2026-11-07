@@ -1,6 +1,6 @@
-//! A Prop identity supplies a common complete carrier to its constructors.
-//! Retain the exact peer occurrence under the same source telescope; these are
-//! inference proposals, never field, domain, ownership or equality evidence.
+//! Source relations and mathematical inputs supply constructor type arguments.
+//! Retain the exact peer or declared receiving type under the same telescope.
+//! These are inference proposals, never domain, ownership or identity evidence.
 
 use super::ValueTypeOwner;
 use std::collections::HashMap;
@@ -11,8 +11,14 @@ use typed_trees::{
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
 
+#[derive(Clone, Copy)]
+pub(super) enum ConstructorContext {
+    Peer(ExpressionHandle),
+    Declared(TypeReferenceHandle),
+}
+
 pub(super) type ConstructorPeers =
-    HashMap<(ValueTypeOwner, ExpressionHandle), Vec<ExpressionHandle>>;
+    HashMap<(ValueTypeOwner, ExpressionHandle), Vec<ConstructorContext>>;
 
 pub(super) fn append(
     program: &dyn validation::CheckingInput,
@@ -31,10 +37,33 @@ pub(super) fn append(
         }
         visited.push(expression);
         pending.extend(
-            validation::contextual_proposition_children(program, expression)
+            validation::logical_proposition_children(program, expression)
                 .into_iter()
                 .flatten(),
         );
+        if let Some(call) = program.expression_table.call_node(expression)
+            && let Some(types) =
+                validation::mathematical_applications::argument_type_references(program, call)
+        {
+            for (subject, reference) in program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .zip(types)
+            {
+                if let Some(reference) = reference
+                    && program
+                        .expression_table
+                        .struct_literal_node(*subject)
+                        .is_some()
+                {
+                    peers
+                        .entry((owner, *subject))
+                        .or_default()
+                        .push(ConstructorContext::Declared(reference));
+                }
+            }
+        }
         let Some(binary) = program.expression_table.binary_node(expression) else {
             continue;
         };
@@ -50,7 +79,10 @@ pub(super) fn append(
                 .struct_literal_node(constructor)
                 .is_some()
             {
-                peers.entry((owner, constructor)).or_default().push(peer);
+                peers
+                    .entry((owner, constructor))
+                    .or_default()
+                    .push(ConstructorContext::Peer(peer));
             }
         }
     }
@@ -68,7 +100,10 @@ pub(super) fn argument_tuples(
         .into_iter()
         .flatten()
         .filter_map(|peer| {
-            let reference = scope.result_type(program, *peer)?;
+            let reference = match peer {
+                ConstructorContext::Peer(peer) => scope.result_type(program, *peer)?,
+                ConstructorContext::Declared(reference) => *reference,
+            };
             application_arguments(program, reference, declaration)
         })
         .collect()

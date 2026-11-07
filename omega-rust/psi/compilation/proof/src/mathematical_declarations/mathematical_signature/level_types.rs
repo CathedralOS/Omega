@@ -135,6 +135,9 @@ impl<'a> Elaborator<'a> {
                 self.refuse("a mathematical type references a type that does not exist".to_owned())
             );
         }
+        if let Some(carrier) = self.elaborate_content_carrier(reference)? {
+            return Ok(carrier);
+        }
         if let Some(alias) = self.source_type_alias(reference)? {
             return Ok(alias);
         }
@@ -187,6 +190,10 @@ impl<'a> Elaborator<'a> {
                             arguments.len()
                         ))),
                     },
+                    Some(FixedCore::Identity) => {
+                        Err(self
+                            .refuse("core::Identity requires its two typed subjects".to_owned()))
+                    }
                     Some(FixedCore::Level) => {
                         Err(self.refuse("`core::Level` is a universe level, not a type".to_owned()))
                     }

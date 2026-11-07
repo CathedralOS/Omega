@@ -495,36 +495,61 @@ impl TermArena {
     /// Bruijn indices, so this is also the neutral-head comparison used by
     /// conversion and the tests.
     pub fn structurally_equal(&self, left: TermHandle, right: TermHandle) -> bool {
-        let mut pending = vec![(false, (left, right))];
+        self.structurally_equal_shifted(left, right, 0)
+    }
+
+    /// Compare a term with the same value carried under additional binders.
+    /// Locally bound variables keep their indices; only free variables cross
+    /// the inserted telescope. This is structural correspondence, not a new
+    /// conversion or equality rule, and allocates no shifted term tree.
+    pub fn structurally_equal_shifted(
+        &self,
+        source: TermHandle,
+        shifted: TermHandle,
+        inserted_binders: u32,
+    ) -> bool {
+        let mut pending = vec![(false, (source, shifted, 0u32))];
         let mut active = HashSet::new();
         let mut complete = HashSet::new();
         while let Some((finish, pair)) = pending.pop() {
             if finish {
-                active.remove(&pair);
+                active.remove(&(pair.0, pair.1));
                 complete.insert(pair);
                 continue;
             }
             if complete.contains(&pair) {
                 continue;
             }
-            // A finite term DAG shares completed subgraphs. A back edge is
-            // not a completed equality judgment and supplies no evidence.
-            if !active.insert(pair) {
+            // The local depth belongs to the key: a shared node may occur
+            // both under its own binder and in the surrounding telescope.
+            if !active.insert((pair.0, pair.1)) {
                 return false;
             }
             let left = self.node(pair.0);
             let right = self.node(pair.1);
-            if !left.payloads_equal(right) {
+            let payloads_equal = match (left, right) {
+                (Term::Variable(left), Term::Variable(right)) if *left >= pair.2 => {
+                    left.checked_add(inserted_binders) == Some(*right)
+                }
+                _ => left.payloads_equal(right),
+            };
+            if !payloads_equal {
                 return false;
             }
             pending.push((true, pair));
-            pending.extend(
-                left.subterms()
-                    .iter()
-                    .zip(right.subterms().iter())
-                    .rev()
-                    .map(|((left, _), (right, _))| (false, (left, right))),
-            );
+            for ((left, binders), (right, _)) in
+                left.subterms().iter().zip(right.subterms().iter()).rev()
+            {
+                let depth = if inserted_binders == 0 {
+                    0
+                } else {
+                    let Some(depth) = pair.2.checked_add(binders) else {
+                        return false;
+                    };
+                    depth
+                };
+                pending.push((false, (left, right, depth)));
+            }
         }
         true
     }
@@ -533,5 +558,50 @@ impl TermArena {
 impl Default for TermArena {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod shifted_correspondence_tests {
+    use super::{Term, TermArena};
+
+    #[test]
+    fn shifted_comparison_matches_capture_avoiding_shift_on_shared_scopes() {
+        let mut arena = TermArena::new();
+        let two = arena.insert(Term::Two);
+        let zero = arena.insert(Term::Variable(0));
+        let one = arena.insert(Term::Variable(1));
+        let relation = arena.insert(Term::Id {
+            ty: two,
+            left: zero,
+            right: one,
+        });
+        let lambda = arena.insert(Term::Lambda {
+            domain: two,
+            body: relation,
+        });
+        let source = arena.insert(Term::Sigma {
+            domain: relation,
+            codomain: lambda,
+        });
+        for amount in [0, 1, 3] {
+            let shifted = crate::shift(&mut arena, source, 0, amount);
+            assert!(arena.structurally_equal_shifted(source, shifted, amount));
+            assert!(!arena.structurally_equal_shifted(source, shifted, amount + 1));
+        }
+    }
+
+    #[test]
+    fn a_binder_cycle_is_not_correspondence_at_any_offset() {
+        let mut arena = TermArena::new();
+        let two = arena.insert(Term::Two);
+        let cyclic = arena.insert(Term::Dummy);
+        *arena.terms.get_mut(cyclic) = Term::Lambda {
+            domain: two,
+            body: cyclic,
+        };
+        for amount in [0, 1] {
+            assert!(!arena.structurally_equal_shifted(cyclic, cyclic, amount));
+        }
     }
 }

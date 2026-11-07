@@ -49,6 +49,7 @@ struct Binding {
 #[derive(Debug, Clone, Default)]
 struct TypeEnvironment {
     owner: SymbolHandle,
+    trait_scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
     self_type: Option<InferredType>,
     result_type: Option<TypeReferenceHandle>,
     bindings: Vec<Binding>,
@@ -127,11 +128,11 @@ pub struct OwnerEnvironmentIndex {
 }
 
 impl OwnerEnvironmentIndex {
-    /// Lexical environments for authored contracts before checking publishes
+    /// Lexical environments for retained contracts before checking publishes
     /// proof facts. These roots identify binders, never checked evidence.
     pub fn for_preparation(program: &dyn crate::CheckingInput) -> Self {
         let mut owners = Self::new(program, &arena::Arena::default());
-        indexing::index_authored_contract_environments(program, &mut owners.index);
+        indexing::index_contract_environments(program, &mut owners.index);
         owners
     }
 
@@ -144,7 +145,8 @@ impl OwnerEnvironmentIndex {
     }
 
     /// Checked invocation signatures retain their complete applied parameter
-    /// environment. Preparation has no such authority and uses `new` instead.
+    /// environment. Preparation uses `for_preparation` to retain source typing
+    /// without checked-contract authority.
     pub fn with_call_signatures(
         program: &dyn crate::CheckingInput,
         contract_facts: &arena::Arena<ContractProofFact>,

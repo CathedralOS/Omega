@@ -284,9 +284,12 @@ impl StructuralJudge<'_> {
         self.completed_value_identity_at(
             captured.clone(),
             0,
-            self.captured_result_equations.iter().filter(|equation| {
-                !equation.is_completed_call_identity() && !equation.is_data_identity()
-            }),
+            self.captured_result_equations
+                .iter()
+                .filter(|equation| {
+                    !equation.is_completed_call_identity() && !equation.is_data_identity()
+                })
+                .map(|equation| (&equation.left, &equation.right)),
         )
     }
 }

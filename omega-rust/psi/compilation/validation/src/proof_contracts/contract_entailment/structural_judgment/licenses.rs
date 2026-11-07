@@ -2,14 +2,19 @@
 //! and semiring licenses, their law-shape detectors, and the polynomial
 //! normal form those licenses power. The judge keeps only the types it
 //! stores; all candidate computation and shape checking lives here.
-use super::super::{BinaryOperator, Machine, SymbolHandle, TraitDefinition, structural_term_pair};
+use super::super::{BinaryOperator, Machine, SymbolHandle, TraitDefinition, structural_term};
 use super::StructuralTerm;
-use crate::proof_contracts::contract_entailment::law_conformance::collect_equality_conjuncts;
-use std::collections::HashMap;
+use crate::proof_contracts::contract_entailment::law_conformance::{
+    TraitOperationSlots, collect_equality_conjuncts,
+};
 use typed_trees::expression::StaticMachineArgument;
-use typed_trees::machine::TraitConformance;
 use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
+
+mod conformances;
+use conformances::{
+    SlotCarriers, conformance_slot_carriers_uncached, law_has_operations, selected_operation,
+};
 
 /// REARRANGE-MODE license (settle 2026-07-18, rung C): a carrier EARNS ring
 /// canonicalization over an op through EXPLICIT conformance, never
@@ -47,47 +52,52 @@ pub(crate) struct DeclaredIndexAlgebraLaws {
 /// machinery.
 /// Each `ensures`-contract equality conjunct across a state signature's
 /// contract roster, resolved to its structural-term pair.
-fn for_each_ensures_equality(
+fn for_each_ensures_identity(
     program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
+    slots: &TraitOperationSlots,
     mut arm: impl FnMut(StructuralTerm, StructuralTerm),
 ) {
+    // An unconditional rewrite has no premises to discharge. Reading a
+    // conditional law's statement cannot make it an unconditional license.
+    if program
+        .state_signature_contracts(signature)
+        .iter()
+        .any(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
+    {
+        return;
+    }
+    let parameters = program.state_signature_parameters(signature);
     for expression in crate::proof_contracts::proof_facts::ensures_expression_facts(
         program,
         program.state_signature_contracts(signature),
     ) {
         let mut conjuncts = Vec::new();
-        collect_equality_conjuncts(program, expression, &mut conjuncts);
+        collect_equality_conjuncts(
+            program,
+            signature.symbol,
+            parameters,
+            expression,
+            &mut conjuncts,
+        );
         for conjunct in conjuncts {
-            let Some(binary) = program.expression_table.binary_node(conjunct) else {
+            let Some(identity) = conjunct.identity() else {
                 continue;
             };
-            // A Boolean requirement spelled `==` need not establish identity.
-            // License only mathematical equality in this exact abstract
-            // telescope, not a matching source shape or a visible provider.
-            let operands = [binary.left, binary.right].map(|operand| {
-                crate::parameter_expression_result_type_reference(
+            let [Some(left), Some(right)] = identity.subjects.map(|subject| {
+                structural_term(
                     program,
-                    signature.symbol,
-                    program.state_signature_parameters(signature),
-                    operand,
+                    None,
+                    Some((signature.symbol, parameters)),
+                    subject,
+                    None,
                 )
-            });
-            if operands.iter().any(Option::is_none)
-                || !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                    program,
-                    signature.symbol,
-                    conjunct,
-                    language_core::OperatorSpelling::Equal,
-                    &operands,
-                )
-            {
+            }) else {
                 continue;
+            };
+            if slots.covers_term(program, &left) && slots.covers_term(program, &right) {
+                arm(left, right);
             }
-            let Some((left, right)) = structural_term_pair(program, binary) else {
-                continue;
-            };
-            arm(left, right);
         }
     }
 }
@@ -95,40 +105,36 @@ fn for_each_ensures_equality(
 pub(crate) fn declared_index_algebra_laws(
     program: &dyn crate::CheckingInput,
     trait_definition: &TraitDefinition,
-    requirement: &str,
+    requirement: SymbolHandle,
 ) -> DeclaredIndexAlgebraLaws {
     let mut laws = DeclaredIndexAlgebraLaws::default();
+    let slots = TraitOperationSlots::new(program, trait_definition, None);
     for law in program.trait_machine_signatures(trait_definition) {
-        // A premise makes the equality hold only under it, and a rewrite of an
-        // index expression has no premise to discharge, so a conditional law
-        // licenses nothing.
-        if program
-            .state_signature_contracts(law)
-            .iter()
-            .any(|contract| {
-                contract.kind == typed_trees::signature::SignatureContractKind::Requires
-            })
-        {
-            continue;
-        }
         let parameters = program
             .state_signature_parameters(law)
             .iter()
             .map(|parameter| parameter.name.as_str().to_owned())
             .collect::<Vec<_>>();
-        for_each_ensures_equality(program, law, |left, right| {
-            if commutativity_shape(&left, &right, &parameters).as_deref() == Some(requirement) {
+        for_each_ensures_identity(program, law, &slots, |left, right| {
+            if commutativity_shape(&left, &right, &parameters) == Some(requirement) {
                 laws.commutativity.push(law.name.as_str().to_owned());
             }
-            if associativity_shape(&left, &right, &parameters).as_deref() == Some(requirement) {
+            if associativity_shape(&left, &right, &parameters) == Some(requirement) {
                 laws.associativity.push(law.name.as_str().to_owned());
             }
             if let Some((multiplication, addition)) =
                 distributivity_shape(&left, &right, &parameters)
                 && multiplication == requirement
-                && !laws.distributivity.contains(&addition)
+                && let Some(addition) = program
+                    .trait_machine_signatures(trait_definition)
+                    .iter()
+                    .find(|slot| slot.symbol == addition)
+                && !laws
+                    .distributivity
+                    .iter()
+                    .any(|name| name == addition.name.as_str())
             {
-                laws.distributivity.push(addition);
+                laws.distributivity.push(addition.name.as_str().to_owned());
             }
         });
     }
@@ -194,6 +200,7 @@ pub(crate) fn literal_index_identities(
         let Some(declaration) = trees.trait_definition_by_symbol(*trait_symbol) else {
             continue;
         };
+        let slots = TraitOperationSlots::new(program, declaration, None);
         for law in trees.trait_machine_signatures(declaration) {
             if trees.state_signature_contracts(law).iter().any(|contract| {
                 contract.kind == typed_trees::signature::SignatureContractKind::Requires
@@ -210,47 +217,40 @@ pub(crate) fn literal_index_identities(
                 trees.state_signature_contracts(law),
             ) {
                 let mut conjuncts = Vec::new();
-                collect_equality_conjuncts(program, expression, &mut conjuncts);
+                collect_equality_conjuncts(
+                    program,
+                    law.symbol,
+                    trees.state_signature_parameters(law),
+                    expression,
+                    &mut conjuncts,
+                );
                 for conjunct in conjuncts {
-                    let Some(binary) = program.expression_table.binary_node(conjunct) else {
+                    let Some(identity) = conjunct.identity() else {
                         continue;
                     };
-                    let mut operand_types = [binary.left, binary.right].map(|operand| {
-                        crate::parameter_expression_result_type_reference(
+                    let [Some(left), Some(right)] = identity.subjects.map(|subject| {
+                        structural_term(
                             program,
-                            law.symbol,
-                            trees.state_signature_parameters(law),
-                            operand,
+                            None,
+                            Some((law.symbol, trees.state_signature_parameters(law))),
+                            subject,
+                            None,
                         )
-                    });
-                    let Some((left, right)) = super::super::structural_term_pair(program, binary)
-                    else {
+                    }) else {
                         continue;
                     };
-                    if !consistent_operation_selections(&left, &right) {
-                        continue;
-                    }
-                    // `zero() == 0` often reaches this pass before the numeral
-                    // has its own carrier. The nullary result types that
-                    // numeral; a resolved literal carrier must still be the
-                    // same type, not a different integer.
-                    if let Some((_, _, orientation)) = literal_connection_shape(&left, &right) {
-                        let (call_index, integer_index) = match orientation {
-                            ConnectionOrientation::CallThenLiteral => (0, 1),
-                            ConnectionOrientation::LiteralThenCall => (1, 0),
-                        };
-                        if operand_types[integer_index].is_none() {
-                            operand_types[integer_index] = operand_types[call_index];
-                        }
-                    }
-                    if operand_types.iter().any(Option::is_none)
-                        || !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                            program,
-                            law.symbol,
-                            conjunct,
-                            language_core::OperatorSpelling::Equal,
-                            &operand_types,
-                        )
+                    if !slots.covers_term(program, &left)
+                        || !slots.covers_term(program, &right)
+                        || !consistent_operation_selections(&left, &right)
+                        || trees.scoped_type_identity(
+                            typed_trees::type_identity::TypeIdentityRequest {
+                                substitutions,
+                                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(
+                                    identity.carrier,
+                                )
+                            },
+                            scope_starts,
+                        ) != operand_identity
                     {
                         continue;
                     }
@@ -263,8 +263,12 @@ pub(crate) fn literal_index_identities(
                         literal_connection_shape(&left, &right)
                     {
                         let (call, integer) = match orientation {
-                            ConnectionOrientation::CallThenLiteral => (binary.left, binary.right),
-                            ConnectionOrientation::LiteralThenCall => (binary.right, binary.left),
+                            ConnectionOrientation::CallThenLiteral => {
+                                (identity.subjects[0], identity.subjects[1])
+                            }
+                            ConnectionOrientation::LiteralThenCall => {
+                                (identity.subjects[1], identity.subjects[0])
+                            }
                         };
                         let carries = |expression| {
                             operands_type(program, law, expression).is_some_and(|reference| {
@@ -620,31 +624,6 @@ pub(super) fn term_uses_application(term: &StructuralTerm, op: &SymbolHandle) ->
         || term.any_child(|child| term_uses_application(child, op))
 }
 
-/// The (trait symbol, bound requirement name) -> conforming (carrier, entry
-/// symbol) index: conformances are fixed for the build, so both the per-law
-/// slot membership test and each candidate scan read this instead of
-/// re-walking every machine and conformance per license.
-fn conformance_slot_carriers_uncached(
-    program: &dyn crate::CheckingInput,
-) -> HashMap<(SymbolHandle, String), Vec<(TypeReferenceHandle, SymbolHandle)>> {
-    let mut slot_carriers = HashMap::new();
-    for candidate in program.machines() {
-        for conformance in program.machine_trait_conformances(candidate) {
-            let Some(requirement_name) = bound_requirement_name(conformance, candidate) else {
-                continue;
-            };
-            let Some((candidate_entry, carrier)) = entry_carrier(program, candidate) else {
-                continue;
-            };
-            slot_carriers
-                .entry((conformance.symbol, requirement_name))
-                .or_insert_with(Vec::new)
-                .push((carrier, candidate_entry.symbol));
-        }
-    }
-    slot_carriers
-}
-
 /// Compute the program's REARRANGE licenses (settle 2026-07-18): for every
 /// trait, find op slots carrying BOTH a commutativity law and an
 /// associativity law (matched by SHAPE over the trait's own requirement
@@ -661,8 +640,8 @@ fn conformance_slot_carriers_uncached(
 /// A ring license before any judged machine's circularity break.
 pub(super) struct RingCandidate {
     trait_symbol: SymbolHandle,
-    comm_law: String,
-    assoc_law: String,
+    comm_law: SymbolHandle,
+    assoc_law: SymbolHandle,
     add_machine: SymbolHandle,
     carrier: TypeReferenceHandle,
 }
@@ -672,7 +651,7 @@ pub(super) struct RingCandidate {
 /// and the distributivity slot.
 pub(super) struct SemiringCandidate {
     trait_symbol: SymbolHandle,
-    law_slots: [String; 5],
+    law_slots: [SymbolHandle; 5],
     license: SemiringLicense,
     carrier: TypeReferenceHandle,
 }
@@ -769,12 +748,12 @@ fn judged_bound_laws<'program>(
     program: &'program dyn crate::CheckingInput,
     judged_machine: &'program Machine,
     trait_symbol: SymbolHandle,
-) -> impl Iterator<Item = String> + 'program {
+) -> impl Iterator<Item = SymbolHandle> + 'program {
     program
         .machine_trait_conformances(judged_machine)
         .iter()
         .filter(move |conformance| conformance.symbol == trait_symbol)
-        .filter_map(|conformance| bound_requirement_name(conformance, judged_machine))
+        .map(|conformance| conformance.requirement_symbol)
 }
 
 /// The entry state a machine's laws quantify over, with the carrier those
@@ -813,33 +792,34 @@ fn algebraic_law_slots(
     program: &dyn crate::CheckingInput,
 ) -> Vec<(
     &TraitDefinition,
-    Vec<(String, String)>,
-    Vec<(String, String)>,
-    Vec<(String, String, String)>,
+    Vec<(SymbolHandle, SymbolHandle)>,
+    Vec<(SymbolHandle, SymbolHandle)>,
+    Vec<(SymbolHandle, SymbolHandle, SymbolHandle)>,
 )> {
     program
         .traits()
         .iter()
         .map(|trait_definition| {
-            let mut comm_laws: Vec<(String, String)> = Vec::new();
-            let mut assoc_laws: Vec<(String, String)> = Vec::new();
-            let mut dist_laws: Vec<(String, String, String)> = Vec::new();
+            let slots = TraitOperationSlots::new(program, trait_definition, None);
+            let mut comm_laws: Vec<(SymbolHandle, SymbolHandle)> = Vec::new();
+            let mut assoc_laws: Vec<(SymbolHandle, SymbolHandle)> = Vec::new();
+            let mut dist_laws: Vec<(SymbolHandle, SymbolHandle, SymbolHandle)> = Vec::new();
             for requirement in program.trait_machine_signatures(trait_definition) {
                 let parameters: Vec<String> = program
                     .state_signature_parameters(requirement)
                     .iter()
                     .map(|parameter| parameter.name.as_str().to_owned())
                     .collect();
-                for_each_ensures_equality(program, requirement, |left, right| {
+                for_each_ensures_identity(program, requirement, &slots, |left, right| {
                     if let Some(op) = commutativity_shape(&left, &right, &parameters) {
-                        comm_laws.push((op, requirement.name.as_str().to_owned()));
+                        comm_laws.push((op, requirement.symbol));
                     }
                     if let Some(op) = associativity_shape(&left, &right, &parameters) {
-                        assoc_laws.push((op, requirement.name.as_str().to_owned()));
+                        assoc_laws.push((op, requirement.symbol));
                     }
                     if let Some((mul_op, add_op)) = distributivity_shape(&left, &right, &parameters)
                     {
-                        dist_laws.push((mul_op, add_op, requirement.name.as_str().to_owned()));
+                        dist_laws.push((mul_op, add_op, requirement.symbol));
                     }
                 });
             }
@@ -849,97 +829,45 @@ fn algebraic_law_slots(
 }
 
 fn ring_license_candidates(
-    slot_carriers: &HashMap<(SymbolHandle, String), Vec<(TypeReferenceHandle, SymbolHandle)>>,
+    slot_carriers: &SlotCarriers,
     program: &dyn crate::CheckingInput,
 ) -> Vec<RingCandidate> {
     let mut candidates = Vec::new();
-
-    // Op slot name -> (has commutativity law named, has associativity law
-    // named): the LAW requirement names matter later (their satisfiers
-    // must exist for the carrier).
-    for (trait_definition, comm_laws, assoc_laws, _dist_laws) in algebraic_law_slots(program) {
-        for (op_slot, comm_law) in &comm_laws {
-            let Some((_, assoc_law)) = assoc_laws.iter().find(|(op, _)| op == op_slot) else {
+    for (trait_definition, comm_laws, assoc_laws, _) in algebraic_law_slots(program) {
+        for (operation, comm_law) in &comm_laws {
+            let Some((_, assoc_law)) = assoc_laws.iter().find(|(target, _)| target == operation)
+            else {
                 continue;
             };
-            // Every machine the slot index lists under the op slot is a
-            // candidate license -- the index already resolved each machine's
-            // carrier and entry state, which this scan used to rebuild.
-            let Some(rows) = slot_carriers.get(&(trait_definition.symbol, op_slot.clone())) else {
+            let Some(rows) = slot_carriers.get(program, trait_definition.symbol, *comm_law) else {
                 continue;
             };
-            for (carrier, add_machine) in rows {
-                if slot_satisfier(
+            for row in rows {
+                let Some(add_machine) = selected_operation(slot_carriers, program, row, *operation)
+                else {
+                    continue;
+                };
+                if !law_has_operations(
                     slot_carriers,
                     program,
                     trait_definition.symbol,
-                    comm_law,
-                    *carrier,
-                )
-                .is_some()
-                    && slot_satisfier(
-                        slot_carriers,
-                        program,
-                        trait_definition.symbol,
-                        assoc_law,
-                        *carrier,
-                    )
-                    .is_some()
-                {
-                    candidates.push(RingCandidate {
-                        trait_symbol: trait_definition.symbol,
-                        comm_law: comm_law.clone(),
-                        assoc_law: assoc_law.clone(),
-                        add_machine: *add_machine,
-                        carrier: *carrier,
-                    });
+                    *assoc_law,
+                    row,
+                    &[(*operation, add_machine)],
+                ) {
+                    continue;
                 }
+                candidates.push(RingCandidate {
+                    trait_symbol: trait_definition.symbol,
+                    comm_law: *comm_law,
+                    assoc_law: *assoc_law,
+                    add_machine,
+                    carrier: row.carrier,
+                });
             }
         }
     }
-
     candidates
-}
-
-/// The requirement name a conformance binds: the authored `as Name` alias
-/// when present, else the standalone machine's own name. Attached machines
-/// bind nothing implicitly.
-fn bound_requirement_name(conformance: &TraitConformance, machine: &Machine) -> Option<String> {
-    conformance
-        .requirement
-        .as_ref()
-        .map(|name| name.as_str().to_owned())
-        .or_else(|| {
-            machine
-                .attached_data
-                .is_none()
-                .then(|| machine.name.as_str().to_owned())
-        })
-}
-
-/// The first machine the slot index lists under `(trait, requirement_name)`
-/// whose carrier matches; a caller that only needs membership reads
-/// `.is_some()`. Law-slot membership and op-slot lookups share this one
-/// traversal.
-fn slot_satisfier(
-    slot_carriers: &HashMap<(SymbolHandle, String), Vec<(TypeReferenceHandle, SymbolHandle)>>,
-    program: &dyn crate::CheckingInput,
-    trait_symbol: SymbolHandle,
-    requirement_name: &str,
-    carrier: TypeReferenceHandle,
-) -> Option<SymbolHandle> {
-    slot_carriers
-        .get(&(trait_symbol, requirement_name.to_owned()))
-        .and_then(|rows| {
-            rows.iter().find_map(|(candidate_carrier, entry_symbol)| {
-                crate::value_custody::type_references::type_references_match(
-                    program,
-                    *candidate_carrier,
-                    carrier,
-                )
-                .then_some(*entry_symbol)
-            })
-        })
 }
 
 /// `R(x, y) == R(y, x)` with `x`/`y` DISTINCT requirement parameters -> the
@@ -950,7 +878,7 @@ fn distributivity_shape(
     left: &StructuralTerm,
     right: &StructuralTerm,
     parameters: &[String],
-) -> Option<(String, String)> {
+) -> Option<(SymbolHandle, SymbolHandle)> {
     if !consistent_operation_selections(left, right) {
         return None;
     }
@@ -958,6 +886,7 @@ fn distributivity_shape(
     // left = mul(a, add(b, c))
     let StructuralTerm::Application {
         machine: mul_op,
+        target: mul_target,
         arguments: mul_args,
         ..
     } = left
@@ -968,6 +897,7 @@ fn distributivity_shape(
         StructuralTerm::Variable(a),
         StructuralTerm::Application {
             machine: add_op,
+            target: add_target,
             arguments: add_args,
             ..
         },
@@ -1028,7 +958,7 @@ fn distributivity_shape(
     else {
         return None;
     };
-    (la == a && lb == b && ra == a && rc == c).then(|| (mul_op.clone(), add_op.clone()))
+    (la == a && lb == b && ra == a && rc == c).then_some((*mul_target, *add_target))
 }
 
 /// Tier-2 licensing: a trait carrying comm+assoc for BOTH an add op and a
@@ -1036,63 +966,67 @@ fn distributivity_shape(
 /// that conformed ALL FIVE law slots. Same no-circularity rule: the judged
 /// machine binding ANY involved law slot gets nothing from this trait.
 fn semiring_license_candidates(
-    slot_carriers: &HashMap<(SymbolHandle, String), Vec<(TypeReferenceHandle, SymbolHandle)>>,
+    slot_carriers: &SlotCarriers,
     program: &dyn crate::CheckingInput,
 ) -> Vec<SemiringCandidate> {
     let mut candidates = Vec::new();
     for (trait_definition, comm_laws, assoc_laws, dist_laws) in algebraic_law_slots(program) {
-        for (mul_op, add_op, dist_law) in &dist_laws {
-            let Some((_, add_comm)) = comm_laws.iter().find(|(op, _)| op == add_op) else {
+        for (multiply, add, distribute) in &dist_laws {
+            let Some((_, add_comm)) = comm_laws.iter().find(|(target, _)| target == add) else {
                 continue;
             };
-            let Some((_, add_assoc)) = assoc_laws.iter().find(|(op, _)| op == add_op) else {
+            let Some((_, add_assoc)) = assoc_laws.iter().find(|(target, _)| target == add) else {
                 continue;
             };
-            let Some((_, mul_comm)) = comm_laws.iter().find(|(op, _)| op == mul_op) else {
+            let Some((_, mul_comm)) = comm_laws.iter().find(|(target, _)| target == multiply)
+            else {
                 continue;
             };
-            let Some((_, mul_assoc)) = assoc_laws.iter().find(|(op, _)| op == mul_op) else {
+            let Some((_, mul_assoc)) = assoc_laws.iter().find(|(target, _)| target == multiply)
+            else {
                 continue;
             };
-            let law_slots = [add_comm, add_assoc, mul_comm, mul_assoc, dist_law];
-            // Each carrier the slot index lists under the add op earns the
-            // paired license once all five law slots are satisfied and a
-            // paired mul satisfier exists. The index already resolved each
-            // machine's carrier and entry state, which this scan used to
-            // rebuild.
-            let Some(rows) = slot_carriers.get(&(trait_definition.symbol, add_op.clone())) else {
+            let law_slots = [*add_comm, *add_assoc, *mul_comm, *mul_assoc, *distribute];
+            let Some(rows) = slot_carriers.get(program, trait_definition.symbol, *distribute)
+            else {
                 continue;
             };
-            for (carrier, add_machine) in rows {
-                if !law_slots.iter().all(|law| {
-                    slot_satisfier(
+            for row in rows {
+                let Some(add_machine) = selected_operation(slot_carriers, program, row, *add)
+                else {
+                    continue;
+                };
+                let Some(mul_machine) = selected_operation(slot_carriers, program, row, *multiply)
+                else {
+                    continue;
+                };
+                let laws = [
+                    (*add_comm, *add, add_machine),
+                    (*add_assoc, *add, add_machine),
+                    (*mul_comm, *multiply, mul_machine),
+                    (*mul_assoc, *multiply, mul_machine),
+                ];
+                if !laws.iter().all(|(law, operation, selected)| {
+                    law_has_operations(
                         slot_carriers,
                         program,
                         trait_definition.symbol,
-                        law,
-                        *carrier,
+                        *law,
+                        row,
+                        &[(*operation, *selected)],
                     )
-                    .is_some()
                 }) {
                     continue;
                 }
-                if let Some(mul_machine) = slot_satisfier(
-                    slot_carriers,
-                    program,
-                    trait_definition.symbol,
-                    mul_op,
-                    *carrier,
-                ) {
-                    candidates.push(SemiringCandidate {
-                        trait_symbol: trait_definition.symbol,
-                        law_slots: law_slots.map(|law| law.clone()),
-                        license: SemiringLicense {
-                            add_machine: *add_machine,
-                            mul_machine,
-                        },
-                        carrier: *carrier,
-                    });
-                }
+                candidates.push(SemiringCandidate {
+                    trait_symbol: trait_definition.symbol,
+                    law_slots,
+                    license: SemiringLicense {
+                        add_machine,
+                        mul_machine,
+                    },
+                    carrier: row.carrier,
+                });
             }
         }
     }
@@ -1103,13 +1037,14 @@ fn commutativity_shape(
     left: &StructuralTerm,
     right: &StructuralTerm,
     parameters: &[String],
-) -> Option<String> {
+) -> Option<SymbolHandle> {
     if !consistent_operation_selections(left, right) {
         return None;
     }
 
     let StructuralTerm::Application {
         machine: op_l,
+        target: op_target,
         arguments: args_l,
         ..
     } = left
@@ -1134,7 +1069,7 @@ fn commutativity_shape(
         return None;
     };
     let is_parameter = |name: &String| parameters.iter().any(|parameter| parameter == name);
-    (x != y && rx == y && ry == x && is_parameter(x) && is_parameter(y)).then(|| op_l.clone())
+    (x != y && rx == y && ry == x && is_parameter(x) && is_parameter(y)).then_some(*op_target)
 }
 
 /// `R(R(x, y), z) == R(x, R(y, z))` (either orientation) with distinct
@@ -1143,7 +1078,7 @@ fn associativity_shape(
     left: &StructuralTerm,
     right: &StructuralTerm,
     parameters: &[String],
-) -> Option<String> {
+) -> Option<SymbolHandle> {
     if !consistent_operation_selections(left, right) {
         return None;
     }
@@ -1151,6 +1086,7 @@ fn associativity_shape(
     for (first, second) in [(left, right), (right, left)] {
         let StructuralTerm::Application {
             machine: op_outer,
+            target: op_target,
             arguments: outer_args,
             ..
         } = first
@@ -1216,7 +1152,7 @@ fn associativity_shape(
             && is_parameter(y)
             && is_parameter(z)
         {
-            return Some(op_outer.clone());
+            return Some(*op_target);
         }
     }
     None

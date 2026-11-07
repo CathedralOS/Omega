@@ -1,8 +1,22 @@
 # Selected provider issuance
 
+Current owning task: **PROOF-KERNEL-CORE**.
+
 Only an admitted selected InitialSupply call establishes fresh Count1 ownership, preserved with exact backing through submit/complete and release.
 
 This row also discharges its **BUILD-OWNED-TARGET-SELECTION / BUILD-OWNED-NATIVE-BINDINGS** source migration. It establishes the selected-invocation introduction needed by **EXTENT-LIBRARY-TRANSFORMS / BOUNDARY-ISSUANCE** in [TASKS.md](../../../../TASKS.md). The admitted `InitialSupply::acquire` result supplies one owned buffer after successful fresh allocation. Writer submit/complete preserve its Count1 content and exact pointer; release consumes that buffer. Allocation, matching fields, quantity equality, and an ordinary call to the implementation supply no fresh authority.
+
+The complete Writer content equations now use
+`core::Identity<CountedQuantity<ByteUnit>>`. Both projections declare this exact
+carrier. The equations preserve the canonical count while crossing between
+Owned Buffer and Retained PendingWrite; the separate pointer, allocation,
+selected-invocation and release obligations retain their original roles. The
+count identity itself grants no authority.
+
+This source checkpoint has preservation audits only. Integrated optimized
+proof/native validation, intended ordinary-call refusals and clean corpus
+recording remain required. Historical observations below belong to their
+recorded source revisions and do not qualify the migrated source.
 
 The [root](main.omg) and [existing customer](../../../../tests/omega/pass/core/content_retained_custody_round_trip/main.omg) carry the same body, contracts, Count1 bound, and exit-zero oracle. Their ordinary entries own Main storage. Nested machines declare their own contracts; the failed allocation path has no normal result. All positive projects bind all four hosted targets. Their owning Build supplies `NativeBytes::allocate` and `NativeBytes::release` directly using the original eight target/member locator associations, with inferred byte lengths. These exact member rows supply native backing, not a named `NativeBytes` conformance; the empty legacy `HostedBytes` carrier and its selections are removed. The existing nine-profile `InitialSupplyProvider` and `WriterProvider` selections remain. Only the four originally backed hosted targets have native rows.
 
@@ -18,7 +32,7 @@ The [root](main.omg) and [existing customer](../../../../tests/omega/pass/core/c
 | another machine | [main.omg](other_machine/main.omg) | [ordinary supply](other_machine/invalid/main.omg) |
 | target body | [main.omg](target_body/main.omg) | [ordinary supply](target_body/invalid/main.omg) |
 
-Each twin changes only the selected supply call into `InitialSupplyProvider::acquire`, plus its diagnostic header. The match twin changes both supply alternatives. It retains the same provider bodies, quantity, backing contracts, and consumers. Pins under `tests/omega/pass/facts/selected_provider_issuance_through_<place>_exit/` and `tests/omega/fail/facts/selected_provider_issuance_through_<place>_ordinary_call/` copy these sources and Build declarations exactly.
+Each twin changes only the selected supply call into `InitialSupplyProvider::acquire`, plus its diagnostic header. The match twin changes both supply alternatives. It retains the same provider bodies, quantity, backing contracts, and consumers. Existing positive mirrors under `tests/omega/pass/facts/selected_provider_issuance_through_<place>_exit/` copy their sample sources and Build declarations. No ordinary-call fail mirrors exist at this checkpoint; the nine sample twins remain required rejection controls.
 
 ## Requirements and evidence
 
@@ -31,9 +45,9 @@ Each twin changes only the selected supply call into `InitialSupplyProvider::acq
 7. **Registers and activation storage.** Ordinary calls retain live inputs, caller storage and bounded activation funding. A call without normal completion still retains its declared ABI and argument homes. Supplemental controls read a borrowed record before exiting and preserve an observable constructor prefix and the normal match alternative.
 8. **Encoding and native image.** The host observations require direct native execution and Terminal agreement, including exact exit/output controls, and canonical artifact reload. Ordinary call templates retain exact callee relocations and source-edge attribution through image publication. Four hosted bindings are source coverage; actual execution evidence is scoped to the recorded host.
 
-## Current frontier
+## Historical qualification and remaining validation
 
-The Build-owned migration is observed with optimized producer `bf0acdf0aaa76237800c46b1b3209f29facf1ef6` and its matching SDK on macos_arm64. Root, customer and all nine places exit 0 in native and Terminal execution; all nine ordinary-call twins reject `Buffer::Owned`. The 19 focused Source pins (10 positives, nine intended refusals) and ten `--both` pins meet their oracles. Fresh preparation/checking covers each of the four hosted target rows; this is Source coverage, not foreign-host execution. Terminal counterfactuals observe exit 0 for the match and typed traps after changing only true marker 17 to 18, false marker 23 to 24, or the local pointer comparison to inequality. The retained local native image saves the allocation pointer, transports it through both Writer calls, compares it before release, and passes that same returned pointer to the original `free` import.
+The earlier Build-owned migration was observed with optimized producer `bf0acdf0aaa76237800c46b1b3209f29facf1ef6` and its matching SDK on macos_arm64. Root, customer and all nine places exit 0 in native and Terminal execution; all nine ordinary-call twins reject `Buffer::Owned`. The 19 focused Source pins (10 positives, nine intended refusals) and ten `--both` pins meet their oracles. Fresh preparation/checking covers each of the four hosted target rows; this is Source coverage, not foreign-host execution. Terminal counterfactuals observe exit 0 for the match and typed traps after changing only true marker 17 to 18, false marker 23 to 24, or the local pointer comparison to inequality. The retained local native image saves the allocation pointer, transports it through both Writer calls, compares it before release, and passes that same returned pointer to the original `free` import.
 
 The fixed Source base is `3ab30224c8b731a0a5b14b12ff17178ab86609fe`. Its 24-file producer delta was reviewed at the actual consumers: unchanged content-plan conservation, preserved per-atom scalar/field postcondition judgments, identical per-program candidate derivation, and equivalent Boolean denotation. Runtime results retain the actual older producer identity. Raw inputs, accepted locks, outputs, products, profiles and the independent review remain in `build/selected-issuance-build-migration/`. The initial harness stopped before the first invalid case because it looked for a sample-local oracle; its corrected continuation uses the unchanged pinned `Buffer::Owned` oracle and preserves the original attempt. No compiler repair or new runtime authority is part of this migration.
 

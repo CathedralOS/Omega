@@ -16,6 +16,7 @@ use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 #[derive(Debug, Default)]
 pub struct PreparedMathematicalApplications {
     pub applications: Arena<PreparedApplication>,
+    pub identity_values: Arena<PreparedIdentityValue>,
     pub captures: Arena<PreparedCapture>,
     pub constants: Arena<PreparedConstant>,
     pub source_evidence: Arena<PreparedSourceEvidence>,
@@ -29,6 +30,7 @@ pub struct PreparedMathematicalApplications {
 /// Body validation and safety receiver admission are separate judgments.
 #[derive(Debug, Default)]
 pub struct PreparedIndexedTheorem {
+    pub level_arity: u32,
     pub machine: SymbolHandle,
     pub expression: ExpressionHandle,
     pub ensure_ordinal: u32,
@@ -54,6 +56,7 @@ pub struct PreparedSourceEvidence {
 /// assumptions and not closed evidence actuals for an arbitrary destination.
 #[derive(Debug, Default, Clone)]
 pub struct PreparedSourceConstructor {
+    pub level_arity: u32,
     pub expression: ExpressionHandle,
     pub constructor: ExpressionHandle,
     pub source_type: TypeReferenceHandle,
@@ -69,6 +72,7 @@ pub struct PreparedSourceConstructor {
 /// Source carrier formation retained under its exact value telescope.
 #[derive(Debug, Default)]
 pub struct PreparedSourceCarrier {
+    pub level_arity: u32,
     pub source_type: TypeReferenceHandle,
     pub type_identity: typed_trees::type_identity::TypeIdentityId,
     pub ty: TermHandle,
@@ -77,15 +81,28 @@ pub struct PreparedSourceCarrier {
 
 #[derive(Debug, Default)]
 pub struct PreparedApplication {
+    pub level_arity: u32,
     pub expression: ExpressionHandle,
+    pub owner: SymbolHandle,
     pub term: TermHandle,
+    pub ty: TermHandle,
+    pub domains: Vec<TermHandle>,
     pub captures: HandleSpan<PreparedCapture>,
+    pub identity_values: HandleSpan<PreparedIdentityValue>,
 }
 
 #[derive(Debug, Default)]
 pub struct PreparedCapture {
     pub expression: ExpressionHandle,
     pub source_type: TypeReferenceHandle,
+}
+
+/// Exact source carrier carried by one emitted checked identity value.
+#[derive(Debug, Default)]
+pub struct PreparedIdentityValue {
+    pub term: TermHandle,
+    pub ty: TermHandle,
+    pub type_identity: typed_trees::type_identity::TypeIdentityId,
 }
 
 #[derive(Debug, Default)]
@@ -100,6 +117,8 @@ pub enum PreparedConstantMeaning {
     /// Its function spine still retains every input on which its value depends.
     #[default]
     Opaque,
+    /// Authenticated transparent definition whose body is kernel Id.
+    Identity,
     Integer(BigInt),
     Boolean(bool),
     IntegerCarrier,
@@ -179,6 +198,42 @@ impl<'program> PreparedMathematicalView<'program> {
             .find_map(|(_, application)| {
                 (application.expression == expression).then_some(application)
             })
+    }
+
+    /// Read the checked value emitted by the sealed declaration, including
+    /// through transparent mathematical application and capture substitution.
+    pub fn identity_value(
+        self,
+        application: &PreparedApplication,
+        term: TermHandle,
+        inserted_binders: u32,
+    ) -> Option<(&'program PreparedIdentityValue, [TermHandle; 2])> {
+        let (declaration, arguments) = application_spine(self, term)?;
+        if !matches!(
+            self.constant(declaration)?,
+            PreparedConstantMeaning::Identity
+        ) {
+            return None;
+        }
+        let [_ty, left, right] = arguments.as_slice() else {
+            return None;
+        };
+        let mut matches = self
+            .applications
+            .identity_values
+            .span_or_empty(application.identity_values)
+            .iter()
+            .filter(|row| {
+                row.type_identity.is_valid()
+                    && self
+                        .arena
+                        .structurally_equal_shifted(row.term, term, inserted_binders)
+            });
+        let carrier = matches.next()?;
+        if matches.any(|other| other.type_identity != carrier.type_identity) {
+            return None;
+        }
+        Some((carrier, [*left, *right]))
     }
 
     pub fn constant(self, declaration: u32) -> Option<&'program PreparedConstantMeaning> {

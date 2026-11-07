@@ -1,4 +1,11 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "boundary_operator_contract");
-    builder.freestanding = true;
+    Build::select_provider<CheckedMath, CheckedMathProvider>(builder, linux_arm64);
+    Build::select_provider<CheckedMath, CheckedMathProvider>(builder, linux_x86_64);
+    Build::select_provider<CheckedMath, CheckedMathProvider>(builder, macos_arm64);
+    Build::select_provider<CheckedMath, CheckedMathProvider>(builder, windows_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
 }

@@ -1,23 +1,110 @@
 # Selected representation agreement
 
+These programs require two explicitly selected conversion maps to preserve both
+fields of a value and reject malformed frames. Runtime checks call the maps
+through their ordinary fallible interface, then inspect the results independently
+of the agreement theorem.
+
 Parent: **LIBRARY-REPRESENTATION-FAMILIES**.
 
 **Selected representation agreement preserves every semantic field through its exact fallible maps and rejects malformed frames.**
 
-The first concrete ordinary PairAgreement bundle supplies five resultless laws: encoding coverage, encoded validity, decoding coverage, malformed rejection and semantic round-trip. Exact encode/decode/validity maps are explicit evidence parameters. A transparent ValueConversion refinement requires pure terminating calls only for this first bundle; it does not change base TryFrom or define the eventual resource-backed standard Representation API. Fixed owned three-byte frames need no allocator, external buffer, host service or capture. Failure is explicit InvalidTag and Err exposes no destination.
+## What the programs establish
 
-An arbitrary Copy Pair has two full u8 fields, so the universal law covers all 65,536 semantic values. FirstFrame has tag 165 and fields in semantic order; SecondFrame has tag 90 and exchanged fields. The runtime oracle uses unequal 17/42 and endpoints 0/255, executes both maps through weak TryFrom contracts and traps on wrong results or malformed acceptance. It does not take the theorem as its executable verdict's premise.
+`Pair` contains two unrestricted `u8` fields. `FirstFrame` stores tag 165 and the
+two fields in semantic order. `SecondFrame` stores tag 90 and exchanges their
+storage positions. The five laws require successful encoding, encoded validity,
+successful decoding of valid frames, rejection of malformed frames, and exact
+preservation of both fields on a round trip. Their implementations must prove
+those statements for all 65,536 possible Pairs; the runtime examples do not replace that proof.
 
-Nearest row: [representation_conversion](../representation_conversion/README.md). That row pins endpoint selection; its twin selects a decoder of the wrong endpoint type. This row pins nonvacuous whole-value agreement for the same endpoint types; its twin changes only FirstFrame decoder's last field to the first field. Success coverage and invalid-tag rejection remain valid while round-trip preservation fails. No new format-name recognition or geometry inference is involved.
+The identity claims use `core::Identity<T>(left, right)`, the specified
+mathematical identity declaration. They name the complete fallible result, so
+both its case and payload must agree. One consumer uses the same claim through a
+transparent mathematical wrapper. The compiler retains each formed identity
+value with its exact source carrier and subjects through checked application,
+substitution and erasure. Canonical receiving rechecks the kernel formation;
+a separate source-bound inspection checks its correspondence with independently
+retained source judgments. Forming the statement does not prove it.
 
-All nine places are complete on matching macOS ARM64: local, field, parameter, call-result, match-join, constant, nested-machine (`other_state`), other-machine and selected-target. Every positive has native exit 0, Terminal exit 0 and agreement; every preservation-only twin rejects at the concrete round-trip law. The selected-target place uses ordinary Build-selected providers with distinct 17/29 markers and an executable wrong-selection guard. Other-host execution and the resource-backed standard interface remain parent work.
+The caller cites those laws through the exact selected encoder, decoder and
+validity implementation. Each law's premises must hold before its conclusions
+become available. Subsequent citations consume those conclusions directly.
+A checked, fact-only citation performs no runtime write; an abstract subject
+alone cannot invalidate the facts it establishes. Mutable, linear and effectful
+calls retain their ordinary ownership and mutation obligations.
 
-Acceptance uses optimized compiler `8c2fec05b2cabe2eef32c8a9fa714a0f2e8b3513` (opt1, CLI SHA256 `ea91cc3fece04f912b42310664dada00b8fe3832b8f09c0c6357232e6ce6d18d`). Nine place mirrors and three mechanism controls meet their authored native/Terminal outcomes. Twenty sample projects meet their runtime or rejection oracles; the corruption control explicitly reports native SIGTRAP 5 and Terminal Trap agreement with the law removed. The empty encoder cannot satisfy success coverage. Program-only entry/oracle activation commits `d38849d4cb02` and `c4dff827e4da` reuse the same compiler with identical Rust/library inputs. Computed-value source `7879363aac49` and final-transport source `4c1f16dc8b68` separately record their current library trees, retaining byte-identical conversion definitions and the accepted law kernel.
+Every positive exercises unequal fields 17/42 and endpoints 0/255. The consumer
+first cites the agreement laws and observes both conversions through weak
+`TryFrom` contracts. It then compares both transported fields with independently
+supplied expected scalars. This detects the wrong branch or returned value even
+when that wrong value could itself round-trip successfully. Both malformed-frame
+decodes must fail. The selected-target program also checks distinct 17/29 markers
+from ordinary Build-selected implementations.
 
-The 35-fixture checking roster preserves weak public views, distinct selected maps, missing premises, linear and mutable custody, quotient fences and private-package access. Sixteen unchanged-input observations retain their measured `e97ed21415d9` source stamp; six affected checks use `8c2fec05b2ca`, the entry control uses `d38849d4cb02`, six computed-value checks use `7879363aac49`, and six final-transport checks use `4c1f16dc8b68`. Two input-compatible parser observations retain `89956713be3d`. Canonical rows preserve actual diagnostics, facts and timings in `tests/omega/corpus_outcomes.txt`.
+The invalid twin changes only the first decoder's last output field to its first
+input field. Encoding coverage and invalid-tag rejection remain valid, while the
+concrete round-trip law must reject. Its required diagnostic names
+`FirstAgreement::round_trip` and `ReadFirst.try_from(frame)`.
 
-Raw reports, original producer profiles, source bundles and stage timings are retained outside scratch at `/Users/zcanann/Omega-build/representation-agreement-20261101/` in `qualified-binder/`, `qualified-shared-input/`, `qualified-entry-and-samples/`, `qualified-trap-sample/`, `record-provenance/`, `values-actual/` and `final-actual/`. The paired compiler/runner build took 1084.969 seconds. The first sample cohort took 84 seconds, followed only by its previously unscored trap sample in 26.692 seconds after its existing file-oracle protocol was activated. Both progress cohorts reused that producer without a Rust build: computed values took 256.506 seconds; final transports took 253.509 seconds (checking 92.369, native/Terminal 54.710, samples 104.503). Successful sample calls retain explicit native exit 0 and interpreted exit 0 streams. These observations qualify this scope and host.
+These owned three-byte frames need no allocator, external buffer or host service.
+Resource-backed conversions and the standard Representation interface remain
+part of the parent outcome. The neighboring
+[representation_conversion](../representation_conversion/README.md) row tests
+endpoint selection; this row tests whole-value agreement between maps with the
+same endpoint types.
 
-The laws establish full-value facts and exact implementation identity through complete applied public contracts. Erased pure terminating citations observe checked affine data without granting runtime Copy. Shared input views retain their referent's custody restrictions; returned and nested references, linear and routed contents remain fenced. Actual maps, tag/payload homes and owned results survive native and Terminal execution.
+## Existing witnesses and controls
 
-Canonical rules: [codecs](../../../../wiki/spec/layouts/codecs.md#representation-conversions), [proof contracts](../../../../wiki/spec/proofs/contracts.md#data-identity-in-facts), [ownership](../../../../wiki/spec/language/ownership.md), [exact conformances](../../../../wiki/spec/language/conformances.md#transparent-refinements).
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| Local | [local](local/main.omg) | [corrupted decoder](local/invalid/main.omg) |
+| Field | [field](field/main.omg) | [corrupted decoder](field/invalid/main.omg) |
+| Parameter | [parameter](parameter/main.omg) | [corrupted decoder](parameter/invalid/main.omg) |
+| Call result | [call_result](call_result/main.omg) | [corrupted decoder](call_result/invalid/main.omg) |
+| Match join | [match_join](match_join/main.omg) | [corrupted decoder](match_join/invalid/main.omg) |
+| Constant | [const_name](const_name/main.omg) | [corrupted decoder](const_name/invalid/main.omg) |
+| Nested machine | [other_state](other_state/main.omg) | [corrupted decoder](other_state/invalid/main.omg) |
+| Other machine | [other_machine](other_machine/main.omg) | [corrupted decoder](other_machine/invalid/main.omg) |
+| Selected implementation | [target_body](target_body/main.omg) | [corrupted decoder](target_body/invalid/main.omg) |
+
+Each project binds `ProgramEntry` for all four hosted targets and declares exit 0.
+The nine positive programs and nine decoder-only controls are mirrored under
+`tests/omega/{pass,fail}/facts/representation_agreement_through_*`.
+
+## Validation
+
+Fresh acceptance requires all nine positive programs to produce their authored
+result in native and Terminal Psi execution on all four hosted targets. All nine
+decoder-only controls must reject for their intended diagnostic. That acceptance
+is still open.
+
+The canonical-source baseline,
+[run 42327869574](https://github.com/CathedralOS/Omega/actions/runs/42327869574),
+checked the selected-implementation fixture from `f1933b40cf0662fed4051ee75cce33112fb372e7`
+with the optimized producer `9295e6aaf822a8c1afac7aaca1f594937d08a370`. It
+rejected the explicit identity calls during source checking, before either
+engine executed.
+
+Earlier Windows and Linux ARM64 baselines used the legacy source: runs
+42302120700 and 42303719206 rejected all nine valid callers after losing facts
+across citations, while their decoder controls retained the intended rejection.
+Older execution results also belong to their recorded programs and producers.
+They do not validate the explicit identity source or the stronger runtime checks.
+Legacy macOS execution records remain in
+`/Users/zcanann/Omega-build/representation-agreement-20261101/`.
+
+Current original reports, executable profiles, source bundles, exact input hashes
+and complete compressed observations are retained in
+`/Users/zcanann/Omega-build/representation-buffered-agreement-20261102/`, with
+summaries and requests in `selected-agreement-20261106/`.
+
+The related controls cover missing premises, distinct selected maps, weak public
+contracts, mutable and linear custody, non-repeatable results, quotient fences
+and private-package access. An existing corruption counterfactual removes the
+agreement claim and must produce native/Terminal Trap for a broken decoder.
+
+Canonical rules: [representation conversions](../../../../wiki/spec/layouts/codecs.md#representation-conversions),
+[proof contracts](../../../../wiki/spec/proofs/contracts.md#data-identity-in-facts),
+[ownership](../../../../wiki/spec/language/ownership.md), and
+[transparent refinements](../../../../wiki/spec/language/conformances.md#transparent-refinements).

@@ -45,7 +45,7 @@ pub(super) use constructors::{
     zero_value_structural_term,
 };
 pub(super) use equality::{
-    data_identity_operand_references, has_identity_equality_meaning, identity_equality_terms,
+    builtin_identity_operand_references, has_identity_equality_meaning, identity_equality_terms,
 };
 pub(super) use scalar_operands::{
     completed_owned_carrier, scalar_operand_is_observed, scalar_operand_meaning,
@@ -377,6 +377,19 @@ pub(super) fn term_spelling(program: &dyn crate::CheckingInput, term: &Structura
             operator.display_name(),
             term_spelling(program, right)
         ),
+        StructuralTerm::Identity {
+            carrier,
+            left,
+            right,
+        } => format!(
+            "core::Identity<{}>({}, {})",
+            program.type_identity_text(*carrier).unwrap_or_default(),
+            term_spelling(program, left),
+            term_spelling(program, right)
+        ),
+        StructuralTerm::ContentValue { algebra, value } => {
+            format!("canonical {algebra:?}({})", term_spelling(program, value))
+        }
         StructuralTerm::Opaque(display) => display.clone(),
     }
 }
@@ -788,7 +801,7 @@ pub(super) fn structural_term(
         // term-less so a NaN operand can never pose as a decided value.
         ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
         ExpressionNode::Call(call) => {
-            if crate::mathematical_applications::selected_definition(program, call).is_some() {
+            if crate::mathematical_applications::is_mathematical_call(program, call) {
                 return mathematical_application_term(program, expression, |capture| {
                     structural_term(program, scope, frame, capture, bindings)
                 });

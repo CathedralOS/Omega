@@ -6,7 +6,6 @@ use super::super::{BooleanStructure, boolean_structure};
 use super::{CrashPredicateIdentity, ExpressionHandle};
 pub(super) struct Consequences<'a> {
     program: &'a dyn ::validation::CheckingInput,
-    parameters: &'a [typed_trees::signature::StateParameter],
     parameter_names: &'a [String],
     content_conservation: &'a [validation::ContentConservationSourcePlan],
     integer_types: &'a super::super::IntegerTypeClassification,
@@ -16,14 +15,12 @@ pub(super) struct Consequences<'a> {
 impl<'a> Consequences<'a> {
     pub(super) fn new(
         program: &'a dyn ::validation::CheckingInput,
-        parameters: &'a [typed_trees::signature::StateParameter],
         parameter_names: &'a [String],
         content_conservation: &'a [validation::ContentConservationSourcePlan],
         integer_types: &'a super::super::IntegerTypeClassification,
     ) -> Self {
         Self {
             program,
-            parameters,
             parameter_names,
             content_conservation,
             integer_types,
@@ -49,7 +46,6 @@ impl<'a> Consequences<'a> {
             self.program,
             expression,
             negated,
-            self.parameters,
             self.parameter_names,
             self.content_conservation,
         )

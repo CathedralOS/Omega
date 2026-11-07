@@ -25,7 +25,9 @@ use checked_trees::{
 use semantic_vocabulary::{MathematicalArgument, ProofTerm, ProofTermField, ScalarType};
 use terminal_psi::{ErasedProofFormal, StructuralResultDeclaration};
 
+mod identity_formations;
 mod indexed_theorems;
+pub(crate) use identity_formations::identity_formations;
 mod namespace;
 mod proof_scope;
 pub(crate) use indexed_theorems::indexed_theorems;
@@ -306,7 +308,9 @@ pub(crate) fn checked_proof_term(
                 .source_evidence_carriers
                 .iter()
                 .any(|carrier| {
-                    carrier.type_identity == *type_identity && carrier.domains.is_empty()
+                    carrier.type_identity == *type_identity
+                        && carrier.domains.is_empty()
+                        && carrier.level_arity == 0
                 })
             {
                 return unsupported(
@@ -324,7 +328,7 @@ pub(crate) fn checked_proof_term(
                     }
                     CheckedMathematicalArgument::Scalar { type_identity, expression } => {
                         if !checked.facts.proof.source_evidence_carriers.iter().any(|carrier|
-                            carrier.type_identity == *type_identity && carrier.domains.is_empty()) {
+                            carrier.type_identity == *type_identity && carrier.domains.is_empty() && carrier.level_arity == 0) {
                             return unsupported("mathematical scalar argument has no independently formed source carrier");
                         }
                         Ok(LoweredMathematicalArgument::Scalar {
@@ -895,7 +899,7 @@ pub(crate) fn mathematical_carriers(
     };
     let mut carriers = Vec::<terminal_psi::TerminalMathematicalCarrier>::new();
     for carrier in &checked.facts.proof.source_evidence_carriers {
-        if !carrier.domains.is_empty() {
+        if !carrier.domains.is_empty() || carrier.level_arity != 0 {
             continue;
         }
         let source_identity =

@@ -14,8 +14,8 @@
 //!   substitute one resolved binder with a typed expression. Type references and
 //!   constraints use them.
 //! - `lower_expression_handle_from_table_in_fact_position` lowers a proof
-//!   fact: equality over recursive, proof-only data stays a raw binary
-//!   comparison instead of requiring runtime equality.
+//!   fact with its proposition-placement diagnostics. Comparisons keep their
+//!   selected executable meaning in this context too.
 //!
 //! `lower_static_machine_argument` lowers a static machine argument with its
 //! type reference and nested application arguments; machine, trait and call
@@ -85,9 +85,8 @@ pub(crate) fn lower_expression_handle_from_table_with_symbol_substitution(
     )
 }
 
-/// Lower an expression in proof-fact position: equality over recursive
-/// (proof-only) data stays a raw Binary for the structural entailment judge
-/// instead of demanding runtime synthesis.
+/// Lower an expression in proof-fact position. Erased propositions retain
+/// their placement checks; comparisons use the ordinary selection rules.
 pub(crate) fn lower_expression_handle_from_table_in_fact_position(
     program: &resolved::SymbolResolvedTrees,
     source: &resolved::expression::ExpressionTable,

@@ -1,6 +1,7 @@
 // Reject: equal content does not relate a freshly established callee root to an input.
 use omega::language::core::content;
 use omega::language::core::drop;
+use omega::language::core::nat;
 data Region [linear] dropped by drop_region { base: u64; length: u64; }
 domain Region::Owned established by issue;
 machine Owned::content(region: &Region) -> IntervalSet<Nat>
@@ -20,7 +21,10 @@ ensures
     result.left.length == requested,
     result.right.length == whole.length - requested,
     result.right.base == whole.base + requested,
-    Owned::content(old(&whole)) == separate(Owned::content(&result.left), Owned::content(&result.right))
+    core::Identity<IntervalSet<Nat>>(
+        Owned::content(old(&whole)),
+        separate(Owned::content(&result.left), Owned::content(&result.right))
+    )
 {
     let { base, length } = whole;
     Parts { left: Region { base: base, length: requested },
@@ -30,7 +34,7 @@ machine rejoin(whole: Region in Owned, requested: u64) -> Region
 requires whole.base == 10 && whole.length == 48 && requested <= whole.length
 ensures result in Owned,
     result.base == whole.base, result.length == whole.length,
-    Owned::content(old(&whole)) == Owned::content(&result)
+    core::Identity<IntervalSet<Nat>>(Owned::content(old(&whole)), Owned::content(&result))
 {
     let parts: Parts = counterfeit(whole, requested);
     let { base as left_base, length as left_length } = parts.left;
@@ -60,7 +64,10 @@ ensures
     result.left.base == whole.base,
     result.left.length == requested,
     result.right.length == whole.length - requested,
-    Owned::content(old(&whole)) == separate(Owned::content(&result.left), Owned::content(&result.right))
+    core::Identity<IntervalSet<Nat>>(
+        Owned::content(old(&whole)),
+        separate(Owned::content(&result.left), Owned::content(&result.right))
+    )
 {
     transition requested == 0 {
         true -> original(whole, requested)

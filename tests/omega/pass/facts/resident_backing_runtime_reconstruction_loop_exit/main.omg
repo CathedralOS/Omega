@@ -5,6 +5,7 @@ use omega::language::core::extent;
 use omega::language::core::content;
 use omega::language::core::layout;
 use omega::language::core::process_exit;
+use omega::language::core::nat;
 
 
 data TestMemory {}
@@ -44,7 +45,10 @@ TestRoots satisfies ExtentRootProvider {
 TestVacant satisfies VacantContentTransfer {
     machine transfer(storage: Extent in Granted) -> Extent
         ensures result in Granted,
-            Granted::content(old(&storage)) == Granted::content(&result)
+            core::Identity<IntervalSet<Nat>>(
+                Granted::content(old(&storage)),
+                Granted::content(&result)
+            )
     { storage as Extent }
 }
 
@@ -108,8 +112,8 @@ terminates by remaining
 
 machine forward(storage: Extent in Granted & Vacant) -> Extent in Granted & Vacant
 ensures result.base == storage.base, result.length == storage.length,
-    Granted::content(old(&storage)) == Granted::content(&result),
-    Vacant::content(old(&storage)) == Vacant::content(&result)
+    core::Identity<IntervalSet<Nat>>(Granted::content(old(&storage)), Granted::content(&result)),
+    core::Identity<IntervalSet<Nat>>(Vacant::content(old(&storage)), Vacant::content(&result))
 {
     let { base, length } = storage;
     Extent { base: base, length: length }

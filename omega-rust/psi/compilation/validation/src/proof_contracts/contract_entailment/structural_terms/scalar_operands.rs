@@ -102,7 +102,9 @@ pub(in crate::proof_contracts::contract_entailment) fn scalar_operand_is_observe
                     })
                 })
         }
-        StructuralTerm::Opaque(_)
+        StructuralTerm::Identity { .. }
+        | StructuralTerm::ContentValue { .. }
+        | StructuralTerm::Opaque(_)
         | StructuralTerm::RepeatedArray { .. }
         | StructuralTerm::IntegerEmbedding { .. }
         | StructuralTerm::MathematicalBinary { .. } => false,

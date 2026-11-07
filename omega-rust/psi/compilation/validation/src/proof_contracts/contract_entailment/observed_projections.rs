@@ -229,7 +229,9 @@ pub(super) fn project_field(value: StructuralTerm, field_name: &str) -> Option<S
             subject: Box::new(value),
             path: field_name.to_owned(),
         }),
-        StructuralTerm::CollectionMeasure { .. }
+        StructuralTerm::Identity { .. }
+        | StructuralTerm::ContentValue { .. }
+        | StructuralTerm::CollectionMeasure { .. }
         | StructuralTerm::RepeatedArray { .. }
         | StructuralTerm::Integer(_)
         | StructuralTerm::Float(_)

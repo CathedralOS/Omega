@@ -10,7 +10,7 @@ satisfies Content<View<'storage>, CountedQuantity<Unit>>::project {
 }
 machine observe<'storage>(view: &View<'storage>) -> u64 { view.target.value }
 machine unchanged<'storage>(mut view: View<'storage> in Owned) -> View<'storage> in Owned
-ensures Owned::content(old(&view)) == Owned::content(&result)
+ensures core::Identity<CountedQuantity<Unit>>(Owned::content(old(&view)), Owned::content(&result))
 {
     let captured: u64 = observe(&view);
     view.target.value = 0;

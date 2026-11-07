@@ -189,6 +189,7 @@ fn absent_invocations_and_trait_only_tables_have_no_machine_rows() {
         owner: AppliedCallableOwner::Trait {
             declaration: Default::default(),
             application: Default::default(),
+            scope: Default::default(),
         },
         signature: Default::default(),
     });

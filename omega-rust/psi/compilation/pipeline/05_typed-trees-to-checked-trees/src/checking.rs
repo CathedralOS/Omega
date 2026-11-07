@@ -576,11 +576,47 @@ fn check_program(
     // Mathematical terms remained borrowed by every source judgment. Transfer
     // their checked metadata only after the final context has been dropped.
     facts.proof.mathematical_declarations = mathematics.declarations;
+    if mathematics.signature.is_some() {
+        for (_, application) in mathematics.applications.applications.iter() {
+            for value in mathematics
+                .applications
+                .identity_values
+                .span_or_empty(application.identity_values)
+            {
+                facts
+                    .proof
+                    .identity_formations
+                    .push(checked_trees::CheckedIdentityFormation {
+                        level_arity: application.level_arity,
+                        expression: application.expression,
+                        owner: application.owner,
+                        type_identity: value.type_identity,
+                        term: value.term,
+                        ty: value.ty,
+                        domains: application.domains.clone(),
+                        captures: mathematics
+                            .applications
+                            .captures
+                            .span_or_empty(application.captures)
+                            .iter()
+                            .map(|capture| {
+                                (
+                                    capture.expression,
+                                    typed_program.normalized_type_identity(capture.source_type),
+                                )
+                            })
+                            .collect(),
+                    });
+            }
+        }
+    }
+
     facts.proof.source_evidence_carriers = mathematics
         .applications
         .source_carriers
         .iter()
         .map(|(_, carrier)| checked_trees::CheckedSourceEvidenceCarrier {
+            level_arity: carrier.level_arity,
             type_identity: carrier.type_identity,
             ty: carrier.ty,
             domains: carrier.domains.clone(),
@@ -633,6 +669,7 @@ fn check_program(
             .proof
             .indexed_theorems
             .push(checked_trees::CheckedIndexedTheorem {
+                level_arity: theorem.level_arity,
                 machine: theorem.machine,
                 expression: theorem.expression,
                 ensure_ordinal: theorem.ensure_ordinal,
@@ -645,6 +682,11 @@ fn check_program(
             });
     }
     facts.proof.mathematical_safety_assumptions = mathematics.applications.safety_assumptions;
+    facts.proof.identity_formation_plan = crate::published::facts::identity_formations::record(
+        &typed_program,
+        &facts.proof.identity_formations,
+        mathematics.signature.as_ref(),
+    )?;
     facts.proof.mathematical_signature = mathematics.signature;
     let mut checked = CheckedTrees::with_roots(typed_program, facts);
     (|| -> Result<(), Vec<diagnostics::Diagnostic>> {

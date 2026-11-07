@@ -15,7 +15,11 @@ pub use execution_code::{
     TerminalProgramProduct, TerminalPublication,
 };
 mod codec_error;
+mod identity_formations;
 mod indexed_theorem_roots;
+pub use identity_formations::{
+    ExpectedIdentityFormation, ExpectedIdentityFormations, verify_identity_formations,
+};
 mod mathematical_proof_actual;
 pub use indexed_theorem_roots::verify_indexed_theorem_roots;
 pub use mathematical_proof_actual::{

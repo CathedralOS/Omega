@@ -201,8 +201,8 @@ mod typing;
 pub(crate) use bounded_denotation::test_utilities::{assert_refused, verify_and_assert_forged};
 pub(crate) use bounded_denotation::verify_bounded_certificate_with_machine_parameters;
 pub use bounded_denotation::{
-    BoundedDenotation, BoundedDenotationError, SourceIntegerTheory, SourceIntegerVocabulary,
-    denote_bounded_certificate, verify_bounded_certificate,
+    BoundedDenotation, BoundedDenotationError, SourceContentTheory, SourceIntegerTheory,
+    SourceIntegerVocabulary, denote_bounded_certificate, verify_bounded_certificate,
 };
 #[cfg(test)]
 pub(crate) mod bounded_observations;
@@ -232,7 +232,7 @@ pub use signature::{
     Declaration, Signature, SignatureCheckError, assumption_closure, check_signature,
     check_signature_with_attribution, judgment_assumption_closure,
 };
-pub use substitution::{instantiate_levels, shift, substitute};
+pub use substitution::{instantiate_levels, shift, substitute, universe_parameter_arity};
 pub use term::{Level, Sort, Term, TermArena, TermHandle};
 pub use theorems::identity_substitution;
 pub use typing::{Context, CoreError, check_type, infer_sort, infer_type};

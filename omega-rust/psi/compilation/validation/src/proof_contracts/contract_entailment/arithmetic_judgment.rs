@@ -1605,9 +1605,7 @@ impl<'program> Engine<'program> {
                 _ => None,
             },
             ExpressionNode::Call(call) => {
-                if crate::mathematical_applications::selected_definition(self.program, &call)
-                    .is_some()
-                {
+                if crate::mathematical_applications::is_mathematical_call(self.program, &call) {
                     return self.normalize_mathematical_application(expression);
                 }
                 if crate::proof_contracts::proof_embeddings::is_exact_embed_call(
@@ -1796,7 +1794,7 @@ impl<'program> Engine<'program> {
         expression_table(self.program)
             .call_node(expression)
             .is_some_and(|call| {
-                crate::mathematical_applications::selected_definition(self.program, call).is_some()
+                crate::mathematical_applications::is_mathematical_call(self.program, call)
             })
     }
 

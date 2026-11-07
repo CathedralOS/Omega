@@ -15,8 +15,18 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use validation::expression_owners::{OwnerEnvironmentIndex, source_declaration_owner};
 use validation::expression_traversal::children;
 use validation::mathematical_applications::{
-    MathematicalBinderKind, expression_nodes, operand_type_reference, source_generic_argument_plan,
+    MathematicalBinderKind, expression_nodes, source_generic_argument_plan,
 };
+
+pub(super) struct SourceApplication {
+    pub(super) expression: ExpressionHandle,
+    pub(super) owner: SymbolHandle,
+    pub(super) term: TermHandle,
+    pub(super) domains: Vec<TermHandle>,
+    pub(super) level_arity: u32,
+    pub(super) captures: Vec<super::PreparedCapture>,
+    pub(super) emissions: std::ops::Range<usize>,
+}
 
 impl Elaborator<'_> {
     /// Form applications demanded outside mathematical declaration bodies.
@@ -25,27 +35,16 @@ impl Elaborator<'_> {
     /// fixed integer widths and arithmetic policies distinct before embedding.
     pub(super) fn source_applications(
         &mut self,
-    ) -> Result<
-        Vec<(
-            ExpressionHandle,
-            proof_admission::TermHandle,
-            Vec<proof_admission::TermHandle>,
-            Vec<super::PreparedCapture>,
-        )>,
-        Vec<Diagnostic>,
-    > {
-        if self.authored_index.is_empty() {
-            return Ok(Vec::new());
-        }
+    ) -> Result<Vec<SourceApplication>, Vec<Diagnostic>> {
         let candidate_calls = expression_table(self.program)
             .iter_expressions()
             .filter_map(|(expression, node)| {
                 let ExpressionNode::Call(call) = node else {
                     return None;
                 };
-                self.authored_index
-                    .contains_key(&call.target_symbol)
-                    .then_some((expression, call.clone()))
+                (self.authored_index.contains_key(&call.target_symbol)
+                    || validation::mathematical_applications::is_identity_call(self.program, call))
+                .then_some((expression, call.clone()))
             })
             .collect::<Vec<_>>();
         if candidate_calls.is_empty() {
@@ -59,7 +58,6 @@ impl Elaborator<'_> {
         if calls.is_empty() {
             return Ok(Vec::new());
         }
-        let owners = OwnerEnvironmentIndex::new(self.program, &arena::Arena::default());
         let mut applications = Vec::with_capacity(calls.len());
         for (expression, call) in calls {
             self.span = Some(self.program.expression_table.source_span(expression));
@@ -69,12 +67,19 @@ impl Elaborator<'_> {
             self.source_owner = if retained_owner.is_valid() {
                 retained_owner
             } else {
-                source_declaration_owner(self.program, expression, &owners).unwrap_or_default()
+                source_declaration_owner(
+                    self.program,
+                    expression,
+                    self.source_owners
+                        .get_or_init(|| OwnerEnvironmentIndex::for_preparation(self.program)),
+                )
+                .unwrap_or_default()
             };
             self.scope.clear();
             self.level_binders.clear();
             self.level_names.clear();
             self.generalized_levels = 0;
+            self.source_type_levels.clear();
             self.captured_expressions.clear();
             self.source_family_values.clear();
             let mut captures = Vec::new();
@@ -94,16 +99,21 @@ impl Elaborator<'_> {
                 let declaration_description = matches!(node, ExpressionNode::Name(path)
                     if self.program.symbols.builtin_type_member(path.symbol).is_some()
                         || self.program.symbols.builtin_type_atom(path.symbol).is_some());
-                if !mathematical
-                    && !declaration_description
-                    && let Some(reference) = operand_type_reference(self.program, operand)
-                {
+                let reference = (!mathematical && !declaration_description)
+                    .then(|| self.source_operand_type_reference(operand))
+                    .flatten();
+                if let Some(reference) = reference {
                     // Capture the complete evaluated value. Splitting a fixed
                     // Wrapping computation into source leaves would silently
                     // replace its denotation with unbounded arithmetic.
                     let domain = self.elaborate_source_operand_type(reference)?;
-                    if let TypeReferenceNode::Generic { base_symbol, .. } =
-                        self.program.type_reference_table.type_reference(reference)
+                    // A relation may name an existing value without
+                    // constructing or duplicating its runtime resource. A
+                    // mathematical value actual still owes its constructor
+                    // evidence; Id formation only borrows the typed subject.
+                    if !self.call_returns_type(&call)
+                        && let TypeReferenceNode::Generic { base_symbol, .. } =
+                            self.program.type_reference_table.type_reference(reference)
                         && self.indexed_families.contains_key(base_symbol)
                     {
                         let value = self.source_family_constructor(operand, reference, 0)?;
@@ -121,13 +131,17 @@ impl Elaborator<'_> {
                     children(self.program, node, |child| pending.push(child));
                 }
             }
+            let emission_start = self.identity_emissions.len();
             let term = self.elaborate_expression(expression)?;
-            applications.push((
+            applications.push(SourceApplication {
                 expression,
+                owner: self.source_owner,
                 term,
-                self.scope.iter().map(|entry| entry.domain).collect(),
+                domains: self.scope.iter().map(|entry| entry.domain).collect(),
+                level_arity: self.level_binders.len() as u32 + self.generalized_levels,
                 captures,
-            ));
+                emissions: emission_start..self.identity_emissions.len(),
+            });
         }
         self.scope.clear();
         self.captured_expressions.clear();
@@ -141,7 +155,7 @@ impl Elaborator<'_> {
         symbol: SymbolHandle,
         name: &Identifier,
         arguments: &[StaticMachineArgument],
-    ) -> Result<TermHandle, Vec<Diagnostic>> {
+    ) -> Result<(TermHandle, Vec<super::source_domains::SourceInput>), Vec<Diagnostic>> {
         if !arguments.is_empty() {
             if let Some(&index) = self.authored_index.get(&symbol) {
                 return self.instantiate_declaration(expression, index, arguments);
@@ -157,7 +171,7 @@ impl Elaborator<'_> {
         } else {
             return Err(self.refuse(format!("unresolved mathematical callee `{name}`")));
         };
-        Ok(term)
+        Ok((term, Vec::new()))
     }
 
     fn instantiate_declaration(
@@ -165,7 +179,7 @@ impl Elaborator<'_> {
         expression: ExpressionHandle,
         index: usize,
         arguments: &[StaticMachineArgument],
-    ) -> Result<TermHandle, Vec<Diagnostic>> {
+    ) -> Result<(TermHandle, Vec<super::source_domains::SourceInput>), Vec<Diagnostic>> {
         let definition = &self.program.mathematical_definitions()[index];
         let Some(&position) = self.authored_positions.get(&definition.symbol) else {
             return Err(self.refuse(format!(
@@ -198,6 +212,7 @@ impl Elaborator<'_> {
         let mut authored_levels = vec![None; level_binders.len()];
         let mut terms = Vec::new();
         let mut term_domains = Vec::new();
+        let mut term_requirements = Vec::new();
         let mut generalized = Vec::new();
         let mut constraints = Vec::new();
         let mut level_position = 0;
@@ -212,6 +227,7 @@ impl Elaborator<'_> {
                 continue;
             }
             let argument = slot.argument.expect("checked generic arity");
+            self.result_identity_requirements = super::identity::IdentityRequirements::default();
             let (term, domain) = if let Some(literal) = &argument.const_literal {
                 self.static_integer_literal(binder, argument, literal)?
             } else {
@@ -227,6 +243,10 @@ impl Elaborator<'_> {
             {
                 constraints.push((position, term, &binder.name));
             }
+            if let Term::Variable(_) = self.arena.get(term) {
+                self.retain_identity_parameter_value(term)?;
+            }
+            term_requirements.push(std::mem::take(&mut self.result_identity_requirements));
             terms.push(term);
             term_domains.push(domain);
         }
@@ -273,18 +293,23 @@ impl Elaborator<'_> {
             declaration: position,
             levels,
         });
-        let inputs = terms
+        let inputs: Vec<_> = terms
             .into_iter()
             .zip(term_domains)
-            .map(|(term, domain)| super::source_domains::SourceInput {
-                // Generic terms are already typed in the exact caller scope.
-                // No anonymous ordinary-expression landing is available here.
-                expression: ExpressionHandle::default(),
-                term,
-                domain,
-            })
+            .zip(term_requirements)
+            .map(
+                |((term, domain), identity_requirements)| super::source_domains::SourceInput {
+                    // Generic terms are already typed in the exact caller scope.
+                    // No anonymous ordinary-expression landing is available here.
+                    expression: ExpressionHandle::default(),
+                    term,
+                    domain,
+                    identity_requirements,
+                },
+            )
             .collect();
-        Ok(self.apply_source_inputs(expression, callee, inputs))
+        let term = self.apply_source_inputs(expression, callee, inputs.clone());
+        Ok((term, inputs))
     }
 
     fn binder_is_level(&self, binder: &TypeParameter) -> bool {

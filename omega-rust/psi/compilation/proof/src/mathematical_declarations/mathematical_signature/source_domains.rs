@@ -22,9 +22,11 @@ pub(super) struct SourceAlias {
     pub carrier: ScalarCarrier,
 }
 
+#[derive(Clone)]
 pub(super) struct SourceInput {
     pub expression: ExpressionHandle,
     pub term: TermHandle,
+    pub identity_requirements: super::identity::IdentityRequirements,
     /// A source-typed ordinary value's complete domain. Mathematical function
     /// terms instead use their instantiated calculus telescope directly.
     pub domain: Option<TermHandle>,
@@ -50,6 +52,36 @@ pub(super) enum SourceFormation {
 }
 
 impl Elaborator<'_> {
+    /// Keep the declaration that supplied this value when reading its type.
+    /// In particular, a sibling requirement's result is scoped by the same
+    /// exact telescope as its operands, before any calculus conversion.
+    pub(super) fn source_operand_type_reference(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        let owners = self.source_owners.get_or_init(|| {
+            validation::expression_owners::OwnerEnvironmentIndex::for_preparation(self.program)
+        });
+        if owners.contains_expression(expression) {
+            return validation::expression_owners::checked_expression_type_reference_from_exact_owner(
+                self.program,
+                &arena::Arena::default(),
+                expression,
+                expression,
+                Some(owners),
+            );
+        }
+        if self.source_owner.is_valid() {
+            validation::mathematical_applications::operand_type_reference_in_declaration(
+                self.program,
+                self.source_owner,
+                expression,
+            )
+        } else {
+            validation::mathematical_applications::operand_type_reference(self.program, expression)
+        }
+    }
+
     /// Construct all mathematical Apply spines and retain their source-domain
     /// obligations together. Ordinary calls, generic terms and dependent type
     /// applications differ in argument roles, never in application formation.
@@ -85,11 +117,13 @@ impl Elaborator<'_> {
         expression: ExpressionHandle,
     ) -> Result<SourceInput, Vec<Diagnostic>> {
         let term = self.elaborate_expression(expression)?;
+        let identity_requirements = std::mem::take(&mut self.result_identity_requirements);
         let domain = self.source_expression_domain(expression)?;
         Ok(SourceInput {
             expression,
             term,
             domain,
+            identity_requirements,
         })
     }
 
@@ -144,6 +178,7 @@ impl Elaborator<'_> {
             expression,
             term,
             domain: None,
+            identity_requirements: super::identity::IdentityRequirements::default(),
         })
     }
 
@@ -162,7 +197,7 @@ impl Elaborator<'_> {
         {
             None
         } else {
-            validation::mathematical_applications::operand_type_reference(self.program, expression)
+            self.source_operand_type_reference(expression)
         };
         reference
             .map(|reference| {
@@ -261,6 +296,7 @@ impl Elaborator<'_> {
                     expression,
                     term,
                     domain,
+                    identity_requirements: super::identity::IdentityRequirements::default(),
                 },
             },
             domains: self.scope.iter().map(|entry| entry.domain).collect(),

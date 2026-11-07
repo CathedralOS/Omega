@@ -243,7 +243,7 @@ impl StructuralJudge<'_> {
                 )?,
             ),
             ExpressionNode::Call(call) => {
-                if crate::mathematical_applications::selected_definition(program, call).is_some() {
+                if crate::mathematical_applications::is_mathematical_call(program, call) {
                     return structural_terms::mathematical_application_term(
                         program,
                         expression,

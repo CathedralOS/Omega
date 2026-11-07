@@ -155,12 +155,14 @@ impl StructuralTerm {
                     ..
                 }
                 | Self::Projection { subject, .. }
+                | Self::ContentValue { value: subject, .. }
                 | Self::IntegerEmbedding { value: subject, .. }
                 | Self::ScalarRepresentation { value: subject, .. } => StructuralChildren::Fixed {
                     first: Some(subject.as_ref()),
                     second: None,
                 },
-                Self::ScalarBinary { left, right, .. }
+                Self::Identity { left, right, .. }
+                | Self::ScalarBinary { left, right, .. }
                 | Self::MathematicalBinary { left, right, .. } => StructuralChildren::Fixed {
                     first: Some(left.as_ref()),
                     second: Some(right.as_ref()),
@@ -251,6 +253,33 @@ impl StructuralIdentity {
         };
         let retain_metadata = matches!(self, Self::ResolutionInput);
         match left {
+            StructuralTerm::ContentValue { algebra, value } => {
+                let StructuralTerm::ContentValue {
+                    algebra: other_algebra,
+                    value: other_value,
+                } = other
+                else {
+                    return false;
+                };
+                algebra == other_algebra && self.matches(value, other_value)
+            }
+            StructuralTerm::Identity {
+                carrier,
+                left,
+                right,
+            } => {
+                let StructuralTerm::Identity {
+                    carrier: other_carrier,
+                    left: other_left,
+                    right: other_right,
+                } = other
+                else {
+                    return false;
+                };
+                carrier == other_carrier
+                    && self.matches(left, other_left)
+                    && self.matches(right, other_right)
+            }
             StructuralTerm::ObservedValue {
                 observed_type,
                 value,
@@ -556,6 +585,21 @@ impl std::fmt::Debug for StructuralTerm {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ObservedValue { value, .. } => std::fmt::Debug::fmt(value, formatter),
+            Self::ContentValue { algebra, value } => formatter
+                .debug_struct("ContentValue")
+                .field("algebra", algebra)
+                .field("value", value)
+                .finish(),
+            Self::Identity {
+                carrier,
+                left,
+                right,
+            } => formatter
+                .debug_struct("Identity")
+                .field("carrier", carrier)
+                .field("left", left)
+                .field("right", right)
+                .finish(),
             Self::RepeatedArray { length, element } => formatter
                 .debug_struct("RepeatedArray")
                 .field("length", length)

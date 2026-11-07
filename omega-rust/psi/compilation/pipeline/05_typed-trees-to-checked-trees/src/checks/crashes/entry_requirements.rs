@@ -32,7 +32,6 @@ pub(super) fn collect(
     };
     let mut common = consequences::Consequences::new(
         program,
-        program.state_parameters(entry),
         parameter_names,
         content_conservation,
         integer_types,
@@ -54,7 +53,6 @@ pub(super) fn collect(
                 program,
                 *expression,
                 false,
-                program.state_parameters(entry),
                 parameter_names,
                 content_conservation,
             ));
@@ -88,7 +86,6 @@ pub(super) fn collect(
                     program,
                     *expression,
                     false,
-                    program.state_parameters(entry),
                     parameter_names,
                     content_conservation,
                 ));

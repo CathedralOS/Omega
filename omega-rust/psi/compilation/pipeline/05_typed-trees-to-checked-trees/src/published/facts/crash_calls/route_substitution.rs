@@ -1208,7 +1208,6 @@ pub(crate) fn refine_published_crash_routes(
     let route_expressions = crash_route_expressions_by_identity(
         program,
         contracts,
-        target_parameters,
         target_parameter_names,
         content_conservation,
     );

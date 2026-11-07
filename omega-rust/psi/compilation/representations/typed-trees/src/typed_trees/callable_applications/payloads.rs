@@ -644,9 +644,17 @@ impl CallableApplication {
                     expression::ExpressionNode::ZeroValue(self.type_reference(program, reference)?),
                 ),
                 expression::ExpressionNode::Call(mut call) => {
+                    call.requirement_application =
+                        self.type_reference(program, call.requirement_application)?;
+                    call.exact_coercion_target =
+                        self.type_reference(program, call.exact_coercion_target)?;
                     self.static_arguments(program, &mut call.machine_arguments)?;
-                    let application = call.authored_machine_application;
-                    if application.is_valid() {
+                    if let Some(query) = &mut call.native_code_layout {
+                        self.static_arguments(program, std::slice::from_mut(&mut query.operand))?;
+                    }
+                    for application in
+                        crate::references::StaticArgumentCall::Expression(handle, &call).applications()
+                    {
                         let lifetimes = program
                             .static_machine_application_lifetimes(application)
                             .iter()

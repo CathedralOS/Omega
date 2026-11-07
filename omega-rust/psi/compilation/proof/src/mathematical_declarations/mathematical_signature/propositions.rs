@@ -11,7 +11,6 @@ use super::{Elaborator, ScalarCarrier};
 use numerics::literals::FloatFormat;
 use typed_trees::proposition::ProofSubstitutions;
 use typed_trees::types::PrimitiveType;
-use validation::mathematical_applications::operand_type_reference;
 
 impl<'a> Elaborator<'a> {
     /// is a proposition form at all — `None` names an ordinary term and
@@ -28,6 +27,14 @@ impl<'a> Elaborator<'a> {
         &mut self,
         handle: ExpressionHandle,
     ) -> Result<Option<TermHandle>, Vec<diagnostics::Diagnostic>> {
+        self.result_identity_requirements = super::identity::IdentityRequirements::default();
+        self.elaborate_proposition_term(handle)
+    }
+
+    fn elaborate_proposition_term(
+        &mut self,
+        handle: ExpressionHandle,
+    ) -> Result<Option<TermHandle>, Vec<diagnostics::Diagnostic>> {
         match self.program.expression_table.expression(handle) {
             ExpressionNode::Boolean(value) => Ok(Some(self.boolean_proposition(*value))),
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
@@ -39,6 +46,12 @@ impl<'a> Elaborator<'a> {
                 let operand = unary.operand;
                 self.elaborate_proposition(operand)
                     .map(|proposition| proposition.map(|term| self.negated_proposition(term)))
+            }
+            ExpressionNode::Call(call)
+                if validation::mathematical_applications::is_identity_call(self.program, call) =>
+            {
+                let call = call.clone();
+                self.elaborate_identity(handle, &call).map(Some)
             }
             ExpressionNode::Name(..)
             | ExpressionNode::Call(..)
@@ -152,8 +165,8 @@ impl<'a> Elaborator<'a> {
                         .render_proof_expression(handle, ProofSubstitutions::None)
                 ))
             })?;
-        let references = [binary.left, binary.right]
-            .map(|operand| operand_type_reference(self.program, operand));
+        let references =
+            [binary.left, binary.right].map(|operand| self.source_operand_type_reference(operand));
         if let Some(term) = self.float_comparison(handle, binary, Some(carrier))? {
             return Ok(term);
         }
@@ -199,8 +212,8 @@ impl<'a> Elaborator<'a> {
         let carrier = self
             .operand_carrier(binary.left)
             .or_else(|| self.operand_carrier(binary.right));
-        let references = [binary.left, binary.right]
-            .map(|operand| operand_type_reference(self.program, operand));
+        let references =
+            [binary.left, binary.right].map(|operand| self.source_operand_type_reference(operand));
         if let Some(term) = self.float_comparison(handle, binary, carrier)? {
             return Ok(term);
         }
@@ -256,8 +269,8 @@ impl<'a> Elaborator<'a> {
             Some(ScalarCarrier::Float64) => (ScalarCarrier::Float64, FloatFormat::F64),
             _ => return Ok(None),
         };
-        let references = [binary.left, binary.right]
-            .map(|operand| operand_type_reference(self.program, operand));
+        let references =
+            [binary.left, binary.right].map(|operand| self.source_operand_type_reference(operand));
         if !validation::has_builtin_or_sealed_float_comparison_meaning(
             self.program,
             self.source_owner,
@@ -332,9 +345,15 @@ impl<'a> Elaborator<'a> {
         let mut operands = Vec::new();
         self.proposition_spine(handle, operator, &mut operands);
         let mut terms = Vec::with_capacity(operands.len());
+        let mut requirements = super::identity::IdentityRequirements::default();
         for operand in operands {
             match self.elaborate_proposition(operand)? {
-                Some(term) => terms.push(term),
+                Some(term) => {
+                    terms.push(term);
+                    let value = std::mem::take(&mut self.result_identity_requirements);
+                    requirements.emissions.extend(value.emissions);
+                    requirements.applications.extend(value.applications);
+                }
                 None => {
                     return Err(self.refuse(format!(
                         "operand `{}` of a proposition connective is not a proposition",
@@ -344,6 +363,7 @@ impl<'a> Elaborator<'a> {
                 }
             }
         }
+        self.result_identity_requirements = requirements;
         terms.sort_by_key(|term| self.term_order_key(*term));
         Ok(match operator {
             BinaryOperator::And => self.right_nested_sigma(&terms, 0),

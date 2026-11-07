@@ -54,6 +54,7 @@ pub enum CodecError {
     AccessRamCorrespondence(String),
     AccessViewInput(terminal_semantics::AccessViewInputError),
     MalformedMathematicalCertificate(&'static str),
+    InvalidIdentityFormation(String),
     MalformedProposition(PropositionError),
     ObligationLedgerMismatch,
 }

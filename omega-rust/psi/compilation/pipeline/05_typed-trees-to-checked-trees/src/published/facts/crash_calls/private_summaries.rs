@@ -36,7 +36,6 @@ use typed_trees::machine::MachineBodyStatus;
 use typed_trees::operator::declaration_by_symbol;
 use typed_trees::signature::SignatureContract;
 use typed_trees::signature::SignatureContractKind;
-use typed_trees::signature::StateParameter;
 use typed_trees::signature::StateSignature;
 use validation::CallSite;
 use validation::ContentConservationSourcePlan;
@@ -1044,7 +1043,6 @@ pub(crate) fn requirement_signature(
 pub(crate) fn crash_route_expressions_by_identity(
     program: &dyn ::validation::CheckingInput,
     contracts: &[SignatureContract],
-    parameters: &[StateParameter],
     parameter_names: &[String],
     content_conservation: &[ContentConservationSourcePlan],
 ) -> std::collections::BTreeMap<CrashPredicateIdentity, ExpressionHandle> {
@@ -1060,10 +1058,9 @@ pub(crate) fn crash_route_expressions_by_identity(
             if is_true_crash_route(program, fact) {
                 continue;
             }
-            let structured = super::proof_crash_predicate_from_expression(
+            let structured = super::crash_predicate_from_expression(
                 program,
                 *expression,
-                parameters,
                 parameter_names,
                 Some(content_conservation),
             );

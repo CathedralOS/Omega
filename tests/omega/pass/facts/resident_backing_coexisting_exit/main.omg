@@ -5,6 +5,7 @@ use omega::language::core::extent;
 use omega::language::core::content;
 use omega::language::core::layout;
 use omega::language::core::process_exit;
+use omega::language::core::nat;
 
 data TestMemory {}
 public data Word { value: u64; }
@@ -43,7 +44,10 @@ TestRoots satisfies ExtentRootProvider {
 TestVacant satisfies VacantContentTransfer {
     machine transfer(storage: Extent in Granted) -> Extent
         ensures result in Granted,
-            Granted::content(old(&storage)) == Granted::content(&result)
+            core::Identity<IntervalSet<Nat>>(
+                Granted::content(old(&storage)),
+                Granted::content(&result)
+            )
     { storage as Extent }
 }
 
@@ -158,8 +162,14 @@ requires addr::Bound == 18446744073709551616 {
 machine rejoin(left: Extent in Granted & Vacant, right: Extent in Granted & Vacant) -> Extent in Granted & Vacant
 requires left.length == 16, right.length == 16, embed(right.base) == embed(left.base) + embed(left.length)
 ensures result.base == left.base, result.length == 32,
-    separate(Granted::content(old(&left)), Granted::content(old(&right))) == Granted::content(&result),
-    separate(Vacant::content(old(&left)), Vacant::content(old(&right))) == Vacant::content(&result)
+    core::Identity<IntervalSet<Nat>>(
+        separate(Granted::content(old(&left)), Granted::content(old(&right))),
+        Granted::content(&result)
+    ),
+    core::Identity<IntervalSet<Nat>>(
+        separate(Vacant::content(old(&left)), Vacant::content(old(&right))),
+        Vacant::content(&result)
+    )
 {
     let { base as left_base, length as left_length } = left;
     let { base as right_base, length as right_length } = right;

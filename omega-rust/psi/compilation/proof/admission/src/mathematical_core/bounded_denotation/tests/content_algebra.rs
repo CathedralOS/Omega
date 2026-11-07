@@ -1,4 +1,5 @@
 use super::*;
+use crate::mathematical_core::{Level, Sort};
 use crate::proof_node;
 
 fn content_algebra() -> ContentAlgebra {
@@ -42,6 +43,30 @@ fn conservation(algebra: &ContentAlgebra, left: &ContentTerm, right: &ContentTer
     ))
 }
 
+fn assert_content_carrier_vocabulary(denoted: &BoundedDenotation) {
+    let parameter = &denoted.certificate.signature[0];
+    assert_eq!(parameter.level_arity, 0);
+    assert!(parameter.is_assumption());
+    assert_eq!(
+        denoted.arena.get(parameter.ty),
+        Term::Sort(Sort::Type(Level::Constant(0)))
+    );
+    let family = &denoted.certificate.signature[1];
+    assert_eq!(family.level_arity, 1);
+    assert!(family.is_assumption());
+    let Term::Pi { domain, codomain } = denoted.arena.get(family.ty) else {
+        panic!("the canonical carrier is an outer type family");
+    };
+    assert_eq!(
+        denoted.arena.get(domain),
+        Term::Sort(Sort::Type(Level::Parameter(0)))
+    );
+    assert_eq!(
+        denoted.arena.get(codomain),
+        Term::Sort(Sort::Type(Level::Constant(0)))
+    );
+}
+
 /// `ContentConservation` denotes `Id` over its algebra's carrier, so
 /// its transitivity rule is a `J` composition the kernel re-decides
 /// in every shared-endpoint orientation the bounded relation check
@@ -83,10 +108,11 @@ fn content_conservation_transitivity_is_a_j_composition() {
         .unwrap_or_else(|error| {
             panic!("content transitivity {goal_pair:?} verifies as J: {error}")
         });
-        // `{C, a', b', c'}` — the algebra carrier and one element
+        // `{P, C, a', b', c'}` — the parameter, carrier family and one element
         // constant per distinct content term; the rule cites no
         // axiom of its own.
-        assert_eq!(denoted.certificate.signature.len(), 4);
+        assert_content_carrier_vocabulary(&denoted);
+        assert_eq!(denoted.certificate.signature.len(), 5);
         assert!(
             denoted
                 .certificate
@@ -103,7 +129,7 @@ fn content_conservation_transitivity_is_a_j_composition() {
         );
         assert_eq!(
             certificate_assumption_closure(&denoted.arena, &denoted.certificate),
-            BTreeSet::from([0, 1, 2, 3]),
+            BTreeSet::from([0, 1, 2, 3, 4]),
         );
         assert_eq!(
             denoted.rules,
@@ -131,16 +157,17 @@ fn reflexive_content_conservation_is_refl_in_the_kernel() {
     let denoted =
         verify_bounded_certificate(&context, &proposition, &[], &[], &proof, &mut budget())
             .expect("reflexive conservation verifies as refl");
-    // `{C, s'}` — the carrier and the one endpoint; the evidence is
-    // `refl C s'` with no decision assumption.
-    assert_eq!(denoted.certificate.signature.len(), 2);
+    // `{P, C, s'}` — the parameter, carrier family and one endpoint;
+    // the evidence is `refl (C P) s'` with no decision assumption.
+    assert_content_carrier_vocabulary(&denoted);
+    assert_eq!(denoted.certificate.signature.len(), 3);
     assert!(matches!(
         denoted.arena.get(denoted.certificate.term),
         Term::Refl { .. }
     ));
     assert_eq!(
         certificate_assumption_closure(&denoted.arena, &denoted.certificate),
-        BTreeSet::from([0, 1]),
+        BTreeSet::from([0, 1, 2]),
     );
 }
 
@@ -234,15 +261,16 @@ fn unchanged_content_transport_reuses_evidence_and_retains_its_context() {
         &mut budget(),
     )
     .expect("the original content evidence verifies");
-    // C, a', b', Int, m_x and m_z remain; no new rule axiom.
-    assert_eq!(denoted.certificate.signature.len(), 6);
+    // P, C, a', b', Int, m_x and m_z remain; no new rule axiom.
+    assert_content_carrier_vocabulary(&denoted);
+    assert_eq!(denoted.certificate.signature.len(), 7);
     assert_eq!(
         denoted.arena.get(denoted.certificate.term),
         Term::Variable(1)
     );
     assert_eq!(
         certificate_assumption_closure(&denoted.arena, &denoted.certificate),
-        (0..6).collect()
+        (0..7).collect()
     );
     assert!(
         matches!(

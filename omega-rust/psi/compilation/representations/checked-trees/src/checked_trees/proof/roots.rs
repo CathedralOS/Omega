@@ -66,6 +66,9 @@ pub struct ProofFacts {
     /// program whose facts were built without it reads as a producer
     /// defect, and lowering admission rejects either half missing.
     pub mathematical_signature: Option<crate::CheckedMathematicalSignature>,
+    /// Typed Id formation supplies no identity witness or executable Boolean.
+    pub identity_formations: Vec<crate::CheckedIdentityFormation>,
+    pub identity_formation_plan: crate::CheckedIdentityFormationPlan,
     /// Independently retained source carrier formation, sharing that signature.
     pub source_evidence_carriers: Vec<crate::CheckedSourceEvidenceCarrier>,
     /// Independently audited integer-theory grants in that exact signature.

@@ -4,6 +4,7 @@
 // Region::Owned is not Extent::Granted and its drop hook releases no memory.
 use omega::language::core::content;
 use omega::language::core::drop;
+use omega::language::core::nat;
 
 data Region [linear] dropped by drop_region { start: u64; end: u64; }
 machine drop_region(region: &mut Region) {}
@@ -15,8 +16,11 @@ satisfies Content<Region, IntervalSet<Nat>>::project {
 data Pieces { left: Region in Owned; right: Region in Owned; }
 machine split(whole: Region in Owned, cut: u64) -> Pieces
 requires whole.start <= cut && cut <= whole.end
-ensures Owned::content(old(&whole)) == separate(
-    Owned::content(&result.left), Owned::content(&result.right))
+ensures core::Identity<IntervalSet<Nat>>(
+    Owned::content(old(&whole)),
+    separate(
+        Owned::content(&result.left), Owned::content(&result.right))
+)
 {
     let left: Region in Owned = Region { start: whole.start, end: cut };
     let right: Region in Owned = Region { start: cut, end: whole.end };
@@ -26,8 +30,11 @@ ensures Owned::content(old(&whole)) == separate(
 data ThreePieces { first: Region in Owned; middle: Region in Owned; last: Region in Owned; }
 machine split_three(whole: Region in Owned, first_cut: u64, second_cut: u64) -> ThreePieces
 requires whole.start <= first_cut && first_cut <= second_cut && second_cut <= whole.end
-ensures Owned::content(old(&whole)) == separate(
-    Owned::content(&result.last), separate(Owned::content(&result.first), Owned::content(&result.middle)))
+ensures core::Identity<IntervalSet<Nat>>(
+    Owned::content(old(&whole)),
+    separate(
+        Owned::content(&result.last), separate(Owned::content(&result.first), Owned::content(&result.middle)))
+)
 {
     let first: Region in Owned = Region { start: whole.start, end: first_cut };
     let middle: Region in Owned = Region { start: first_cut, end: second_cut };

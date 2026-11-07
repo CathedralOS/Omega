@@ -9,6 +9,29 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 
 impl Level {
+    /// Required parameter prefix; this does not validate a universe scope.
+    pub fn parameter_arity(&self) -> u32 {
+        let mut pending = vec![self];
+        let mut arity = 0;
+        while let Some(level) = pending.pop() {
+            match level {
+                Level::Parameter(index) => arity = arity.max(index.saturating_add(1)),
+                Level::Successor(inner) => pending.push(inner),
+                Level::Maximum(left, right) => {
+                    pending.push(left);
+                    pending.push(right);
+                }
+                Level::Constant(_) => {}
+            }
+        }
+        arity
+    }
+
+    /// Substitute exact universe actuals without resizing or cumulativity.
+    pub fn instantiate(&self, arguments: &[Level]) -> Result<Level, u32> {
+        instantiate_level(self, arguments)
+    }
+
     /// Closed constants fold, with the original checked overflow boundary.
     pub fn successor(self) -> Option<Level> {
         match self {

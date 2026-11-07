@@ -429,6 +429,7 @@ impl<'program> Engine<'program> {
         crate::value_custody::expression_types::declaration_expression_result_type_reference(
             self.program,
             self.source_owner,
+            None,
             &|place| {
                 crate::proof_contracts::proof_embeddings::expression_type_reference(
                     self.program,

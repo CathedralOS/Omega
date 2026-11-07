@@ -44,13 +44,8 @@ pub(super) fn refine(
             ) else {
                 continue;
             };
-            let identity = super::proof_crash_predicate_from_expression(
-                program,
-                *expression,
-                parameters,
-                &names,
-                None,
-            );
+            let identity =
+                super::crash_predicate_from_expression(program, *expression, &names, None);
             collect(&checked, &identity, &mut equations);
             if super::summary_predicates::executable_entry_predicate(&checked) {
                 excluded.extend(excluded_comparisons(&checked, &identity, false, 0));

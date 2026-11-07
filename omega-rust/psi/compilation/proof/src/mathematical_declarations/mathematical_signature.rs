@@ -39,7 +39,9 @@ macro_rules! interned_literal {
 
 mod applications;
 mod carriers;
+mod content_values;
 mod dependencies;
+mod identity;
 mod level_types;
 mod normalization;
 mod operand_terms;
@@ -48,10 +50,11 @@ mod scope;
 mod source_domains;
 mod source_evidence;
 mod source_families;
+mod source_levels;
 mod term_order;
 
 use crate::typed_expressions::expression_table;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use numerics::bignum::BigInt;
 use validation::mathematical_applications::{
@@ -130,6 +133,9 @@ struct Elaborator<'a> {
     /// each land immediately before the authored declaration whose
     /// elaboration discovered them.
     declarations: Vec<Declaration>,
+    /// Canonical content types are opaque algebra values, never the source
+    /// literal former's start/end record representation.
+    source_content: Option<proof_admission::SourceContentTheory>,
     /// Carrier symbol -> signature position (a `Type 0` assumption).
     carriers: HashMap<SymbolHandle, u32>,
     /// `Int : Type 0` — the shared mathematical-integer carrier every
@@ -197,6 +203,8 @@ struct Elaborator<'a> {
     /// Universe parameters claimed by generalized (bare or unapplied
     /// `Type`) binders; appended after the authored level binders.
     generalized_levels: u32,
+    /// Ordinary source binders reuse one inferred universe in this telescope.
+    source_type_levels: Vec<(SymbolHandle, Level)>,
     /// Term scope for the declaration under elaboration: ordered
     /// telescope entries plus in-flight arrow binders.
     scope: Vec<ScopeEntry>,
@@ -208,6 +216,7 @@ struct Elaborator<'a> {
     /// Source span of the declaration under elaboration, for diagnostics.
     span: Option<SourceSpan>,
     source_owner: SymbolHandle,
+    source_owners: std::sync::OnceLock<validation::expression_owners::OwnerEnvironmentIndex>,
     captured_expressions: Vec<(ExpressionHandle, usize)>,
     source_family_values: HashMap<ExpressionHandle, TermHandle>,
     source_constructor_context: source_families::SourceConstructorContext,
@@ -221,6 +230,12 @@ struct Elaborator<'a> {
     integer_theory: Option<proof_admission::SourceIntegerTheory>,
     integer_multiply: Option<u32>,
     prepared: PreparedMathematicalApplications,
+    identity_declaration: Option<u32>,
+    type_returning_declarations: Vec<SymbolHandle>,
+    identity_emissions: Vec<identity::IdentityEmission>,
+    identity_applications: Vec<identity::IdentityApplication>,
+    result_identity_requirements: identity::IdentityRequirements,
+    identity_requirements_by_owner: Vec<identity::IdentityRequirements>,
 }
 
 /// Elaborate every mathematical declaration of `program` into a kernel
@@ -240,6 +255,7 @@ pub(crate) fn check_mathematical_signature(
         program,
         arena,
         declarations,
+        source_content: None,
         carriers: HashMap::new(),
         integer: None,
         boolean: None,
@@ -267,11 +283,13 @@ pub(crate) fn check_mathematical_signature(
         level_binders: Vec::new(),
         level_names: Vec::new(),
         generalized_levels: 0,
+        source_type_levels: Vec::new(),
         scope: Vec::new(),
         fixed_core: FixedCoreVocabulary::resolve(&program.symbols),
         address_bound: None,
         span: None,
         source_owner: SymbolHandle::default(),
+        source_owners: std::sync::OnceLock::new(),
         captured_expressions: Vec::new(),
         source_family_values: HashMap::new(),
         source_constructor_context: source_families::SourceConstructorContext::default(),
@@ -283,6 +301,15 @@ pub(crate) fn check_mathematical_signature(
         integer_theory: None,
         integer_multiply: None,
         prepared: PreparedMathematicalApplications::default(),
+        identity_declaration: None,
+        type_returning_declarations: Vec::new(),
+        identity_emissions: Vec::new(),
+        identity_applications: Vec::new(),
+        result_identity_requirements: identity::IdentityRequirements::default(),
+        identity_requirements_by_owner: vec![
+            identity::IdentityRequirements::default();
+            program.symbols.symbols().len()
+        ],
     };
     if needs_scheme {
         let theory = proof_admission::SourceIntegerTheory::new(
@@ -323,6 +350,7 @@ impl<'a> Elaborator<'a> {
         self.level_binders.clear();
         self.level_names.clear();
         self.generalized_levels = 0;
+        self.source_type_levels.clear();
         self.scope.clear();
 
         let binders = self
@@ -361,6 +389,9 @@ impl<'a> Elaborator<'a> {
         // places it in the strict layer. Nothing else squashes — a
         // `Type` carrier keeps the same proposition relevant.
         let strict_result = matches!(self.arena.get(result), Term::Sort(Sort::Strict(_)));
+        if matches!(self.arena.get(result), Term::Sort(_)) {
+            self.type_returning_declarations.push(definition.symbol);
+        }
         let mut ty = result;
         for entry in self.scope.iter().rev() {
             ty = self.arena.insert(Term::Pi {
@@ -372,6 +403,10 @@ impl<'a> Elaborator<'a> {
             MathematicalBody::Assumption => None,
             MathematicalBody::Definition(term) => {
                 let mut body = self.elaborate_body(*term, strict_result)?;
+                let mut requirements = std::mem::take(&mut self.result_identity_requirements);
+                requirements.owner = definition.symbol;
+                self.identity_requirements_by_owner[definition.symbol.arena_index() as usize] =
+                    requirements;
                 self.retain_source_result(*term, result, body, strict_result)?;
                 for entry in self.scope.iter().rev() {
                     body = self.arena.insert(Term::Lambda {
@@ -491,6 +526,21 @@ impl<'a> Elaborator<'a> {
         &mut self,
         handle: ExpressionHandle,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        self.result_identity_requirements = identity::IdentityRequirements::default();
+        let term = self.elaborate_expression_term(handle)?;
+        if !matches!(
+            self.program.expression_table.expression(handle),
+            ExpressionNode::Name(..) | ExpressionNode::Call(..) | ExpressionNode::Binary(..)
+        ) {
+            self.result_identity_requirements = identity::IdentityRequirements::default();
+        }
+        Ok(term)
+    }
+
+    fn elaborate_expression_term(
+        &mut self,
+        handle: ExpressionHandle,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
         if let Some(term) = self.source_family_values.get(&handle) {
             return Ok(*term);
         }
@@ -509,7 +559,9 @@ impl<'a> Elaborator<'a> {
                     .to_vec();
                 if symbol.is_valid() {
                     let name = members.last().cloned().unwrap_or_default();
-                    return self.named_term(symbol, &name);
+                    let term = self.named_term(symbol, &name)?;
+                    self.transport_identity_value(symbol, &[], &[], term, &[], &[])?;
+                    return Ok(term);
                 }
                 match members.as_slice() {
                     [name] => {
@@ -525,6 +577,9 @@ impl<'a> Elaborator<'a> {
             }
             ExpressionNode::Call(call) => {
                 let call = call.clone();
+                if validation::mathematical_applications::is_identity_call(self.program, &call) {
+                    return self.elaborate_identity(handle, &call);
+                }
                 let target_symbol = validation::call_target_symbol(self.program, &call);
                 if target_symbol.is_valid()
                     && !self.authored_index.contains_key(&target_symbol)
@@ -569,7 +624,7 @@ impl<'a> Elaborator<'a> {
                 }
                 let target = call.target.clone();
                 let static_arguments = call.machine_arguments.clone();
-                let callee =
+                let (callee, static_inputs) =
                     self.elaborate_callee(handle, target_symbol, &target, &static_arguments)?;
                 let mut inputs = Vec::new();
                 let mut prefix = callee;
@@ -584,6 +639,7 @@ impl<'a> Elaborator<'a> {
                     });
                     inputs.push(input);
                 }
+                self.transport_identity_requirements(&call, callee, &static_inputs, &inputs)?;
                 Ok(self.apply_source_inputs(handle, callee, inputs))
             }
             ExpressionNode::Integer(literal) => {
@@ -700,7 +756,7 @@ impl<'a> Elaborator<'a> {
         self.check_source_domains(&signature)?;
         for (_, carrier) in self.prepared.source_carriers.iter() {
             let context = carrier.domains.iter().copied().fold(
-                Context::empty().with_signature(signature.clone()),
+                Context::with_level_arity(carrier.level_arity).with_signature(signature.clone()),
                 |context, domain| context.extend(domain),
             );
             infer_sort(
@@ -715,14 +771,36 @@ impl<'a> Elaborator<'a> {
                 ))
             })?;
         }
-        for (expression, term, domains, captures) in applications {
-            let context = domains.into_iter().fold(
-                Context::empty().with_signature(signature.clone()),
-                |context, domain| context.extend(domain),
-            );
+        let retained_constants = self.retained_application_constants();
+        for application in applications {
+            let applications::SourceApplication {
+                expression,
+                owner,
+                term,
+                domains,
+                captures,
+                emissions,
+                level_arity,
+            } = application;
+            let mut context =
+                Context::with_level_arity(level_arity).with_signature(signature.clone());
+            for domain in &domains {
+                infer_sort(
+                    &mut self.arena,
+                    &context,
+                    *domain,
+                    &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                )
+                .map_err(|error| {
+                    self.refuse(format!(
+                        "mathematical source subject fails formation: {error:?}"
+                    ))
+                })?;
+                context = context.extend(*domain);
+            }
             let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
-            proof_admission::infer_type(&mut self.arena, &context, term, &mut budget).map_err(
-                |error| {
+            let ty = proof_admission::infer_type(&mut self.arena, &context, term, &mut budget)
+                .map_err(|error| {
                     self.refuse(format!(
                         "mathematical application `{}` fails checking: {error:?}",
                         self.program.render_proof_expression(
@@ -730,44 +808,40 @@ impl<'a> Elaborator<'a> {
                             typed_trees::proposition::ProofSubstitutions::None
                         )
                     ))
-                },
-            )?;
+                })?;
             if captures.is_empty() {
-                self.retain_checked_source_application(expression, term, &context, &signature)?;
+                self.retain_checked_source_application(
+                    expression, owner, term, &context, &signature,
+                )?;
             }
-            let literals = &self.numeric_literals;
-            let embeddings = self
-                .prepared
-                .constants
-                .iter()
-                .filter_map(|(_, constant)| {
-                    matches!(
-                        constant.meaning,
-                        PreparedConstantMeaning::IntegerEmbedding { .. }
-                    )
-                    .then_some(constant.declaration)
-                })
-                .collect::<Vec<_>>();
             let term = normalization::normalize(
                 &mut self.arena,
                 &signature,
                 term,
                 &mut budget,
-                &|declaration| {
-                    literals.values().any(|position| *position == declaration)
-                        || embeddings.contains(&declaration)
-                },
+                &|declaration| retained_constants.contains(&declaration),
             )
             .map_err(|error| {
                 self.refuse(format!(
                     "mathematical application reduction failed: {error:?}"
                 ))
             })?;
+            let identity_values = self.prepare_identity_values(
+                &signature,
+                &context,
+                &retained_constants,
+                &emissions,
+            )?;
             let captures = self.prepared.captures.insert_many(captures);
             self.prepared.applications.append(PreparedApplication {
+                level_arity,
                 expression,
+                owner,
                 term,
+                ty,
+                domains,
                 captures,
+                identity_values,
             });
         }
         self.retain_source_evidence_aliases()?;
@@ -781,6 +855,27 @@ impl<'a> Elaborator<'a> {
         })
     }
 
+    fn retained_application_constants(&self) -> HashSet<u32> {
+        self.numeric_literals
+            .values()
+            .copied()
+            .chain(self.prepared.constants.iter().filter_map(|(_, row)| {
+                matches!(
+                    row.meaning,
+                    PreparedConstantMeaning::IntegerEmbedding { .. }
+                )
+                .then_some(row.declaration)
+            }))
+            .chain(self.identity_declaration)
+            .chain(self.source_aliases.iter().map(|alias| alias.declaration))
+            .chain(
+                self.indexed_families
+                    .values()
+                    .map(|family| family.declaration),
+            )
+            .collect()
+    }
+
     fn retain_constant_meanings(&mut self) {
         let mut retain = |declaration, meaning| {
             self.prepared.constants.append(PreparedConstant {
@@ -788,6 +883,9 @@ impl<'a> Elaborator<'a> {
                 meaning,
             });
         };
+        if let Some(declaration) = self.identity_declaration {
+            retain(declaration, PreparedConstantMeaning::Identity);
+        }
         for ((_, value), position) in &self.numeric_literals {
             retain(*position, PreparedConstantMeaning::Integer(value.clone()));
         }
@@ -926,4 +1024,11 @@ enum ScalarCarrier {
 
 pub(super) fn has_source_evidence_demand(program: &dyn validation::CheckingInput) -> bool {
     source_families::needs_scheme(program)
+        || program
+            .expression_table
+            .iter_expressions()
+            .any(|(_, node)| {
+                matches!(node, ExpressionNode::Call(call)
+                if validation::mathematical_applications::is_identity_call(program, call))
+            })
 }

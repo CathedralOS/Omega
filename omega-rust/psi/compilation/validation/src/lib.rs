@@ -263,10 +263,8 @@ pub use proof_contracts::bound_expression_meaning::{
     has_exact_integer_domain_subject, match_result_unique_arm, sealed_float_comparison,
     sealed_float_comparison_declaration,
 };
-pub use proof_contracts::contextual_identity::{
-    contextual_identity_subject_type, contextual_proposition_children,
-};
 pub use proof_contracts::contract_entailment::declaration_projection_cases_hold;
+pub use proof_contracts::proposition_context::logical_proposition_children;
 pub use value_custody::intrinsic_boundaries::boundary_requirement_completion;
 pub use value_custody::intrinsic_boundaries::checked_shape_data_declaration;
 pub use value_custody::intrinsic_boundaries::exact_byte_read_result_type;
@@ -319,7 +317,10 @@ pub use crate::value_custody::content_conservation::{
     ContentBoundaryBodyRequirement, ContentConservationSourcePlan,
     boundary_body_content_requirements, content_conservation_plans,
 };
-pub use crate::value_custody::content_projections::build_content_projection_plans;
+pub use crate::value_custody::content_projections::{
+    ContentAlgebraApplication, build_content_projection_plans, content_algebra_application,
+    content_algebra_for_type,
+};
 
 pub use crate::declarations::symbols::TopLevelSymbols;
 pub use crate::value_custody::cleanup::{
@@ -415,7 +416,7 @@ pub use value_custody::expression_types::validate_match_dispatch;
 pub use value_custody::expression_types::{
     arithmetic_result_type_reference, expression_result_type_reference,
     join_result_type_references, parameter_expression_result_type_reference,
-    scalar_observation_meaning,
+    parameter_expression_result_type_reference_in_scope, scalar_observation_meaning,
 };
 pub use value_custody::expression_types::{
     structural_match_cases_are_covered, structural_match_pattern_case,

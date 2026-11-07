@@ -31,6 +31,7 @@ pub(super) use constructor_identity::ConstructorIdentity;
 mod data_identity;
 mod domain_premises;
 mod equations;
+mod identity_elimination;
 pub(in crate::proof_contracts::contract_entailment) use domain_premises::data_application_static_bindings;
 mod integer_predicates;
 pub(super) use integer_predicates::{CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank};
@@ -127,6 +128,19 @@ struct MembershipGuarantee {
 
 #[derive(Clone)]
 pub(crate) enum StructuralTerm {
+    /// A formed core Id proposition. Its carrier is not an executable
+    /// equality selection, and no truth follows from constructing this node.
+    Identity {
+        carrier: typed_trees::type_identity::TypeIdentityId,
+        left: Box<StructuralTerm>,
+        right: Box<StructuralTerm>,
+    },
+    /// A value of the closed canonical content algebra. The source literal
+    /// former's fields are not projections of this mathematical value.
+    ContentValue {
+        algebra: language_semantics::content::ContentAlgebraIdentity,
+        value: Box<StructuralTerm>,
+    },
     Variable(String),
     /// A frame-authenticated observation of an input referent. Scalar reads
     /// retain their declared content authority. A collection additionally keeps
@@ -303,7 +317,9 @@ impl StructuralTerm {
     }
 
     pub(super) fn is_checked_predicate(&self) -> bool {
-        if value_predicates::boolean_value(self.semantic_value()).is_some() {
+        if matches!(self.semantic_value(), Self::Identity { .. })
+            || value_predicates::boolean_value(self.semantic_value()).is_some()
+        {
             return true;
         }
         if let Self::MathematicalBinary {
@@ -391,6 +407,19 @@ impl StructuralTerm {
     /// about a completed collection, never the referent's contents.
     pub(super) fn map_children(self, mut map: impl FnMut(Self) -> Self) -> Self {
         match self {
+            StructuralTerm::ContentValue { algebra, value } => StructuralTerm::ContentValue {
+                algebra,
+                value: Box::new(map(*value)),
+            },
+            StructuralTerm::Identity {
+                carrier,
+                left,
+                right,
+            } => StructuralTerm::Identity {
+                carrier,
+                left: Box::new(map(*left)),
+                right: Box::new(map(*right)),
+            },
             StructuralTerm::RepeatedArray { length, element } => StructuralTerm::RepeatedArray {
                 length,
                 element: element.map(|element| Box::new(map(*element))),
@@ -1702,7 +1731,7 @@ impl<'program> StructuralJudge<'program> {
             .flatten()
             .map(|(captured, _, _)| captured);
             match term {
-                StructuralTerm::CapturedValue { .. } => {
+                StructuralTerm::CapturedValue { .. } | StructuralTerm::BoundValue(_) => {
                     let Some((_, replacement)) = self.rewrites.find(&term) else {
                         return term;
                     };
@@ -2889,7 +2918,7 @@ impl<'program> StructuralJudge<'program> {
         if expression_table(program)
             .call_node(expression)
             .is_some_and(|call| {
-                crate::mathematical_applications::selected_definition(program, call).is_some()
+                crate::mathematical_applications::is_mathematical_call(program, call)
             })
         {
             return super::structural_terms::mathematical_application_term(
@@ -3346,7 +3375,9 @@ impl<'program> StructuralJudge<'program> {
                         StructuralTerm::Variable(root) | StructuralTerm::Opaque(root) => {
                             StructuralTerm::Opaque(format!("{root}.{suffix}"))
                         }
-                        StructuralTerm::Integer(_)
+                        StructuralTerm::Identity { .. }
+                        | StructuralTerm::ContentValue { .. }
+                        | StructuralTerm::Integer(_)
                         | StructuralTerm::RepeatedArray { .. }
                         | StructuralTerm::Float(_)
                         | StructuralTerm::ScalarRepresentation { .. }
@@ -3435,7 +3466,7 @@ impl<'program> StructuralJudge<'program> {
         if expression_table(program)
             .call_node(fact)
             .is_some_and(|call| {
-                crate::mathematical_applications::selected_definition(program, call).is_some()
+                crate::mathematical_applications::is_mathematical_call(program, call)
             })
         {
             // This engine consumes source entry observations rather than this
@@ -3498,15 +3529,15 @@ impl<'program> StructuralJudge<'program> {
             }
             BinaryOperator::Equal | BinaryOperator::NotEqual => {
                 let data_identity = self.declaration_scope().is_some_and(|(owner, parameters)| {
-                    super::structural_terms::data_identity_operand_references(
+                    super::structural_terms::builtin_identity_operand_references(
                         program, owner, parameters, fact,
                     )
                     .is_some()
                 });
                 if data_identity {
-                    // Prop selects data Id before any executable comparison.
-                    // Failure to observe its operands cannot select Equatable
-                    // or IEEE comparison as an alternative meaning.
+                    // The authenticated owned primitive comparison has the
+                    // same equality law as its value identity. This does not
+                    // grant an aggregate or authored comparison an Id bridge.
                     let Some([left, right]) = self.declaration_data_identity_terms(fact) else {
                         return StructuralJudgment::Unknown;
                     };

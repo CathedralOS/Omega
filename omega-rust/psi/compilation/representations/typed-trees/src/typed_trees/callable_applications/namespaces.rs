@@ -111,15 +111,37 @@ impl TypedTrees {
         &self,
         call: &TableCallExpression,
     ) -> Option<&signature::StateSignature> {
+        self.resolve_named_conformance_call_signature(call)
+            .ok()
+            .flatten()
+    }
+
+    /// Separate an ordinary receiver from a named map whose selected public
+    /// view refuses. An absent or ambiguous map must not borrow an ambient
+    /// trait application after losing its own selection.
+    pub(super) fn resolve_named_conformance_call_signature(
+        &self,
+        call: &TableCallExpression,
+    ) -> Result<Option<&signature::StateSignature>, &'static str> {
         if call.static_requirement_dispatch.is_some() || call.requirement_application.is_valid() {
-            return None;
+            return Ok(None);
         }
-        let receiver = self.expression_table.name_path_node(call.receiver)?;
-        let selected = self.conformance_by_symbol(receiver.symbol)?;
+        let Some(receiver) = self.expression_table.name_path_node(call.receiver) else {
+            return Ok(None);
+        };
+        let Some(selected) = self.conformance_by_symbol(receiver.symbol) else {
+            return if receiver.symbol.is_valid()
+                && self.symbols.get(receiver.symbol).kind == SymbolKind::Conformance
+            {
+                Err("named public view lost its selected implementation")
+            } else {
+                Ok(None)
+            };
+        };
         // Applied generic maps retain their independently supplied tuple in
         // the ordinary dispatch path above; a bare declaration cannot supply it.
         if !selected.type_parameters.is_empty() || !selected.lifetime_parameters.is_empty() {
-            return None;
+            return Err("named public view has no complete selected application");
         }
         let closed = self.closed_requirement_application(call.target_symbol);
         let template = closed
@@ -129,16 +151,20 @@ impl TypedTrees {
             .rows
             .iter()
             .filter(|row| row.requirement == template);
-        let row = rows.next()?;
+        let row = rows
+            .next()
+            .ok_or("named public view has no exact requirement row")?;
         if rows.next().is_some() {
-            return None;
+            return Err("named public view has ambiguous requirement rows");
         }
-        let scope = AppliedTraitScope::from_conformance(self, selected)?
-            .declaring_scope(self, row.declaring_trait)?;
+        let scope = AppliedTraitScope::from_conformance(self, selected)
+            .ok_or("named public view lost its complete trait application")?
+            .declaring_scope(self, row.declaring_trait)
+            .ok_or("named public view lost its declaring trait scope")?;
         if closed.is_some()
             && !self.requirement_application_matches_scope(call.target_symbol, &scope)
         {
-            return None;
+            return Err("named public view disagrees with its selected trait application");
         }
         self.applied_callable_signature(&scope, template)
             .or_else(|| {
@@ -146,5 +172,7 @@ impl TypedTrees {
                     .then(|| self.trait_machine_signature_by_symbol(scope.declaration, template))
                     .flatten()
             })
+            .map(Some)
+            .ok_or("named public view has no prepared applied signature")
     }
 }

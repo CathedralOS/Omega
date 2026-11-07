@@ -292,7 +292,6 @@ pub(crate) fn validate_domain_fact_payloads(
     owner: ProofFactOwner<'_>,
 ) {
     for fact in fact_plan.boolean_facts_for_symbol(domain.symbol) {
-        super::contextual_identity::validate(program, fact.expression, &owner, diagnostics);
         if !is_boolean_fact_expression(program, fact.expression) {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} proof fact `{}` is not boolean-shaped",
@@ -341,7 +340,6 @@ pub(crate) fn validate_proof_facts(
         }
         match fact {
             ProofFact::Expression(expression) => {
-                super::contextual_identity::validate(program, *expression, &owner, diagnostics);
                 if !is_boolean_owned_fact_expression(program, *expression, owner) {
                     diagnostics.push(Diagnostic::error(format!(
                         "{owner} proof fact `{}` is not boolean-shaped",

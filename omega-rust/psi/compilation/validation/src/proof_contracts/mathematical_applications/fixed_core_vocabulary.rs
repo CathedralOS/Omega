@@ -27,6 +27,8 @@ pub enum FixedCore {
     Strict,
     /// `core::Squash` — the witness-hiding proposition squash.
     Squash,
+    /// The sealed dependent identity relation.
+    Identity,
 }
 
 impl FixedCore {
@@ -37,6 +39,7 @@ impl FixedCore {
             Self::Type => "core::Type",
             Self::Strict => "core::Strict",
             Self::Squash => "core::Squash",
+            Self::Identity => "core::Identity",
         }
     }
 
@@ -46,7 +49,7 @@ impl FixedCore {
         match self {
             Self::Type => Some(proof_admission::Sort::Type),
             Self::Strict => Some(proof_admission::Sort::Strict),
-            Self::Level | Self::Squash => None,
+            Self::Level | Self::Squash | Self::Identity => None,
         }
     }
 
@@ -58,6 +61,7 @@ impl FixedCore {
             Self::Type => FixedCoreDeclaration::Type,
             Self::Strict => FixedCoreDeclaration::Strict,
             Self::Squash => FixedCoreDeclaration::Squash,
+            Self::Identity => FixedCoreDeclaration::Identity,
         }
     }
 }
@@ -74,6 +78,7 @@ pub struct FixedCoreVocabulary {
     ty: SymbolHandle,
     strict: SymbolHandle,
     squash: SymbolHandle,
+    identity: SymbolHandle,
 }
 
 impl FixedCoreVocabulary {
@@ -93,6 +98,7 @@ impl FixedCoreVocabulary {
             ty: find(FixedCore::Type),
             strict: find(FixedCore::Strict),
             squash: find(FixedCore::Squash),
+            identity: find(FixedCore::Identity),
         }
     }
 
@@ -114,6 +120,9 @@ impl FixedCoreVocabulary {
             }
             if symbol == self.squash {
                 return Some(FixedCore::Squash);
+            }
+            if symbol == self.identity {
+                return Some(FixedCore::Identity);
             }
             return None;
         }

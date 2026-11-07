@@ -202,7 +202,6 @@ pub(crate) fn validate_declaration_expression_formation(
         program,
         SpecificationCaller::Declaration(owner_symbol, parameters),
         root,
-        false,
         prior_facts,
         owner,
         diagnostics,
@@ -320,7 +319,6 @@ pub(crate) fn validate_declaration_call_requirements(
             program,
             SpecificationCaller::Declaration(owner_symbol, parameters),
             root,
-            matches!(fact, ProofFact::Expression(_)),
             prior_facts,
             owner,
             diagnostics,
@@ -349,7 +347,6 @@ pub(crate) fn validate_specification_call_requirements(
             program,
             SpecificationCaller::Machine(machine, state),
             root,
-            matches!(fact, ProofFact::Expression(_)),
             prior_facts,
             owner,
             diagnostics,
@@ -403,7 +400,6 @@ pub(crate) fn validate_proof_body_formation(
         program,
         SpecificationCaller::Machine(machine, Some(state)),
         expression,
-        false,
         &hypotheses,
         &owner,
         diagnostics,
@@ -776,7 +772,6 @@ fn validate_specification_expression(
     program: &dyn crate::CheckingInput,
     caller: SpecificationCaller<'_>,
     expression: ExpressionHandle,
-    proposition_context: bool,
     prior_facts: &[ExpressionHandle],
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
@@ -788,7 +783,6 @@ fn validate_specification_expression(
         program,
         caller,
         expression,
-        proposition_context,
         SpecificationPremises {
             asserted: prior_facts,
             denied: &[],
@@ -807,7 +801,6 @@ fn validate_specification_expression_in_scope(
     program: &dyn crate::CheckingInput,
     caller: SpecificationCaller<'_>,
     expression: ExpressionHandle,
-    proposition_context: bool,
     prior_facts: SpecificationPremises<'_>,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
@@ -838,7 +831,6 @@ fn validate_specification_expression_in_scope(
             program,
             caller,
             binary.left,
-            proposition_context,
             prior_facts,
             owner,
             diagnostics,
@@ -872,7 +864,6 @@ fn validate_specification_expression_in_scope(
             program,
             caller,
             binary.right,
-            proposition_context,
             SpecificationPremises {
                 asserted: &asserted,
                 denied: &denied,
@@ -903,7 +894,6 @@ fn validate_specification_expression_in_scope(
             program,
             caller,
             dispatch.subject,
-            false,
             prior_facts,
             owner,
             diagnostics,
@@ -940,7 +930,6 @@ fn validate_specification_expression_in_scope(
                     program,
                     caller,
                     condition,
-                    predicate,
                     SpecificationPremises {
                         asserted: &asserted,
                         denied: &denied,
@@ -965,7 +954,6 @@ fn validate_specification_expression_in_scope(
                 program,
                 caller,
                 arm.value,
-                proposition_context,
                 SpecificationPremises {
                     asserted: &asserted,
                     denied: &denied,
@@ -982,13 +970,11 @@ fn validate_specification_expression_in_scope(
             }
         }
     } else {
-        let proposition_children = crate::contextual_proposition_children(program, expression);
         children(program, node, |child| {
             validate_specification_expression_in_scope(
                 program,
                 caller,
                 child,
-                proposition_context && proposition_children.contains(&Some(child)),
                 prior_facts,
                 owner,
                 diagnostics,
@@ -1055,7 +1041,7 @@ fn validate_specification_expression_in_scope(
     // the selected declaration's public preconditions through this one intake.
     let (contract_owner, arguments, call, application_bindings) = match node {
         ExpressionNode::Call(call) => {
-            if crate::mathematical_applications::selected_definition(program, call).is_some() {
+            if crate::mathematical_applications::is_mathematical_call(program, call) {
                 // Mathematical definitions own checked dependent applications,
                 // not machine contract telescopes. Their source producer checks
                 // the application; the walk above still forms every argument.
@@ -1098,43 +1084,6 @@ fn validate_specification_expression_in_scope(
             return;
         }
         ExpressionNode::Binary(_) | ExpressionNode::Indexed(_) => {
-            if proposition_context
-                && !super::structural_terms::is_case_observation(program, expression)
-                && let ExpressionNode::Binary(binary) = node
-                && matches!(
-                    binary.operator,
-                    BinaryOperator::Equal | BinaryOperator::NotEqual
-                )
-            {
-                let operands = [binary.left, binary.right];
-                let references = operands.map(|operand| caller.expression_type(program, operand));
-                let identities = std::array::from_fn::<_, 2, _>(|position| {
-                    crate::contextual_identity_subject_type(
-                        program,
-                        references[position]?,
-                        matches!(
-                            expression_table(program).expression(operands[position]),
-                            ExpressionNode::Name(_) | ExpressionNode::Borrow(_)
-                        ),
-                    )
-                });
-                if identities.iter().any(Option::is_some) {
-                    if identities[0].is_some() && identities[0] == identities[1] {
-                        // Prop selects full data identity, not Equatable or an
-                        // executable Boolean overload. All operands and selected
-                        // call preconditions were formed above; no runtime Copy,
-                        // layout, value equation or quotient authority is granted.
-                        return;
-                    }
-                    if let [Some(left), Some(right)] = references {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "{owner} data identity requires the same complete operand type, found `{}` and `{}`",
-                            program.display_type_reference(left), program.display_type_reference(right),
-                        )).with_source_span(expression_table(program).source_span(expression)));
-                        return;
-                    }
-                }
-            }
             let (spelling, arguments) = match node {
                 ExpressionNode::Binary(binary) => {
                     let Some(spelling) =
@@ -2213,7 +2162,11 @@ fn term_has_complete_substitution(
                     .is_some_and(|primitive| primitive.is_fixed_integer()),
                 _ => false,
             }),
-        StructuralTerm::CapturedValue { .. }
+        StructuralTerm::ContentValue { value, .. } => {
+            term_has_complete_substitution(program, value)
+        }
+        StructuralTerm::Identity { .. }
+        | StructuralTerm::CapturedValue { .. }
         | StructuralTerm::BoundProjection { .. }
         | StructuralTerm::MathematicalBinary { .. }
         | StructuralTerm::IntegerEmbedding { .. }

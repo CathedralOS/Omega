@@ -136,6 +136,7 @@ pub struct CheckedMathematicalSignature {
 /// executable specialization's erased carrier.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedSourceEvidenceCarrier {
+    pub level_arity: u32,
     pub type_identity: TypeIdentityId,
     pub ty: proof_admission::TermHandle,
     pub domains: Vec<proof_admission::TermHandle>,
@@ -146,6 +147,7 @@ pub struct CheckedSourceEvidenceCarrier {
 /// call retirement; source coordinates are eliminated at Terminal publication.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedIndexedTheorem {
+    pub level_arity: u32,
     pub machine: SymbolHandle,
     pub expression: typed_trees::expression::ExpressionHandle,
     pub ensure_ordinal: u32,
@@ -161,4 +163,47 @@ pub struct CheckedIndexedTheorem {
 pub struct CheckedIndexedCitation {
     pub caller: SymbolHandle,
     pub theorem: SymbolHandle,
+}
+
+/// A formed sealed Id statement, retained separately from evidence of truth.
+/// The exact source carrier and checked kernel telescope survive erasure;
+/// publication abstracts these subjects without allocating runtime copies.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedIdentityFormation {
+    pub level_arity: u32,
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub owner: SymbolHandle,
+    pub type_identity: TypeIdentityId,
+    pub term: proof_admission::TermHandle,
+    pub ty: proof_admission::TermHandle,
+    pub domains: Vec<proof_admission::TermHandle>,
+    /// Source occurrences in the kernel telescope's outermost-first order.
+    pub captures: Vec<(typed_trees::expression::ExpressionHandle, TypeIdentityId)>,
+}
+
+/// Fully formed publication plan. Checking resolves source identities and
+/// capture positions and abstracts the checked Id values once. Lowering only
+/// interns this metadata and encodes the shared mathematical judgment.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedIdentityFormationPlan {
+    pub rows: Vec<CheckedIdentityPublication>,
+    pub arena: TermArena,
+    pub declarations: Vec<Declaration>,
+    pub term: proof_admission::TermHandle,
+    pub ty: proof_admission::TermHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedIdentityPublication {
+    pub owner: CheckedIdentityOwner,
+    pub source_carrier: String,
+    pub subject_carriers: Vec<String>,
+    pub subject_origins: Vec<(u32, u32)>,
+    pub declaration: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedIdentityOwner {
+    Hermetic(String),
+    InvocationLocal(String),
 }

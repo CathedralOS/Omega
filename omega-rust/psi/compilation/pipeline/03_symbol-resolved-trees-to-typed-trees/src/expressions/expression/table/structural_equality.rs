@@ -199,11 +199,6 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self,
         binary: &resolved::expression::TableBinaryExpression,
     ) -> Result<Option<typed::expression::ExpressionHandle>, Diagnostic> {
-        // Logical identity has its own complete-carrier formation judgment;
-        // executable equality selection and its shape checks do not apply.
-        if self.fact_position {
-            return Ok(None);
-        }
         let Some(program) = self.program else {
             return Ok(None);
         };
@@ -303,7 +298,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             EqualitySelection::Selected(implementation) => implementation,
             EqualitySelection::Missing => {
                 return Err(Diagnostic::error(format!(
-                    "cannot compare `{type_name}` values with `==`: structural equality is synthesized only through a named implementation -- declare `{}` to synthesize structural equality",
+                    "cannot compare `{type_name}` values with `==`: structural equality is synthesized only through a named implementation -- declare `{}` to synthesize structural equality, or use `core::Identity<{type_name}>(left, right)` for mathematical identity",
                     suggested_equality_declaration(&type_name)
                 )));
             }

@@ -6,7 +6,9 @@
 //! to reread storage or to replace a selected source operation's meaning.
 
 use super::StructuralTerm;
-use crate::mathematical_applications::{PreparedConstantMeaning, PreparedMathematicalView};
+use crate::mathematical_applications::{
+    PreparedApplication, PreparedConstantMeaning, PreparedMathematicalView,
+};
 use numerics::literals::FloatLiteral;
 use proof_admission::{Term, TermHandle};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -35,18 +37,27 @@ pub(in crate::proof_contracts::contract_entailment) fn application_term(
                     reference: capture.source_type,
                     value: Box::new(value),
                 }
+            } else if crate::reference_shell(program, capture.source_type).is_none()
+                && crate::value_custody::places::data_definition_for_type(
+                    program,
+                    capture.source_type,
+                )
+                .is_some()
+            {
+                super::owned_projection_observation(program, capture.source_type, value)
             } else {
                 value
             };
             Some(Some(value))
         })
         .collect::<Option<Vec<_>>>()?;
-    read_term(program, view, application.term, &captures, 0)
+    read_term(program, view, application, application.term, &captures, 0)
 }
 
 fn read_term(
     program: &dyn crate::CheckingInput,
     view: PreparedMathematicalView<'_>,
+    application: &PreparedApplication,
     term: TermHandle,
     captures: &[Option<StructuralTerm>],
     depth: usize,
@@ -54,7 +65,21 @@ fn read_term(
     if depth >= 128 {
         return None;
     }
-    let read = |term| read_term(program, view, term, captures, depth + 1);
+    let read = |term| read_term(program, view, application, term, captures, depth + 1);
+    let source_captures = view
+        .applications
+        .captures
+        .span_or_empty(application.captures)
+        .len();
+    let inserted_binders = u32::try_from(captures.len().checked_sub(source_captures)?).ok()?;
+    if let Some((carrier, [left, right])) = view.identity_value(application, term, inserted_binders)
+    {
+        return Some(StructuralTerm::Identity {
+            carrier: carrier.type_identity,
+            left: Box::new(read(left)?),
+            right: Box::new(read(right)?),
+        });
+    }
     match view.arena.get(term) {
         Term::TwoZero | Term::TwoOne => Some(boolean(matches!(view.arena.get(term), Term::TwoOne))),
         Term::Variable(index) => captures
@@ -115,14 +140,21 @@ fn read_term(
                 // ambient assumption about a caller's runtime Boolean.
                 return Some(binary(
                     BinaryOperator::Or,
-                    read_term(program, view, zero_branch, &extended, depth + 1)?,
-                    read_term(program, view, one_branch, &extended, depth + 1)?,
+                    read_term(
+                        program,
+                        view,
+                        application,
+                        zero_branch,
+                        &extended,
+                        depth + 1,
+                    )?,
+                    read_term(program, view, application, one_branch, &extended, depth + 1)?,
                 ));
             }
             Some(binary(
                 BinaryOperator::And,
                 read(domain)?,
-                read_term(program, view, codomain, &extended, depth + 1)?,
+                read_term(program, view, application, codomain, &extended, depth + 1)?,
             ))
         }
         _ => {

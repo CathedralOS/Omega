@@ -460,7 +460,7 @@ impl<'program> StructuralJudge<'program> {
         &self,
         value: StructuralTerm,
     ) -> StructuralTerm {
-        if self.captured_result_equations.is_empty() {
+        if self.captured_result_equations.is_empty() && self.completed_nominal_values.is_empty() {
             return value;
         }
         self.completed_value_identity_at(
@@ -468,23 +468,45 @@ impl<'program> StructuralJudge<'program> {
             0,
             self.captured_result_equations
                 .iter()
-                .filter(|equation| !equation.is_data_identity()),
+                .filter(|equation| !equation.is_data_identity())
+                .map(|equation| (&equation.left, &equation.right))
+                // A completed owned read already records the exact value it
+                // copied. Later operands must retain that identity even when
+                // the value came from an opaque call. Storage admission and
+                // intervening writes remain with the read's producer.
+                .chain(
+                    self.completed_nominal_values
+                        .iter()
+                        .map(|read| (&read.value, &read.observed_value)),
+                ),
         )
     }
 
-    /// Both views borrow the same ordered facts; numeric projection excludes
-    /// only producer-marked call identities, never public recipe equations.
+    /// Resolve the ordered equations and completed reads without rebuilding
+    /// their rosters. Only a later capture can resolve to an earlier value.
     fn completed_value_identity_at<'equations>(
         &self,
         value: StructuralTerm,
         depth: usize,
-        equations: impl Iterator<Item = &'equations CapturedResultEquation> + Clone,
+        equations: impl Iterator<Item = (&'equations StructuralTerm, &'equations StructuralTerm)>
+        + Clone,
     ) -> StructuralTerm {
         if depth >= 64 {
             return value;
         }
-        let value = match value {
-            StructuralTerm::Projection { subject, path } => {
+        let owned = super::super::structural_terms::owned_observation_type(self.program, &value);
+        let value = match (value, owned) {
+            (StructuralTerm::ObservedValue { value, .. }, Some(reference)) => {
+                // Following a saved copy must not add another observation of
+                // the same owned carrier. Reuse its idempotent constructor
+                // after resolving the saved contents.
+                super::super::structural_terms::owned_projection_observation(
+                    self.program,
+                    reference,
+                    self.completed_value_identity_at(*value, depth + 1, equations.clone()),
+                )
+            }
+            (StructuralTerm::Projection { subject, path }, _) => {
                 let subject =
                     self.completed_value_identity_at(*subject, depth + 1, equations.clone());
                 path.split('.')
@@ -501,7 +523,7 @@ impl<'program> StructuralJudge<'program> {
                         path,
                     })
             }
-            other => other.map_children(|child| {
+            (other, _) => other.map_children(|child| {
                 self.completed_value_identity_at(child, depth + 1, equations.clone())
             }),
         };
@@ -513,8 +535,7 @@ impl<'program> StructuralJudge<'program> {
         ) {
             return value;
         }
-        for equation in equations.clone() {
-            let (left, right) = (&equation.left, &equation.right);
+        for (left, right) in equations.clone() {
             // Orient captured results toward earlier source observations:
             // normalize a later captured call result toward an earlier
             // observation or input parameter, avoiding circular flips.
@@ -2840,7 +2861,7 @@ pub(in crate::proof_contracts::contract_entailment) fn call_has_mathematical_den
     caller: SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
-    if crate::mathematical_applications::selected_definition(program, call).is_some() {
+    if crate::mathematical_applications::is_mathematical_call(program, call) {
         return true;
     }
     if let Some(signature) = crate::machine_calls::denotational_calls::abstract_value_call_signature(

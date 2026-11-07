@@ -255,6 +255,7 @@ pub(super) fn infer_expression_type(
             crate::value_custody::expression_types::declaration_expression_result_type_reference(
                 program,
                 environment.owner,
+                environment.trait_scope,
                 &|leaf| match infer_expression_type(
                     program,
                     leaf,

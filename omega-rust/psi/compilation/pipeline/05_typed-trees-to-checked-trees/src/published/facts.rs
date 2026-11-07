@@ -25,6 +25,7 @@ mod crash_plan_facts;
 mod declaration_calls;
 pub(crate) mod declaration_descriptions;
 mod dynamic_conformance;
+pub(crate) mod identity_formations;
 pub(crate) mod index_compatibility;
 mod integer_writes;
 pub(crate) mod proof_applications;

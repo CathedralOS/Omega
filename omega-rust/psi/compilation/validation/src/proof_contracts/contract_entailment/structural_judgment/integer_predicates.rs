@@ -766,6 +766,13 @@ impl<'program> StructuralJudge<'program> {
         predicate: StructuralTerm,
         depth: usize,
     ) -> StructuralJudgment {
+        if let StructuralTerm::Identity { left, right, .. } = predicate.semantic_value() {
+            return self.judge_explicit_identity(
+                left.as_ref().clone(),
+                right.as_ref().clone(),
+                depth,
+            );
+        }
         // A reduced mathematical conjunction can contain integer or IEEE
         // leaves. Compose their independent judgments instead of sending the
         // entire proposition to integer projection.
@@ -1198,7 +1205,7 @@ impl<'program> StructuralJudge<'program> {
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn has_no_rewrites(&self) -> bool {
-        self.rewrites.iter().next().is_none()
+        self.rewrites.is_empty()
     }
 
     /// Prepare independently formed premises once, then fork their exact

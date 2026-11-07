@@ -47,7 +47,15 @@ impl<'a> Elaborator<'a> {
         if let Some(term) = self.carrier_for_symbol(symbol) {
             return Ok(term);
         }
-        Err(self.refuse(format!("`{name}` is not a mathematical term")))
+        let owner = self.program.symbols.display_path(self.source_owner, "::");
+        let owner = if owner.is_empty() {
+            "an expression without a retained source owner"
+        } else {
+            owner.as_str()
+        };
+        Err(self.refuse(format!(
+            "`{name}` is not a mathematical term: its exact binding is unavailable in {owner}"
+        )))
     }
 
     /// A `Variable` for the scope entry carrying `symbol`, if any —
@@ -139,6 +147,32 @@ impl<'a> Elaborator<'a> {
     /// other builtin atoms and authored `data` types intern per-symbol.
     /// Symbols of other kinds decline so the caller can refuse.
     pub(super) fn carrier_for_symbol(&mut self, symbol: SymbolHandle) -> Option<TermHandle> {
+        if self.program.symbols.get(symbol).kind == symbols::SymbolKind::TypeParameter
+            && self
+                .program
+                .data_type_parameter_by_symbol(symbol)
+                .is_some_and(|parameter| {
+                    matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                })
+        {
+            let level = self.source_type_level(symbol);
+            let position = if let Some(&position) = self.carriers.get(&symbol) {
+                position
+            } else {
+                let ty = self.arena.insert(Term::Sort(proof_admission::Sort::Type(
+                    proof_admission::Level::Parameter(0),
+                )));
+                let position = self.declarations.len() as u32;
+                self.declarations
+                    .push(proof_admission::Declaration::assumption(1, ty));
+                self.carriers.insert(symbol, position);
+                position
+            };
+            return Some(self.arena.insert(Term::Constant {
+                declaration: position,
+                levels: vec![level],
+            }));
+        }
         if let Some(&position) = self.carriers.get(&symbol) {
             return Some(self.constant(position));
         }
@@ -168,5 +202,18 @@ impl<'a> Elaborator<'a> {
         };
         self.carriers.insert(symbol, position);
         Some(self.constant(position))
+    }
+
+    pub(super) fn source_type_level(&mut self, symbol: SymbolHandle) -> proof_admission::Level {
+        if let Some((_, level)) = self
+            .source_type_levels
+            .iter()
+            .find(|(bound, _)| *bound == symbol)
+        {
+            return level.clone();
+        }
+        let level = self.generalized_level();
+        self.source_type_levels.push((symbol, level.clone()));
+        level
     }
 }

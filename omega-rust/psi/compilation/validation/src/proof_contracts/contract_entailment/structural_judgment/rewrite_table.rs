@@ -12,9 +12,16 @@ use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use typed_trees::expression::BinaryOperator;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RewriteMeaning {
+    ScalarEquation,
+    ValueIdentity,
+}
+
 #[derive(Clone, Debug, Default)]
 pub(super) struct RewriteTable {
     entries: Vec<(StructuralTerm, StructuralTerm)>,
+    meanings: Vec<RewriteMeaning>,
     index: HashMap<(u8, u64), Vec<u32>>,
     potential_integer_premise_indices: Vec<u32>,
     deferred_collection_measures: Vec<(u32, u32)>,
@@ -105,13 +112,33 @@ impl RewriteTable {
                 }
             }
         }
-        let key = rewrite_key(&entry.0);
-        self.index.entry(key).or_default().push(index);
+        self.register(entry, RewriteMeaning::ScalarEquation);
+    }
+
+    /// Id substitutes the exact observed value, including its descriptors,
+    /// selected-map metadata and IEEE landing. It is not a scalar comparison
+    /// premise and must never enter that premise reader by semantic equality.
+    pub(super) fn push_value_identity(&mut self, entry: (StructuralTerm, StructuralTerm)) {
+        self.integer_premise_revision += 1;
+        self.register(entry, RewriteMeaning::ValueIdentity);
+    }
+
+    fn register(&mut self, entry: (StructuralTerm, StructuralTerm), meaning: RewriteMeaning) {
+        let index = self.entries.len() as u32;
+        self.index
+            .entry(rewrite_key(&entry.0))
+            .or_default()
+            .push(index);
         self.entries.push(entry);
+        self.meanings.push(meaning);
     }
 
     pub(super) fn has_potential_integer_premises(&self) -> bool {
         !self.potential_integer_premise_indices.is_empty()
+    }
+
+    pub(super) fn is_empty(&self) -> bool {
+        self.entries.is_empty()
     }
 
     pub(super) fn potential_integer_premises_len(&self) -> usize {
@@ -155,7 +182,11 @@ impl RewriteTable {
         let indices = self.index.get(&rewrite_key(term))?;
         for &index in indices {
             let entry = &self.entries[index as usize];
-            if entry.0 == *term {
+            let matches = match self.meanings[index as usize] {
+                RewriteMeaning::ScalarEquation => entry.0 == *term,
+                RewriteMeaning::ValueIdentity => entry.0.same_resolution_payload(term),
+            };
+            if matches {
                 return Some(entry);
             }
         }
@@ -163,7 +194,12 @@ impl RewriteTable {
     }
 
     pub(super) fn iter(&self) -> impl Iterator<Item = &(StructuralTerm, StructuralTerm)> {
-        self.entries.iter()
+        self.entries
+            .iter()
+            .zip(&self.meanings)
+            .filter_map(|(entry, meaning)| {
+                (*meaning == RewriteMeaning::ScalarEquation).then_some(entry)
+            })
     }
 
     pub(super) fn entries(&self) -> &[(StructuralTerm, StructuralTerm)] {
@@ -231,6 +267,15 @@ fn nested_rewrite_key(term: &StructuralTerm, depth: usize) -> (u8, u64) {
         key.rotate_left(8) ^ u64::from(kind)
     };
     match term.semantic_value() {
+        StructuralTerm::ContentValue { value, .. } => (22, nested(value)),
+        StructuralTerm::Identity {
+            carrier,
+            left,
+            right,
+        } => (
+            21,
+            hash_key(carrier) ^ nested(left).rotate_left(21) ^ nested(right).rotate_left(42),
+        ),
         StructuralTerm::Variable(name) => (1, string_key(name)),
         StructuralTerm::BoundValue(symbol) => (2, handle_key(*symbol)),
         StructuralTerm::CapturedValue {
@@ -352,7 +397,9 @@ fn max_captured_occurrence(term: &StructuralTerm) -> usize {
 fn term_may_produce_mathematical_value(term: &StructuralTerm) -> bool {
     !matches!(
         term.semantic_value(),
-        StructuralTerm::Float(_)
+        StructuralTerm::Identity { .. }
+            | StructuralTerm::ContentValue { .. }
+            | StructuralTerm::Float(_)
             | StructuralTerm::ScalarRepresentation { .. }
             | StructuralTerm::Opaque(_)
             | StructuralTerm::ScalarBinary { .. }

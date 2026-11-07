@@ -329,9 +329,12 @@ pub(crate) fn form_static_machine_selections(
             // whose kernel checks their level and term applications. A runtime
             // occurrence naming the same declaration is still checked here.
             if mathematical_expressions.contains(&handle)
+                || (crate::mathematical_applications::is_identity_call(program, call)
+                    && program
+                        .prepared_mathematics()
+                        .is_some_and(|view| view.application(handle).is_some()))
                 || (erased_initializers.contains(&handle)
-                    && crate::mathematical_applications::selected_definition(program, call)
-                        .is_some()
+                    && crate::mathematical_applications::is_mathematical_call(program, call)
                     && program
                         .prepared_mathematics()
                         .is_some_and(|view| view.application(handle).is_some()))

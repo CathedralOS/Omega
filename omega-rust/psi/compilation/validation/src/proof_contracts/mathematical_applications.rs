@@ -4,7 +4,11 @@
 //! never an executable machine, a runtime result occurrence or a purity claim.
 
 mod fixed_core_vocabulary;
+mod identity;
 pub use fixed_core_vocabulary::{FixedCore, FixedCoreVocabulary};
+pub use identity::{
+    IdentityApplication, identity_application, identity_application_at, is_identity_call,
+};
 use typed_trees::type_identity::TypeIdentityRequest;
 mod static_arguments;
 pub use static_arguments::{
@@ -24,9 +28,9 @@ pub use float_predicates::{MathematicalFloatPredicate, float_predicates};
 pub(crate) use prepared::application_spine;
 pub use prepared::{
     PreparedApplication, PreparedCapture, PreparedConstant, PreparedConstantMeaning,
-    PreparedIndexedTheorem, PreparedMathematicalApplications, PreparedMathematicalView,
-    PreparedSourceCarrier, PreparedSourceConstructor, PreparedSourceEvidence,
-    integer_embedding_meaning,
+    PreparedIdentityValue, PreparedIndexedTheorem, PreparedMathematicalApplications,
+    PreparedMathematicalView, PreparedSourceCarrier, PreparedSourceConstructor,
+    PreparedSourceEvidence, integer_embedding_meaning,
 };
 pub use scalar_predicates::scalar_predicate;
 
@@ -36,6 +40,14 @@ use typed_trees::expression::{
 };
 use typed_trees::mathematical::{MathematicalDefinition, MathematicalType};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// Mathematical declarations own dependent formation and have no runtime call.
+pub fn is_mathematical_call(
+    program: &dyn crate::CheckingInput,
+    call: &TableCallExpression,
+) -> bool {
+    is_identity_call(program, call) || selected_definition(program, call).is_some()
+}
 
 pub fn selected_definition<'program>(
     program: &'program dyn crate::CheckingInput,
@@ -87,9 +99,24 @@ pub fn operand_type_reference(
             _ => None,
         })
         .unwrap_or_else(|| program.symbols.root());
+    operand_type_reference_in_declaration(program, owner, expression)
+}
+
+/// Read an operand under its retained declaration telescope. Sibling trait
+/// operations and applied signatures can return types that belong to that
+/// exact owner; a context-free call query cannot export those local binders.
+pub fn operand_type_reference_in_declaration(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    if !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
     crate::value_custody::expression_types::declaration_expression_result_type_reference(
         program,
         owner,
+        None,
         &|expression| match program.expression_table.expression(expression) {
             ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
                 crate::proof_contracts::proof_embeddings::expression_type_reference(
@@ -117,6 +144,32 @@ pub fn result_type_reference(
         }
         _ => None,
     }
+}
+
+/// Complete ordinary receiving types of a mathematical call's value slots.
+/// These are formation inputs, not evidence that an actual inhabits its type.
+pub fn argument_type_references(
+    program: &dyn crate::CheckingInput,
+    call: &TableCallExpression,
+) -> Option<Vec<Option<TypeReferenceHandle>>> {
+    if is_identity_call(program, call) {
+        let application = identity_application(program, call).ok()?;
+        return Some(vec![Some(application.carrier); 2]);
+    }
+    let definition = selected_definition(program, call)?;
+    let parameters = program.mathematical_parameters(definition.parameters);
+    (parameters.len() == call.arguments.len()).then_some(())?;
+    Some(
+        parameters
+            .iter()
+            .map(|parameter| match program.mathematical_type(parameter.ty) {
+                MathematicalType::Ordinary(reference) => {
+                    applied_result_reference(program, definition, call, *reference)
+                }
+                _ => None,
+            })
+            .collect(),
+    )
 }
 
 /// Read the selected source telescope, independently of the caller's value

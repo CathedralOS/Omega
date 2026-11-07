@@ -40,16 +40,29 @@ impl TypedTrees {
         &self,
         trait_symbol: SymbolHandle,
     ) -> impl Iterator<Item = &signature::StateSignature> {
+        self.applied_trait_contracts(trait_symbol)
+            .map(|contract| contract.signature)
+    }
+
+    pub fn applied_trait_contracts(
+        &self,
+        trait_symbol: SymbolHandle,
+    ) -> impl Iterator<Item = CallableContractScope<'_>> {
         self.applied_callable_signatures
             .iter()
             .filter(|(_, prepared)| self.callable_application_owner_is_live(prepared))
             .filter_map(move |(_, prepared)| match prepared.owner {
-                AppliedCallableOwner::Trait { declaration, .. }
-                | AppliedCallableOwner::RequirementInstance { declaration, .. }
-                    if declaration == trait_symbol =>
-                {
-                    Some(&prepared.signature)
+                AppliedCallableOwner::Trait {
+                    declaration, scope, ..
                 }
+                | AppliedCallableOwner::RequirementInstance {
+                    declaration,
+                    trait_scope: scope,
+                    ..
+                } if declaration == trait_symbol => Some(CallableContractScope {
+                    signature: &prepared.signature,
+                    trait_scope: Some(scope),
+                }),
                 _ => None,
             })
     }
@@ -78,6 +91,14 @@ impl TypedTrees {
     /// authored roster. Contract occurrence readers need both: applied facts
     /// retain fresh formal symbols and their own substituted result carrier.
     pub fn prepared_callable_signatures(&self) -> impl Iterator<Item = &signature::StateSignature> {
+        self.prepared_callable_contracts()
+            .map(|contract| contract.signature)
+    }
+
+    /// The copied telescope and its supplying trait application travel
+    /// together. Logical declaration symbols deliberately remain unchanged
+    /// when preparation substitutes a concrete outer application.
+    pub fn prepared_callable_contracts(&self) -> impl Iterator<Item = CallableContractScope<'_>> {
         self.applied_callable_signatures
             .iter()
             .filter(|(_, prepared)| self.callable_application_owner_is_live(prepared))
@@ -90,9 +111,20 @@ impl TypedTrees {
                     } => [required.as_ref(), Some(source_required)],
                     _ => [None, None],
                 };
+                let trait_scope = match prepared.owner {
+                    AppliedCallableOwner::Trait { scope, .. } => Some(scope),
+                    AppliedCallableOwner::RequirementInstance { trait_scope, .. } => {
+                        Some(trait_scope)
+                    }
+                    _ => None,
+                };
                 [Some(&prepared.signature), counterparts[0], counterparts[1]]
                     .into_iter()
                     .flatten()
+                    .map(move |signature| CallableContractScope {
+                        signature,
+                        trait_scope,
+                    })
             })
     }
 
@@ -127,6 +159,7 @@ impl TypedTrees {
                 AppliedCallableOwner::Trait {
                     declaration,
                     application,
+                    ..
                 } if !live.contains(&(declaration, application)) => Some(handle),
                 _ => None,
             })
@@ -166,6 +199,14 @@ impl TypedTrees {
     }
 }
 
+/// A retained callable telescope and the exact outer scope that produced it.
+/// This is source typing context, never a conformance or checked proof.
+#[derive(Clone, Copy)]
+pub struct CallableContractScope<'a> {
+    pub signature: &'a signature::StateSignature,
+    pub trait_scope: Option<crate::trait_definition::RetainedTraitScope>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct AppliedCallableSignature {
     owner: AppliedCallableOwner,
@@ -202,6 +243,7 @@ enum AppliedCallableOwner {
     Trait {
         declaration: SymbolHandle,
         application: crate::type_identity::NormalizedTypeIdentity,
+        scope: crate::trait_definition::RetainedTraitScope,
     },
     RequirementInvocation {
         declaration: SymbolHandle,

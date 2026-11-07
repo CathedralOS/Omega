@@ -9,15 +9,16 @@ use super::{
 use crate::typed_expressions::{expression_table, statement_table, type_reference_table};
 use diagnostics::Diagnostic;
 use proof_admission::{
-    Level, Signature, Sort, Term, check_type, infer_sort, infer_type, judgment_assumption_closure,
+    Signature, Sort, Term, check_type, infer_sort, infer_type, judgment_assumption_closure,
     substitute,
 };
+use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::static_applications::StaticMachineBindingValue;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 use validation::expression_owners::{OwnerEnvironmentIndex, source_declaration_owner};
-use validation::mathematical_applications::{PreparedIndexedTheorem, operand_type_reference};
+use validation::mathematical_applications::PreparedIndexedTheorem;
 use validation::mathematical_applications::{PreparedSourceCarrier, PreparedSourceEvidence};
 
 impl Elaborator<'_> {
@@ -36,8 +37,9 @@ impl Elaborator<'_> {
         if domains.is_empty() {
             return domains;
         }
-        let context = Context::empty()
-            .with_signature(Signature::from_declarations(self.declarations.clone()));
+        let context =
+            Context::with_level_arity(self.level_binders.len() as u32 + self.generalized_levels)
+                .with_signature(Signature::from_declarations(self.declarations.clone()));
         if infer_sort(
             &mut self.arena,
             &context,
@@ -65,6 +67,7 @@ impl Elaborator<'_> {
         let mut families = self.indexed_families.values().cloned().collect::<Vec<_>>();
         families.sort_by_key(|family| family.symbol.arena_index());
         for family in families {
+            let saved_levels = self.enter_family_levels(&family.parameters);
             for case in &family.cases {
                 self.scope.clear();
                 self.push_family_type_scope(&family.parameters);
@@ -77,6 +80,14 @@ impl Elaborator<'_> {
                     let ty = self.elaborate_type_reference(reference)?;
                     let domains = self.source_carrier_domains(ty);
                     self.prepared.source_carriers.append(PreparedSourceCarrier {
+                        level_arity: proof_admission::universe_parameter_arity(
+                            &self.arena,
+                            &domains
+                                .iter()
+                                .copied()
+                                .chain(std::iter::once(ty))
+                                .collect::<Vec<_>>(),
+                        ),
                         source_type: reference,
                         type_identity: self.program.normalized_type_identity(reference),
                         ty,
@@ -84,6 +95,7 @@ impl Elaborator<'_> {
                     });
                 }
             }
+            self.restore_source_levels(saved_levels);
         }
         let machines = self.program.machines().to_vec();
         for machine in &machines {
@@ -134,11 +146,13 @@ impl Elaborator<'_> {
             }) {
                 continue;
             }
+            let saved_levels = self.enter_family_levels(&binders);
             for binder in &binders {
                 let domain = match binder.kind {
-                    TypeParameterKind::Type => self
-                        .arena
-                        .insert(Term::Sort(Sort::Type(Level::Constant(0)))),
+                    TypeParameterKind::Type => {
+                        let level = self.source_type_level(binder.symbol);
+                        self.arena.insert(Term::Sort(Sort::Type(level)))
+                    }
                     TypeParameterKind::Value { type_reference } => {
                         self.elaborate_type_reference(type_reference)?
                     }
@@ -164,6 +178,14 @@ impl Elaborator<'_> {
                         // scalar-to-mathematical cast at the wire boundary.
                         let domains = self.source_carrier_domains(domain);
                         self.prepared.source_carriers.append(PreparedSourceCarrier {
+                            level_arity: proof_admission::universe_parameter_arity(
+                                &self.arena,
+                                &domains
+                                    .iter()
+                                    .copied()
+                                    .chain(std::iter::once(domain))
+                                    .collect::<Vec<_>>(),
+                            ),
                             source_type: parameter.type_reference,
                             type_identity: self
                                 .program
@@ -187,6 +209,14 @@ impl Elaborator<'_> {
                     let ty = self.elaborate_type_reference(reference)?;
                     let domains = self.source_carrier_domains(ty);
                     self.prepared.source_carriers.append(PreparedSourceCarrier {
+                        level_arity: proof_admission::universe_parameter_arity(
+                            &self.arena,
+                            &domains
+                                .iter()
+                                .copied()
+                                .chain(std::iter::once(ty))
+                                .collect::<Vec<_>>(),
+                        ),
                         source_type: reference,
                         type_identity: self.program.normalized_type_identity(reference),
                         ty,
@@ -231,6 +261,7 @@ impl Elaborator<'_> {
                     }
                 }
             }
+            self.restore_source_levels(saved_levels);
         }
         self.scope.clear();
         Ok(())
@@ -239,11 +270,18 @@ impl Elaborator<'_> {
     pub(super) fn retain_checked_source_application(
         &mut self,
         expression: ExpressionHandle,
+        owner: SymbolHandle,
         term: TermHandle,
         context: &Context,
         signature: &Signature,
     ) -> Result<(), Vec<Diagnostic>> {
-        let Some(reference) = operand_type_reference(self.program, expression) else {
+        let Some(reference) =
+            validation::mathematical_applications::operand_type_reference_in_declaration(
+                self.program,
+                owner,
+                expression,
+            )
+        else {
             return Ok(());
         };
         if !self.known_source_family(reference) || !self.scope.is_empty() {
@@ -268,7 +306,7 @@ impl Elaborator<'_> {
             .source_carriers
             .iter()
             .filter_map(|(_, carrier)| {
-                carrier.domains.is_empty().then_some((
+                (carrier.domains.is_empty() && carrier.level_arity == 0).then_some((
                     carrier.source_type,
                     carrier.type_identity,
                     carrier.ty,
@@ -490,8 +528,39 @@ impl Elaborator<'_> {
                     ));
                 }
             }
-            if telescope.len() > family.parameters.len() {
+            let outer_types = if family.external_parameter_indices.is_empty() {
+                Vec::new()
+            } else {
+                telescope
+                    .iter()
+                    .filter(|(_, _, reference)| reference.is_none())
+                    .map(|(symbol, _, _)| *symbol)
+                    .collect::<Vec<_>>()
+            };
+            if !family.external_parameter_indices.is_empty() {
+                // Uniform declaration Types stay arbitrary outer carriers,
+                // not changing value indices of the induction invariant.
+                telescope.retain(|(_, _, reference)| reference.is_some());
+            }
+            if telescope.len() > family.index_parameter_indices.len() {
                 continue;
+            }
+            let saved_constructor_context = std::mem::take(&mut self.source_constructor_context);
+            let mut outer_parameters = Vec::new();
+            let mut lifted_declarations = super::source_families::ParameterAbstractions::default();
+            let saved_levels = self.enter_family_levels(&binders);
+            for symbol in outer_types {
+                let level = self.source_type_level(symbol);
+                let domain = self.arena.insert(Term::Sort(Sort::Type(level)));
+                let position = self.declarations.len() as u32;
+                self.declarations
+                    .push(proof_admission::Declaration::assumption(
+                        proof_admission::universe_parameter_arity(&self.arena, &[domain]),
+                        domain,
+                    ));
+                let term = self.constant(position);
+                self.source_constructor_context.values.push((symbol, term));
+                outer_parameters.push((position, symbol, domain));
             }
             self.source_owner = machine.symbol;
             self.scope.clear();
@@ -500,8 +569,10 @@ impl Elaborator<'_> {
                 let domain = if let Some(reference) = type_reference {
                     self.elaborate_type_reference(*reference)?
                 } else {
-                    self.arena
-                        .insert(Term::Sort(Sort::Type(Level::Constant(0))))
+                    {
+                        let level = self.source_type_level(*symbol);
+                        self.arena.insert(Term::Sort(Sort::Type(level)))
+                    }
                 };
                 self.push_scope(Some(*symbol), name.clone(), domain);
             }
@@ -510,10 +581,15 @@ impl Elaborator<'_> {
                 .zip(&family.parameters)
                 .map(|(argument, parameter)| self.index_operand(*argument, parameter, &[]))
                 .collect::<Result<Vec<_>, _>>()?;
+            let family = self.applied_source_family(&family, &actuals)?;
+            let description = family
+                .description_at(&mut self.arena, &actuals)
+                .map_err(|reason| self.refuse(reason.into()))?;
+            let index_actuals = family.index_actuals(&actuals);
             let mut mapping = Vec::new();
             for ordinal in 0..telescope.len() {
                 let variable = self.scope_variable(ordinal);
-                let positions = actuals
+                let positions = index_actuals
                     .iter()
                     .enumerate()
                     .filter_map(|(position, &actual)| {
@@ -530,6 +606,8 @@ impl Elaborator<'_> {
             }
             if mapping.len() != telescope.len() {
                 self.scope.clear();
+                self.source_constructor_context = saved_constructor_context;
+                self.restore_source_levels(saved_levels);
                 continue;
             }
             let expressions = self
@@ -563,7 +641,7 @@ impl Elaborator<'_> {
                     for _ in 0..position {
                         projection = self.arena.insert(Term::Snd { pair: projection });
                     }
-                    if position + 1 < family.parameters.len() {
+                    if position + 1 < family.index_parameter_indices.len() {
                         projection = self.arena.insert(Term::Fst { pair: projection });
                     }
                     // Discharge only the telescope we just constructed. Its
@@ -579,11 +657,35 @@ impl Elaborator<'_> {
                     proposition = substitute(&mut self.arena, body, projection);
                 }
                 let invariant = self.arena.insert(Term::Lambda {
-                    domain: family.description.index,
+                    domain: description.index,
                     body: proposition,
                 });
                 self.scope.clear();
-                let theorem = self.source_family_induction(symbol, invariant, &actuals)?;
+                let mut theorem = self.source_family_induction(symbol, invariant, &actuals)?;
+                (theorem.theorem, theorem.ty) = super::source_families::abstract_parameter_closure(
+                    &mut self.arena,
+                    &mut self.declarations,
+                    theorem.theorem,
+                    theorem.ty,
+                    &outer_parameters,
+                    &mut lifted_declarations,
+                )
+                .map_err(|reason| self.refuse(reason.into()))?;
+                check_type(
+                    &mut self.arena,
+                    &Context::with_level_arity(
+                        self.level_binders.len() as u32 + self.generalized_levels,
+                    )
+                    .with_signature(Signature::from_declarations(self.declarations.clone())),
+                    theorem.theorem,
+                    theorem.ty,
+                    &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                )
+                .map_err(|error| {
+                    self.refuse(format!(
+                        "abstracted source Type theorem fails kernel checking: {error:?}"
+                    ))
+                })?;
                 let signature = Signature::from_declarations(self.declarations.clone());
                 let closure = judgment_assumption_closure(
                     &self.arena,
@@ -593,6 +695,7 @@ impl Elaborator<'_> {
                 self.prepared
                     .indexed_theorems
                     .append(PreparedIndexedTheorem {
+                        level_arity: self.level_binders.len() as u32 + self.generalized_levels,
                         machine: machine.symbol,
                         expression,
                         ensure_ordinal: ensure_ordinal as u32,
@@ -607,12 +710,16 @@ impl Elaborator<'_> {
                     let domain = if let Some(reference) = type_reference {
                         self.elaborate_type_reference(*reference)?
                     } else {
-                        self.arena
-                            .insert(Term::Sort(Sort::Type(Level::Constant(0))))
+                        {
+                            let level = self.source_type_level(*symbol);
+                            self.arena.insert(Term::Sort(Sort::Type(level)))
+                        }
                     };
                     self.push_scope(Some(*symbol), name.clone(), domain);
                 }
             }
+            self.source_constructor_context = saved_constructor_context;
+            self.restore_source_levels(saved_levels);
         }
         self.scope.clear();
         Ok(())
@@ -673,8 +780,9 @@ impl Elaborator<'_> {
                 .find_map(|(_, carrier)| {
                     (identity.is_valid()
                         && carrier.type_identity == identity
-                        && carrier.domains.is_empty())
-                    .then_some(carrier.ty)
+                        && carrier.domains.is_empty()
+                        && carrier.level_arity == 0)
+                        .then_some(carrier.ty)
                 })
             else {
                 return Err(self.refuse(

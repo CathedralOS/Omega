@@ -45,8 +45,9 @@ mod task_activation_wire;
 use super::external_provider_wire;
 
 use terminal_psi::{
-    TerminalIdentityIndex, TerminalIdentityTable, TerminalIndexedTheorem,
-    TerminalMathematicalCarrier, TerminalModule, TerminalRootServiceReach, VocabularyMarker,
+    TerminalIdentityFormation, TerminalIdentityFormations, TerminalIdentityIndex,
+    TerminalIdentityTable, TerminalIndexedTheorem, TerminalMathematicalCarrier, TerminalModule,
+    TerminalRootServiceReach, VocabularyMarker,
 };
 
 use super::wire::{Reader, Writer, decode_bytes, strictly_increasing};
@@ -92,6 +93,7 @@ wire_record! {
         identities: Identities,
         indexed_theorems: List<IndexedTheorem>,
         mathematical_carriers: List<MathematicalCarrier>,
+        identity_formations: IdentityFormations,
         scalar_qualifications: ScalarQualifications,
         quotients: quotient_wire::Catalog,
         folded_constants: folded_constant_wire::Closure,
@@ -252,6 +254,59 @@ impl Field<TerminalMathematicalCarrier> for MathematicalCarrier {
             type_identity,
             carrier_key,
         })
+    }
+}
+
+struct IdentityFormation;
+impl Field<TerminalIdentityFormation> for IdentityFormation {
+    fn write(writer: &mut Writer, value: &TerminalIdentityFormation) -> Result<(), CodecError> {
+        writer.u32(value.source_owner.0);
+        writer.u32(value.source_carrier.0);
+        writer.u32(value.declaration);
+        writer.len("Id subject origins", value.subject_origins.len())?;
+        for (start, end) in &value.subject_origins {
+            writer.u32(*start);
+            writer.u32(*end);
+        }
+        let subjects = value
+            .subject_carriers
+            .iter()
+            .map(|identity| identity.0)
+            .collect::<Vec<_>>();
+        List::<U32>::write(writer, &subjects)
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<TerminalIdentityFormation, CodecError> {
+        let source_owner = TerminalIdentityIndex(reader.u32()?);
+        let source_carrier = TerminalIdentityIndex(reader.u32()?);
+        let declaration = reader.u32()?;
+        let subject_origins =
+            super::wire::decode_counted(reader, |reader| Ok((reader.u32()?, reader.u32()?)))?;
+        let subject_carriers = List::<U32>::read(reader)?
+            .into_iter()
+            .map(TerminalIdentityIndex)
+            .collect();
+        Ok(TerminalIdentityFormation {
+            source_owner,
+            source_carrier,
+            subject_carriers,
+            subject_origins,
+            declaration,
+        })
+    }
+}
+
+struct IdentityFormations;
+impl Field<TerminalIdentityFormations> for IdentityFormations {
+    fn write(writer: &mut Writer, value: &TerminalIdentityFormations) -> Result<(), CodecError> {
+        List::<IdentityFormation>::write(writer, &value.rows)?;
+        writer.len("identity formation certificate", value.certificate.len())?;
+        writer.bytes(&value.certificate);
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<TerminalIdentityFormations, CodecError> {
+        let rows = List::<IdentityFormation>::read(reader)?;
+        let certificate = decode_bytes(reader)?;
+        Ok(TerminalIdentityFormations { rows, certificate })
     }
 }
 

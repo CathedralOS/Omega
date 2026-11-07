@@ -474,6 +474,63 @@ fn assign_proof_expression_symbols(
 }
 
 impl ProofExpressionContext<'_> {
+    /// Declaration facts own static operands just as callable expressions do.
+    /// The shared resolver owns type/static binders and source visibility;
+    /// remaining value subjects use this declaration's exact lexical roster.
+    fn assign_static_argument(
+        &mut self,
+        argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
+    ) {
+        if argument.type_reference.is_valid() {
+            let mut reference = self
+                .child_type_references
+                .get(argument.type_reference)
+                .clone();
+            super::type_references::assign_type_reference_symbol_with_locals_and_constraints(
+                self.symbols,
+                self.child_type_references,
+                self.type_constraints,
+                self.local_type_parameters.unwrap_or(&[]),
+                &mut reference,
+            );
+            *self.child_type_references.get_mut(argument.type_reference) = reference;
+            argument.symbol = SymbolHandle::invalid();
+        } else if !argument.symbol.is_valid()
+            && argument.const_literal.is_none()
+            && argument.evidence_projection.is_none()
+        {
+            super::targets::assign_static_argument_symbol(
+                self.symbols,
+                SymbolHandle::invalid(),
+                self.local_type_parameters.unwrap_or(&[]),
+                argument,
+                true,
+            );
+            let lexical = if !argument.symbol.is_valid()
+                && let [name] = argument.path.as_ref()
+            {
+                let mut matching = self
+                    .local_symbols
+                    .iter()
+                    .filter(|(candidate, _)| candidate == name.as_str());
+                match (matching.next(), matching.next()) {
+                    (None, _) => None,
+                    (Some((_, symbol)), None) => Some(*symbol),
+                    (Some(_), Some(_)) => Some(SymbolHandle::invalid()),
+                }
+            } else {
+                None
+            };
+            if let Some(symbol) = lexical {
+                argument.symbol = symbol;
+            }
+        }
+        if let Some(application) = &mut argument.application {
+            for nested in &mut application.arguments {
+                self.assign_static_argument(nested);
+            }
+        }
+    }
     /// Bind the fact's lexical subject: the single local or fact-parameter
     /// whose spelling matches the path's leaf. Several candidates stay
     /// unresolved rather than exposing an outer declaration, and an
@@ -593,6 +650,14 @@ impl ProofExpressionContext<'_> {
                     {
                         call.target_symbol = target_symbol;
                     }
+                }
+                let mut arguments = call.machine_arguments;
+                for argument in &mut arguments {
+                    self.assign_static_argument(argument);
+                }
+                if let ExpressionNode::Call(call) = self.expression_table.expression_mut(expression)
+                {
+                    call.machine_arguments = arguments;
                 }
             }
             ExpressionNode::Cast(cast) => {

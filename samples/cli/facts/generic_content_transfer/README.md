@@ -1,5 +1,7 @@
 # Generic content conservation
 
+Current owning task: **PROOF-KERNEL-CORE**.
+
 Fact: a generic transfer conserves the complete counted content of its owned input.
 Every place sends a linear region containing 29 through the explicitly selected
 `ConservingTransfer` implementation of `Transfer<Payload>`, observes 29 and
@@ -7,7 +9,20 @@ consumes the returned region once. The match join executes both arms and checks
 an independent arm tag after consuming the original counted payload, so a wrong
 arm cannot hide behind the identical conserved quantities.
 
-This row discharges the `generic_content_transfer` source migration under
+The complete conservation clauses now use
+`core::Identity<CountedQuantity<Units>>`. The unit identity, projection,
+entry/current subjects and selected `Transfer<Payload>` application stay the
+same. Scalar and runtime `==` checks remain ordinary integer comparisons.
+This is equality of the canonical unit-specific quantity; it supplies no claim
+identity or physical storage authority.
+
+This source checkpoint supplies preservation audits. Integrated optimized
+source checking, both-engine positive results and meaningful loss rejections
+remain required, followed by clean corpus recording. The measurements below
+belong to the earlier Build-owned source migration and its recorded revisions;
+they are not observations of this explicit-identity source.
+
+The earlier row migration discharged `generic_content_transfer` under
 **BUILD-OWNED-TARGET-SELECTION**. It also retains the applied conservation-contract
 prerequisite of **BUMP-ALLOCATOR-CANARY**: copied contracts keep their own proof
 context and formal parameters. This counted model does not grant access to
@@ -56,7 +71,7 @@ Its behavior remains a no-op, so this row claims no observable cleanup side effe
   are recorded with the migration qualification; bindings alone establish no
   other-host execution.
 
-## Recorded migration evidence
+## Historical Build-owned migration evidence
 
 The optimized producer at fixed base `e3d308817192` first ran the untouched row:
 all nine positives exited 0 in both engines, and all nine loss twins rejected

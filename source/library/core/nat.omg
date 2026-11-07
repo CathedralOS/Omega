@@ -108,7 +108,7 @@ satisfies CommutativeSemiring<Nat>::one
 // `ensures` as the inductive hypothesis, licensed by exact-edge descent).
 machine add_zero_left(b: Nat) -> Nat
 ensures
-    result == b
+    core::Identity<Nat>(result, b)
 {
     transition { _ -> (add(Nat::Zero, b)) }
 }
@@ -121,7 +121,7 @@ public machine add_zero_right(a: Nat)
 satisfies CommutativeSemiring<Nat>::add_identity
 terminates by a
 ensures
-    (add(a, Nat::Zero)) == a
+    core::Identity<Nat>(add(a, Nat::Zero), a)
 {
     transition a {
         Nat::Zero -> zero_case()
@@ -144,7 +144,7 @@ ensures
 machine add_one_right(a: Nat) -> Nat
 terminates by a
 ensures
-    (add(a, Nat::Succ { prev: Nat::Zero })) == (Nat::Succ { prev: a })
+    core::Identity<Nat>(add(a, Nat::Succ { prev: Nat::Zero }), Nat::Succ { prev: a })
 {
     transition a {
         Nat::Zero -> Nat::Succ { prev: Nat::Zero }
@@ -156,7 +156,7 @@ ensures
 // Zero arm).
 machine mul_zero_left(b: Nat) -> Nat
 ensures
-    result == Nat::Zero
+    core::Identity<Nat>(result, Nat::Zero)
 {
     transition { _ -> (mul(Nat::Zero, b)) }
 }
@@ -172,7 +172,7 @@ ensures
 machine add_succ_law(a: Nat, b: Nat) -> Nat
 terminates by a
 ensures
-    (add(a, Nat::Succ { prev: b })) == (Nat::Succ { prev: add(a, b) })
+    core::Identity<Nat>(add(a, Nat::Succ { prev: b }), Nat::Succ { prev: add(a, b) })
 {
     transition a {
         Nat::Zero -> Nat::Zero
@@ -193,7 +193,7 @@ public machine add_comm(a: Nat, b: Nat)
 satisfies CommutativeSemiring<Nat>::add_comm
 terminates by a
 ensures
-    (add(a, b)) == (add(b, a))
+    core::Identity<Nat>(add(a, b), add(b, a))
 {
     transition a {
         Nat::Zero -> comm_base(b)
@@ -216,7 +216,7 @@ public machine add_assoc(a: Nat, b: Nat, c: Nat)
 satisfies CommutativeSemiring<Nat>::add_assoc
 terminates by a
 ensures
-    (add(add(a, b), c)) == (add(a, add(b, c)))
+    core::Identity<Nat>(add(add(a, b), c), add(a, add(b, c)))
 {
     transition a {
         Nat::Zero -> aa_base()
@@ -236,7 +236,7 @@ ensures
 machine mul_zero_right(a: Nat) -> Nat
 terminates by a
 ensures
-    (mul(a, Nat::Zero)) == Nat::Zero
+    core::Identity<Nat>(mul(a, Nat::Zero), Nat::Zero)
 {
     transition a {
         Nat::Zero -> Nat::Zero
@@ -253,7 +253,7 @@ ensures
 machine mul_succ_right(a: Nat, b: Nat) -> Nat
 terminates by a
 ensures
-    (mul(a, Nat::Succ { prev: b })) == (add(a, mul(a, b)))
+    core::Identity<Nat>(mul(a, Nat::Succ { prev: b }), add(a, mul(a, b)))
 {
     transition a {
         Nat::Zero -> Nat::Zero
@@ -267,7 +267,7 @@ ensures
 machine mul_identity(a: Nat)
 satisfies CommutativeSemiring<Nat>::mul_identity
 ensures
-    (mul(a, one())) == a
+    core::Identity<Nat>(mul(a, one()), a)
 {
     _ = mul_succ_right(a, Nat::Zero);
     _ = mul_zero_right(a);
@@ -286,7 +286,7 @@ machine mul_distributes(a: Nat, b: Nat, c: Nat)
 satisfies CommutativeSemiring<Nat>::mul_distributes
 terminates by a
 ensures
-    (mul(a, add(b, c))) == (add(mul(a, b), mul(a, c)))
+    core::Identity<Nat>(mul(a, add(b, c)), add(mul(a, b), mul(a, c)))
 {
     transition a {
         Nat::Zero -> md_base()
@@ -309,7 +309,7 @@ ensures
 machine mul_distributes_right(a: Nat, b: Nat, c: Nat) -> Nat
 terminates by a
 ensures
-    (mul(add(a, b), c)) == (add(mul(a, c), mul(b, c)))
+    core::Identity<Nat>(mul(add(a, b), c), add(mul(a, c), mul(b, c)))
 {
     transition a {
         Nat::Zero -> Nat::Zero
@@ -328,7 +328,7 @@ machine mul_assoc(a: Nat, b: Nat, c: Nat)
 satisfies CommutativeSemiring<Nat>::mul_assoc
 terminates by a
 ensures
-    (mul(mul(a, b), c)) == (mul(a, mul(b, c)))
+    core::Identity<Nat>(mul(mul(a, b), c), mul(a, mul(b, c)))
 {
     transition a {
         Nat::Zero -> ma_base()
@@ -350,7 +350,7 @@ ensures
 // `Nat.one_mul`.
 machine mul_one_left(b: Nat) -> Nat
 ensures
-    (mul(Nat::Succ { prev: Nat::Zero }, b)) == b
+    core::Identity<Nat>(mul(Nat::Succ { prev: Nat::Zero }, b), b)
 {
     add_zero_right(b);
     transition { _ -> (b) }
@@ -364,7 +364,7 @@ ensures
 machine mul_one_right(a: Nat) -> Nat
 terminates by a
 ensures
-    (mul(a, Nat::Succ { prev: Nat::Zero })) == a
+    core::Identity<Nat>(mul(a, Nat::Succ { prev: Nat::Zero }), a)
 {
     transition a {
         Nat::Zero -> Nat::Zero
@@ -378,7 +378,7 @@ public machine mul_comm(a: Nat, b: Nat)
 satisfies CommutativeSemiring<Nat>::mul_comm
 terminates by a
 ensures
-    (mul(a, b)) == (mul(b, a))
+    core::Identity<Nat>(mul(a, b), mul(b, a))
 {
     transition a {
         Nat::Zero -> mc_base(b)
@@ -405,9 +405,9 @@ ensures
 machine add_cancel(c: Nat, a: Nat, b: Nat) -> Nat
 terminates by c
 requires
-    (add(c, a)) == (add(c, b))
+    core::Identity<Nat>(add(c, a), add(c, b))
 ensures
-    (a) == (b)
+    core::Identity<Nat>(a, b)
 {
     transition c {
         Nat::Zero -> ac_base(a, b)
@@ -457,8 +457,8 @@ terminates by b
 // returns `a` outright). Lean analog: Nat.sub_zero.
 machine sub_zero_right(a: Nat) -> Nat
 ensures
-    result == a,
-    (saturating_sub(a, Nat::Zero)) == a
+    core::Identity<Nat>(result, a),
+    core::Identity<Nat>(saturating_sub(a, Nat::Zero), a)
 {
     transition { _ -> (saturating_sub(a, Nat::Zero)) }
 }
@@ -470,7 +470,10 @@ ensures
 machine succ_sub_succ(a: Nat, b: Nat) -> Nat
 terminates by b
 ensures
-    (saturating_sub(Nat::Succ { prev: a }, Nat::Succ { prev: b })) == (saturating_sub(a, b))
+    core::Identity<Nat>(
+        saturating_sub(Nat::Succ { prev: a }, Nat::Succ { prev: b }),
+        saturating_sub(a, b)
+    )
 {
     transition b {
         Nat::Zero -> Nat::Zero
@@ -488,7 +491,7 @@ ensures
 machine sub_zero_left(b: Nat) -> Nat
 terminates by b
 ensures
-    (saturating_sub(Nat::Zero, b)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Zero, b), Nat::Zero)
 {
     transition b {
         Nat::Zero -> Nat::Zero
@@ -507,7 +510,7 @@ ensures
 machine sub_self(a: Nat) -> Nat
 terminates by a
 ensures
-    (saturating_sub(a, a)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(a, a), Nat::Zero)
 {
     transition a {
         Nat::Zero -> Nat::Zero
@@ -529,7 +532,7 @@ ensures
 machine add_sub_cancel(b: Nat, a: Nat) -> Nat
 terminates by b
 ensures
-    (saturating_sub((add(b, a)), b)) == a
+    core::Identity<Nat>(saturating_sub((add(b, a)), b), a)
 {
     transition b {
         Nat::Zero -> (a)
@@ -555,9 +558,9 @@ ensures
 // analog: Nat.le_of_succ_le.
 machine le_of_succ_le(r: Nat, a: Nat) -> Nat
 requires
-    (saturating_sub(Nat::Succ { prev: r }, a)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: r }, a), Nat::Zero)
 ensures
-    (saturating_sub(r, a)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(r, a), Nat::Zero)
 {
     transition a {
         Nat::Zero -> Nat::Zero
@@ -575,9 +578,9 @@ ensures
 // = Zero, the goal is the premise); the Succ arm is le_of_succ_le.
 machine pred_le_left(x: Nat, a: Nat) -> Nat
 requires
-    (saturating_sub(x, a)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(x, a), Nat::Zero)
 ensures
-    (saturating_sub((pred(x)), a)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub((pred(x)), a), Nat::Zero)
 {
     transition x {
         Nat::Zero -> Nat::Zero
@@ -599,7 +602,7 @@ ensures
 machine sub_le(a: Nat, b: Nat) -> Nat
 terminates by b
 ensures
-    (saturating_sub((saturating_sub(a, b)), a)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub((saturating_sub(a, b)), a), Nat::Zero)
 {
     transition b {
         Nat::Zero -> sle_zero(a)
@@ -617,17 +620,17 @@ ensures
     }
 }
 
-// THE STRICT-RANKING EVIDENCE: saturating_sub(Succ a, Succ b) < Succ a, premise-free
-// (positivity encoded by the Succ constructors -- both operands are
-// nonzero by shape). In the monus order spelling the claim is
-// saturating_sub(Succ(saturating_sub(Succ a, Succ b)), Succ a) == Zero. succ_sub_succ strips the
-// outer pair to saturating_sub(a, b), then a second strip reduces the goal to
-// sub_le's fact saturating_sub(saturating_sub(a, b), a) == Zero. This is the lemma a computed
-// recursive subject (mod/gcd recursing on saturating_sub) cites to discharge the
-// ranking view's strict-edge obligation. Lean analog: Nat.sub_lt.
+// Subtracting two successors yields a result below the first successor.
+// The contract states exact Nat identity with Zero after subtracting that
+// first successor from Succ(result). Two succ_sub_succ citations reduce the
+// goal to sub_le. A recursive call on this computed result can cite the law
+// to establish strict descent without a structural-subterm argument.
 machine sub_lt_succ(a: Nat, b: Nat) -> Nat
 ensures
-    (saturating_sub(Nat::Succ { prev: (saturating_sub(Nat::Succ { prev: a }, Nat::Succ { prev: b })) }, Nat::Succ { prev: a })) == Nat::Zero
+    core::Identity<Nat>(
+        saturating_sub(Nat::Succ { prev: (saturating_sub(Nat::Succ { prev: a }, Nat::Succ { prev: b })) }, Nat::Succ { prev: a }),
+        Nat::Zero
+    )
 {
     transition {
         _ -> slt_body(a, b)
@@ -648,9 +651,12 @@ ensures
 // only serves the vacuity.
 machine sub_lt_of_le(pb: Nat, a: Nat) -> Nat
 requires
-    (saturating_sub(Nat::Succ { prev: pb }, a)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: pb }, a), Nat::Zero)
 ensures
-    (saturating_sub(Nat::Succ { prev: (saturating_sub(a, Nat::Succ { prev: pb })) }, a)) == Nat::Zero
+    core::Identity<Nat>(
+        saturating_sub(Nat::Succ { prev: (saturating_sub(a, Nat::Succ { prev: pb })) }, a),
+        Nat::Zero
+    )
 {
     transition a {
         Nat::Zero -> Nat::Zero
@@ -665,20 +671,18 @@ ensures
     }
 }
 
-// THE RANKING CITATION (slice a2): fully symbolic in (a, b) --
-// 1 <= b and b <= a entail saturating_sub(a, b) < a, in the monus order spelling
-// saturating_sub(Succ(saturating_sub(a, b)), a) == Zero. A machine recursing on the computed
-// subject saturating_sub(a, b) (mod, gcd) cites THIS lemma at (a, b); the
-// termination checker matches the instantiated ensures against its
-// strict-edge obligation literally. The Zero arm is vacuous (1 <= Zero
-// clashes); the Succ arm hands to sub_lt_of_le under the arm-refined
-// premise b == Succ pb. Lean analog: Nat.sub_lt.
+// A positive subtrahend no greater than a gives strict descent:
+// saturating_sub(a, b) < a. The contract expresses that order as exact Nat
+// identity of saturating_sub(Succ(saturating_sub(a, b)), a) with Zero.
+// Recursive mod/gcd calls cite this law at their actual operands to establish
+// the required decrease. The Zero arm contradicts the positive-b premise;
+// the Succ arm uses sub_lt_of_le with the exposed predecessor.
 machine sub_lt(a: Nat, b: Nat) -> Nat
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, b)) == Nat::Zero,
-    (saturating_sub(b, a)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, b), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(b, a), Nat::Zero)
 ensures
-    (saturating_sub(Nat::Succ { prev: (saturating_sub(a, b)) }, a)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: (saturating_sub(a, b)) }, a), Nat::Zero)
 {
     transition b {
         Nat::Zero -> Nat::Zero
@@ -702,9 +706,9 @@ ensures
 machine mod(a: Nat, b: Nat) -> Nat
 terminates by a
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, b)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, b), Nat::Zero)
 ensures
-    (saturating_sub(Nat::Succ { prev: result }, b)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: result }, b), Nat::Zero)
 {
     transition (saturating_sub(b, a)) {
         Nat::Zero -> mod_rec(a, b)
@@ -728,9 +732,9 @@ ensures
 // clashes with Succ w); the Succ arm's premise rewrites the payload.
 machine pred_eq_succ(x: Nat, w: Nat) -> Nat
 requires
-    (pred(x)) == (Nat::Succ { prev: w })
+    core::Identity<Nat>(pred(x), Nat::Succ { prev: w })
 ensures
-    (x) == (Nat::Succ { prev: Nat::Succ { prev: w } })
+    core::Identity<Nat>(x, Nat::Succ { prev: Nat::Succ { prev: w } })
 {
     transition x {
         Nat::Zero -> Nat::Zero
@@ -747,9 +751,9 @@ ensures
 machine sub_eq_add(a: Nat, b: Nat, w: Nat) -> Nat
 terminates by a
 requires
-    (saturating_sub(b, a)) == (Nat::Succ { prev: w })
+    core::Identity<Nat>(saturating_sub(b, a), Nat::Succ { prev: w })
 ensures
-    (b) == (add(a, Nat::Succ { prev: w }))
+    core::Identity<Nat>(b, add(a, Nat::Succ { prev: w }))
 {
     transition a {
         Nat::Zero -> Nat::Zero
@@ -770,7 +774,10 @@ ensures
 machine le_add(a: Nat, w: Nat) -> Nat
 terminates by a
 ensures
-    (saturating_sub(Nat::Succ { prev: a }, (add(a, Nat::Succ { prev: w })))) == Nat::Zero
+    core::Identity<Nat>(
+        saturating_sub(Nat::Succ { prev: a }, (add(a, Nat::Succ { prev: w }))),
+        Nat::Zero
+    )
 {
     transition a {
         Nat::Zero -> la_zero(w)
@@ -796,9 +803,9 @@ ensures
 // goal rewrites through the reconstruction.
 machine lt_of_sub_pos(a: Nat, b: Nat, w: Nat) -> Nat
 requires
-    (saturating_sub(b, a)) == (Nat::Succ { prev: w })
+    core::Identity<Nat>(saturating_sub(b, a), Nat::Succ { prev: w })
 ensures
-    (saturating_sub(Nat::Succ { prev: a }, b)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: a }, b), Nat::Zero)
 {
     transition {
         _ -> lsp_body(a, b, w)
@@ -816,7 +823,10 @@ ensures
 // fact gcd's recursive arm needs to discharge mod's positivity premise.
 machine le_one_succ(pb: Nat) -> Nat
 ensures
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, Nat::Succ { prev: pb })) == Nat::Zero
+    core::Identity<Nat>(
+        saturating_sub(Nat::Succ { prev: Nat::Zero }, Nat::Succ { prev: pb }),
+        Nat::Zero
+    )
 {
     transition {
         _ -> los_body(pb)
@@ -858,7 +868,7 @@ terminates by b
 machine div(a: Nat, b: Nat) -> Nat
 terminates by a
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, b)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, b), Nat::Zero)
 {
     transition (saturating_sub(b, a)) {
         Nat::Zero -> div_rec(a, b)

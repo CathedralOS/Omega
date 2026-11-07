@@ -1,8 +1,7 @@
 //! Matched machine law guarantees.
 
+use super::collect_equality_conjuncts;
 use crate::proof_contracts::contract_entailment::law_conformance::check_law_conformance;
-use crate::proof_contracts::contract_entailment::law_conformance::operator_contracts::is_equality_conjunction;
-use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::collect_equality_conjuncts;
 use crate::proof_contracts::contract_entailment::{
     ExpressionHandle, SignatureContractKind, SymbolHandle,
 };
@@ -85,17 +84,22 @@ pub fn matched_machine_law_guarantees(
                 let Some(expression) = fact.as_expression() else {
                     continue;
                 };
-                if !is_equality_conjunction(program, *expression) {
+                let mut conjuncts = Vec::new();
+                if !collect_equality_conjuncts(
+                    program,
+                    requirement.symbol,
+                    program.state_signature_parameters(requirement),
+                    *expression,
+                    &mut conjuncts,
+                ) {
                     continue;
                 }
-                let mut conjuncts = Vec::new();
-                collect_equality_conjuncts(program, *expression, &mut conjuncts);
                 let Some(source_expressions) = conjuncts
                     .iter()
                     .map(|conjunct| {
-                        matches
-                            .iter()
-                            .find_map(|(law, source)| (law == conjunct).then_some(*source))
+                        matches.iter().find_map(|(law, source)| {
+                            (*law == conjunct.expression()).then_some(*source)
+                        })
                     })
                     .collect::<Option<Vec<_>>>()
                 else {

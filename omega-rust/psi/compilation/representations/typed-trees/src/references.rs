@@ -1974,12 +1974,16 @@ fn visit_trait(
     // leaves their indexed identities frozen at the declaration's tuple
     // even after the copied operands have been substituted.
     let include_derived = retained.derived_declaration_references();
-    for signature in program.trait_machine_signatures(definition).iter().chain(
-        program
-            .applied_trait_signatures(definition.symbol)
-            .filter(|_| include_derived),
-    ) {
+    for signature in program.trait_machine_signatures(definition) {
         visit_signature(program, retained, signature);
+    }
+    if include_derived {
+        for contract in program.applied_trait_contracts(definition.symbol) {
+            if let Some(scope) = contract.trait_scope {
+                scope.visit_references(program, retained);
+            }
+            visit_signature(program, retained, contract.signature);
+        }
     }
 }
 

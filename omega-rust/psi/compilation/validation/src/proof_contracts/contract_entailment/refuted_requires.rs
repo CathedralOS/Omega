@@ -477,9 +477,7 @@ fn fresh_instantiated_fact_judgment(
     }
     if expression_table(program)
         .call_node(fact)
-        .is_some_and(|call| {
-            crate::mathematical_applications::selected_definition(program, call).is_some()
-        })
+        .is_some_and(|call| crate::mathematical_applications::is_mathematical_call(program, call))
     {
         return judge.instantiated_mathematical_predicate(
             callee_owner,

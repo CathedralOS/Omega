@@ -28,12 +28,12 @@ use language_semantics::{PermissionClaimIdentity, SemanticDomainId};
 use lowered_psi::LoweredPsi;
 use semantic_vocabulary::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
-    ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
-    ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,
-    ContentProjectionScalar, ContentStructuralPlace, ContentTerm, EvidenceTermId, IeeeFloatFormat,
-    IeeeFloatStructuralField, IntegerSign, IntegerType, IntegerValue, MachineId, PlaceId,
-    Proposition, PropositionContext, PropositionId, ScalarTerm, ScalarType, StructuralCaseSubject,
-    StructuralPlaceKind, StructuralTypeId,
+    ContentConservation, ContentDomainId, ContentPlaceSegment, ContentPlaceVersion,
+    ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
+    ContentStructuralPlace, ContentTerm, EvidenceTermId, IeeeFloatFormat, IeeeFloatStructuralField,
+    IntegerSign, IntegerType, IntegerValue, MachineId, PlaceId, Proposition, PropositionContext,
+    PropositionId, ScalarTerm, ScalarType, StructuralCaseSubject, StructuralPlaceKind,
+    StructuralTypeId,
 };
 use terminal_psi::{
     BoundaryContentGuarantee, ClaimContentProjection, ContentConservationGuarantee,

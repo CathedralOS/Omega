@@ -82,6 +82,25 @@ pub struct TerminalMathematicalCarrier {
     pub carrier_key: Vec<u8>,
 }
 
+/// Source-free formation of an Id family over checked value subjects.
+/// These rows grant no identity witness and allocate no runtime value copy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalIdentityFormation {
+    pub source_owner: TerminalIdentityIndex,
+    pub source_carrier: TerminalIdentityIndex,
+    pub subject_carriers: Vec<TerminalIdentityIndex>,
+    pub subject_origins: Vec<(u32, u32)>,
+    pub declaration: u32,
+}
+
+/// One shared checked signature avoids repeating it for every Id occurrence.
+/// Each row names a transparent type-valued definition in the certificate.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TerminalIdentityFormations {
+    pub rows: Vec<TerminalIdentityFormation>,
+    pub certificate: Vec<u8>,
+}
+
 /// A cited source induction theorem retained after its logical call erases.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalIndexedTheorem {
@@ -103,6 +122,7 @@ pub struct TerminalModule {
     pub folded_constants: FoldedConstantClosure,
     pub indexed_theorems: Vec<TerminalIndexedTheorem>,
     pub mathematical_carriers: Vec<TerminalMathematicalCarrier>,
+    pub identity_formations: TerminalIdentityFormations,
     /// Exact whole-value quotient adaptations; ordinary shape carries no observation authority.
     pub quotients: quotients::TerminalQuotientCatalog,
     pub vocabulary_marker: VocabularyMarker,
@@ -365,6 +385,7 @@ impl TerminalModule {
             folded_constants: Default::default(),
             indexed_theorems: Vec::new(),
             mathematical_carriers: Vec::new(),
+            identity_formations: TerminalIdentityFormations::default(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: None,
             identities: Default::default(),

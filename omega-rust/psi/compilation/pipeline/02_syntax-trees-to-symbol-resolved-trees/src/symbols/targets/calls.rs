@@ -464,6 +464,30 @@ pub(in crate::symbols) fn assign_static_argument_symbols(
     argument: &mut StaticMachineArgument,
     proof_static: bool,
 ) {
+    assign_static_argument_symbol(
+        symbols,
+        scope_symbol,
+        lexical_parameters,
+        argument,
+        proof_static,
+    );
+    if let Some(application) = &mut argument.application {
+        for nested in &mut application.arguments {
+            assign_static_argument_symbols(symbols, scope_symbol, lexical_parameters, nested, true);
+        }
+    }
+}
+
+/// Bind one static operand in its exact lexical telescope. Context owners
+/// that also resolve structural type references walk their own typed operand
+/// graph; the ordinary recursive walker uses the same binding operation.
+pub(in crate::symbols) fn assign_static_argument_symbol(
+    symbols: &SymbolTable,
+    scope_symbol: SymbolHandle,
+    lexical_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    argument: &mut StaticMachineArgument,
+    proof_static: bool,
+) {
     if argument.type_reference.is_valid()
         || argument.evidence_projection.is_some()
         || argument.const_literal.is_some()
@@ -485,11 +509,6 @@ pub(in crate::symbols) fn assign_static_argument_symbols(
         } else {
             resolve_static_machine_argument_symbol(symbols, scope_symbol, &argument.path)
         };
-    }
-    if let Some(application) = &mut argument.application {
-        for nested in &mut application.arguments {
-            assign_static_argument_symbols(symbols, scope_symbol, lexical_parameters, nested, true);
-        }
     }
 }
 

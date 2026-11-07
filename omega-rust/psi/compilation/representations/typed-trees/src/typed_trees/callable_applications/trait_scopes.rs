@@ -24,6 +24,35 @@ impl TypedTrees {
             .ok()
     }
 
+    /// Copied contracts retain the full outer application even though their
+    /// logical owner and bare sibling targets keep the declaration symbols.
+    /// Explicit selections still own their result; only an implicit sibling
+    /// may use the exact supplying scope, including inherited/nullary members.
+    pub fn requirement_call_signature_in_scope(
+        &self,
+        lexical_owner: SymbolHandle,
+        call: &crate::expression::TableCallExpression,
+        supplying_scope: crate::trait_definition::RetainedTraitScope,
+    ) -> Option<&signature::StateSignature> {
+        if let Some(signature) = self.resolve_named_conformance_call_signature(call).ok()? {
+            return Some(signature);
+        }
+        if let Some(signature) = self.requirement_call_signature(lexical_owner, call) {
+            return Some(signature);
+        }
+        if call.requirement_application.is_valid() || call.static_requirement_dispatch.is_some() {
+            return None;
+        }
+        let (declaration, declared) = self.trait_machine_signature(call.target_symbol)?;
+        let scope = supplying_scope
+            .scope(self)?
+            .declaring_scope(self, declaration.symbol)?;
+        self.applied_callable_signature(&scope, declared.symbol)
+            .filter(|signature| {
+                signature.type_parameters.is_empty() && signature.lifetime_parameters.is_empty()
+            })
+    }
+
     /// The same logical view with the reason its exact source cannot supply it.
     /// Optional queries above keep their existing refusal behavior.
     pub fn resolve_requirement_call_signature(
@@ -398,6 +427,7 @@ impl TypedTrees {
                 let AppliedCallableOwner::Trait {
                     declaration,
                     application: prepared_identity,
+                    ..
                 } = &prepared.owner
                 else {
                     return None;
@@ -508,6 +538,7 @@ impl TypedTrees {
                     AppliedCallableOwner::Trait {
                         declaration,
                         application,
+                        ..
                     } => Some(row_key(prepared.signature.symbol, declaration, application)),
                     _ => None,
                 })
@@ -551,6 +582,7 @@ impl TypedTrees {
                 applied
             };
             self.apply_callable_refinements(&mut applied, &clauses)?;
+            let scope = environment.retain(self)?;
             let inserted = row_key(applied.symbol, owner, identity);
             produced.push(applied.clone());
             let before_insert = self.applied_callable_signatures.revision();
@@ -559,6 +591,7 @@ impl TypedTrees {
                     owner: AppliedCallableOwner::Trait {
                         declaration: owner,
                         application: identity,
+                        scope,
                     },
                     signature: applied,
                 });

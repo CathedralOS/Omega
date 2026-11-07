@@ -2,9 +2,9 @@
 use omega_language_std::console;
 data Peano { case Zero; case Succ(pred: Peano); }
 trait RingOps2<T> {
-    machine add(a: T, b: T) -> T;
+    machine add(a: T, b: T) -> T terminates;
     machine add_assoc(a: T, b: T, c: T)
-    ensures add(add(a, b), c) == add(a, add(b, c));
+    ensures core::Identity<T>(add(add(a, b), c), add(a, add(b, c)));
 }
 machine plus(a: Peano, b: Peano) -> Peano
 satisfies RingOps2<Peano>::add

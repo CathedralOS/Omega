@@ -551,16 +551,6 @@ fn validate_types(
                 } else {
                     "<missing>".to_owned()
                 };
-                let retained_headers = program
-                    .tables
-                    .machines
-                    .iter()
-                    .filter(|(_, machine)| machine.symbol == owner)
-                    .map(|(_, machine)| machine)
-                    .collect::<Vec<_>>();
-                let retained_headers_agree = retained_headers
-                    .windows(2)
-                    .all(|headers| headers[0] == headers[1]);
                 let target = source_call.registration_operation(program);
                 let target = if target.is_valid() {
                     program.symbols.name(target)
@@ -568,8 +558,7 @@ fn validate_types(
                     "<unresolved>"
                 };
                 let mut diagnostic = Diagnostic::error(format!(
-                    "structural static type argument has no retained caller type/lifetime context for `{target}`; lexical owner {owner_label}; retained machine headers: {}, identical: {retained_headers_agree}",
-                    retained_headers.len(),
+                    "structural static type argument has no retained caller type/lifetime context for `{target}`; lexical owner {owner_label}",
                 ));
                 if let StaticArgumentCall::Expression(handle, _) = source_call {
                     diagnostic =

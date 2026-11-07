@@ -296,11 +296,21 @@ impl StructuralJudge<'_> {
         &mut self,
         equations: Vec<CapturedResultEquation>,
     ) {
-        for equation in equations {
+        for mut equation in equations {
+            if !equation.is_completed_call_identity() {
+                // Declared guarantees name the values actually passed. Copies
+                // of one unchanged input share its saved source; they must not
+                // become unrelated arguments in successive law citations.
+                // Call-identity rows retain their exact executed occurrence.
+                equation.left = self.completed_value_identity(equation.left);
+                equation.right = self.completed_value_identity(equation.right);
+            }
             if equation.is_data_identity() {
-                // A public data Id relates complete values. Keep its meaning
-                // separate from equations that authorize scalar substitution.
-                std::sync::Arc::make_mut(&mut self.captured_result_equations).push(equation);
+                // The same typed Id operation consumes entry propositions,
+                // completed guarantees and established conditional results.
+                // It substitutes owned values without scalar comparison rules
+                // and stops at a reference's exact descriptor.
+                self.intake_identity(equation.left, equation.right);
                 continue;
             }
             // The producer retained this identity after the actual normal

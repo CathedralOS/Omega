@@ -1,11 +1,26 @@
 # Adjacent interval content
 
+Owning task for the current source migration: **PROOF-KERNEL-CORE**.
+
 Adjacent intervals preserve separated content when forwarded. The callable
 requires `embed(left.base) + embed(left.length) == embed(right.base)` and
 returns both owned claims beneath a pair; its postcondition conserves their
 separated interval content. This is the numeric prerequisite exposed by
 Cathedral's vacant-memory accounting, not a grant of physical storage or a
 checked merge of the two claims.
+
+The conservation statement now uses `core::Identity<IntervalSet<Nat>>` over
+canonical set elements. Its projection, entry/current places and partial
+`separate` operations keep their original meaning. The adjacency `==` and all
+runtime field comparisons remain primitive scalar comparisons.
+
+The current source checkpoint supplies preservation audits only. Its integrated
+optimized producer must establish the original proof/runtime results and
+meaningful overlap refusals, then record the changed fixtures from clean
+source. The measurements and earlier landing descriptions below refer to their
+stated legacy source revisions; they are not observations of this migrated
+source. Four-host acceptance remains required, with any retained evidence
+checked for consumer-based applicability under `tools/testing.md`.
 
 Every place copies that sentence and performs the same forwarding call with the
 same content equation and the same runtime oracle: all four returned fields are
@@ -14,8 +29,8 @@ side, and one endpoint is `u64::MAX`. Only the transport of the two owned claims
 changes. The captured equality must not erase the sum's nonnegative operands
 before the interval ordering proof consumes them.
 
-The root `main.omg` is byte-identical to the local place program
-(`5a76e50b18a55fbc1c7f2cf9b5863d49f21f00a5`), so all ten programs carry the
+The root `main.omg` is byte-identical to the local place program, so all ten
+programs carry the
 same first-line fact sentence, the same adjacency `requires`, the same
 separated-content `ensures`, the same `Held::content` projection and the same
 `Expected exit: 0`; the nine places differ only in the transport mechanism. The
@@ -40,7 +55,7 @@ overlap. It must reject the separated-content postcondition. The nested machine'
 arrival contract repeats the machine's requirement; states do not have result
 postconditions.
 
-## Execution
+## Required execution and legacy observations
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four
 hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`)
@@ -264,16 +279,16 @@ native rows as well as the retained `interpreter:agrees` evidence at
 `f77f2aa2a1c2` in `tests/omega/corpus_both_macos_arm64.txt`, re-recorded at
 `a93651a39273` in the same pass).
 
-## Requirements and Evidence
+## Historical requirements and evidence
 
-- **Parent outcome:** `CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS`
+- **Historical parent outcome:** `CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS`
   (`TASKS.md`), under
   [content conservation](../../../../wiki/spec/resources/content_custody.md)
   with canonical `source/library/core/content.omg` identities. This row
   establishes the numeric adjacency prerequisite: a callable's postcondition
   conserves the separated interval content of two adjacent owned claims, and
   that fact survives all nine transport places.
-- **What this landing adds:** the folder's missing canonical root witness
+- **What the earlier root-witness landing added:** the folder's missing canonical root witness
   (`main.omg` with `build.omg`) and this evidence record. The nine places and
   their twins already passed on the parent revision; this is row completion,
   not a new compiler repair, and it changes no `omega-rust/` source. The owning

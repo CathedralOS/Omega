@@ -7,8 +7,7 @@ use super::super::Elaborator;
 use super::terms;
 use diagnostics::Diagnostic;
 use proof_admission::{
-    Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, Level, Signature, Sort, Term,
-    TermHandle,
+    Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, Signature, Sort, Term, TermHandle,
 };
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
@@ -65,22 +64,23 @@ mod tests {
                 ty: statement,
             },
             declarations: declarations.clone(),
+            parameter_actuals: Vec::new(),
         };
         let same_statement = arena.insert(Term::Id {
             ty: two,
             left: b,
             right: zero,
         });
-        assert!(cached.reusable(&arena, &declarations, same_statement));
+        assert!(cached.reusable(&arena, &declarations, same_statement, &[]));
         let mut extended = declarations.clone();
         extended.push(Declaration::definition(0, two, one));
-        assert!(cached.reusable(&arena, &extended, same_statement));
+        assert!(cached.reusable(&arena, &extended, same_statement, &[]));
         check(&mut arena, &extended, statement).unwrap();
 
         // The raw handles stay identical, but changing b's transparent body
         // makes the formerly checked proof invalid in a still-valid signature.
         let changed = vec![Declaration::definition(0, two, one)];
-        assert!(!cached.reusable(&arena, &changed, statement));
+        assert!(!cached.reusable(&arena, &changed, statement, &[]));
         assert!(check(&mut arena, &changed, statement).is_err());
 
         let changed_statement = arena.insert(Term::Id {
@@ -88,7 +88,7 @@ mod tests {
             left: b,
             right: one,
         });
-        assert!(!cached.reusable(&arena, &declarations, changed_statement));
+        assert!(!cached.reusable(&arena, &declarations, changed_statement, &[]));
         assert!(check(&mut arena, &declarations, changed_statement).is_err());
     }
 }
@@ -100,6 +100,7 @@ pub(in super::super) struct CheckedSourceInduction {
     raw_invariant: TermHandle,
     result: SourceInduction,
     declarations: Vec<Declaration>,
+    parameter_actuals: Vec<TermHandle>,
 }
 
 impl CheckedSourceInduction {
@@ -108,8 +109,15 @@ impl CheckedSourceInduction {
         arena: &proof_admission::TermArena,
         declarations: &[Declaration],
         raw_invariant: TermHandle,
+        parameter_actuals: &[TermHandle],
     ) -> bool {
         declarations.starts_with(&self.declarations)
+            && self.parameter_actuals.len() == parameter_actuals.len()
+            && self
+                .parameter_actuals
+                .iter()
+                .zip(parameter_actuals)
+                .all(|(&left, &right)| arena.structurally_equal(left, right))
             && arena.structurally_equal(self.raw_invariant, raw_invariant)
     }
 }
@@ -146,7 +154,22 @@ impl Elaborator<'_> {
         invariant: TermHandle,
         index_actuals: &[TermHandle],
     ) -> Result<SourceInduction, Vec<Diagnostic>> {
-        let family = self.source_family(symbol)?;
+        let template = self.source_family(symbol)?;
+        let family = self.applied_source_family(&template, index_actuals)?;
+        let description = family
+            .description_at(&mut self.arena, index_actuals)
+            .map_err(|reason| self.refuse(reason.into()))?;
+        let external_actuals = family
+            .external_parameter_indices
+            .iter()
+            .map(|&position| (family.parameters[position].symbol, index_actuals[position]))
+            .collect::<Vec<_>>();
+        let parameter_actuals = external_actuals
+            .iter()
+            .map(|(_, actual)| *actual)
+            .collect::<Vec<_>>();
+        let all_parameter_actuals = index_actuals;
+        let index_actuals = family.index_actuals(index_actuals);
         let raw_invariant = invariant;
         // The family model is immutable after its first construction. Raw
         // structural identity retains every constant and universe argument;
@@ -155,26 +178,37 @@ impl Elaborator<'_> {
         // Appending declarations cannot change this checked judgment. Each
         // source occurrence still retains its own expression, carrier and
         // receiver-policy association at the caller.
-        if let Some(previous) = family
-            .checked_inductions
-            .iter()
-            .find(|previous| previous.reusable(&self.arena, &self.declarations, raw_invariant))
-        {
+        if let Some(previous) = family.checked_inductions.iter().find(|previous| {
+            previous.reusable(
+                &self.arena,
+                &self.declarations,
+                raw_invariant,
+                &parameter_actuals,
+            )
+        }) {
             return Ok(previous.result.clone());
         }
+        let result_level = terms::result_sort_level(
+            &mut self.arena,
+            &self.declarations,
+            invariant,
+            self.level_binders.len() as u32 + self.generalized_levels,
+        )
+        .map_err(|reason| self.refuse(reason))?;
         let sort = self
             .arena
-            .insert(Term::Sort(Sort::Type(Level::Constant(0))));
+            .insert(Term::Sort(Sort::Type(result_level.clone())));
         let invariant_type = self.arena.insert(Term::Pi {
-            domain: family.description.index,
+            domain: description.index,
             codomain: sort,
         });
         self.check_induction_term(invariant, invariant_type, "index invariant")?;
         let invariant = terms::intern_invariant(
             &mut self.arena,
             &mut self.declarations,
-            &family.description,
+            &description,
             invariant,
+            result_level,
         );
         // A source specialization may erase every index occurrence from its
         // authored proposition. When an open induction for this family is
@@ -199,7 +233,9 @@ impl Elaborator<'_> {
                 "source invariant normalization is unsupported: {error:?}"
             ))
         })?;
-        let context = Context::empty().with_signature(signature);
+        let context =
+            Context::with_level_arity(self.level_binders.len() as u32 + self.generalized_levels)
+                .with_signature(signature);
         if proof_admission::infer_sort(
             &mut self.arena,
             &context,
@@ -212,8 +248,10 @@ impl Elaborator<'_> {
             // those indices. Instantiating it keeps the distributive law the
             // induction used. A fresh numeral equation would name a different
             // bodyless assumption and drop that law.
-            if let Some(result) = self.instantiated_open_induction(&family, index_actuals)? {
-                self.record_source_induction(symbol, raw_invariant, &result);
+            if let Some(result) =
+                self.instantiated_open_induction(&family, &index_actuals, &parameter_actuals)?
+            {
+                self.record_source_induction(symbol, raw_invariant, &result, &parameter_actuals);
                 return Ok(result);
             }
             let proof = if let Some(theory) = self.integer_theory.as_mut() {
@@ -230,13 +268,13 @@ impl Elaborator<'_> {
             if let Some(proof) = proof {
                 let (theorem, ty) = terms::constant_invariant_theorem(
                     &mut self.arena,
-                    &family.description,
+                    &description,
                     invariant,
                     proof,
                 );
                 self.check_induction_term(theorem, ty, "closed source invariant theorem")?;
                 let result = SourceInduction { theorem, ty };
-                self.record_source_induction(symbol, raw_invariant, &result);
+                self.record_source_induction(symbol, raw_invariant, &result, &parameter_actuals);
                 return Ok(result);
             }
         }
@@ -245,7 +283,7 @@ impl Elaborator<'_> {
         let common_types = family
             .common
             .iter()
-            .map(|field| self.source_field_function(field, &family.parameters))
+            .map(|field| self.source_field_function(field, &family.parameters, &family.type_levels))
             .collect::<Result<Vec<_>, _>>()?;
         let mut common = family
             .common
@@ -263,22 +301,50 @@ impl Elaborator<'_> {
             .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
             .map(|parameter| parameter.symbol)
             .collect::<Vec<_>>();
-        let type_sort = self
-            .arena
-            .insert(Term::Sort(Sort::Type(Level::Constant(0))));
-        common.splice(0..0, type_symbols.iter().map(|symbol| (*symbol, type_sort)));
+        let mut external_slots = vec![false; family.parameters.len()];
+        for &position in &family.external_parameter_indices {
+            external_slots[position] = true;
+        }
+        let stored_type_slots = family
+            .parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| matches!(parameter.kind, TypeParameterKind::Type))
+            .enumerate()
+            .filter_map(|(type_slot, (position, _))| {
+                (!external_slots[position]).then_some(type_slot)
+            })
+            .collect::<Vec<_>>();
+        let stored_type_symbols = stored_type_slots
+            .iter()
+            .map(|&slot| type_symbols[slot])
+            .collect::<Vec<_>>();
+        common.splice(
+            0..0,
+            stored_type_symbols.iter().map(|symbol| {
+                let ordinal = type_symbols
+                    .iter()
+                    .position(|bound| bound == symbol)
+                    .expect("retained Type binder");
+                (
+                    *symbol,
+                    self.arena
+                        .insert(Term::Sort(Sort::Type(family.type_levels[ordinal].clone()))),
+                )
+            }),
+        );
         let mut index_fields = self
             .program
             .data_value_parameter_fields(data)
             .map(|(_, field)| field.symbol)
             .collect::<Vec<_>>();
-        index_fields.splice(0..0, type_symbols.iter().copied());
+        index_fields.splice(0..0, stored_type_symbols.iter().copied());
         for case in &family.cases {
             let payload = case
                 .payload
                 .iter()
                 .map(|field| {
-                    self.source_field_function(field, &family.parameters)
+                    self.source_field_function(field, &family.parameters, &family.type_levels)
                         .map(|ty| (field.symbol, ty))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -289,9 +355,19 @@ impl Elaborator<'_> {
                 .collect::<Vec<_>>();
             let mut values = Vec::new();
             let mut parameters = Vec::new();
-            for &(field, mut domain) in &fields {
-                if !type_symbols.contains(&field) {
-                    for actual in values.iter().take(type_symbols.len()) {
+            let mut type_actuals = family
+                .parameters
+                .iter()
+                .enumerate()
+                .filter_map(|(position, parameter)| {
+                    matches!(parameter.kind, TypeParameterKind::Type)
+                        .then_some(all_parameter_actuals[position])
+                })
+                .collect::<Vec<_>>();
+            for (field_ordinal, &(field, mut domain)) in fields.iter().enumerate() {
+                let type_slot = stored_type_slots.get(field_ordinal).copied();
+                if type_slot.is_none() {
+                    for actual in &type_actuals {
                         domain = self.arena.insert(Term::Apply {
                             function: domain,
                             argument: *actual,
@@ -302,15 +378,22 @@ impl Elaborator<'_> {
                 // occurrence is abstracted before the theorem is checked.
                 let position = self.declarations.len() as u32;
                 self.declarations.push(Declaration {
-                    level_arity: 0,
+                    level_arity: proof_admission::universe_parameter_arity(&self.arena, &[domain]),
                     ty: domain,
                     body: None,
                 });
                 parameters.push((position, field, domain));
-                values.push(self.constant(position));
+                let value = self.constant(position);
+                if let Some(type_slot) = type_slot {
+                    type_actuals[type_slot] = value;
+                }
+                values.push(value);
             }
             let mut predicate = case.constraints;
-            for &value in &values {
+            for &value in type_actuals
+                .iter()
+                .chain(values.iter().skip(stored_type_symbols.len()))
+            {
                 predicate = self.arena.insert(Term::Apply {
                     function: predicate,
                     argument: value,
@@ -333,7 +416,10 @@ impl Elaborator<'_> {
             let mut assumptions = vec![predicate];
             for &child in &case.child_indices {
                 let mut index = child;
-                for &value in &values {
+                for &value in type_actuals
+                    .iter()
+                    .chain(values.iter().skip(stored_type_symbols.len()))
+                {
                     index = self.arena.insert(Term::Apply {
                         function: index,
                         argument: value,
@@ -361,10 +447,14 @@ impl Elaborator<'_> {
                 });
             }
             self.check_induction_term(proof, ty, "case predicate derivation")?;
-            let (lemma, lemma_type) =
-                terms::abstract_parameters(&mut self.arena, proof, ty, &parameters)
-                    .map_err(|error| self.refuse(error.into()))?;
-            if !terms::excludes_parameters(
+            let (lemma, lemma_type) = super::parameter_closure::abstract_parameters(
+                &mut self.arena,
+                proof,
+                ty,
+                &parameters,
+            )
+            .map_err(|error| self.refuse(error.into()))?;
+            if !super::parameter_closure::excludes_parameters(
                 &self.arena,
                 &self.declarations,
                 &[lemma, lemma_type],
@@ -381,8 +471,11 @@ impl Elaborator<'_> {
             // at every occurrence inside the derived eliminator. Definitions
             // keep the complete proof/assumption closure reachable.
             let position = self.declarations.len() as u32;
-            self.declarations
-                .push(Declaration::definition(0, lemma_type, lemma));
+            self.declarations.push(Declaration::definition(
+                proof_admission::universe_parameter_arity(&self.arena, &[lemma_type, lemma]),
+                lemma_type,
+                lemma,
+            ));
             lemmas.push(self.constant(position));
             schemes.push(terms::Case {
                 payload,
@@ -392,7 +485,7 @@ impl Elaborator<'_> {
         }
         let (theorem, ty, step, step_type) = terms::induction(
             &mut self.arena,
-            &family.description,
+            &description,
             &common,
             &index_fields,
             &schemes,
@@ -400,14 +493,16 @@ impl Elaborator<'_> {
             &lemmas,
             &mut self.declarations,
             &type_symbols,
+            &external_actuals,
+            &family.payload_lifts,
         )
-        .map_err(|error| self.refuse(error.into()))?;
+        .map_err(|error| self.refuse(error))?;
         self.check_induction_term(step, step_type, "indexed-family induction step")?;
         self.check_induction_term(theorem, ty, "derived indexed-family theorem")?;
         // The final mathematical-signature trust boundary checks every
         // retained definition once, including this step and arithmetic laws.
         let result = SourceInduction { theorem, ty };
-        self.record_source_induction(symbol, raw_invariant, &result);
+        self.record_source_induction(symbol, raw_invariant, &result, &parameter_actuals);
         Ok(result)
     }
 
@@ -415,12 +510,15 @@ impl Elaborator<'_> {
         &mut self,
         family: &super::SourceFamily,
         index_actuals: &[TermHandle],
+        parameter_actuals: &[TermHandle],
     ) -> Result<Option<SourceInduction>, Vec<Diagnostic>> {
-        if index_actuals.is_empty() || index_actuals.len() != family.parameters.len() {
+        if index_actuals.is_empty() || index_actuals.len() != family.index_parameter_indices.len() {
             return Ok(None);
         }
         let signature = Signature::from_declarations(self.declarations.clone());
-        let context = Context::empty().with_signature(signature.clone());
+        let context =
+            Context::with_level_arity(self.level_binders.len() as u32 + self.generalized_levels)
+                .with_signature(signature.clone());
         if index_actuals
             .iter()
             .any(|actual| term_mentions_variable(&self.arena, *actual))
@@ -429,6 +527,15 @@ impl Elaborator<'_> {
         }
         let open = {
             let Some(matched) = family.checked_inductions.iter().find(|previous| {
+                if previous.parameter_actuals.len() != parameter_actuals.len()
+                    || !previous
+                        .parameter_actuals
+                        .iter()
+                        .zip(parameter_actuals)
+                        .all(|(&left, &right)| self.arena.structurally_equal(left, right))
+                {
+                    return false;
+                }
                 let index = self.arena.insert(Term::Variable(0));
                 let applied = self.arena.insert(Term::Apply {
                     function: previous.raw_invariant,
@@ -479,6 +586,7 @@ impl Elaborator<'_> {
         symbol: SymbolHandle,
         raw_invariant: TermHandle,
         result: &SourceInduction,
+        parameter_actuals: &[TermHandle],
     ) {
         self.indexed_families
             .get_mut(&symbol)
@@ -488,6 +596,7 @@ impl Elaborator<'_> {
                 raw_invariant,
                 result: result.clone(),
                 declarations: self.declarations.clone(),
+                parameter_actuals: parameter_actuals.to_vec(),
             });
     }
 
@@ -497,8 +606,9 @@ impl Elaborator<'_> {
         ty: TermHandle,
         role: &str,
     ) -> Result<(), Vec<Diagnostic>> {
-        let context = Context::empty()
-            .with_signature(Signature::from_declarations(self.declarations.clone()));
+        let context =
+            Context::with_level_arity(self.level_binders.len() as u32 + self.generalized_levels)
+                .with_signature(Signature::from_declarations(self.declarations.clone()));
         let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
         let result = proof_admission::check_type(&mut self.arena, &context, term, ty, &mut budget);
         result.map_err(|error| {

@@ -97,6 +97,7 @@ pub(crate) fn validate_cast_types(
             None => super::declaration_expression_result_type_reference(
                 program,
                 machine.symbol,
+                None,
                 &|expression| {
                     crate::value_custody::places::declared_place_type(
                         program, machine, state, expression,

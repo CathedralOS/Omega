@@ -439,6 +439,7 @@ fn abstract_specification_result_type(
     crate::value_custody::expression_types::declaration_expression_result_type_reference(
         program,
         bindings.owner_symbol,
+        None,
         &|expression| abstract_specification_place_type(program, bindings, expression),
         expression,
     )

@@ -2,17 +2,27 @@
 // Expected exit: 0
 // Place: target_body.
 
+use omega::language::core::float_meaning;
 use omega::language::core::float_operations;
 
 machine forward(left: f32, right: f32) -> f32
-ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(left), F32::meaning(right))
+ensures core::Identity<FloatMeaning>(
+    F32::meaning(result),
+    FloatSemantics::minimum(F32::meaning(left), F32::meaning(right))
+)
 {
     F32::minimum(left, right)
 }
 
 machine require_min(value: f32) -> f32
-requires F32::meaning(value) == FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
-ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
+requires core::Identity<FloatMeaning>(
+    F32::meaning(value),
+    FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
+)
+ensures core::Identity<FloatMeaning>(
+    F32::meaning(result),
+    FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
+)
 { value }
 
 boundary trait SelectedBodyCheck {
@@ -37,12 +47,18 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedTransport {
     machine transport() -> f32
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0));
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures core::Identity<FloatMeaning>(
+            F32::meaning(result),
+            FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
+        );
 }
 
 X86Transport satisfies SelectedTransport {
     machine transport() -> f32
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures core::Identity<FloatMeaning>(
+            F32::meaning(result),
+            FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
+        )
     {
         SelectedBodyCheck::require_tag(17u64);
      forward(1.0, 2.0) 
@@ -51,7 +67,10 @@ X86Transport satisfies SelectedTransport {
 
 ArmTransport satisfies SelectedTransport {
     machine transport() -> f32
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures core::Identity<FloatMeaning>(
+            F32::meaning(result),
+            FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
+        )
     {
         SelectedBodyCheck::require_tag(29u64);
      forward(1.0, 2.0) 

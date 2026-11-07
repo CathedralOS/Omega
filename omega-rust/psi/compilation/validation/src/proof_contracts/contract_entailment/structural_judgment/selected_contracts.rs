@@ -963,7 +963,7 @@ fn selected_contract_predicate_judgment(
         }
         return judge.instantiated_case_judgment(callable, parameters, expression, &map);
     }
-    if let Some(references) = super::super::structural_terms::data_identity_operand_references(
+    if let Some(references) = super::super::structural_terms::builtin_identity_operand_references(
         program, callable, parameters, expression,
     ) {
         let Some(binary) = program.expression_table.binary_node(expression) else {
@@ -1196,10 +1196,10 @@ pub(super) fn capture_guarantees(
     // The compared expression and parameter declarations stay unchanged while
     // operands are bound below. Keep these metadata results local, and check
     // identity equality only when its original guard needs it.
-    let data_identity_references = binary
+    let builtin_identity_references = binary
         .filter(|binary| binary.operator == BinaryOperator::Equal)
         .and_then(|_| {
-            super::super::structural_terms::data_identity_operand_references(
+            super::super::structural_terms::builtin_identity_operand_references(
                 program, scope, parameters, expression,
             )
         });
@@ -1213,7 +1213,7 @@ pub(super) fn capture_guarantees(
     };
     if let Some(binary) = binary
         && binary.operator == BinaryOperator::Equal
-        && (data_identity_references.is_some() || has_identity_equality())
+        && (builtin_identity_references.is_some() || has_identity_equality())
         && let (Some(left), Some(right)) = (
             judge.bound_contract_term(
                 binary.left,
@@ -1240,7 +1240,7 @@ pub(super) fn capture_guarantees(
         let references = [binary.left, binary.right].map(|operand| {
             crate::parameter_expression_result_type_reference(program, scope, parameters, operand)
         });
-        if let Some(references) = data_identity_references.or_else(|| {
+        if let Some(references) = builtin_identity_references.or_else(|| {
             crate::value_custody::expression_types::builtin_scalar_operand_references(
                 program, binary, references, None,
             )
@@ -1273,6 +1273,12 @@ pub(super) fn capture_guarantees(
     ) else {
         return;
     };
+    if let StructuralTerm::Identity { left, right, .. } = &predicate {
+        if judge.data_identity_is_observed(left) && judge.data_identity_is_observed(right) {
+            data_identities.push((left.as_ref().clone(), right.as_ref().clone()));
+        }
+        return;
+    }
     let boolean =
         crate::parameter_expression_result_type_reference(program, scope, parameters, expression)
             .and_then(|reference| program.primitive_type_reference(reference))
