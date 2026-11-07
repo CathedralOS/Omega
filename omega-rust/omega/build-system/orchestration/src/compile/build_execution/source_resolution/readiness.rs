@@ -346,9 +346,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                     });
                 }
                 Work::Run(mut build) => {
-                    let step =
-                        phase_profile::scope("omega.build.run", || build.activation.advance(1024))
-                            .map_err(Source)?;
+                    let step = build.activation.advance(1024).map_err(Source)?;
                     if let Some(query) = step.awaiting_query {
                         pending.push(Work::Dependencies(PendingDependencies::new(
                             build,
@@ -370,9 +368,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                             ..
                         } = *build;
                         let returned = Some(activation.complete().map_err(Source)?);
-                        let advanced = phase_profile::scope("omega.build.advance", || {
-                            invocation.advance(Ok(returned))
-                        });
+                        let advanced = invocation.advance(Ok(returned));
                         match advanced.map_err(Compilation)? {
                             compiler::BuildAdvance::Continue => pending.push(Work::Start {
                                 acquired,

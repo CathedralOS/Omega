@@ -28,7 +28,6 @@ use std::process::ExitCode;
 fn main() -> ExitCode {
     let _allocation_report = allocator::ReportOnExit;
     terminal_runtime::run_native_provider_worker_if_requested();
-    phase_profile::start_timeline();
     let invocation = match arguments::parse(std::env::args_os().skip(1)) {
         Ok(invocation) => invocation,
         Err(error) => {

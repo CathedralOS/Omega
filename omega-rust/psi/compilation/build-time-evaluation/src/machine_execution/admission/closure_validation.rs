@@ -276,18 +276,7 @@ fn machine_termination_violation(
             member.machine == machine_symbol && member.body == machine.states
         };
         if !walk.recursive_terminations.iter().any(matches_body) {
-            phase_profile::count("compile_time.admission.recursive_component_queries", 1);
-            phase_profile::checkpoint(
-                "before build-time recursive component judgment",
-                "compile_time.admission.recursive_component_queries",
-            );
-            let query = phase_profile::guard("compile_time.admission.recursive_component");
             let result = walk.recursive_terminations(machine_symbol, machine.states);
-            drop(query);
-            phase_profile::checkpoint(
-                "after build-time recursive component judgment",
-                "compile_time.admission.recursive_component",
-            );
             match result {
                 Ok(members) => walk.recursive_terminations.extend(members),
                 Err(reason) => {

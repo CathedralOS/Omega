@@ -67,7 +67,7 @@ fn complete_native(
         mut settlement,
     } = product;
     let image = request.image;
-    let produced = phase_profile::scope("omega.product.produce_native_product", || {
+    let produced = {
         let selected = components
             .as_ref()
             .map_err(|reason| vec![Diagnostic::error(reason.clone())])?;
@@ -118,7 +118,7 @@ fn complete_native(
                     .map_err(|(_, diagnostics)| diagnostics)
             }
         }
-    });
+    };
     let produced = match produced {
         Ok(produced) => produced,
         Err(diagnostics) => {
@@ -129,9 +129,8 @@ fn complete_native(
         }
     };
     let accounting = settlement.source_completion_accounting_mut().clone();
-    let report = phase_profile::scope(
-        "omega.product.settlement_finish_native",
-        || -> Result<_, CompilationProductError> {
+    let report =
+        (|| -> Result<_, CompilationProductError> {
             match produced {
                 NativeStop::Image(produced) => Ok(settlement
                     .finish_native(produced.artifact, rollback.into_receipt())?
@@ -140,11 +139,10 @@ fn complete_native(
                 NativeStop::RuntimeAdmission(provisions) => Ok(settlement
                     .finish_terminal_runtime(terminal, provisions, rollback.into_receipt())?),
             }
-        },
-    )
-    .map_err(|error| CompilationProductError::ProductionAttempt {
-        diagnostics: error.into_diagnostics(),
-        accounting,
-    })?;
+        })()
+        .map_err(|error| CompilationProductError::ProductionAttempt {
+            diagnostics: error.into_diagnostics(),
+            accounting,
+        })?;
     Ok(CompilationOutput::Report(report))
 }

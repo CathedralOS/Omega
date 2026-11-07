@@ -355,28 +355,8 @@ impl<'program> StructuralJudge<'program> {
                     read.specification_terms,
                 );
             }
-            phase_profile::count(
-                match kind {
-                    StructuralQueryKind::Resolution => "psi.05.resolution.completed.hit",
-                    StructuralQueryKind::IntegerProjection => {
-                        "psi.05.resolution.integer_projection.hit"
-                    }
-                    StructuralQueryKind::Predicate => "psi.05.resolution.predicate.hit",
-                },
-                1,
-            );
             return value;
         }
-        phase_profile::count(
-            match kind {
-                StructuralQueryKind::Resolution => "psi.05.resolution.completed.miss",
-                StructuralQueryKind::IntegerProjection => {
-                    "psi.05.resolution.integer_projection.miss"
-                }
-                StructuralQueryKind::Predicate => "psi.05.resolution.predicate.miss",
-            },
-            1,
-        );
         let context = self.resolution_input_context();
         let observations = Arc::new(ResolutionObservations {
             base_active: self.active_application.clone(),
@@ -394,31 +374,25 @@ impl<'program> StructuralJudge<'program> {
             .lock()
             .ok()
             .and_then(|reads| reads.as_deref().map(CompletedReads::capture));
-        if let Some(reads) = reads {
-            phase_profile::count(
-                "psi.05.resolution.dependencies.retained",
-                reads.as_slice().len() as u64,
-            );
-            if let Ok(mut cache) = cache.lock() {
-                cache.insert(CompletedResolution {
-                    fingerprint,
-                    kind,
-                    term: input,
-                    inputs: self.resolution_inputs(),
-                    specification_terms: self.specification_terms,
-                    returned_field_trace: self
-                        .query_state
-                        .returned_field_trace
-                        .as_ref()
-                        .map(InputOwner::new),
-                    reads,
-                    depth,
-                    resolution_depth: self.application_resolution_depth(),
-                    value: value.clone(),
-                });
-            }
-        } else {
-            phase_profile::count("psi.05.resolution.dependencies.unavailable", 1);
+        if let Some(reads) = reads
+            && let Ok(mut cache) = cache.lock()
+        {
+            cache.insert(CompletedResolution {
+                fingerprint,
+                kind,
+                term: input,
+                inputs: self.resolution_inputs(),
+                specification_terms: self.specification_terms,
+                returned_field_trace: self
+                    .query_state
+                    .returned_field_trace
+                    .as_ref()
+                    .map(InputOwner::new),
+                reads,
+                depth,
+                resolution_depth: self.application_resolution_depth(),
+                value: value.clone(),
+            });
         }
         value
     }

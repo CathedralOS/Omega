@@ -22,12 +22,11 @@ pub(super) struct PreparedIntegerOperands {
 impl PreparedIntegerOperands {
     fn prepare(&mut self, value: &StructuralTerm) -> &mut PreparedIntegerOperand {
         let fingerprint = super::super::resolution_queries::fingerprint(value);
-        phase_profile::count("psi.05.numeric.operand_preparation.lookups", 1);
         let position = self.buckets.get(&fingerprint).and_then(|candidates| {
-            candidates.iter().copied().find(|&position| {
-                phase_profile::count("psi.05.numeric.operand_preparation.comparisons", 1);
-                self.entries[position].input.same_resolution_payload(value)
-            })
+            candidates
+                .iter()
+                .copied()
+                .find(|&position| self.entries[position].input.same_resolution_payload(value))
         });
         let position = match position {
             Some(position) => position,
@@ -41,7 +40,6 @@ impl PreparedIntegerOperands {
                     observations: Vec::new(),
                 });
                 self.buckets.entry(fingerprint).or_default().push(position);
-                phase_profile::count("psi.05.numeric.operand_preparation.entries", 1);
                 position
             }
         };

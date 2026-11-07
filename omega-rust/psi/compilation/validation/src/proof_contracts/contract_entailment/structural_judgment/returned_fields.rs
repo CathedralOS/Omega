@@ -162,16 +162,14 @@ impl StructuralJudge<'_> {
         std::sync::Arc::make_mut(&mut judge.returned_field_owners).push(callee.symbol);
         judge.query_state.returned_field_trace = Some(std::sync::Arc::clone(&trace));
         let mut diagnostics = Vec::new();
-        let Some(leaves) = phase_profile::scope("psi.05.returned_fields.recognize", || {
-            recognize_structural_case_arms(
-                program,
-                callee,
-                &judge,
-                &crate::proof_only_classification(program),
-                &mut diagnostics,
-                None,
-            )
-        }) else {
+        let Some(leaves) = recognize_structural_case_arms(
+            program,
+            callee,
+            &judge,
+            &crate::proof_only_classification(program),
+            &mut diagnostics,
+            None,
+        ) else {
             store_template(Vec::new());
             return decline("normal-return paths are incomplete or recurrent");
         };

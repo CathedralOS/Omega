@@ -12,7 +12,7 @@
 //! evaluation; ordinary debt-free Check defaults to zero productions.
 //! `--compare-single-targets` compares native bytes with independent requests.
 //! `--assert-native-stage-counts` observes each target's real Omega 00-09 calls
-//! and emission attempts; collection requires OMEGA_PHASE_PROFILE=1.
+//! and emission attempts.
 //! This does not claim numbered source/Psi invocation coverage.
 
 #[path = "../tests/support/fixture_package_inputs.rs"]
@@ -99,10 +99,6 @@ fn main() {
         request = request.with_package_inputs(inputs.clone());
     }
     if assert_native_stage_counts {
-        assert!(
-            phase_profile::enabled(),
-            "stage observations require OMEGA_PHASE_PROFILE=1"
-        );
         assert_eq!(product, RequestedCompileProduct::NativeArtifact);
     }
     let evidence_directory = assert_native_stage_counts.then(|| {

@@ -505,7 +505,7 @@ impl<'ranges> FailedDomain<'ranges> {
         // A failed component occupied no proposed home, so rewriting it frees
         // none for its neighbours. Keep their pressure until fresh placement.
         if self.members.binary_search(&victim).is_ok() {
-            phase_profile::scope("omega.05.pressure.unplaced_victim", || {
+            {
                 pending.retain(|failure| match failure {
                     crate::RegisterHomeError::NoCompatibleHome { function, register } => {
                         *function == self.function
@@ -513,7 +513,7 @@ impl<'ranges> FailedDomain<'ranges> {
                     }
                     _ => false,
                 });
-            });
+            };
             return;
         }
         if let Some(index) = self.index {
@@ -1039,12 +1039,10 @@ fn recover_over(
     let environment = resolved.legality_stage.register_environment();
     let availability = resolved.legality_stage.allocator_availability();
     let budget = resolved.legality_stage.budget_per_pass();
-    let rewrite = phase_profile::scope("omega.05.fixed_occurrences", || {
-        materialize_selected_fixed_occurrences(&resolved.base, environment, budget)
-            .map(RuntimeSpillStepRewrite::FixedOccurrences)
-            .map_err(RuntimeSpillAllocationError::FixedOccurrences)
-    })?;
-    let initial_facts = phase_profile::scope("omega.05.initial_analyze", || {
+    let rewrite = materialize_selected_fixed_occurrences(&resolved.base, environment, budget)
+        .map(RuntimeSpillStepRewrite::FixedOccurrences)
+        .map_err(RuntimeSpillAllocationError::FixedOccurrences)?;
+    let initial_facts = {
         let base_facts = UnsealedRecoveryFacts::from_validated(
             resolved.liveness,
             resolved.ranges,
@@ -1057,16 +1055,14 @@ fn recover_over(
             &base_facts,
             &rewrite.selected(),
         )
-    })?;
+    }?;
     let mut recorded = vec![rewrite.transformation()];
-    let mut failure = match phase_profile::scope("omega.05.initial_assign", || {
-        home_reuse.probe_all(
-            environment.identity(),
-            initial_facts.legality_functions(),
-            initial_facts.range_functions(),
-            environment.physical(),
-        )
-    }) {
+    let mut failure = match home_reuse.probe_all(
+        environment.identity(),
+        initial_facts.legality_functions(),
+        initial_facts.range_functions(),
+        environment.physical(),
+    ) {
         Ok(()) => {
             return publish_recovery(source, rewrite, initial_facts, &mut home_reuse, &recorded);
         }
@@ -1135,9 +1131,8 @@ fn recover_over(
         // whenever admitted. It replaces one live range by two disjoint ones
         // joined at the copy, so no point gains a live value; the pinned
         // segment the failed domain overlapped now ends at the copy.
-        let split = phase_profile::scope("omega.05.split_probe", || {
-            admissible_split_indexed(domain.as_ref(), roster, &selected, environment, budget)
-        })?;
+        let split =
+            admissible_split_indexed(domain.as_ref(), roster, &selected, environment, budget)?;
         // Preserve the already-admitted after-definition split. The narrower
         // integer fixed-use copy is an optional refinement for a value-local
         // empty domain; unsupported shapes keep the ordinary rematerialize/spill
@@ -1241,53 +1236,42 @@ fn recover_over(
             // so rematerialization is attempted first. Its admission failure does
             // not commit the step; spilling the same victim remains the fallback.
 
-            match phase_profile::scope("omega.05.remat_probe", || {
-                rematerialize_selected_runtime_value(
-                    &selected,
-                    function,
-                    register,
-                    environment,
-                    budget,
-                )
-            }) {
+            match rematerialize_selected_runtime_value(
+                &selected,
+                function,
+                register,
+                environment,
+                budget,
+            ) {
                 Ok(rewrite) => RuntimeSpillStepRewrite::Rematerialization(rewrite),
                 Err(_) => {
                     let mut bounded_already = None;
                     if pending_pressure.is_empty() {
-                        match phase_profile::scope("omega.05.crossing_spill", || {
-                            spill_selected_runtime_value_with_crossing_status(
-                                &selected,
-                                function,
-                                register,
-                                environment,
-                                budget,
-                                RuntimeSpillSpanPolicy::UnitWriteCrossing,
-                            )
-                        }) {
+                        match spill_selected_runtime_value_with_crossing_status(
+                            &selected,
+                            function,
+                            register,
+                            environment,
+                            budget,
+                            RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                        ) {
                             Ok((crossing, false)) => {
-                                phase_profile::count("omega.05.crossing_not_used", 1);
                                 bounded_already = Some(crossing);
                             }
                             Ok((crossing, true)) => {
-                                phase_profile::count("omega.05.crossing_used", 1);
-                                let probe =
-                                    phase_profile::scope("omega.05.crossing_reanalyze", || {
-                                        reanalyze_unsealed(
-                                            environment,
-                                            availability,
-                                            &analysis_source.selected(),
-                                            &current_facts,
-                                            &SelectedProgramRef::new(&crossing),
-                                        )
-                                    })?;
-                                match phase_profile::scope("omega.05.crossing_probe_all", || {
-                                    home_reuse.probe_all(
-                                        environment.identity(),
-                                        probe.legality_functions(),
-                                        probe.range_functions(),
-                                        environment.physical(),
-                                    )
-                                }) {
+                                let probe = reanalyze_unsealed(
+                                    environment,
+                                    availability,
+                                    &analysis_source.selected(),
+                                    &current_facts,
+                                    &SelectedProgramRef::new(&crossing),
+                                )?;
+                                match home_reuse.probe_all(
+                                    environment.identity(),
+                                    probe.legality_functions(),
+                                    probe.range_functions(),
+                                    environment.physical(),
+                                ) {
                                     Ok(()) => {
                                         let rewrite = RuntimeSpillStepRewrite::Spill(crossing);
                                         recorded.push(rewrite.transformation());
@@ -1317,15 +1301,13 @@ fn recover_over(
                     if let Some(rewrite) = bounded_already {
                         RuntimeSpillStepRewrite::Spill(rewrite)
                     } else {
-                        match phase_profile::scope("omega.05.bounded_spill", || {
-                            spill_selected_runtime_value(
-                                &selected,
-                                function,
-                                register,
-                                environment,
-                                budget,
-                            )
-                        }) {
+                        match spill_selected_runtime_value(
+                            &selected,
+                            function,
+                            register,
+                            environment,
+                            budget,
+                        ) {
                             Ok(rewrite) => RuntimeSpillStepRewrite::Spill(rewrite),
                             Err(error) if inadmissible(&error) => continue,
                             Err(error) => return Err(RuntimeSpillAllocationError::Rewrite(error)),
@@ -1362,31 +1344,25 @@ fn recover_over(
         let (unsealed, probe_result) = if let Some((unsealed, pressure)) = reused_pressure {
             (unsealed, Err(pressure))
         } else {
-            let unsealed = phase_profile::scope("omega.05.batch_reanalyze", || {
-                reanalyze_unsealed(
-                    environment,
-                    availability,
-                    &analysis_source.selected(),
-                    &current_facts,
-                    &rewrite.selected(),
-                )
-            })?;
-            let probe_result = phase_profile::scope("omega.05.probe_all", || {
-                home_reuse.probe_all(
-                    environment.identity(),
-                    unsealed.legality_functions(),
-                    unsealed.range_functions(),
-                    environment.physical(),
-                )
-            });
+            let unsealed = reanalyze_unsealed(
+                environment,
+                availability,
+                &analysis_source.selected(),
+                &current_facts,
+                &rewrite.selected(),
+            )?;
+            let probe_result = home_reuse.probe_all(
+                environment.identity(),
+                unsealed.legality_functions(),
+                unsealed.range_functions(),
+                environment.physical(),
+            );
             (unsealed, probe_result)
         };
         recorded.push(rewrite.transformation());
         match probe_result {
             Ok(()) => {
-                return phase_profile::scope("omega.05.seal_and_manifest", || {
-                    publish_recovery(source, rewrite, unsealed, &mut home_reuse, &recorded)
-                });
+                return publish_recovery(source, rewrite, unsealed, &mut home_reuse, &recorded);
             }
             Err(error) if error.admits_runtime_recovery() => {
                 failure = error;

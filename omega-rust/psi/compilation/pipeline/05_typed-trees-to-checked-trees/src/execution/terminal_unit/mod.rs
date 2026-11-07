@@ -198,51 +198,48 @@ pub(crate) fn build_checked_unit_effect_plans(
     let mut prepared_calls = structural_value_calls::PreparedCalls::default();
     let retained_records = state_graph::RetainedBorrowRecords::new(facts);
     let mut boundary_gaps = Vec::new();
-    let (boundary_machines, dynamic_slots, boundary_symbols) = phase_profile::scope(
-        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.boundary_and_dynamic",
-        || {
-            let mut boundary_machines = program
-                .machines()
-                .iter()
-                // An opaque callable's signature is portable even when its physical
-                // binding is not selected. Supply selects admission, not whether Psi
-                // may retain that declaration's contract.
-                .filter(|machine| !machine.supplies_checked_body())
-                .filter_map(|machine| {
-                    shapes.take_unselected_opaque();
-                    match build_boundary_machine(program, facts, &mut shapes, machine) {
-                        Ok(plan) => Some(plan),
-                        Err(reason) => {
-                            let reason = shapes.take_unselected_opaque().map_or(
-                                GapReason::Unsupported(std::borrow::Cow::Borrowed(reason)),
-                                GapReason::UnselectedOpaqueRepresentation,
-                            );
-                            boundary_gaps.push(plan_gaps::plan_gap(
-                                program,
-                                machine.symbol,
-                                plan_gaps::GapSite::Machine,
-                                reason,
-                            ));
-                            None
-                        }
+    let (boundary_machines, dynamic_slots, boundary_symbols) = {
+        let mut boundary_machines = program
+            .machines()
+            .iter()
+            // An opaque callable's signature is portable even when its physical
+            // binding is not selected. Supply selects admission, not whether Psi
+            // may retain that declaration's contract.
+            .filter(|machine| !machine.supplies_checked_body())
+            .filter_map(|machine| {
+                shapes.take_unselected_opaque();
+                match build_boundary_machine(program, facts, &mut shapes, machine) {
+                    Ok(plan) => Some(plan),
+                    Err(reason) => {
+                        let reason = shapes.take_unselected_opaque().map_or(
+                            GapReason::Unsupported(std::borrow::Cow::Borrowed(reason)),
+                            GapReason::UnselectedOpaqueRepresentation,
+                        );
+                        boundary_gaps.push(plan_gaps::plan_gap(
+                            program,
+                            machine.symbol,
+                            plan_gaps::GapSite::Machine,
+                            reason,
+                        ));
+                        None
                     }
-                })
-                .collect::<Vec<_>>();
-            boundary_machines.extend(build_static_boundary_requirements(
-                program,
-                facts,
-                boundary_signature_reaches,
-                &mut boundary_gaps,
-                &mut shapes,
-            ));
-            let dynamic_slots = control::build_dynamic_slot_plans(program, &mut shapes);
-            let boundary_symbols = boundary_machines
-                .iter()
-                .map(|plan| plan.machine)
-                .collect::<Vec<_>>();
-            (boundary_machines, dynamic_slots, boundary_symbols)
-        },
-    );
+                }
+            })
+            .collect::<Vec<_>>();
+        boundary_machines.extend(build_static_boundary_requirements(
+            program,
+            facts,
+            boundary_signature_reaches,
+            &mut boundary_gaps,
+            &mut shapes,
+        ));
+        let dynamic_slots = control::build_dynamic_slot_plans(program, &mut shapes);
+        let boundary_symbols = boundary_machines
+            .iter()
+            .map(|plan| plan.machine)
+            .collect::<Vec<_>>();
+        (boundary_machines, dynamic_slots, boundary_symbols)
+    };
     // Each checked body takes the one route its shape selects; a builder that
     // cannot plan it leaves the gap where it stopped. An ordinary body whose
     // return edge owes the residual complement of a projected owned
@@ -254,118 +251,103 @@ pub(crate) fn build_checked_unit_effect_plans(
     let mut composed_machines = Vec::new();
     let mut partial_affine_machines = Vec::new();
     let mut construction_gaps = BTreeMap::new();
-    phase_profile::scope(
-        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_bodies",
-        || {
-            // A bodied `boundary machine` is a checked adapter: its body is
-            // authored in-package, so it is planned like any other checked body.
-            let bodies = program
-                .machines()
-                .iter()
-                .filter(|machine| machine.supplies_checked_body())
-                .collect::<Vec<_>>();
-            let plan = |shapes: &mut ShapeCollector<'_>,
-                        machine: &typed_trees::machine::Machine| {
-                plan_checked_body(
-                    program,
-                    facts,
-                    &retained_records,
-                    scalar_callees,
-                    call_frames,
-                    shapes,
-                    machine,
-                )
-            };
-            // Bodies plan on forks of the collector in parallel and merge in
-            // roster order (`types/shape_collector/forks.rs`). A fork that
-            // consulted a row an earlier body changed after the fork's base is
-            // stale: every stale body from there on plans again, in parallel,
-            // from the merged collector, and a lone stale body plans in place.
-            shapes.prepare_forks();
-            let fork_from = |shapes: &ShapeCollector<'_>, base: usize, roster: &[usize]| {
-                let snapshot = shapes.fork();
-                ::validation::checking_thread_pool().install(|| {
-                    use rayon::prelude::*;
-                    roster
-                        .par_iter()
-                        .map(|&index| {
-                            let mut fork = snapshot.fork();
-                            let marks = fork.row_marks();
-                            let planned = plan(&mut fork, bodies[index]);
-                            (
-                                index,
-                                Some((base, planned, fork.edits_since(Some(&snapshot), marks))),
-                            )
+    {
+        // A bodied `boundary machine` is a checked adapter: its body is
+        // authored in-package, so it is planned like any other checked body.
+        let bodies = program
+            .machines()
+            .iter()
+            .filter(|machine| machine.supplies_checked_body())
+            .collect::<Vec<_>>();
+        let plan = |shapes: &mut ShapeCollector<'_>, machine: &typed_trees::machine::Machine| {
+            plan_checked_body(
+                program,
+                facts,
+                &retained_records,
+                scalar_callees,
+                call_frames,
+                shapes,
+                machine,
+            )
+        };
+        // Bodies plan on forks of the collector in parallel and merge in
+        // roster order (`types/shape_collector/forks.rs`). A fork that
+        // consulted a row an earlier body changed after the fork's base is
+        // stale: every stale body from there on plans again, in parallel,
+        // from the merged collector, and a lone stale body plans in place.
+        shapes.prepare_forks();
+        let fork_from = |shapes: &ShapeCollector<'_>, base: usize, roster: &[usize]| {
+            let snapshot = shapes.fork();
+            ::validation::checking_thread_pool().install(|| {
+                use rayon::prelude::*;
+                roster
+                    .par_iter()
+                    .map(|&index| {
+                        let mut fork = snapshot.fork();
+                        let marks = fork.row_marks();
+                        let planned = plan(&mut fork, bodies[index]);
+                        (
+                            index,
+                            Some((base, planned, fork.edits_since(Some(&snapshot), marks))),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+        };
+        let mut attempts = Vec::new();
+        attempts.resize_with(bodies.len(), || None);
+        for (index, attempt) in fork_from(&shapes, 0, &(0..bodies.len()).collect::<Vec<_>>()) {
+            attempts[index] = attempt;
+        }
+        let mut log = ChangeLog::default();
+        let mut position = 0;
+        while let Some(&machine) = bodies.get(position) {
+            let planned = match attempts[position].take() {
+                Some((base, planned, edits)) if log.admits(&edits, base) => {
+                    log.record(&edits, position);
+                    shapes.apply(edits);
+                    planned
+                }
+                stale => {
+                    attempts[position] = stale;
+                    let roster = (position..bodies.len())
+                        .filter(|&index| {
+                            index == position
+                                || attempts[index]
+                                    .as_ref()
+                                    .is_none_or(|(base, _, edits)| !log.admits(edits, *base))
                         })
-                        .collect::<Vec<_>>()
-                })
+                        .collect::<Vec<_>>();
+                    if roster.len() > 1 {
+                        for (index, attempt) in fork_from(&shapes, position, &roster) {
+                            attempts[index] = attempt;
+                        }
+                        continue;
+                    }
+                    attempts[position] = None;
+                    shapes.forget_consulted();
+                    let marks = shapes.row_marks();
+                    let planned = plan(&mut shapes, machine);
+                    log.record(&shapes.edits_since(None, marks), position);
+                    planned
+                }
             };
-            let mut attempts = Vec::new();
-            attempts.resize_with(bodies.len(), || None);
-            for (index, attempt) in fork_from(&shapes, 0, &(0..bodies.len()).collect::<Vec<_>>()) {
-                attempts[index] = attempt;
-            }
-            let mut log = ChangeLog::default();
-            let (mut rounds, mut replanned) = (1, 0);
-            let mut position = 0;
-            while let Some(&machine) = bodies.get(position) {
-                let planned = match attempts[position].take() {
-                    Some((base, planned, edits)) if log.admits(&edits, base) => {
-                        log.record(&edits, position);
-                        shapes.apply(edits);
-                        planned
+            position += 1;
+            match planned {
+                Ok((body, attempt_calls)) => {
+                    match body {
+                        PlannedBody::Sequence(plan) => candidates.push(plan),
+                        PlannedBody::PartialAffine(plan) => partial_affine_machines.push(plan),
+                        PlannedBody::Graph(plan) => composed_machines.push(plan),
                     }
-                    stale => {
-                        attempts[position] = stale;
-                        let roster = (position..bodies.len())
-                            .filter(|&index| {
-                                index == position
-                                    || attempts[index]
-                                        .as_ref()
-                                        .is_none_or(|(base, _, edits)| !log.admits(edits, *base))
-                            })
-                            .collect::<Vec<_>>();
-                        if roster.len() > 1 {
-                            rounds += 1;
-                            for (index, attempt) in fork_from(&shapes, position, &roster) {
-                                attempts[index] = attempt;
-                            }
-                            continue;
-                        }
-                        replanned += 1;
-                        attempts[position] = None;
-                        shapes.forget_consulted();
-                        let marks = shapes.row_marks();
-                        let planned = plan(&mut shapes, machine);
-                        log.record(&shapes.edits_since(None, marks), position);
-                        planned
-                    }
-                };
-                position += 1;
-                match planned {
-                    Ok((body, attempt_calls)) => {
-                        match body {
-                            PlannedBody::Sequence(plan) => candidates.push(plan),
-                            PlannedBody::PartialAffine(plan) => partial_affine_machines.push(plan),
-                            PlannedBody::Graph(plan) => composed_machines.push(plan),
-                        }
-                        prepared_calls.append(machine.symbol, attempt_calls);
-                    }
-                    Err(gap) => {
-                        construction_gaps.insert(symbol_key(machine.symbol), gap);
-                    }
+                    prepared_calls.append(machine.symbol, attempt_calls);
+                }
+                Err(gap) => {
+                    construction_gaps.insert(symbol_key(machine.symbol), gap);
                 }
             }
-            phase_profile::count(
-                "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_bodies.fork_rounds",
-                rounds,
-            );
-            phase_profile::count(
-                "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_bodies.replanned",
-                replanned,
-            );
-        },
-    );
+        }
+    };
 
     let planned = planned_machines(&candidates, &composed_machines, &partial_affine_machines);
     let mut gaps = construction_gaps
@@ -378,9 +360,6 @@ pub(crate) fn build_checked_unit_effect_plans(
     // contextual actions against the same immutable callable entry roster,
     // before mutating either body catalog. Entry metadata borrows the real
     // bodies; no temporary ordinary plan stands in for a state graph.
-    let _s_cleanup = phase_profile::guard(
-        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.cleanup_selections",
-    );
     let targets = candidates
         .iter()
         .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
@@ -587,21 +566,15 @@ pub(crate) fn build_checked_unit_effect_plans(
             .map(|(_, gap)| gap),
     );
 
-    drop(_s_cleanup);
-    let closure_gaps = phase_profile::scope(
-        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_closure",
-        || {
-            candidate_closure::retain_available(
-                program,
-                facts,
-                &boundary_symbols,
-                &shapes.cleanup_control,
-                &mut candidates,
-                &mut composed_machines,
-                &mut partial_affine_machines,
-                &prepared_calls,
-            )
-        },
+    let closure_gaps = candidate_closure::retain_available(
+        program,
+        facts,
+        &boundary_symbols,
+        &shapes.cleanup_control,
+        &mut candidates,
+        &mut composed_machines,
+        &mut partial_affine_machines,
+        &prepared_calls,
     );
     gaps.extend(closure_gaps);
     // Failed cleanup or dependency closure discards the candidate's schedules
@@ -1279,84 +1252,69 @@ fn plan_checked_body(
     machine: &typed_trees::machine::Machine,
 ) -> Result<(PlannedBody, structural_value_calls::PreparedCalls), checked_trees::CheckedUnitPlanGap>
 {
-    let _subject = phase_profile::subject(
-        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_bodies",
-        || program.symbols.profile_label(machine.symbol),
-    );
     let trace = LocalConstructionTrace::default();
     shapes.take_unselected_opaque();
     let mut attempt_calls = structural_value_calls::PreparedCalls::default();
-    let route = phase_profile::scope(
-        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.body_route",
-        || body_route(program, machine),
-    );
+    let route = body_route(program, machine);
     let planned = match route {
-        BodyRoute::Sequence => phase_profile::scope(
-            "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.sequence_body",
-            || {
-                let (mut plan, residual_affine_discards, has_projected_parameter_moves) =
-                    build_checked_machine_residual_parts(
-                        program,
-                        facts,
-                        scalar_callees,
-                        shapes,
-                        &mut attempt_calls,
-                        machine,
-                        call_frames,
-                        &trace,
-                    )?;
-                structural_value_calls::prepare_state(
+        BodyRoute::Sequence => (|| {
+            let (mut plan, residual_affine_discards, has_projected_parameter_moves) =
+                build_checked_machine_residual_parts(
                     program,
                     facts,
-                    shapes,
-                    &mut attempt_calls,
-                    plan.machine,
-                    plan.state,
-                    &structural_value_calls::StateCallInputs {
-                        parameters: &plan.structural_parameters,
-                        entry_claims: &plan.entry_claims,
-                        operations: &plan.operations,
-                        trivial_locals: &plan.trivial_affine_locals,
-                    },
-                )?;
-                trace.phase("single-state body: value call source custody");
-                structural_value_calls::consume_caller_results(
-                    program,
-                    plan.machine,
-                    plan.state,
-                    &mut plan.operations,
-                    attempt_calls.state_schedules(
-                        cleanup::owning_cleanup_machine(program, plan.state),
-                        plan.state,
-                    ),
-                )?;
-                Some(if has_projected_parameter_moves {
-                    PlannedBody::PartialAffine(CheckedPartialAffineUnitCleanupMachinePlan {
-                        machine: plan,
-                        residual_affine_discards,
-                    })
-                } else {
-                    PlannedBody::Sequence(plan)
-                })
-            },
-        ),
-        BodyRoute::Graph => phase_profile::scope(
-            "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body",
-            || {
-                state_graph::build_traced(
-                    program,
-                    facts,
-                    retained_records,
                     scalar_callees,
                     shapes,
                     &mut attempt_calls,
                     machine,
                     call_frames,
                     &trace,
-                )
-                .map(PlannedBody::Graph)
-            },
-        ),
+                )?;
+            structural_value_calls::prepare_state(
+                program,
+                facts,
+                shapes,
+                &mut attempt_calls,
+                plan.machine,
+                plan.state,
+                &structural_value_calls::StateCallInputs {
+                    parameters: &plan.structural_parameters,
+                    entry_claims: &plan.entry_claims,
+                    operations: &plan.operations,
+                    trivial_locals: &plan.trivial_affine_locals,
+                },
+            )?;
+            trace.phase("single-state body: value call source custody");
+            structural_value_calls::consume_caller_results(
+                program,
+                plan.machine,
+                plan.state,
+                &mut plan.operations,
+                attempt_calls.state_schedules(
+                    cleanup::owning_cleanup_machine(program, plan.state),
+                    plan.state,
+                ),
+            )?;
+            Some(if has_projected_parameter_moves {
+                PlannedBody::PartialAffine(CheckedPartialAffineUnitCleanupMachinePlan {
+                    machine: plan,
+                    residual_affine_discards,
+                })
+            } else {
+                PlannedBody::Sequence(plan)
+            })
+        })(),
+        BodyRoute::Graph => state_graph::build_traced(
+            program,
+            facts,
+            retained_records,
+            scalar_callees,
+            shapes,
+            &mut attempt_calls,
+            machine,
+            call_frames,
+            &trace,
+        )
+        .map(PlannedBody::Graph),
     };
     if let Some(body) = planned {
         return Ok((body, attempt_calls));

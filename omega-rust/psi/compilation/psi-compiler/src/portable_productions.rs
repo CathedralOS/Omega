@@ -108,10 +108,7 @@ impl PortableProductions {
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             match entries.iter().find(|(known, _)| known.matches(&key)) {
-                Some((_, slot)) => {
-                    phase_profile::count("psi.terminal.portable_production.shared", 1);
-                    Arc::clone(slot)
-                }
+                Some((_, slot)) => Arc::clone(slot),
                 None => {
                     let slot = Arc::new(OnceLock::new());
                     entries.push((key, Arc::clone(&slot)));

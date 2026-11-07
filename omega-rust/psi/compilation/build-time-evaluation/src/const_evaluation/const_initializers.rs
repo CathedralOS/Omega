@@ -267,7 +267,6 @@ pub(crate) fn evaluate(
     mut syntax: SyntaxTrees,
     context: &crate::BuildTimeSources<'_>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    let _profile = phase_profile::guard("pre_resolution.constant_initializers");
     let sources = context.sources.clone();
     let bindings = context.source_scoped_top_level_bindings;
     let authority = context.selection_authority.clone();

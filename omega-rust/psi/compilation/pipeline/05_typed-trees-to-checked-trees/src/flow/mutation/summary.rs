@@ -53,12 +53,9 @@ impl StateMutationSummaryCache {
         borrow: &BorrowFacts,
         call_frames: Option<&CallFrameResolver<'_>>,
     ) {
-        let _ = self.states.get_or_init(|| {
-            phase_profile::scope(
-                "psi.05.build_check_facts.flow.build_state_mutation_summaries",
-                || build_state_mutation_summaries(program, borrow, call_frames),
-            )
-        });
+        let _ = self
+            .states
+            .get_or_init(|| build_state_mutation_summaries(program, borrow, call_frames));
     }
 }
 
@@ -225,12 +222,9 @@ fn state_mutation_summary<'cache>(
     state: &State,
     call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<&'cache StateMutationSummary> {
-    let built = cache.states.get_or_init(|| {
-        phase_profile::scope(
-            "psi.05.build_check_facts.flow.build_state_mutation_summaries",
-            || build_state_mutation_summaries(program, borrow, call_frames),
-        )
-    });
+    let built = cache
+        .states
+        .get_or_init(|| build_state_mutation_summaries(program, borrow, call_frames));
     let &index = built.index_by_state.get(&state.symbol)?;
     built.summaries.get(index).filter(|entry| entry.complete)
 }
@@ -246,39 +240,37 @@ fn build_state_mutation_summaries(
         let call_frames =
             crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames);
 
-        let (mut states, borrow_states_for_summaries): (Vec<_>, Vec<_>) =
-            phase_profile::scope("psi.05.build_check_facts.flow.summaries.direct", || {
-                let borrow_state_refs: Vec<_> =
-                    borrow.states.iter().map(|(_, state)| state).collect();
-                borrow_state_refs
-                    .into_par_iter()
-                    .filter_map(|borrow_state| {
-                        let state = program.state_by_symbol(borrow_state.state_symbol)?;
-                        let direct_writes =
-                            collect_state_mutation_summary_places(program, state, call_frames);
-                        let direct_complete = direct_writes.is_some();
-                        let writes = direct_writes.unwrap_or_default();
-                        let complete = direct_complete
-                            && state_has_concrete_body_signature(program, state)
-                            && call_frames.is_some_and(|resolver| {
-                                find_state(program, state.symbol).is_some_and(|(machine, _)| {
-                                    resolver
-                                        .inferred_state_write_frame(machine, state)
-                                        .is_complete()
-                                })
-                            });
-                        Some((
-                            StateMutationSummary {
-                                state_symbol: state.symbol,
-                                held_writes: held_accesses(program, state, &writes),
-                                complete,
-                                writes,
-                            },
-                            borrow_state,
-                        ))
-                    })
-                    .unzip()
-            });
+        let (mut states, borrow_states_for_summaries): (Vec<_>, Vec<_>) = {
+            let borrow_state_refs: Vec<_> = borrow.states.iter().map(|(_, state)| state).collect();
+            borrow_state_refs
+                .into_par_iter()
+                .filter_map(|borrow_state| {
+                    let state = program.state_by_symbol(borrow_state.state_symbol)?;
+                    let direct_writes =
+                        collect_state_mutation_summary_places(program, state, call_frames);
+                    let direct_complete = direct_writes.is_some();
+                    let writes = direct_writes.unwrap_or_default();
+                    let complete = direct_complete
+                        && state_has_concrete_body_signature(program, state)
+                        && call_frames.is_some_and(|resolver| {
+                            find_state(program, state.symbol).is_some_and(|(machine, _)| {
+                                resolver
+                                    .inferred_state_write_frame(machine, state)
+                                    .is_complete()
+                            })
+                        });
+                    Some((
+                        StateMutationSummary {
+                            state_symbol: state.symbol,
+                            held_writes: held_accesses(program, state, &writes),
+                            complete,
+                            writes,
+                        },
+                        borrow_state,
+                    ))
+                })
+                .unzip()
+        };
 
         // The first summary for a symbol answers lookups, as the former linear
         // search did.
@@ -287,7 +279,7 @@ fn build_state_mutation_summaries(
             index_by_state.entry(summary.state_symbol).or_insert(index);
         }
 
-        phase_profile::scope("psi.05.build_check_facts.flow.summaries.propagate", || {
+        {
             propagate_state_mutation_summaries(
                 program,
                 borrow,
@@ -296,7 +288,7 @@ fn build_state_mutation_summaries(
                 &mut states,
                 call_frames,
             );
-        });
+        };
         BuiltStateMutationSummaries {
             summaries: states,
             index_by_state,
@@ -348,66 +340,65 @@ fn propagate_state_mutation_summaries(
         .collect();
     // These are invocation-local dense summary positions, not durable symbol
     // identities. Resolve each dependency once while retaining authored call order.
-    let mut calls: Vec<_> =
-        phase_profile::scope("psi.05.build_check_facts.flow.summaries.calls", || {
-            (0..states.len())
-                .into_par_iter()
-                .map(|caller_index| {
-                    let state = &states[caller_index];
-                    let borrow_state = borrow_states[caller_index];
-                    let owner = &owners[caller_index];
-                    borrow
-                        .calls
-                        .span_or_empty(borrow_state.calls)
-                        .iter()
-                        .map(|call| {
-                            let run = owner.map_or(TargetRun::Whole, |(_, machine_symbol)| {
-                                target_run(program, machine_symbol, state.state_symbol, call)
-                            });
-                            // A declaration can own a state identity without owning a body.
-                            // Its admitted frame belongs to the shared resolver, not
-                            // the (necessarily incomplete) structured body summary.
-                            let body_summary = find_state(program, call.target_symbol)
-                                .filter(|(machine, _)| machine.body_is_present)
-                                .and_then(|_| index_by_state.get(&call.target_symbol).copied());
-                            let call_site = owner.and_then(|(_, machine_symbol)| {
-                                find_call_site(
+    let mut calls: Vec<_> = {
+        (0..states.len())
+            .into_par_iter()
+            .map(|caller_index| {
+                let state = &states[caller_index];
+                let borrow_state = borrow_states[caller_index];
+                let owner = &owners[caller_index];
+                borrow
+                    .calls
+                    .span_or_empty(borrow_state.calls)
+                    .iter()
+                    .map(|call| {
+                        let run = owner.map_or(TargetRun::Whole, |(_, machine_symbol)| {
+                            target_run(program, machine_symbol, state.state_symbol, call)
+                        });
+                        // A declaration can own a state identity without owning a body.
+                        // Its admitted frame belongs to the shared resolver, not
+                        // the (necessarily incomplete) structured body summary.
+                        let body_summary = find_state(program, call.target_symbol)
+                            .filter(|(machine, _)| machine.body_is_present)
+                            .and_then(|_| index_by_state.get(&call.target_symbol).copied());
+                        let call_site = owner.and_then(|(_, machine_symbol)| {
+                            find_call_site(
+                                program,
+                                machine_symbol,
+                                state.state_symbol,
+                                call.statement_index,
+                                call.call_ordinal,
+                            )
+                        });
+                        let has_builtin_coordinates = match (*owner, call_site.as_ref()) {
+                            (Some((_, machine_symbol)), Some(site)) => {
+                                call_operands_have_builtin_coordinates(
                                     program,
                                     machine_symbol,
                                     state.state_symbol,
-                                    call.statement_index,
-                                    call.call_ordinal,
+                                    site,
                                 )
-                            });
-                            let has_builtin_coordinates = match (*owner, call_site.as_ref()) {
-                                (Some((_, machine_symbol)), Some(site)) => {
-                                    call_operands_have_builtin_coordinates(
-                                        program,
-                                        machine_symbol,
-                                        state.state_symbol,
-                                        site,
-                                    )
-                                }
-                                _ => false,
-                            };
-                            (
-                                call,
-                                body_summary,
-                                run,
-                                call_site,
-                                has_builtin_coordinates,
-                                Vec::<(
-                                    (StorageRegion, WriteDestination),
-                                    Option<Vec<MutationWrite>>,
-                                )>::new(),
-                                0usize,
-                                Vec::<usize>::new(),
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .collect()
-        });
+                            }
+                            _ => false,
+                        };
+                        (
+                            call,
+                            body_summary,
+                            run,
+                            call_site,
+                            has_builtin_coordinates,
+                            Vec::<(
+                                (StorageRegion, WriteDestination),
+                                Option<Vec<MutationWrite>>,
+                            )>::new(),
+                            0usize,
+                            Vec::<usize>::new(),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    };
     let mut callers = vec![Vec::new(); states.len()];
     for (caller_index, dependencies) in calls.iter().enumerate() {
         for (_, target_index, _, _, _, _, _, _) in dependencies {
@@ -418,11 +409,9 @@ fn propagate_state_mutation_summaries(
             }
         }
     }
-    let _loop_guard = phase_profile::guard("psi.05.build_check_facts.flow.summaries.loop");
     let mut dirty_mask = vec![true; states.len()];
     let mut has_dirty = !states.is_empty();
     while has_dirty {
-        phase_profile::count("psi.05.build_check_facts.flow.summaries.rounds", 1);
         // Publish after the round: later callers must not observe this round's
         // additions early, which would change first-discovery write ordering.
         let updates: Vec<_> = calls

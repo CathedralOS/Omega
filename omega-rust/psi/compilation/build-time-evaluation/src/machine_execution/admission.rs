@@ -685,10 +685,7 @@ impl BuildTimeAdmissionPlan {
                     &[root],
                     &[],
                 );
-                let checked =
-                    phase_profile::scope("compile_time.admission.recursive_program_check", || {
-                        concrete_invocation::checked_demanded_closure(&domain, execution)
-                    })?;
+                let checked = concrete_invocation::checked_demanded_closure(&domain, execution)?;
                 RecursiveCheckingInput::Selected(Box::new(checked))
             }
             None => match input {

@@ -100,7 +100,6 @@ impl SourceCompilationRequest {
         mut self,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<SourceContinuation, Vec<Diagnostic>> {
-        let _profile = phase_profile::guard("psi.source.prepare");
         let context = SourceContext {
             declaration_syntax: Arc::new(self.syntax.clone()),
             bindings: self.top_level_bindings.clone(),
@@ -143,7 +142,6 @@ impl SourceCompilationRequest {
         let (mut typing, mut pending_bodies) = if let (Some(typing), Some(base)) =
             (retained, resolved_base)
         {
-            let _profile = phase_profile::guard("psi.source.prepare.resolve_extension");
             let extension = observer.record_result(PsiCompilationStage::Resolution, || {
                 syntax_trees_to_symbol_resolved_trees::resolve_deferred_extension(
                     syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
@@ -159,7 +157,6 @@ impl SourceCompilationRequest {
             })?
         } else {
             let mut frontier = {
-                let _profile = phase_profile::guard("psi.source.prepare.resolve_deferred");
                 observer.record_result(PsiCompilationStage::Resolution, || {
                     syntax_trees_to_symbol_resolved_trees::resolve_deferred(
                         syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
@@ -176,7 +173,6 @@ impl SourceCompilationRequest {
                 if selected.is_empty() {
                     break;
                 }
-                let _profile = phase_profile::guard("psi.source.prepare.build_bodies_resolved");
                 frontier = observer
                     .record_result(PsiCompilationStage::Resolution, || {
                         frontier.complete_machine_bodies(&selected)
@@ -184,7 +180,6 @@ impl SourceCompilationRequest {
                     .into_resolved_frontier();
             }
             let typing = {
-                let _profile = phase_profile::guard("psi.source.prepare.lower_seeded_base");
                 observer.record_result(PsiCompilationStage::Typing, || {
                         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
                             frontier.shared_trees(),
@@ -200,7 +195,6 @@ impl SourceCompilationRequest {
             if build_bodies.is_empty() {
                 break;
             }
-            let _profile = phase_profile::guard("psi.source.prepare.build_bodies_typed");
             pending_bodies = typing.join_prepared_allocations(pending_bodies)?;
             let completed = observer.record_result(PsiCompilationStage::Resolution, || {
                 pending_bodies.complete_machine_bodies(&build_bodies)
@@ -416,7 +410,6 @@ impl SourceContinuation {
         self,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<CompletedSource, Vec<Diagnostic>> {
-        let _profile = phase_profile::guard("psi.source.complete_authored");
         if let Some(source) = self.completions.find(&self.input)? {
             return Ok(source);
         }
@@ -438,8 +431,6 @@ impl SourceContinuation {
         let mut deferred = Vec::new();
         let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
         for pre_check in pending_pre_checks {
-            let _profile =
-                phase_profile::guard("psi.source.complete_authored.evaluate_or_defer_recorded");
             let recorded = pre_check.evaluate_or_defer_recorded(typing.typed_mut())?;
             accounting.append(recorded.accounting);
             if let Some(pending) = recorded.pending {
@@ -478,14 +469,11 @@ fn complete_authored_bodies(
             break;
         }
         let resolved = {
-            let _profile =
-                phase_profile::guard("psi.source.complete_authored.complete_machine_bodies");
             observer.record_result(PsiCompilationStage::Resolution, || {
                 pending_bodies.complete_machine_bodies(&selected)
             })?
         };
         (typing, pending_bodies) = {
-            let _profile = phase_profile::guard("psi.source.complete_authored.complete_bodies");
             observer.record_result(PsiCompilationStage::Typing, || {
                 typing.complete_bodies(resolved)
             })?
@@ -503,7 +491,6 @@ impl CompletedSource {
     }
 
     pub fn finish(self) -> PreparedSource {
-        let _profile = phase_profile::guard("psi.source.finish");
         PreparedSource {
             accounting: self.accounting,
             typed: self.typing.into_typed(),
@@ -518,7 +505,6 @@ impl CompletedSource {
         extension: SourceExtensionRequest,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<PreparedSource, Vec<Diagnostic>> {
-        let _profile = phase_profile::guard("psi.source.extend");
         let wire_schema_frontier = self.typing.typed().wire_schemas().len();
         let resolved_base = self.typing.resolved_base_for_extension()?;
         let (syntax, pre_checks) =

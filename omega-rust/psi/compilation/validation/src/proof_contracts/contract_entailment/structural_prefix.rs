@@ -301,13 +301,11 @@ pub(super) fn visit_non_contradictory_arm<'program, V: StructuralPrefixVisitor +
     if visitor.is_complete() {
         return;
     }
-    let _arm_guard = phase_profile::guard("psi.05.numeric.visit.arm_judge");
     let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
     if judge.hypotheses_contradictory {
         return;
     }
     guarantees.intake(&mut judge);
-    drop(_arm_guard);
     let Some(state) = program.state_in_machine(machine, visitor.site().state) else {
         visitor.unresolved(machine);
         return;
@@ -527,19 +525,14 @@ fn arm_premises<'program>(
     equations: &[(StructuralTerm, StructuralTerm)],
     guarantees: &CitationFacts,
 ) -> Option<StructuralJudge<'program>> {
-    let arm_guard = phase_profile::guard("psi.05.numeric.visit.arm_judge");
     let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
     if judge.hypotheses_contradictory {
         return None;
     }
     guarantees.intake(&mut judge);
-    drop(arm_guard);
     // Short-circuit guards can create numerically impossible alternatives
     // even when their constructor hypotheses are consistent. Refute only
     // from admitted prefix premises, before observing the requested value;
     // failed goal formation must never become evidence of unreachability.
-    (!phase_profile::scope("psi.05.numeric.visit.contra", || {
-        judge.integer_premises_contradictory()
-    }))
-    .then_some(judge)
+    (!judge.integer_premises_contradictory()).then_some(judge)
 }
