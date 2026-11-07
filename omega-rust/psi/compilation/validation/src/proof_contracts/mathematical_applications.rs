@@ -116,6 +116,7 @@ pub fn operand_type_reference_in_declaration(
     crate::value_custody::expression_types::declaration_expression_result_type_reference(
         program,
         owner,
+        None,
         &|expression| match program.expression_table.expression(expression) {
             ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
                 crate::proof_contracts::proof_embeddings::expression_type_reference(

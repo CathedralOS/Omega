@@ -62,6 +62,7 @@ pub fn parameter_expression_result_type_reference(
             program,
             ExpressionOwner::Declaration {
                 owner_symbol,
+                trait_scope: None,
                 place_type: &|_| None,
             },
             expression,
@@ -84,6 +85,7 @@ pub fn parameter_expression_result_type_reference(
             program,
             ExpressionOwner::Declaration {
                 owner_symbol,
+                trait_scope: None,
                 place_type: &place_type,
             },
             expression,
@@ -180,6 +182,7 @@ fn constructor_result_type_reference(
 pub(crate) fn declaration_expression_result_type_reference(
     program: &dyn crate::CheckingInput,
     owner_symbol: symbols::SymbolHandle,
+    trait_scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
     place_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -190,6 +193,7 @@ pub(crate) fn declaration_expression_result_type_reference(
         program,
         ExpressionOwner::Declaration {
             owner_symbol,
+            trait_scope,
             place_type,
         },
         expression,
@@ -222,6 +226,7 @@ enum ExpressionOwner<'program> {
     Domain(&'program typed_trees::domain::DomainDefinition),
     Declaration {
         owner_symbol: symbols::SymbolHandle,
+        trait_scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
         place_type: &'program dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
     },
     /// An abstract callable's declaration telescope. Its place types come from
@@ -407,14 +412,23 @@ fn result_type(
             // callers cannot borrow that raw result: they need its applied
             // signature. Keep this owner distinction instead of making the
             // context-free call query guess a generic instantiation.
-            let scoped_requirement_result = program
-                .requirement_call_signature(owner.symbol(), call)
+            let trait_scope = match owner {
+                ExpressionOwner::Declaration { trait_scope, .. } => trait_scope,
+                _ => None,
+            };
+            let scoped_requirement = match trait_scope {
+                Some(scope) => {
+                    program.requirement_call_signature_in_scope(owner.symbol(), call, scope)
+                }
+                None => program.requirement_call_signature(owner.symbol(), call),
+            };
+            let scoped_requirement_result = scoped_requirement
                 .filter(|signature| signature.return_type.is_valid())
                 .map(|signature| signature.return_type)
                 .or_else(|| match owner {
                     ExpressionOwner::Declaration { owner_symbol, .. }
                     | ExpressionOwner::Telescope { owner_symbol, .. }
-                        if call.target_symbol.is_valid() =>
+                        if trait_scope.is_none() && call.target_symbol.is_valid() =>
                     {
                         let parent = program.symbols.get(owner_symbol).parent;
                         (program.symbols.get(call.target_symbol).parent == parent)

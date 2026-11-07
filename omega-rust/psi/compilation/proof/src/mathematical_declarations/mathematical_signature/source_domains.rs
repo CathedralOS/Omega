@@ -60,6 +60,18 @@ impl Elaborator<'_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<TypeReferenceHandle> {
+        let owners = self.source_owners.get_or_init(|| {
+            validation::expression_owners::OwnerEnvironmentIndex::for_preparation(self.program)
+        });
+        if owners.contains_expression(expression) {
+            return validation::expression_owners::checked_expression_type_reference_from_exact_owner(
+                self.program,
+                &arena::Arena::default(),
+                expression,
+                expression,
+                Some(owners),
+            );
+        }
         if self.source_owner.is_valid() {
             validation::mathematical_applications::operand_type_reference_in_declaration(
                 self.program,

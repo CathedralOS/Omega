@@ -12,10 +12,7 @@ use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use validation::expression_owners::{
-    OwnerEnvironmentIndex, checked_expression_type_reference_from_exact_owner,
-    source_declaration_owner,
-};
+use validation::expression_owners::{OwnerEnvironmentIndex, source_declaration_owner};
 use validation::expression_traversal::children;
 use validation::mathematical_applications::{
     MathematicalBinderKind, expression_nodes, source_generic_argument_plan,
@@ -61,8 +58,6 @@ impl Elaborator<'_> {
         if calls.is_empty() {
             return Ok(Vec::new());
         }
-        let owners = OwnerEnvironmentIndex::for_preparation(self.program);
-        let contract_facts = arena::Arena::default();
         let mut applications = Vec::with_capacity(calls.len());
         for (expression, call) in calls {
             self.span = Some(self.program.expression_table.source_span(expression));
@@ -72,7 +67,13 @@ impl Elaborator<'_> {
             self.source_owner = if retained_owner.is_valid() {
                 retained_owner
             } else {
-                source_declaration_owner(self.program, expression, &owners).unwrap_or_default()
+                source_declaration_owner(
+                    self.program,
+                    expression,
+                    self.source_owners
+                        .get_or_init(|| OwnerEnvironmentIndex::for_preparation(self.program)),
+                )
+                .unwrap_or_default()
             };
             self.scope.clear();
             self.level_binders.clear();
@@ -99,17 +100,7 @@ impl Elaborator<'_> {
                     if self.program.symbols.builtin_type_member(path.symbol).is_some()
                         || self.program.symbols.builtin_type_atom(path.symbol).is_some());
                 let reference = (!mathematical && !declaration_description)
-                    .then(|| {
-                        self.source_operand_type_reference(operand).or_else(|| {
-                            checked_expression_type_reference_from_exact_owner(
-                                self.program,
-                                &contract_facts,
-                                expression,
-                                operand,
-                                Some(&owners),
-                            )
-                        })
-                    })
+                    .then(|| self.source_operand_type_reference(operand))
                     .flatten();
                 if let Some(reference) = reference {
                     // Capture the complete evaluated value. Splitting a fixed

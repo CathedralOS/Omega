@@ -216,6 +216,7 @@ struct Elaborator<'a> {
     /// Source span of the declaration under elaboration, for diagnostics.
     span: Option<SourceSpan>,
     source_owner: SymbolHandle,
+    source_owners: std::sync::OnceLock<validation::expression_owners::OwnerEnvironmentIndex>,
     captured_expressions: Vec<(ExpressionHandle, usize)>,
     source_family_values: HashMap<ExpressionHandle, TermHandle>,
     source_constructor_context: source_families::SourceConstructorContext,
@@ -288,6 +289,7 @@ pub(crate) fn check_mathematical_signature(
         address_bound: None,
         span: None,
         source_owner: SymbolHandle::default(),
+        source_owners: std::sync::OnceLock::new(),
         captured_expressions: Vec::new(),
         source_family_values: HashMap::new(),
         source_constructor_context: source_families::SourceConstructorContext::default(),

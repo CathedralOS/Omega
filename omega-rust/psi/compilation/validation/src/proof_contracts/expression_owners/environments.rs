@@ -164,6 +164,7 @@ pub(super) fn environment_from_parameters(
 ) -> TypeEnvironment {
     TypeEnvironment {
         owner,
+        trait_scope: None,
         self_type,
         result_type: result_type.is_valid().then_some(result_type),
         bindings: parameters

@@ -106,17 +106,16 @@ pub(super) fn index_contract_environments(program: &dyn CheckingInput, index: &m
             );
         }
     }
-    for signature in crate::proof_contracts::contract_results::retained_callable_signatures(program)
-    {
-        add_contracts(
-            program.state_signature_contracts(signature),
-            environment_from_parameters(
-                signature.symbol,
-                program.state_signature_parameters(signature),
-                signature.return_type,
-                None,
-            ),
+    for contract in crate::proof_contracts::contract_results::retained_callable_contracts(program) {
+        let signature = contract.signature;
+        let mut environment = environment_from_parameters(
+            signature.symbol,
+            program.state_signature_parameters(signature),
+            signature.return_type,
+            None,
         );
+        environment.trait_scope = contract.trait_scope;
+        add_contracts(program.state_signature_contracts(signature), environment);
     }
     for operator in program.all_operators() {
         add_contracts(
@@ -313,12 +312,12 @@ pub(super) fn index_parameter_constraint_environments(
             }
         }
     }
-    for signature in crate::proof_contracts::contract_results::retained_callable_signatures(program)
-    {
-        index_telescope_parameters(
+    for contract in crate::proof_contracts::contract_results::retained_callable_contracts(program) {
+        index_telescope_parameters_in_scope(
             program,
-            signature.symbol,
-            program.state_signature_parameters(signature),
+            contract.signature.symbol,
+            program.state_signature_parameters(contract.signature),
+            contract.trait_scope,
             index,
         );
     }
@@ -346,16 +345,28 @@ pub(super) fn index_telescope_parameters(
     parameters: &[StateParameter],
     index: &mut OwnerIndex,
 ) {
+    index_telescope_parameters_in_scope(program, owner, parameters, None, index);
+}
+
+fn index_telescope_parameters_in_scope(
+    program: &dyn CheckingInput,
+    owner: symbols::SymbolHandle,
+    parameters: &[StateParameter],
+    trait_scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
+    index: &mut OwnerIndex,
+) {
     for (parameter_index, parameter) in parameters.iter().enumerate() {
         index.add_all(
             type_reference_reachable_expressions(program, parameter.type_reference),
             || {
-                environment_from_parameters(
+                let mut environment = environment_from_parameters(
                     owner,
                     &parameters[..parameter_index],
                     TypeReferenceHandle::invalid(),
                     None,
-                )
+                );
+                environment.trait_scope = trait_scope;
+                environment
             },
         );
     }

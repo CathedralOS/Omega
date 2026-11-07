@@ -476,15 +476,31 @@ pub(crate) fn source_contract_parameters(
 pub(crate) fn retained_callable_signatures(
     program: &dyn crate::CheckingInput,
 ) -> impl Iterator<Item = &typed_trees::signature::StateSignature> {
+    retained_callable_contracts(program).map(|contract| contract.signature)
+}
+
+/// Preserve the supplying scope alongside each exact copied telescope.
+pub(crate) fn retained_callable_contracts(
+    program: &dyn crate::CheckingInput,
+) -> impl Iterator<Item = typed_trees::CallableContractScope<'_>> {
+    fn unscoped(
+        signature: &typed_trees::signature::StateSignature,
+    ) -> typed_trees::CallableContractScope<'_> {
+        typed_trees::CallableContractScope {
+            signature,
+            trait_scope: None,
+        }
+    }
     program
         .traits()
         .iter()
         .flat_map(move |definition| program.trait_machine_signatures(definition))
-        .chain(program.prepared_callable_signatures())
+        .map(unscoped)
+        .chain(program.prepared_callable_contracts())
         .chain(
             machine_parameter_contract_signatures(program)
                 .into_iter()
-                .map(|(_, signature)| signature),
+                .map(|(_, signature)| unscoped(signature)),
         )
 }
 

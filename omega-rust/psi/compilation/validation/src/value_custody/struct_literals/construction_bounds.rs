@@ -209,6 +209,7 @@ fn bounds_eval(
                 crate::value_custody::expression_types::declaration_expression_result_type_reference(
                     program,
                     owner,
+                    None,
                     &|expression| {
                         crate::proof_contracts::proof_embeddings::expression_type_reference(
                             program, expression,

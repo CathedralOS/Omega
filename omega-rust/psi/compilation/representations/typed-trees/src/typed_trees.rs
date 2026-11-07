@@ -112,7 +112,7 @@ mod build_selections;
 mod callable_applications;
 mod canonical_values;
 pub use callable_applications::{
-    AppliedMachineCallable, AppliedMachineCallableId, CallableSubstitution,
+    AppliedMachineCallable, AppliedMachineCallableId, CallableContractScope, CallableSubstitution,
     ClosedRequirementApplication, RequirementLocalArgument,
 };
 pub mod calls;
