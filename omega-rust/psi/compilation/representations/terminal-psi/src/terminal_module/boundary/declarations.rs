@@ -329,6 +329,7 @@ impl CheckedBoundaryExecution {
             | Self::EmptyRunRelease
             | Self::AccessInitialize
             | Self::AccessMoveOut
+            | Self::AccessRelocate
             | Self::AccessView => None,
         }
     }
