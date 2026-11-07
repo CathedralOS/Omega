@@ -227,8 +227,9 @@ public data BootstrapFatalExceptionDiagnosticState {
 
 public machine BootstrapFatalExceptionDiagnosticState::record_and_abort(
     diagnostic: &BootstrapFatalExceptionDiagnosticState,
-    vector: u32 [0..=31]
+    vector: u32
 )
+requires 0 <= vector && vector <= 31
 crashes Abort
 {
     diagnostic.vector.store(vector, NoOrdering);
