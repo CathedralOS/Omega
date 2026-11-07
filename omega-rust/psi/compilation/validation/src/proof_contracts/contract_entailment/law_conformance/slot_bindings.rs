@@ -190,6 +190,7 @@ pub(crate) fn term_mentions_variable(term: &StructuralTerm, variable: &String) -
 /// consumers separately require universal binder correspondence and proved
 /// source guarantees. Diagnostic text cannot supply a missing term identity.
 pub(crate) fn diagnostic_shape_match(
+    program: &dyn crate::CheckingInput,
     pattern: &StructuralTerm,
     term: &StructuralTerm,
     variables: &[String],
@@ -213,7 +214,7 @@ pub(crate) fn diagnostic_shape_match(
             },
         ) => {
             path == actual_path
-                && diagnostic_shape_match(subject, actual_subject, variables, bindings)
+                && diagnostic_shape_match(program, subject, actual_subject, variables, bindings)
         }
         (
             StructuralTerm::CollectionMeasure {
@@ -226,7 +227,13 @@ pub(crate) fn diagnostic_shape_match(
             },
         ) => {
             measure == actual_measure
-                && diagnostic_shape_match(collection, actual_collection, variables, bindings)
+                && diagnostic_shape_match(
+                    program,
+                    collection,
+                    actual_collection,
+                    variables,
+                    bindings,
+                )
         }
         (
             StructuralTerm::Constructor {
@@ -245,26 +252,38 @@ pub(crate) fn diagnostic_shape_match(
                     .zip(fields_t)
                     .all(|((name, value), (name_t, value_t))| {
                         name == name_t
-                            && diagnostic_shape_match(value, value_t, variables, bindings)
+                            && diagnostic_shape_match(program, value, value_t, variables, bindings)
                     })
         }
         (
             StructuralTerm::Application {
-                machine, arguments, ..
+                target,
+                selections,
+                result_type,
+                arguments,
+                ..
             },
             StructuralTerm::Application {
-                machine: machine_t,
+                target: target_t,
+                selections: selections_t,
+                result_type: result_type_t,
                 arguments: arguments_t,
                 ..
             },
         ) => {
-            machine == machine_t
+            target.is_valid()
+                && target == target_t
+                && selections == selections_t
+                && result_type.is_valid()
+                && result_type_t.is_valid()
+                && program.normalized_type_identity(*result_type)
+                    == program.normalized_type_identity(*result_type_t)
                 && arguments.len() == arguments_t.len()
                 && arguments
                     .iter()
                     .zip(arguments_t)
                     .all(|(argument, argument_t)| {
-                        diagnostic_shape_match(argument, argument_t, variables, bindings)
+                        diagnostic_shape_match(program, argument, argument_t, variables, bindings)
                     })
         }
         // An unsupported projection may hide its result binder and selected
@@ -275,6 +294,7 @@ pub(crate) fn diagnostic_shape_match(
         (
             StructuralTerm::CallProjection {
                 target,
+                selections,
                 machine,
                 result_type,
                 field,
@@ -283,6 +303,7 @@ pub(crate) fn diagnostic_shape_match(
             },
             StructuralTerm::CallProjection {
                 target: target_t,
+                selections: selections_t,
                 machine: machine_t,
                 result_type: result_type_t,
                 field: field_t,
@@ -290,7 +311,9 @@ pub(crate) fn diagnostic_shape_match(
                 ..
             },
         ) => {
-            target == target_t
+            target.is_valid()
+                && target == target_t
+                && selections == selections_t
                 && machine == machine_t
                 && result_type == result_type_t
                 && field == field_t
@@ -299,7 +322,7 @@ pub(crate) fn diagnostic_shape_match(
                     .iter()
                     .zip(arguments_t)
                     .all(|(argument, argument_t)| {
-                        diagnostic_shape_match(argument, argument_t, variables, bindings)
+                        diagnostic_shape_match(program, argument, argument_t, variables, bindings)
                     })
         }
         _ => false,

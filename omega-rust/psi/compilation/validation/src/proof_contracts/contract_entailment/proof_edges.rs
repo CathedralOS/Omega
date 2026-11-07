@@ -18,7 +18,7 @@ use super::structural_prefix::{
 };
 use super::structural_terms::{selected_application_machine, structural_term};
 use symbols::SymbolHandle;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
@@ -282,15 +282,19 @@ fn selected_decrease_relation(
                     continue;
                 };
                 conjuncts.clear();
-                collect_equality_conjuncts(program, *expression, &mut conjuncts);
-                for expression in &conjuncts {
-                    let Some(equality) = program.expression_table.binary_node(*expression) else {
+                let entry = program.machine_states(owner).first()?;
+                collect_equality_conjuncts(
+                    program,
+                    owner.symbol,
+                    program.state_parameters(entry),
+                    *expression,
+                    &mut conjuncts,
+                );
+                for conjunct in &conjuncts {
+                    let Some(identity) = conjunct.identity() else {
                         continue;
                     };
-                    if equality.operator != BinaryOperator::Equal {
-                        continue;
-                    }
-                    for operand in [equality.left, equality.right] {
+                    for operand in identity.subjects {
                         let Some(call) = program.expression_table.call_node(operand) else {
                             continue;
                         };

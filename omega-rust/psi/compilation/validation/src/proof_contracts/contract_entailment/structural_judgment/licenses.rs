@@ -2,7 +2,7 @@
 //! and semiring licenses, their law-shape detectors, and the polynomial
 //! normal form those licenses power. The judge keeps only the types it
 //! stores; all candidate computation and shape checking lives here.
-use super::super::{BinaryOperator, Machine, SymbolHandle, TraitDefinition, structural_term_pair};
+use super::super::{BinaryOperator, Machine, SymbolHandle, TraitDefinition, structural_term};
 use super::StructuralTerm;
 use crate::proof_contracts::contract_entailment::law_conformance::collect_equality_conjuncts;
 use std::collections::HashMap;
@@ -47,44 +47,46 @@ pub(crate) struct DeclaredIndexAlgebraLaws {
 /// machinery.
 /// Each `ensures`-contract equality conjunct across a state signature's
 /// contract roster, resolved to its structural-term pair.
-fn for_each_ensures_equality(
+fn for_each_ensures_identity(
     program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
     mut arm: impl FnMut(StructuralTerm, StructuralTerm),
 ) {
+    // An unconditional rewrite has no premises to discharge. Reading a
+    // conditional law's statement cannot make it an unconditional license.
+    if program
+        .state_signature_contracts(signature)
+        .iter()
+        .any(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
+    {
+        return;
+    }
+    let parameters = program.state_signature_parameters(signature);
     for expression in crate::proof_contracts::proof_facts::ensures_expression_facts(
         program,
         program.state_signature_contracts(signature),
     ) {
         let mut conjuncts = Vec::new();
-        collect_equality_conjuncts(program, expression, &mut conjuncts);
+        collect_equality_conjuncts(
+            program,
+            signature.symbol,
+            parameters,
+            expression,
+            &mut conjuncts,
+        );
         for conjunct in conjuncts {
-            let Some(binary) = program.expression_table.binary_node(conjunct) else {
+            let Some(identity) = conjunct.identity() else {
                 continue;
             };
-            // A Boolean requirement spelled `==` need not establish identity.
-            // License only mathematical equality in this exact abstract
-            // telescope, not a matching source shape or a visible provider.
-            let operands = [binary.left, binary.right].map(|operand| {
-                crate::parameter_expression_result_type_reference(
+            let [Some(left), Some(right)] = identity.subjects.map(|subject| {
+                structural_term(
                     program,
-                    signature.symbol,
-                    program.state_signature_parameters(signature),
-                    operand,
+                    None,
+                    Some((signature.symbol, parameters)),
+                    subject,
+                    None,
                 )
-            });
-            if operands.iter().any(Option::is_none)
-                || !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                    program,
-                    signature.symbol,
-                    conjunct,
-                    language_core::OperatorSpelling::Equal,
-                    &operands,
-                )
-            {
-                continue;
-            }
-            let Some((left, right)) = structural_term_pair(program, binary) else {
+            }) else {
                 continue;
             };
             arm(left, right);
@@ -99,24 +101,12 @@ pub(crate) fn declared_index_algebra_laws(
 ) -> DeclaredIndexAlgebraLaws {
     let mut laws = DeclaredIndexAlgebraLaws::default();
     for law in program.trait_machine_signatures(trait_definition) {
-        // A premise makes the equality hold only under it, and a rewrite of an
-        // index expression has no premise to discharge, so a conditional law
-        // licenses nothing.
-        if program
-            .state_signature_contracts(law)
-            .iter()
-            .any(|contract| {
-                contract.kind == typed_trees::signature::SignatureContractKind::Requires
-            })
-        {
-            continue;
-        }
         let parameters = program
             .state_signature_parameters(law)
             .iter()
             .map(|parameter| parameter.name.as_str().to_owned())
             .collect::<Vec<_>>();
-        for_each_ensures_equality(program, law, |left, right| {
+        for_each_ensures_identity(program, law, |left, right| {
             if commutativity_shape(&left, &right, &parameters).as_deref() == Some(requirement) {
                 laws.commutativity.push(law.name.as_str().to_owned());
             }
@@ -210,47 +200,38 @@ pub(crate) fn literal_index_identities(
                 trees.state_signature_contracts(law),
             ) {
                 let mut conjuncts = Vec::new();
-                collect_equality_conjuncts(program, expression, &mut conjuncts);
+                collect_equality_conjuncts(
+                    program,
+                    law.symbol,
+                    trees.state_signature_parameters(law),
+                    expression,
+                    &mut conjuncts,
+                );
                 for conjunct in conjuncts {
-                    let Some(binary) = program.expression_table.binary_node(conjunct) else {
+                    let Some(identity) = conjunct.identity() else {
                         continue;
                     };
-                    let mut operand_types = [binary.left, binary.right].map(|operand| {
-                        crate::parameter_expression_result_type_reference(
+                    let [Some(left), Some(right)] = identity.subjects.map(|subject| {
+                        structural_term(
                             program,
-                            law.symbol,
-                            trees.state_signature_parameters(law),
-                            operand,
+                            None,
+                            Some((law.symbol, trees.state_signature_parameters(law))),
+                            subject,
+                            None,
                         )
-                    });
-                    let Some((left, right)) = super::super::structural_term_pair(program, binary)
-                    else {
+                    }) else {
                         continue;
                     };
-                    if !consistent_operation_selections(&left, &right) {
-                        continue;
-                    }
-                    // `zero() == 0` often reaches this pass before the numeral
-                    // has its own carrier. The nullary result types that
-                    // numeral; a resolved literal carrier must still be the
-                    // same type, not a different integer.
-                    if let Some((_, _, orientation)) = literal_connection_shape(&left, &right) {
-                        let (call_index, integer_index) = match orientation {
-                            ConnectionOrientation::CallThenLiteral => (0, 1),
-                            ConnectionOrientation::LiteralThenCall => (1, 0),
-                        };
-                        if operand_types[integer_index].is_none() {
-                            operand_types[integer_index] = operand_types[call_index];
-                        }
-                    }
-                    if operand_types.iter().any(Option::is_none)
-                        || !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                            program,
-                            law.symbol,
-                            conjunct,
-                            language_core::OperatorSpelling::Equal,
-                            &operand_types,
-                        )
+                    if !consistent_operation_selections(&left, &right)
+                        || trees.scoped_type_identity(
+                            typed_trees::type_identity::TypeIdentityRequest {
+                                substitutions,
+                                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(
+                                    identity.carrier,
+                                )
+                            },
+                            scope_starts,
+                        ) != operand_identity
                     {
                         continue;
                     }
@@ -263,8 +244,12 @@ pub(crate) fn literal_index_identities(
                         literal_connection_shape(&left, &right)
                     {
                         let (call, integer) = match orientation {
-                            ConnectionOrientation::CallThenLiteral => (binary.left, binary.right),
-                            ConnectionOrientation::LiteralThenCall => (binary.right, binary.left),
+                            ConnectionOrientation::CallThenLiteral => {
+                                (identity.subjects[0], identity.subjects[1])
+                            }
+                            ConnectionOrientation::LiteralThenCall => {
+                                (identity.subjects[1], identity.subjects[0])
+                            }
                         };
                         let carries = |expression| {
                             operands_type(program, law, expression).is_some_and(|reference| {
@@ -830,7 +815,7 @@ fn algebraic_law_slots(
                     .iter()
                     .map(|parameter| parameter.name.as_str().to_owned())
                     .collect();
-                for_each_ensures_equality(program, requirement, |left, right| {
+                for_each_ensures_identity(program, requirement, |left, right| {
                     if let Some(op) = commutativity_shape(&left, &right, &parameters) {
                         comm_laws.push((op, requirement.name.as_str().to_owned()));
                     }

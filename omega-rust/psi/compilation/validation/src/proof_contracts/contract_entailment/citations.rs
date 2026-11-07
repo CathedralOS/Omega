@@ -564,8 +564,8 @@ fn suggest_conjunct_match(
     }
     for (first, second) in [(goal_left, goal_right), (goal_right, goal_left)] {
         let mut bindings: Vec<(String, StructuralTerm)> = Vec::new();
-        if diagnostic_shape_match(&lemma_left, first, parameters, &mut bindings)
-            && diagnostic_shape_match(&lemma_right, second, parameters, &mut bindings)
+        if diagnostic_shape_match(program, &lemma_left, first, parameters, &mut bindings)
+            && diagnostic_shape_match(program, &lemma_right, second, parameters, &mut bindings)
         {
             let arguments: Vec<String> = parameters
                 .iter()

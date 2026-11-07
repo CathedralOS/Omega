@@ -2,7 +2,7 @@
 
 use crate::frozen_program::expression_table;
 use crate::proof_contracts::contract_entailment::{
-    BinaryOperator, Diagnostic, ExpressionHandle, Machine, StateSignature, StructuralTerm,
+    Diagnostic, ExpressionHandle, Machine, StateSignature, StructuralTerm,
 };
 use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
@@ -303,26 +303,4 @@ pub(crate) fn bindings_are_forall_general(
         seen.push(name);
     }
     true
-}
-
-/// Split an ensures fact into its `==` conjuncts (And-chains recursively).
-pub(crate) fn collect_equality_conjuncts(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    out: &mut Vec<ExpressionHandle>,
-) {
-    if super::super::structural_terms::is_case_observation(program, expression) {
-        return;
-    }
-    let Some(binary) = expression_table(program).binary_node(expression) else {
-        return;
-    };
-    match binary.operator {
-        BinaryOperator::And => {
-            collect_equality_conjuncts(program, binary.left, out);
-            collect_equality_conjuncts(program, binary.right, out);
-        }
-        BinaryOperator::Equal => out.push(expression),
-        _ => {}
-    }
 }

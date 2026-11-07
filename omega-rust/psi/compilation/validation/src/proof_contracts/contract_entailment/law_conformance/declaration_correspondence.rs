@@ -6,9 +6,7 @@
 //! This establishes no new equation and imports no private strengthening. Original
 //! clause handles remain the receipt authority after applied payload substitution.
 
-use crate::proof_contracts::contract_structure::{
-    callable_binders, correspondence_fact, generic_binders,
-};
+use crate::proof_contracts::contract_structure::{callable_binders, generic_binders};
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -16,12 +14,15 @@ use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
 use typed_trees::state::State;
 use typed_trees::trait_definition::AppliedTraitScope;
+use typed_trees::type_identity::TypeIdentityRequest;
+use typed_trees::types::TypeReferenceHandle;
+
+use super::equality_conjuncts::{EqualityConjunct, equality_conjunct, matching_equality_conjuncts};
 
 pub(super) struct DeclarationCorrespondence<'program> {
     requirement: &'program StateSignature,
+    requirement_parameters: &'program [StateParameter],
     requirement_binders: Vec<(SymbolHandle, String)>,
-    provider: SymbolHandle,
-    provider_parameters: &'program [StateParameter],
     provider_binders: Vec<(SymbolHandle, String)>,
     applied_clauses: Vec<(ExpressionHandle, ExpressionHandle)>,
 }
@@ -70,17 +71,26 @@ impl<'program> DeclarationCorrespondence<'program> {
                 let applied = program
                     .applied_signature_contract_fact(declared, requirement, handle)
                     .and_then(ProofFact::as_expression)?;
-                pair_conjuncts(program, *original, *applied, &mut applied_clauses)?;
+                pair_conjuncts(
+                    program,
+                    (
+                        declared.symbol,
+                        program.state_signature_parameters(declared),
+                    ),
+                    (requirement.symbol, requirement_parameters),
+                    *original,
+                    *applied,
+                    &mut applied_clauses,
+                )?;
             }
         }
         Some(Self {
             requirement,
+            requirement_parameters,
             requirement_binders: callable_binders(
                 &generic_binders(program.state_signature_type_parameters(requirement)),
                 requirement_parameters,
             ),
-            provider: machine.symbol,
-            provider_parameters,
             provider_binders: callable_binders(
                 &generic_binders(&invocation_parameters),
                 provider_parameters,
@@ -93,42 +103,64 @@ impl<'program> DeclarationCorrespondence<'program> {
         &self,
         program: &dyn crate::CheckingInput,
         original: ExpressionHandle,
-        proven: &[(ExpressionHandle, ExpressionHandle)],
+        proven: &[(EqualityConjunct<'_>, ExpressionHandle)],
     ) -> Option<ExpressionHandle> {
+        let required = self.required_conjunct(program, original)?;
+        proven.iter().find_map(|(clause, source)| {
+            self.matching_conjuncts(program, required, *clause)
+                .then_some(*source)
+        })
+    }
+
+    pub(super) fn required_scope(&self) -> (SymbolHandle, &'program [StateParameter]) {
+        (self.requirement.symbol, self.requirement_parameters)
+    }
+
+    pub(super) fn required_conjunct(
+        &self,
+        program: &dyn crate::CheckingInput,
+        original: ExpressionHandle,
+    ) -> Option<EqualityConjunct<'program>> {
         let (_, applied) = self
             .applied_clauses
             .iter()
-            .find(|(clause, _)| *clause == original)?;
-        if !crate::has_builtin_parameter_bound_expression_meaning(
+            .find(|(source, _)| *source == original)?;
+        equality_conjunct(
             program,
             self.requirement.symbol,
-            program.state_signature_parameters(self.requirement),
+            self.requirement_parameters,
             *applied,
-        ) {
-            return None;
-        }
-        let required = correspondence_fact(
-            program,
-            &ProofFact::Expression(*applied),
-            &self.requirement_binders,
-        )?;
-        proven.iter().find_map(|(clause, source)| {
-            if !crate::has_builtin_parameter_bound_expression_meaning(
-                program,
-                self.provider,
-                self.provider_parameters,
-                *clause,
-            ) {
-                return None;
-            }
-            (correspondence_fact(
-                program,
-                &ProofFact::Expression(*clause),
-                &self.provider_binders,
-            )
-            .is_some_and(|provided| provided == required))
-            .then_some(*source)
+        )
+    }
+
+    pub(super) fn identity_carriers_match(
+        &self,
+        program: &dyn crate::CheckingInput,
+        required: TypeReferenceHandle,
+        provided: TypeReferenceHandle,
+    ) -> bool {
+        program.type_identity(TypeIdentityRequest {
+            binders: &self.requirement_binders,
+            ..TypeIdentityRequest::ordinary(required)
+        }) == program.type_identity(TypeIdentityRequest {
+            binders: &self.provider_binders,
+            ..TypeIdentityRequest::ordinary(provided)
         })
+    }
+
+    pub(super) fn matching_conjuncts(
+        &self,
+        program: &dyn crate::CheckingInput,
+        required: EqualityConjunct<'_>,
+        provided: EqualityConjunct<'_>,
+    ) -> bool {
+        matching_equality_conjuncts(
+            program,
+            required,
+            &self.requirement_binders,
+            provided,
+            &self.provider_binders,
+        )
     }
 }
 
@@ -136,6 +168,8 @@ impl<'program> DeclarationCorrespondence<'program> {
 /// checked positions, never by expression display text or a coincidental count.
 fn pair_conjuncts(
     program: &dyn crate::CheckingInput,
+    original_scope: (SymbolHandle, &[StateParameter]),
+    applied_scope: (SymbolHandle, &[StateParameter]),
     original: ExpressionHandle,
     applied: ExpressionHandle,
     clauses: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
@@ -147,15 +181,36 @@ fn pair_conjuncts(
         (Some(source), Some(selected)) if source.operator == selected.operator => {
             match source.operator {
                 BinaryOperator::And => {
-                    pair_conjuncts(program, source.left, selected.left, clauses)?;
-                    pair_conjuncts(program, source.right, selected.right, clauses)?;
+                    pair_conjuncts(
+                        program,
+                        original_scope,
+                        applied_scope,
+                        source.left,
+                        selected.left,
+                        clauses,
+                    )?;
+                    pair_conjuncts(
+                        program,
+                        original_scope,
+                        applied_scope,
+                        source.right,
+                        selected.right,
+                        clauses,
+                    )?;
                 }
                 BinaryOperator::Equal => clauses.push((original, applied)),
                 _ => {}
             }
             Some(())
         }
-        (None, None) => Some(()),
+        (None, None) => {
+            if equality_conjunct(program, original_scope.0, original_scope.1, original).is_some()
+                && equality_conjunct(program, applied_scope.0, applied_scope.1, applied).is_some()
+            {
+                clauses.push((original, applied));
+            }
+            Some(())
+        }
         _ => None,
     }
 }

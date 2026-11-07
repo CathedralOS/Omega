@@ -8,19 +8,21 @@
 //! diagnostics.
 
 mod declaration_correspondence;
+mod equality_conjuncts;
 mod inherited_requirements;
 mod law_guarantees;
 mod operator_contracts;
 mod proposition_laws;
 mod slot_bindings;
 
+pub(crate) use equality_conjuncts::collect_equality_conjuncts;
 pub use inherited_requirements::{
     InheritedRequirementApplication, inherited_requirement_proposition_application,
     inherited_requirement_proposition_label, inherited_satisfier_parameters,
 };
 pub use law_guarantees::{MatchedLawGuarantee, matched_machine_law_guarantees};
 pub(crate) use operator_contracts::check_operator_contract_conformance;
-pub(crate) use proposition_laws::{collect_equality_conjuncts, indexed_law_binder_arguments};
+pub(crate) use proposition_laws::indexed_law_binder_arguments;
 pub(crate) use slot_bindings::{
     diagnostic_shape_match, display_structural_term, term_mentions_variable,
 };
@@ -46,10 +48,10 @@ pub(crate) fn check_law_conformance(
     matches: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
 ) {
     let trait_definition = application.declaration;
-    // The declared law conjuncts (Equal binaries; And-chains split;
+    // Declared identity and comparison statements, with conjunctions split.
     // `result`-mentioning conjuncts are functional specs, not laws -- they
-    // stay outside this check, exactly like the suggestion path).
-    let mut law_conjuncts: Vec<ExpressionHandle> = Vec::new();
+    // stay outside this check, exactly like the suggestion path.
+    let mut law_conjuncts = Vec::new();
     let mut proposition_laws = Vec::new();
     for fact in crate::proof_contracts::proof_facts::ensures_facts(
         program,
@@ -57,7 +59,13 @@ pub(crate) fn check_law_conformance(
     ) {
         match fact {
             ProofFact::Expression(expression) => {
-                collect_equality_conjuncts(program, *expression, &mut law_conjuncts);
+                collect_equality_conjuncts(
+                    program,
+                    requirement.symbol,
+                    program.state_signature_parameters(requirement),
+                    *expression,
+                    &mut law_conjuncts,
+                );
             }
             ProofFact::Proposition(application) => proposition_laws.push(application),
             ProofFact::Membership(_) => {}
@@ -126,14 +134,20 @@ pub(crate) fn check_law_conformance(
 
     // The satisfier's own PROVEN ensures conjuncts (machine-checked by this
     // engine before this point -- compiling means proven).
-    let mut proven_conjuncts: Vec<(ExpressionHandle, ExpressionHandle)> = Vec::new();
+    let mut proven_conjuncts = Vec::new();
     for fact in crate::proof_contracts::proof_facts::ensures_facts(
         program,
         program.machine_contracts(machine),
     ) {
         if let Some(expression) = fact.as_expression() {
             let mut conjuncts = Vec::new();
-            collect_equality_conjuncts(program, *expression, &mut conjuncts);
+            collect_equality_conjuncts(
+                program,
+                machine.symbol,
+                program.state_parameters(entry_state),
+                *expression,
+                &mut conjuncts,
+            );
             proven_conjuncts.extend(
                 conjuncts
                     .into_iter()
@@ -159,9 +173,10 @@ pub(crate) fn check_law_conformance(
         .collect::<Vec<_>>();
 
     for law_conjunct in &law_conjuncts {
+        let law_expression = law_conjunct.expression();
         if crate::proof_contracts::contract_results::expression_uses_reserved_result(
             program,
-            *law_conjunct,
+            law_expression,
         ) {
             // Selected content and other functional guarantees may not have
             // first-order terms. Their exact result occurrence still keeps
@@ -169,12 +184,34 @@ pub(crate) fn check_law_conformance(
             continue;
         }
         if let Some(source) = correspondence.as_ref().and_then(|correspondence| {
-            correspondence.matching_guarantee(program, *law_conjunct, &proven_conjuncts)
+            correspondence.matching_guarantee(program, law_expression, &proven_conjuncts)
         }) {
-            matches.push((*law_conjunct, source));
+            matches.push((law_expression, source));
             continue;
         }
-        let Some(binary) = program.expression_table.binary_node(*law_conjunct) else {
+        let required = correspondence
+            .as_ref()
+            .and_then(|correspondence| correspondence.required_conjunct(program, law_expression))
+            .unwrap_or(*law_conjunct);
+        let Some(identity) = required.identity() else {
+            // A selected comparison law still needs the same selected Boolean
+            // guarantee. It supplies no identity substitution or algebra license.
+            let matched = proven_conjuncts.iter().find_map(|(proven, source)| {
+                correspondence
+                    .as_ref()
+                    .is_some_and(|correspondence| {
+                        correspondence.matching_conjuncts(program, required, *proven)
+                    })
+                    .then_some(*source)
+            });
+            if let Some(source) = matched {
+                matches.push((law_expression, source));
+            } else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` proves no guarantee for the selected comparison law `{}::{}`",
+                    machine.name, trait_definition.name, requirement.name,
+                )));
+            }
             continue;
         };
         // Contract fields and builtin measures belong to their declaration's
@@ -182,15 +219,22 @@ pub(crate) fn check_law_conformance(
         // opaque display text, which cannot establish public correspondence.
         // This reads declarations only; the provider still proves its own
         // ensures independently before the matched law can be consumed.
-        let requirement_scope = Some((
-            requirement.symbol,
-            program.state_signature_parameters(requirement),
+        let requirement_scope = Some(correspondence.as_ref().map_or(
+            (
+                requirement.symbol,
+                program.state_signature_parameters(requirement),
+            ),
+            |correspondence| correspondence.required_scope(),
         ));
         let (Some(law_left), Some(law_right)) = (
-            structural_term(program, None, requirement_scope, binary.left, None),
-            structural_term(program, None, requirement_scope, binary.right, None),
+            structural_term(program, None, requirement_scope, identity.subjects[0], None),
+            structural_term(program, None, requirement_scope, identity.subjects[1], None),
         ) else {
-            continue; // out-of-language law conjunct: nothing to enforce yet
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` cannot match identity law `{}::{}` under its exact parameter telescope",
+                machine.name, trait_definition.name, requirement.name,
+            )));
+            continue;
         };
         // A law selects only operation slots it actually uses. Other members
         // may have several legitimate realizations (including target bodies);
@@ -246,15 +290,38 @@ pub(crate) fn check_law_conformance(
 
         let matched = proven_conjuncts.iter().find_map(|(proven, source)| {
             if crate::proof_contracts::contract_results::expression_uses_reserved_result(
-                program, *proven,
+                program,
+                proven.expression(),
             ) {
                 return None;
             }
-            let proven_binary = program.expression_table.binary_node(*proven)?;
+            let proven_identity = proven.identity()?;
+            let same_carrier = correspondence.as_ref().is_some_and(|correspondence| {
+                correspondence.identity_carriers_match(
+                    program,
+                    identity.carrier,
+                    proven_identity.carrier,
+                )
+            });
+            if !same_carrier {
+                return None;
+            }
             let provider_scope = Some((machine.symbol, program.state_parameters(entry_state)));
             let (Some(proven_left), Some(proven_right)) = (
-                structural_term(program, None, provider_scope, proven_binary.left, None),
-                structural_term(program, None, provider_scope, proven_binary.right, None),
+                structural_term(
+                    program,
+                    None,
+                    provider_scope,
+                    proven_identity.subjects[0],
+                    None,
+                ),
+                structural_term(
+                    program,
+                    None,
+                    provider_scope,
+                    proven_identity.subjects[1],
+                    None,
+                ),
             ) else {
                 return None;
             };
@@ -266,20 +333,25 @@ pub(crate) fn check_law_conformance(
                     // Post-state guarantees belong to fixed invocation roles.
                     // A permutation of mutable formals proves a different clause.
                     let mut bindings = positional_bindings.clone();
-                    diagnostic_shape_match(&law_left, first, &requirement_parameters, &mut bindings)
-                        && diagnostic_shape_match(
-                            &law_right,
-                            second,
-                            &requirement_parameters,
-                            &mut bindings,
-                        )
-                        && bindings_are_forall_general(&bindings, &satisfier_parameters)
+                    diagnostic_shape_match(
+                        program,
+                        &law_left,
+                        first,
+                        &requirement_parameters,
+                        &mut bindings,
+                    ) && diagnostic_shape_match(
+                        program,
+                        &law_right,
+                        second,
+                        &requirement_parameters,
+                        &mut bindings,
+                    ) && bindings_are_forall_general(&bindings, &satisfier_parameters)
                 })
                 .then_some(*source)
         });
 
         if let Some(source) = matched {
-            matches.push((*law_conjunct, source));
+            matches.push((law_expression, source));
         } else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` satisfies `{}::{}` but proves no ensures matching the declared \
