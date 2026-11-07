@@ -7,6 +7,9 @@ data FirstFrame [copy] { tag: u8; first: u8; last: u8; }
 data SecondFrame [copy] { tag: u8; first: u8; last: u8; }
 data Failure [copy] { case InvalidTag; }
 
+// A transparent mathematical wrapper carries the same exact identity value.
+let same_result<A: core::Type<0>>(left: A, right: A): core::Type<0> = core::Identity<A>(left, right);
+
 // This refinement describes only the selected value maps used in this law.
 // Base TryFrom remains available to resource-backed and effectful conversions.
 trait ValueConversion<Source, Destination, Error> = TryFrom<Source, Destination, Error> {
@@ -106,7 +109,7 @@ machine require_round_trip<Frame,
     Encode satisfies ValueConversion<Pair, Frame, Failure>,
     Decode satisfies ValueConversion<Frame, Pair, Failure>>
     (value: Pair, frame: Frame)
-requires core::Identity<Result<Pair, Failure>>(Decode::try_from(frame), Result::Ok { value: value })
+requires same_result<Result<Pair, Failure>>(Decode::try_from(frame), Result::Ok { value: value })
 { }
 
 machine use_agreement<Frame,

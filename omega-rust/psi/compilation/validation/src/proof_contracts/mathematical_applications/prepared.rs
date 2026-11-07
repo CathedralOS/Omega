@@ -16,6 +16,7 @@ use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 #[derive(Debug, Default)]
 pub struct PreparedMathematicalApplications {
     pub applications: Arena<PreparedApplication>,
+    pub identity_carriers: Arena<PreparedIdentityCarrier>,
     pub captures: Arena<PreparedCapture>,
     pub constants: Arena<PreparedConstant>,
     pub source_evidence: Arena<PreparedSourceEvidence>,
@@ -90,6 +91,14 @@ pub struct PreparedCapture {
     pub source_type: TypeReferenceHandle,
 }
 
+/// Source meaning of a checked type argument retained through conversion.
+#[derive(Debug, Default)]
+pub struct PreparedIdentityCarrier {
+    pub ty: TermHandle,
+    pub source_type: TypeReferenceHandle,
+    pub type_identity: typed_trees::type_identity::TypeIdentityId,
+}
+
 #[derive(Debug, Default)]
 pub struct PreparedConstant {
     pub declaration: u32,
@@ -102,6 +111,8 @@ pub enum PreparedConstantMeaning {
     /// Its function spine still retains every input on which its value depends.
     #[default]
     Opaque,
+    /// Authenticated transparent definition whose body is kernel Id.
+    Identity,
     Integer(BigInt),
     Boolean(bool),
     IntegerCarrier,
@@ -181,6 +192,37 @@ impl<'program> PreparedMathematicalView<'program> {
             .find_map(|(_, application)| {
                 (application.expression == expression).then_some(application)
             })
+    }
+
+    /// Read the checked value emitted by the sealed declaration, including
+    /// through transparent mathematical application and capture substitution.
+    pub fn identity_value(
+        self,
+        term: TermHandle,
+    ) -> Option<(&'program PreparedIdentityCarrier, [TermHandle; 2])> {
+        let (declaration, arguments) = application_spine(self, term)?;
+        if !matches!(
+            self.constant(declaration)?,
+            PreparedConstantMeaning::Identity
+        ) {
+            return None;
+        }
+        let [ty, left, right] = arguments.as_slice() else {
+            return None;
+        };
+        let mut matches = self
+            .applications
+            .identity_carriers
+            .iter()
+            .filter_map(|(_, row)| {
+                (row.type_identity.is_valid() && self.arena.structurally_equal(row.ty, *ty))
+                    .then_some(row)
+            });
+        let carrier = matches.next()?;
+        if matches.any(|other| other.type_identity != carrier.type_identity) {
+            return None;
+        }
+        Some((carrier, [*left, *right]))
     }
 
     pub fn constant(self, declaration: u32) -> Option<&'program PreparedConstantMeaning> {

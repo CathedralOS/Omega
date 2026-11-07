@@ -29,16 +29,6 @@ pub(in crate::proof_contracts::contract_entailment) fn has_identity_equality_mea
     let types = [binary.left, binary.right].map(|operand| {
         crate::parameter_expression_result_type_reference(program, scope, parameters, operand)
     });
-    // This entrance consumes formed fact operands. Id of complete data is
-    // independent of executable Equatable selection and can retain symbolic
-    // fields. Known IEEE comparisons keep their separate relation fence.
-    if let Some(references) =
-        data_identity_operand_references(program, scope, parameters, expression)
-    {
-        return references
-            .into_iter()
-            .all(|reference| identity_carrier(program, reference, &mut Vec::new(), 0, true));
-    }
     // Select with complete declaration types before interpreting a builtin
     // scalar read. A reference overload still sees its descriptor type;
     // readable scalar contents do not authorize aggregate descriptor identity.
@@ -66,38 +56,46 @@ pub(in crate::proof_contracts::contract_entailment) fn has_identity_equality_mea
 
 /// The exact complete data carriers of a formed Id question. This supplies
 /// neither operand observations nor equality truth; consumers still owe both.
-pub(in crate::proof_contracts::contract_entailment) fn data_identity_operand_references(
+pub(in crate::proof_contracts::contract_entailment) fn builtin_identity_operand_references(
     program: &dyn crate::CheckingInput,
     scope: SymbolHandle,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<[TypeReferenceHandle; 2]> {
     let binary = program.expression_table.binary_node(expression)?;
-    if !matches!(
-        binary.operator,
-        BinaryOperator::Equal | BinaryOperator::NotEqual
-    ) || super::is_case_observation(program, expression)
+    let spelling = match binary.operator {
+        BinaryOperator::Equal => language_core::OperatorSpelling::Equal,
+        BinaryOperator::NotEqual => language_core::OperatorSpelling::NotEqual,
+        _ => return None,
+    };
+    let types = [binary.left, binary.right].map(|operand| {
+        crate::parameter_expression_result_type_reference(program, scope, parameters, operand)
+    });
+    if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+        program, scope, expression, spelling, &types,
+    ) {
+        return None;
+    }
+    let references = crate::value_custody::expression_types::builtin_scalar_operand_references(
+        program, binary, types, None,
+    )?;
+    // Only specified, same-carrier owned primitive comparisons imply Id.
+    // Aggregate/custom comparisons require separate checked bridge evidence;
+    // reading equal referent contents never identifies their descriptors.
+    if references.iter().any(|reference| {
+        crate::reference_shell(program, *reference).is_some()
+            || !program
+                .primitive_type_reference(*reference)
+                .is_some_and(|primitive| {
+                    primitive.is_fixed_integer()
+                        || matches!(primitive, PrimitiveType::Bool | PrimitiveType::Addr)
+                })
+    }) || program.normalized_type_identity(references[0])
+        != program.normalized_type_identity(references[1])
     {
         return None;
     }
-    let [Some(left), Some(right)] = [binary.left, binary.right].map(|operand| {
-        crate::parameter_expression_result_type_reference(program, scope, parameters, operand)
-    }) else {
-        return None;
-    };
-    let identities = [(binary.left, left), (binary.right, right)].map(|(operand, reference)| {
-        crate::contextual_identity_subject_type(
-            program,
-            reference,
-            matches!(
-                program.expression_table.expression(operand),
-                typed_trees::expression::ExpressionNode::Name(_)
-                    | typed_trees::expression::ExpressionNode::Borrow(_)
-            ),
-        )
-    });
-    (identities[0].is_some_and(|identity| identity.is_valid()) && identities[0] == identities[1])
-        .then_some([left, right])
+    Some(references)
 }
 
 fn identity_carrier(

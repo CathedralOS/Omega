@@ -590,29 +590,27 @@ fn check_program(
     // Mathematical terms remained borrowed by every source judgment. Transfer
     // their checked metadata only after the final context has been dropped.
     facts.proof.mathematical_declarations = mathematics.declarations;
-    for (_, application) in mathematics.applications.applications.iter() {
-        let Some(call) = typed_program
-            .expression_table
-            .call_node(application.expression)
-        else {
-            continue;
+    if let Some(signature) = mathematics.signature.as_ref() {
+        let view = validation::mathematical_applications::PreparedMathematicalView {
+            arena: &signature.arena,
+            declarations: &signature.declarations,
+            applications: &mathematics.applications,
         };
-        if !validation::mathematical_applications::is_identity_call(&typed_program, call) {
-            continue;
+        for (_, application) in mathematics.applications.applications.iter() {
+            let Some((carrier, _)) = view.identity_value(application.term) else {
+                continue;
+            };
+            facts
+                .proof
+                .identity_formations
+                .push(checked_trees::CheckedIdentityFormation {
+                    expression: application.expression,
+                    type_identity: carrier.type_identity,
+                    term: application.term,
+                    ty: application.ty,
+                    domains: application.domains.clone(),
+                });
         }
-        let identity =
-            validation::mathematical_applications::identity_application(&typed_program, call)
-                .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
-        facts
-            .proof
-            .identity_formations
-            .push(checked_trees::CheckedIdentityFormation {
-                expression: application.expression,
-                type_identity: typed_program.normalized_type_identity(identity.carrier),
-                term: application.term,
-                ty: application.ty,
-                domains: application.domains.clone(),
-            });
     }
     facts.proof.source_evidence_carriers = mathematics
         .applications

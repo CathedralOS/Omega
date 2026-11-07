@@ -964,7 +964,7 @@ fn selected_contract_predicate_judgment(
         }
         return judge.instantiated_case_judgment(callable, parameters, expression, &map);
     }
-    if let Some(references) = super::super::structural_terms::data_identity_operand_references(
+    if let Some(references) = super::super::structural_terms::builtin_identity_operand_references(
         program, callable, parameters, expression,
     ) {
         let Some(binary) = program.expression_table.binary_node(expression) else {
@@ -1196,7 +1196,7 @@ pub(super) fn capture_guarantees(
     }
     if let Some(binary) = binary
         && binary.operator == BinaryOperator::Equal
-        && (super::super::structural_terms::data_identity_operand_references(
+        && (super::super::structural_terms::builtin_identity_operand_references(
             program, scope, parameters, expression,
         )
         .is_some()
@@ -1229,22 +1229,26 @@ pub(super) fn capture_guarantees(
         let references = [binary.left, binary.right].map(|operand| {
             crate::parameter_expression_result_type_reference(program, scope, parameters, operand)
         });
-        if let Some(references) = super::super::structural_terms::data_identity_operand_references(
-            program, scope, parameters, expression,
-        )
-        .or_else(|| {
-            crate::value_custody::expression_types::builtin_scalar_operand_references(
-                program, binary, references, None,
+        if let Some(references) =
+            super::super::structural_terms::builtin_identity_operand_references(
+                program, scope, parameters, expression,
             )
-        }) && super::super::structural_terms::scalar_operand_is_observed(
-            program,
-            references[0],
-            &left,
-        ) && super::super::structural_terms::scalar_operand_is_observed(
-            program,
-            references[1],
-            &right,
-        ) {
+            .or_else(|| {
+                crate::value_custody::expression_types::builtin_scalar_operand_references(
+                    program, binary, references, None,
+                )
+            })
+            && super::super::structural_terms::scalar_operand_is_observed(
+                program,
+                references[0],
+                &left,
+            )
+            && super::super::structural_terms::scalar_operand_is_observed(
+                program,
+                references[1],
+                &right,
+            )
+        {
             if super::super::structural_terms::has_identity_equality_meaning(
                 program, scope, parameters, expression,
             ) {

@@ -768,20 +768,11 @@ impl<'program> StructuralJudge<'program> {
         depth: usize,
     ) -> StructuralJudgment {
         if let StructuralTerm::Identity { left, right, .. } = predicate.semantic_value() {
-            let direct =
-                self.judge_data_identity(left.as_ref().clone(), right.as_ref().clone(), depth + 1);
-            if !matches!(direct, StructuralJudgment::Unknown) {
-                return direct;
-            }
-            // Ordinary admitted computation can expose constructor identity.
-            // Resolve each exact subject before structural congruence; no
-            // executable comparison or unobserved call donates an equation.
-            let left = self.resolve_at(left.as_ref().clone(), depth + 1);
-            let right = self.resolve_at(right.as_ref().clone(), depth + 1);
-            if !self.data_identity_is_observed(&left) || !self.data_identity_is_observed(&right) {
-                return StructuralJudgment::Unknown;
-            }
-            return self.judge_equation(left, right, depth + 1);
+            return self.judge_explicit_identity(
+                left.as_ref().clone(),
+                right.as_ref().clone(),
+                depth,
+            );
         }
         // A reduced mathematical conjunction can contain integer or IEEE
         // leaves. Compose their independent judgments instead of sending the

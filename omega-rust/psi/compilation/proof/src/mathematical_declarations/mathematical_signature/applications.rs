@@ -103,7 +103,7 @@ impl Elaborator<'_> {
                     // constructing or duplicating its runtime resource. A
                     // mathematical value actual still owes its constructor
                     // evidence; Id formation only borrows the typed subject.
-                    if !validation::mathematical_applications::is_identity_call(self.program, &call)
+                    if !self.call_returns_type(&call)
                         && let TypeReferenceNode::Generic { base_symbol, .. } =
                             self.program.type_reference_table.type_reference(reference)
                         && self.indexed_families.contains_key(base_symbol)
@@ -228,6 +228,16 @@ impl Elaborator<'_> {
                     .position(|level| level.symbol == symbol)
             {
                 constraints.push((position, term, &binder.name));
+            }
+            if matches!(slot.kind, MathematicalBinderKind::Type) {
+                let reference = if argument.type_reference.is_valid() {
+                    Some(argument.type_reference)
+                } else {
+                    type_reference_table(self.program).find_named_type_reference(argument.symbol)
+                };
+                if let Some(reference) = reference {
+                    self.retain_identity_carrier(reference, term);
+                }
             }
             terms.push(term);
             term_domains.push(domain);

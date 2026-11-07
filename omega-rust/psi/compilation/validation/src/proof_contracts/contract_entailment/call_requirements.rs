@@ -929,7 +929,7 @@ fn runtime_predicate_fact(
                 && runtime_predicate_fact(program, machine, state, binary.right)
         }
         BinaryOperator::Equal | BinaryOperator::NotEqual => {
-            super::structural_terms::data_identity_operand_references(
+            super::structural_terms::builtin_identity_operand_references(
                 program,
                 machine.symbol,
                 program.state_parameters(state),
@@ -964,14 +964,6 @@ fn runtime_fact_for_parameters(
     parameters: &[typed_trees::signature::StateParameter],
     expression: ExpressionHandle,
 ) -> bool {
-    if expression_table(program)
-        .call_node(expression)
-        .is_some_and(|call| crate::mathematical_applications::is_identity_call(program, call))
-    {
-        return program
-            .prepared_mathematics()
-            .is_some_and(|view| view.application(expression).is_some());
-    }
     // Static equations have no mutable runtime operand. Recognizing their
     // exact term only admits the question; the applied tuple and prior
     // premises still owe its truth in the ordinary prefix judgment.
@@ -992,7 +984,7 @@ fn runtime_fact_for_parameters(
         if matches!(
             binary.operator,
             BinaryOperator::Equal | BinaryOperator::NotEqual
-        ) && (super::structural_terms::data_identity_operand_references(
+        ) && (super::structural_terms::builtin_identity_operand_references(
             program, owner, parameters, expression,
         )
         .is_some()

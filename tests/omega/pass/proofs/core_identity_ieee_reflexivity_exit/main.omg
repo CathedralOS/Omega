@@ -1,0 +1,27 @@
+// Expected exit: 0
+// Same resident NaNs and same-bit signed zeros have Id independently of IEEE ==.
+data FloatBox [copy] { value: f64; }
+let same<A: core::Type<0>>(left: A, right: A): core::Type<0> = core::Identity<A>(left, right);
+machine keep(value: f64) reaches terminates
+ensures same<f64>(value, value)
+{ }
+machine keep_box(value: FloatBox) reaches terminates
+ensures core::Identity<FloatBox>(value, value)
+{ }
+machine require_same(left: f64, right: f64)
+requires same<f64>(left, right)
+{ }
+machine main() crashes Trap {
+    let nan: f64 = 0.0f64 / 0.0f64;
+    let boxed: FloatBox = FloatBox { value: nan };
+    keep(nan);
+    keep_box(boxed);
+    require_same(nan, nan);
+    require_same(-0.0f64, -0.0f64);
+    transition nan == nan || !(-0.0f64 == 0.0f64) {
+        true -> bad()
+        false -> done()
+    }
+    machine done() { }
+    machine bad() { crash Trap; }
+}

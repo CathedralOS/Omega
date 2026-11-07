@@ -85,15 +85,12 @@ pub(super) fn needs_scheme(program: &dyn validation::CheckingInput) -> bool {
             MathematicalType::Application { callee, .. } => mathematical(program, *callee),
         }
     }
-    program
-        .expression_table
-        .iter_expressions()
-        .any(|(_, node)| {
-            matches!(node, typed_trees::expression::ExpressionNode::Call(call)
-            if validation::mathematical_applications::is_identity_call(program, call)
-                && validation::mathematical_applications::identity_application(program, call)
-                    .is_ok_and(|identity| reference(program, identity.carrier)))
-        })
+    program.expression_table.iter_expressions().any(|(_, node)| {
+        matches!(node, typed_trees::expression::ExpressionNode::Call(call)
+            if validation::mathematical_applications::is_mathematical_call(program, call)
+                && call.machine_arguments.iter().any(|argument|
+                    argument.type_reference.is_valid() && reference(program, argument.type_reference)))
+    })
         || !erased_family_demands(program).is_empty()
         || program.mathematical_definitions().iter().any(|definition| {
             mathematical(program, definition.result)

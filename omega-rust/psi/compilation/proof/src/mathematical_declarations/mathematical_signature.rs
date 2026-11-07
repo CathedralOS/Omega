@@ -89,6 +89,8 @@ pub(crate) struct CheckedMathematicalSignature {
     /// authored declaration order.
     authored: Vec<u32>,
     prepared: PreparedMathematicalApplications,
+    identity_declaration: Option<u32>,
+    type_returning_declarations: Vec<SymbolHandle>,
 }
 
 impl CheckedMathematicalSignature {
@@ -284,6 +286,8 @@ pub(crate) fn check_mathematical_signature(
         integer_theory: None,
         integer_multiply: None,
         prepared: PreparedMathematicalApplications::default(),
+        identity_declaration: None,
+        type_returning_declarations: Vec::new(),
     };
     if needs_scheme {
         let theory = proof_admission::SourceIntegerTheory::new(
@@ -362,6 +366,9 @@ impl<'a> Elaborator<'a> {
         // places it in the strict layer. Nothing else squashes — a
         // `Type` carrier keeps the same proposition relevant.
         let strict_result = matches!(self.arena.get(result), Term::Sort(Sort::Strict(_)));
+        if matches!(self.arena.get(result), Term::Sort(_)) {
+            self.type_returning_declarations.push(definition.symbol);
+        }
         let mut ty = result;
         for entry in self.scope.iter().rev() {
             ty = self.arena.insert(Term::Pi {
@@ -759,6 +766,15 @@ impl<'a> Elaborator<'a> {
                 &|declaration| {
                     literals.values().any(|position| *position == declaration)
                         || embeddings.contains(&declaration)
+                        || self.identity_declaration == Some(declaration)
+                        || self
+                            .source_aliases
+                            .iter()
+                            .any(|alias| alias.declaration == declaration)
+                        || self
+                            .indexed_families
+                            .values()
+                            .any(|family| family.declaration == declaration)
                 },
             )
             .map_err(|error| {
@@ -775,6 +791,7 @@ impl<'a> Elaborator<'a> {
                 captures,
             });
         }
+        self.normalize_identity_carriers(&signature)?;
         self.retain_source_evidence_aliases()?;
         self.bind_source_evidence_types(&signature)?;
         self.retain_constant_meanings();
@@ -793,6 +810,9 @@ impl<'a> Elaborator<'a> {
                 meaning,
             });
         };
+        if let Some(declaration) = self.identity_declaration {
+            retain(declaration, PreparedConstantMeaning::Identity);
+        }
         for ((_, value), position) in &self.numeric_literals {
             retain(*position, PreparedConstantMeaning::Integer(value.clone()));
         }

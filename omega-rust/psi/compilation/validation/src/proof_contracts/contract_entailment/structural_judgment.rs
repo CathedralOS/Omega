@@ -3346,7 +3346,8 @@ impl<'program> StructuralJudge<'program> {
                         StructuralTerm::Variable(root) | StructuralTerm::Opaque(root) => {
                             StructuralTerm::Opaque(format!("{root}.{suffix}"))
                         }
-                        StructuralTerm::Integer(_)
+                        StructuralTerm::Identity { .. }
+                        | StructuralTerm::Integer(_)
                         | StructuralTerm::RepeatedArray { .. }
                         | StructuralTerm::Float(_)
                         | StructuralTerm::ScalarRepresentation { .. }
@@ -3498,7 +3499,7 @@ impl<'program> StructuralJudge<'program> {
             }
             BinaryOperator::Equal | BinaryOperator::NotEqual => {
                 let data_identity = self.declaration_scope().is_some_and(|(owner, parameters)| {
-                    super::structural_terms::data_identity_operand_references(
+                    super::structural_terms::builtin_identity_operand_references(
                         program, owner, parameters, fact,
                     )
                     .is_some()
