@@ -1,0 +1,770 @@
+//! Corpus verification, recording, and regression listing (`cargo xtask corpus`).
+
+use std::collections::BTreeMap;
+use std::fs;
+use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+
+use crate::repo_root;
+
+const SELECTION_BUDGET: usize = 200;
+const REGRESSION_PREFIX: &str = "regressed-from:";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PinnedRegression {
+    pub fixture: String,
+    pub status: String,
+    pub flags: Vec<String>,
+    pub diagnostics: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CorpusRecord {
+    pub fixture: String,
+    pub tier: String,
+    pub status: String,
+    pub millis: u64,
+    pub expected_satisfied: Option<bool>,
+    pub facts: Vec<(String, String)>,
+    pub diagnostics: Vec<String>,
+    pub regressed_from: Option<String>,
+    pub recorded_at: Option<String>,
+}
+
+/// Parse `tests/omega/corpus_outcomes.txt` and return all pinned regressions:
+/// - `pass/` or `run/` rows whose status is not `checked`/`built` or that carry `regressed-from:*`
+/// - `fail/` rows whose status is not `rejected` or that carry `unexpected`
+pub fn list_pinned_regressions_from_text(text: &str) -> Vec<PinnedRegression> {
+    let mut regressions = Vec::new();
+    let mut current: Option<PinnedRegression> = None;
+
+    let flush = |current: &mut Option<PinnedRegression>, out: &mut Vec<PinnedRegression>| {
+        if let Some(row) = current.take() {
+            let is_positive = row.fixture.starts_with("pass/") || row.fixture.starts_with("run/");
+            let is_negative = row.fixture.starts_with("fail/");
+            let has_regressed_from = row.flags.iter().any(|f| f.starts_with(REGRESSION_PREFIX));
+            let is_green_status = row.status == "checked" || row.status == "built";
+            let is_native_rejection = is_positive
+                && row.status == "rejected"
+                && row.flags.iter().any(|f| f == "expected")
+                && row.flags.iter().any(|f| f == "native-rejection:match");
+            let is_regression = if is_positive {
+                (!is_green_status && !is_native_rejection) || has_regressed_from
+            } else if is_negative {
+                row.status != "rejected" || row.flags.iter().any(|f| f == "unexpected")
+            } else {
+                false
+            };
+            if is_regression {
+                out.push(row);
+            }
+        }
+    };
+
+    for line in text.lines() {
+        if let Some(diag) = line.strip_prefix('\t') {
+            if let Some(row) = current.as_mut() {
+                row.diagnostics.push(unescape_diagnostic(diag.trim()));
+            }
+            continue;
+        }
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') || line.starts_with(' ') {
+            continue;
+        }
+        flush(&mut current, &mut regressions);
+        let mut tokens = trimmed.split_whitespace();
+        let Some(fixture) = tokens.next() else {
+            continue;
+        };
+        let Some(status) = tokens.next() else {
+            continue;
+        };
+        let flags: Vec<String> = tokens
+            .filter(|t| !t.starts_with('@') && !is_duration_token(t))
+            .map(str::to_owned)
+            .collect();
+        current = Some(PinnedRegression {
+            fixture: fixture.to_owned(),
+            status: status.to_owned(),
+            flags,
+            diagnostics: Vec::new(),
+        });
+    }
+    flush(&mut current, &mut regressions);
+    regressions
+}
+
+fn is_duration_token(token: &str) -> bool {
+    let digits = token
+        .strip_suffix("ms")
+        .or_else(|| token.strip_suffix('s'))
+        .unwrap_or("");
+    !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit())
+}
+
+fn escape_diagnostic(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+fn unescape_diagnostic(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars();
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            match chars.next() {
+                Some('\\') => out.push('\\'),
+                Some('n') => out.push('\n'),
+                Some('r') => out.push('\r'),
+                Some('t') => out.push('\t'),
+                Some(other) => {
+                    out.push('\\');
+                    out.push(other);
+                }
+                None => out.push('\\'),
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+pub fn parse_records(text: &str) -> Result<Vec<CorpusRecord>, String> {
+    let mut records: Vec<CorpusRecord> = Vec::new();
+    for (idx, line) in text.lines().enumerate() {
+        let line_no = idx + 1;
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some(diag) = line.strip_prefix('\t') {
+            let Some(last) = records.last_mut() else {
+                return Err(format!("line {line_no}: diagnostic before any fixture"));
+            };
+            last.diagnostics.push(unescape_diagnostic(diag));
+            continue;
+        }
+        let fields: Vec<&str> = line.split(' ').collect();
+        if fields.len() < 3 || !fields[2].ends_with("ms") {
+            return Err(format!("line {line_no}: not a fixture record: {line}"));
+        }
+        let fixture = fields[0].to_owned();
+        let tier = fixture.split('/').next().unwrap_or("").to_owned();
+        let status = fields[1].to_owned();
+        let millis: u64 = fields[2][..fields[2].len() - 2]
+            .parse()
+            .map_err(|_| format!("line {line_no}: invalid duration {}", fields[2]))?;
+        let mut expected_satisfied: Option<bool> = None;
+        let mut facts: Vec<(String, String)> = Vec::new();
+        let mut regressed_from: Option<String> = None;
+        let mut recorded_at: Option<String> = None;
+
+        for (index, &token) in fields.iter().enumerate().skip(3) {
+            if matches!(token, "expected" | "unexpected")
+                && expected_satisfied.is_none()
+                && facts.is_empty()
+                && regressed_from.is_none()
+            {
+                expected_satisfied = Some(token == "expected");
+            } else if let Some(stamp) = token.strip_prefix('@') {
+                if index + 1 != fields.len() || stamp.is_empty() {
+                    return Err(format!("line {line_no}: @{stamp} must be the last token"));
+                }
+                recorded_at = Some(stamp.to_owned());
+            } else if let Some(reg) = token.strip_prefix(REGRESSION_PREFIX) {
+                regressed_from = Some(reg.to_owned());
+            } else if let Some((k, v)) = token.split_once(':') {
+                facts.push((k.to_owned(), v.to_owned()));
+            } else {
+                return Err(format!("line {line_no}: unknown token {token:?}"));
+            }
+        }
+        records.push(CorpusRecord {
+            fixture,
+            tier,
+            status,
+            millis,
+            expected_satisfied,
+            facts,
+            diagnostics: Vec::new(),
+            regressed_from,
+            recorded_at,
+        });
+    }
+    Ok(records)
+}
+
+fn record_lines(record: &CorpusRecord) -> Vec<String> {
+    let mut header = format!("{} {} {}ms", record.fixture, record.status, record.millis);
+    if let Some(sat) = record.expected_satisfied {
+        header.push_str(if sat { " expected" } else { " unexpected" });
+    }
+    for (k, v) in &record.facts {
+        header.push_str(&format!(" {k}:{v}"));
+    }
+    if let Some(reg) = &record.regressed_from {
+        header.push_str(&format!(" {REGRESSION_PREFIX}{reg}"));
+    }
+    if let Some(stamp) = &record.recorded_at {
+        header.push_str(&format!(" @{stamp}"));
+    }
+    let mut lines = vec![header];
+    for diag in &record.diagnostics {
+        lines.push(format!("\t{}", escape_diagnostic(diag)));
+    }
+    lines
+}
+
+fn block_fixture(block: &[String]) -> Option<&str> {
+    let first = block.first()?;
+    if first.trim().is_empty() || first.starts_with('#') || first.starts_with('\t') {
+        return None;
+    }
+    first.split(' ').next()
+}
+
+pub fn splice_records(text: &str, records: &[CorpusRecord]) -> String {
+    let mut blocks: Vec<Vec<String>> = Vec::new();
+    for line in text.lines() {
+        if line.starts_with('\t') && blocks.last().and_then(|b| block_fixture(b)).is_some() {
+            blocks.last_mut().unwrap().push(line.to_owned());
+        } else {
+            blocks.push(vec![line.to_owned()]);
+        }
+    }
+    let mut sorted = records.to_vec();
+    sorted.sort_by(|a, b| a.fixture.cmp(&b.fixture));
+    for record in &sorted {
+        let replacement = record_lines(record);
+        let existing: Vec<usize> = blocks
+            .iter()
+            .enumerate()
+            .filter_map(|(i, b)| (block_fixture(b) == Some(record.fixture.as_str())).then_some(i))
+            .collect();
+        if !existing.is_empty() {
+            blocks[existing[0]] = replacement;
+            for &idx in existing.iter().skip(1).rev() {
+                blocks.remove(idx);
+            }
+            continue;
+        }
+        let pos = blocks
+            .iter()
+            .position(|b| block_fixture(b).is_some_and(|f| f > record.fixture.as_str()))
+            .unwrap_or(blocks.len());
+        blocks.insert(pos, replacement);
+    }
+    let mut out = String::with_capacity(text.len() + 256);
+    for block in blocks {
+        for line in block {
+            out.push_str(&line);
+            out.push('\n');
+        }
+    }
+    out
+}
+
+fn carried_regression(prior: Option<&CorpusRecord>, observed: &CorpusRecord) -> Option<String> {
+    let is_success = matches!(observed.status.as_str(), "built" | "checked");
+    if is_success {
+        return None;
+    }
+    let prior = prior?;
+    if matches!(prior.status.as_str(), "built" | "checked") {
+        let mut token = prior.status.clone();
+        for (k, v) in &prior.facts {
+            token.push_str(&format!("+{k}:{v}"));
+        }
+        Some(token)
+    } else {
+        prior.regressed_from.clone()
+    }
+}
+
+fn host_target() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "windows_x86_64"
+    } else if cfg!(target_os = "macos") {
+        if cfg!(target_arch = "aarch64") {
+            "macos_arm64"
+        } else {
+            "macos_x86_64"
+        }
+    } else if cfg!(target_arch = "aarch64") {
+        "linux_arm64"
+    } else {
+        "linux_x86_64"
+    }
+}
+
+fn selected_fixture_count(root: &Path, filter_text: &str, shard_text: &str) -> usize {
+    let fragments: Vec<&str> = filter_text
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+    let corpus = root.join("tests/omega");
+    let mut count = 0usize;
+    for tier in ["pass", "fail", "run"] {
+        let tier_dir = corpus.join(tier);
+        let Ok(groups) = fs::read_dir(&tier_dir) else {
+            continue;
+        };
+        for group in groups.flatten() {
+            if !group.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let group_name = group.file_name().to_string_lossy().into_owned();
+            let Ok(fixtures) = fs::read_dir(group.path()) else {
+                continue;
+            };
+            for fixture in fixtures.flatten() {
+                if !fixture.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                    continue;
+                }
+                let fixture_name = fixture.file_name().to_string_lossy().into_owned();
+                let name = format!("{tier}/{group_name}/{fixture_name}");
+                if fragments.is_empty() || fragments.iter().any(|f| name.contains(f)) {
+                    count += 1;
+                }
+            }
+        }
+    }
+    if let Some((_, n_str)) = shard_text.trim().split_once('/')
+        && let Ok(shards) = n_str.parse::<usize>()
+        && shards > 1
+    {
+        count = count.div_ceil(shards);
+    }
+    count
+}
+
+fn build_runner(root: &Path) -> Result<PathBuf, u8> {
+    let output = Command::new("mbx")
+        .args([
+            "test",
+            "--locked",
+            "--no-run",
+            "--message-format=json",
+            "-p",
+            "compiler",
+            "--test",
+            "corpus_runner",
+        ])
+        .current_dir(root)
+        .env("CARGO_PROFILE_DEV_OPT_LEVEL", "1")
+        .env("CARGO_PROFILE_TEST_OPT_LEVEL", "1")
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| {
+            eprintln!("corpus: failed to invoke mbx test (mbx is required; run `bash tools/agent_setup.sh`): {e}");
+            4u8
+        })?;
+    if !output.status.success() {
+        eprintln!(
+            "corpus: failed to build corpus_runner:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return Err(4);
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut executable: Option<PathBuf> = None;
+    for line in stdout.lines() {
+        let Ok(val) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        if val.get("reason").and_then(|v| v.as_str()) == Some("compiler-artifact")
+            && val
+                .get("target")
+                .and_then(|t| t.get("name"))
+                .and_then(|n| n.as_str())
+                == Some("corpus_runner")
+            && let Some(exe) = val.get("executable").and_then(|v| v.as_str())
+        {
+            executable = Some(PathBuf::from(exe));
+        }
+    }
+    executable.ok_or_else(|| {
+        eprintln!("corpus: cargo produced no corpus_runner executable");
+        4u8
+    })
+}
+
+fn current_stamp(root: &Path) -> String {
+    let rev = Command::new("git")
+        .args(["rev-parse", "--short=12", "HEAD"])
+        .current_dir(root)
+        .stdin(Stdio::null())
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+        .unwrap_or_else(|| "unknown".to_owned());
+    let dirty = Command::new("git")
+        .args(["status", "--porcelain", "--untracked-files=no"])
+        .current_dir(root)
+        .stdin(Stdio::null())
+        .output()
+        .ok()
+        .is_some_and(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .any(|line| !line.ends_with("tests/omega/corpus_outcomes.txt"))
+        });
+    if dirty { format!("{rev}+wt") } else { rev }
+}
+
+fn print_pinned_regressions(root: &Path, golden_path: &Path, filters: &[String]) -> Result<(), u8> {
+    let text = fs::read_to_string(golden_path).map_err(|e| {
+        eprintln!("corpus: cannot read {}: {e}", golden_path.display());
+        2u8
+    })?;
+    let regressions = list_pinned_regressions_from_text(&text);
+    let filtered: Vec<&PinnedRegression> = regressions
+        .iter()
+        .filter(|r| filters.is_empty() || filters.iter().any(|f| r.fixture.contains(f.as_str())))
+        .collect();
+    for row in &filtered {
+        let diag = row.diagnostics.first().map(String::as_str).unwrap_or("");
+        if diag.is_empty() {
+            println!("{}\t{}", row.fixture, row.status);
+        } else {
+            println!("{}\t{}\t{diag}", row.fixture, row.status);
+        }
+    }
+    let rel = golden_path.strip_prefix(root).unwrap_or(golden_path);
+    eprintln!(
+        "corpus: {} pinned regression(s) in {}",
+        filtered.len(),
+        rel.display()
+    );
+    Ok(())
+}
+
+pub fn run(args: &[String]) -> Result<(), u8> {
+    let root = repo_root();
+    let mut filter = std::env::var("OMEGA_CORPUS_FIXTURE_FILTER").unwrap_or_default();
+    let mut shard = std::env::var("OMEGA_CORPUS_SHARD").unwrap_or_default();
+    let mut record = false;
+    let mut native = false;
+    let mut native_target: Option<String> = None;
+    let mut interpret = false;
+    let mut checked_interpreter = false;
+    let mut list_pinned = false;
+    let mut sweep = std::env::var("OMEGA_CORPUS_SWEEP").is_ok_and(|v| !v.is_empty());
+    let mut golden: Option<PathBuf> = None;
+    let mut runner: Option<PathBuf> = None;
+
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "-h" | "--help" => {
+                println!(
+                    "usage: cargo xtask corpus [--list-pinned-regressions] [--filter <fragments>] [--shard <k/N>] [--record] [--native] [--native-target <target>] [--interpret] [--both] [--golden <path>] [--runner <path>] [--sweep]"
+                );
+                return Ok(());
+            }
+            "--list-pinned-regressions" => list_pinned = true,
+            "--record" => record = true,
+            "--native" => native = true,
+            "--interpret" => interpret = true,
+            "--checked-interpreter" => {
+                interpret = true;
+                checked_interpreter = true;
+            }
+            "--both" => {
+                native = true;
+                interpret = true;
+            }
+            "--sweep" => sweep = true,
+            "--filter" => {
+                i += 1;
+                filter = args.get(i).cloned().ok_or_else(|| {
+                    eprintln!("corpus: --filter requires a value");
+                    2u8
+                })?;
+            }
+            "--shard" => {
+                i += 1;
+                shard = args.get(i).cloned().ok_or_else(|| {
+                    eprintln!("corpus: --shard requires a value");
+                    2u8
+                })?;
+            }
+            "--native-target" => {
+                i += 1;
+                let target = args.get(i).cloned().ok_or_else(|| {
+                    eprintln!("corpus: --native-target requires a value");
+                    2u8
+                })?;
+                native = true;
+                native_target = Some(target);
+            }
+            "--golden" => {
+                i += 1;
+                let path = args.get(i).ok_or_else(|| {
+                    eprintln!("corpus: --golden requires a path");
+                    2u8
+                })?;
+                golden = Some(PathBuf::from(path));
+            }
+            "--runner" => {
+                i += 1;
+                let path = args.get(i).ok_or_else(|| {
+                    eprintln!("corpus: --runner requires a path");
+                    2u8
+                })?;
+                runner = Some(PathBuf::from(path));
+            }
+            other => {
+                eprintln!("corpus: unknown option `{other}`");
+                return Err(2);
+            }
+        }
+        i += 1;
+    }
+
+    let target = native_target.as_deref().unwrap_or_else(|| host_target());
+    let golden_path = golden.unwrap_or_else(|| {
+        let tests_omega = root.join("tests/omega");
+        if native && interpret {
+            let prefix = if checked_interpreter {
+                "corpus_checked_both"
+            } else {
+                "corpus_both"
+            };
+            tests_omega.join(format!("{prefix}_{target}.txt"))
+        } else if native {
+            tests_omega.join(format!("corpus_native_{target}.txt"))
+        } else if interpret {
+            let name = if checked_interpreter {
+                "corpus_checked_interpreted.txt"
+            } else {
+                "corpus_interpreted.txt"
+            };
+            tests_omega.join(name)
+        } else {
+            tests_omega.join("corpus_outcomes.txt")
+        }
+    });
+
+    if list_pinned {
+        let filters: Vec<String> = filter
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+            .collect();
+        return print_pinned_regressions(&root, &golden_path, &filters);
+    }
+
+    let selected = selected_fixture_count(&root, &filter, &shard);
+    if selected > SELECTION_BUDGET && !sweep {
+        eprintln!(
+            "corpus: this selection runs {selected} fixtures; past {SELECTION_BUDGET} a run is a sweep. Name the fixtures with --filter, or pass --sweep."
+        );
+        return Err(2);
+    }
+
+    let binary = match runner {
+        Some(path) => path,
+        None => build_runner(&root)?,
+    };
+
+    let records_path =
+        std::env::temp_dir().join(format!("corpus-records-{}.txt", std::process::id()));
+    let mut cmd = Command::new(&binary);
+    cmd.current_dir(&root)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .env("OMEGA_CORPUS_ROOT", &root)
+        .env("OMEGA_LIBRARY_ROOT", root.join("source/library"))
+        .env("OMEGA_CORPUS_RECORDS", &records_path);
+    if golden_path.is_file() {
+        cmd.env("OMEGA_CORPUS_TIMINGS", &golden_path);
+    }
+    if !filter.is_empty() {
+        cmd.env("OMEGA_CORPUS_FIXTURE_FILTER", &filter);
+    }
+    if !shard.is_empty() {
+        cmd.env("OMEGA_CORPUS_SHARD", &shard);
+    }
+    if native {
+        cmd.env("OMEGA_CORPUS_NATIVE", "1");
+        if let Some(t) = &native_target {
+            cmd.env("OMEGA_CORPUS_NATIVE_TARGET", t);
+        }
+    }
+    if interpret {
+        cmd.env("OMEGA_CORPUS_INTERPRET", "1");
+    }
+    if checked_interpreter {
+        cmd.env("OMEGA_CORPUS_CHECKED_INTERPRETER", "1");
+    }
+
+    let mut child = cmd.spawn().map_err(|e| {
+        let _ = fs::remove_file(&records_path);
+        eprintln!("corpus: failed to spawn {}: {e}", binary.display());
+        4u8
+    })?;
+    if let Some(stderr) = child.stderr.take() {
+        let reader = BufReader::new(stderr);
+        for line in reader.lines().map_while(Result::ok) {
+            if line.starts_with("corpus_runner:")
+                && !line.starts_with("corpus_runner: fixture-root-v1 ")
+            {
+                eprintln!("{line}");
+            }
+        }
+    }
+    let status = child.wait().map_err(|e| {
+        let _ = fs::remove_file(&records_path);
+        eprintln!("corpus: failed waiting for runner: {e}");
+        4u8
+    })?;
+    let records_text = fs::read_to_string(&records_path).unwrap_or_default();
+    let _ = fs::remove_file(&records_path);
+    if !status.success() {
+        eprintln!("corpus: runner exited with {status}");
+        return Err(4);
+    }
+
+    let mut observed = parse_records(&records_text).map_err(|e| {
+        eprintln!("corpus: unreadable runner records: {e}");
+        4u8
+    })?;
+
+    let golden_text = fs::read_to_string(&golden_path).unwrap_or_default();
+    let prior_records = parse_records(&golden_text).unwrap_or_default();
+    let prior_map: BTreeMap<String, CorpusRecord> = prior_records
+        .into_iter()
+        .map(|r| (r.fixture.clone(), r))
+        .collect();
+
+    if record {
+        let stamp = current_stamp(&root);
+        for row in &mut observed {
+            row.regressed_from = carried_regression(prior_map.get(&row.fixture), row);
+            row.recorded_at = Some(stamp.clone());
+        }
+        let spliced = splice_records(&golden_text, &observed);
+        fs::write(&golden_path, spliced).map_err(|e| {
+            eprintln!("corpus: failed to write {}: {e}", golden_path.display());
+            4u8
+        })?;
+        println!(
+            "corpus: recorded {} fixture outcome(s) to {}",
+            observed.len(),
+            golden_path.display()
+        );
+        return Ok(());
+    }
+
+    let mut regressed = 0usize;
+    let mut moved = 0usize;
+    for row in &observed {
+        let Some(before) = prior_map.get(&row.fixture) else {
+            println!("+ {}: new fixture ({})", row.fixture, row.status);
+            moved += 1;
+            continue;
+        };
+        let is_fail = row.tier == "fail";
+        let status_regressed = if is_fail {
+            matches!(before.status.as_str(), "rejected" | "incomplete")
+                && !matches!(row.status.as_str(), "rejected" | "incomplete")
+        } else {
+            let rank = |s: &str| match s {
+                "built" => 2,
+                "checked" => 1,
+                _ => 0,
+            };
+            rank(&row.status) < rank(&before.status)
+        };
+        let expected_regressed =
+            before.expected_satisfied == Some(true) && row.expected_satisfied == Some(false);
+        if status_regressed || expected_regressed {
+            println!(
+                "~ {}: REGRESSED ({} -> {})",
+                row.fixture, before.status, row.status
+            );
+            regressed += 1;
+        } else if before.status != row.status
+            || before.expected_satisfied != row.expected_satisfied
+            || before.facts != row.facts
+            || before.diagnostics != row.diagnostics
+        {
+            println!(
+                "~ {}: moved ({} -> {})",
+                row.fixture, before.status, row.status
+            );
+            moved += 1;
+        }
+    }
+
+    if regressed > 0 {
+        eprintln!(
+            "corpus: {regressed} regressed, {moved} moved across {} observed fixture(s)",
+            observed.len()
+        );
+        Err(3)
+    } else if moved > 0 {
+        println!(
+            "corpus: {moved} moved (0 regressed) across {} observed fixture(s)",
+            observed.len()
+        );
+        Err(1)
+    } else {
+        println!("corpus: clean — {} fixture(s) verified", observed.len());
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn identifies_positive_and_negative_pinned_regressions() {
+        let sample = "\
+# header
+pass/math/good checked 12ms @abc1234
+pass/math/broken rejected 15ms @abc1234
+\terror: obligation failed
+fail/math/pinned rejected expected 8ms @abc1234
+\terror: expected refusal
+fail/math/unpinned checked unexpected 9ms @abc1234
+";
+        let regressions = list_pinned_regressions_from_text(sample);
+        let names: Vec<&str> = regressions.iter().map(|r| r.fixture.as_str()).collect();
+        assert_eq!(names, vec!["pass/math/broken", "fail/math/unpinned"]);
+    }
+
+    #[test]
+    fn parses_and_splices_records_without_disturbing_neighbors() {
+        let original = "\
+# comment
+pass/a/first checked 10ms @111111111111
+pass/b/second rejected 20ms @111111111111
+\told diagnostic
+pass/c/third checked 30ms @111111111111
+";
+        let update = parse_records("pass/b/second checked 15ms @222222222222\n").unwrap();
+        let spliced = splice_records(original, &update);
+        assert!(spliced.contains("pass/a/first checked 10ms @111111111111\n"));
+        assert!(spliced.contains("pass/b/second checked 15ms @222222222222\n"));
+        assert!(!spliced.contains("old diagnostic"));
+        assert!(spliced.contains("pass/c/third checked 30ms @111111111111\n"));
+    }
+}

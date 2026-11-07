@@ -2,7 +2,7 @@
 use super::SaturatingCarrier;
 use abstract_operations::ValueBinding;
 use calling_conventions::{CallPlan, ValuePlacement};
-use optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, ValueDefinitionSite};
+use optimization_unit::{EffectLink, OwnershipEvent, ValueDefinitionSite, WorkSettlement};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, IntegerType, IntegerValue, MachineId, ObligationId,
     OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
@@ -112,7 +112,7 @@ pub struct LegalizedScalarInstruction {
     pub operation: OperationId,
     pub result: Option<LegalizedValueDefinition>,
     pub kind: LegalizedScalarInstructionKind,
-    pub fuel: Vec<FuelSettlement>,
+    pub work: Vec<WorkSettlement>,
     pub effect: EffectLink,
     pub ownership: Vec<OwnershipEvent>,
 }
@@ -1372,7 +1372,7 @@ pub struct LegalizedScalarSuccessor {
     pub target: BlockId,
     pub bindings: Vec<ValueBinding>,
     pub structural_bindings: Vec<LegalizedStructuralBinding>,
-    pub fuel: Vec<FuelSettlement>,
+    pub work: Vec<WorkSettlement>,
     /// Ordinary calls owned by this edge, executed before successor binding.
     pub cleanup_calls: Vec<(target_operations::CallSiteOwner, LegalizedScalarCall)>,
 }
@@ -1427,7 +1427,7 @@ pub enum LegalizedScalarTerminator {
         call: LegalizedScalarCall,
         /// Declared ABI result mechanics without a semantic receiving value.
         declared_result: abstract_operations::AbstractFunctionResult,
-        fuel: Vec<FuelSettlement>,
+        work: Vec<WorkSettlement>,
         effect: EffectLink,
         ownership: Vec<OwnershipEvent>,
     },
@@ -1440,7 +1440,7 @@ pub enum LegalizedScalarTerminator {
         structural_arguments: Vec<terminal_psi::StructuralArgument>,
         requirement_obligations: Vec<ObligationId>,
         frontier_lower_bound: Vec<semantic_vocabulary::ClaimId>,
-        fuel: Vec<FuelSettlement>,
+        work: Vec<WorkSettlement>,
         effect: EffectLink,
         ownership: Vec<OwnershipEvent>,
     },
@@ -1450,7 +1450,7 @@ pub enum LegalizedScalarTerminator {
         cause: terminal_psi::CrashCause,
         site_guard: Vec<terminal_psi::CrashPredicateTerm>,
         frontier_lower_bound: Vec<semantic_vocabulary::ClaimId>,
-        fuel: Vec<optimization_unit::FuelSettlement>,
+        work: Vec<optimization_unit::WorkSettlement>,
         effect: EffectLink,
         ownership: Vec<OwnershipEvent>,
     },
@@ -1715,7 +1715,7 @@ pub enum LegalizedScalarReturnValue {
 pub struct LegalizedScalarReturn {
     pub edge: EdgeId,
     pub value: LegalizedScalarReturnValue,
-    pub fuel: Vec<FuelSettlement>,
+    pub work: Vec<WorkSettlement>,
     pub effect: EffectLink,
     pub ownership: Vec<OwnershipEvent>,
 }

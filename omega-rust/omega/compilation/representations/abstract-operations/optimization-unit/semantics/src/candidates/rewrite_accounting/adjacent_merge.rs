@@ -91,7 +91,7 @@ pub(crate) fn reconstruct_adjacent_merge_accounting(
                 node: patch.predecessor.node,
             }),
             &incoming.provenance,
-            &incoming.fuel,
+            &incoming.work,
         )]
     } else {
         first
@@ -105,7 +105,7 @@ pub(crate) fn reconstruct_adjacent_merge_accounting(
                         edge: successor.psi_edge,
                     },
                     &incoming.provenance,
-                    &incoming.fuel,
+                    &incoming.work,
                 )
             })
             .collect()

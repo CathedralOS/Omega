@@ -18,7 +18,7 @@ pub fn live_range_identity_from_digests(
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.liveness.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, plan.work_schedule.marker().to_le_bytes());
     bytes.extend_from_slice(&plan.target.identity_bytes());
     crate::codec_bytes::encode_len(&mut bytes, digests.len());
     for digest in digests {

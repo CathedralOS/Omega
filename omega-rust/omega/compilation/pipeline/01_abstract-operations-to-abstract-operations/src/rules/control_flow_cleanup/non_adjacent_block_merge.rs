@@ -134,7 +134,7 @@ pub(super) fn non_adjacent_merge_accounting(
             incoming_site,
             PsiRealizationSite::Node(predecessor),
             &incoming.provenance,
-            &incoming.fuel,
+            &incoming.work,
         )]
     } else {
         first
@@ -148,7 +148,7 @@ pub(super) fn non_adjacent_merge_accounting(
                         edge: successor.psi_edge,
                     },
                     &incoming.provenance,
-                    &incoming.fuel,
+                    &incoming.work,
                 )
             })
             .collect()

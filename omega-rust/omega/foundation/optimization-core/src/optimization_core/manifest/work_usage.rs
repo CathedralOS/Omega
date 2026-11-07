@@ -1,11 +1,10 @@
-//! Work consumed along every bounded optimization axis.
+// `OptimizationWorkUsage`: 40-byte five-counter record of actual work consumed
+// by an optimization pass, checked against `OptimizationWorkBudget` via `within`.
 
 use crate::OptimizationWorkBudget;
 
 use super::OptimizationManifestDecodeError;
 
-/// Actual work consumed by one pass. Zero is valid; publication separately
-/// proves that every axis stayed within the selected nonzero budget.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct OptimizationWorkUsage {
     pub rule_evaluations: u64,

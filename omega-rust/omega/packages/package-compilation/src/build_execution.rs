@@ -1,11 +1,32 @@
-//! Custody of one build execution: project interpreter observations, then
-//! settle sealed outputs before publishing evidence or generated source.
-//!
-//! Capture precedes Build-value validation; settlement follows it. Keeping
-//! these two operations separate preserves diagnostic order without exposing
-//! partially settled observation records to the compiler.
-//! Restricted host requests project the admitted execution mode and scope
-//! before execution, so package review and consumption share one vocabulary.
+/*
+Build-machine admission, filesystem scope custody, interpreter observation
+collection, and output obligation settlement.
+
+We own the pre-execution and post-execution boundaries around `Build` evaluation:
+1. Before execution, `execution_inputs`, `snapshot_request`, `filesystem_scope`,
+   `build_admission`, and `restricted_requests` validate the selected `Build`
+   machine, construct its initial `BuildTimeValue`, establish read-only or
+   scoped filesystem access, and project restricted host requests in package
+   vocabulary.
+2. During and after execution, `CapturedBuildObservations` collects filesystem
+   operation attempts, included-source handoffs, output obligations/receipts,
+   and `Build.log` bytes, then settles them (`settle`) against the staged output
+   tree into a durable `BuildObservationSummary` and `RetainedBuildOutputs`.
+*/
+
+/*
+Keeping observation capture separate from `Build`-value validation and output
+settlement preserves diagnostic ordering while ensuring that partially settled
+or unsealed outputs can never be exported as generated Omega source or published
+into `completed/` output sets.
+*/
+
+/*
+See `build_admission.rs` for machine selection and service-reach checks,
+`filesystem_scope.rs` for scoped source and output custody, `build_value.rs` for
+`Build` value admission and extraction, and `observations.rs` /
+`output_custody.rs` / `completed_outputs.rs` for settlement and publication.
+*/
 
 mod build_admission;
 #[doc(hidden)]
@@ -39,15 +60,10 @@ pub use snapshot_request::{BuildSnapshotCapture, BuildSnapshotRequest};
 use diagnostics::Diagnostic;
 use filesystem_authority::{BuildOutputObligation, BuildOutputReceipt};
 
-/// The refusal text of a failed host or accounting result. Failures below the
-/// compiler are reported as text, so every site that renders one goes through
-/// this adapter rather than repeating the conversion.
 fn message<T, E: std::fmt::Display>(result: Result<T, E>) -> Result<T, String> {
     result.map_err(|error| error.to_string())
 }
 
-/// Interpreter observations whose output obligations have not yet settled.
-/// Only successful settlement publishes a durable observation summary.
 pub struct CapturedBuildObservations<'scope> {
     scope: &'scope BuildMachineFilesystemScope,
     filesystem_host_observed: bool,
@@ -62,8 +78,6 @@ pub struct CapturedBuildObservations<'scope> {
 }
 
 impl<'scope> CapturedBuildObservations<'scope> {
-    /// Consume observations issued by this activation's filesystem runtime.
-    /// The collector still checks actual sealed files at normal return.
     pub fn retain_filesystem_effects(
         &mut self,
         effects: BuildFilesystemEffects,
@@ -87,10 +101,7 @@ impl<'scope> CapturedBuildObservations<'scope> {
         self.filesystem_effects_retained = true;
         Ok(())
     }
-    /// Begin an activation's host observation collector before execution.
-    /// Admitted scope is input custody, not evidence that an operation ran.
-    /// Each installed host adapter must contribute its actual observations;
-    /// successful settlement still inspects staged output and obligations.
+
     pub fn new(scope: &'scope BuildMachineFilesystemScope) -> Self {
         Self {
             scope,
@@ -107,8 +118,6 @@ impl<'scope> CapturedBuildObservations<'scope> {
         }
     }
 
-    /// Transfer the one activation log after normal return. No host effect is
-    /// repeated and no second payload copy is needed for settlement.
     pub fn retain_build_log(&mut self, log: Vec<u8>) -> Result<(), Vec<Diagnostic>> {
         if !self.build_log.is_empty() {
             return Err(vec![Diagnostic::error(
@@ -119,8 +128,6 @@ impl<'scope> CapturedBuildObservations<'scope> {
         Ok(())
     }
 
-    /// Capture staged outputs, reject unadmitted host observations, then
-    /// discharge both caller-required and authored output obligations.
     pub fn settle(
         self,
         filesystem_reachable: bool,
@@ -158,7 +165,6 @@ impl<'scope> CapturedBuildObservations<'scope> {
 }
 
 impl BuildObservationSummary {
-    /// Select only source handoffs sealed by this settled execution.
     pub fn select_generated_sources(
         &self,
         machine_name: &str,

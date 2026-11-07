@@ -1,4 +1,8 @@
+// Parse arguments for `omega inspect-terminal`, selecting either source compilation (`--machine`) or a saved `.psi` file (`--artifact`).
+
 use std::path::PathBuf;
+
+pub(super) const USAGE: &str = "usage: omega inspect-terminal --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega inspect-terminal --artifact <file>";
 
 pub(crate) enum InspectTerminalArguments {
     Source {
@@ -14,51 +18,65 @@ pub(crate) enum InspectTerminalArguments {
 
 pub(super) fn parse_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
-) -> Option<InspectTerminalArguments> {
+) -> Result<Option<InspectTerminalArguments>, String> {
+    let mut help = false;
     let mut machine = None;
     let mut root_path = None;
     let mut target_name = None;
     let mut artifact_path = None;
     let mut output = None;
     while let Some(argument) = arguments.next() {
-        if argument == "--output" {
-            if output.is_some() {
-                return None;
+        match argument.to_str() {
+            Some("--help" | "-h") => super::set_flag(&mut help, &argument.to_string_lossy())?,
+            Some("--output") => {
+                if output.is_some() {
+                    return Err("duplicate --output".into());
+                }
+                output = Some(PathBuf::from(super::take_value(
+                    &mut arguments,
+                    "--output",
+                )?));
             }
-            output = super::option_value(&mut arguments).map(PathBuf::from);
-            output.as_ref()?;
-            continue;
-        }
-        if argument == "--artifact" {
-            if artifact_path.is_some() {
-                return None;
+            Some("--artifact") => {
+                if artifact_path.is_some() {
+                    return Err("duplicate --artifact".into());
+                }
+                artifact_path = Some(PathBuf::from(super::take_value(
+                    &mut arguments,
+                    "--artifact",
+                )?));
             }
-            artifact_path = super::option_value(&mut arguments).map(PathBuf::from);
-            artifact_path.as_ref()?;
-            continue;
-        }
-        if argument == "--machine" {
-            if machine.is_some() {
-                return None;
+            Some("--machine") => {
+                if machine.is_some() {
+                    return Err("duplicate --machine".into());
+                }
+                machine = Some(super::take_text(&mut arguments, "--machine")?);
             }
-            machine =
-                super::option_value(&mut arguments).and_then(|value| value.into_string().ok());
-            machine.as_ref()?;
-            continue;
-        }
-        if argument == "--target" {
-            if target_name.is_some() {
-                return None;
+            Some("--target") => {
+                if target_name.is_some() {
+                    return Err("duplicate --target".into());
+                }
+                target_name = Some(super::take_text(&mut arguments, "--target")?);
             }
-            target_name =
-                super::option_value(&mut arguments).and_then(|value| value.into_string().ok());
-            target_name.as_ref()?;
-            continue;
+            _ => {
+                if argument.as_encoded_bytes().starts_with(b"-") {
+                    return Err(format!(
+                        "unrecognized option `{}`",
+                        argument.to_string_lossy()
+                    ));
+                }
+                if root_path.is_some() {
+                    return Err(format!(
+                        "unexpected extra argument `{}`",
+                        argument.to_string_lossy()
+                    ));
+                }
+                root_path = Some(PathBuf::from(argument));
+            }
         }
-        if root_path.is_some() || argument.to_string_lossy().starts_with('-') {
-            return None;
-        }
-        root_path = Some(PathBuf::from(argument));
+    }
+    if help {
+        return Ok(None);
     }
     match artifact_path {
         Some(path)
@@ -67,14 +85,14 @@ pub(super) fn parse_arguments(
                 && target_name.is_none()
                 && output.is_none() =>
         {
-            Some(InspectTerminalArguments::Artifact { path })
+            Ok(Some(InspectTerminalArguments::Artifact { path }))
         }
-        Some(_) => None,
-        None => Some(InspectTerminalArguments::Source {
-            machine: machine?,
-            root_path: root_path?,
+        Some(_) => Err("--artifact cannot be combined with source inspection arguments".into()),
+        None => Ok(Some(InspectTerminalArguments::Source {
+            machine: machine.ok_or_else(|| "missing --machine <qualified>".to_owned())?,
+            root_path: root_path.ok_or_else(|| "missing root Omega source path".to_owned())?,
             target_name,
             output,
-        }),
+        })),
     }
 }

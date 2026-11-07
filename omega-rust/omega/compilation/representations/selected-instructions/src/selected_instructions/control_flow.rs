@@ -3,7 +3,7 @@ use super::SelectedInstructionId;
 use super::SelectedMemoryAccessRole::{ReadIndexedPrimitive, ReadPlace};
 use super::{SelectedBlockId, SelectedInstruction, VirtualRegister, VirtualRegisterId};
 use abstract_operations::ValueBinding;
-use optimization_unit::FuelSettlement;
+use optimization_unit::WorkSettlement;
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId};
 use target_operations::TerminalPsiProvenance;
 
@@ -177,15 +177,15 @@ impl SelectedBlock {
 pub enum SelectedSuccessorRole {
     Semantic,
     /// A physical step within an operation. It carries no semantic edge,
-    /// argument binding, cleanup, or fuel settlement.
+    /// argument binding, cleanup, or work settlement.
     OperationContinuation {
         operation: OperationId,
     },
     /// Completes the physical transfer after its semantic edge was selected.
-    /// It retains the edge's identity but carries no second fuel charge.
+    /// It retains the edge's identity but carries no second work charge.
     EdgeTransferContinuation,
     /// Continues case tests. The edge names the next candidate's lineage only;
-    /// this transfer performs no source edge, payload binding, cleanup, or fuel.
+    /// this transfer performs no source edge, payload binding, cleanup, or work.
     CaseDispatchContinuation,
 }
 
@@ -251,17 +251,17 @@ pub enum SelectedTerminator {
 pub struct SelectedSuccessor {
     pub role: SelectedSuccessorRole,
     /// Absent only for operation-internal control. Inventing an authored edge
-    /// for a native loop would charge fuel and transfer custody incorrectly.
+    /// for a native loop would charge work and transfer custody incorrectly.
     pub psi_edge: Option<EdgeId>,
     pub block: SelectedBlockId,
     pub source_target: BlockId,
     pub bindings: Vec<SelectedValueBinding>,
     pub structural_bindings: Vec<SelectedStructuralBinding>,
     /// Case custody is retained on both physical legs; only the semantic leg
-    /// selects a case and carries its cleanup/fuel; continuation cleanup is empty.
+    /// selects a case and carries its cleanup/work; continuation cleanup is empty.
     pub structural_case: Option<super::SelectedStructuralCaseEdge>,
-    /// Path-specific logical fuel for this exact semantic edge.
-    pub fuel: Vec<FuelSettlement>,
+    /// Path-specific logical work for this exact semantic edge.
+    pub work: Vec<WorkSettlement>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

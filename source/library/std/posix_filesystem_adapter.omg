@@ -1599,13 +1599,13 @@ invokes
     }
 }
 
-machine posix_filesystem_rda_drain(filesystem: &mut PosixFilesystem, fuel: u64) -> i32
+machine posix_filesystem_rda_drain(filesystem: &mut PosixFilesystem, remaining_attempts: u64) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 {
-    transition fuel > 0 { true -> rdd_step(filesystem, fuel) false -> rdd_exhausted() }
-    machine rdd_step(filesystem: &mut PosixFilesystem, fuel: u64) -> i32 requires fuel > 0 {
+    transition remaining_attempts > 0 { true -> rdd_step(filesystem, remaining_attempts) false -> rdd_exhausted() }
+    machine rdd_step(filesystem: &mut PosixFilesystem, remaining_attempts: u64) -> i32 requires remaining_attempts > 0 {
         posix_filesystem_rda_step(filesystem, 0);
-        transition filesystem.rda_verdict == 1 { true -> posix_filesystem_rda_drain(filesystem, fuel - 1) _ -> rdd_settle(filesystem) }
+        transition filesystem.rda_verdict == 1 { true -> posix_filesystem_rda_drain(filesystem, remaining_attempts - 1) _ -> rdd_settle(filesystem) }
     }
     machine rdd_exhausted() -> i32 { -5 }
     machine rdd_settle(filesystem: &mut PosixFilesystem) -> i32 {

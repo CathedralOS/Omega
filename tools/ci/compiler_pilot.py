@@ -369,6 +369,8 @@ def prepare_producer(output, *, need_runner=True):
     output.mkdir(parents=True, exist_ok=True)
     retained = Path(tempfile.mkdtemp(prefix="producer-", dir=output))
     tool = "mbx" if shutil.which("mbx") else "cargo"
+    if sys.platform.startswith("linux") and tool != "mbx":
+        raise ValueError("Linux producer preparation requires the pinned mbx; no Cargo fallback")
     arguments = [tool, "build", "--locked", "-p", "omega", "--message-format=json"]
     import build_slot
     if need_runner:
@@ -403,13 +405,17 @@ def prepare_producer(output, *, need_runner=True):
     if not binaries or not artifacts[-1].get("success"):
         raise ValueError("CLI build supplied no completed executable artifact")
     cli = Path(binaries[-1])
-    # Current CLIs report their own build-time profile. Cargo fingerprint
-    # reconstruction belongs to historical binaries without that protocol;
-    # an internal Cargo output layout is not the CLI's profile authority.
+    # The integrated CLI no longer exposes the historical profile flag.
+    # Bind the actual Cargo library/executable profiles and effective codegen
+    # to its digest, then retain the existing strict profile verification.
+    if sys.platform.startswith("linux"):
+        corpus_gate.record_cargo_build(cli, stdout_path.read_text(encoding="utf-8"))
     cli_profile = corpus_gate.require_optimized(cli)
     name = "omega.exe" if os.name == "nt" else "omega"
     copied_cli = retained / name
     shutil.copy2(cli, copied_cli)
+    if sys.platform.startswith("linux"):
+        shutil.copy2(str(cli) + ".compiler-profile.json", str(copied_cli) + ".compiler-profile.json")
     copied_runner = None
     runner_profile = None
     if need_runner:

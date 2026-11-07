@@ -1,3 +1,7 @@
+// Unit test verifying that `--filter=blob:limit` omits blobs exceeding the
+// package byte ceiling during `git fetch` and rejects the resolution without
+// admitting the oversized blob into the object store.
+
 use super::{
     Command, GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, LocalSourceLimits,
     SourceResolveError, create_git_cache_entry, create_git_source, git_cache_identity,

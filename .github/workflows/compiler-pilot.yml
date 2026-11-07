@@ -145,9 +145,33 @@ jobs:
           restore-keys: |
             ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
             ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
+      - name: Install and verify the pinned Linux build tool
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mbx_version=1.29.2
+          if [ "$(mbx --version 2>/dev/null)" != "mbx $mbx_version" ]; then
+            work=$(mktemp -d)
+            trap 'rm -rf "$work"' EXIT
+            archive="mbx-$(uname -m)-unknown-linux-gnu.tar.gz"
+            release="https://github.com/jdx/mr-boxington/releases/download/v$mbx_version"
+            (cd "$work" &&
+              curl -fsSLO "$release/$archive" && curl -fsSLO "$release/SHA256SUMS" &&
+              grep " $archive\$" SHA256SUMS | sha256sum --check --strict - &&
+              tar -xzf "$archive" -C "$HOME/.cargo/bin" mbx)
+          fi
+          test "$(mbx --version)" = "mbx $mbx_version"
+          mbx --version
       - name: Check the exact integration candidate
         id: compiler-check
-        run: cargo check --locked -p omega
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            mbx check --locked -p omega
+          else
+            cargo check --locked -p omega
+          fi
       - name: Prepare and retain the optimized producer
         id: producer-preparation
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')

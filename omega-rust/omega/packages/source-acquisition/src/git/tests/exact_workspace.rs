@@ -1,4 +1,7 @@
-//! Exact root objects select members without materializing unrelated payloads.
+// Exact-revision Git workspace projection tests verifying that recorded root
+// objects select authenticated member trees without materializing unrelated
+// payloads or bypassing declaration limits on warm recovery.
+
 use super::{
     GitExactRevisionAcquisition, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError,
     SourceResolveError, resolve_git_workspace_member_at_revision_in_lanes,

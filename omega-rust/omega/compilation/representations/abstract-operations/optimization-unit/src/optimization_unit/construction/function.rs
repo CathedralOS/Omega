@@ -1,7 +1,7 @@
 use super::super::{
-    AbstractFunction, BTreeSet, EffectLink, FuelSettlement, OptimizationBlock, OptimizationNode,
+    AbstractFunction, BTreeSet, EffectLink, OptimizationBlock, OptimizationNode,
     PsiOptimizationFunction, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDefinition,
-    ValueDefinitionSite, ValueUse,
+    ValueDefinitionSite, ValueUse, WorkSettlement,
 };
 use super::OptimizationUnitBuildError;
 use super::control_flow::operation_edges;
@@ -134,10 +134,10 @@ pub fn reconstruct_psi_optimization_function_seed(
             let node = u32::try_from(local_index)
                 .map_err(|_| OptimizationUnitBuildError::NodeIndexOverflow(function.machine))?;
             let provenance = operation_node_provenance(operation);
-            let fuel = provenance
+            let work = provenance
                 .iter()
                 .copied()
-                .map(|site| FuelSettlement { site, units: 1 })
+                .map(|site| WorkSettlement { site, units: 1 })
                 .collect();
             let definitions = operation_definition(operation)
                 .into_iter()
@@ -166,7 +166,7 @@ pub fn reconstruct_psi_optimization_function_seed(
             nodes.push(OptimizationNode {
                 operation: operation.clone(),
                 provenance,
-                fuel,
+                work,
                 effect: EffectLink {
                     input: effect_token,
                     output: effect_token + 1,

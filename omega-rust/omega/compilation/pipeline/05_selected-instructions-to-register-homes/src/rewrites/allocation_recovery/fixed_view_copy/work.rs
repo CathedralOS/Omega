@@ -158,7 +158,7 @@ pub(super) fn apply_fixed_view_copy(
                 values: vec![copy.source_value],
                 edges: Vec::new(),
                 obligations: Vec::new(),
-                fuel: Vec::new(),
+                work: Vec::new(),
             },
         },
     );

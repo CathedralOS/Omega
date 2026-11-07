@@ -143,7 +143,7 @@ fn artifact_round_trips_every_policy_and_full_transformed_custody() {
         assert_eq!(
             decoded.transformed.functions[0].blocks[0].instructions[0]
                 .provenance
-                .fuel[0]
+                .work[0]
                 .units,
             7
         );

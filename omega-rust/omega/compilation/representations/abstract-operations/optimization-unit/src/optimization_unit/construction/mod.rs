@@ -1,8 +1,8 @@
 //! Optimizer module role: executable entrance. Deterministically projects one abstract plan into a canonical optimization unit seed.
 
 use super::{
-    AbstractOperationPlan, Arc, BlockId, FuelScheduleIdentity, MachineId, OptimizationUnitIdentity,
-    PsiOptimizationUnit, TerminalRootServiceReach, recompute_psi_optimization_unit_identity,
+    AbstractOperationPlan, Arc, BlockId, MachineId, OptimizationUnitIdentity, PsiOptimizationUnit,
+    TerminalRootServiceReach, WorkScheduleIdentity, recompute_psi_optimization_unit_identity,
 };
 mod control_flow;
 mod facts;
@@ -48,7 +48,7 @@ impl std::error::Error for OptimizationUnitBuildError {}
 /// artifact boundary so the plan cannot detach from its verifier context.
 pub fn reconstruct_psi_optimization_unit_seed(
     plan: &AbstractOperationPlan,
-    fuel_schedule: FuelScheduleIdentity,
+    work_schedule: WorkScheduleIdentity,
 ) -> Result<PsiOptimizationUnit, OptimizationUnitBuildError> {
     let functions = plan
         .functions
@@ -66,7 +66,7 @@ pub fn reconstruct_psi_optimization_unit_seed(
     let mut unit = PsiOptimizationUnit {
         identity: OptimizationUnitIdentity::from_canonical_bytes(b"pending canonical content"),
         psi: plan.psi,
-        fuel_schedule,
+        work_schedule,
         entry: plan.entry,
         structural_types: plan.structural_types.clone(),
         structural_domains: Arc::new([]),

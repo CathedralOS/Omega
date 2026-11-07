@@ -1,3 +1,6 @@
+// Unix-specific test verifying that the child open-file descriptor limit
+// (`<= 256`) is enforced on spawned resolver processes.
+
 use super::{Path, ResolverExecutionBackend, ResolverExecutionPhase, inspection_root};
 use crate::ResolverExecutionChild;
 use std::io::Read;

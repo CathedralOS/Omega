@@ -24,7 +24,7 @@ fn implementation_successor(
     successor: &machine_code::FunctionFragmentSuccessorProvenance,
     provenance: &selected_instructions::SelectedInstructionProvenance,
 ) -> bool {
-    if !successor.fuel.is_empty() || !successor.bindings.is_empty() {
+    if !successor.work.is_empty() || !successor.bindings.is_empty() {
         return false;
     }
     match successor.role {
@@ -33,7 +33,7 @@ fn implementation_successor(
             successor.psi_edge.is_none()
                 && provenance.operations.contains(&operation)
                 && provenance.edges.is_empty()
-                && provenance.fuel.is_empty()
+                && provenance.work.is_empty()
         }
         _ => false,
     }
@@ -165,7 +165,7 @@ pub(super) fn produce(
             Control::OperationTrap { operation } => {
                 if instruction.provenance.operations.as_slice() != [*operation]
                     || !instruction.provenance.edges.is_empty()
-                    || !instruction.provenance.fuel.is_empty()
+                    || !instruction.provenance.work.is_empty()
                 {
                     return Err(Error::Mismatch(
                         "operation trap changed its owning occurrence",
@@ -341,7 +341,7 @@ pub(super) fn validate(
             Control::OperationTrap { operation } => {
                 if instruction.provenance.operations.as_slice() != [*operation]
                     || !instruction.provenance.edges.is_empty()
-                    || !instruction.provenance.fuel.is_empty()
+                    || !instruction.provenance.work.is_empty()
                 {
                     return Err(Error::Mismatch(
                         "operation trap changed its owning occurrence",

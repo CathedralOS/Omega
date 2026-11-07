@@ -19,7 +19,7 @@ pub fn relocation_free_text_section_identity(
     hasher.raw(&section.source_fragments.bytes());
     hasher.raw(&section.psi.vocabulary_marker.get().to_le_bytes());
     hasher.raw(section.psi.program_fingerprint.as_bytes());
-    hasher.raw(&section.fuel_schedule.marker().to_le_bytes());
+    hasher.raw(&section.work_schedule.marker().to_le_bytes());
     hasher.raw(&section.selected.bytes());
     hasher.raw(&section.target.wire_identity_bytes());
     hasher.raw(&section.semantic_entry.get().to_le_bytes());
@@ -129,10 +129,10 @@ pub fn relocation_free_text_section_identity(
 #[cfg(test)]
 mod tests {
     use super::super::{
-        FuelScheduleIdentity, FunctionFragmentEmissionIdentity, MachineId, PlacedBlockSpan,
-        PlacedFunctionFragment, PlacedInstructionSpan, PlacedInternalMachineCallResolution,
-        SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
-        TerminalPsiIdentity,
+        FunctionFragmentEmissionIdentity, MachineId, PlacedBlockSpan, PlacedFunctionFragment,
+        PlacedInstructionSpan, PlacedInternalMachineCallResolution, SelectedBlockId,
+        SelectedInstructionId, SelectedInstructionPlanIdentity, TerminalPsiIdentity,
+        WorkScheduleIdentity,
     };
     use super::{
         InternalMachineCallResolutionKind, InternalMachineCallResolutionState, NativeTarget,
@@ -152,7 +152,7 @@ mod tests {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
             },
-            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+            work_schedule: WorkScheduleIdentity::new(1).unwrap(),
             selected: SelectedInstructionPlanIdentity::from_bytes([8; 32]),
             target: NativeTarget::linux_arm64(),
             semantic_entry: MachineId::new(1).unwrap(),
@@ -234,7 +234,7 @@ mod tests {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([9; 32]),
             },
-            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+            work_schedule: WorkScheduleIdentity::new(1).unwrap(),
             selected: SelectedInstructionPlanIdentity::from_bytes([10; 32]),
             target: NativeTarget::uefi_x64(),
             semantic_entry: caller,

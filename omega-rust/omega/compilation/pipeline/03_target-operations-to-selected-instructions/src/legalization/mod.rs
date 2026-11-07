@@ -36,7 +36,7 @@ pub(crate) fn legalize_target_operations(
     let plan = LegalizedOperationPlan {
         psi: target.psi,
         optimization_unit: unit.identity,
-        fuel_schedule: unit.fuel_schedule,
+        work_schedule: unit.work_schedule,
         target: target.target,
         entry: target.entry,
         scalar_functions: rosters.scalar_functions,
@@ -53,7 +53,7 @@ fn seal(
         identity: legalized_operation_plan_identity(&plan),
         validator: legalization_validator_identity(),
         optimization_unit: unit.identity,
-        fuel_schedule: unit.fuel_schedule,
+        work_schedule: unit.work_schedule,
         target: target.target,
         function_count: plan.scalar_functions.len(),
     };

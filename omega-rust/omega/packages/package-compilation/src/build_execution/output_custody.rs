@@ -1,6 +1,8 @@
-//! Staged-output custody: settling obligations against captured Output trees,
-//! settling the compiler-owned required-output obligations, and selecting the
-//! generated sources the run handed off.
+// Staged-output obligation settlement (`settle_build_output_obligations`) and
+// generated-source selection (`select_generated_sources`). Verifies that every
+// linear `BuildOutput::require` obligation completed against its exact receipt,
+// underwent no post-completion mutations, and resides as a sealed regular file
+// in `BuildStagedOutputTree`.
 
 use super::filesystem_scope::BUILD_OUTPUT_ROOT_IDENTITY;
 use super::observations::{BuildIncludedSourceHandoff, BuildRequiredOutputSettlement};
@@ -10,17 +12,6 @@ use build_output::{
 };
 use diagnostics::Diagnostic;
 
-/// Settle the compiler-owned required-output obligations recorded by a
-/// successful build evaluation against retained staged-output custody.
-///
-/// Settlement is linear and compiler-checked: every issued obligation must
-/// have been completed exactly once by the sealed regular file its receipt
-/// names. A pending obligation, a sticky `fail`, a receipt rejoined to a
-/// different output, a completed output mutated afterward, or a completion
-/// whose file never reached sealed staged custody each reject the activation
-/// before any product may publish. The returned rows are the durable
-/// observation evidence; `build.rs` publication still re-derives the file
-/// from staged custody.
 pub(super) fn settle_build_output_obligations(
     obligations: &[filesystem_authority::BuildOutputObligation],
     receipts: &[filesystem_authority::BuildOutputReceipt],
@@ -99,7 +90,6 @@ pub(super) fn settle_build_output_obligations(
     Ok(settlements)
 }
 
-/// Select the generated sources the run handed off from sealed staged custody.
 pub(super) fn select_generated_sources(
     staged_output_tree: Option<&BuildStagedOutputTree>,
     included_source_handoffs: &[BuildIncludedSourceHandoff],

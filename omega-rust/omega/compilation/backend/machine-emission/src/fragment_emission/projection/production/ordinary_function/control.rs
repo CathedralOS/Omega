@@ -144,6 +144,6 @@ fn successor_provenance(
             .iter()
             .map(|binding| binding.semantic)
             .collect(),
-        fuel: successor.fuel.clone(),
+        work: successor.work.clone(),
     }
 }

@@ -1,7 +1,10 @@
-use super::{
-    CacheCustodyKind, SourceResolveError, read_bounded_cache_record, temp_root,
-    verify_cache_custody,
-};
+// Unit tests for cache custody logical byte ceilings and no-follow bounded
+// cache record reads.
+
+#[cfg(unix)]
+use super::read_bounded_cache_record;
+use super::{CacheCustodyKind, SourceResolveError, temp_root, verify_cache_custody};
+#[cfg(unix)]
 use std::path::Path;
 
 #[test]

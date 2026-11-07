@@ -62,7 +62,7 @@ fn validate_roots(
         || homes.receipt().register_environment() != legality.receipt().register_environment()
         || homes.receipt().allocator_availability() != legality.receipt().allocator_availability()
         || homes.receipt().optimization_unit() != ranges.receipt().optimization_unit()
-        || homes.receipt().fuel_schedule() != ranges.receipt().fuel_schedule()
+        || homes.receipt().work_schedule() != ranges.receipt().work_schedule()
         || homes.receipt().target() != ranges.plan().target
         || homes.receipt().policy()
             != FixedPrecoloredSegmentHomePolicy::MostConstrainedLowestCompatibleViewV1

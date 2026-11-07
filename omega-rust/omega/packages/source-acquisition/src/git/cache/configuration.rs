@@ -1,4 +1,6 @@
-//! Atomic restoration of the compiler-owned Git configuration.
+// Atomic restoration of the compiler-owned bare Git `config` control file
+// (`GIT_CONFIG_SHA1` or `GIT_CONFIG_SHA256`) inside a retained repository
+// directory via `platform_custody::record_file::RecordFileRoot`.
 
 use crate::custody::platform::same_capability_file_identity;
 use crate::error::SourceResolveError;

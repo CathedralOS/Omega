@@ -1,10 +1,10 @@
 use super::{
-    BlockMachineEffects, Cursor, FuelScheduleIdentity, FunctionMachineEffects, MAGIC,
-    MachineEffectCatalogIdentity, MachineId, OptimizationUnitIdentity,
-    PreAllocationMachineEffectDecodeError, PreAllocationMachineEffectIdentity,
-    PreAllocationMachineEffectPlan, RegisterConstraintCatalogIdentity, SelectedBlockId,
-    SelectedInstructionPlanIdentity, TargetRegisterEnvironmentIdentity, VERSION,
-    decode_instruction, decode_target, identity, pre_allocation_machine_effect_identity,
+    BlockMachineEffects, Cursor, FunctionMachineEffects, MAGIC, MachineEffectCatalogIdentity,
+    MachineId, OptimizationUnitIdentity, PreAllocationMachineEffectDecodeError,
+    PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan,
+    RegisterConstraintCatalogIdentity, SelectedBlockId, SelectedInstructionPlanIdentity,
+    TargetRegisterEnvironmentIdentity, VERSION, WorkScheduleIdentity, decode_instruction,
+    decode_target, identity, pre_allocation_machine_effect_identity,
 };
 pub(crate) fn encode_terminal_pre_allocation_machine_effect_plan(
     plan: &PreAllocationMachineEffectPlan,
@@ -34,7 +34,7 @@ pub(crate) fn decode_terminal_pre_allocation_machine_effect_plan(
     let identity = PreAllocationMachineEffectIdentity::from_bytes(cursor.array()?);
     let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
     let optimization_unit = OptimizationUnitIdentity::from_bytes(cursor.array()?);
-    let fuel_schedule = FuelScheduleIdentity::new(cursor.u32()?)
+    let work_schedule = WorkScheduleIdentity::new(cursor.u32()?)
         .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?;
     let target = decode_target(&mut cursor)?;
     let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
@@ -68,7 +68,7 @@ pub(crate) fn decode_terminal_pre_allocation_machine_effect_plan(
         identity,
         selected,
         optimization_unit,
-        fuel_schedule,
+        work_schedule,
         target,
         register_environment,
         register_constraints,

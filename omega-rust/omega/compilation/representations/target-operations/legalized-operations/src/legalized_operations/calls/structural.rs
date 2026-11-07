@@ -2,8 +2,8 @@
 
 use abstract_operations::CompletionClaimSource;
 use optimization_unit::EffectLink;
-use optimization_unit::FuelSettlement;
 use optimization_unit::OwnershipEvent;
+use optimization_unit::WorkSettlement;
 use semantic_vocabulary::BoundaryMachineId;
 use semantic_vocabulary::OperationId;
 use semantic_vocabulary::ServiceId;
@@ -56,7 +56,7 @@ pub struct LegalizedBoundarySettlement {
     pub arguments: Vec<StructuralArgument>,
     pub completion_claim_sources: Vec<CompletionClaimSource>,
     pub completion_receipts: Vec<CompletionReceipt>,
-    pub fuel: Vec<FuelSettlement>,
+    pub work: Vec<WorkSettlement>,
     pub effect: EffectLink,
     pub ownership: Vec<OwnershipEvent>,
 }

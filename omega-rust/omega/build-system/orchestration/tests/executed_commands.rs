@@ -1,6 +1,33 @@
-//! Real command transactions use executed declarations and retain each Build
-//! across review passes and targets. Run these with nextest's process isolation:
-//! the execution counter measures the complete invocation.
+/*
+Integration tests for executed `build.omg` declarations, same-session `Build`
+retention across review passes and target rosters, and package command / audit
+invariants.
+
+Run these tests under `cargo nextest` process isolation because the build
+execution counters in `artifacts::compile_timings::counters` measure the entire
+process invocation.
+
+These tests verify three end-to-end properties of `orchestration`:
+1. `pure_build_reuse_preserves_review_discovery_and_changed_requests`: changing a
+   project role from `Build::package` to `Build::application` requires an
+   authored review decision even for an effect-free program, while retaining and
+   reusing matching `Pure` `Build` results across same-session resume passes and
+   refusing to publish if the underlying source request changes after proposal.
+2. `product_entry_queries_reuse_build_across_accepted_targets`: projects that
+   link the full standard library (which exceeds the text review renderer's
+   preview budget) still complete accepted source custody, multi-target
+   compilation, and `inspect_packages` auditing without re-executing `Build` per
+   target, and leave pending proposal and decision files byte-identical when
+   audited mid-review.
+3. `dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished`:
+   editable root changes do not silently publish or update lockfiles, locked
+   dependency source drift is surfaced across all targets, narrowing root source
+   capture obligations never narrows a selected dependency's inventory, changed
+   dependency projections are refused before online Git acquisition, `install`
+   runs the installed dependency's dynamic `Build` through the same discovery
+   and review pipeline, and explicit provider readiness preserves public backing
+   requirements while rejecting private dependency implementations.
+*/
 
 use artifacts::compile_timings::counters;
 use orchestration::{
@@ -65,8 +92,6 @@ fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
         let project = root.join(fixture);
         let build_source = project.join("build.omg");
         let original = std::fs::read_to_string(&build_source).unwrap();
-        // A role change needs an authored decision even for an effect-free
-        // program. Keep the candidate and its execution oracle unchanged.
         let package = original.replace("Build::application(", "Build::package(");
         assert_ne!(package, original);
         std::fs::write(&build_source, package).unwrap();
@@ -132,7 +157,7 @@ fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
             std::fs::read(project.join("omega.lock")).unwrap(),
             baseline_lock
         );
-        assert!(sponsor.consumed_fuel_units() > 0);
+        assert!(sponsor.consumed_work_units() > 0);
         options.targets.clear();
         if fixture == "executed_dependency_source_join_exit" {
             accept_decisions(&outcome.review_paths);
@@ -166,7 +191,7 @@ fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
         for _ in 0..3 {
             accept_decisions(&outcome.review_paths);
             let before = counters::build_execution_count();
-            let fuel_before = sponsor.consumed_fuel_units();
+            let work_before = sponsor.consumed_work_units();
             outcome = execute_package_command(
                 PackageCommand::Resume {
                     kind: PackageCommandKind::Update,
@@ -177,7 +202,7 @@ fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
             .unwrap();
             resumes += 1;
             assert!(
-                sponsor.consumed_fuel_units() > fuel_before,
+                sponsor.consumed_work_units() > work_before,
                 "{fixture}: consuming a retained result must charge the current occurrence"
             );
             assert_eq!(
@@ -246,7 +271,7 @@ fn execute_accepted_project(project: &Path) {
         artifact: &reloaded,
         target: Some(TargetProfile::host_if_supported().unwrap().target_name()),
         provisions: report.runtime_provisions(),
-        fuel_allowance: 100_000,
+        work_budget: 100_000,
         domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: None,
         clock: None,
@@ -297,8 +322,6 @@ fn product_entry_queries_reuse_build_across_accepted_targets() {
         ),
     )
     .unwrap();
-    // Full std exceeds the review renderer's output budget. This witness checks
-    // accepted source custody and compilation, not that separate text preview.
     publish_candidate(
         &project,
         PackageCommand::Update {
@@ -367,8 +390,6 @@ fn publish_candidate(project: &Path, command: PackageCommand, executions: u64) -
         if outcome.status == PackageCommandStatus::Published {
             break;
         }
-        // Audit the live project without resuming or accepting its pending
-        // candidate. In particular, its decision documents stay byte-identical.
         let pending = std::fs::read(project.join("build/package-manager/proposal")).unwrap();
         let decisions: Vec<_> = outcome
             .review_paths
@@ -546,8 +567,6 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
         accepted.report
     );
 
-    // An edited root is auditable, but its unchanged authority is not silent
-    // acceptance of new source. No automatic update or publication occurs.
     std::fs::write(
         project.join("build.omg"),
         [source.as_slice(), b"\n// root edit\n"].concat(),
@@ -586,8 +605,6 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
         accepted.report
     );
 
-    // Dependency content is locked, unlike the editable root. The same
-    // source mismatch must be visible for both targets, never an empty review.
     let dependency = root.join("executed_dependency_source_library/main.omg");
     let contents = std::fs::read(&dependency).unwrap();
     std::fs::write(
@@ -603,7 +620,6 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
     );
     std::fs::write(&dependency, contents).unwrap();
 
-    // Narrowing root inputs never narrows the selected dependency's inventory.
     let selected_inputs = package_compilation::BuildSourceCaptureRequest::new(
         ["main.omg", "build.omg"].map(|name| {
             (
@@ -627,8 +643,6 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
     );
     assert!(scoped.complete, "{}", scoped.report);
 
-    // Changed requests are refused before acquisition even online. This URI
-    // must never reach Git; graph admission supplies the failure instead.
     std::fs::write(project.join("build.omg"), source.replace(
         "Source::Path { location: \"../executed_dependency_source_library\" }",
         "Source::Git { repository: \"https://invalid.invalid/never-fetch.git\", revision: \"main\", selection: PackageSelection::Root }",
@@ -687,8 +701,6 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
     assert!(!project.join("build/package-manager/proposal").exists());
     session.close().unwrap();
 
-    // Installation edits a canonical root declaration; the installed source's
-    // own dynamic Build still runs through exactly the same discovery/review.
     let installed = root.join("installed");
     std::fs::create_dir(&installed).unwrap();
     std::fs::copy(project.join("main.omg"), installed.join("main.omg")).unwrap();
@@ -704,9 +716,6 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
         2,
     );
 
-    // Readiness suspends before final source admission. Its dependency and
-    // exact public backing must survive acceptance, lock reload and Product
-    // compilation without executing either Build again for the second target.
     copy_project(
         root,
         "explicit_provider_readiness_exit",
@@ -735,8 +744,6 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
         accepted.report
     );
 
-    // Previously accepting the dependency does not authorize its private
-    // implementation. A changed root still has to name a public backing.
     let declaration = std::fs::read_to_string(project.join("build.omg")).unwrap();
     std::fs::write(
         project.join("build.omg"),

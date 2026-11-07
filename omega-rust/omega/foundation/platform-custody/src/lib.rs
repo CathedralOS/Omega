@@ -1,12 +1,37 @@
-//! Host filesystem custody and exact-byte output publication.
-//!
-//! This crate owns the platform FFI required to inspect metadata that Rust's
-//! standard library does not expose. Callers receive closed facts, never native
-//! handles or attacker-controlled principal names.
-//! `file_publication` stages and installs replaceable outputs with byte replay;
-//! `record_file` separately owns capability-relative, custody-checked records;
-//! `lock_file` opens persistent lock files beneath a retained directory and
-//! creates them exclusively, because a contended open-or-create fails on macOS.
+/*
+Host filesystem custody, platform metadata FFI, and exact-byte file publication.
+
+We isolate the narrow OS interfaces that Rust's standard library does not
+expose on stable across macOS, Linux, and Windows, returning closed boolean or
+`(volume, object)` identity facts rather than raw OS handles or principal
+names:
+- `extended_acl_has_allow_entry` / `open_file_extended_acl_has_allow_entry`:
+  inspects macOS extended ACLs (`<sys/acl.h>`) to reject `ACL_EXTENDED_ALLOW`
+  entries that could broaden filesystem access beyond POSIX mode bits, while
+  permitting deny-only (`ACL_EXTENDED_DENY`) entries. Darwin returns `ENOENT`
+  both when a path is absent and when an existing object has no extended ACL,
+  and returns `EINVAL` from `acl_get_entry` after the final entry; our wrapper
+  disambiguates both cases so callers see `Ok(false)` for an existing object
+  with no allow entries.
+- `filesystem_object_identity`: returns `(dev, ino)` on Unix and
+  `(volume_serial_number, file_index)` via `GetFileInformationByHandle` on
+  Windows (opened with `access_mode(0)` and `FILE_FLAG_BACKUP_SEMANTICS` so
+  directories and read-restricted files still report identity without requesting
+  content access).
+*/
+
+/*
+Submodules:
+- `file_publication`: stages, installs, and byte-replays replaceable output
+  files (`StagedFile`, `publish_exact_file_bytes`, `install_staged_files`).
+- `lock_file`: opens persistent capability-relative lock files using exclusive
+  `create_new` followed by non-creating reopen to avoid the Darwin 24.6 APFS
+  `openat(..., O_CREAT)` race that returns spurious `ENOENT` under contention.
+- `record_file`: capability-relative, symlink-safe record reads, exclusive
+  stage-and-hard-link creation, atomic replacement, and advisory locking.
+- `temporary_directory`: PID-and-sequence-scoped scratch directories under the
+  host temporary root.
+*/
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
@@ -17,18 +42,12 @@ pub mod temporary_directory;
 
 use std::{fs::File, io, path::Path};
 
-/// Whether an ACL query follows a symbolic link or inspects the link itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SymbolicLinkBehavior {
     Follow,
     InspectLink,
 }
 
-/// Report whether the native extended ACL contains any allow entry.
-///
-/// Deny-only ACLs cannot broaden filesystem authority and return `false`.
-/// Unsupported platforms and filesystems return an error rather than a false
-/// custody result.
 pub fn extended_acl_has_allow_entry(
     path: &Path,
     symbolic_link_behavior: SymbolicLinkBehavior,
@@ -36,25 +55,10 @@ pub fn extended_acl_has_allow_entry(
     platform::extended_acl_has_allow_entry(path, symbolic_link_behavior)
 }
 
-/// Report whether an already-open filesystem object has any native extended
-/// ACL allow entry.
-///
-/// The descriptor, rather than a display pathname, selects the inspected
-/// object. Deny-only ACLs cannot broaden filesystem authority and return
-/// `false`. Unsupported platforms and filesystems return an error.
 pub fn open_file_extended_acl_has_allow_entry(file: &File) -> io::Result<bool> {
     platform::open_file_extended_acl_has_allow_entry(file)
 }
 
-/// Report the filesystem object a path currently names, as an opaque
-/// volume-and-object pair.
-///
-/// Two paths naming one object report equal pairs, so a caller can tell a
-/// renamed-and-recreated directory from the original at the same spelling. The
-/// pair is identity only: neither half is an address, a size, or ordered
-/// against another volume's. Unix reads device and inode; Windows reads the
-/// volume serial and file index, which the standard library exposes only
-/// behind an unstable interface.
 pub fn filesystem_object_identity(path: &Path) -> io::Result<(u64, u64)> {
     link_custody::filesystem_object_identity(path)
 }
@@ -72,8 +76,6 @@ mod platform {
     type Acl = *mut c_void;
     type AclEntry = *mut c_void;
 
-    // Stable Darwin constants from <sys/acl.h>. Keeping this vocabulary closed
-    // avoids resolving ACL principals through ambient directory services.
     const ACL_TYPE_EXTENDED: c_int = 0x0000_0100;
     const ACL_FIRST_ENTRY: c_int = 0;
     const ACL_NEXT_ENTRY: c_int = -1;
@@ -125,9 +127,6 @@ mod platform {
         };
         if acl.is_null() {
             let error = io::Error::last_os_error();
-            // Darwin reports ENOENT both when the path is absent and when an
-            // existing object has no extended ACL. Recheck existence using
-            // the same link-following policy to distinguish the empty ACL.
             let path_exists = match symbolic_link_behavior {
                 SymbolicLinkBehavior::Follow => path.metadata().is_ok(),
                 SymbolicLinkBehavior::InspectLink => path.symlink_metadata().is_ok(),
@@ -147,9 +146,6 @@ mod platform {
         let acl = unsafe { acl_get_fd_np(file.as_raw_fd(), ACL_TYPE_EXTENDED) };
         if acl.is_null() {
             let error = io::Error::last_os_error();
-            // Darwin uses ENOENT for an existing descriptor whose object has
-            // no extended ACL. Unlike the path query, the live descriptor
-            // itself already establishes object existence.
             if error.kind() == io::ErrorKind::NotFound {
                 return Ok(false);
             }
@@ -167,8 +163,6 @@ mod platform {
             // storage for the borrowed entry handle.
             if unsafe { acl_get_entry(acl.0, selector, &mut entry) } != 0 {
                 let error = io::Error::last_os_error();
-                // Darwin reports EINVAL after the final entry rather than a
-                // separate end-of-sequence return value.
                 if error.kind() == io::ErrorKind::InvalidInput && saw_entry {
                     return Ok(false);
                 }
@@ -238,8 +232,6 @@ mod link_custody {
     use std::os::windows::io::{AsRawHandle, RawHandle};
     use std::path::Path;
 
-    /// `BY_HANDLE_FILE_INFORMATION` from `<fileapi.h>`. Only the link count is
-    /// read; the remaining members retain the record's exact declared size.
     #[repr(C)]
     struct ByHandleFileInformation {
         file_attributes: u32,
@@ -261,8 +253,6 @@ mod link_custody {
         ) -> i32;
     }
 
-    // A directory handle needs backup semantics, and identity and link count
-    // are metadata rather than content, so the open requests no access at all.
     const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
     const FILE_SHARE_READ_WRITE_DELETE: u32 = 0x0000_0007;
 

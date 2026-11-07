@@ -6,16 +6,16 @@ use super::super::{
 };
 use super::{
     BindingRelevance, BoundaryMachineId, CallSignature, CallingPolicy, ClaimTransfer,
-    CompletionClaimSource, CompletionReceipt, EdgeId, EffectLink, EntryClaim, FuelScheduleIdentity,
-    FuelSettlement, IntegerSign, IntegerType, IntegerValue, LegalizedOperationPlan,
-    LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarInstructionKind, NativeTarget,
-    OperationId, OptimizationUnitIdentity, OwnershipEvent, ProviderCandidateConformance,
-    PsiProvenance, ScalarType, SemanticFingerprint, StructuralAccess, StructuralArgument,
-    StructuralDomainId, StructuralFieldDeclaration, StructuralFieldId, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
-    TerminalPsiIdentity, TerminalPsiProvenance, ValueId, ValueShape, VocabularyMarker,
-    evaluate_call_plan, id,
+    CompletionClaimSource, CompletionReceipt, EdgeId, EffectLink, EntryClaim, IntegerSign,
+    IntegerType, IntegerValue, LegalizedOperationPlan, LegalizedScalarArgument,
+    LegalizedScalarCall, LegalizedScalarInstructionKind, NativeTarget, OperationId,
+    OptimizationUnitIdentity, OwnershipEvent, ProviderCandidateConformance, PsiProvenance,
+    ScalarType, SemanticFingerprint, StructuralAccess, StructuralArgument, StructuralDomainId,
+    StructuralFieldDeclaration, StructuralFieldId, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, TerminalPsiIdentity,
+    TerminalPsiProvenance, ValueId, ValueShape, VocabularyMarker, WorkScheduleIdentity,
+    WorkSettlement, evaluate_call_plan, id,
 };
 pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
     let extent_type = id::<StructuralTypeId>(1);
@@ -92,7 +92,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
             program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
         },
         optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(b"unit"),
-        fuel_schedule: FuelScheduleIdentity::new(1).expect("fuel schedule"),
+        work_schedule: WorkScheduleIdentity::new(1).expect("work schedule"),
         target: NativeTarget::from_omega_target_name(Some("uefi_x86_64")).expect("UEFI target"),
         entry: id(1),
         scalar_functions: vec![LegalizedScalarFunction {
@@ -209,7 +209,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                             alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
                         }],
                     }),
-                    fuel: vec![FuelSettlement {
+                    work: vec![WorkSettlement {
                         site: PsiProvenance::Operation(call),
                         units: 2,
                     }],
@@ -222,7 +222,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                 terminator: LegalizedScalarTerminator::Return(LegalizedScalarReturn {
                     edge: return_edge,
                     value: LegalizedScalarReturnValue::Unit,
-                    fuel: vec![FuelSettlement {
+                    work: vec![WorkSettlement {
                         site: PsiProvenance::Edge(return_edge),
                         units: 1,
                     }],
@@ -344,8 +344,8 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     let values = [id(110), id(111), id(112), id(113), id(114)];
     let edge = id(115);
     let definition = |node| optimization_unit::ValueDefinitionSite::Node { block, node };
-    let fuel = |operation| {
-        vec![FuelSettlement {
+    let work = |operation| {
+        vec![WorkSettlement {
             site: PsiProvenance::Operation(operation),
             units: 1,
         }]
@@ -362,7 +362,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
             definition_site: definition(index as u32),
         }),
         kind,
-        fuel: fuel(operations[index]),
+        work: work(operations[index]),
         effect: effect(index as u64),
         ownership: Vec::new(),
     };
@@ -427,7 +427,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
             terminator: LegalizedScalarTerminator::Return(LegalizedScalarReturn {
                 edge,
                 value: LegalizedScalarReturnValue::Unit,
-                fuel: vec![FuelSettlement {
+                work: vec![WorkSettlement {
                     site: PsiProvenance::Edge(edge),
                     units: 1,
                 }],

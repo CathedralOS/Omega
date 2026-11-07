@@ -193,8 +193,8 @@ pub(super) fn reseat(
         builder.pending_provenance.operations.push(row.operation);
         builder
             .pending_provenance
-            .fuel
-            .extend(row.fuel.iter().cloned());
+            .work
+            .extend(row.work.iter().cloned());
         return Ok(());
     }
     // Reuse the ordinary projection's ordered pointer regions. A descriptor

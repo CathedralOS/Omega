@@ -1,3 +1,13 @@
+// Replayable baseline decision logs (`BaselineDecisionLog`, `OMGBDL\0\0` v1)
+// and record-only builder (`BaselineDecisionLogBuilder`).
+//
+// `BaselineDecisionRecord::write_row` writes the authoritative decision row
+// once for both the wire log (`CountFrame::Wire`, `u32` candidate count) and
+// the canonical decision digest (`CountFrame::Canonical`, `u64` candidate
+// count). `record_validated_outcome` canonicalizes the considered candidate
+// roster by `(predicted_cost_delta, candidate)` and verifies that any chosen
+// candidate is a member of that roster.
+
 use crate::cursor::Cursor;
 use crate::optimization_core::CountFrame;
 use crate::{
@@ -5,13 +15,12 @@ use crate::{
     OptimizationReasonCode, OptimizationUnitIdentity,
 };
 
-/// Domain prefix of one baseline decision's canonical identity encoding.
 const BASELINE_DECISION_DOMAIN: &[u8] = b"omega.baseline-decision.v1\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ValidatedCandidateSummary {
-    pub candidate: OptimizationCandidateIdentity,
-    pub predicted_cost_delta: i64,
+    pub candidate: OptimizationCandidateIdentity, // Canonical identity of the validated rewrite candidate.
+    pub predicted_cost_delta: i64, // Signed structural cost delta predicted by the stage cost model.
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,16 +43,13 @@ crate::invalid_error_display!(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BaselineDecisionRecord {
-    pub identity: OptimizationDecisionIdentity,
-    pub input: OptimizationUnitIdentity,
-    pub considered: Vec<ValidatedCandidateSummary>,
-    pub outcome: BaselineDecisionOutcome,
+    pub identity: OptimizationDecisionIdentity, // Canonical digest of the decision row.
+    pub input: OptimizationUnitIdentity,        // Optimization unit identity at the decision point.
+    pub considered: Vec<ValidatedCandidateSummary>, // Canonicalized candidate roster evaluated at this point.
+    pub outcome: BaselineDecisionOutcome,           // Selected candidate or `NotProfitable` skip.
 }
 
 impl BaselineDecisionRecord {
-    /// The authoritative row, written once for both encodings. The wire log
-    /// frames the considered-candidate count as u32 and the canonical identity
-    /// row as u64; every other byte and the field order are stated here alone.
     fn write_row(&self, encoded: &mut Vec<u8>, frame: CountFrame) {
         encoded.extend_from_slice(&self.input.bytes());
         frame.push(encoded, self.considered.len());
@@ -70,8 +76,6 @@ impl BaselineDecisionRecord {
         OptimizationDecisionIdentity::from_canonical_bytes(&canonical)
     }
 
-    /// Row builder for the one place a decision is recorded before its identity
-    /// is known: the identity is a function of the row, never an input.
     fn record(
         input: OptimizationUnitIdentity,
         considered: Vec<ValidatedCandidateSummary>,
@@ -90,8 +94,8 @@ impl BaselineDecisionRecord {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BaselineDecisionLog {
-    pub identity: OptimizationDecisionLogIdentity,
-    pub records: Vec<BaselineDecisionRecord>,
+    pub identity: OptimizationDecisionLogIdentity, // Canonical digest over all ordered record identities.
+    pub records: Vec<BaselineDecisionRecord>,      // Decision rows in exact execution order.
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,8 +112,6 @@ pub enum BaselineDecisionLogDecodeError {
 crate::invalid_error_display!(BaselineDecisionLogDecodeError, "baseline decision log");
 
 impl BaselineDecisionLog {
-    /// Concatenate independently replayable pass-local logs in exact execution
-    /// order and derive one pipeline-level identity over their decision rows.
     pub fn concatenate<'log>(
         logs: impl IntoIterator<Item = &'log Self>,
     ) -> Result<Self, BaselineDecisionLogDecodeError> {
@@ -182,18 +184,12 @@ impl BaselineDecisionLog {
     }
 }
 
-/// Record-only builder. It never chooses a candidate or applies a rewrite.
 #[derive(Debug, Default)]
 pub struct BaselineDecisionLogBuilder {
     records: Vec<BaselineDecisionRecord>,
 }
 
 impl BaselineDecisionLogBuilder {
-    /// Retain a supplied outcome after the ordinary candidate validators have
-    /// accepted the complete roster. This checks membership, not profitability;
-    /// it neither runs a policy nor establishes candidate validity.
-    /// This uses the baseline log's existing canonical representation so the
-    /// actual selected action remains the identity-bundle authority.
     pub fn record_validated_outcome(
         &mut self,
         input: OptimizationUnitIdentity,

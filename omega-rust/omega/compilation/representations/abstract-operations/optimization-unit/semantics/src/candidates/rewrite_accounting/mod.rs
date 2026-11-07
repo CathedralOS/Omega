@@ -48,7 +48,7 @@ pub(crate) fn realize_merged_target_provenance(
             site(target.id, node_index),
             site(predecessor.block, predecessor.node.checked_add(node_index)?),
             &node.provenance,
-            &node.fuel,
+            &node.work,
         ));
     }
     Some(())
@@ -63,7 +63,7 @@ pub(crate) fn preserve_edge_custody(
         .map(|mut edge| {
             if let Some(existing) = node.edge(edge.psi_edge) {
                 edge.provenance = existing.provenance.clone();
-                edge.fuel = existing.fuel.clone();
+                edge.work = existing.work.clone();
             }
             edge
         })

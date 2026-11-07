@@ -1,13 +1,34 @@
-//! Optimizer module role: crate map. Stable, target-independent vocabulary for Omega optimization inputs.
-//!
-//! Start at `optimization_core.rs`: the authoritative exact-name registry and
-//! canonical selection codec, leading into `contracts` (rule and budget
-//! contracts), `identities` (the domain-separated identities carried between
-//! stages), `manifest` (their common publication records) and `decisions`
-//! (baseline logs and the external decision wire schema, not candidate
-//! selection). This crate has no executable optimizer.
-//! `rollback` owns exact-name disabling, selection settlement and its receipt;
-//! callers decide which execution phases their requested product permits.
+/*
+`optimization-core` defines the target-independent vocabulary, canonical wire
+encodings, domain-separated identities, and publication records shared across
+Omega's optimization pipeline.
+
+We keep this crate free of executable optimizer passes so every compiler stage,
+artifact manifest, and release tool can depend on one authoritative registry of
+optimization names, phase assignments, rule contracts, and decision records
+without pulling in IR representations or target lowerers.
+*/
+
+/*
+The subsystem is organized around `optimization_core.rs`, which declares the
+closed `Optimization` and `OptimizationExecutionPhase` vocabularies and their
+canonical selection codec (`OMGOPT\0\0` v15):
+- `contracts/`: rule declarations (`OptimizationRuleContract`), analysis bitsets
+  (`AnalysisSet`, `AnalysisInvalidationSet`), work budgets
+  (`OptimizationWorkBudget`), and candidate verdicts
+  (`OptimizationCandidateVerdict`).
+- `identities/`: domain-separated 32-byte SHA-256 identities carried between
+  stages (`OptimizationRuleIdentity`, `OptimizationPassIdentity`,
+  `OptimizationIdentityBundle`, and stage/artifact manifest identities).
+- `manifest/`: canonical decision (`OMGDEC\0\0` v5) and pass (`OMGPAR\0\0` v1)
+  publication records and consumed-fact references (`OptimizationFactReference`).
+- `decisions/`: replayable baseline decision logs (`OMGBDL\0\0` v1) and the
+  external decision wire schema (`OMGEXD\0\0` / `OMGEXP\0\0` v2).
+- `rollback/`: subtractive exact-name release rollback overlays and receipts.
+- Shared wire primitives (`codec_bytes`, `cursor`, `digest_encoder`,
+  `error_display`, `record_views`, `tagged_vocabulary`, `variant_accessors`)
+  reused by downstream optimization and package crates.
+*/
 
 pub mod codec_bytes;
 pub mod cursor;

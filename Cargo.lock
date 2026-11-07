@@ -26,12 +26,12 @@ dependencies = [
  "optimization-unit-semantics",
  "proof-admission",
  "provider-admission",
+ "psi-work",
  "semantic-vocabulary",
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
  "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
- "terminal-fuel",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-semantics",
@@ -210,6 +210,7 @@ dependencies = [
  "provider-admission",
  "provider-planning",
  "psi-compiler",
+ "psi-work",
  "representation-planning",
  "runtime-abi",
  "selected-dispatch",
@@ -219,7 +220,6 @@ dependencies = [
  "syntax-trees",
  "target",
  "terminal-codec",
- "terminal-fuel",
  "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
@@ -247,6 +247,7 @@ dependencies = [
  "layout-plans",
  "numerics",
  "psi-terminal-production",
+ "psi-work",
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",
@@ -256,7 +257,6 @@ dependencies = [
  "syntax-trees",
  "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
- "terminal-fuel",
  "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
@@ -522,6 +522,7 @@ dependencies = [
  "provider-planning",
  "provider-selection",
  "psi-compiler",
+ "psi-work",
  "representation-planning",
  "runtime-abi",
  "selected-dispatch",
@@ -532,7 +533,6 @@ dependencies = [
  "target-operations",
  "task-plans",
  "terminal-codec",
- "terminal-fuel",
  "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
@@ -853,6 +853,7 @@ dependencies = [
  "optimization-unit-semantics",
  "program-entry-plan",
  "provider-admission",
+ "psi-work",
  "register-model",
  "runtime-abi",
  "selected-instructions",
@@ -865,7 +866,6 @@ dependencies = [
  "target-operations-to-selected-instructions",
  "task-plans",
  "terminal-codec",
- "terminal-fuel",
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
@@ -1239,6 +1239,7 @@ dependencies = [
  "physical-instructions",
  "post-allocation-machine-to-selected-form-encoding",
  "provider-admission",
+ "psi-work",
  "register-environment",
  "register-homes-to-post-allocation-machine",
  "register-model",
@@ -1250,7 +1251,6 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "target-operations",
- "terminal-fuel",
  "terminal-psi",
 ]
 
@@ -1458,7 +1458,6 @@ dependencies = [
 name = "omega"
 version = "0.1.0"
 dependencies = [
- "allocation-observation",
  "artifacts",
  "bounded-process",
  "compilation-products",
@@ -1534,9 +1533,9 @@ dependencies = [
  "language-semantics",
  "optimization-core",
  "optimization-unit",
+ "psi-work",
  "semantic-vocabulary",
  "terminal-codec",
- "terminal-fuel",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -1658,13 +1657,13 @@ dependencies = [
  "platform-custody",
  "proof-admission",
  "psi-compiler",
+ "psi-work",
  "semantic-vocabulary",
  "sha2",
  "source",
  "syntax-trees",
  "target",
  "terminal-codec",
- "terminal-fuel",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "tokens",
@@ -1818,6 +1817,7 @@ dependencies = [
  "optimization-core",
  "optimization-unit-semantics",
  "provider-selection",
+ "psi-work",
  "semantic-vocabulary",
  "source",
  "symbols",
@@ -1825,7 +1825,6 @@ dependencies = [
  "target-operations",
  "task-plans",
  "terminal-codec",
- "terminal-fuel",
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
@@ -1854,6 +1853,7 @@ dependencies = [
  "package-compilation",
  "program-entry-plan",
  "provider-selection",
+ "psi-work",
  "representation-selections",
  "runtime-abi",
  "semantic-vocabulary",
@@ -1865,7 +1865,6 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "terminal-codec",
- "terminal-fuel",
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
@@ -1943,6 +1942,16 @@ dependencies = [
  "terminal-psi",
  "typed-trees",
  "validation",
+]
+
+[[package]]
+name = "psi-work"
+version = "0.1.0"
+dependencies = [
+ "compiler-storage",
+ "evaluation-accounting",
+ "semantic-vocabulary",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -2575,16 +2584,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "terminal-fuel"
-version = "0.1.0"
-dependencies = [
- "compiler-storage",
- "evaluation-accounting",
- "semantic-vocabulary",
- "terminal-psi",
-]
-
-[[package]]
 name = "terminal-installation"
 version = "0.1.0"
 dependencies = [
@@ -2612,9 +2611,9 @@ dependencies = [
  "layout-plans",
  "numerics",
  "proof-admission",
+ "psi-work",
  "semantic-vocabulary",
  "terminal-codec",
- "terminal-fuel",
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
@@ -2662,6 +2661,7 @@ dependencies = [
  "proof-admission",
  "provider-admission",
  "provider-selection",
+ "psi-work",
  "runtime-abi",
  "semantic-vocabulary",
  "source",
@@ -2670,7 +2670,6 @@ dependencies = [
  "target-operations",
  "task-plans",
  "terminal-codec",
- "terminal-fuel",
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
@@ -2690,12 +2689,12 @@ dependencies = [
  "orchestration",
  "platform-custody",
  "provider-admission",
+ "psi-work",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
  "target-operations",
  "terminal-codec",
- "terminal-fuel",
  "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
@@ -3074,6 +3073,14 @@ dependencies = [
 [[package]]
 name = "x86-encoding"
 version = "0.1.0"
+
+[[package]]
+name = "xtask"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "zmij"

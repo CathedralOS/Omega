@@ -1,3 +1,6 @@
+// Unix capability-directory tests verifying that local source capture refuses
+// to follow regular files, directories, or roots replaced with symlinks mid-run.
+
 #[cfg(unix)]
 use super::{
     CapabilityDirectory, LocalSourceLimits, OsStr, ambient_authority, open_canonical_source_root,

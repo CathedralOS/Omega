@@ -1,20 +1,17 @@
-//! Resolver-neutral source-tree results and verified entries.
+// Resolver-neutral source-tree results (`ResolvedSourceTree` /
+// `ResolvedLocalSource`) and verified package source entries
+// (`VerifiedPackageSourceEntry`).
 
 use std::path::PathBuf;
 
-/// One completely traversed source tree and its canonical content identity.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ResolvedSourceTree {
     pub root: PathBuf,
-    /// Number of file and symlink leaves. Directories participate in identity
-    /// and limits but are not reported as files.
-    pub file_count: usize,
+    pub file_count: usize, // File and symlink leaves (directories participate in identity/limits only).
     pub byte_count: u64,
     pub content_identity: String,
 }
 
-/// Compatibility name retained for callers written before source-tree custody
-/// was separated from the local-source adapter.
 pub type ResolvedLocalSource = ResolvedSourceTree;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

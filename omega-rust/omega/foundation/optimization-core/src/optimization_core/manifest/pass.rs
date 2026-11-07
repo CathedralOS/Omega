@@ -1,4 +1,9 @@
-//! Pass-v1 construction, ordered-rule validation, and wire codec.
+// `OptimizationPassManifestRecord`: canonical pass-v1 publication record
+// (`OMGPAR\0\0` v1).
+//
+// Validates that `ordered_rule_set` matches `OptimizationRuleSetIdentity::from_ordered_rules(&ordered_rules)`,
+// that every decision names a scheduled rule in `ordered_rules`, and that
+// decision and candidate identities are duplicate-free across the pass.
 
 use crate::cursor::Cursor;
 use crate::optimization_core::identities::IDENTITY_WIDTH;
@@ -14,18 +19,15 @@ use super::{
     OptimizationManifestDecodeError, OptimizationWorkUsage, PASS_WIRE_FORMAT,
 };
 
-/// Canonical pass-level manifest row. Rule and decision order is execution
-/// order. Duplicate identities or a decision naming an unscheduled rule reject
-/// before the row can be published.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizationPassManifestRecord {
-    pass: OptimizationPassIdentity,
-    input: OptimizationUnitIdentity,
-    output: OptimizationUnitIdentity,
-    ordered_rule_set: OptimizationRuleSetIdentity,
-    ordered_rules: Vec<OptimizationRuleIdentity>,
-    decisions: Vec<OptimizationDecisionRecord>,
-    work_usage: OptimizationWorkUsage,
+    pass: OptimizationPassIdentity,   // Executed pass group identity.
+    input: OptimizationUnitIdentity,  // Unit identity entering the pass.
+    output: OptimizationUnitIdentity, // Unit identity leaving the pass.
+    ordered_rule_set: OptimizationRuleSetIdentity, // Digest over `ordered_rules` in execution order.
+    ordered_rules: Vec<OptimizationRuleIdentity>,  // Scheduled rules in execution order.
+    decisions: Vec<OptimizationDecisionRecord>, // Recorded candidate decisions in execution order.
+    work_usage: OptimizationWorkUsage,          // 5-axis work counters consumed by the pass.
 }
 
 crate::record_views! {

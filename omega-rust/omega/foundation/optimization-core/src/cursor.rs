@@ -1,13 +1,13 @@
-//! Shared bounded byte cursor for the crate's wire decoders: a slice view
-//! plus a position. Truncation is the only failure the cursor itself owns;
-//! each decoder maps it into its own error enum through `From<Truncated>`.
+// Shared bounded byte cursor (`Cursor`) and decode-error conversion macros
+// (`take_error_from_adapter!`, `truncated_from_adapter!`) for wire decoders.
+//
+// `counted(width)` pre-flights a `u32` sequence count against `remaining() / width`
+// before allocating or reading elements so a corrupt count cannot request
+// memory beyond the input slice.
 
-/// The cursor exhausted before the requested read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Truncated;
 
-/// The read failed either by exhaustion or by an oversized length; each
-/// decoder maps it onto its own enum's Truncated/LengthOverflow variants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TakeError {
     Truncated,
@@ -15,8 +15,8 @@ pub enum TakeError {
 }
 
 pub struct Cursor<'a> {
-    encoded: &'a [u8],
-    pub offset: usize,
+    encoded: &'a [u8], // Underlying wire payload slice.
+    pub offset: usize, // Current byte read offset into `encoded`.
 }
 
 impl<'a> Cursor<'a> {
@@ -71,10 +71,6 @@ impl<'a> Cursor<'a> {
         Ok(i128::from_le_bytes(self.array()?))
     }
 
-    /// A counted sequence's pre-flight: read the u32 count, then refuse a count
-    /// whose elements cannot all fit the bytes that remain at `width` bytes
-    /// apiece. Refusing before any allocation or per-element read keeps a
-    /// corrupt count from requesting memory the input does not carry.
     pub fn counted(&mut self, width: usize) -> Result<usize, Truncated> {
         let count = self.u32()? as usize;
         if count > self.remaining() / width {
@@ -83,22 +79,17 @@ impl<'a> Cursor<'a> {
         Ok(count)
     }
 
-    /// u64-framed length with an overflow-deciding second failure mode.
     pub fn length(&mut self) -> Result<usize, TakeError> {
         let value = self.u64().map_err(|_| TakeError::Truncated)?;
         usize::try_from(value).map_err(|_| TakeError::LengthOverflow)
     }
 
-    /// A length-framed payload: the u64 length then that many bytes.
     pub fn length_prefixed(&mut self) -> Result<&'a [u8], TakeError> {
         let length = self.length()?;
         self.take(length).map_err(|_| TakeError::Truncated)
     }
 }
 
-/// Expands the standard two-branch `From<TakeError>` decode-error adapter for
-/// a crate-local error enum whose `Truncated`/`LengthOverflow` variants mirror
-/// the shared cursor errors.
 #[macro_export]
 macro_rules! take_error_from_adapter {
     ($error:ty) => {
@@ -113,9 +104,6 @@ macro_rules! take_error_from_adapter {
     };
 }
 
-/// Expands the standard `From<Truncated>` decode-error adapter for a
-/// crate-local error enum. The bare form maps to `Self::Truncated`; the
-/// `=>` arm maps onto the caller's own variant expression.
 #[macro_export]
 macro_rules! truncated_from_adapter {
     ($error:ty) => {
