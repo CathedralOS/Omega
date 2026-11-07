@@ -284,6 +284,49 @@ pub(super) fn completed_value(
         .flatten()
 }
 
+/// The target owns its completed operand observations before the RHS starts.
+/// Current reference slots instead belong to the completed operand transfer;
+/// neither inventory can substitute for the other.
+pub(super) fn assignment_destination(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    statement: &StatementNode,
+    context: &CollectedStatementPrefix,
+    symbols: &TopLevelSymbols<'_>,
+) -> Option<(SlotArgumentCapture, CollectedStatementPrefix)> {
+    let assignment = statement.as_assignment()?;
+    let mut capture = Capture {
+        expression: assignment.target,
+        value_requested: true,
+        ..Capture::default()
+    };
+    let transfer = evaluate_statement(
+        program,
+        machine,
+        state,
+        statement,
+        context,
+        symbols,
+        &mut FrameInference::for_state(state.symbol),
+        &mut capture,
+    )?
+    .all_routes();
+    if capture.count != 1 || !transfer.is_complete() {
+        return None;
+    }
+    let (target, _) = capture.completed_value?;
+    let mut current = context.clone();
+    super::apply_transfer(
+        program,
+        &mut current.stored,
+        &mut current.aliases,
+        &mut current.divergent,
+        &transfer,
+    );
+    Some((target, current))
+}
+
 pub(in super::super) fn call_contexts(
     program: &dyn crate::CheckingInput,
     machine: &Machine,

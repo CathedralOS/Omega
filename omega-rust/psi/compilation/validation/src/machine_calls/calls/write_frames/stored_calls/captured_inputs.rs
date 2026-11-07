@@ -3,6 +3,9 @@
 //! their typed structure and checked return routes, never evaluate an argument
 //! again against the enclosing call's later descriptor inventory.
 
+mod destination_addresses;
+pub(super) use destination_addresses::assignment_addresses;
+
 use super::super::path_instantiation::aggregate_arguments::{
     AggregateOrigins, ArgumentOrigins, CapturedReferenceSource, ReferenceSource, aggregate_value,
     partition_sources, reference_leaves,
@@ -645,27 +648,15 @@ impl Inputs<'_, '_> {
         facts.places.get(place).root.as_expression().is_some()
     }
 
-    fn project_value(
+    fn projection(
         &self,
         expression: ExpressionHandle,
-        expected: TypeReferenceHandle,
-        inference: &mut FrameInference,
-    ) -> Option<AggregateOrigins> {
-        let captured = self.captured.observation(expression)?;
+    ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
         let receiver = match self.program.expression_table.expression(expression) {
             ExpressionNode::Member(member) => member.receiver,
             ExpressionNode::Indexed(indexed) => indexed.collection,
             _ => return None,
         };
-        let (state, _, _) = caller_aliases::caller_statement_owner(
-            self.program,
-            self.machine,
-            caller_aliases::CallerWriteSite::Expression(expression),
-        )?;
-        let receiver_type =
-            crate::expression_result_type_reference(self.program, self.machine, state, receiver)?;
-        let storage =
-            super::super::reference_subjects::carrier_storage_type(self.program, receiver_type)?;
         let mut facts = facts::FactPlan::default();
         let receiver_place = facts.append_place_from_expression(self.program, receiver);
         let selected_place = facts.append_place_from_expression(self.program, expression);
@@ -676,7 +667,27 @@ impl Inputs<'_, '_> {
         if receiver_place.root != selected_place.root || !selected.starts_with(prefix) {
             return None;
         }
-        let relative = &selected[prefix.len()..];
+        Some((receiver, selected[prefix.len()..].to_vec()))
+    }
+
+    fn project_value(
+        &self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+        inference: &mut FrameInference,
+    ) -> Option<AggregateOrigins> {
+        let captured = self.captured.observation(expression)?;
+        let (receiver, relative) = self.projection(expression)?;
+        let (state, _, _) = caller_aliases::caller_statement_owner(
+            self.program,
+            self.machine,
+            caller_aliases::CallerWriteSite::Expression(expression),
+        )?;
+        let receiver_type =
+            crate::expression_result_type_reference(self.program, self.machine, state, receiver)?;
+        let storage =
+            super::super::reference_subjects::carrier_storage_type(self.program, receiver_type)?;
+        let relative = relative.as_slice();
         let selected_type =
             stored_origins::projected_storage_type(self.program, storage, relative)?;
         if !super::super::isolation::aggregate_storage_types_match(
