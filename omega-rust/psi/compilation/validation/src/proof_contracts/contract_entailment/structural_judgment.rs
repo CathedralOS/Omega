@@ -36,7 +36,7 @@ mod identity_elimination;
 pub(in crate::proof_contracts::contract_entailment) use domain_premises::data_application_static_bindings;
 mod integer_predicates;
 pub(super) use integer_predicates::{CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank};
-mod identity_search_observations;
+mod identity_normalization;
 mod invocation_entry;
 mod licenses;
 mod logical_resolution;

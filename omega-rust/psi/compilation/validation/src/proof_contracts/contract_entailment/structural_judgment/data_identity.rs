@@ -4,6 +4,12 @@
 
 use super::{ExpressionHandle, StructuralJudge, StructuralJudgment, StructuralTerm};
 
+#[derive(Clone, Copy)]
+enum IdentityCorrespondence {
+    Representation,
+    Established,
+}
+
 impl StructuralJudge<'_> {
     pub(super) fn declaration_data_identity_terms(
         &self,
@@ -98,27 +104,7 @@ impl StructuralJudge<'_> {
         right: StructuralTerm,
         depth: usize,
     ) -> StructuralJudgment {
-        if self.trace_identity_search(
-            "query",
-            Some((&left, &right)),
-            format_args!("depth={depth}"),
-        ) {
-            for (index, (left, right)) in self.identity_edges().take(12).enumerate() {
-                self.trace_identity_search(
-                    "established",
-                    Some((left, right)),
-                    format_args!("index={index}"),
-                );
-            }
-        }
-        let mut remaining = 1024;
-        let verdict = self.judge_identity_with_budget(left, right, depth, &mut remaining);
-        self.trace_identity_search(
-            "result",
-            None,
-            format_args!("depth={depth} remaining={remaining} verdict={verdict:?}"),
-        );
-        verdict
+        self.judge_identity_with_budget(left, right, depth, &mut 1024)
     }
 
     fn judge_identity_with_budget(
@@ -129,14 +115,6 @@ impl StructuralJudge<'_> {
         remaining: &mut usize,
     ) -> StructuralJudgment {
         if depth >= 32 || self.case_facts_only || *remaining == 0 {
-            self.trace_identity_search(
-                "query-limit",
-                Some((&left, &right)),
-                format_args!(
-                    "depth={depth} remaining={remaining} cases_only={}",
-                    self.case_facts_only
-                ),
-            );
             return StructuralJudgment::Unknown;
         }
         *remaining -= 1;
@@ -146,12 +124,15 @@ impl StructuralJudge<'_> {
         }
         let left = self.resolve_at(left, depth + 1);
         let right = self.resolve_at(right, depth + 1);
-        let left_available = self.identity_value_is_available(&left);
-        let right_available = left_available.then(|| self.identity_value_is_available(&right));
-        self.trace_identity_search("resolved", Some((&left, &right)), format_args!("depth={depth} remaining={remaining} left_available={left_available} right_available={right_available:?}"));
-        if !left_available || right_available != Some(true) {
+        if !self.identity_value_is_available(&left) || !self.identity_value_is_available(&right) {
             return StructuralJudgment::Unknown;
         }
+        let Ok(left) = self.normalize_identity_value(left, depth + 1, remaining) else {
+            return StructuralJudgment::Unknown;
+        };
+        let Ok(right) = self.normalize_identity_value(right, depth + 1, remaining) else {
+            return StructuralJudgment::Unknown;
+        };
         let direct =
             self.exact_identity_congruence(left.clone(), right.clone(), depth + 1, remaining);
         if !matches!(direct, StructuralJudgment::Unknown) {
@@ -164,15 +145,6 @@ impl StructuralJudge<'_> {
         let mut right_allowance = 64;
         let left = self.data_identity_forms(left, depth + 1, &mut left_allowance);
         let right = self.data_identity_forms(right, depth + 1, &mut right_allowance);
-        self.trace_identity_search(
-            "forms",
-            None,
-            format_args!(
-                "depth={depth} remaining={remaining} left={} right={}",
-                left.len(),
-                right.len()
-            ),
-        );
         if self.typed_identity_path(&left, &right, depth, remaining) {
             StructuralJudgment::Proven
         } else {
@@ -226,18 +198,15 @@ impl StructuralJudge<'_> {
                     return false;
                 }
                 *remaining -= 1;
-                let verdict = self.exact_identity_congruence(
-                    (*left).clone(),
-                    (*right).clone(),
-                    depth + 1,
-                    remaining,
-                );
-                self.trace_identity_search(
-                    "direct-pair",
-                    Some((left, right)),
-                    format_args!("depth={depth} remaining={remaining} verdict={verdict:?}"),
-                );
-                if matches!(verdict, StructuralJudgment::Proven) {
+                if matches!(
+                    self.exact_identity_congruence(
+                        (*left).clone(),
+                        (*right).clone(),
+                        depth + 1,
+                        remaining
+                    ),
+                    StructuralJudgment::Proven
+                ) {
                     return true;
                 }
             }
@@ -294,16 +263,10 @@ impl StructuralJudge<'_> {
                     return false;
                 }
                 *remaining -= 1;
-                let admitted = *admitted.get_or_insert_with(|| {
+                if !*admitted.get_or_insert_with(|| {
                     self.identity_value_is_available(left)
                         && self.identity_value_is_available(right)
-                });
-                self.trace_identity_search(
-                    "edge-admission",
-                    Some((left, right)),
-                    format_args!("depth={depth} remaining={remaining} admitted={admitted}"),
-                );
-                if !admitted {
+                }) {
                     continue;
                 }
                 for (from, to) in [(*left, *right), (*right, *left)] {
@@ -311,19 +274,15 @@ impl StructuralJudge<'_> {
                         return false;
                     }
                     *remaining -= 1;
-                    let verdict = self.exact_identity_congruence(
-                        value.clone(),
-                        from.clone(),
-                        depth + 1,
-                        remaining,
-                    );
-                    self.trace_identity_search(
-                        "edge-pair",
-                        Some((value, from)),
-                        format_args!("depth={depth} remaining={remaining} verdict={verdict:?}"),
-                    );
-                    if matches!(verdict, StructuralJudgment::Proven)
-                        && pending.len() < 64
+                    if matches!(
+                        self.exact_identity_congruence(
+                            value.clone(),
+                            from.clone(),
+                            depth + 1,
+                            remaining
+                        ),
+                        StructuralJudgment::Proven
+                    ) && pending.len() < 64
                         && !visited
                             .iter()
                             .copied()
@@ -344,6 +303,59 @@ impl StructuralJudge<'_> {
         right: StructuralTerm,
         depth: usize,
         remaining: &mut usize,
+    ) -> StructuralJudgment {
+        self.identity_correspondence(
+            left,
+            right,
+            depth,
+            remaining,
+            IdentityCorrespondence::Established,
+        )
+    }
+
+    /// Rewrite lookup compares checked representations without consulting
+    /// hypotheses, algebra or the transitive query it is preparing.
+    pub(super) fn identity_representation_correspondence(
+        &self,
+        left: StructuralTerm,
+        right: StructuralTerm,
+        depth: usize,
+        remaining: &mut usize,
+    ) -> StructuralJudgment {
+        self.identity_correspondence(
+            left,
+            right,
+            depth,
+            remaining,
+            IdentityCorrespondence::Representation,
+        )
+    }
+
+    fn identity_child_correspondence(
+        &self,
+        left: StructuralTerm,
+        right: StructuralTerm,
+        depth: usize,
+        remaining: &mut usize,
+        correspondence: IdentityCorrespondence,
+    ) -> StructuralJudgment {
+        match correspondence {
+            IdentityCorrespondence::Representation => {
+                self.identity_correspondence(left, right, depth, remaining, correspondence)
+            }
+            IdentityCorrespondence::Established => {
+                self.judge_identity_with_budget(left, right, depth, remaining)
+            }
+        }
+    }
+
+    fn identity_correspondence(
+        &self,
+        left: StructuralTerm,
+        right: StructuralTerm,
+        depth: usize,
+        remaining: &mut usize,
+        correspondence: IdentityCorrespondence,
     ) -> StructuralJudgment {
         if depth >= 64 || *remaining == 0 {
             return StructuralJudgment::Unknown;
@@ -401,7 +413,7 @@ impl StructuralJudge<'_> {
             right,
             StructuralTerm::ObservedValue { .. } | StructuralTerm::IntegerEmbedding { .. }
         ) {
-            return self.exact_identity_congruence(left, right, depth + 1, remaining);
+            return self.identity_correspondence(left, right, depth + 1, remaining, correspondence);
         }
         match (&left, &right) {
             (StructuralTerm::Integer(left), StructuralTerm::Integer(right)) => {
@@ -452,7 +464,13 @@ impl StructuralJudge<'_> {
                 };
                 let mut verdict = StructuralJudgment::Proven;
                 for (left, right) in fields {
-                    match self.judge_identity_with_budget(left, right, depth + 1, remaining) {
+                    match self.identity_child_correspondence(
+                        left,
+                        right,
+                        depth + 1,
+                        remaining,
+                        correspondence,
+                    ) {
                         StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
                         StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
                         StructuralJudgment::Proven => {}
@@ -494,17 +512,20 @@ impl StructuralJudge<'_> {
                 // A licensed whole-value equality can permute operands that
                 // are not positionally identical. Try that proof before a
                 // child search spends the shared allowance on those pairs.
-                if self.identity_algebra_equal(&left, &right) {
+                if matches!(correspondence, IdentityCorrespondence::Established)
+                    && self.identity_algebra_equal(&left, &right)
+                {
                     return StructuralJudgment::Proven;
                 }
                 let mut verdict = StructuralJudgment::Proven;
                 for (left, right) in left_arguments.iter().zip(right_arguments) {
                     if !matches!(
-                        self.judge_identity_with_budget(
+                        self.identity_child_correspondence(
                             left.clone(),
                             right.clone(),
                             depth + 1,
-                            remaining
+                            remaining,
+                            correspondence
                         ),
                         StructuralJudgment::Proven
                     ) {
@@ -514,6 +535,9 @@ impl StructuralJudge<'_> {
                 verdict
             }
             _ => {
+                if matches!(correspondence, IdentityCorrespondence::Representation) {
+                    return StructuralJudgment::Unknown;
+                }
                 if self.exact_record_eta(&left, &right, depth + 1, remaining)
                     || self.exact_record_eta(&right, &left, depth + 1, remaining)
                     || self.identity_algebra_equal(&left, &right)
