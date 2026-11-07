@@ -146,6 +146,33 @@ pub(super) fn applied_case_classifier(
 }
 
 impl StructuralJudge<'_> {
+    pub(super) fn trace_le_case_context(&self) {
+        for fact in self.case_facts.iter().take(8) {
+            self.trace_le_case(
+                "case-fact",
+                &[("subject", &fact.subject)],
+                format_args!(
+                    "data={:?} case={:?} holds={}",
+                    fact.data, fact.case, fact.holds
+                ),
+            );
+        }
+        for (name, value) in self.substitutions.iter().take(8) {
+            self.trace_le_case(
+                "substitution",
+                &[("actual", value)],
+                format_args!("name={name}"),
+            );
+        }
+        for (name, value) in self.case_substitutions.iter().take(8) {
+            self.trace_le_case(
+                "case-substitution",
+                &[("actual", value)],
+                format_args!("name={name}"),
+            );
+        }
+    }
+
     fn case_guarantee_eligibility(&self) -> Option<&CaseGuaranteeEligibility> {
         crate::frozen_program::frozen_program_memos(self.program).map(|memos| {
             memos
