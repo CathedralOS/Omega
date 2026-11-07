@@ -19544,11 +19544,11 @@ pass/borrows/mutable_reference_match_local checked 3458ms check-target:macos_arm
 pass/borrows/nested_array_call_restores_memberships_exit checked 3859ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/nested_byte_row_forwarded_window_exit checked 3422ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/nested_machine_carried_field_replacement_exit checked 16400ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/nested_machine_carried_long_cycle_exit checked 16676ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/nested_machine_carried_long_cycle_exit checked 20202ms check-target:macos_arm64 @f6fb7ca6e997
 pass/borrows/nested_machine_carried_recurrent_selector_exit checked 16431ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/nested_machine_unit_output_completed_operand_exit checked 16425ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/nested_machine_unit_output_local_destination_exit checked 14916ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/nested_machine_unit_output_long_cycle_exit checked 16327ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/nested_machine_unit_output_long_cycle_exit checked 19665ms check-target:macos_arm64 @f6fb7ca6e997
 pass/borrows/nested_machine_unit_output_ordinary_forward_exit checked 17938ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/nested_parent_forwarding_independent_object_exit checked 3678ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/nested_reference_byte_observations_exit checked 16112ms check-target:macos_arm64 @ccdb99ca2214
@@ -19973,6 +19973,7 @@ pass/build/generated_declaration_continuation_exit rejected 874ms check-target:m
 pass/build/generated_source_selects_authored rejected 1413ms published:none regressed-from:checked+published:files/generated.omg @ccdb99ca2214
 	tests/omega/pass/build/generated_source_selects_authored/.omega/generated/generated.omg:16:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract
 	published outputs [] differ from expected_published.txt [files/generated.omg]
+pass/build/installed_entry_ram_live_stack_exit checked 10648ms check-target:macos_arm64 @f6fb7ca6e997
 pass/build/installed_entry_ram_stack_occurrence_exit checked 4719ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/installed_entry_ram_two_occurrences_exit checked 4044ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/interrupt_return_cathedral_ack checked 44737ms check-target:linux_x86_64 @6299adddf42d+wt
@@ -20311,7 +20312,7 @@ pass/calls/runtime_mutable_local_external_scalar_call_exit checked 11648ms check
 pass/calls/runtime_mutable_local_parameter_write_exit checked 11411ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_mutable_owned_computation_arguments_exit checked 3272ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_mutual_unit_borrowed_continuation_exit checked 17669ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/runtime_nested_borrowed_tail_cycle_exit checked 3793ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/runtime_nested_borrowed_tail_cycle_exit checked 6925ms check-target:macos_arm64 @f6fb7ca6e997
 pass/calls/runtime_nested_case_argument_exit checked 12119ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit checked 3898ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_nested_case_subject_operand_order_exit checked 3152ms check-target:macos_arm64 @ccdb99ca2214
@@ -20850,6 +20851,7 @@ pass/control_flow/guarded_two_param_dispatch_compile checked 2450ms @ccdb99ca221
 pass/control_flow/guarded_unit_completion_exit checked 12804ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/guarded_value_transition_roster checked 18193ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/helper_machine_state_dispatch_compile checked 2521ms @ccdb99ca2214
+pass/control_flow/hosted_stack_live_caller_nested_callee checked 7359ms check-target:macos_arm64 @f6fb7ca6e997
 pass/control_flow/indexed_record_state_argument_exit checked 10859ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/indexed_subject_dispatch_compile checked 2976ms @ccdb99ca2214
 pass/control_flow/invariant_member_subject_compile checked 4586ms @911f6617ba9e
@@ -23868,7 +23870,7 @@ pass/facts/nested_machine_joint_rank_bounded_computed_length_match_join_exit che
 pass/facts/nested_machine_joint_rank_bounded_computed_length_other_machine_exit checked 5001ms check-target:macos_arm64 @2901d17d5aa3+wt
 pass/facts/nested_machine_joint_rank_bounded_computed_length_other_state_exit checked 4987ms check-target:macos_arm64 @2901d17d5aa3+wt
 pass/facts/nested_machine_joint_rank_bounded_computed_length_target_body_exit checked 5086ms check-target:macos_arm64 @2901d17d5aa3+wt
-pass/facts/nested_machine_suspending_cycle_local_exit checked 30814ms check-target:macos_arm64 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_local_exit checked 8130ms check-target:macos_arm64 @f6fb7ca6e997
 pass/facts/nested_nine_level_record_field_bound_through_call_result_exit checked 3260ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_nine_level_record_field_bound_through_const_name_exit checked 4713ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_nine_level_record_field_bound_through_field_exit checked 3530ms check-target:macos_arm64 @ccdb99ca2214
