@@ -6,8 +6,8 @@ including renamed parameters. The second pair requires a Wrapping cast from
 
 The entry calls both operators and verifies the original result 70 and the
 Wrapping result 0 for input 256. A Saturating implementation would return 255
-and trap. All four hosted targets bind this entry and promise native/Psi exit 0;
-actual qualification remains pending.
+and trap. Build selects the checked provider and entry on all four hosted targets.
+Each entry promises native/Psi exit 0; actual qualification remains pending.
 
 The existing negative fixture retains its original missing-contract provider
 and adds a provider that substitutes Saturating for the required Wrapping cast.
