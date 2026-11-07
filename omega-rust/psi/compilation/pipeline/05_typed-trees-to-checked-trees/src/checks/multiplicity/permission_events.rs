@@ -128,7 +128,10 @@ pub(crate) fn prepare_permission_events(
         )
     };
     let prepared_walks = prepare_state_walks(program, facts, &state_flows, &mutated_places);
-    for ((state_handle, state_flow), prepared) in state_flows.into_iter().zip(prepared_walks) {
+    for (position, ((state_handle, state_flow), prepared)) in
+        state_flows.into_iter().zip(prepared_walks).enumerate()
+    {
+        claim_identities.begin_state(position);
         let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
             continue;
         };
@@ -658,6 +661,7 @@ pub(crate) fn prepare_permission_events(
         });
     }
 
+    claim_identities.finish_walk();
     {
         append_borrow_permission_events(
             program,
