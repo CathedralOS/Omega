@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use crate::repo_root;
+use crate::{execution, producer, repo_root};
 
 const REJECTION_FILES: &[&str] = &[
     "expected_diagnostic.txt",
@@ -222,52 +222,6 @@ pub fn discover_samples(
     Ok(out)
 }
 
-fn build_omega_cli(repo: &Path) -> Result<PathBuf, u8> {
-    let output = Command::new("mbx")
-        .args([
-            "build",
-            "--locked",
-            "--message-format=json",
-            "-p",
-            "omega",
-            "--bin",
-            "omega",
-        ])
-        .current_dir(repo)
-        .env("CARGO_PROFILE_DEV_OPT_LEVEL", "1")
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|e| {
-            eprintln!("sample-gate: failed to invoke mbx build (mbx is required; run `bash tools/agent_setup.sh`): {e}");
-            1u8
-        })?;
-    if !output.status.success() {
-        eprintln!(
-            "sample-gate: failed to build omega CLI:\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        return Err(1);
-    }
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    for line in stdout.lines() {
-        let Ok(val) = serde_json::from_str::<serde_json::Value>(line) else {
-            continue;
-        };
-        if val.get("reason").and_then(|v| v.as_str()) == Some("compiler-artifact")
-            && val
-                .get("target")
-                .and_then(|t| t.get("name"))
-                .and_then(|n| n.as_str())
-                == Some("omega")
-            && let Some(exe) = val.get("executable").and_then(|v| v.as_str())
-        {
-            return Ok(PathBuf::from(exe));
-        }
-    }
-    eprintln!("sample-gate: cargo produced no omega executable");
-    Err(1)
-}
-
 fn accept_pending_decisions(review_bytes: &[u8]) -> Option<Vec<u8>> {
     let text = String::from_utf8_lossy(review_bytes);
     let mut changed = false;
@@ -290,28 +244,21 @@ fn accept_pending_decisions(review_bytes: &[u8]) -> Option<Vec<u8>> {
     changed.then(|| out.into_bytes())
 }
 
-fn settle_review(cli: &Path, sample_dir: &Path, target: &str) -> Result<(), String> {
-    let out = Command::new(cli)
-        .args(["update", "--project"])
-        .arg(sample_dir)
-        .args(["--target", target])
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|e| format!("failed to spawn omega update: {e}"))?;
-    let combined = format!(
-        "{}{}",
-        String::from_utf8_lossy(&out.stdout),
-        String::from_utf8_lossy(&out.stderr)
-    );
-    if combined.contains("unsupported package lock version") {
-        let _ = fs::remove_file(sample_dir.join("omega.lock"));
-        let _ = Command::new(cli)
+fn settle_review(
+    cli: &Path,
+    sample_dir: &Path,
+    target: &str,
+    evidence: &Path,
+) -> Result<(), String> {
+    let out = execution::output(
+        Command::new(cli)
             .args(["update", "--project"])
             .arg(sample_dir)
             .args(["--target", target])
-            .stdin(Stdio::null())
-            .output();
-    }
+            .stdin(Stdio::null()),
+        evidence,
+        "update",
+    )?;
     let review_path = sample_dir
         .join("build/package-manager")
         .join(format!("review-{target}.txt"));
@@ -320,13 +267,15 @@ fn settle_review(cli: &Path, sample_dir: &Path, target: &str) -> Result<(), Stri
     {
         fs::write(&review_path, accepted)
             .map_err(|e| format!("failed writing {}: {e}", review_path.display()))?;
-        let resume = Command::new(cli)
-            .args(["update", "--project"])
-            .arg(sample_dir)
-            .arg("--resume")
-            .stdin(Stdio::null())
-            .output()
-            .map_err(|e| format!("failed to spawn omega update --resume: {e}"))?;
+        let resume = execution::output(
+            Command::new(cli)
+                .args(["update", "--project"])
+                .arg(sample_dir)
+                .arg("--resume")
+                .stdin(Stdio::null()),
+            evidence,
+            "resume",
+        )?;
         if !resume.status.success() {
             return Err(format!(
                 "resume-failed: {}{}",
@@ -334,11 +283,17 @@ fn settle_review(cli: &Path, sample_dir: &Path, target: &str) -> Result<(), Stri
                 String::from_utf8_lossy(&resume.stderr)
             ));
         }
+    } else if !out.status.success() {
+        return Err(format!(
+            "update failed: {}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        ));
     }
     Ok(())
 }
 
-fn parse_header_oracle(entry: &Path) -> (Option<i32>, Option<String>) {
+pub fn parse_header_oracle(entry: &Path) -> (Option<i32>, Option<String>) {
     let text = fs::read_to_string(entry).unwrap_or_default();
     let mut expected_exit = None;
     let mut expected_output = None;
@@ -359,7 +314,7 @@ fn parse_header_oracle(entry: &Path) -> (Option<i32>, Option<String>) {
     (expected_exit, expected_output)
 }
 
-fn bound_targets(sample_dir: &Path) -> BTreeSet<String> {
+pub fn bound_targets(sample_dir: &Path) -> BTreeSet<String> {
     let build =
         strip_comments(&fs::read_to_string(sample_dir.join("build.omg")).unwrap_or_default());
     let mut targets = BTreeSet::new();
@@ -398,17 +353,24 @@ fn compared_host_command(cli: &Path, target: &str) -> Result<Command, String> {
     Ok(command)
 }
 
-fn verify_sample(cli: &Path, project: &SampleProject, target: &str) -> Result<String, String> {
+pub fn verify_sample(
+    cli: &Path,
+    project: &SampleProject,
+    target: &str,
+    evidence: &Path,
+) -> Result<String, String> {
     let Some(entry) = &project.entry else {
         return Err("missing unambiguous entry".to_owned());
     };
     if project.role == "intended-invalid" {
-        let out = Command::new(cli)
-            .args(["--check", "--target", target])
-            .arg(entry)
-            .stdin(Stdio::null())
-            .output()
-            .map_err(|e| format!("failed to run omega --check: {e}"))?;
+        let out = execution::output(
+            Command::new(cli)
+                .args(["--check", "--target", target])
+                .arg(entry)
+                .stdin(Stdio::null()),
+            evidence,
+            "check",
+        )?;
         if out.status.code() != Some(1) {
             return Err(format!(
                 "expected rejection exit 1, got {:?}",
@@ -459,15 +421,17 @@ fn verify_sample(cli: &Path, project: &SampleProject, target: &str) -> Result<St
         return Ok("not-host-runnable".to_owned());
     }
 
-    settle_review(cli, &project.directory, target)?;
+    settle_review(cli, &project.directory, target, evidence)?;
 
     if matches!(project.role.as_str(), "check-only" | "library") {
-        let out = Command::new(cli)
-            .arg("--check")
-            .arg(entry)
-            .stdin(Stdio::null())
-            .output()
-            .map_err(|e| format!("failed to run omega --check: {e}"))?;
+        let out = execution::output(
+            Command::new(cli)
+                .arg("--check")
+                .arg(entry)
+                .stdin(Stdio::null()),
+            evidence,
+            "check",
+        )?;
         if !out.status.success() {
             return Err(format!(
                 "check-fail: {}{}",
@@ -485,12 +449,14 @@ fn verify_sample(cli: &Path, project: &SampleProject, target: &str) -> Result<St
         if project.rel_path.split('/').any(|p| p == "probes") {
             return Ok("no-oracle".to_owned());
         }
-        let out = Command::new(cli)
-            .args(["--target", target])
-            .arg(entry)
-            .stdin(Stdio::null())
-            .output()
-            .map_err(|e| format!("failed to compile sample: {e}"))?;
+        let out = execution::output(
+            Command::new(cli)
+                .args(["--target", target])
+                .arg(entry)
+                .stdin(Stdio::null()),
+            evidence,
+            "compile",
+        )?;
         if !out.status.success() {
             return Err(format!(
                 "no-native-build: {}{}",
@@ -512,9 +478,7 @@ fn verify_sample(cli: &Path, project: &SampleProject, target: &str) -> Result<St
     } else {
         cmd.stdin(Stdio::null());
     }
-    let out = cmd
-        .output()
-        .map_err(|e| format!("failed to run omega run --both: {e}"))?;
+    let out = execution::output(&mut cmd, evidence, "run-both")?;
     let stdout = String::from_utf8_lossy(&out.stdout).replace("\r\n", "\n");
     let stderr = String::from_utf8_lossy(&out.stderr).replace("\r\n", "\n");
 
@@ -642,14 +606,25 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         return Err(2);
     }
 
-    let cli = match cli_override {
-        Some(p) => p,
-        None => build_omega_cli(&repo)?,
-    };
+    if cli_override.is_some() {
+        eprintln!(
+            "sample-gate: --cli cannot authenticate an external executable; use the current-source builder"
+        );
+        return Err(2);
+    }
+    let evidence = repo
+        .join("build/sample-gate-runs")
+        .join(std::process::id().to_string());
+    let producer =
+        producer::prepare(&repo, &evidence.join("producer"), false, true).map_err(|e| {
+            eprintln!("sample-gate: {e}");
+            4u8
+        })?;
+    let cli = producer.cli.as_deref().ok_or(4u8)?;
 
     let mut failed = 0usize;
     for proj in &projects {
-        match verify_sample(&cli, proj, &target) {
+        match verify_sample(cli, proj, &target, &evidence.join(&proj.rel_path)) {
             Ok(state) => {
                 println!("{state}\t{}", proj.rel_path);
             }
@@ -661,6 +636,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         }
     }
 
+    producer.verify().map_err(|e| {
+        eprintln!("sample-gate: {e}");
+        4u8
+    })?;
     if failed > 0 {
         eprintln!(
             "sample-gate: {failed} of {} sample(s) failed",

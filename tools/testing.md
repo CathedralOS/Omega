@@ -366,40 +366,62 @@ printing the CPU model. Dispatch one ref per run, because the concurrency group
 is per ref and host, and delete the refs afterwards. The record is
 `wiki/drafts/measurements/std_check_time_2026_11_01/README.md`.
 
+### Current Rust qualification
+
+`mbx xtask qualify` runs a bounded, explicit selection through the existing corpus
+harness and ordinary CLI sample gate. Use `--corpus tier/group/name,...` for
+checking, `--runtime tier/group/name,...` for native/Psi execution, and
+`--samples samples/project,...` for ordinary CLI execution. Name a new output
+directory with `--output`; an existing directory refuses rather than mixing runs.
+The total selection is limited to 200 programs. These are exact paths, not search
+fragments. Selection and authored oracles are checked before compiler preparation.
+
+For example:
+
+```sh
+mbx xtask qualify \
+  --corpus fail/contracts/scalar_reference_unit_completion_overwritten \
+  --runtime pass/contracts/scalar_reference_unit_completion_exit \
+  --samples samples/cli/facts/length/local \
+  --output build/qualification-local
+```
+
+The current `Post-merge smoke` workflow exposes the same three selections as
+`qualification_corpus`, `qualification_runtime`, and `qualification_samples`.
+Select one matching host or `qualification_target=all` for all four hosted targets.
+The job retains the whole output directory even on failure. Runtime acceptance
+requires actual native and Psi exits at the authored values, agreement, and any
+output oracle. A rejection counts only with the fixture's intended diagnostic.
+Missing, duplicate, extra, incomplete, unchecked, or wrong-reason rows fail even
+when a historical golden would consider them unchanged. Check-only or unrunnable
+CLI projects cannot count as runtime acceptance.
+
+The directory contains the exact request, source revision/tree and source archive,
+original runner rows, per-command stdout/stderr and exit receipts, parsed outcomes,
+producer Cargo artifacts and fingerprints, binary digests, relevant build inputs,
+and before/after source identities. Keep these original files together; a summary
+or a golden file does not replace them. Never commit the raw directory. A failed
+summary is unfinished qualification, with the original source/compiler or workflow
+failure preserved for diagnosis. Records and source revisions stay attached to the
+producer that actually emitted them.
+
 ### Optimized validation compilers
 
-All normal compiler builds use at least opt-level 1. Dev and test profiles
-default to 1, and the compiler build rejects an effective level of 0, including
-`RUSTFLAGS`/`CARGO_ENCODED_RUSTFLAGS` overrides. Debug information can be enabled
-with `CARGO_PROFILE_DEV_DEBUG=2` without disabling optimization. This requirement
-also covers direct `mbx run` and manually built CLI/corpus binaries.
+Current gates prepare executables through `mbx` for their source checkout. They
+bind each actual image digest to Cargo's optimized artifact profile and its
+matching fingerprint, including effective Rust flags. Effective optimization
+level 0, hidden response-file flags, missing fingerprints, changed image bytes,
+or changed source during preparation refuse. The corpus harness is type-checked
+before optimized code generation. CLI-only requests do not prepare the harness.
+Relevant toolchain, host, jobs, flags and profile inputs are retained; credentials
+and the full process environment are never captured.
 
-Sample and corpus gates check the actual executable before starting work,
-including supplied `--cli` and `--runner`. `omega --build-profile` and
-`corpus_runner --build-profile` report build-time metadata. An unknown or
-unoptimized producer is an infrastructure refusal, never a source rejection or
-a passing validation. Setting a runtime Cargo variable cannot bless an already
-built binary. The preflight checks its digest before and after querying it.
-
-Historical corpus comparisons remain possible: the automatic builder forces
-optimized dev/test profiles and records Cargo's compiler-library/executable
-profiles and matching Cargo/mbx fingerprint flags against the exact binary digest.
-The receipt retains the fingerprint contents and digest for later inspection.
-The effective-profile receipt schema is also captured in qualification evidence;
-older legacy observations lacking this proof require requalification.
-The profile label alone is insufficient: `RUSTFLAGS` or Cargo configuration may
-override it. Missing fingerprints, response-file flags and effective opt-level 0
-refuse; cached builds use the same exact artifact fingerprints. An old runner without the query
-protocol is never launched just to probe an unknown flag, which historical
-runners could ignore and start the whole corpus. It requires that fresh build
-receipt; a missing, stale or unoptimized receipt refuses before execution.
-
-Compiler-backed [qualification](qualification.md) requires absolute
-`producer.executables` included in `artifacts`. It preflights each executable
-before reserving/running the check and records verified profiles alongside the
-binary hashes. Existing evidence remains immutable and readable; observations
-without verified producer profiles must be requalified rather than retroactively
-stamped. Keep the actual build receipt in the evidence closure as well.
+`--cli` and `--runner` cannot authenticate an arbitrary supplied executable and
+therefore refuse. Use the current-source builder. Cargo/mbx may reuse compatible
+objects, but it still checks the current source and emits the artifact receipts.
+Do not probe `corpus_runner` with `--build-profile`: current runners ignore argv
+and can start a sweep. Historical producer/profile receipts remain historical;
+they do not establish execution by the current Rust route.
 
 ### The false-success class
 
