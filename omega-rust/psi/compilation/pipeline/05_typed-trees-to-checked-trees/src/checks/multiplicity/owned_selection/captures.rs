@@ -8,8 +8,8 @@ use crate::checks::multiplicity::linear_validation::linear_claim_frontier;
 use crate::flow::canonical_place_from_semantic_place;
 use arena::Handle;
 use checked_trees::{
-    BorrowAccessKind, BorrowLoanLineage, CheckFacts, FlowCallFact, FlowOperandCompletion,
-    FlowOperandFact, FlowOwnershipFacts, FlowPermissionEvaluation, FlowPermissionEventFact,
+    BorrowAccessKind, BorrowLoanLineage, FlowCallFact, FlowOperandCompletion, FlowOperandFact,
+    FlowOwnershipFacts, FlowPermissionEvaluation, FlowPermissionEventFact,
 };
 use diagnostics::Diagnostic;
 use facts::{PlaceRoot, PlaceSegment};
@@ -65,7 +65,7 @@ impl SelectionProduction {
 
     pub(in super::super) fn for_statement(
         program: &dyn CheckingInput,
-        facts: &CheckFacts,
+        facts: checked_trees::CheckFactsRef<'_>,
         machine: SymbolHandle,
         state: SymbolHandle,
         statement: usize,
@@ -93,7 +93,7 @@ impl SelectionProduction {
                 .is_valid(stored.stored_destination)
                 .then(|| facts.semantic.places.get(stored.stored_destination))
                 .and_then(|place| {
-                    canonical_place_from_semantic_place(program, &facts.semantic, place)
+                    canonical_place_from_semantic_place(program, facts.semantic, place)
                 })
                 .ok_or_else(|| Diagnostic::error("selected store has no exact receiving place"))?;
             (stored.stored_value, destination)
@@ -171,7 +171,7 @@ impl SelectionProduction {
     pub(in super::super) fn record(
         &self,
         program: &dyn CheckingInput,
-        facts: &mut CheckFacts,
+        facts: &mut checked_trees::CheckFactsWalk<'_>,
         machine: SymbolHandle,
         state: SymbolHandle,
         statement: usize,
@@ -209,7 +209,7 @@ impl SelectionProduction {
             }
             if !super::source_outputs_are_attributed(
                 program,
-                facts,
+                facts.view(),
                 machine,
                 state,
                 statement,
@@ -281,7 +281,7 @@ impl SelectionProduction {
             };
             let evaluated_places = if owner.source.root.as_symbol().is_some() {
                 let (places, _, _) = evaluated_source_custody(
-                    &facts.flow.ownership,
+                    facts.flow.ownership,
                     owner.expression,
                     &owner.source,
                     self.evaluation,
@@ -650,7 +650,7 @@ pub(in super::super) fn evaluated_source_custody<'evaluation>(
     Ok((&snapshot.places, &snapshot.remaining, snapshot.cut))
 }
 
-fn has_selection(facts: &CheckFacts, operand: &FlowOperandFact) -> bool {
+fn has_selection(facts: checked_trees::CheckFactsRef<'_>, operand: &FlowOperandFact) -> bool {
     match operand.completion {
         FlowOperandCompletion::Selected(_) => true,
         FlowOperandCompletion::Constructed(children) => facts
@@ -669,7 +669,7 @@ fn has_selection(facts: &CheckFacts, operand: &FlowOperandFact) -> bool {
 
 fn collect(
     program: &dyn CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     machine: SymbolHandle,
     evaluation: FlowPermissionEvaluation,
     places: &[LinearPlace],
@@ -820,7 +820,7 @@ fn collect(
 /// occurrence rather than inferring a move from that carrier or referent.
 fn forms_checked_loan(
     program: &dyn CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     machine: SymbolHandle,
     evaluation: FlowPermissionEvaluation,
     operand: &FlowOperandFact,

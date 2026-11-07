@@ -294,12 +294,28 @@ pub struct ContentPartitionPlaceSubstitution {
 }
 
 impl ContentProjectionFacts {
+    /// See [`ContentProjectionFactsRef::descendant_frontier`].
+    pub fn descendant_frontier(
+        &self,
+        entries: HandleSpan<ContentBodyClaimBinding>,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement: usize,
+        evaluation: crate::FlowPermissionEvaluation,
+        before: arena::Handle<ContentBodyConservationFact>,
+    ) -> Result<ContentClaimFrontier, &'static str> {
+        self.view()
+            .descendant_frontier(entries, machine, state, statement, evaluation, before)
+    }
+}
+
+impl<'f> crate::ContentProjectionFactsRef<'f> {
     /// Replay complete replacements of the equation's joint input frontier.
     /// Every replacement parent must already belong to that exact roster;
     /// unrelated roots cannot be pulled in by equal content. Empty-content
     /// claims remain nominal owners and stay in the roster too.
     pub fn descendant_frontier(
-        &self,
+        self,
         entries: HandleSpan<ContentBodyClaimBinding>,
         machine: SymbolHandle,
         state: SymbolHandle,
@@ -397,7 +413,9 @@ impl ContentProjectionFacts {
             replacements,
         })
     }
+}
 
+impl ContentProjectionFacts {
     /// Whether one exact construction occurrence receives this membership from
     /// its enclosing completed transaction. Follow only constructing child edges:
     /// retained children of a later alias must not backdate the judgment.

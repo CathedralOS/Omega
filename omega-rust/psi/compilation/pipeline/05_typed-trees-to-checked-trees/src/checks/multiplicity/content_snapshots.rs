@@ -9,10 +9,10 @@
 
 use crate::published::places::place_at;
 use arena::Handle;
+use checked_trees::FlowOperandFact;
 use checked_trees::facts::{
     ContentBodyClaimBinding, ContentClaimTransformation, ContentClaimTransformationSource,
 };
-use checked_trees::{CheckFacts, FlowOperandFact};
 use facts::PlaceSegment;
 use validation::CanonicalPlace;
 
@@ -52,7 +52,7 @@ struct SnapshotTraversal {
 
 pub(super) fn preserve_replacement(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     transformation: Handle<ContentClaimTransformation>,
     expected: Handle<ContentBodyClaimBinding>,
     consumed: Handle<ContentBodyClaimBinding>,
@@ -106,7 +106,7 @@ pub(super) fn preserve_replacement(
 
 pub(super) fn preserve_projection(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     expected: Handle<ContentBodyClaimBinding>,
     observed: Observation<'_>,
 ) -> Result<(), &'static str> {
@@ -199,7 +199,7 @@ pub(super) fn preserve_projection(
 
 fn place_matches(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     at: &FlowOperandFact,
     place: &CanonicalPlace,
     expected: &Snapshot,
@@ -216,7 +216,7 @@ fn place_matches(
     };
     match crate::flow::stored_values::at_snapshot(
         program,
-        &facts.flow.control,
+        facts.flow.control,
         at.storage_snapshot,
         place,
         crate::flow::stored_values::StoredObservation::Contents,
@@ -254,7 +254,7 @@ fn place_matches(
 
 fn capture_matches(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     value: Handle<FlowOperandFact>,
     path: &[PlaceSegment],
     expected: &Snapshot,

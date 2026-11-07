@@ -27,7 +27,7 @@ use language_semantics::content::{
 
 pub(crate) fn observe_body_completion(
     program: &dyn validation::CheckingInput,
-    facts: &mut CheckFacts,
+    facts: &mut checked_trees::CheckFactsWalk<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -43,11 +43,11 @@ pub(crate) fn observe_body_completion(
         return Vec::new();
     }
     let mut observed = Vec::new();
-    for (plan_index, plan) in state_conservation_plans(program, facts, machine, state) {
+    for (plan_index, plan) in state_conservation_plans(program, facts.view(), machine, state) {
         if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
             continue;
         }
-        let Some(plan) = plan_at_state(program, facts, state, plan) else {
+        let Some(plan) = plan_at_state(program, facts.view(), state, plan) else {
             continue;
         };
         let Some((inputs, outputs)) =
@@ -73,7 +73,7 @@ pub(crate) fn observe_body_completion(
                 continue;
             }
             for completed_value in
-                completed_producers(program, facts, state, outgoing.returned_value)
+                completed_producers(program, facts.view(), state, outgoing.returned_value)
             {
                 let captured = facts.flow.control.operands.get(completed_value);
                 if captured.statement_index != statement_index || captured.expression != expression
@@ -96,7 +96,7 @@ pub(crate) fn observe_body_completion(
                     || {
                         has_conservation_candidate(
                             program,
-                            facts,
+                            facts.view(),
                             machine,
                             state,
                             completed_value,
@@ -111,7 +111,7 @@ pub(crate) fn observe_body_completion(
                 let mut conditions = SelectionConditions::new();
                 let returned = completed_owned_claims(
                     program,
-                    facts,
+                    facts.view(),
                     completed_value,
                     location,
                     places,
@@ -131,7 +131,13 @@ pub(crate) fn observe_body_completion(
                             return None;
                         };
                         let path = content_segments_to_fact_path(&subject.segments)?;
-                        entry_claim_identity(facts, state.symbol, symbol, &path, events.iter())
+                        entry_claim_identity(
+                            facts.view(),
+                            state.symbol,
+                            symbol,
+                            &path,
+                            events.iter(),
+                        )
                     })
                     .is_none()
                     || output_bindings
@@ -150,7 +156,7 @@ pub(crate) fn observe_body_completion(
                                 coverage = conditions.any(coverage, claim.condition);
                             }
                             conditions
-                                .covers(&facts.flow.control, coverage)
+                                .covers(facts.flow.control, coverage)
                                 .then_some(identity)
                         })
                         .is_none()
@@ -189,7 +195,7 @@ pub(crate) fn observe_body_completion(
                     outputs,
                     available_inputs: Default::default(),
                 };
-                let available = observe_body_inputs(program, facts, &conservation, places);
+                let available = observe_body_inputs(program, facts.view(), &conservation, places);
                 let Ok(available) = available else {
                     continue;
                 };
@@ -317,7 +323,7 @@ impl ConservationSites {
                 let admitted = shared
                     || has_conservation_candidate(
                         program,
-                        facts,
+                        facts.view(),
                         machine,
                         state,
                         completed_value,
@@ -367,8 +373,8 @@ pub(crate) fn conservation_sites(
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
         return sites;
     }
-    for (plan_index, plan) in state_conservation_plans(program, facts, machine, state) {
-        let Some(plan) = plan_at_state(program, facts, state, plan) else {
+    for (plan_index, plan) in state_conservation_plans(program, facts.view(), machine, state) {
+        let Some(plan) = plan_at_state(program, facts.view(), state, plan) else {
             continue;
         };
         let Some((_, outputs)) = owned_return_sides(plan.equation.left(), plan.equation.right())
@@ -396,7 +402,7 @@ pub(crate) fn conservation_sites(
                 continue;
             }
             for completed_value in
-                completed_producers(program, facts, state, outgoing.returned_value)
+                completed_producers(program, facts.view(), state, outgoing.returned_value)
             {
                 sites
                     .sites
@@ -422,7 +428,7 @@ pub(crate) fn conservation_sites(
 /// The machine conservation plans owned by this state or its machine entry.
 fn state_conservation_plans(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) -> Vec<(usize, language_semantics::content::ContentConservationPlan)> {
@@ -469,7 +475,7 @@ fn proves_domain(
 
 fn has_conservation_candidate(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     completed_value: arena::Handle<checked_trees::FlowOperandFact>,
@@ -484,7 +490,7 @@ fn has_conservation_candidate(
         captured.expression,
         captured.type_reference,
         plan,
-        &facts.qualifications.content.plans,
+        facts.qualifications.content.plans,
     )
 }
 
@@ -493,7 +499,7 @@ fn has_conservation_candidate(
 /// Rebase its subjects, never import the guarantee as an entry assumption.
 fn plan_at_state(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     state: &typed_trees::state::State,
     mut plan: language_semantics::content::ContentConservationPlan,
 ) -> Option<language_semantics::content::ContentConservationPlan> {
@@ -559,7 +565,7 @@ fn plan_at_state(
 /// as a substitute for the completed store. Alternatives stay distinct.
 fn completed_producers(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     state: &typed_trees::state::State,
     returned: arena::Handle<checked_trees::FlowOperandFact>,
 ) -> Vec<arena::Handle<checked_trees::FlowOperandFact>> {

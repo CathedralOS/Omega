@@ -1263,7 +1263,7 @@ fn declared_input_reference(
 /// still proves the actual descriptor's access and backing lifetime.
 pub fn stored_carrier_ingress_is_complete(
     program: &dyn CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
     parameter: SymbolHandle,

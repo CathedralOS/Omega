@@ -88,7 +88,7 @@ pub struct CompletedDescriptorLoad {
 }
 
 fn activation_matches_load(
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     identity: Handle<IncomingReferenceIdentity>,
     expression: typed_trees::expression::ExpressionHandle,
     activation: &checked_trees::FlowBorrowActivationFact,
@@ -126,21 +126,23 @@ pub fn completed_descriptor_load(
         .activations
         .span_or_empty(state.borrow_activations)
         .iter()
-        .filter(|activation| activation_matches_load(facts, identity, expression, activation));
+        .filter(|activation| {
+            activation_matches_load(facts.view(), identity, expression, activation)
+        });
     let activation = activations
         .next()
         .ok_or("the incoming pointer has no actual load activation")?;
     if activations.next().is_some() {
         return Err("the incoming pointer has no unique completed load");
     }
-    complete_descriptor_load(program, facts, state, expression, activation)
+    complete_descriptor_load(program, facts.view(), state, expression, activation)
 }
 
 // Selection establishes one matching activation. Both the ordinary query and
 // the immutable batch use this same completed-read authentication and source cut.
 fn complete_descriptor_load(
     program: &dyn crate::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     state: &FlowStateFact,
     expression: typed_trees::expression::ExpressionHandle,
     activation: &checked_trees::FlowBorrowActivationFact,

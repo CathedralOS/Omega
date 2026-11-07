@@ -220,7 +220,7 @@ pub(super) fn prepare_storage_deaths(
             // execution order. Every taken edge and implicit return must see
             // discharged windows; a continuing path may still repair them.
             let captures = crate::checks::StorageSelectorFacts {
-                flow: &facts.flow,
+                flow: facts.flow.view(),
                 semantic: &facts.semantic,
             };
             let mut windows = borrowed_windows::BorrowedStorageWindows::new(captures);

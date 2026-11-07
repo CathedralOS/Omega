@@ -54,7 +54,7 @@ enum PreparedCustody {
 
 pub(super) fn commit(
     program: &dyn validation::CheckingInput,
-    facts: &mut CheckFacts,
+    facts: &mut checked_trees::CheckFactsWalk<'_>,
     observed: &[Handle<ContentBodyConservationFact>],
     places: &mut [LinearPlace],
     events: &mut Vec<FlowPermissionEventFact>,
@@ -62,7 +62,7 @@ pub(super) fn commit(
     if observed.is_empty() {
         return Ok(());
     }
-    let transaction = prepare(program, facts, observed, places)?;
+    let transaction = prepare(program, facts.view(), observed, places)?;
     let completed = facts.flow.control.operands.get(transaction.completion);
     let expression = completed.expression;
     let source = PermissionEventSource::Statement {
@@ -196,7 +196,7 @@ pub(super) fn commit(
 
 fn prepare(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     observed: &[Handle<ContentBodyConservationFact>],
     places: &[LinearPlace],
 ) -> Result<Transaction, &'static str> {
@@ -367,7 +367,7 @@ fn prepare(
         return Err("identity forwarding belongs to the existing claim transfer");
     }
     let completed =
-        crate::flow::CapturedOperand::recorded(&facts.flow.control, transaction.completion)
+        crate::flow::CapturedOperand::recorded(facts.flow.control, transaction.completion)
             .ok_or("missing raw output observation")?;
     let contexts = facts
         .flow
@@ -384,8 +384,8 @@ fn prepare(
         }
         let values = crate::flow::captured_operand_values(
             program,
-            &facts.flow,
-            &facts.semantic,
+            facts.flow,
+            facts.semantic,
             state_flow,
             completed,
             completed.type_reference,
@@ -395,14 +395,14 @@ fn prepare(
         for value in values {
             let contexts = crate::flow::operand_contexts(
                 program,
-                &facts.flow.contexts,
-                &facts.flow.control,
-                &facts.semantic,
+                facts.flow.contexts,
+                facts.flow.control,
+                facts.semantic,
                 value.operand.row(),
                 value.type_reference,
                 value.operand.constraints,
             );
-            let sources = crate::flow::captured_value_places(program, &facts.flow, &value)
+            let sources = crate::flow::captured_value_places(program, facts.flow, &value)
                 .ok_or("missing raw output source")?;
             if sources.iter().any(|source| {
                 crate::checks::contracts::exact_scalar_membership(
@@ -444,7 +444,7 @@ fn prepare(
 /// erase a nested account.
 fn require_accounted_subtree(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     transaction: &Transaction,
     contexts: &[facts::FactContextHandle],
     parent: &CanonicalPlace,
@@ -454,7 +454,7 @@ fn require_accounted_subtree(
     let inactive = |subject: &CanonicalPlace| {
         crate::flow::place_case_path_is_inactive(
             program,
-            &facts.semantic,
+            facts.semantic,
             contexts,
             transaction.machine,
             transaction.state,
@@ -530,7 +530,7 @@ fn require_accounted_subtree(
             };
             let Some(subject) = crate::flow::canonical_place_from_semantic_place(
                 program,
-                &facts.semantic,
+                facts.semantic,
                 facts.semantic.places.get(place),
             ) else {
                 continue;
@@ -644,7 +644,7 @@ fn same_qualification(left: &ContentBodyClaimBinding, right: &ContentBodyClaimBi
 }
 
 fn lineage_roots(
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     input: &ContentBodyClaimBinding,
 ) -> Result<Vec<ContentBodyClaimBinding>, &'static str> {
     let content = &facts.qualifications.content;

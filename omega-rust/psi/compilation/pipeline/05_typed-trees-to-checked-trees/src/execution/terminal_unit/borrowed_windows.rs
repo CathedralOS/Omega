@@ -91,7 +91,7 @@ fn same_storage_place(
         && checks::storage_path_compatibility(
             program,
             checks::StorageSelectorFacts {
-                flow: &facts.flow,
+                flow: facts.flow.view(),
                 semantic: &facts.semantic,
             },
             &left.segments,
