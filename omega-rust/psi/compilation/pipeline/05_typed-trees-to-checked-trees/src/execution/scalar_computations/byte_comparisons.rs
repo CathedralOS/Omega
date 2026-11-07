@@ -126,19 +126,18 @@ impl Builder<'_, '_> {
         if observe_referent {
             return None;
         }
-        self.call_result_byte_subject(operand, target)
+        self.completed_byte_subject(operand, target)
     }
 
-    /// A call's byte result is not a place and not an erased view. Root the
-    /// call so it executes, then observe the completed descriptor.
-    fn call_result_byte_subject(
+    /// Observe the exact completed byte value produced by the shared value
+    /// owner. Copies, saved projections, constructions and call results retain
+    /// that owner's capture, evaluation order and cleanup; none is a new read
+    /// of storage at the source expression's spelling.
+    fn completed_byte_subject(
         &mut self,
         operand: ExpressionHandle,
         target: typed_trees::types::TypeReferenceHandle,
     ) -> Option<CheckedUnitStructuralArgumentPlan> {
-        let call = self.program.expression_table.call_node(operand)?;
-        let call_target = validation::call_target_symbol(self.program, call);
-        self.call_ordinal(operand, call_target)?;
         let value = self.structural_value(operand, target)?;
         let ordinal = u32::try_from(self.statement_index).ok()?;
         self.retain_structural_root(ordinal, operand, target, value);
