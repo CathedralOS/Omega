@@ -1800,7 +1800,7 @@ Its schema owner introduces no runtime provider demand. Callable signatures
 retain their exact declaring schema owner; provider candidates retain their
 exact selecting declaration independently of display labels and callable bodies.
 
-Marker 251 retains the declaration application immediately before the receiving
+Marker 252 retains the declaration application immediately before the receiving
 application in both provider candidates and required provider instances. A
 required instance encodes requirement identity, candidate identity, declaration
 application, receiving application and counted receiving region identities.
