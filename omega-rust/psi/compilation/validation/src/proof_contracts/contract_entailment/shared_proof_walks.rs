@@ -97,14 +97,7 @@ pub(super) fn proven(
                 .clone()
         }
     };
-    let found = shared.proven.contains(&site);
-    if found {
-        phase_profile::count(
-            "psi.05.check_checked_facts.check_flow_call_contracts.cap.shared_walk_hits",
-            1,
-        );
-    }
-    found
+    shared.proven.contains(&site)
 }
 
 fn proven_site(walk: &RequirementWalk<'_>) -> ProvenSite {
@@ -237,23 +230,20 @@ fn walk_group(
         StructuralJudge::from_requires(program, machine, &requires, true)
     };
     let mut diagnostics = Vec::new();
-    let recognized = phase_profile::scope(
-        "psi.05.check_checked_facts.check_flow_call_contracts.cap.shared_walk",
-        || {
-            let mut visitors: Vec<&mut dyn StructuralPrefixVisitor> = group
-                .iter_mut()
-                .map(|walk| &mut walk.requirement as &mut dyn StructuralPrefixVisitor)
-                .collect();
-            recognize_structural_case_arms_batched(
-                program,
-                machine,
-                &judge,
-                classification,
-                &mut diagnostics,
-                &mut visitors,
-            )
-        },
-    );
+    let recognized = {
+        let mut visitors: Vec<&mut dyn StructuralPrefixVisitor> = group
+            .iter_mut()
+            .map(|walk| &mut walk.requirement as &mut dyn StructuralPrefixVisitor)
+            .collect();
+        recognize_structural_case_arms_batched(
+            program,
+            machine,
+            &judge,
+            classification,
+            &mut diagnostics,
+            &mut visitors,
+        )
+    };
     if recognized.is_none() || !diagnostics.is_empty() {
         return;
     }

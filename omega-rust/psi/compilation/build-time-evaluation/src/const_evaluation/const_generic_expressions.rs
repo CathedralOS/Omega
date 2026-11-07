@@ -41,7 +41,6 @@ pub(crate) fn evaluate(
     mut syntax: SyntaxTrees,
     context: &crate::BuildTimeSources<'_>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    let _profile = phase_profile::guard("pre_resolution.constant_expressions");
     let sources = context.sources.clone();
     let bindings = context.source_scoped_top_level_bindings;
     let authority = context.selection_authority.as_deref();
@@ -56,18 +55,6 @@ pub(crate) fn evaluate(
         context.retained_base(),
         context.declaration_syntax,
     )?;
-    phase_profile::count(
-        "pre_resolution.constant_expressions.data",
-        data_arguments.len() as u64,
-    );
-    phase_profile::count(
-        "pre_resolution.constant_expressions.extents",
-        extent_arguments.len() as u64,
-    );
-    phase_profile::count(
-        "pre_resolution.constant_expressions.machines",
-        machine_arguments.len() as u64,
-    );
     let mut lexical_arguments = Vec::new();
     let mut aggregate_arguments = Vec::new();
     // Declaration initializers have already materialized named data indices.
@@ -214,10 +201,6 @@ pub(crate) fn evaluate(
             }
         }
     }
-    phase_profile::count(
-        "pre_resolution.constant_expressions.pending",
-        pending.len() as u64,
-    );
     if pending.is_empty() {
         return Ok(syntax);
     }

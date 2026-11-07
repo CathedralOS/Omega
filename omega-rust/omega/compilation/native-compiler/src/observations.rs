@@ -1,9 +1,9 @@
 //! Invocation-local counts of actual native coordinator operations.
 //!
-//! Enabled by the existing phase profiler. These observations never supply
-//! semantic inputs, reuse decisions or admission evidence. A failed invocation
-//! retains its entered stages; independent callable bodies stay visible as
-//! separate units instead of being folded into an application's count.
+//! These observations never supply semantic inputs, reuse decisions or
+//! admission evidence. A failed invocation retains its entered stages;
+//! independent callable bodies stay visible as separate units instead of being
+//! folded into an application's count.
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -28,12 +28,14 @@ pub struct NativePipelineInvocation {
     pub completed: bool,
 }
 
+static ENABLED: AtomicBool = AtomicBool::new(false);
 static INVOCATIONS: Mutex<Vec<NativePipelineInvocation>> = Mutex::new(Vec::new());
 
 /// Completed observation scopes, including scopes whose compilation refused.
-/// Callers isolate their own process or compare against a prior snapshot.
-/// Collection requires OMEGA_PHASE_PROFILE to be enabled before compilation.
+/// Callers isolate their own process or compare against a prior snapshot;
+/// taking the initial snapshot enables recording for subsequent compilations.
 pub fn native_pipeline_invocations() -> Vec<NativePipelineInvocation> {
+    ENABLED.store(true, Ordering::Relaxed);
     INVOCATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -57,7 +59,6 @@ pub(crate) enum NativePipelineStage {
 }
 
 pub(crate) struct NativePipelineObservation {
-    enabled: bool,
     profile: TargetProfile,
     unit: NativePipelineUnit,
     counts: [AtomicU64; 12],
@@ -67,7 +68,6 @@ pub(crate) struct NativePipelineObservation {
 impl NativePipelineObservation {
     pub(crate) fn new(profile: TargetProfile, unit: NativePipelineUnit) -> Self {
         Self {
-            enabled: phase_profile::enabled(),
             profile,
             unit,
             counts: std::array::from_fn(|_| AtomicU64::new(0)),
@@ -76,33 +76,30 @@ impl NativePipelineObservation {
     }
 
     pub(crate) fn enter(&self, stage: NativePipelineStage) {
-        if self.enabled {
-            self.counts[stage as usize].fetch_add(1, Ordering::Relaxed);
-        }
+        self.counts[stage as usize].fetch_add(1, Ordering::Relaxed);
     }
 
     pub(crate) fn complete(&self) {
-        if self.enabled {
-            self.completed.store(true, Ordering::Relaxed);
-        }
+        self.completed.store(true, Ordering::Relaxed);
     }
 }
 
 impl Drop for NativePipelineObservation {
     fn drop(&mut self) {
-        if self.enabled {
-            let observation = NativePipelineInvocation {
-                profile: self.profile,
-                unit: self.unit,
-                stages: std::array::from_fn(|stage| self.counts[stage].load(Ordering::Relaxed)),
-                fragment_emission_attempts: self.counts[10].load(Ordering::Relaxed),
-                image_emission_attempts: self.counts[11].load(Ordering::Relaxed),
-                completed: self.completed.load(Ordering::Relaxed),
-            };
-            INVOCATIONS
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .push(observation);
+        if !ENABLED.load(Ordering::Relaxed) {
+            return;
         }
+        let observation = NativePipelineInvocation {
+            profile: self.profile,
+            unit: self.unit,
+            stages: std::array::from_fn(|stage| self.counts[stage].load(Ordering::Relaxed)),
+            fragment_emission_attempts: self.counts[10].load(Ordering::Relaxed),
+            image_emission_attempts: self.counts[11].load(Ordering::Relaxed),
+            completed: self.completed.load(Ordering::Relaxed),
+        };
+        INVOCATIONS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(observation);
     }
 }

@@ -15,6 +15,11 @@ state machines:
 - `source/library/` — bundled `omega::` packages (`name.omg` or `name/mod.omg`).
 - `bootstrap/{0_alpha,…,5_omega}/` — the trust-minimizing bootstrap chain (`bootstrap/proofs/` holds Gamma-written derivation checking; scripts resolve locations via `tools/bootstrap/paths.sh`).
 
+**Public naming:** Follow [public names](wiki/README.md#public-names): the portable
+IR, artifact, interpreter and CLI subsystem are **Psi**. **Terminal Psi** names
+only the internal compiler stage/representation. Keep internal paths and wire
+identifiers intact; do not export that stage label into help, reports or guides.
+
 **The goal is a complete compiler that ships.** Follow `.agents/skills/advance/SKILL.md`
 (`/advance`) to execute work, `.agents/skills/coordinator-review/SKILL.md` to
 review candidate diffs, and [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md)
@@ -165,7 +170,7 @@ and [omega-rust/pipeline.md](omega-rust/pipeline.md):
   affine cleanup, restoration windows, crash routes, and ranking edges.
 - **Native realization & execution:** Lower Terminal Psi through ABI calling
   plans, instruction selection, and ELF/Mach-O/PE emission so native execution
-  agrees with Terminal Psi (`omega run --both`).
+  agrees with Psi (`omega run --both`).
 
 ## Commands
 
@@ -184,7 +189,7 @@ CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=$PWD/target mbx build -p omega < 
 python3 tools/corpus_gate.py --filter <fixtures> < /dev/null
 python3 tools/corpus_gate.py --record --filter <fixtures> < /dev/null
 
-# Run focused sample native + Terminal Psi gate:
+# Run focused sample native + Psi gate:
 python3 tools/sample_native_gate.py --filter <sample_path> < /dev/null
 
 # Run repository rules, formatting, and lint gates:
@@ -199,7 +204,7 @@ locally (`corpus_gate.py` enforces a 200-fixture local selection budget).
 
 - **`psi/` (`omega-rust/psi/`, `source/psi/`)** owns target-neutral language
   semantics from source tokens through canonical Terminal Psi (`PSITERM\0`) and
-  the Terminal Psi interpreter. `psi/` must never import `omega/` crates, target
+  the Psi interpreter. `psi/` must never import `omega/` crates, target
   ABIs, or machine encodings.
 - **`omega/` (`omega-rust/omega/`, `source/omega/`)** consumes Checked/Terminal
   Psi and owns build orchestration, package management, target lowering, ABI
@@ -215,8 +220,9 @@ locally (`corpus_gate.py` enforces a 200-fixture local selection budget).
   once by its stage owner and passed forward, never re-parsed from source text
   (`tools/source_text_reads.txt`) or cached in ad-hoc mutable maps (`tools/cache_state.txt`).
 - **Verify at trust boundaries ([pipeline.md](omega-rust/pipeline.md#verification-placement)):**
-  Stages do not re-verify output the same compile just produced; verifiers run
-  in corpus/test harnesses and at foreign package boundaries.
+  Default compilation does not re-verify its own stage output. Verifiers run
+  in corpus/test harnesses, at foreign package boundaries, and on explicit
+  [validator requests](wiki/spec/build/command_line.md#independent-stage-validators).
 - When retiring a variant, inspect the other variants and contracts served by
   each deleted helper and preserve their paths. Successful compilation does
   not prove that shared checks survived.
@@ -266,7 +272,7 @@ reads the allowed lanes from this table:
 | `psi` | Target-neutral source semantics through Terminal Psi in `omega-rust/psi/` or `source/psi/`. |
 | `omega` | The Terminal-Psi-consuming compiler stage in `omega-rust/omega/compilation/{representations,pipeline,realization}/` or `source/omega/`. |
 | `backend` | Target, ISA, ABI, object/image encoding, layout, and execution primitives in `omega-rust/omega/compilation/backend/`. |
-| `compiler` | Product compilation coordination in `omega-rust/omega/compilation/compiler/` and `native-production/`, or an inseparable contract change spanning Psi and Omega. |
+| `compiler` | Product compilation coordination in `omega-rust/omega/compilation/compiler/` and `native-compiler/`, or an inseparable contract change spanning Psi and Omega. |
 | `build` | Build system in `omega-rust/omega/build-system/` (`orchestration/`, `build-settings/`) and `build.omg` declarations. |
 | `packages` | Package acquisition, graphs, review, admission, and update workflows in `omega-rust/omega/packages/`. |
 | `cli` | Command parsing, flags, help, and dispatch in `omega-rust/omega/application/cli/src/`. |

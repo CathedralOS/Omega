@@ -134,6 +134,16 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
         }
     }
 
+    /// Seal, then let the owner finish the frozen copy once — for work worth
+    /// doing only when no further rebuild can follow, such as a lookup table
+    /// whose build cost would otherwise repeat on every mutation.
+    pub fn seal_with(&mut self, finish: impl FnOnce(&mut T)) {
+        self.seal();
+        if let Some((_, index)) = &mut self.sealed {
+            finish(index);
+        }
+    }
+
     /// Return a sealed index to the lazy slot when its owner resumes mutation.
     pub fn unseal(&mut self) {
         if let Some(sealed) = self.sealed.take() {

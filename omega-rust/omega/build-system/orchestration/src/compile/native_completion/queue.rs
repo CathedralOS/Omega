@@ -15,14 +15,11 @@ where
     std::thread::scope(|scope| {
         let mut workers = Vec::with_capacity(count.min(MAX_NATIVE_EXECUTORS) - 1);
         for _ in 1..count.min(MAX_NATIVE_EXECUTORS) {
-            match compiler::checked::spawn_compile_worker(scope, || drain(&pending)) {
-                Ok(worker) => workers.push(worker),
-                // An optional worker failure leaves every job in the queue.
-                Err(_) => phase_profile::count("native.scheduling.worker_spawn_fallback", 1),
+            // An optional worker failure leaves every job in the queue.
+            if let Ok(worker) = compiler::checked::spawn_compile_worker(scope, || drain(&pending)) {
+                workers.push(worker);
             }
         }
-        phase_profile::count("native.scheduling.executors", (workers.len() + 1) as u64);
-        phase_profile::count("native.scheduling.jobs", count as u64);
         let mut completed = drain(&pending);
         for worker in workers {
             completed.extend(

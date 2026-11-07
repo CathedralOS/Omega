@@ -18,41 +18,6 @@ impl SymbolTable {
             .is_none_or(|file| file.dependency_scope == scope)
     }
 
-    /// `file\tdeclaration` for profile attribution: `library:<path>` for any
-    /// file of the bundled `source/library` tree, the package-relative path
-    /// for other sources, or `<generated>`, then the symbol's display path.
-    /// std loads as an ordinary package rather than toolchain source, and it
-    /// has its own `main.omg` and `build.omg`, so the bundled tree is matched
-    /// by path, not by origin.
-    pub fn profile_label(&self, symbol: SymbolHandle) -> String {
-        let file = self
-            .symbol_provenance_source_span(symbol)
-            .and_then(|span| self.source_file(span))
-            .map(|file| {
-                let path = file.path.to_string_lossy().replace('\\', "/");
-                const BUNDLED: &str = "/source/library/";
-                let toolchain = (file.origin == source::SourceOrigin::Toolchain)
-                    .then(|| path.rfind("/library/").map(|at| at + "/library/".len()))
-                    .flatten();
-                match path
-                    .rfind(BUNDLED)
-                    .map(|at| at + BUNDLED.len())
-                    .or(toolchain)
-                {
-                    Some(start) => format!("library:{}", &path[start..]),
-                    None => {
-                        let relative = file
-                            .path
-                            .strip_prefix(&file.package_root)
-                            .unwrap_or(&file.path);
-                        relative.to_string_lossy().replace('\\', "/")
-                    }
-                }
-            })
-            .unwrap_or_else(|| "<generated>".to_owned());
-        format!("{file}\t{}", self.display_path(symbol, "::"))
-    }
-
     pub fn source_text(&self, source_span: SourceSpan) -> &str {
         self.sources
             .as_deref()

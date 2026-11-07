@@ -198,7 +198,7 @@ a whole root from a complete indexed-element path.
 Reference-valued entry parameters or host-entry results, reference projections
 into host-boundary calls, write-only returned record carriers, runtime-indexed
 result paths and alternative roots from different formals remain explicit
-implementation limits. The Terminal interpreter supports primitive referents, including total shared
+implementation limits. The Psi interpreter supports primitive referents, including total shared
 representation views and finite alternative origins below one owned reference
 container formal.
 Ordinary calls may temporarily attenuate a mutable carrier to shared or write-only

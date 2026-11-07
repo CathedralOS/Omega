@@ -31,36 +31,30 @@ fn declarations() -> String {
     // synthesized increments obligation-free. Saturating clamps at the type
     // maximum rather than wrapping a report count back to zero, and the
     // machines emit no `crashes Trap` bucket the verifier would demand.
-    text.push_str("}\npublic data Optimizations {\n    human_report: u8 in Saturating;\n");
-    for optimization in Optimization::ALL {
-        text.push_str(&format!(
-            "    {}: u8 in Saturating;\n",
-            optimization.build_counter_field()
-        ));
-    }
-    text.push_str("}\n");
+    // `selected` holds one counter per optimization in `Optimization::ALL`
+    // order. One array keeps every compile from checking one counter field
+    // and one nested writer machine per optimization.
+    text.push_str(&format!(
+        "}}\npublic data Optimizations {{\n    human_report: u8 in Saturating;\n    selected: [u8 in Saturating; {}];\n}}\n",
+        Optimization::ALL.len()
+    ));
     text
 }
 
 fn enable_machine() -> String {
-    let mut text = String::from(
-        "public machine Optimizations::enable(optimizations: &mut Optimizations, optimization: Optimization) {\n    transition optimization {\n",
+    let count = Optimization::ALL.len();
+    let mut text = format!(
+        "machine optimization_selection_slot(optimization: Optimization) -> u64\nensures result < {count}u64\n{{\n    match optimization {{\n"
     );
-    for optimization in Optimization::ALL {
+    for (slot, optimization) in Optimization::ALL.into_iter().enumerate() {
         text.push_str(&format!(
-            "        Optimization::{} -> {}(optimizations)\n",
-            optimization.build_case_name(),
-            optimization.build_counter_field()
+            "        Optimization::{} -> {slot}u64\n",
+            optimization.build_case_name()
         ));
     }
-    text.push_str("    }\n");
-    for optimization in Optimization::ALL {
-        let counter = optimization.build_counter_field();
-        text.push_str(&format!(
-            "\n    machine {counter}(optimizations: &mut Optimizations) {{\n        optimizations.{counter} = optimizations.{counter} + 1;\n    }}\n"
-        ));
-    }
-    text.push_str("}\n");
+    text.push_str(
+        "    }\n}\npublic machine Optimizations::enable(optimizations: &mut Optimizations, optimization: Optimization) {\n    let slot: u64 = optimization_selection_slot(optimization);\n    optimizations.selected[slot] = optimizations.selected[slot] + 1;\n}\n",
+    );
     text
 }
 

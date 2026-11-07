@@ -93,12 +93,11 @@ fn produce(
             .iter()
             .map(crate::components::EmittedComponent::admit_call)
             .collect::<Result<Vec<_>, _>>()?;
-        let (input, execution) =
-            phase_profile::scope("omega.native.prepare_native_execution", || {
-                observation.enter(NativePipelineStage::TerminalToAbstract);
-                work.lower(scalar_input)
-            })?;
-        let prepared = phase_profile::scope("omega.native.prepare_native_providers", || {
+        let (input, execution) = {
+            observation.enter(NativePipelineStage::TerminalToAbstract);
+            work.lower(scalar_input)
+        }?;
+        let prepared = {
             proposal.prepare_native_providers(
                 artifact,
                 RetainedNativeProviderInputs {
@@ -109,7 +108,7 @@ fn produce(
                     imports: request.imports,
                 },
             )
-        })?;
+        }?;
         let mut native_settlements = prepared.program_settlements();
         native_settlements.extend(components.iter().map(|component| component.settlement()));
         let admission = prepared.admission_request(

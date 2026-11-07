@@ -15,7 +15,7 @@ timing observer, not a second production entrance. Permission-ledger validation
 belongs to Psi 06; entry eligibility, source receipt joins and publication
 belong to Psi 08. Their language rules do not live in the coordinator.
 
-The independent [native compiler](../native-production/README.md) owns the
+The independent [native compiler](../native-compiler/README.md) owns the
 Terminal-to-image sequence behind a source-free dependency boundary. This
 coordinator calls it after Terminal production; it no longer owns native stages.
 Consumers use
@@ -36,9 +36,9 @@ The crate-internal `produce_products` operation starts from checked source and
 selected target inputs, producing Terminal when required and then the requested
 outputs. It is not a second public entrypoint for compiling an existing Terminal
 artifact. That source-free operation is
-[`native_production::prepare`](../native-production/src/preparation.rs), followed
+[`native_compiler::prepare`](../native-compiler/src/preparation.rs), followed
 by canonical scalar completion and
-[`native_production::compile`](../native-production/src/compile.rs). Preparation
+[`native_compiler::compile`](../native-compiler/src/compile.rs). Preparation
 retains the Terminal artifact and explicit realization inputs; compilation consumes
 that same prepared work after its scalar demands have been completed. The native
 compiler does not call an interpreter or reopen source.
@@ -291,7 +291,7 @@ so equal checked programs produce Terminal Psi once before native realization.
 
 [Product completion](src/product_execution.rs) finishes the retained Terminal
 application and supplies explicit component, permission and image inputs to
-[`native_production::compile`](../native-production/src/compile.rs). That
+[`native_compiler::compile`](../native-compiler/src/compile.rs). That
 source-free entrance owns component emission, exact receiver-call admission,
 root emission and component runtime retention. Product coordination does not
 emit components or join native call settlements itself.
@@ -534,11 +534,11 @@ The coordinator supplies source-free selected-plan projections and forwards the
 emitted object and retained evidence; the backend constructs and independently
 replays the complete product. No compiler-local artifact assembler remains.
 
-The [native compiler](../native-production/README.md) consumes canonical Terminal Psi and explicit realization
+The [native compiler](../native-compiler/README.md) consumes canonical Terminal Psi and explicit realization
 inputs. Its public contracts are [boundary realization](../../../../wiki/spec/terminal-psi/boundary_calls.md),
 [private callbacks](../../../../wiki/spec/build/private_callbacks.md), and
 [component publication](../../../../wiki/spec/build/component_publication.md).
-Start at [compile.rs](../native-production/src/compile.rs):
+Start at [compile.rs](../native-compiler/src/compile.rs):
 validate scope and entry, obtain the abstract input, admit providers, emit the
 object, and assemble the image. One `NativeCompileRequest` carries the image
 request, optimization selections, admitted imports, component calls and authority policies.
@@ -546,14 +546,14 @@ The retained Terminal proposal supplies target and provider evidence. Those
 inputs do not select alternate API entrypoints.
 
 Program and callback realization pass admitted input to the shared
-[native pipeline](../native-production/src/pipeline.rs), which sequences abstract
+[native pipeline](../native-compiler/src/pipeline.rs), which sequences abstract
 optimization, target lowering and body emission. The
-[native request](../native-production/src/request.rs)
+[native request](../native-compiler/src/request.rs)
 supplies the work budget; optimization stages own its use. Callback and identity
 admission belong to the product and realization owners. The coordinator sequences
 those calls.
 
-[Object emission](../native-production/src/realization/object_emission.rs) captures
+[Object emission](../native-compiler/src/realization/object_emission.rs) captures
 target layout companions between the pipeline's lowering and emission operations,
 then publishes the object with its surviving callback bodies. Callable objects
 use the same operations; neither caller rebuilds the stage sequence. The target

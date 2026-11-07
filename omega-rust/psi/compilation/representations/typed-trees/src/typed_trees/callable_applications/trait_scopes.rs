@@ -432,7 +432,6 @@ impl TypedTrees {
     pub fn prepare_applied_callable_signatures_reporting_change(
         &mut self,
     ) -> Result<(Vec<signature::StateSignature>, bool), &'static str> {
-        let _guard = phase_profile::guard("psi.typed_trees.prepare_applied_callable_signatures");
         let roots = self.applied_trait_roots();
         let mut pending = Vec::new();
         for scope in roots {

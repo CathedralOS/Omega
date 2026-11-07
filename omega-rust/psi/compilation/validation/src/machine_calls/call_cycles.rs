@@ -610,33 +610,26 @@ pub fn infer_checked_proof_recursive_machines(
     if matching.next().is_some() {
         return Vec::new();
     }
-    let (proof_only, graph) =
-        phase_profile::scope("semantic_admission.recursion.proof.topology", || {
-            let proof_only = crate::proof_only_classification(program);
-            let graph = build_machine_call_graph(program, &proof_only);
-            (proof_only, graph)
-        });
-    phase_profile::checkpoint(
-        "recursive proof topology complete",
-        "semantic_admission.recursion.proof.topology",
-    );
+    let (proof_only, graph) = {
+        let proof_only = crate::proof_only_classification(program);
+        let graph = build_machine_call_graph(program, &proof_only);
+        (proof_only, graph)
+    };
     if !proof_only.is_proof_machine(program, machine) {
         return Vec::new();
     }
-    phase_profile::scope("semantic_admission.recursion.proof.validation", || {
-        build_validated_proof_recursive_components(
-            program,
-            &proof_only,
-            &graph.edges,
-            &graph.proof_dependencies,
-            &mut Vec::new(),
-            Some(position),
-        )
-        .into_iter()
-        .flat_map(|(positions, _)| positions)
-        .map(|position| &program.machines()[position])
-        .collect()
-    })
+    build_validated_proof_recursive_components(
+        program,
+        &proof_only,
+        &graph.edges,
+        &graph.proof_dependencies,
+        &mut Vec::new(),
+        Some(position),
+    )
+    .into_iter()
+    .flat_map(|(positions, _)| positions)
+    .map(|position| &program.machines()[position])
+    .collect()
 }
 
 fn build_validated_proof_recursive_components(
@@ -658,15 +651,6 @@ fn build_validated_proof_recursive_components(
         ),
         None => proof_components::complete(program, proof_only, adjacency, proof_dependencies),
     };
-    if demanded.is_some() {
-        phase_profile::count(
-            "semantic_admission.recursion.proof.members",
-            components
-                .iter()
-                .map(|component| component.members.len() as u64)
-                .sum(),
-        );
-    }
     components
         .into_iter()
         .filter_map(|component| {

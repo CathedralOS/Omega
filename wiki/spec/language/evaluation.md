@@ -26,7 +26,7 @@ value/artifact custody, its recorded input and receipt, and compiler
 materialization of an ordinary value. There is no ambient-host shortcut into
 a proof, type, layout, or constant.
 
-[Build-time tests](../build/testing.md) execute verified Terminal Psi under a
+[Build-time tests](../build/testing.md) execute verified Psi under a
 separate runner contract. They are not semantic-evaluation requests: a declared
 trap can fail a test and admitted service calls can exercise mocks. This does
 not relax constant/proof evaluation admission or expose host state to it.

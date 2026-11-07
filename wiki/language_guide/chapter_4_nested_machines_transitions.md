@@ -160,7 +160,7 @@ This invokes the call and completes with its result. If it parks,
 `finish_read` has not returned; no task is launched or detached. Completion
 still owes the result contract and cleanup.
 
-Nested helpers obey the same exact acknowledgement rules: if their contract
+Nested helpers obey the same acknowledgement rules: if their contract
 permits suspension, their callers acknowledge it too. A future jump optimization
 does not remove source acknowledgements. Use `block` or `suspend block` when
 the selected call envelope requires them. See

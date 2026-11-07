@@ -318,7 +318,6 @@ impl CompilationSession {
         inputs: package_compilation::PackageCompilationInputs,
         options: PackageProductOptions,
     ) -> Result<PackageBuild, CompileFailure> {
-        let _scope = phase_profile::guard("omega.product.prepare");
         super::run_on_compile_thread(|| {
             if let Some(prepared) = completed.products.iter().find(|prepared| {
                 prepared.has_source_admission(&inputs, &options.optimization_rollback)
@@ -343,7 +342,6 @@ impl CompilationSession {
         &mut self,
         request: CheckedCompileRequest,
     ) -> Result<PackageBuildInvocation, CompileFailure> {
-        let _scope = phase_profile::guard("omega.build.begin");
         super::run_on_compile_thread(|| {
             self.begin_build(request)
                 .map(|source| PackageBuildInvocation { source })
@@ -439,26 +437,16 @@ impl CompilationSession {
             let mut completed = Vec::new();
             let mut pending = Vec::new();
             for (position, (owner, build)) in builds.into_iter().enumerate() {
-                let cache =
-                    match super::component_cache::ComponentProductCache::for_build(&build.source) {
-                        Ok(cache) => cache,
-                        Err(reason) => {
-                            super::component_cache::report_miss(&reason);
-                            None
-                        }
-                    };
-                if let Some(cache) = &cache {
-                    match phase_profile::scope("component.cache.recovery", || cache.load()) {
-                        Ok(Some(product)) => {
-                            phase_profile::count("component.cache.hit", 1);
-                            let description = product.description().clone();
-                            self.retain_component_product(product);
-                            completed.push((position, owner, Ok(description)));
-                            continue;
-                        }
-                        Ok(None) => phase_profile::count("component.cache.miss", 1),
-                        Err(reason) => super::component_cache::report_miss(&reason),
-                    }
+                let cache = super::component_cache::ComponentProductCache::for_build(&build.source)
+                    .ok()
+                    .flatten();
+                if let Some(cache) = &cache
+                    && let Ok(Some(product)) = cache.load()
+                {
+                    let description = product.description().clone();
+                    self.retain_component_product(product);
+                    completed.push((position, owner, Ok(description)));
+                    continue;
                 }
                 pending.push(((position, owner, cache), build.source));
             }
@@ -483,10 +471,8 @@ impl CompilationSession {
             {
                 let description = match product.and_then(crate::CompilationOutput::into_component) {
                     Ok(product) => {
-                        if let Some(cache) = cache
-                            && let Err(reason) = cache.store(&product)
-                        {
-                            super::component_cache::report_miss(&reason);
+                        if let Some(cache) = cache {
+                            let _ = cache.store(&product);
                         }
                         let description = product.description().clone();
                         self.retain_component_product(product);

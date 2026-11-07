@@ -117,53 +117,43 @@ pub(crate) fn check_indexed_accesses(
                 let non_entry_has_indexed = state_has_indexed
                     .get(1..)
                     .is_some_and(|rest| rest.iter().copied().any(std::convert::identity));
-                let calls: Vec<_> = phase_profile::scope(
-                    "psi.05.check_checked_facts.check_indexed_accesses.range_call_context",
-                    || {
-                        let states = if non_entry_has_indexed {
-                            machine_states
-                        } else {
-                            &machine_states[..1]
-                        };
-                        states
-                            .iter()
-                            .map(|state| {
-                                facts::RangeCallContext::new(
-                                    machine,
-                                    state,
-                                    borrows,
-                                    flow,
-                                    semantic,
-                                    call_frames,
-                                )
-                            })
-                            .collect()
-                    },
-                );
-                let state_argument_facts = if non_entry_has_indexed {
-                    phase_profile::scope(
-                        "psi.05.check_checked_facts.check_indexed_accesses.state_argument_facts",
-                        || {
-                            collect_state_argument_facts(
-                                program,
-                                &field_lengths,
-                                &bound_lookup,
+                let calls: Vec<_> = {
+                    let states = if non_entry_has_indexed {
+                        machine_states
+                    } else {
+                        &machine_states[..1]
+                    };
+                    states
+                        .iter()
+                        .map(|state| {
+                            facts::RangeCallContext::new(
                                 machine,
+                                state,
+                                borrows,
+                                flow,
+                                semantic,
                                 call_frames,
-                                &calls,
-                                operators,
-                                mutation_summaries,
                             )
-                        },
+                        })
+                        .collect()
+                };
+                let state_argument_facts = if non_entry_has_indexed {
+                    collect_state_argument_facts(
+                        program,
+                        &field_lengths,
+                        &bound_lookup,
+                        machine,
+                        call_frames,
+                        &calls,
+                        operators,
+                        mutation_summaries,
                     )
                 } else {
                     Vec::new()
                 };
                 let incoming_guard_facts = incoming_guards.for_machine(machine.symbol);
-                let loop_invariant_facts = phase_profile::scope(
-                    "psi.05.check_checked_facts.check_indexed_accesses.loop_invariant_facts",
-                    || collect_loop_invariant_facts(program, machine, call_frames),
-                );
+                let loop_invariant_facts =
+                    collect_loop_invariant_facts(program, machine, call_frames);
                 // Invocation and private-arrival walks own a whole machine,
                 // so defer its actual bounds demands together across states.
                 // Each request retains its state and pre-operation cut.
@@ -199,30 +189,24 @@ pub(crate) fn check_indexed_accesses(
                                 None,
                             );
                         }
-                        phase_profile::scope(
-                            "psi.05.check_checked_facts.check_indexed_accesses.seed_state",
-                            || {
-                                seed_state_requires(program, &mut facts, machine, state);
-                                seed_state_argument_facts(&mut facts, state, &state_argument_facts);
-                                seed_incoming_guard_facts(
-                                    program,
-                                    machine,
-                                    &mut facts,
-                                    state,
-                                    incoming_guard_facts,
-                                );
-                                seed_loop_invariant_facts(
-                                    program,
-                                    machine,
-                                    &mut facts,
-                                    state,
-                                    &loop_invariant_facts,
-                                );
-                            },
-                        );
-                        let _s = phase_profile::guard(
-                            "psi.05.check_checked_facts.check_indexed_accesses.check_statements",
-                        );
+                        {
+                            seed_state_requires(program, &mut facts, machine, state);
+                            seed_state_argument_facts(&mut facts, state, &state_argument_facts);
+                            seed_incoming_guard_facts(
+                                program,
+                                machine,
+                                &mut facts,
+                                state,
+                                incoming_guard_facts,
+                            );
+                            seed_loop_invariant_facts(
+                                program,
+                                machine,
+                                &mut facts,
+                                state,
+                                &loop_invariant_facts,
+                            );
+                        };
                         for (statement_index, statement) in program
                             .statement_table
                             .admitted_execution_statements(state.statement_nodes)

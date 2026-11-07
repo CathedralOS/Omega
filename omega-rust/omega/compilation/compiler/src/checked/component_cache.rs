@@ -69,9 +69,6 @@ impl ComponentProductCache {
         let file = match fs::File::open(&self.path) {
             Ok(file) => file,
             Err(reason) if reason.kind() == std::io::ErrorKind::NotFound => {
-                if phase_profile::enabled() {
-                    eprintln!("native component retention miss: {}", self.path.display());
-                }
                 return Ok(None);
             }
             Err(reason) => return Err(format!("open native component retention: {reason}")),
@@ -102,9 +99,6 @@ impl ComponentProductCache {
         }
         let product = IndependentComponentProduct::recover_retained(self.package, &bytes[80..])?;
         self.require_current_compiler()?;
-        if phase_profile::enabled() {
-            eprintln!("native component retention hit: {}", self.path.display());
-        }
         Ok(Some(product))
     }
 
@@ -160,17 +154,7 @@ impl ComponentProductCache {
         }
         write?;
         prune(directory)?;
-        phase_profile::count("component.cache.retained", 1);
         Ok(())
-    }
-}
-
-/// Optional cache failures remain visible in an explicitly requested profile;
-/// the normal compilation continues through its fresh source route.
-pub(super) fn report_miss(reason: &str) {
-    phase_profile::count("component.cache.invalid", 1);
-    if phase_profile::enabled() {
-        eprintln!("native component retention ignored: {reason}");
     }
 }
 

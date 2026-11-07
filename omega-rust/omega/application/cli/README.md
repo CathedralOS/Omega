@@ -114,6 +114,13 @@ continues to pass representations through ordinary functions.
 
 ## Command surface
 
+The [command-line contract](../../../../wiki/spec/build/command_line.md) owns
+ratified subsystem routing and public **Psi** naming. The commands and retained
+filenames below describe the implementation before that migration. Move them
+with the first source-rewrite implementation as tracked in the
+[migration plan](../../../../wiki/drafts/designs/operational_markers_and_cli.md);
+do not preserve the old command spellings as aliases.
+
 The CLI package is **`omega`** (binary `omega`); there is no `omega-cli`
 package.
 

@@ -53,7 +53,7 @@ fn final_representation_admission_belongs_to_psi_checking() {
         &[
             "self.admission.representations.admit(&program)",
             "validation::source_completion::prepare_source_completion(",
-            "prior.judges_preparation_input(",
+            "prior.judgment.judges_preparation_input(",
         ],
     );
 }
@@ -506,9 +506,9 @@ fn native_product_supplies_inputs_without_orchestrating_component_emission() {
         &[source],
         "compiler still drives",
         &[
-            "native_production::prepare(&terminal, request)",
+            "native_compiler::prepare(&terminal, request)",
             "build_settings::scalar_completion::complete(",
-            "native_production::compile(prepared)",
+            "native_compiler::compile(prepared)",
         ],
     );
     assert_absent(

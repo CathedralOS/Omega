@@ -12,7 +12,7 @@ workflows. Ordinary compilation does not re-review an accepted package: it
 compares each occurrence's source and compiler input identities with the lock
 and consumes the exact accepted bindings on a match. This includes the root
 and dependency Product/Build occurrences. A mismatch rejects with the package
-name and `omega update`, rather than running an inline audit.
+name and `omega packages update`, rather than running an inline audit.
 
 Ordinary dependency product checking follows the consumer's imported modules
 and their transitive imports, not each dependency's package root. The compiled

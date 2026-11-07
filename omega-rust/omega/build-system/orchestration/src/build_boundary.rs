@@ -198,11 +198,11 @@ fn application_completes_native_products_without_source_continuations() {
         completion,
         "native completion",
         &[
-            "native_production::prepare(",
+            "native_compiler::prepare(",
             "prepared.scalar_completions()",
             "build_settings::scalar_completion::complete(",
             "completion.complete(completed)",
-            "native_production::compile(prepared)",
+            "native_compiler::compile(prepared)",
             ".finish_native(",
             ".with_runtime_provisions(",
         ],

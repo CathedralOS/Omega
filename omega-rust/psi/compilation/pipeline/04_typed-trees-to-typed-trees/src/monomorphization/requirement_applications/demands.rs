@@ -11,7 +11,6 @@ pub(super) struct Demand {
 }
 
 pub(super) fn collect(program: &TypedTrees) -> Vec<Demand> {
-    let _guard = phase_profile::guard("psi.04.requirement_demands");
     let mut scopes = Vec::<AppliedTraitScope<'_>>::new();
     for root in program.applied_trait_roots() {
         // Keep the complete supplying environment through materialization.

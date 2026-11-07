@@ -5,7 +5,6 @@
    retain their source/binary identities. Windows recordings use a unique WPR
    instance; no command touches the user's default recording or system settings.
 */
-use crate::plan::Measurement;
 use crate::{experiment, process};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -52,13 +51,8 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
     if !matches!(role, "baseline" | "candidate") {
         return Err("profile role must be baseline or candidate".into());
     }
-    if !matches!(
-        backend,
-        "phase" | "allocations" | "wpr" | "perf-stat" | "perf-record"
-    ) {
-        return Err(
-            "profile backend must be phase, allocations, wpr, perf-stat or perf-record".into(),
-        );
+    if !matches!(backend, "allocations" | "wpr" | "perf-stat" | "perf-record") {
+        return Err("profile backend must be allocations, wpr, perf-stat or perf-record".into());
     }
     let (mut plan, path, plan_sha256) = experiment::prepare_plan(plan_path)?;
     let directory_parent = directory
@@ -112,9 +106,6 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
     let mut wpr_cleanup = None;
     let mut capability_failure = None;
     match backend {
-        "phase" if !matches!(plan.measurement, Measurement::Compiler { .. }) => {
-            capability_failure = Some("phase attribution requires a compiler plan".into())
-        }
         "wpr" => {
             if cfg!(windows) {
                 let instance = format!(
@@ -158,11 +149,6 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
         &mut plan.candidate
     };
     match backend {
-        "phase" => {
-            command
-                .environment
-                .insert("OMEGA_PHASE_PROFILE".into(), "1".into());
-        }
         "allocations" => {
             command.environment.insert(
                 "OMEGA_ALLOCATION_PROFILE".into(),
@@ -270,11 +256,6 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
                 .map_err(|error| error.to_string())?;
                 validate_allocations(&allocation)?;
                 result["allocations"] = allocation;
-            }
-            "phase" => {
-                if sample.compiler_stage_ms.is_empty() || sample.compiler_counters.is_empty() {
-                    return Err("compiler did not emit phase scopes and counters".into());
-                }
             }
             "perf-stat" => {
                 let bytes = std::fs::read(directory.join("counters.jsonl"))

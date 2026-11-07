@@ -54,7 +54,7 @@ in force. Existing some packages and machine values retain their contracts.
 | Conjunction | Enforce every forwarded requirement; reject incompatible callable shapes, unsatisfied contracts and public requirements violating visibility. Do not silently strengthen an explicit origin. |
 | Missing origins | Reject a bare callback invocation without a contract, a forwarding cycle with no origin, implementation search and attempts to invoke identity-only binders. |
 | Public effects | Require ceilings covering the abstract body. Specialize suspension and blocking independently; retain any fixed contribution. Unknown selections keep their ceiling. |
-| Markers | Check body markers against upper bounds and caller markers against substituted envelopes; reject missing/redundant caller markers without rejecting valid template markers after specialization. |
+| Markers | Require markers covering body upper bounds and substituted caller envelopes; reject missing markers and permit redundant ones under [conservative acknowledgements](../../spec/language/effects.md#call-site-acknowledgements). |
 | Safety and evaluation | Preserve upper-bound carry, windows, termination and outcome checks. Admit evaluation only when the specialized contract meets all existing evaluation conditions. |
 | Representation | Carry requirement/dependency identities through checked artifacts and specialization; lower the specialized operational envelope in both interpreter and native paths. |
 | Evolution | Retain summaries without private-source lookup; invalidate dependent artifacts when their originating requirement, forwarding use or fixed operational contribution changes. |

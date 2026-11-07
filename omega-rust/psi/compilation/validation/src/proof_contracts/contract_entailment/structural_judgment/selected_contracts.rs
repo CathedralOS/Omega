@@ -424,7 +424,6 @@ impl StructuralJudge<'_> {
                 .any(|contract| contract.kind == SignatureContractKind::Ensures)
             && resolving.recorded_body_boolean(&owner, depth + 1).is_none()
         {
-            phase_profile::count("psi.05.selected.empty_result_equations", 1);
             return None;
         }
         let StructuralTerm::Application { arguments, .. } = application else {

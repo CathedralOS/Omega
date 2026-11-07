@@ -1482,7 +1482,7 @@ mbx nextest run --workspace --lib --no-fail-fast
 
 The native-boundary gate walks Cargo's declared production path dependencies,
 including optional, build and target-specific edges. It rejects source/compiler,
-package and interpreter owners anywhere behind `native-production`. Its seeded
+package and interpreter owners anywhere behind `native-compiler`. Its seeded
 negative controls run with `python tools/tests/test_native_boundary.py -v`.
 This is a check of the native facade, not a claim that all workspace topology
 has converged to the two-driver contract. The same script's

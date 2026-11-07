@@ -273,45 +273,38 @@ pub fn prepare_build_evaluation(
         .into_iter()
         .chain(completed_checks.iter().map(AsRef::as_ref))
         .collect::<Vec<_>>();
-    let (prepared, providers, retained_check) =
-        phase_profile::scope("omega.build.evaluation.check", || {
-            crate::admission::checking::prepare_checked_build(
-                typed,
-                pre_checks,
-                selected_machine,
-                package_inputs,
-                toolchain_defaults,
-                execution_profile,
-                timings,
-                &prior_checks,
-                retain_check || pure_build_compilation.is_some(),
-            )
-        })?;
-    let filesystem_scope = phase_profile::scope("omega.build.evaluation.filesystem_scope", || {
-        crate::prepare_filesystem_scope(
-            root_path,
-            package_inputs,
-            anonymous_source,
-            sources,
-            execution_profile,
-            build_directory,
-            filesystem_sponsor,
-            snapshot,
-        )
-    })?;
-    let admitted = phase_profile::scope("omega.build.evaluation.admit", || {
-        crate::admit_build_program(
-            prepared,
-            providers,
-            selected_machine,
-            &filesystem_scope,
-            evaluation_sponsor.as_ref(),
-            execution_profile,
-            artifact_only,
-            build_source,
-            package_inputs,
-        )
-    })?;
+    let (prepared, providers, retained_check) = crate::admission::checking::prepare_checked_build(
+        typed,
+        pre_checks,
+        selected_machine,
+        package_inputs,
+        toolchain_defaults,
+        execution_profile,
+        timings,
+        &prior_checks,
+        retain_check || pure_build_compilation.is_some(),
+    )?;
+    let filesystem_scope = crate::prepare_filesystem_scope(
+        root_path,
+        package_inputs,
+        anonymous_source,
+        sources,
+        execution_profile,
+        build_directory,
+        filesystem_sponsor,
+        snapshot,
+    )?;
+    let admitted = crate::admit_build_program(
+        prepared,
+        providers,
+        selected_machine,
+        &filesystem_scope,
+        evaluation_sponsor.as_ref(),
+        execution_profile,
+        artifact_only,
+        build_source,
+        package_inputs,
+    )?;
     let restricted_build_requests = admitted.restricted_build_requests();
     if let Some(grants) = restricted_build_grants.as_mut() {
         for request in &restricted_build_requests {
@@ -368,9 +361,9 @@ pub fn prepare_build_evaluation(
             source_join: None,
         }
     } else {
-        BuildEvaluationState::Execute(phase_profile::scope(
-            "omega.build.evaluation.execution",
-            || PreparedBuildExecution::prepare(admitted, execution_purpose),
+        BuildEvaluationState::Execute(PreparedBuildExecution::prepare(
+            admitted,
+            execution_purpose,
         )?)
     };
     Ok(PreparedBuildEvaluation {

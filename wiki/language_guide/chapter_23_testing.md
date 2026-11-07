@@ -180,7 +180,7 @@ machine normally; if it does, that reachable code can ship and must obey the
 application's ordinary contracts.
 
 Automatic native runs use a separate test executable; interpreted runs execute
-the test's Terminal roots. Share compatible compilation work, but keep both
+the test's Psi roots. Share compatible compilation work, but keep both
 test products separate from application outputs. An interpreted pass says nothing
 about native lowering; a native pass against a virtual device says nothing about
 real hardware behavior.

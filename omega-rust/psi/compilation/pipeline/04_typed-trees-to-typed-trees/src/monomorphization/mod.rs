@@ -264,30 +264,14 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         // Typed operands select the ordinary callable before result inference
         // and specialization consume its signature. A nested call may settle
         // an outer operand in the next round; every form uses this same owner.
-        let named_owners = phase_profile::scope(
-            "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.named_result_overloads",
-            || validation::resolve_named_result_overloads(program),
-        )?;
+        let named_owners = validation::resolve_named_result_overloads(program)?;
         let named_changed = !named_owners.is_empty();
         changed_owners.extend(named_owners);
-        phase_profile::scope(
-            "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.occurrence_selections",
-            || {
-                crate::conformance::explicit_requirement_calls::refresh_occurrence_selections(
-                    program,
-                )
-            },
-        )?;
+        crate::conformance::explicit_requirement_calls::refresh_occurrence_selections(program)?;
         // Provider clones may restore old inferred types even when this round
         // discovers no further ordinary specialization.
-        let unavailable = phase_profile::scope(
-            "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.constructed_results",
-            || crate::constructed_results::retain_constructed_result_types(program),
-        )?;
-        let inferred_owners = phase_profile::scope(
-            "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.result_locals",
-            || result_locals::refresh(program, &unavailable),
-        )?;
+        let unavailable = crate::constructed_results::retain_constructed_result_types(program)?;
+        let inferred_owners = result_locals::refresh(program, &unavailable)?;
         let inferred_changed = !inferred_owners.is_empty();
         changed_owners.extend(inferred_owners);
         let subjects = result_locals::materialize_dispatch_subjects(program);
@@ -297,73 +281,38 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             // observations are complete, before selecting calls against them.
             continue;
         }
-        changed_owners.extend(phase_profile::scope("psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.reference_observations", || result_locals::materialize_reference_observations(program))?);
-        phase_profile::scope(
-            "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.domain_applications",
-            || domain_applications::materialize(program),
-        )?;
+        changed_owners.extend(result_locals::materialize_reference_observations(program)?);
+        domain_applications::materialize(program)?;
         // Closing domain theories can produce new static cleanup operands.
         // Inventory their literal/binder payloads before tuple selection, just
         // as for operands already present on ordinary source calls.
         materialize_static_argument_types(program);
-        changed_owners.extend(phase_profile::scope("psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.cleanup_applications", || cleanup_applications::materialize(program))?);
-        phase_profile::scope(
-            "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.native_query_lifetimes",
-            || native_query_lifetimes::retain(program),
-        )?;
-        phase_profile::scope(
-            "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.projected_receivers",
-            || crate::preparation::elaborate_projected_receivers(program),
-        )?;
-        let contextual_owners = phase_profile::scope(
-            "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.contextual_calls",
-            || contextual_calls::close(program),
-        )?;
+        changed_owners.extend(cleanup_applications::materialize(program)?);
+        native_query_lifetimes::retain(program)?;
+        crate::preparation::elaborate_projected_receivers(program)?;
+        let contextual_owners = contextual_calls::close(program)?;
         let contextual_changed = !contextual_owners.is_empty();
         changed_owners.extend(contextual_owners);
-        phase_profile::scope(
-            "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.constructed_results_after",
-            || crate::constructed_results::retain_constructed_result_types(program),
-        )?;
+        crate::constructed_results::retain_constructed_result_types(program)?;
         // Source formation needs the normal typed operand/context inventory,
         // but must precede tuple derivation and canonical const replacement.
         // This is a provisional source-recipe query, not formation admission.
         // StaticArgumentCall::arguments retains these exact source operands
         // through canonical replacement; final program validation judges them
         // again and publishes their conditional formation obligations.
-        phase_profile::scope(
-            "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.const_recipes",
-            || {
-                validation::static_arguments::validate_source_const_recipes(
-                    program,
-                    &mut Vec::new(),
-                )
-            },
-        )?;
+        validation::static_arguments::validate_source_const_recipes(program, &mut Vec::new())?;
         // Closed recipes and recipes closed by caller substitution enter the
         // same canonical argument operation. Retained source operands above
         // still carry their conditional formation obligations into final checking.
         body_rewriting::fold_closed_const_machine_arguments(program)
             .map_err(|message| vec![Diagnostic::error(message)])?;
-        phase_profile::scope(
-            "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.trait_implementation_arguments",
-            || trait_implementation_arguments::prepare(program),
-        )?;
-        phase_profile::scope(
-            "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.layout_storage_policies",
-            || layout_storage_policies::prepare(program),
-        )?;
+        trait_implementation_arguments::prepare(program)?;
+        layout_storage_policies::prepare(program)?;
         program
             .prepare_closed_conformance_scopes()
             .map_err(|message| vec![Diagnostic::error(message)])?;
-        phase_profile::scope(
-            "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.conformance_machine_demands",
-            || contextual_calls::prepare_conformance_machine_demands(program),
-        )?;
-        let captured_owners = phase_profile::scope(
-            "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.captured_rows",
-            || captured_rows::close(program),
-        )?;
+        contextual_calls::prepare_conformance_machine_demands(program)?;
+        let captured_owners = captured_rows::close(program)?;
         let captures_changed = !captured_owners.is_empty();
         changed_owners.extend(captured_owners);
         // Projected receivers and captured results can complete operands after
@@ -374,10 +323,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             changed_owners.extend(subjects);
             continue;
         }
-        let candidates = phase_profile::scope(
-            "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls.candidates",
-            || candidate::collect(program),
-        );
+        let candidates = candidate::collect(program);
         let callee_states = candidate::callees(program, &candidates);
         if candidates.is_empty() {
             if captures_changed || contextual_changed || named_changed || inferred_changed {
