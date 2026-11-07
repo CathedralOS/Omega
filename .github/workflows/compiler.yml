@@ -54,13 +54,31 @@ jobs:
           persist-credentials: false
           # The candidate's first parent is the base it is compared with.
           fetch-depth: 2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
       - name: Validate focused test selection
         if: github.event_name == 'workflow_dispatch' && (inputs.test_package != '' || inputs.prepare_tests_only)
         env:
           TEST_PACKAGE: ${{ inputs.test_package }}
           TEST_FILTER: ${{ inputs.test_filter }}
           TEST_TARGET: ${{ inputs.test_target }}
-        run: cargo xtask focused-test --validate
+        run: python tools/ci/focused_rust_test.py --validate
+      - name: Check rules that prose did not hold
+        env:
+          EVENT: ${{ github.event_name }}
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            printf '%s\n' "$BODY" > "$RUNNER_TEMP/pr_body.md"
+            python tools/check_rules.py --base HEAD^1 --title "$TITLE" --body-file "$RUNNER_TEMP/pr_body.md"
+          else
+            python tools/check_rules.py --base HEAD^1
+          fi
+      # Formatting is RC-REPOSITORY's first command and needs no build.
+      - name: Check formatting
+        run: python tools/fmt.py --check
       - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         id: compiler_objects
         with:
@@ -75,22 +93,8 @@ jobs:
             compiler-check-objects-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ inputs.test_package && format('tests:{0}:{1}', inputs.test_package, inputs.test_target && format('integration:{0}', inputs.test_target) || 'lib') || 'check' }}-
             compiler-check-objects-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ inputs.test_package && 'tests:' || 'check-' }}
             compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-      - name: Check rules that prose did not hold
-        env:
-          EVENT: ${{ github.event_name }}
-          TITLE: ${{ github.event.pull_request.title }}
-          BODY: ${{ github.event.pull_request.body }}
-        run: |
-          if [ "$EVENT" = pull_request ]; then
-            printf '%s\n' "$BODY" > "$RUNNER_TEMP/pr_body.md"
-            cargo xtask check-rules --base HEAD^1 --title "$TITLE" --body-file "$RUNNER_TEMP/pr_body.md"
-          else
-            cargo xtask check-rules --base HEAD^1
-          fi
-      - name: Check formatting
-        run: cargo xtask fmt --check
       - name: Check production dependency boundaries
-        run: cargo xtask check-boundary
+        run: python tools/check_native_boundary.py
       - name: Check and lint the exact integration candidate
         run: cargo clippy --locked -p omega -- -D warnings
       # Save completed objects before the test can fail or time out. A compile-only
@@ -102,7 +106,7 @@ jobs:
           TEST_PACKAGE: ${{ inputs.test_package }}
           TEST_FILTER: ${{ inputs.test_filter }}
           TEST_TARGET: ${{ inputs.test_target }}
-        run: cargo xtask focused-test --prepare
+        run: python tools/ci/focused_rust_test.py --prepare
       - name: Retain validated compiler objects
         if: steps.compiler_objects.outputs.cache-hit != 'true' && (!inputs.test_package || steps.prepare_tests.outcome == 'success')
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -118,4 +122,4 @@ jobs:
           TEST_PACKAGE: ${{ inputs.test_package }}
           TEST_FILTER: ${{ inputs.test_filter }}
           TEST_TARGET: ${{ inputs.test_target }}
-        run: cargo xtask focused-test
+        run: python tools/ci/focused_rust_test.py
