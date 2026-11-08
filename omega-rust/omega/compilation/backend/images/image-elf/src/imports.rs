@@ -1,11 +1,9 @@
-//! Canonical custody for referenced ELF dynamic-import requests.
-//!
-//! This module deliberately stops before choosing a loader realization. It
-//! binds each referenced import's exact final-image symbol handle and retained
-//! physical locator to every relocation that consumes it. Raw versioned-ELF
-//! bytes are never reconstructed from object-local symbol spellings. A future
-//! ELF dynamic-link implementation can consume these rows without ambient
-//! library lookup or independently pairing object, symbol, and version.
+/*
+We extract canonical referenced ELF import requests (`ElfImportRequest`) from a
+`FinalImage`, pairing each referenced import's symbol handle and normalized
+versioned, component, or bootstrap locator with every relocation site that
+consumes it while rejecting unreferenced, duplicate, or malformed import rows.
+*/
 
 use diagnostics::Diagnostic;
 use image::{

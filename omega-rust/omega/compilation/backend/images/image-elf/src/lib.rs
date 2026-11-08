@@ -1,104 +1,40 @@
-//! ELF process-image and shared-component container emission.
-//!
-//! `shared_component.rs` owns genuine ET_DYN callable exports, PIC relocation
-//! and dynamic import tables. It reuses the import-table producer below while
-//! keeping its own original image/export custody; it grants no installation.
-//! The static process emitter and staged dynamic-process pipeline follow.
-//!
-//! `emit_elf_executable` is the whole static lane, and it is deliberately
-//! small, refusing any image whose target is not a hosted ELF diagonal. The
-//! output has a 64-byte ELF header, exactly two program headers, and NO
-//! section headers at all:
-//!
-//! ```text
-//!   0x000000  ELF header (64) + 2 program headers (56 each) = 176 bytes
-//!   0x001000  .text   at the first PAGE_SIZE boundary, vaddr 0x401000
-//!   0x00N000  .data   at the next boundary, .bss aligned after it
-//!   IMAGE_BASE = 0x400000, PAGE_SIZE = 0x1000, PROGRAM_HEADER_COUNT = 2
-//! ```
-//!
-//! The container is architecture-agnostic apart from `e_machine` (62 for
-//! x86-64, 183 for AArch64), which is read off the image's own target the same
-//! way `apply_relocations` reads its instruction set.
-//!
-//! That lane FAILS CLOSED the moment it sees a referenced import: any surviving
-//! entry from `canonical_referenced_imports` is an immediate error before the
-//! image is mutated at all. A statically emitted ELF here is one that needs no
-//! loader.
-//!
-//! Everything else in the crate is the dynamic lane: `emit_elf_dynamic_executable`
-//! in `dynamic_executable.rs` drives a linear chain of 22 stages:
-//!
-//! ```text
-//!   plan_elf_dynamic_link_inputs -> plan_elf_dynamic_sections
-//!   -> serialize_elf_dynamic_sections -> plan_elf_dynamic_section_descriptors
-//!   -> plan_elf_procedure_linkage_relocations
-//!   -> plan_elf_procedure_linkage_templates
-//!   -> plan_elf_procedure_linkage_section_descriptors
-//!   -> plan_elf_dynamic_tags -> serialize_elf_dynamic_table
-//!   -> plan_elf_dynamic_table_section_descriptor -> plan_elf_section_name_table
-//!   -> plan_elf_dynamic_section_roster -> serialize_elf_section_header_table
-//!   -> plan_elf_indexed_section_payloads
-//!   -> plan_elf_relative_section_payload_layout -> plan_elf_dynamic_load_layout
-//!   -> apply_elf_section_header_placements -> apply_elf_dynamic_address_fixups
-//!   -> serialize_elf_dynamic_file_envelope -> apply_elf_procedure_linkage_fixups
-//!   -> assemble_elf_dynamic_file -> admit_elf_dynamic_executable
-//! ```
-//!
-//! Each stage takes the previous stage's `ValidatedElf*` carrier as its only
-//! input. Not by convention - there is no way to call stage N without holding a
-//! value that only stage N-1 can construct.
-//!
-//! The three page-size constants look redundant and are not. The static lane
-//! writes `p_align` of `PAGE_SIZE` (0x1000). The dynamic lane aligns segments to
-//! `DYNAMIC_MAX_PAGE_SIZE` (0x1_0000), because AArch64 permits translation
-//! granules up to 64 KiB and a segment aligned only to 4 KiB is not portable
-//! across them. `AARCH64_RELOCATION_PAGE_SIZE` stays 0x1000 in the same file
-//! because ADRP's page is 4 KiB regardless of what the loader maps with. Two of
-//! the three are numerically equal and mean different things.
+/*
+We emit 64-bit ELF static executables (`emit_elf_executable`), 22-stage
+dynamically linked executables (`emit_elf_dynamic_executable`), and `ET_DYN`
+position-independent shared components (`emit_elf_shared_component`) for Linux
+x86-64 (`EM_X86_64 = 62`) and AArch64 (`EM_AARCH64 = 183`). Static executables
+emit a compact 64-byte ELF header and two program headers (`PT_LOAD` for
+`.text` and `.data`/`.bss` at `IMAGE_BASE = 0x400000`) with zero section
+headers, failing closed before image mutation if any referenced import exists.
 
-//! One carrier type and one error enum per stage - 22 of each - instead of one
-//! `ElfDynamicImage` struct that every stage fills in a little more. The cost is
-//! roughly forty types that exist only to be passed once. What it buys is that
-//! running the stages out of order, or running one on half-planned input, is not
-//! something a caller can express: there is no constructor for stage N's input
-//! except stage N-1's success. A mutable shared struct would move all 22
-//! ordering constraints into review comments.
-//!
-//! The static emitter refuses an import rather than emitting an image that might
-//! load. A best-effort static link - resolve what we can, leave the rest - would
-//! produce a file that runs until it reaches the unbound call, which is the
-//! failure mode hardest to attribute back to the compiler.
+Dynamically linked executables run a linear 22-stage pipeline grouped into six
+phase modules (`import_sections`, `procedure_linkage`, `dynamic_table`,
+`section_headers`, `load_placement`, `file_assembly`), where each stage
+consumes the previous stage's `ValidatedElf*` carrier by value and returns
+either the next sealed carrier or a stage-specific rejection carrier retaining
+the exact failing owner. We keep three distinct page constants explicit:
+`PAGE_SIZE` (`0x1000`) for static segments, `DYNAMIC_MAX_PAGE_SIZE` (`0x1_0000`)
+for dynamic segments portable across 64 KiB AArch64 translation granules, and
+`AARCH64_RELOCATION_PAGE_SIZE` (`0x1000`) for 4 KiB ADRP page arithmetic.
+*/
 
-//! `image-emission/src/image/dynamic_elf.rs` is the only caller of the dynamic
-//! lane's entry; `image` supplies `FinalImage`, `place_executable_regions`
-//! and the relocation appliers both lanes use.
-//!
-//! @Note: do not decide what is dead in this crate by grepping for type names.
-//! The chain binds every stage result with an inferred `let` and never spells a
-//! carrier type, so 21 of the 22 carriers have zero occurrences of their names
-//! anywhere outside this crate while being entirely load-bearing -
-//! `ValidatedElfDynamicLoadLayout` among them, which is the return type of a
-//! stage the chain calls in production. A scouting pass over this crate
-//! called 18 such types dead on exactly that evidence.
-//!
-//! @Incomplete: the static lane's own error message is out of date and says so
-//! in the most misleading possible place - the text a user sees. It claims
-//! "no target-owned ELF loader plan carries the exact PT_INTERP bytes". One
-//! does: `target::NormalizedElfInterpreterPlan::interpreter_path` carries
-//! exactly those bytes, `plan_elf_dynamic_link_inputs` takes that plan as its
-//! second argument, and `dynamic_file_envelope.rs` maps
-//! `ElfLoadProgramHeaderKind::Interpreter` to `PT_INTERP` (3). The claim in the
-//! other direction is stale too: `target/src/elf_loader.rs` says dynamic
-//! ELF emission "remains unavailable until a later owner joins this input to the
-//! complete dynamic-link structures", and that owner is this crate. Each side
-//! documents the other's absence while the other is present. Fix them together
-//! or not at all.
-//!
-//! On disk the crate splits the same way: `static_executable.rs` is the
-//! static lane, `dynamic_executable.rs` owns the 22-stage dynamic lane's
-//! entry and groups its stages by phase, and `bytes.rs`, `constants.rs`,
-//! `entry_symbol.rs` and `imports.rs` hold what both lanes share.
+/*
+Representing the dynamic ELF pipeline as 22 distinct `ValidatedElf*` carrier
+types rather than a single mutable builder struct makes stage ordering a type
+invariant: no stage can be invoked out of order or on partially validated
+state. Likewise, refusing referenced imports outright in `emit_elf_executable`
+prevents producing a partially linked static binary that would fault only when
+control reaches an unbound call site at runtime.
+*/
+
+/*
+`image` supplies `FinalImage`, `apply_relocations`, and region placement;
+`image-emission` invokes `emit_elf_executable`, `emit_elf_dynamic_executable`,
+and `emit_elf_shared_component`. Because `emit_elf_dynamic_executable` binds
+intermediate stage carriers via inferred `let` bindings, those `ValidatedElf*`
+types remain load-bearing even when their type names are not spelled outside
+their defining phase module.
+*/
 
 mod shared_component;
 pub use shared_component::{
@@ -106,10 +42,84 @@ pub use shared_component::{
     emit_elf_shared_component,
 };
 
-mod bytes;
-mod constants;
+mod bytes {
+    use diagnostics::Diagnostic;
+    pub(crate) use image::codec_bytes::{write_u16, write_u32, write_u64};
+
+    pub(crate) fn name_at<'a>(
+        bytes: &'a [u8],
+        offset: u32,
+        context: &'static str,
+    ) -> Result<&'a [u8], Diagnostic> {
+        let tail = bytes
+            .get(offset as usize..)
+            .ok_or_else(|| Diagnostic::error(format!("{context} is outside its name table")))?;
+        let terminator = tail
+            .iter()
+            .position(|byte| *byte == 0)
+            .ok_or_else(|| Diagnostic::error(format!("{context} is not NUL-terminated")))?;
+        Ok(&tail[..terminator])
+    }
+
+    pub(crate) fn require_name(
+        bytes: &[u8],
+        offset: u32,
+        expected: &[u8],
+        context: &'static str,
+    ) -> Result<(), Diagnostic> {
+        if name_at(bytes, offset, context)? == expected {
+            Ok(())
+        } else {
+            Err(Diagnostic::error(format!(
+                "{context} does not select its exact name"
+            )))
+        }
+    }
+}
+
+mod constants {
+    pub(crate) const ELF_HEADER_SIZE: usize = 64;
+    pub(crate) const PROGRAM_HEADER_SIZE: usize = 56;
+    pub(crate) const PROGRAM_HEADER_COUNT: usize = 2;
+    pub(crate) const IMAGE_BASE: u64 = 0x400000;
+    pub(crate) const PAGE_SIZE: usize = 0x1000;
+
+    pub(crate) const SECTION_COUNT: usize = 14;
+    pub(crate) const ELF64_SECTION_HEADER_SIZE: usize = 64;
+    pub(crate) const ELF64_DYNAMIC_ROW_SIZE: usize = 16;
+    pub(crate) const ELF64_DYNAMIC_VALUE_OFFSET: usize = 8;
+    pub(crate) const ELF64_DYNAMIC_VALUE_SIZE: u8 = 8;
+    pub(crate) const ELF64_RELA_SIZE: usize = 24;
+    pub(crate) const SHF_WRITE: u64 = 0x1;
+    pub(crate) const SHF_ALLOC: u64 = 0x2;
+    pub(crate) const SHF_EXECINSTR: u64 = 0x4;
+}
+
 mod dynamic_executable;
-mod entry_symbol;
+pub(crate) mod dynamic_table;
+pub(crate) mod file_assembly;
+pub(crate) mod import_sections;
+pub(crate) mod load_placement;
+pub(crate) mod procedure_linkage;
+pub(crate) mod section_headers;
+#[cfg(test)]
+pub(crate) use dynamic_executable::interpreter_path;
+pub(crate) use dynamic_executable::{checked, checked_u64};
+mod entry_symbol {
+    use diagnostics::Diagnostic;
+    use image::FinalImage;
+
+    pub(crate) fn elf_entry_address(
+        image: &FinalImage,
+        text_address: u64,
+    ) -> Result<u64, Diagnostic> {
+        Ok(text_address + image::final_image_entry_symbol(image, "ELF")?.offset as u64)
+    }
+
+    #[cfg(test)]
+    mod tests {}
+}
+
 mod imports;
 mod static_executable;
 
@@ -198,8 +208,6 @@ pub(crate) mod test_support {
     use image::FinalImage;
     use target::{NormalizedElfInterpreterPlan, TargetProfile, normalize_elf_interpreter_plan};
 
-    /// The platform dynamic-linker interpreter the ELF fixtures link
-    /// against; the tests only exercise the Linux profiles.
     pub(crate) fn interpreter(target: TargetProfile) -> NormalizedElfInterpreterPlan {
         let interpreter_path = match target {
             TargetProfile::LinuxX64 => b"/lib64/ld-linux-x86-64.so.2".as_slice(),
@@ -209,10 +217,6 @@ pub(crate) mod test_support {
         normalize_elf_interpreter_plan(interpreter_path.to_vec(), target).unwrap()
     }
 
-    /// The import image the load-placement and file-envelope fixtures stage:
-    /// 32 bytes of `.text`, 13 bytes of `0x5a` `.data`, a 23-byte `.bss` at
-    /// `bss_alignment`, and `symbol_capacity` symbols over one import and one
-    /// relocation slot each.
     pub(crate) fn import_image(
         target: TargetProfile,
         bss_alignment: usize,
@@ -233,8 +237,6 @@ pub(crate) mod test_support {
         )
     }
 
-    /// Install the `_start` entry the file-assembly fixtures use: a four-byte
-    /// text symbol at `offset` that becomes the image entry.
     pub(crate) fn text_entry(image: &mut FinalImage, offset: usize) {
         use image::{FinalImageSection, FinalImageSymbol};
         use object_file::SymbolKind;
@@ -249,9 +251,6 @@ pub(crate) mod test_support {
         image.symbol_table.entry_symbol = entry;
     }
 
-    /// The import-bearing image the relocation fixtures stage: `text_size`
-    /// zeroed `.text` bytes over one symbol, one import and two relocation
-    /// slots.
     pub(crate) fn relocation_image(target: target::NativeTarget, text_size: usize) -> FinalImage {
         FinalImage::with_capacity(
             target,
@@ -266,9 +265,6 @@ pub(crate) mod test_support {
         )
     }
 
-    /// The shared dynamic-link staging chain every dynamic-executable test
-    /// drives through section planning to the procedure-linkage relocation
-    /// plan.
     pub(crate) fn resolved_linkage(
         image: FinalImage,
         target: TargetProfile,
@@ -279,8 +275,6 @@ pub(crate) mod test_support {
         let descriptors = plan_elf_dynamic_section_descriptors(payloads).unwrap();
         plan_elf_procedure_linkage_relocations(descriptors).unwrap()
     }
-    /// One imported symbol plus its text-relative relocation sites — the
-    /// shape every import-driven fixture stages before planning.
     pub(crate) fn import_with_text_relocations(
         image: &mut FinalImage,
         name: &str,
@@ -317,12 +311,8 @@ pub(crate) mod test_support {
         imported
     }
 
-    /// One dynamic-executable import entry shared by the dynamic-table
-    /// fixtures — the same shape as `ImportFixture`.
     pub(crate) type DynamicImportFixture = ImportFixture;
 
-    /// The imported-symbol image and Linux interpreter the dynamic-table
-    /// fixtures stage before their own descriptor or tag assertions.
     pub(crate) fn dynamic_import_inputs(
         target: TargetProfile,
         imports: &[DynamicImportFixture],
@@ -378,8 +368,6 @@ pub(crate) mod test_support {
         plan_elf_dynamic_link_inputs(image, interpreter).expect("valid dynamic-link inputs")
     }
 
-    /// The section/descriptor/linkage/tag staging chain the dynamic-table
-    /// fixtures replay after building their import image.
     pub(crate) fn dynamic_tag_plan(
         inputs: crate::PlannedElfDynamicLinkInputs,
     ) -> crate::ValidatedElfDynamicTagPlan {
@@ -400,8 +388,6 @@ pub(crate) mod test_support {
         plan_elf_dynamic_tags(descriptors).expect("valid semantic dynamic tags")
     }
 
-    /// An import entry whose only call site lands at `index * 8` in `.text`
-    /// — the convention the import-section fixtures use.
     #[derive(Clone, Copy)]
     pub(crate) struct SingleSiteImportFixture {
         pub(crate) object: &'static [u8],
@@ -409,8 +395,6 @@ pub(crate) mod test_support {
         pub(crate) version: &'static [u8],
     }
 
-    /// Four imports across two objects with a shared `OMEGA_1`/`OMEGA_2`
-    /// version split — the multi-entry roster the import-section tests share.
     pub(crate) const SINGLE_SITE_IMPORTS: [SingleSiteImportFixture; 4] = [
         SingleSiteImportFixture {
             object: b"libalpha\xff.so.1",
@@ -434,9 +418,6 @@ pub(crate) mod test_support {
         },
     ];
 
-    /// The dynamic-link preflight over `imports` where each fixture gets one
-    /// relocation at `index * 8` — the shared image-build prelude for the
-    /// import-section tests.
     pub(crate) fn single_site_import_inputs(
         target: TargetProfile,
         imports: &[SingleSiteImportFixture],
@@ -495,8 +476,6 @@ pub(crate) mod test_support {
         plan_elf_dynamic_link_inputs(image, interpreter).expect("valid dynamic-link preflight")
     }
 
-    /// The procedure-linkage section descriptor plan — the staging
-    /// point the dynamic-tag fixtures build on.
     pub(crate) fn linkage_descriptors(
         inputs: crate::PlannedElfDynamicLinkInputs,
     ) -> crate::ValidatedElfProcedureLinkageSectionDescriptorPlan {
@@ -511,8 +490,6 @@ pub(crate) mod test_support {
             .expect("valid linkage descriptors")
     }
 
-    /// The section-name table at the end of the staged dynamic-section
-    /// chain — the shared prefix for the section-header fixtures.
     pub(crate) fn dynamic_section_names(
         inputs: crate::PlannedElfDynamicLinkInputs,
     ) -> crate::ValidatedElfSectionNameTablePlan {
@@ -523,8 +500,6 @@ pub(crate) mod test_support {
         crate::plan_elf_section_name_table(descriptor).expect("valid section-name table")
     }
 
-    /// The serialized section-header table over `dynamic_section_names` —
-    /// the staging point for the indexed-payload and layout fixtures.
     pub(crate) fn section_header_table(
         inputs: crate::PlannedElfDynamicLinkInputs,
     ) -> crate::ValidatedElfSectionHeaderTableTemplate {
@@ -533,9 +508,6 @@ pub(crate) mod test_support {
         crate::serialize_elf_section_header_table(roster).expect("valid section headers")
     }
 
-    /// The serialized section-header table staged one rung deeper than
-    /// `resolved_linkage` — file-assembly fixtures run the eight-stage
-    /// dynamic tail from a resolved procedure linkage.
     pub(crate) fn section_header_table_from_linkage(
         linkage: crate::ValidatedElfProcedureLinkageRelocationPlan,
     ) -> crate::ValidatedElfSectionHeaderTableTemplate {
@@ -553,8 +525,6 @@ pub(crate) mod test_support {
         crate::serialize_elf_section_header_table(roster).expect("valid section headers")
     }
 
-    /// The import-call fixture staged through indexed section payloads — the
-    /// shared prefix for the load-layout and section-header assertions.
     pub(crate) fn import_call_indexed_payloads(
         mut image: image::FinalImage,
         symbol_handle: image::FinalImageSymbolHandle,
@@ -573,9 +543,6 @@ pub(crate) mod test_support {
         crate::plan_elf_indexed_section_payloads(headers).unwrap()
     }
 
-    /// Extend the import-call fixture through relative payload layout to the
-    /// validated load layout — the point where the load-placement and
-    /// section-header tests diverge.
     pub(crate) fn import_call_load_layout(
         image: image::FinalImage,
         symbol_handle: image::FinalImageSymbolHandle,
@@ -586,9 +553,6 @@ pub(crate) mod test_support {
         crate::plan_elf_dynamic_load_layout(relative).unwrap()
     }
 
-    /// Insert one text call-site relocation per site: the x86_64 sites patch
-    /// a `call rel32` and relocate the operand, the arm64 sites patch a `bl`
-    /// and relocate the instruction itself.
     pub(crate) fn insert_text_call_relocations(
         image: &mut image::FinalImage,
         target: TargetProfile,
@@ -623,10 +587,6 @@ pub(crate) mod test_support {
         }
     }
 
-    /// One procedure-linkage import for the multi-import fixtures: the raw
-    /// library coordinates plus the text offsets that relocate against it.
-    /// The byte values are deliberately unprintable so the tests exercise
-    /// byte-exact identity rather than display paths.
     #[derive(Clone, Copy)]
     pub(crate) struct ImportFixture {
         pub(crate) object: &'static [u8],
@@ -635,9 +595,6 @@ pub(crate) mod test_support {
         pub(crate) instruction_offsets: &'static [usize],
     }
 
-    /// The three-import procedure-linkage fixture shared by the relocation
-    /// and template tests: two imports in one library plus a third in
-    /// another.
     pub(crate) const IMPORTS: [ImportFixture; 3] = [
         ImportFixture {
             object: b"liba\xff.so",
@@ -659,8 +616,6 @@ pub(crate) mod test_support {
         },
     ];
 
-    /// The two-import cross-library fixture the section and table tests
-    /// share: one relocation site pair per library.
     pub(crate) const PAIR_IMPORTS: [ImportFixture; 2] = [
         ImportFixture {
             object: b"liba\xff.so",
@@ -676,8 +631,6 @@ pub(crate) mod test_support {
         },
     ];
 
-    /// One imported symbol plus its normalized ELF-versioned locator — the
-    /// shape every versioned-import fixture stages.
     pub(crate) fn versioned_import(
         image: &mut FinalImage,
         name: &str,
@@ -715,8 +668,6 @@ pub(crate) mod test_support {
         imported
     }
 
-    /// Insert an index-named imported symbol and its normalized ELF-versioned
-    /// locator — the shared prelude of every multi-import fixture.
     pub(crate) fn insert_import_fixture(
         image: &mut image::FinalImage,
         symbol_prefix: &str,
@@ -738,8 +689,6 @@ pub(crate) mod test_support {
         )
     }
 
-    /// The unprintable-byte interpreter path the multi-import fixtures link
-    /// against.
     pub(crate) fn import_fixture_interpreter_path(target: TargetProfile) -> &'static [u8] {
         match target {
             TargetProfile::LinuxX64 => b"/lib64/ld-linux-\xfc-x86-64.so.2",

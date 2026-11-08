@@ -5,9 +5,8 @@
 3 omega-rust/omega/compilation/backend/artifacts/component-description/src/component_description.rs
 22 omega-rust/omega/compilation/backend/calling-conventions/src/structural_shapes.rs
 1 omega-rust/omega/compilation/backend/calling-conventions/src/terminal_layout.rs
-2 omega-rust/omega/compilation/backend/images/image-emission/src/object/function_fragments/source.rs
-9 omega-rust/omega/compilation/backend/images/image-emission/src/object/object_artifact/replay/structural/condition_layout.rs
-8 omega-rust/omega/compilation/backend/images/image-emission/src/object/object_artifact/stack_demand.rs
+2 omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs
+17 omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs
 1 omega-rust/omega/compilation/backend/machine-emission/src/text_placement/placement/validation/calls.rs
 2 omega-rust/omega/compilation/backend/machine-emission/src/text_placement/placement/validation/functions.rs
 1 omega-rust/omega/compilation/backend/runtime/installation-evidence/src/lib.rs
