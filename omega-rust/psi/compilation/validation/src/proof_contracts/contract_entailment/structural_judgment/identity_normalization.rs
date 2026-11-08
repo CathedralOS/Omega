@@ -8,6 +8,11 @@ use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 
 mod contextual;
 
+pub(super) enum IdentityNormalization {
+    Proven,
+    Values([StructuralTerm; 2]),
+}
+
 #[derive(Clone, Copy)]
 enum RepresentationHead {
     Application {
@@ -384,7 +389,7 @@ impl StructuralJudge<'_> {
         values: [StructuralTerm; 2],
         depth: usize,
         remaining: &mut usize,
-    ) -> Result<[StructuralTerm; 2], &'static str> {
+    ) -> Result<IdentityNormalization, &'static str> {
         // Keep the original formed question and its established endpoint
         // views until contextual substitution has had its chance. Definition
         // resolution can otherwise expand the compact value on both sides.
@@ -400,7 +405,7 @@ impl StructuralJudge<'_> {
                 StructuralJudgment::Proven
             )
         {
-            return Ok(values);
+            return Ok(IdentityNormalization::Proven);
         }
         let result = (|| {
             let mut substitutions =
@@ -421,7 +426,7 @@ impl StructuralJudge<'_> {
                     StructuralJudgment::Proven
                 )
             {
-                return Ok([left, right]);
+                return Ok(IdentityNormalization::Proven);
             }
             // Preserve the existing ordinary computation/admission route,
             // including operands that become available only after resolution.
@@ -449,7 +454,7 @@ impl StructuralJudge<'_> {
                 ),
                 StructuralJudgment::Proven
             ) {
-                return Ok([left, right]);
+                return Ok(IdentityNormalization::Proven);
             }
             // Computation can reveal a new context. Give only changed
             // resolvents the same guarded pass before decomposing them.
@@ -473,12 +478,12 @@ impl StructuralJudge<'_> {
                     StructuralJudgment::Proven
                 )
             {
-                return Ok([left, right]);
+                return Ok(IdentityNormalization::Proven);
             }
-            Ok([
+            Ok(IdentityNormalization::Values([
                 self.resolve_identity_context(left, depth, remaining, &mut substitutions)?,
                 self.resolve_identity_context(right, depth, remaining, &mut substitutions)?,
-            ])
+            ]))
         })();
         if let Err(reason) = result.as_ref()
             && std::env::var_os("OMEGA_STRUCT_TRACE").is_some()

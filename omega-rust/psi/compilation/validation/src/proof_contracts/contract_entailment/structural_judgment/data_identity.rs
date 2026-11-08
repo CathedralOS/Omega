@@ -2,6 +2,7 @@
 //! Follow already completed values and their checked projections; comparing
 //! their fields as scalar contents would require different observations.
 
+use super::identity_normalization::IdentityNormalization;
 use super::{ExpressionHandle, StructuralJudge, StructuralJudgment, StructuralTerm};
 
 #[derive(Clone, Copy)]
@@ -123,10 +124,12 @@ impl StructuralJudge<'_> {
         if !matches!(direct, StructuralJudgment::Unknown) {
             return direct;
         }
-        let Ok([left, right]) = self.normalize_identity_values([left, right], depth + 1, remaining)
-        else {
-            return StructuralJudgment::Unknown;
-        };
+        let [left, right] =
+            match self.normalize_identity_values([left, right], depth + 1, remaining) {
+                Ok(IdentityNormalization::Proven) => return StructuralJudgment::Proven,
+                Ok(IdentityNormalization::Values(values)) => values,
+                Err(_) => return StructuralJudgment::Unknown,
+            };
         let direct =
             self.exact_identity_congruence(left.clone(), right.clone(), depth + 1, remaining);
         if !matches!(direct, StructuralJudgment::Unknown) {
