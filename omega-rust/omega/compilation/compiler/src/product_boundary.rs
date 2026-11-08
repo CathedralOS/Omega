@@ -74,9 +74,7 @@ fn product_policy_admission_has_one_source_owner() {
             "native_binding_evaluation",
         ],
     );
-    let source = include_str!(
-        "../../../../psi/compilation/psi-compiler/src/source_compilation/product_policy.rs"
-    );
+    let source = include_str!("../../../../psi/compilation/psi-compiler/src/source_compilation.rs");
     assert_in_order(
         source,
         "Psi product policy",
@@ -552,9 +550,8 @@ fn exclusion_source_resolution_stays_out_of_terminal_policy() {
 
 #[test]
 fn terminal_composition_admission_follows_canonical_publication() {
-    let producer = include_str!(
-        "../../../../psi/compilation/psi-compiler/terminal-production/src/terminal_production.rs"
-    );
+    let producer =
+        include_str!("../../../../psi/compilation/psi-compiler/terminal-production/src/lib.rs");
     assert_eq!(producer.matches("application.attach(").count(), 1);
     assert_in_order(
         producer,
@@ -566,9 +563,8 @@ fn terminal_composition_admission_follows_canonical_publication() {
         "Psi production runs Omega policy:",
         &["admission.admit(", "policy.admit("],
     );
-    let composition = include_str!(
-        "../../../../psi/compilation/psi-compiler/terminal-production/src/composition_roots.rs"
-    );
+    let composition =
+        include_str!("../../../../psi/compilation/psi-compiler/terminal-production/src/lib.rs");
     assert_absent(
         &[composition],
         "Psi composition runs Omega policy:",
@@ -786,9 +782,8 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
     assert!(declarations.contains("usage.published_requirement_envelope"));
     assert!(declarations.contains("usage.selected_actual_envelope"));
     assert!(declarations.contains("usage.callback_entry.map("));
-    let admission = include_str!(
-        "../../../../psi/compilation/psi-compiler/terminal-production/src/composition_roots.rs"
-    );
+    let admission =
+        include_str!("../../../../psi/compilation/psi-compiler/terminal-production/src/lib.rs");
     assert!(admission.contains("roots.push(project_root(module, provenance, entry))"));
     assert!(admission.contains("callbacks.retained_roots(module)"));
 }
