@@ -16744,6 +16744,8 @@ fail/proofs/mathematical_negated_identity_unknown rejected 8559ms expected @87bc
 	cannot prove ensures contract for exit from arbitrary at statement 0: different<Pair>(left, right)
 fail/proofs/mathematical_negated_ieee_order rejected 4572ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from unjustified at statement 0: value <= 5.0
+fail/proofs/mathematical_nullary_constructor_mismatch rejected 10422ms expected @02e75d5a4d4d
+	cannot prove requires contract for call consume from main: is_first(constructor:80:package:71a4b64c821bb8ec118d399d636f0aa5e30d3d9e47ae177daab570d803aee161::Choice10:name:Other) (needs fact `is_first(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/mathematical_opaque_operation_source_meaning rejected 2193ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from bad at statement 0: same()
 fail/proofs/mathematical_qualified_literal_argument rejected 324ms expected @ccdb99ca2214
@@ -26754,6 +26756,7 @@ pass/proofs/mathematical_machine_result_carrier checked 3425ms check-target:maco
 pass/proofs/mathematical_negated_identity_exit checked 12744ms check-target:macos_arm64 @87bc8227d1fb
 pass/proofs/mathematical_negated_integer_order_double_exit checked 3598ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/mathematical_negated_integer_order_exit checked 3835ms check-target:macos_arm64 @ccdb99ca2214
+pass/proofs/mathematical_nullary_constructor_exit checked 14409ms check-target:macos_arm64 @02e75d5a4d4d
 pass/proofs/mathematical_predicate_contract_import_exit rejected 3486ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove ensures contract for exit from typed_result at statement 0: helpers::byte_mask() == helpers::byte_mask()
 pass/proofs/mathematical_prepared_scalar_interval checked 3504ms @ccdb99ca2214

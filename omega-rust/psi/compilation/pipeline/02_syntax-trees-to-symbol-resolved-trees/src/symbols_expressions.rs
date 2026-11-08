@@ -414,7 +414,7 @@ mod references {
         payload-free case. Namespace and lexical-supplier resolution is shared.
     */
     #[derive(Clone, Copy, PartialEq, Eq)]
-    enum NameRole {
+    pub(in crate::symbols) enum NameRole {
         Value,
         PatternHead,
     }
@@ -1235,7 +1235,7 @@ mod traversal {
 
 pub(crate) use references::reject_unqualified_case_values;
 pub(super) use references::{
-    assign_member_symbol, assign_membership_symbol, assign_name_symbol,
+    NameRole, assign_member_symbol, assign_membership_symbol, assign_name_symbol,
     assign_struct_literal_symbols, lexical_value_head, normalize_qualified_case_value,
 };
 pub(super) use traversal::{
