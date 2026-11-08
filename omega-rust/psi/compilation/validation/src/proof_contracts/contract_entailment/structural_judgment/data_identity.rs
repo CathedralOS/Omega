@@ -528,6 +528,9 @@ impl StructuralJudge<'_> {
                         ),
                         StructuralJudgment::Proven
                     ) {
+                        if matches!(correspondence, IdentityCorrespondence::Representation) {
+                            return StructuralJudgment::Unknown;
+                        }
                         verdict = StructuralJudgment::Unknown;
                     }
                 }

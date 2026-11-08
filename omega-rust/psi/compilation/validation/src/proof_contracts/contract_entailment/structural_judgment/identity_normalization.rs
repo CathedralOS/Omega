@@ -246,6 +246,24 @@ impl StructuralJudge<'_> {
                 ),
             );
         }
+        // An established whole value can replace this application without
+        // decomposing a subtree its proof has already accounted for. Matching
+        // remains representation-only and does not solve a child question.
+        let original_application = if matches!(&value, StructuralTerm::Application { .. })
+            && self.identity_value_is_available(&value)
+        {
+            if let Some(component) = substitutions.replacement(self, &value, depth, remaining)? {
+                return self.normalize_identity_representative(
+                    component,
+                    depth,
+                    remaining,
+                    substitutions,
+                );
+            }
+            Some(value.clone())
+        } else {
+            None
+        };
         let owned_observation =
             super::super::structural_terms::owned_observation_type(self.program, &value).is_some();
         let value = match value {
@@ -339,23 +357,43 @@ impl StructuralJudge<'_> {
             return self.normalize_identity_context(resolved, depth + 1, remaining, substitutions);
         }
         let value = resolved;
+        if original_application
+            .as_ref()
+            .is_some_and(|original| original.same_resolution_payload(&value))
+        {
+            return Ok(value);
+        }
         if let Some(component) = substitutions.replacement(self, &value, depth, remaining)? {
-            if let Some(value) = &substitutions.normalized[component] {
-                return Ok(value.clone());
-            }
-            // A representative may itself compute further. Normalize it once
-            // with its component suspended, then retain that result for both
-            // operands. Revisit cannot send it back through the same edge.
-            substitutions.active[component] = true;
-            let target = substitutions.rows[component].1.clone();
-            let result =
-                self.normalize_identity_context(target, depth + 1, remaining, substitutions);
-            substitutions.active[component] = false;
-            if let Ok(value) = &result {
-                substitutions.normalized[component] = Some(value.clone());
-            }
-            return result;
+            return self.normalize_identity_representative(
+                component,
+                depth,
+                remaining,
+                substitutions,
+            );
         }
         Ok(value)
+    }
+
+    fn normalize_identity_representative(
+        &self,
+        component: usize,
+        depth: usize,
+        remaining: &mut usize,
+        substitutions: &mut IdentitySubstitutions<'_>,
+    ) -> Result<StructuralTerm, &'static str> {
+        if let Some(value) = &substitutions.normalized[component] {
+            return Ok(value.clone());
+        }
+        // A representative may itself compute further. Normalize it once
+        // with its component suspended, then retain that result for both
+        // operands. Revisit cannot send it back through the same edge.
+        substitutions.active[component] = true;
+        let target = substitutions.rows[component].1.clone();
+        let result = self.normalize_identity_context(target, depth + 1, remaining, substitutions);
+        substitutions.active[component] = false;
+        if let Ok(value) = &result {
+            substitutions.normalized[component] = Some(value.clone());
+        }
+        result
     }
 }
