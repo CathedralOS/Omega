@@ -937,7 +937,42 @@ mod content_transformations {
         if observed.is_empty() {
             return Ok(());
         }
-        let transaction = prepare(program, facts.view(), observed, places)?;
+        let transaction = prepare(program, facts.view(), observed, places);
+        if let Err(reason) = &transaction
+            && let Ok(filter) = std::env::var("OMEGA_RECEIVING_TRACE")
+        {
+            let first = facts
+                .qualifications
+                .content
+                .body_conservations
+                .get(observed[0]);
+            let machine = program.machine_by_symbol(first.machine_symbol);
+            let state = program.state_by_symbol(first.state_symbol);
+            let selected = filter.is_empty()
+                || filter == "1"
+                || filter.split(',').any(|selected| {
+                    [
+                        machine.map(|machine| machine.name.as_str()),
+                        state.map(|state| state.name.as_str()),
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .any(|name| name == selected || name.rsplit("::").next() == Some(selected))
+                });
+            if selected {
+                static EVENTS: std::sync::atomic::AtomicUsize =
+                    std::sync::atomic::AtomicUsize::new(0);
+                if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 64 {
+                    eprintln!(
+                        "RECEIVING content-transaction machine={:?} state={:?} equations={} reason={reason}",
+                        machine.map(|machine| machine.name.as_str()),
+                        state.map(|state| state.name.as_str()),
+                        observed.len(),
+                    );
+                }
+            }
+        }
+        let transaction = transaction?;
         let completed = facts.flow.control.operands.get(transaction.completion);
         let expression = completed.expression;
         let source = PermissionEventSource::Statement {

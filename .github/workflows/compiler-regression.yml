@@ -113,19 +113,23 @@ jobs:
           if [ -n "$QUALIFICATION_CONTROLS" ]; then arguments+=(--runtime-controls "$QUALIFICATION_CONTROLS"); fi
           mbx xtask "${arguments[@]}"
       - name: Capture remaining receiving refusals
-        if: ${{ always() && (contains(inputs.qualification_corpus, 'pass/core/generic_content_static_callback') || contains(inputs.qualification_corpus, 'pass/facts/content_reunion_through_other_state_exit')) }}
+        if: ${{ always() && (contains(inputs.qualification_corpus, 'pass/core/generic_content_static_callback') || contains(inputs.qualification_corpus, 'pass/facts/content_reunion_through_other_state_exit') || contains(inputs.qualification_corpus, 'run/core/content_reunion')) }}
         continue-on-error: true
         shell: bash
         run: |
           trace_index=0
           while IFS= read -r fixture; do
-            OMEGA_RECEIVING_TRACE=1 mbx xtask qualify --output "build/qualification-receiving-$trace_index" --corpus "$fixture" || true
+            receiving_filter=1
+            if [ "$fixture" = 'run/core/content_reunion' ]; then
+              receiving_filter='empty_left,empty_right,adjacent,rejoin,rejoin_state,rejoin_anonymous,rejoin_call_result,complete,left_arm,right_arm'
+            fi
+            OMEGA_RECEIVING_TRACE="$receiving_filter" mbx xtask qualify --output "build/qualification-receiving-$trace_index" --corpus "$fixture" || true
             trace_index=$((trace_index + 1))
           done < <(python3 - <<'PYTRACE'
           import json, pathlib
           path = pathlib.Path('build/qualification/checking-rows.json')
           if path.exists():
-              selected = {'pass/core/generic_content_static_callback', 'pass/facts/content_reunion_through_other_state_exit'}
+              selected = {'pass/core/generic_content_static_callback', 'pass/facts/content_reunion_through_other_state_exit', 'run/core/content_reunion'}
               for row in json.loads(path.read_text()):
                   if row['fixture'] in selected and (row['status'] not in ('checked', 'built') or row.get('diagnostics')):
                       print(row['fixture'])
