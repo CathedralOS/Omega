@@ -74,7 +74,7 @@ The nine positive programs and nine decoder-only controls are mirrored under
 
 ## Validation
 
-Linux x86_64 coverage is complete for this fixed-owned agreement row. All nine
+Linux x86_64 coverage is complete for these conversion examples. All nine
 positive places have native and Psi exit 0 observations, and each decoder-only
 twin retains its intended rejection. The evidence combines the new four-place
 batch with applicable retained observations of the unchanged programs:
@@ -101,9 +101,9 @@ README records a Linux milestone of the repair landed in
 [PR #2045](https://github.com/CathedralOS/Omega/pull/2045).
 
 Matching-host execution on Windows x86_64, macOS ARM64 and Linux ARM64 remains
-open for this explicit-identity row. The broader parent acceptance, including
-resource-backed conversions and reflection-specialized adapters, also remains
-open. Earlier legacy-source executions do not close those requirements.
+open for this explicit-identity row. The broader LIBRARY-REPRESENTATION-FAMILIES
+acceptance also remains open. Earlier legacy-source executions do not close
+those requirements.
 
 Current original reports, executable profiles, source bundles, exact input hashes
 and complete compressed observations are retained in
