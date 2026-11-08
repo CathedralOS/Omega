@@ -6186,7 +6186,24 @@ pub(crate) mod trait_scopes {
         pub fn prepare_applied_callable_signatures_reporting_change(
             &mut self,
         ) -> Result<(Vec<signature::StateSignature>, bool), &'static str> {
-            let roots = self.applied_trait_roots();
+            let invocation_scopes = self.refinement_invocation_scopes()?;
+            let mut roots = self.applied_trait_roots();
+            roots.extend(
+                invocation_scopes
+                    .iter()
+                    .filter_map(|scope| scope.scope(self)),
+            );
+            let mut bound_roots = Vec::new();
+            for root in &roots {
+                root.visit(self, &mut |scope| {
+                    for bound in &scope.declaration.conformance_bounds {
+                        if let Some(bound) = scope.bound_scope(self, bound.binder) {
+                            bound_roots.push(bound);
+                        }
+                    }
+                });
+            }
+            roots.extend(bound_roots);
             let mut pending = Vec::new();
             for scope in roots {
                 scope.visit(self, &mut |scope| {
@@ -6317,6 +6334,92 @@ pub(crate) mod trait_scopes {
                 }
             }
             Ok((produced, wrote))
+        }
+
+        fn refinement_invocation_scopes(
+            &mut self,
+        ) -> Result<Vec<crate::trait_definition::TraitApplicationEnvironment>, &'static str>
+        {
+            use crate::static_applications::StaticMachineBindingValue;
+            use crate::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+            let occurrences = crate::references::collect_program_application_occurrences(self);
+            let mut scopes = Vec::new();
+            for invocation in occurrences.conformance_applications {
+                let record = self.static_machine_application(invocation).clone();
+                let Some(machine) = self.machine_by_symbol(record.binding_declaration) else {
+                    continue;
+                };
+                let bounds = machine
+                    .conformance_bounds
+                    .iter()
+                    .filter(|bound| {
+                        self.trait_definition_by_symbol(bound.trait_symbol)
+                            .is_some_and(|declaration| {
+                                declaration
+                                    .refinement_clauses
+                                    .iter()
+                                    .any(|clause| !clause.signature.contracts.is_empty())
+                            })
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
+                if bounds.is_empty() {
+                    continue;
+                }
+                let bindings = self
+                    .static_machine_application_bindings(invocation)
+                    .to_vec();
+                let mut arguments = Vec::with_capacity(bindings.len());
+                for binding in bindings {
+                    let actual = match binding.value {
+                        StaticMachineBindingValue::Type(reference)
+                        | StaticMachineBindingValue::Const(reference) => reference,
+                        StaticMachineBindingValue::Machine(argument)
+                        | StaticMachineBindingValue::Conformance(argument) => self
+                            .static_operand_type_reference_in_scope(
+                                &argument,
+                                record.lexical_owner,
+                            )?,
+                        StaticMachineBindingValue::RuntimeValue { .. } => {
+                            return Err(
+                                "refinement postcondition invocation has an unresolved value argument",
+                            );
+                        }
+                    };
+                    arguments.push((binding.parameter, actual));
+                }
+                let lifetimes = self.static_application_lifetimes_for_declaration(
+                    invocation,
+                    record.binding_declaration,
+                )?;
+                for bound in bounds {
+                    let declaration = self
+                        .trait_definition_by_symbol(bound.trait_symbol)
+                        .ok_or("refinement invocation lost its bound declaration")?;
+                    let scope = AppliedTraitScope::new(
+                        self,
+                        declaration,
+                        TraitApplicationArguments {
+                            lexical_owner: record.binding_declaration,
+                            enclosing_data_applications: &[],
+                            arguments: &bound.arguments,
+                            lifetimes: &bound.lifetime_arguments,
+                        },
+                    )
+                    .and_then(|scope| {
+                        scope.under_invocation(
+                            self,
+                            record.binding_declaration,
+                            record.lexical_owner,
+                            &arguments,
+                            &lifetimes,
+                        )
+                    })
+                    .ok_or("refinement invocation lost its complete bound scope")?;
+                    scopes.push(scope.environment());
+                }
+            }
+            Ok(scopes)
         }
 
         pub fn materialize_trait_application_arguments(
@@ -6934,6 +7037,91 @@ impl CallableApplication {
 }
 
 impl TypedTrees {
+    pub(crate) fn apply_refinement_postconditions(
+        &mut self,
+        receiving: &mut signature::StateSignature,
+        declared: &signature::StateSignature,
+        environment: &crate::trait_definition::TraitApplicationEnvironment,
+    ) -> Result<(), &'static str> {
+        let parameters = self.state_signature_parameters(declared);
+        let actual_parameters = self.state_signature_parameters(receiving);
+        let type_parameters = self.state_signature_type_parameters(declared);
+        let actual_types = self.state_signature_type_parameters(receiving);
+        if parameters.len() != actual_parameters.len()
+            || type_parameters.len() != actual_types.len()
+            || declared.lifetime_parameters.len() != receiving.lifetime_parameters.len()
+        {
+            return Err("refinement postcondition lost its inherited callable telescope");
+        }
+        let symbols = std::iter::once((declared.symbol, receiving.symbol))
+            .chain(
+                parameters
+                    .iter()
+                    .zip(actual_parameters)
+                    .map(|(formal, actual)| (formal.symbol, actual.symbol)),
+            )
+            .chain(
+                type_parameters
+                    .iter()
+                    .zip(actual_types)
+                    .map(|(formal, actual)| (formal.symbol, actual.symbol)),
+            )
+            .collect();
+        let source_binders = parameters
+            .iter()
+            .map(|parameter| (parameter.name.clone(), parameter.symbol))
+            .chain(
+                type_parameters
+                    .iter()
+                    .map(|parameter| (parameter.name.clone(), parameter.symbol)),
+            )
+            .collect();
+        let lifetimes = declared
+            .lifetime_parameters
+            .iter()
+            .zip(&receiving.lifetime_parameters)
+            .enumerate()
+            .map(|(ordinal, (parameter, argument))| CallableLifetimeBinding {
+                parameter: parameter.clone(),
+                argument: argument.clone(),
+                region: crate::type_identity::LifetimeParameterIdentity {
+                    declaration: receiving.symbol,
+                    ordinal,
+                },
+                origin: CallableLifetimeOrigin::Rigid,
+            })
+            .collect();
+        let mut application = CallableApplication {
+            region_scope: declared.symbol,
+            trait_region_application: Some((environment.clone(), environment.frame_count())),
+            static_argument_owner: environment.argument_owner(),
+            types: environment
+                .scope(self)
+                .ok_or("refinement postcondition lost its supplying scope")?
+                .substitutions,
+            symbols,
+            source_binders,
+            lifetimes,
+            ..Default::default()
+        };
+        let contracts = self.state_signature_contracts(receiving).to_vec();
+        let additions = self.state_signature_contracts(declared).to_vec();
+        receiving.contracts = Default::default();
+        for contract in contracts {
+            self.signature_contracts
+                .append_to_span(&mut receiving.contracts, contract);
+        }
+        for mut contract in additions {
+            if contract.kind != signature::SignatureContractKind::Ensures {
+                return Err("refinement postconditions cannot add caller obligations");
+            }
+            contract.facts = application.facts(self, contract.facts)?;
+            self.signature_contracts
+                .append_to_span(&mut receiving.contracts, contract);
+        }
+        Ok(())
+    }
+
     pub fn apply_callable_result_type(
         &mut self,
         original: types::TypeReferenceHandle,

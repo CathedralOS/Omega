@@ -1085,7 +1085,8 @@ trait_machine_identity_slots: &trait_machine_identity_slots,
             );
         }
 
-        for machine in trait_machine_signatures.span_mut_or_empty(trait_definition.machines) {
+        for machine in trait_machine_signatures.span_mut_or_empty(trait_definition.machines).iter_mut()
+            .chain(trait_definition.refinement_clauses.iter_mut().map(|clause| &mut clause.signature)) {
             machine.symbol = next_child_of_kind(&mut trait_children, symbols, SymbolKind::State);
             let machine_symbol = machine.symbol;
             assign_machine_parameter_signature_symbols(

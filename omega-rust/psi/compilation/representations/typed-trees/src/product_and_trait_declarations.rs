@@ -2580,10 +2580,12 @@ pub mod trait_definition {
                     &self,
                     program: &TypedTrees,
                     requirement: &str,
-                ) -> Vec<TraitRefinementClause> {
+                ) -> Vec<(TraitRefinementClause, super::TraitApplicationEnvironment)>
+                {
                     self.refinement_prefixes(program)
                         .into_iter()
                         .flat_map(|prefix| {
+                            let environment = prefix.environment();
                             prefix
                                 .declaration
                                 .refinement_clauses
@@ -2595,6 +2597,8 @@ pub mod trait_definition {
                                         .is_none_or(|name| name.as_str() == requirement)
                                 })
                                 .cloned()
+                                .map(|clause| (clause, environment.clone()))
+                                .collect::<Vec<_>>()
                         })
                         .collect()
                 }
@@ -2604,9 +2608,16 @@ pub mod trait_definition {
                 pub(crate) fn apply_callable_refinements(
                     &mut self,
                     signature: &mut StateSignature,
-                    clauses: &[TraitRefinementClause],
+                    clauses: &[(TraitRefinementClause, super::TraitApplicationEnvironment)],
                 ) -> Result<(), &'static str> {
-                    for clause in clauses {
+                    for (clause, environment) in clauses {
+                        if !clause.signature.contracts.is_empty() {
+                            self.apply_refinement_postconditions(
+                                signature,
+                                &clause.signature,
+                                environment,
+                            )?;
+                        }
                         if !clause.signature.suspends_keyword_source_spans.is_empty() {
                             signature.suspends &= clause.signature.suspends;
                             signature
@@ -3828,6 +3839,46 @@ pub mod trait_definition {
                 if ambiguous { None } else { selected }
             }
 
+            pub fn bound_scope(
+                &self,
+                program: &'program TypedTrees,
+                binder: SymbolHandle,
+            ) -> Option<Self> {
+                let mut bounds = self
+                    .declaration
+                    .conformance_bounds
+                    .iter()
+                    .filter(|bound| bound.binder == binder);
+                let bound = bounds.next()?;
+                if bounds.next().is_some() {
+                    return None;
+                }
+                let nested = Self::new(
+                    program,
+                    program.trait_definition_by_symbol(bound.trait_symbol)?,
+                    TraitApplicationArguments {
+                        lexical_owner: self.argument_owner,
+                        enclosing_data_applications: &[],
+                        arguments: &bound.arguments,
+                        lifetimes: &bound.lifetime_arguments,
+                    },
+                )?;
+                Some(nested.preceded_by(self))
+            }
+
+            fn preceded_by(mut self, outer: &Self) -> Self {
+                let mut substitutions = outer.substitutions.clone();
+                self.substitution_scope_starts = outer.substitution_scope_starts.clone();
+                self.substitution_scope_starts.push(substitutions.len());
+                substitutions.append(&mut self.substitutions);
+                self.substitutions = substitutions;
+                let mut regions = outer.region_scopes.clone();
+                regions.append(&mut self.region_scopes);
+                self.region_scopes = regions;
+                self.argument_owner = outer.argument_owner;
+                self
+            }
+
             pub fn visit(&self, program: &'program TypedTrees, visit: &mut impl FnMut(&Self)) {
                 self.visit_inherited(program, &mut Vec::new(), visit, &mut |_| {});
             }
@@ -3861,7 +3912,7 @@ pub mod trait_definition {
                     else {
                         continue;
                     };
-                    let Some(mut scope) = Self::new(
+                    let Some(scope) = Self::new(
                         program,
                         declaration,
                         TraitApplicationArguments {
@@ -3873,14 +3924,7 @@ pub mod trait_definition {
                     ) else {
                         continue;
                     };
-                    let mut substitutions = self.substitutions.clone();
-                    scope.substitution_scope_starts = self.substitution_scope_starts.clone();
-                    scope.substitution_scope_starts.push(substitutions.len());
-                    substitutions.append(&mut scope.substitutions);
-                    scope.substitutions = substitutions;
-                    let mut regions = self.region_scopes.clone();
-                    regions.append(&mut scope.region_scopes);
-                    scope.region_scopes = regions;
+                    let scope = scope.preceded_by(self);
                     scope.visit_inherited(program, active, visit, after);
                 }
                 after(self);

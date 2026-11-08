@@ -404,6 +404,12 @@ mod children {
                         program
                             .trait_machine_signatures(trait_definition.machines)
                             .iter()
+                            .chain(
+                                trait_definition
+                                    .refinement_clauses
+                                    .iter()
+                                    .map(|clause| &clause.signature),
+                            )
                             .map(|machine| {
                                 symbol_seed(SymbolKind::State, &machine.name, has_sources)
                             }),
@@ -423,7 +429,13 @@ mod children {
             for (machine_symbol, machine) in trait_children.zip(
                 program
                     .trait_machine_signatures(trait_definition.machines)
-                    .iter(),
+                    .iter()
+                    .chain(
+                        trait_definition
+                            .refinement_clauses
+                            .iter()
+                            .map(|clause| &clause.signature),
+                    ),
             ) {
                 super::insert_machine_parameter_signature_children(
                     builder,

@@ -159,7 +159,16 @@ mod contracts {
                 None,
                 &[],
             );
-            for signature in trait_machine_signatures.span_or_empty(trait_definition.machines) {
+            for signature in trait_machine_signatures
+                .span_or_empty(trait_definition.machines)
+                .iter()
+                .chain(
+                    trait_definition
+                        .refinement_clauses
+                        .iter()
+                        .map(|clause| &clause.signature),
+                )
+            {
                 assign_callable_value_symbols(
                     symbols,
                     &scope,

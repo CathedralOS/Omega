@@ -2393,7 +2393,7 @@ pub(crate) mod trait_defaults {
             same-leaf competitor.
         */
         path: String,
-        has_lifetime_parameters: bool,
+        lifetime_parameters: Vec<Identifier>,
         parameter_names: Vec<String>,
         signatures: Vec<TraitSignatureInput>,
         requirements: Vec<TraitRequirementInput>,
@@ -2520,7 +2520,7 @@ pub(crate) mod trait_defaults {
                     symbol,
                     TraitDefaultsInput {
                         path: selection.declaration_path(symbol),
-                        has_lifetime_parameters: !trait_definition.lifetime_parameters.is_empty(),
+                        lifetime_parameters: trait_definition.lifetime_parameters.clone(),
                         parameter_names,
                         signatures,
                         requirements,
@@ -2528,6 +2528,8 @@ pub(crate) mod trait_defaults {
                 ))
             })
             .collect::<HashMap<_, _>>();
+
+        inherit_refinement_telescopes(syntax, selection, &|symbol| traits.get(&symbol))?;
 
         let conformances = syntax
             .root_item_handles()
@@ -2625,11 +2627,13 @@ pub(crate) mod trait_defaults {
                     &requirement.signature,
                     &requirement.substitution,
                     conformance.handle,
+                    &[],
                 );
                 let exact_requirement_owner = traits
                     .get(&requirement.declaring_trait)
                     .filter(|definition| {
-                        !definition.has_lifetime_parameters && definition.parameter_names.is_empty()
+                        definition.lifetime_parameters.is_empty()
+                            && definition.parameter_names.is_empty()
                     })
                     .map(|definition| definition.path.as_str());
                 let machine = machine_from_signature(
@@ -2678,6 +2682,119 @@ pub(crate) mod trait_defaults {
         } else {
             Err(diagnostics)
         }
+    }
+
+    // A targeted postcondition uses the selected base requirement's telescope.
+    // Copy its types under this refinement's actuals before resolving its names.
+    fn inherit_refinement_telescopes<'catalog>(
+        syntax: &mut SyntaxTrees,
+        selection: &ConstantSelection,
+        selected_trait: &impl Fn(SymbolHandle) -> Option<&'catalog TraitDefaultsInput>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let refinements = syntax
+            .root_item_handles()
+            .iter()
+            .filter_map(|handle| {
+                let Item::Trait(declaration) = syntax.root_item(*handle) else {
+                    return None;
+                };
+                declaration
+                    .refines
+                    .filter(|_| {
+                        declaration
+                            .refinement_clauses
+                            .iter()
+                            .any(|clause| !clause.signature.contracts.is_empty())
+                    })
+                    .map(|base| (*handle, declaration.clone(), base))
+            })
+            .collect::<Vec<_>>();
+        for (handle, mut refinement, base) in refinements {
+            let (name, arguments, lifetimes) = match syntax.type_references.type_reference(base) {
+                TypeReferenceNode::Named(name) => (name.clone(), Vec::new(), Vec::new()),
+                TypeReferenceNode::Generic {
+                    base_name,
+                    arguments,
+                    lifetime_arguments,
+                } => (
+                    base_name.clone(),
+                    syntax_type_references(syntax)
+                        .type_reference_handles(*arguments)
+                        .to_vec(),
+                    lifetime_arguments.clone(),
+                ),
+                _ => {
+                    return Err(vec![Diagnostic::error(
+                        "a refinement postcondition needs a selected base trait",
+                    )]);
+                }
+            };
+            let base = selection
+                .trait_lookup(syntax, &name)
+                .unique()
+                .and_then(selected_trait)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "a refinement postcondition lost its selected base declaration",
+                    )]
+                })?;
+            if arguments.len() != base.parameter_names.len()
+                || lifetimes.len() != base.lifetime_parameters.len()
+            {
+                return Err(vec![Diagnostic::error(
+                    "a refinement postcondition needs the complete base trait application",
+                )]);
+            }
+            let substitution = base
+                .parameter_names
+                .iter()
+                .cloned()
+                .zip(arguments)
+                .collect::<HashMap<_, _>>();
+            let lifetimes = base
+                .lifetime_parameters
+                .iter()
+                .zip(lifetimes)
+                .map(|(formal, actual)| (formal.as_str(syntax).to_owned(), actual))
+                .collect::<Vec<_>>();
+            for clause in &mut refinement.refinement_clauses {
+                if clause.signature.contracts.is_empty() {
+                    continue;
+                }
+                let Some(requirement) = &clause.requirement else {
+                    return Err(vec![Diagnostic::error(
+                        "a refinement postcondition names one exact base requirement",
+                    )]);
+                };
+                let matching = base
+                    .signatures
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.signature.name.as_str(syntax) == requirement.as_str(syntax)
+                    })
+                    .collect::<Vec<_>>();
+                let [selected] = matching.as_slice() else {
+                    return Err(vec![Diagnostic::error(
+                        "a refinement postcondition must select exactly one base requirement",
+                    )]);
+                };
+                let inherited = instantiate_default_signature(
+                    syntax,
+                    &selected.signature,
+                    &substitution,
+                    handle,
+                    &lifetimes,
+                );
+                clause.signature.parameters = inherited.parameters;
+                clause.signature.type_parameters = inherited.type_parameters;
+                clause.signature.lifetime_parameters = inherited.lifetime_parameters;
+                clause.signature.conformance_bounds = inherited.conformance_bounds;
+                clause.signature.native_callback_parameters = inherited.native_callback_parameters;
+                clause.signature.return_type = inherited.return_type;
+            }
+            syntax.items.replace_item(handle, Item::Trait(refinement));
+        }
+        Ok(())
     }
 
     /*
@@ -2812,8 +2929,13 @@ pub(crate) mod trait_defaults {
         if syntax.items.state_parameters(requirement.parameters).len() != 2 {
             return None;
         }
-        let mut signature =
-            instantiate_default_signature(syntax, requirement, substitution, supplying_declaration);
+        let mut signature = instantiate_default_signature(
+            syntax,
+            requirement,
+            substitution,
+            supplying_declaration,
+            &[],
+        );
         let [left, right] = syntax.items.state_parameters(signature.parameters) else {
             return None;
         };
@@ -3005,6 +3127,7 @@ pub(crate) mod trait_defaults {
         signature: &StateSignature,
         substitution: &HashMap<String, TypeReferenceHandle>,
         supplying_declaration: ItemHandle,
+        lifetimes: &[(String, Identifier)],
     ) -> StateSignature {
         let substitution = substitution
             .iter()
@@ -3016,12 +3139,12 @@ pub(crate) mod trait_defaults {
             })
             .map(|(name, reference)| (name.clone(), *reference))
             .collect::<HashMap<_, _>>();
-        if substitution.is_empty() {
+        if substitution.is_empty() && lifetimes.is_empty() {
             return signature.clone();
         }
         let snapshot = syntax.clone();
         let type_watermark = syntax.type_references.node_count();
-        let copied = syntax.copy_state_signature_from(&snapshot, signature);
+        let copied = syntax.copy_state_signature_in_lifetime_scope(&snapshot, signature, lifetimes);
         for (handle, name) in
             syntax_type_references(syntax).named_nodes_from(type_watermark, syntax)
         {

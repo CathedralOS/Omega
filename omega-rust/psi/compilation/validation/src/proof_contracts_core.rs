@@ -875,7 +875,14 @@ pub mod contract_results {
         program
             .traits()
             .iter()
-            .flat_map(move |definition| program.trait_machine_signatures(definition))
+            .flat_map(move |definition| {
+                program.trait_machine_signatures(definition).iter().chain(
+                    definition
+                        .refinement_clauses
+                        .iter()
+                        .map(|clause| &clause.signature),
+                )
+            })
             .map(unscoped)
             .chain(program.prepared_callable_contracts())
             .chain(
@@ -981,7 +988,14 @@ pub mod contract_results {
         for signature in program
             .traits()
             .iter()
-            .flat_map(|definition| program.trait_machine_signatures(definition))
+            .flat_map(|definition| {
+                program.trait_machine_signatures(definition).iter().chain(
+                    definition
+                        .refinement_clauses
+                        .iter()
+                        .map(|clause| &clause.signature),
+                )
+            })
             .chain(program.prepared_callable_signatures())
         {
             parameters.extend(program.state_signature_type_parameters(signature));

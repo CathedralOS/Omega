@@ -164,7 +164,16 @@ mod assignment {
         for owner in program.traits.iter() {
             let parameters = program.trait_type_parameters(owner);
             collect(program, parameters, &[], &mut scopes);
-            for signature in program.trait_machine_signatures(owner.machines) {
+            for signature in program
+                .trait_machine_signatures(owner.machines)
+                .iter()
+                .chain(
+                    owner
+                        .refinement_clauses
+                        .iter()
+                        .map(|clause| &clause.signature),
+                )
+            {
                 collect(
                     program,
                     program.data_type_parameters(signature.type_parameters),
