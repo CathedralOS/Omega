@@ -1,0 +1,202 @@
+// Expected error: the selected decoder does not preserve the semantic value
+use omega::language::core::conversion;
+use omega::language::core::representation;
+
+data NoResources [copy] { }
+data Frame [copy] { tag: u8; value: u8; }
+data WriteError [copy] { case Unsupported; }
+data ReadError [copy] { case InvalidTag; }
+
+Write satisfies TryFrom<RepresentationRequest<u8, NoResources>, Frame, WriteError> {
+    machine try_from(source: RepresentationRequest<u8, NoResources>) -> Result<Frame, WriteError>
+    reaches terminates
+    { Result::Ok { value: Frame { tag: 165u8, value: source.value } } }
+}
+Read satisfies TryFrom<Frame, RepresentationRequest<u8, NoResources>, ReadError> {
+    machine try_from(source: Frame) -> Result<RepresentationRequest<u8, NoResources>, ReadError>
+    reaches terminates
+    {
+        transition source.tag == 165u8 {
+            true -> Result::Ok { value: RepresentationRequest { value: 0u8, resources: NoResources { } } }
+            false -> Result::Err { error: ReadError::InvalidTag }
+        }
+    }
+}
+Validity satisfies RepresentationValidity<Frame> {
+    machine valid(frame: Frame) -> bool reaches terminates { frame.tag == 165u8 }
+}
+
+SelectedAgreement satisfies ValueRepresentation<u8, NoResources, Frame, WriteError, ReadError,
+    Write, Read, Validity>
+{
+    machine round_trip(request: RepresentationRequest<u8, NoResources>)
+        -> Result<RepresentationRequest<u8, NoResources>, RepresentationError<WriteError, ReadError>>
+    ensures result in Result::Ok && core::Identity<u8>(result.value.value, request.value)
+    {
+        transition Write::try_from(request) {
+            Result::Err { error as error } -> Result::Err { error: RepresentationError::Encoding { error: error } }
+            Result::Ok { value as frame } -> restore(frame)
+        }
+        machine restore(frame: Frame)
+            -> Result<RepresentationRequest<u8, NoResources>, RepresentationError<WriteError, ReadError>>
+        requires frame.tag == 165u8
+        {
+            transition Read::try_from(frame) {
+                Result::Err { error as error } -> Result::Err { error: RepresentationError::Decoding { error: error } }
+                Result::Ok { value as restored } -> Result::Ok { value: restored }
+            }
+        }
+    }
+    machine encode_covers(request: RepresentationRequest<u8, NoResources>) reaches terminates
+    ensures Write::try_from(request) in Result::Ok { }
+    machine encode_valid(request: RepresentationRequest<u8, NoResources>, frame: Frame) reaches terminates
+    requires core::Identity<Result<Frame, WriteError>>(Write::try_from(request), Result::Ok { value: frame })
+    ensures Validity::valid(frame) { }
+    machine decode_covers(frame: Frame) reaches terminates
+    requires Validity::valid(frame)
+    ensures Read::try_from(frame) in Result::Ok { }
+    machine decode_rejects(frame: Frame) reaches terminates
+    requires !Validity::valid(frame)
+    ensures Read::try_from(frame) in Result::Err { }
+    machine round_trip_preserves(request: RepresentationRequest<u8, NoResources>, frame: Frame) reaches terminates
+    requires core::Identity<Result<Frame, WriteError>>(Write::try_from(request), Result::Ok { value: frame })
+    ensures core::Identity<Result<RepresentationRequest<u8, NoResources>, ReadError>>(
+        Read::try_from(frame), Result::Ok { value: request }) { }
+}
+
+machine cite<Agreement satisfies ValueRepresentation<u8, NoResources, Frame, WriteError, ReadError,
+    Write, Read, Validity>>(request: RepresentationRequest<u8, NoResources>, frame: Frame, malformed: Frame)
+requires core::Identity<Result<Frame, WriteError>>(Write::try_from(request), Result::Ok { value: frame })
+requires !Validity::valid(malformed)
+{
+    Agreement::encode_covers(request);
+    Agreement::encode_valid(request, frame);
+    Agreement::decode_covers(frame);
+    Agreement::decode_rejects(malformed);
+    Agreement::round_trip_preserves(request, frame);
+}
+
+// The runtime check uses the same maps through their weak conversion contracts.
+// Its expected value is supplied independently of the decoder and its laws.
+machine observe(value: u8, expected: u8) -> bool {
+    let request: RepresentationRequest<u8, NoResources> = RepresentationRequest {
+        value: value, resources: NoResources { }
+    };
+    let frame: Frame = Frame { tag: 165u8, value: value };
+    let malformed: Frame = Frame { tag: 0u8, value: value };
+    cite<SelectedAgreement>(request, frame, malformed);
+    transition convert<RepresentationRequest<u8, NoResources>, Frame, WriteError, Write>(request) {
+        Result::Err { error as error } -> false
+        Result::Ok { value as encoded } -> inspect(encoded, malformed, expected)
+    }
+}
+machine inspect(frame: Frame, malformed: Frame, expected: u8) -> bool {
+    transition convert<Frame, RepresentationRequest<u8, NoResources>, ReadError, Read>(frame) {
+        Result::Err { error as error } -> false
+        Result::Ok { value as restored } -> reject_malformed(restored.value, malformed, expected)
+    }
+}
+machine reject_malformed(value: u8, malformed: Frame, expected: u8) -> bool {
+    transition convert<Frame, RepresentationRequest<u8, NoResources>, ReadError, Read>(malformed) {
+        Result::Err { error as error } -> value == expected
+        Result::Ok { value as unexpected } -> false
+    }
+}
+
+// The resource contract admits only output with enough space. Neither the
+// interface nor either selected map supplies an allocator or a hidden buffer.
+data Buffer<'buffer> requires self.output.len >= 2u64 { output: &'buffer mut [u8]; }
+data BufferedFrame<'buffer> requires self.output.len >= 2u64 { output: &'buffer mut [u8]; }
+data BufferFailure<'buffer> { output: &'buffer mut [u8]; }
+
+WriteBuffer<'buffer> satisfies TryFrom<RepresentationRequest<u8, Buffer<'buffer>>, BufferedFrame<'buffer>, BufferFailure<'buffer>> {
+    machine try_from(request: RepresentationRequest<u8, Buffer<'buffer>>)
+        -> Result<BufferedFrame<'buffer>, BufferFailure<'buffer>>
+    ensures result in Result::Ok && result.value.output[0u64] == 165u8
+        && result.value.output[1u64] == request.value
+    {
+        request.resources.output[0u64] = 165u8;
+        request.resources.output[1u64] = request.value;
+        Result::Ok { value: BufferedFrame { output: request.resources.output } }
+    }
+}
+ReadBuffer<'buffer> satisfies TryFrom<BufferedFrame<'buffer>, RepresentationRequest<u8, Buffer<'buffer>>, BufferFailure<'buffer>> {
+    machine try_from(frame: BufferedFrame<'buffer>)
+        -> Result<RepresentationRequest<u8, Buffer<'buffer>>, BufferFailure<'buffer>>
+    ensures frame.output[0u64] != 165u8 || result in Result::Ok
+    ensures result in Result::Err || result.value.value == frame.output[1u64]
+    {
+        transition frame.output[0u64] == 165u8 {
+            true -> Result::Ok { value: RepresentationRequest {
+                value: frame.output[1u64], resources: Buffer { output: frame.output }
+            } }
+            false -> Result::Err { error: BufferFailure { output: frame.output } }
+        }
+    }
+}
+BufferedAgreement<'buffer> satisfies Representation<u8, Buffer<'buffer>, BufferedFrame<'buffer>,
+    BufferFailure<'buffer>, BufferFailure<'buffer>, WriteBuffer<'buffer>, ReadBuffer<'buffer>>
+{
+    machine round_trip(request: RepresentationRequest<u8, Buffer<'buffer>>)
+        -> Result<RepresentationRequest<u8, Buffer<'buffer>>,
+            RepresentationError<BufferFailure<'buffer>, BufferFailure<'buffer>>>
+    ensures result in Result::Ok && core::Identity<u8>(result.value.value, request.value)
+    {
+        transition WriteBuffer<'buffer>::try_from(request) {
+            Result::Err { error as error } -> Result::Err { error: RepresentationError::Encoding { error: error } }
+            Result::Ok { value as frame } -> restore(frame)
+        }
+        machine restore(frame: BufferedFrame<'buffer>)
+            -> Result<RepresentationRequest<u8, Buffer<'buffer>>,
+                RepresentationError<BufferFailure<'buffer>, BufferFailure<'buffer>>>
+        requires frame.output[0u64] == 165u8
+        ensures result in Result::Ok && result.value.value == frame.output[1u64]
+        {
+            transition ReadBuffer<'buffer>::try_from(frame) {
+                Result::Err { error as error } -> Result::Err { error: RepresentationError::Decoding { error: error } }
+                Result::Ok { value as restored } -> Result::Ok { value: restored }
+            }
+        }
+    }
+}
+
+machine use_selected<'buffer,
+    Agreement satisfies Representation<u8, Buffer<'buffer>, BufferedFrame<'buffer>,
+        BufferFailure<'buffer>, BufferFailure<'buffer>, WriteBuffer<'buffer>, ReadBuffer<'buffer>>>
+    (request: RepresentationRequest<u8, Buffer<'buffer>>)
+    -> Result<RepresentationRequest<u8, Buffer<'buffer>>,
+        RepresentationError<BufferFailure<'buffer>, BufferFailure<'buffer>>>
+ensures result in Result::Ok && core::Identity<u8>(result.value.value, request.value)
+{ Agreement::round_trip(request) }
+
+machine buffered<'buffer>(output: &'buffer mut [u8], value: u8, expected: u8) -> bool
+requires output.len >= 2u64
+{
+    transition use_selected<BufferedAgreement<'buffer>>(RepresentationRequest {
+        value: value, resources: Buffer { output: output }
+    }) {
+        Result::Err { error as error } -> false
+        Result::Ok { value as restored } -> inspect(restored, expected)
+    }
+    machine inspect(restored: RepresentationRequest<u8, Buffer<'buffer>>, expected: u8) -> bool {
+        let same: bool = restored.value == expected && restored.resources.output[0u64] == 165u8
+            && restored.resources.output[1u64] == expected;
+        restored.resources.output[0u64] = 166u8;
+        same
+    }
+}
+
+machine main() crashes Trap {
+    let ordinary: bool = observe(17u8, 17u8);
+    let endpoint: bool = observe(255u8, 255u8);
+    let mut storage: [u8; 4] = [81u8, 1u8, 2u8, 82u8];
+    let restored: bool = buffered(&mut storage[1u64..3u64], 42u8, 42u8);
+    let canaries: bool = storage[0u64] == 81u8 && storage[1u64] == 166u8
+        && storage[2u64] == 42u8 && storage[3u64] == 82u8;
+    transition ordinary && endpoint && restored && canaries {
+        true -> done()
+        false -> bad()
+    }
+    machine done() { }
+    machine bad() { crash Trap; }
+}
