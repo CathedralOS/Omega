@@ -16519,6 +16519,8 @@ fail/proofs/core_identity_forged_comparison rejected 6073ms expected @26c39d0e63
 	cannot prove requires contract for call require_identity from forged_name: core::Identity(left, right) (needs fact `core::Identity<Pair>(left, right)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/core_identity_signed_zero rejected 6772ms expected @26c39d0e6335
 	cannot prove ensures contract for exit from impossible at statement 0: core::Identity<FloatBox>(FloatBox, FloatBox)
+fail/proofs/core_identity_statement_is_not_executable rejected 1536ms expected @df265b0073ea
+	machine `main` cannot resolve ordinary call `core::Identity` to a machine entry or requirement
 fail/proofs/core_identity_unproved rejected 6549ms expected @26c39d0e6335
 	cannot prove ensures contract for exit from arbitrary at statement 0: core::Identity<Pair>(left, right)
 fail/proofs/core_nat_runtime_consumption_rejected rejected 12272ms expected @ccdb99ca2214
@@ -20599,6 +20601,7 @@ pass/comptime/range_endpoint_requires_discharge_exit checked 16565ms check-targe
 pass/comptime/runtime_const_array_anonymous_expression_exit checked 3661ms check-target:macos_arm64 @ccdb99ca2214
 pass/comptime/runtime_const_array_call_arguments_exit checked 15198ms check-target:macos_arm64 @c5cc3d874922+wt
 pass/comptime/runtime_const_array_cast_expression_exit checked 7595ms check-target:macos_arm64 @911f6617ba9e
+pass/comptime/runtime_const_array_identity_exit checked 3244ms check-target:macos_arm64 @df265b0073ea
 pass/comptime/runtime_const_array_length_dependency_order_exit incomplete 20211ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`table_size` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `table_size::entry`, statement 0
 pass/comptime/runtime_const_array_length_transitive_exit checked 17246ms check-target:macos_arm64 @ccdb99ca2214
