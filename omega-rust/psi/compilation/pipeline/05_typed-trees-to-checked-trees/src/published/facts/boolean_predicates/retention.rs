@@ -28,7 +28,10 @@ pub(crate) fn retained(
 /// places below it, so a consumer that reads a predicate's consequence at
 /// places under `root` sees no difference. A fixed array declares one
 /// membership fact per element and context; the rows of every element would
-/// otherwise be rebuilt for each query about an unrelated scalar.
+/// otherwise be rebuilt for each query about an unrelated scalar. For the same
+/// reason it also leaves out Boolean predicate rows none of whose bindings is
+/// under `root`; its only consumer (`CurrentIntegerBounds`) selects rows by a
+/// binding at the queried place, which is under `root`.
 pub(crate) fn retained_at_root(
     program: &dyn validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
@@ -85,26 +88,39 @@ fn retained_rows(
         let Some(bindings) = semantic.boolean_predicate_bindings.span(predicate.bindings) else {
             continue;
         };
-        let Some(bindings) = bindings
+        let Some(places) = bindings
             .iter()
             .map(|binding| {
                 if !semantic.places.is_valid(binding.place) {
                     return None;
                 }
-                Some(BoundObservation {
-                    operand: binding.operand.clone(),
-                    type_reference: binding.type_reference,
-                    place: crate::flow::canonical_place_from_semantic_place(
-                        program,
-                        semantic,
-                        semantic.places.get(binding.place),
-                    )?,
-                })
+                crate::flow::canonical_place_from_semantic_place(
+                    program,
+                    semantic,
+                    semantic.places.get(binding.place),
+                )
             })
             .collect::<Option<Vec<_>>>()
         else {
             continue;
         };
+        // A root-scoped consumer reads a row only through one of its bindings
+        // at a place under that root. A row binding nothing there is never
+        // read, so skip it before deep-copying its expression and operands.
+        if let Some(root) = only_root
+            && !places.iter().any(|place| place.root == root)
+        {
+            continue;
+        }
+        let bindings = bindings
+            .iter()
+            .zip(places)
+            .map(|(binding, place)| BoundObservation {
+                operand: binding.operand.clone(),
+                type_reference: binding.type_reference,
+                place,
+            })
+            .collect::<Vec<_>>();
         rows.push(BoundPredicate {
             machine: predicate.machine,
             entry_state: predicate.entry_state,
