@@ -1,12 +1,13 @@
-//! Target-neutral numeric intrinsic meanings. Selection and execution authority
-//! belong to the receiving provider, not to this vocabulary.
+/*
+We define the fixed-width integer and IEEE-754 floating-point intrinsic
+catalog, operation signatures, and overflow/rounding semantics.
+*/
 
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::FloatFormat;
 use symbols::BuiltinFunction;
 
 macro_rules! tagged_vocabulary {
-    // Vocabulary whose tag is published as the free function of the same table.
     ($documentation:literal, $tag_documentation:literal, $name:ident, $tag_fn:ident { $($variant:ident => $spelling:literal = $tag:literal),+ $(,)? }) => {
         #[doc = $documentation]
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -15,10 +16,8 @@ macro_rules! tagged_vocabulary {
         }
 
         impl $name {
-            /// Every variant, in canonical (declaration) order.
             pub const ALL: [Self; [$(Self::$variant),+].len()] = [$(Self::$variant),+];
 
-            /// The authored spelling of this variant.
             pub const fn name(self) -> &'static str {
                 match self {
                     $(Self::$variant => $spelling,)+
@@ -142,8 +141,6 @@ macro_rules! float_op {
     };
 }
 
-/// The finite native catalog, not a source-shape dispatch matrix. Each row
-/// states one operation's arity, result and both existing IEEE realizations.
 const FLOAT_OPERATIONS: &[(&str, usize, FloatResult, BuiltinFunction, BuiltinFunction)] = &[
     float_op!("minimum" => 2 => Float => FloatMinimum => FloatMinimum),
     float_op!("maximum" => 2 => Float => FloatMaximum => FloatMaximum),
@@ -348,8 +345,6 @@ impl NamedNumericIntrinsic {
 }
 
 impl NumericIntrinsic {
-    /// Complete numeric signature. Unsupported builtin/format pairs and invalid
-    /// conversion policies have no meaning in this closed vocabulary.
     pub fn signature(self) -> Option<NamedNumericIntrinsic> {
         let float_type = |format| match format {
             FloatFormat::F32 => NumericType::F32,
@@ -426,8 +421,6 @@ impl NumericIntrinsic {
         })
     }
 
-    /// Canonical four-byte meaning. The named operation row order is wire
-    /// vocabulary: append rows, never reorder them within a format version.
     pub fn canonical_encoding(self) -> Option<[u8; 4]> {
         self.signature()?;
         let format_tag = |format| match format {
@@ -528,8 +521,6 @@ impl NumericIntrinsic {
         (meaning.canonical_encoding()? == bytes).then_some(meaning)
     }
 
-    /// Explicit format for format-polymorphic builtins; never inferred from a
-    /// consuming boundary's result or first parameter.
     pub fn builtin_format(self) -> Option<semantic_vocabulary::IeeeFloatFormat> {
         match self {
             Self::Builtin { format, .. } => Some(match format {

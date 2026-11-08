@@ -1,8 +1,33 @@
-//! The access plan: one canonical slot per layout schema field, the policy
-//! each slot carries, and the validated plan with its sealed field
-//! descriptors that lowering consumes.
+/*
+We define the per-field access decisions (`AccessFields`, `FieldAccess`,
+`ObservationModel`), logical field extents and effect footprints, sealed
+`ValidatedAccessFields` descriptors, and `AccessPlanDiagnostic`.
+*/
 
-pub(crate) mod diagnostic;
+pub(crate) mod diagnostic {
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct AccessPlanDiagnostic(pub String);
+
+    impl std::fmt::Display for AccessPlanDiagnostic {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str(&self.0)
+        }
+    }
+
+    impl std::error::Error for AccessPlanDiagnostic {}
+
+    macro_rules! reject_when {
+        ($($condition:expr => $message:expr),+ $(,)?) => {
+            $(
+                if $condition {
+                    return Err(AccessPlanDiagnostic($message.into()));
+                }
+            )+
+        };
+    }
+
+    pub(crate) use reject_when;
+}
 
 use self::diagnostic::reject_when;
 use crate::plan_policy::authorization::authorize_descriptor;
@@ -11,16 +36,10 @@ use crate::{AccessOperation, AccessPlanDiagnostic, BorrowPolarity};
 use layout_plans::{LayoutPlanReport, normalized_layout_plan_report_fingerprint};
 use std::collections::BTreeMap;
 
-/// How repeated observations of the access field relate to one another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ObservationModel {
-    /// Ordinary owned or immutably borrowed storage. The compiler may use its
-    /// ordinary load/store rules.
     Stable,
-    /// Another agent may change storage. Every authorized read/write is one
-    /// exact-width external event; device ordering still requires fences.
     External,
-    /// Shared mutation is legal only through the declared atomic operations.
     Atomic,
 }
 
@@ -49,13 +68,9 @@ pub struct AtomicPermissions {
     pub fetch_or: bool,
     pub fetch_and: bool,
     pub swap: bool,
-    /// Observing decisive compare-exchange.
     pub compare_exchange: bool,
-    /// Observing single-attempt compare-exchange.
     pub compare_exchange_once: bool,
-    /// Non-observing decisive compare-exchange.
     pub try_exchange: bool,
-    /// Non-observing single-attempt compare-exchange.
     pub try_exchange_once: bool,
 }
 
@@ -110,9 +125,6 @@ impl AccessPermissions {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum FieldAccess {
     Inaccessible,
-    /// Repeated scalar permission over a structural field, not one giant transfer.
-    /// Projection must authenticate the field's shape and select a bounded
-    /// leaf before an operation can acquire a primitive transfer descriptor.
     Region {
         byte_length: u64,
         byte_alignment: u64,
@@ -141,8 +153,6 @@ pub enum FieldAccess {
 }
 
 impl FieldAccess {
-    /// Destructive observation changes content custody independently of whether
-    /// the permission covers one scalar or a repeated region of scalar leaves.
     pub const fn has_destructive_read(&self) -> bool {
         match self {
             Self::External { read, .. } => matches!(read, ExternalRead::Take),
@@ -151,9 +161,6 @@ impl FieldAccess {
         }
     }
 
-    /// The operation names a diagnostic reports for this access: stable and
-    /// external reads and writes are `read`/`write`, an external take is
-    /// `take`; atomic and inaccessible fields name no ordinary operations.
     pub fn operation_names(&self) -> Vec<&'static str> {
         match self {
             FieldAccess::Inaccessible | FieldAccess::Atomic { .. } => Vec::new(),
@@ -172,8 +179,6 @@ impl FieldAccess {
     }
 }
 
-/// The ordinary operation names one permission triple admits, in the fixed
-/// order every diagnostic reports them: read, take, write.
 fn ordinary_operation_names(read: bool, take: bool, write: bool) -> Vec<&'static str> {
     [("read", read), ("take", take), ("write", write)]
         .into_iter()
@@ -344,27 +349,15 @@ fn canonical_field_identity_label(identity: &CanonicalFieldIdentity) -> String {
     }
 }
 
-/// Normalizer-owned identity of one validated access policy.
-///
-/// The plan contains exactly one canonical slot per layout schema field,
-/// including inaccessible fields. Its identity includes every operation,
-/// observation, exposure, and transfer-width fact that lowering is allowed to
-/// consume. Boundary reach belongs to the enclosing placement identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct AccessFieldsId(pub(crate) u64);
 
 impl AccessFieldsId {
-    /// Compact report/cache coordinate. Access authority retains the complete
-    /// validated layout and access decisions rather than trusting this value.
     pub const fn compatibility_fingerprint(self) -> u64 {
         self.0
     }
 }
 
-/// Sealed geometry and policy for one projected field.
-///
-/// The offset is intentionally private. Only plan validation can construct a
-/// descriptor, so later lowering never accepts an author-supplied byte offset.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct FieldAccessDescriptor {
     pub(crate) key: AccessFieldKey,
@@ -378,11 +371,6 @@ pub struct FieldAccessDescriptor {
     pub(crate) exposure: AccessExposure,
 }
 
-/// The exact laid bits that represent one logical field value.
-///
-/// A fragmented field may contain several pieces, but every piece remains in
-/// the one transfer container admitted for primitive placed access. The source
-/// bit offset names the corresponding position in the logical field value.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct LogicalFieldExtent {
     pub(crate) fragments: Vec<LogicalFieldFragment>,
@@ -415,7 +403,6 @@ impl LogicalFieldFragment {
     }
 }
 
-/// The complete relative transfer container observed or changed by an event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct RelativeEffectFootprint {
     pub(crate) byte_offset: u64,
@@ -440,7 +427,6 @@ impl RelativeEffectFootprint {
     }
 }
 
-/// The complete concrete transfer container observed or changed by an event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EffectFootprint {
     pub(crate) address: u64,
@@ -503,11 +489,6 @@ impl FieldAccessDescriptor {
     }
 }
 
-/// The only value accepted by primitive placed-access lowering.
-///
-/// It combines plan-derived geometry with a borrow-specific operation check.
-/// Callers carry compiler-issued field keys and operations but cannot
-/// construct this token.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizedFieldAccess {
     pub(crate) descriptor: FieldAccessDescriptor,
@@ -545,10 +526,6 @@ pub struct ValidatedAccessFields {
     pub(crate) layout_size_bytes: u64,
 }
 
-/// Sealed permission and geometry for one repeated scalar field. It grants
-/// no scalar event: in particular, a page is not a 32768-bit primitive access.
-/// The exact source shape and relative projection remain independent inputs
-/// to leaf specialization, together with the live parent occurrence and loan.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct FieldRegion {
     pub(crate) key: AccessFieldKey,
@@ -593,8 +570,6 @@ impl FieldRegion {
     pub const fn permissions(&self) -> AccessPermissions {
         self.permissions
     }
-    /// The same permission applies independently to each complete scalar leaf.
-    /// This is demand data; projection still authenticates its bounded offset.
     pub fn scalar_access(&self) -> FieldAccess {
         match self.observation {
             ObservationModel::Stable => FieldAccess::Stable {
@@ -707,10 +682,6 @@ impl ValidatedAccessFields {
         })
     }
 
-    /// Bind a compiler-resolved leaf to its parent repeated region. The semantic
-    /// owner must derive geometry from the retained source/accessor path; this
-    /// layer checks containment and permissions, not type correspondence. No
-    /// source primitive exposes this coordinate-taking internal operation.
     pub fn authorize_region_projection(
         &self,
         key: AccessFieldKey,

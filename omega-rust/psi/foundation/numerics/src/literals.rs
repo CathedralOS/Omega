@@ -1,23 +1,15 @@
-//! Canonical integer spelling with inline common magnitudes.
-//!
-//! Radix and sign are part of literal identity; landing is site metadata and
-//! does not affect equality. Values fitting a u64 magnitude retain those facts
-//! directly, avoiding a string allocation and repeated decimal parsing. Larger
-//! authored magnitudes keep canonical text, with no language-level width limit.
-//! Range-specific accessors decide fit at use. Decimal-only consumers retain
-//! their existing admission window rather than silently accepting radix prefixes.
-//! Text is materialized as a bounded temporary view only for diagnostics and
-//! exports. Float literals retain their exact decimal source spelling and round
-//! only when a consumer requests a format.
+/*
+We represent canonical integer and floating-point source literals (`IntegerLiteral`,
+`FloatLiteral`) with their landed carrier metadata (`IntegerLanding`,
+`LandedIntegerType`, `FloatFormat`). Small integer magnitudes stay inline as
+`u64` while arbitrary-width literals retain canonical text, and float literals
+preserve their exact decimal spelling so every format read rounds once through
+`FloatSemantics` without double-rounding.
+*/
 
 use std::borrow::Cow;
 use std::sync::Arc;
 
-/// The integer type a constant LANDED at (ch5 "Constants: Two Phases" — the
-/// two-phase law's phase-B fact, riding the literal payload so every clone,
-/// splice, and table↔tree conversion carries it). Foundation-layer mirror of
-/// the representations' integer `PrimitiveType` subset; the stamping sites map
-/// between them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum LandedIntegerType {
     I8,
@@ -28,14 +20,10 @@ pub enum LandedIntegerType {
     U16,
     U32,
     U64,
-    /// Pointer-width address (rides the 8-byte unsigned path).
-    Addr,
+    Addr, // Pointer-width address (rides the 8-byte unsigned path).
 }
 
 impl LandedIntegerType {
-    /// The carrier a builtin integer spelling names; the inverse of
-    /// [`Self::name`]. Any other spelling, including `bool` and the float
-    /// formats, is not an integer carrier.
     pub fn from_name(name: &str) -> Option<Self> {
         Some(match name {
             "i8" => Self::I8,
@@ -51,7 +39,6 @@ impl LandedIntegerType {
         })
     }
 
-    /// The inclusive `(minimum, maximum)` value range the carrier represents.
     pub fn bounds(self) -> (i128, i128) {
         match self {
             Self::I8 => (i128::from(i8::MIN), i128::from(i8::MAX)),
@@ -93,16 +80,12 @@ impl LandedIntegerType {
     }
 }
 
-/// A landed constant's riding facts: the integer type it was rendered at and
-/// the arithmetic domain governing further folds (decision 17).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct IntegerLanding {
     pub landed_type: LandedIntegerType,
     pub domain: crate::arithmetic::ArithmeticDomain,
 }
 
-/// A float FORMAT a literal has landed at (F2, the float half of the ch5
-/// two-phase law). Names mean formats permanently: `f32` never rebinds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum FloatFormat {
     F32,
@@ -117,8 +100,6 @@ impl FloatFormat {
         }
     }
 
-    /// Store one presented representation in a binary64 scalar without
-    /// quieting binary32 NaNs or losing their sign and payload.
     pub fn widen_representation(self, bits: u64) -> Option<f64> {
         match self {
             Self::F32 => Some(crate::float_representation::binary32_from_bits(
@@ -128,7 +109,6 @@ impl FloatFormat {
         }
     }
 
-    /// Recover only an exact format representation, not a rounded conversion.
     pub fn capture_wide_representation(self, value: f64) -> Option<u64> {
         match self {
             Self::F32 => {
@@ -141,18 +121,6 @@ impl FloatFormat {
     }
 }
 
-/// A float literal: the canonical SOURCE SPELLING plus an optional format
-/// landing (F2, ch5 two-phase law). Digit separators are removed once, just as
-/// for integer payloads; every consumer sees the same exact decimal spelling.
-/// The spelling is the exact rational the
-/// author wrote ("unitless until a site requests a type"); each format read
-/// rounds ONCE, correctly, from the decimal spelling through the executable
-/// FloatSemantics engine, so an f32 read NEVER routes through f64 (the
-/// double-rounding residue this type retires). A width
-/// suffix (`1.5f32`) is a parse-site landing, exactly the integer carrier's
-/// CR4a. Evaluated values may instead retain explicit representation bits;
-/// their diagnostic decimal spelling never replaces that payload. Authored
-/// equality compares spelling; presented values also compare exact bits.
 #[derive(Debug, Clone, compiler_storage::Record)]
 pub struct FloatLiteral {
     text: Arc<str>,
@@ -169,33 +137,23 @@ impl PartialEq for FloatLiteral {
 impl Eq for FloatLiteral {}
 
 impl Default for FloatLiteral {
-    /// The arena-default payload (mirrors the old `bits: 0` = `0.0`).
     fn default() -> Self {
         Self::from_f64(0.0)
     }
 }
 
 impl FloatLiteral {
-    /// Compat constructor for synthesized values (the old bits-based `new`).
     pub fn new(value: f64) -> Self {
         Self::from_f64(value)
     }
 
-    /// Parse a source spelling, removing digit separators and retaining a
-    /// width suffix as the format landing. `None` = not a float spelling.
     pub fn parse(source: &str) -> Option<Self> {
         let (body, landing) = strip_float_literal_suffix(source);
-        // The lexer admits separators in the whole, fractional and exponent
-        // digits. Normalize them at the payload boundary, before both exact
-        // validation and retained reads; rounding through a host float here
-        // would lose the source rational before its requested format lands.
         let body = if body.contains('_') {
             Cow::Owned(body.replace('_', ""))
         } else {
             Cow::Borrowed(body)
         };
-        // Validate the spelling once; the TEXT stays authoritative (reads
-        // re-evaluate it exactly at their requested format).
         crate::bignum::ExactFloat::from_decimal_str(&body)?;
         Some(Self {
             text: Arc::from(body.as_ref()),
@@ -204,9 +162,6 @@ impl FloatLiteral {
         })
     }
 
-    /// A literal the COMPILER synthesizes. `{:?}` formatting is the shortest
-    /// spelling that round-trips to the same f64 bits, so the text stays the
-    /// exact value (specials included: `NaN`/`inf` re-parse).
     pub fn from_f64(value: f64) -> Self {
         Self {
             text: Arc::from(format!("{value:?}")),
@@ -215,8 +170,6 @@ impl FloatLiteral {
         }
     }
 
-    /// Materialize already determined bits. Decimal source spelling retains
-    /// its separate rounding rules; this constructor never invents NaN bits.
     pub fn from_bits(format: FloatFormat, bits: u64) -> Option<Self> {
         let value = format.widen_representation(bits)?;
         let text = match format {
@@ -234,7 +187,6 @@ impl FloatLiteral {
         self.presented
     }
 
-    /// The spelling, correctly rounded to f64.
     pub fn value_f64(&self) -> f64 {
         if let Some((format, bits)) = self.presented {
             return format
@@ -249,7 +201,6 @@ impl FloatLiteral {
         .unwrap_or(0.0)
     }
 
-    /// The spelling, correctly rounded DIRECTLY to f32 (never via f64).
     pub fn value_f32(&self) -> f32 {
         if let Some((format, bits)) = self.presented {
             return match format {
@@ -265,22 +216,14 @@ impl FloatLiteral {
         .unwrap_or(0.0)
     }
 
-    /// Transitional f64 window for pre-F2 consumers; landed reads go through
-    /// `value_f32`/`value_f64` per the riding format.
     pub fn value(&self) -> f64 {
         self.value_f64()
     }
 
-    /// The f32 bit pattern requested from this exact spelling. A format read
-    /// always rounds directly from the rational source, even if a defensive
-    /// backend path encounters an unstamped literal.
     pub fn f32_bits(&self) -> u32 {
         self.value_f32().to_bits()
     }
 
-    /// The f64 read at the literal's landing: an F32-landed literal reads as
-    /// its f32 value widened exactly (f32 -> f64 is lossless), so a suffixed
-    /// literal means the same bits everywhere it flows.
     pub fn landed_f64(&self) -> f64 {
         if let Some((format, bits)) = self.presented {
             return format
@@ -305,8 +248,6 @@ impl FloatLiteral {
         self.landing
     }
 
-    /// The parse-time negative fold (`-1.5` stays one constant); the landing
-    /// rides, mirroring IntegerLiteral::negated.
     pub fn negated(&self) -> Self {
         if let Some((format, bits)) = self.presented {
             let sign = match format {
@@ -349,9 +290,6 @@ fn strip_float_literal_suffix(source: &str) -> (&str, Option<FloatFormat>) {
     (source.trim_end_matches(['f', 'F']), None)
 }
 
-/// Radix of an integer literal's digits. Deliberately local to `numerics` so
-/// the foundation layer does not depend on the token crate's `NumericBase`
-/// (the parser maps between them).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum IntegerRadix {
     Binary,
@@ -380,9 +318,6 @@ impl IntegerRadix {
     }
 }
 
-/// Canonical integer spelling compressed by magnitude. Radix and sign remain
-/// part of spelling identity; landing remains site metadata. Arbitrary authored
-/// magnitudes retain canonical text, so this storage choice imposes no width.
 #[derive(Clone, compiler_storage::Record)]
 pub struct IntegerLiteral {
     representation: IntegerRepresentation,
@@ -402,8 +337,6 @@ enum IntegerRepresentation {
     },
 }
 
-/// A deliberately temporary spelling view. Small values format into bounded
-/// stack storage; large values borrow their existing canonical text.
 pub struct CanonicalIntegerSpelling<'literal> {
     storage: IntegerSpellingStorage<'literal>,
 }
@@ -510,8 +443,6 @@ impl IntegerLiteral {
                 },
             });
         }
-        // Overflow cannot make malformed later characters acceptable. The
-        // complete digit stream was validated before entering this rare path.
         let canonical_digits = digits
             .bytes()
             .filter(|byte| *byte != b'_')
@@ -588,7 +519,6 @@ impl IntegerLiteral {
                     magnitude: *magnitude,
                     radix: *radix,
                     landing: *landing,
-                    // Preserve historical negated nondecimal zero spelling.
                     negative: !(*magnitude == 0 && *radix == IntegerRadix::Decimal) && !negative,
                 },
             },
@@ -666,8 +596,6 @@ impl IntegerLiteral {
             .or_else(|| self.value_u64())
     }
 
-    /// Preserve consumers that accepted decimal spelling only. A prefixed
-    /// binary/octal/hex spelling remains outside this window even when it fits.
     pub fn decimal_value_i128(&self) -> Option<i128> {
         match &self.representation {
             IntegerRepresentation::Small {
@@ -741,6 +669,7 @@ impl Default for IntegerLiteral {
         Self::zero()
     }
 }
+
 impl std::fmt::Display for IntegerLiteral {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(self.canonical_spelling().as_str())
@@ -761,10 +690,12 @@ fn split_radix(unsigned: &str) -> (u32, &str) {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        FloatFormat, FloatLiteral, IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType,
+    };
 
     #[test]
     fn presented_float_bits_survive_wide_storage_and_negation() {
-        use super::{FloatFormat, FloatLiteral};
         for (format, bits, wide) in [
             (FloatFormat::F32, 0xff80_0123, 0xfff0_0024_6000_0000),
             (FloatFormat::F32, 0x8000_0000, 0x8000_0000_0000_0000),
@@ -807,9 +738,6 @@ mod tests {
                 .is_none()
         );
     }
-    use super::{
-        FloatFormat, FloatLiteral, IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType,
-    };
 
     #[test]
     fn canonicalization_is_spelling_insensitive_within_a_radix() {
@@ -881,7 +809,6 @@ mod tests {
         };
         let anonymous = IntegerLiteral::from_value(5);
         let landed = anonymous.with_landing(landing);
-        // Equality is TEXT-ONLY: spelling is identity, the landing is metadata.
         assert_eq!(anonymous, landed);
         assert_eq!(landed.landing(), Some(landing));
         assert_eq!(landed.clone().landing(), Some(landing));

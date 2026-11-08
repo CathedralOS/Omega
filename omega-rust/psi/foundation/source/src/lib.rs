@@ -1,49 +1,54 @@
+/*
+We define the loaded-source data structures, source-coordinate primitives, source
+catalogue and visibility maps, content-addressed source identity commitments, and
+captured-source filesystem views owned by the Psi frontend.
+
+Our `lib.rs` owns the core coordinate and catalogue domain (`Span`, `SourceId`,
+`SourceSpan`, `SourceOrigin`, `SourceResolutionStratum`, `DependencyScope`,
+`SourceFile`, `SourcePosition`, `SourceContents`, `LoadedSource`, `LoadedSources`,
+`SourceBytes`, `SourceMap`, `SourceCatalogue`, `read_accounting`, and `source_identity`),
+while `capture.rs` owns the immutable captured source tree (`CapturedSourceTree`,
+`CapturedSourceNode`), the invocation-level `SourceFileSystem` router, and the
+non-following `SourceSnapshot` inventory protocol.
+*/
+
+/*
+Every token and diagnostic carries a compact `(SourceId, Span)` coordinate, while
+package and build boundaries need exact custody, dependency-scope separation
+(`Product` vs `Build`), and activation-stratum visibility (`Base`,
+`CurrentActivationExtension`, `DependencyActivationExtension`) without turning physical
+file paths or load order into semantic identity. Keeping `SourceMap`, `SourceCatalogue`,
+`source_identity`, and `read_accounting` together with `CapturedSourceTree` and
+`SourceFileSystem` ensures that every compiler stage resolves source coordinates,
+verifies visibility, and accounts host reads through one target-neutral foundation crate.
+*/
+
+/*
+We consolidated `loaded_sources.rs`, `read_accounting.rs`, `source_bytes.rs`,
+`source_file/mod.rs`, `source_identity.rs`, and `source_map.rs` into `src/lib.rs`, and
+merged `captured_source_tree.rs`, `source_file_system.rs`, `source_file_system/tests.rs`,
+and `source_snapshot.rs` into `src/capture.rs`.
+*/
+
 #![forbid(unsafe_code)]
 
-//! Loaded-source data and source-coordinate primitives owned by the Psi frontend.
-//!
-//! `SourceFile` holds what was loaded and where it came from;
-//! `SourceId` and `SourceSpan` are the coordinates every token and diagnostic
-//! carries; start at `source_map.rs`, where `SourceMap` resolves them back to
-//! files and positions. Past resolution, source text is diagnostic and debug
-//! payload, never identity.
-//!
-//! `captured_source_tree.rs` retains immutable source bytes and namespace, and
-//! `source_file_system.rs` routes compiler reads through captured roots without
-//! reopening absent members. `source_snapshot.rs` supplies exact non-following inventory queries to
-//! consumers independently of compiler-following lookup. Acquisition, admission,
-//! Build and materialization
-//! stay with their respective consumers; these models carry no authority.
-//!
-//! `read_accounting.rs` counts how many times the host was read for one source
-//! file's bytes, across every crate that reads them. Loading each consumed file
-//! once is the contract; the counter is how a second read becomes visible.
+mod capture;
 
-mod captured_source_tree;
-mod loaded_sources;
-pub mod read_accounting;
-mod source_bytes;
-mod source_file;
-mod source_file_system;
-pub mod source_identity;
-mod source_map;
-mod source_snapshot;
-pub use source_bytes::SourceBytes;
+use std::collections::BTreeMap;
+use std::fmt;
+use std::ops::Deref;
+use std::path::PathBuf;
+use std::sync::Arc;
 
-pub use captured_source_tree::{CapturedSourceNode, CapturedSourceTree};
-pub use loaded_sources::{LoadedSource, LoadedSources, SourceContents};
-pub use source_file::{
-    DependencyScope, SourceFile, SourceOrigin, SourcePosition, SourceResolutionStratum,
-};
-pub use source_file_system::SourceFileSystem;
-pub use source_map::{SourceCatalogue, SourceMap};
-pub use source_snapshot::{
-    SourceSnapshot, SourceSnapshotEntry, SourceSnapshotError, SourceSnapshotMetadata,
-    SourceSnapshotStorage, source_snapshot_path_is_canonical,
+use arena::{Arena, HandleSpan};
+use semantic_vocabulary::PackageKeyIdentity;
+
+pub use capture::{
+    CapturedSourceNode, CapturedSourceTree, SourceFileSystem, SourceSnapshot, SourceSnapshotEntry,
+    SourceSnapshotError, SourceSnapshotMetadata, SourceSnapshotStorage,
+    source_snapshot_path_is_canonical,
 };
 
-/// Render exact literal bytes without assuming UTF-8. This is diagnostic text,
-/// never a semantic decoding step.
 pub fn display_literal_bytes(bytes: &[u8]) -> String {
     let mut output = String::with_capacity(bytes.len().saturating_mul(4).saturating_add(2));
     output.push('"');
@@ -74,12 +79,9 @@ impl Span {
     }
 }
 
-/// Identity of one loaded source within a `SourceMap`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct SourceId(pub usize);
 
-/// A span inside one loaded source: the coordinate every token and diagnostic
-/// carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, compiler_storage::Record)]
 pub struct SourceSpan {
     pub source_id: SourceId,
@@ -89,5 +91,1479 @@ pub struct SourceSpan {
 impl SourceSpan {
     pub fn new(source_id: SourceId, span: Span) -> Self {
         Self { source_id, span }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum SourceOrigin {
+    #[default]
+    User,
+    Toolchain,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum SourceResolutionStratum {
+    #[default]
+    Base,
+    CurrentActivationExtension, // Generated by the activation this compilation itself admitted.
+    DependencyActivationExtension, // Generated by a dependency's already-reviewed activation.
+}
+
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+)]
+pub enum DependencyScope {
+    #[default]
+    Product,
+    Build,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct SourceFile {
+    pub source_id: SourceId,
+    pub path: PathBuf,
+    pub package_root: PathBuf, // Canonical package directory selected by the frontend.
+    pub package_identity: Option<PackageKeyIdentity>, // Reconciled package identity when admitted by a package graph.
+    pub dependency_scope: DependencyScope, // Dependency context (`Product` vs `Build`) this instance was checked under.
+    pub origin: SourceOrigin,
+    pub resolution_stratum: SourceResolutionStratum,
+    pub source: Arc<str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourcePosition {
+    pub line: usize,
+    pub column: usize,
+}
+
+impl SourceFile {
+    pub fn source_span(&self, span: Span) -> SourceSpan {
+        SourceSpan::new(self.source_id, span)
+    }
+
+    pub fn text_at(&self, span: Span) -> &str {
+        self.source.get(span.start..span.end).unwrap_or("")
+    }
+}
+
+impl SourcePosition {
+    pub fn of(source: &str, byte_offset: usize) -> Self {
+        let mut line = 1;
+        let mut column = 1;
+
+        for (index, character) in source.char_indices() {
+            if index >= byte_offset {
+                break;
+            }
+
+            if character == '\n' {
+                line += 1;
+                column = 1;
+            } else {
+                column += 1;
+            }
+        }
+
+        SourcePosition { line, column }
+    }
+}
+
+#[derive(Debug)]
+pub struct SourceContents {
+    pub path: PathBuf,
+    pub source: Arc<str>,
+    pub scope: DependencyScope,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoadedSource {
+    pub source_id: SourceId,
+    pub path: PathBuf,
+    pub source: Arc<str>,
+    pub origin: Option<SourceOrigin>,
+    pub scope: DependencyScope,
+}
+
+impl Default for LoadedSource {
+    fn default() -> Self {
+        Self {
+            source_id: SourceId::default(),
+            path: PathBuf::default(),
+            source: Arc::from(""),
+            origin: None,
+            scope: DependencyScope::Product,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct LoadedSources {
+    pub sources: Arena<LoadedSource>,
+    pub batch: HandleSpan<LoadedSource>,
+}
+
+impl FromIterator<LoadedSource> for LoadedSources {
+    fn from_iter<Inputs: IntoIterator<Item = LoadedSource>>(inputs: Inputs) -> Self {
+        let inputs = inputs.into_iter();
+        let mut sources = Arena::with_capacity(inputs.size_hint().0);
+        let batch = sources.insert_many(inputs);
+        Self { sources, batch }
+    }
+}
+
+#[derive(Clone, compiler_storage::Record)]
+pub struct SourceBytes {
+    storage: Arc<Vec<u8>>,
+    start: usize,
+    end: usize,
+}
+
+impl SourceBytes {
+    pub fn from_shared(storage: Arc<Vec<u8>>, range: std::ops::Range<usize>) -> Self {
+        assert!(range.start <= range.end && range.end <= storage.len());
+        Self {
+            storage,
+            start: range.start,
+            end: range.end,
+        }
+    }
+}
+
+impl Default for SourceBytes {
+    fn default() -> Self {
+        Self::from(Vec::new())
+    }
+}
+
+impl From<Vec<u8>> for SourceBytes {
+    fn from(bytes: Vec<u8>) -> Self {
+        let end = bytes.len();
+        Self {
+            storage: Arc::new(bytes),
+            start: 0,
+            end,
+        }
+    }
+}
+
+impl From<&[u8]> for SourceBytes {
+    fn from(bytes: &[u8]) -> Self {
+        Self::from(bytes.to_vec())
+    }
+}
+
+impl<const LENGTH: usize> From<&[u8; LENGTH]> for SourceBytes {
+    fn from(bytes: &[u8; LENGTH]) -> Self {
+        Self::from(bytes.as_slice())
+    }
+}
+
+impl Deref for SourceBytes {
+    type Target = [u8];
+    #[inline]
+    fn deref(&self) -> &[u8] {
+        &self.storage[self.start..self.end]
+    }
+}
+
+impl AsRef<[u8]> for SourceBytes {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        self
+    }
+}
+
+impl fmt::Debug for SourceBytes {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self.as_ref(), formatter)
+    }
+}
+
+impl PartialEq for SourceBytes {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+
+impl Eq for SourceBytes {}
+
+impl std::hash::Hash for SourceBytes {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.as_ref().hash(state);
+    }
+}
+
+pub mod read_accounting {
+    use std::path::Path;
+    use std::sync::OnceLock;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static SOURCE_FILE_READS: AtomicU64 = AtomicU64::new(0);
+
+    pub fn source_file_read_count() -> u64 {
+        SOURCE_FILE_READS.load(Ordering::Relaxed)
+    }
+
+    pub fn record_source_file_read(site: &'static str, path: &Path, bytes: u64) {
+        SOURCE_FILE_READS.fetch_add(1, Ordering::Relaxed);
+        if *reads_reported() {
+            eprintln!(
+                "source-read site={site} path={} bytes={bytes}",
+                path.display()
+            );
+        }
+    }
+
+    fn reads_reported() -> &'static bool {
+        static REPORTED: OnceLock<bool> = OnceLock::new();
+        REPORTED.get_or_init(|| {
+            std::env::var_os("OMEGA_SOURCE_READS").is_some_and(|value| !value.is_empty())
+        })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn each_recorded_read_raises_the_total_by_one() {
+            let before = source_file_read_count();
+            record_source_file_read("accounting_test", Path::new("main.omg"), 11);
+            record_source_file_read("accounting_test", Path::new("main.omg"), 11);
+            assert_eq!(source_file_read_count(), before + 2);
+        }
+    }
+}
+
+pub mod source_identity {
+    use crate::{SourceFile, SourceOrigin};
+    use sha2::{Digest, Sha256};
+    use std::path::{Component, Path};
+
+    const SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CONSUMED-SOURCE-CONTENT-V1\0";
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum ConsumedSourceUnitKind {
+        PackageAuthored,
+        PackageGenerated(crate::DependencyScope),
+        ToolchainVirtual,
+        ToolchainOwned,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct ConsumedSourceUnit {
+        kind: ConsumedSourceUnitKind,
+        package: Option<semantic_vocabulary::PackageKeyIdentity>,
+        toolchain_namespace: Option<String>,
+        relative_path: Vec<String>,
+        byte_count: u64,
+        content_digest: [u8; 32],
+    }
+
+    impl ConsumedSourceUnit {
+        #[doc(hidden)]
+        pub fn from_retained(
+            kind: ConsumedSourceUnitKind,
+            package: Option<semantic_vocabulary::PackageKeyIdentity>,
+            toolchain_namespace: Option<String>,
+            relative_path: Vec<String>,
+            byte_count: u64,
+            content_digest: [u8; 32],
+        ) -> Result<Self, &'static str> {
+            let coordinates_match = match kind {
+                ConsumedSourceUnitKind::PackageAuthored
+                | ConsumedSourceUnitKind::PackageGenerated(_) => {
+                    package.is_some() && toolchain_namespace.is_none()
+                }
+                ConsumedSourceUnitKind::ToolchainOwned => {
+                    package.is_none()
+                        && toolchain_namespace
+                            .as_deref()
+                            .is_some_and(|namespace| !namespace.is_empty())
+                }
+                ConsumedSourceUnitKind::ToolchainVirtual => {
+                    package.is_none() && toolchain_namespace.is_none()
+                }
+            };
+            if !coordinates_match {
+                return Err("consumed source unit kind disagrees with its retained coordinates");
+            }
+            if let Some(namespace) = &toolchain_namespace
+                && namespace.is_empty()
+            {
+                return Err("consumed source unit retains an empty toolchain namespace");
+            }
+            if relative_path.is_empty()
+                || relative_path.iter().any(|component| component.is_empty())
+            {
+                return Err("consumed source unit retains a non-canonical relative path");
+            }
+            Ok(Self {
+                kind,
+                package,
+                toolchain_namespace,
+                relative_path,
+                byte_count,
+                content_digest,
+            })
+        }
+
+        pub const fn kind(&self) -> ConsumedSourceUnitKind {
+            self.kind
+        }
+
+        pub const fn package(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
+            self.package
+        }
+
+        pub fn toolchain_namespace(&self) -> Option<&str> {
+            self.toolchain_namespace.as_deref()
+        }
+
+        pub fn relative_path(&self) -> &[String] {
+            &self.relative_path
+        }
+
+        pub const fn byte_count(&self) -> u64 {
+            self.byte_count
+        }
+
+        pub const fn content_digest(&self) -> [u8; 32] {
+            self.content_digest
+        }
+    }
+
+    pub fn consumed_source_unit(
+        source: &SourceFile,
+        generated: bool,
+    ) -> Result<ConsumedSourceUnit, String> {
+        let (kind, package, toolchain_namespace, relative_path) = match source.origin {
+            SourceOrigin::User => {
+                let package = source.package_identity.ok_or_else(|| {
+                    format!(
+                        "package-aware source `{}` has no reconciled package identity",
+                        source.path.display()
+                    )
+                })?;
+                let relative = source
+                    .path
+                    .strip_prefix(&source.package_root)
+                    .map_err(|_| {
+                        format!(
+                            "package-aware source `{}` is outside its reconciled root `{}`",
+                            source.path.display(),
+                            source.package_root.display()
+                        )
+                    })?;
+                (
+                    if generated {
+                        ConsumedSourceUnitKind::PackageGenerated(source.dependency_scope)
+                    } else {
+                        ConsumedSourceUnitKind::PackageAuthored
+                    },
+                    Some(package),
+                    None,
+                    canonical_path_components(relative, &source.path)?,
+                )
+            }
+            SourceOrigin::Toolchain if generated => {
+                return Err(format!(
+                    "generated-source custody cannot name toolchain source `{}`",
+                    source.path.display()
+                ));
+            }
+            SourceOrigin::Toolchain if is_virtual_toolchain_path(&source.path) => (
+                ConsumedSourceUnitKind::ToolchainVirtual,
+                None,
+                None,
+                canonical_path_components(&source.path, &source.path)?,
+            ),
+            SourceOrigin::Toolchain => {
+                let namespace = source
+                    .package_root
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .ok_or_else(|| {
+                        format!(
+                            "toolchain source root `{}` has no canonical UTF-8 namespace",
+                            source.package_root.display()
+                        )
+                    })?;
+                let relative = source
+                    .path
+                    .strip_prefix(&source.package_root)
+                    .map_err(|_| {
+                        format!(
+                            "toolchain source `{}` is outside its canonical root `{}`",
+                            source.path.display(),
+                            source.package_root.display()
+                        )
+                    })?;
+                (
+                    ConsumedSourceUnitKind::ToolchainOwned,
+                    None,
+                    Some(namespace.to_owned()),
+                    canonical_path_components(relative, &source.path)?,
+                )
+            }
+        };
+        let byte_count = u64::try_from(source.source.len()).map_err(|_| {
+            format!(
+                "compiler-consumed source `{}` byte length exceeds the canonical range",
+                source.path.display()
+            )
+        })?;
+        let mut digest = Sha256::new();
+        digest.update(SOURCE_CONTENT_DOMAIN);
+        digest.update(byte_count.to_le_bytes());
+        digest.update(source.source.as_bytes());
+        Ok(ConsumedSourceUnit {
+            kind,
+            package,
+            toolchain_namespace,
+            relative_path,
+            byte_count,
+            content_digest: digest.finalize().into(),
+        })
+    }
+
+    fn canonical_consumed_unit_bytes(unit: &ConsumedSourceUnit) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        append_canonical_consumed_unit(&mut bytes, unit);
+        bytes
+    }
+
+    pub fn append_canonical_consumed_unit(bytes: &mut Vec<u8>, unit: &ConsumedSourceUnit) {
+        bytes.push(match unit.kind {
+            ConsumedSourceUnitKind::PackageAuthored => 0,
+            ConsumedSourceUnitKind::PackageGenerated(crate::DependencyScope::Product) => 1,
+            ConsumedSourceUnitKind::PackageGenerated(crate::DependencyScope::Build) => 4,
+            ConsumedSourceUnitKind::ToolchainVirtual => 2,
+            ConsumedSourceUnitKind::ToolchainOwned => 3,
+        });
+        match unit.package {
+            None => bytes.push(0),
+            Some(package) => {
+                bytes.push(1);
+                append_field(bytes, &package.digest());
+            }
+        }
+        match &unit.toolchain_namespace {
+            None => bytes.push(0),
+            Some(namespace) => {
+                bytes.push(1);
+                append_field(bytes, namespace.as_bytes());
+            }
+        }
+        bytes.extend_from_slice(
+            &u64::try_from(unit.relative_path.len())
+                .expect("consumed source path component count fits u64")
+                .to_le_bytes(),
+        );
+        for component in &unit.relative_path {
+            append_field(bytes, component.as_bytes());
+        }
+        bytes.extend_from_slice(&unit.byte_count.to_le_bytes());
+        append_field(bytes, &unit.content_digest);
+    }
+
+    pub fn canonical_path_components(
+        relative: &Path,
+        diagnostic_path: &Path,
+    ) -> Result<Vec<String>, String> {
+        let components = relative.components().collect::<Vec<_>>();
+        if components.is_empty() {
+            return Err(format!(
+                "compiler-consumed source `{}` has an empty canonical path",
+                diagnostic_path.display()
+            ));
+        }
+        components
+            .into_iter()
+            .map(|component| {
+                let Component::Normal(component) = component else {
+                    return Err(format!(
+                        "compiler-consumed source `{}` has a non-canonical relative path",
+                        diagnostic_path.display()
+                    ));
+                };
+                component.to_str().map(str::to_owned).ok_or_else(|| {
+                    format!(
+                        "compiler-consumed source `{}` has a non-UTF-8 path component",
+                        diagnostic_path.display()
+                    )
+                })
+            })
+            .collect()
+    }
+
+    #[doc(hidden)]
+    pub fn toolchain_source_identities<'source>(
+        sources: impl IntoIterator<Item = &'source SourceFile>,
+    ) -> Result<Vec<(crate::SourceId, [u8; 32])>, String> {
+        let mut identities = sources
+            .into_iter()
+            .filter(|source| source.origin == SourceOrigin::Toolchain)
+            .map(|source| Ok((source.source_id, toolchain_source_identity_digest(source)?)))
+            .collect::<Result<Vec<_>, String>>()?;
+        identities.sort_by_key(|(source_id, _)| source_id.0);
+        Ok(identities)
+    }
+
+    #[doc(hidden)]
+    pub fn toolchain_source_identity_digest(source: &SourceFile) -> Result<[u8; 32], String> {
+        if source.origin != SourceOrigin::Toolchain {
+            return Err(format!(
+                "toolchain source identity requested for non-toolchain source `{}`",
+                source.path.display(),
+            ));
+        }
+        let custody_entry = canonical_source_entry(source)?;
+        let mut digest = Sha256::new();
+        digest.update(b"OMEGA-PACKAGE-REVIEW-TOOLCHAIN-SOURCE\0");
+        digest.update(
+            u64::try_from(custody_entry.len())
+                .expect("canonical source custody entry length fits u64")
+                .to_le_bytes(),
+        );
+        digest.update(&custody_entry);
+        Ok(digest.finalize().into())
+    }
+
+    pub fn canonical_source_entry(source: &SourceFile) -> Result<Vec<u8>, String> {
+        Ok(canonical_consumed_unit_bytes(&consumed_source_unit(
+            source, false,
+        )?))
+    }
+
+    fn append_field(output: &mut Vec<u8>, bytes: &[u8]) {
+        output.extend_from_slice(
+            &u64::try_from(bytes.len())
+                .expect("source commitment field length fits u64")
+                .to_le_bytes(),
+        );
+        output.extend_from_slice(bytes);
+    }
+
+    fn is_virtual_toolchain_path(path: &Path) -> bool {
+        let mut components = path.components();
+        let Some(Component::Normal(component)) = components.next() else {
+            return false;
+        };
+        components.next().is_none()
+            && component
+                .to_str()
+                .is_some_and(|component| component.starts_with('<') && component.ends_with('>'))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        fn toolchain(root: &str) -> SourceFile {
+            let mut sources = crate::SourceMap::default();
+            let root = std::path::PathBuf::from(root).join("core");
+            sources
+                .add_with_metadata(
+                    root.join("numbers.omg"),
+                    "machine answer() -> u64 { 16 }".into(),
+                    root,
+                    None,
+                    SourceOrigin::Toolchain,
+                )
+                .clone()
+        }
+
+        #[test]
+        fn toolchain_protocol_is_stable_across_physical_roots_and_source_ids() {
+            let first = toolchain("first/toolchain");
+            let mut relocated = toolchain("different/cache");
+            relocated.source_id = crate::SourceId(417);
+            let digest = toolchain_source_identity_digest(&first).expect("identity");
+            let hexadecimal = digest
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            assert_eq!(
+                hexadecimal,
+                "8aa68ba24b8af7d4b20c3b58d6a447d0cd25214f14901a6956fb815578d4a4fb"
+            );
+            assert_eq!(
+                digest,
+                toolchain_source_identity_digest(&relocated).expect("relocated identity")
+            );
+            relocated.source = "machine answer() -> u64 { 17 }".into();
+            assert_ne!(
+                digest,
+                toolchain_source_identity_digest(&relocated).expect("changed identity")
+            );
+        }
+
+        #[test]
+        fn source_identity_does_not_grant_toolchain_or_generated_authority() {
+            let mut file = toolchain("toolchain");
+            assert!(
+                consumed_source_unit(&file, true)
+                    .expect_err("generated toolchain")
+                    .contains("generated-source custody")
+            );
+            file.origin = SourceOrigin::User;
+            assert!(
+                toolchain_source_identity_digest(&file)
+                    .expect_err("user source")
+                    .contains("non-toolchain")
+            );
+            assert!(
+                consumed_source_unit(&file, false)
+                    .expect_err("missing package")
+                    .contains("no reconciled package identity")
+            );
+        }
+
+        #[test]
+        fn generated_coordinates_retain_checked_scope_but_authored_bytes_share() {
+            let mut file = toolchain("package");
+            file.origin = SourceOrigin::User;
+            file.package_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]);
+            let authored = consumed_source_unit(&file, false).expect("authored");
+            let generated = consumed_source_unit(&file, true).expect("generated");
+            file.dependency_scope = crate::DependencyScope::Build;
+            assert_eq!(
+                authored,
+                consumed_source_unit(&file, false).expect("authored Build")
+            );
+            assert_ne!(
+                generated,
+                consumed_source_unit(&file, true).expect("generated Build")
+            );
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct SourceMap {
+    files: Vec<SourceFile>,
+    selection: SourceSelection,
+    source_rejoins: Vec<(SourceId, SourceId)>, // Producer-issued correspondence when an anonymous Build capture becomes a Product instance.
+    product_dependencies: BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>, // Authorized `DependencyPurpose::Product` alias edges by requester.
+    query_dependencies: Option<(PathBuf, BTreeMap<String, PackageKeyIdentity>)>, // Invocation-local routing before Build has a final declaration owner.
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+enum SourceSelection {
+    #[default]
+    All,
+    Explicit(Vec<bool>),
+}
+
+#[derive(Debug, Default, compiler_storage::Record)]
+pub struct SourceCatalogue {
+    backing: SourceMap,
+}
+
+impl SourceCatalogue {
+    pub fn len(&self) -> usize {
+        self.backing.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.backing.is_empty()
+    }
+
+    pub fn fork(&self) -> Self {
+        Self {
+            backing: self.backing.clone(),
+        }
+    }
+
+    pub fn begin_selection(&self) -> SourceMap {
+        SourceMap {
+            files: self.backing.files.clone(),
+            selection: SourceSelection::Explicit(vec![false; self.backing.files.len()]),
+            source_rejoins: Vec::new(),
+            product_dependencies: BTreeMap::new(),
+            query_dependencies: None,
+        }
+    }
+
+    pub fn admit_checked_instance<'selection>(
+        &mut self,
+        selection: &'selection mut SourceMap,
+        path: PathBuf,
+        source: impl Into<Arc<str>>,
+        package_root: PathBuf,
+        package_identity: Option<PackageKeyIdentity>,
+        origin: SourceOrigin,
+        resolution_stratum: SourceResolutionStratum,
+        dependency_scope: DependencyScope,
+    ) -> Result<&'selection SourceFile, String> {
+        if !self.backing.retains_source_storage(selection) {
+            return Err(
+                "source selection does not belong to this catalogue's coordinate prefix".into(),
+            );
+        }
+        let source = source.into();
+        if resolution_stratum != SourceResolutionStratum::CurrentActivationExtension
+            && !(origin == SourceOrigin::User && package_identity.is_none())
+        {
+            let mut selected = selection
+                .selected_files()
+                .filter(|file| {
+                    file.path == path
+                        && file.source == source
+                        && file.package_root == package_root
+                        && file.package_identity == package_identity
+                        && file.origin == origin
+                        && file.resolution_stratum == resolution_stratum
+                        && file.dependency_scope == dependency_scope
+                })
+                .map(|file| file.source_id);
+            let existing = selected.next();
+            if selected.next().is_some() {
+                return Err(
+                    "source frontier selected more than one exact dependency occurrence".into(),
+                );
+            }
+            if let Some(existing) = existing {
+                return Ok(&selection.files[existing.0]);
+            }
+        }
+        let admitted = if resolution_stratum == SourceResolutionStratum::CurrentActivationExtension
+            || (origin == SourceOrigin::User && package_identity.is_none())
+        {
+            self.backing.add_checked_instance(
+                path,
+                source,
+                package_root,
+                package_identity,
+                origin,
+                resolution_stratum,
+                dependency_scope,
+            )
+        } else {
+            self.backing.select_checked_instance(
+                path,
+                source,
+                package_root,
+                package_identity,
+                origin,
+                resolution_stratum,
+                dependency_scope,
+            )
+        }
+        .source_id;
+        Ok(self.activate_instance(selection, admitted))
+    }
+
+    pub fn admit_source_occurrence<'selection>(
+        &mut self,
+        selection: &'selection mut SourceMap,
+        occurrence: &SourceFile,
+    ) -> Result<&'selection SourceFile, String> {
+        if !self.backing.retains_source_storage(selection) {
+            return Err(
+                "source occurrence does not belong to this catalogue's coordinate prefix".into(),
+            );
+        }
+        let admitted = self
+            .backing
+            .add_checked_instance(
+                occurrence.path.clone(),
+                Arc::clone(&occurrence.source),
+                occurrence.package_root.clone(),
+                occurrence.package_identity,
+                occurrence.origin,
+                occurrence.resolution_stratum,
+                occurrence.dependency_scope,
+            )
+            .source_id;
+        Ok(self.activate_instance(selection, admitted))
+    }
+
+    fn activate_instance<'selection>(
+        &self,
+        selection: &'selection mut SourceMap,
+        admitted: SourceId,
+    ) -> &'selection SourceFile {
+        let previous_length = selection.files.len();
+        if matches!(selection.selection, SourceSelection::All) {
+            selection.selection = SourceSelection::Explicit(vec![true; previous_length]);
+        }
+        selection
+            .files
+            .extend_from_slice(&self.backing.files[previous_length..]);
+        if let SourceSelection::Explicit(selected) = &mut selection.selection {
+            selected.resize(self.backing.files.len(), false);
+            selected[admitted.0] = true;
+        }
+        &selection.files[admitted.0]
+    }
+}
+
+impl SourceSelection {
+    fn includes(&self, source: SourceId) -> bool {
+        match self {
+            Self::All => true,
+            Self::Explicit(selected) => selected.get(source.0).copied().unwrap_or(false),
+        }
+    }
+}
+
+impl SourceMap {
+    pub fn from_files(files: Vec<SourceFile>) -> Self {
+        Self {
+            files,
+            selection: SourceSelection::All,
+            source_rejoins: Vec::new(),
+            product_dependencies: BTreeMap::new(),
+            query_dependencies: None,
+        }
+    }
+
+    pub fn source_is_selected(&self, source: SourceId) -> bool {
+        source.0 < self.files.len() && self.selection.includes(source)
+    }
+
+    pub fn retain_source_rejoin(
+        &mut self,
+        original: SourceId,
+        selected: SourceId,
+    ) -> Result<(), String> {
+        if original == selected {
+            return Ok(());
+        }
+        let before = self
+            .get(original)
+            .ok_or("source rejoin lost its original file")?;
+        let after = self
+            .get(selected)
+            .ok_or("source rejoin lost its current file")?;
+        if !self.source_is_selected(selected)
+            || before.origin != SourceOrigin::User
+            || (before.package_identity.is_some()
+                && before.package_identity != after.package_identity)
+            || before.resolution_stratum == SourceResolutionStratum::CurrentActivationExtension
+            || before.source != after.source
+            || before.path != after.path
+            || before.package_root != after.package_root
+            || before.origin != after.origin
+            || before.resolution_stratum != after.resolution_stratum
+            || before.dependency_scope != after.dependency_scope
+        {
+            return Err("source rejoin does not preserve its admitted captured instance".into());
+        }
+        if let Some((_, previous)) = self
+            .source_rejoins
+            .iter()
+            .find(|(source, _)| *source == original)
+        {
+            if *previous != selected {
+                return Err("source rejoin has more than one current destination".into());
+            }
+        } else {
+            self.source_rejoins.push((original, selected));
+        }
+        Ok(())
+    }
+
+    pub fn source_rejoins(&self) -> impl Iterator<Item = (SourceId, SourceId)> + '_ {
+        self.source_rejoins.iter().copied()
+    }
+
+    pub fn rejoined_source_id(&self, original: &SourceFile) -> Option<SourceId> {
+        if self.get(original.source_id)? != original {
+            return None;
+        }
+        if self.source_is_selected(original.source_id) {
+            return Some(original.source_id);
+        }
+        self.source_rejoins.iter().find_map(|(source, selected)| {
+            (*source == original.source_id && self.source_is_selected(*selected))
+                .then_some(*selected)
+        })
+    }
+
+    pub fn retain_selected_sources(&mut self, mut keep: impl FnMut(&SourceFile) -> bool) {
+        self.selection = SourceSelection::Explicit(
+            self.files
+                .iter()
+                .map(|file| self.source_is_selected(file.source_id) && keep(file))
+                .collect(),
+        );
+    }
+
+    pub fn same_product_dependency_scope(
+        &self,
+        other: &Self,
+        requester: PackageKeyIdentity,
+    ) -> bool {
+        self.product_dependencies.get(&requester) == other.product_dependencies.get(&requester)
+    }
+
+    pub fn retains_source_storage(&self, predecessor: &Self) -> bool {
+        self.files.starts_with(&predecessor.files)
+    }
+
+    pub fn select_checked_instance(
+        &mut self,
+        path: PathBuf,
+        source: impl Into<Arc<str>>,
+        package_root: PathBuf,
+        package_identity: Option<PackageKeyIdentity>,
+        origin: SourceOrigin,
+        resolution_stratum: SourceResolutionStratum,
+        dependency_scope: DependencyScope,
+    ) -> &SourceFile {
+        let source = source.into();
+        let retained = self.files.iter().rposition(|file| {
+            file.path == path
+                && file.source == source
+                && file.package_root == package_root
+                && file.package_identity == package_identity
+                && file.origin == origin
+                && file.resolution_stratum == resolution_stratum
+                && file.dependency_scope == dependency_scope
+        });
+        if let Some(position) = retained {
+            if let SourceSelection::Explicit(selected) = &mut self.selection {
+                selected[position] = true;
+            }
+            return &self.files[position];
+        }
+        self.add_checked_instance(
+            path,
+            source,
+            package_root,
+            package_identity,
+            origin,
+            resolution_stratum,
+            dependency_scope,
+        )
+    }
+
+    pub fn bind_anonymous_owner(
+        &mut self,
+        root: &std::path::Path,
+        identity: PackageKeyIdentity,
+    ) -> Result<(), String> {
+        for file in self.selected_files() {
+            if file.origin == SourceOrigin::User
+                && file.package_identity.is_none()
+                && file.package_root != root
+            {
+                return Err(format!(
+                    "source {} has no supplied owner outside the anonymous capture",
+                    file.path.display()
+                ));
+            }
+        }
+        let selection = &self.selection;
+        for file in &mut self.files {
+            if !selection.includes(file.source_id) {
+                continue;
+            }
+            if file.origin == SourceOrigin::User && file.package_identity.is_none() {
+                file.package_identity = Some(identity);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn retain_product_dependency_scope<'a>(
+        &mut self,
+        edges: impl IntoIterator<Item = (PackageKeyIdentity, &'a str, PackageKeyIdentity)>,
+    ) {
+        for (requester, alias, target) in edges {
+            self.product_dependencies
+                .entry(requester)
+                .or_default()
+                .insert(alias.to_owned(), target);
+        }
+    }
+
+    pub fn product_dependency_target(
+        &self,
+        requester: PackageKeyIdentity,
+        alias: &str,
+    ) -> Option<PackageKeyIdentity> {
+        self.product_dependencies
+            .get(&requester)?
+            .get(alias)
+            .copied()
+    }
+
+    pub fn retain_query_dependencies(
+        &mut self,
+        root: PathBuf,
+        dependencies: impl IntoIterator<Item = (String, PackageKeyIdentity)>,
+    ) -> Result<(), String> {
+        if self.query_dependencies.is_some() {
+            return Err("Product query source scope was already supplied".into());
+        }
+        let mut edges = BTreeMap::new();
+        for (alias, target) in dependencies {
+            if edges.insert(alias, target).is_some() {
+                return Err("Product query dependency alias is repeated".into());
+            }
+        }
+        self.query_dependencies = Some((root, edges));
+        Ok(())
+    }
+
+    pub fn product_dependency_at(
+        &self,
+        occurrence: SourceSpan,
+        alias: &str,
+    ) -> Option<PackageKeyIdentity> {
+        let file = self.file_at(occurrence)?;
+        if let Some(owner) = file.package_identity {
+            return self.product_dependency_target(owner, alias);
+        }
+        let (root, dependencies) = self.query_dependencies.as_ref()?;
+        (file.origin == SourceOrigin::User && file.package_root == *root)
+            .then(|| dependencies.get(alias).copied())
+            .flatten()
+    }
+
+    pub fn add(&mut self, path: PathBuf, source: String) -> &SourceFile {
+        let package_root = path
+            .parent()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."));
+        self.add_with_metadata(path, source, package_root, None, SourceOrigin::User)
+    }
+
+    pub fn add_with_metadata(
+        &mut self,
+        path: PathBuf,
+        source: String,
+        package_root: PathBuf,
+        package_identity: Option<PackageKeyIdentity>,
+        origin: SourceOrigin,
+    ) -> &SourceFile {
+        self.add_with_metadata_and_resolution_stratum(
+            path,
+            source,
+            package_root,
+            package_identity,
+            origin,
+            SourceResolutionStratum::Base,
+        )
+    }
+
+    pub fn add_with_metadata_and_resolution_stratum(
+        &mut self,
+        path: PathBuf,
+        source: String,
+        package_root: PathBuf,
+        package_identity: Option<PackageKeyIdentity>,
+        origin: SourceOrigin,
+        resolution_stratum: SourceResolutionStratum,
+    ) -> &SourceFile {
+        self.add_checked_instance(
+            path,
+            source,
+            package_root,
+            package_identity,
+            origin,
+            resolution_stratum,
+            DependencyScope::Product,
+        )
+    }
+
+    pub fn add_checked_instance(
+        &mut self,
+        path: PathBuf,
+        source: impl Into<Arc<str>>,
+        package_root: PathBuf,
+        package_identity: Option<PackageKeyIdentity>,
+        origin: SourceOrigin,
+        resolution_stratum: SourceResolutionStratum,
+        dependency_scope: DependencyScope,
+    ) -> &SourceFile {
+        self.files.push(SourceFile {
+            source_id: SourceId(self.files.len()),
+            path,
+            package_root,
+            package_identity,
+            dependency_scope,
+            origin,
+            resolution_stratum,
+            source: source.into(),
+        });
+        if let SourceSelection::Explicit(selected) = &mut self.selection {
+            selected.push(true);
+        }
+
+        self.files
+            .last()
+            .expect("source map should contain added file")
+    }
+
+    pub fn get(&self, source_id: SourceId) -> Option<&SourceFile> {
+        self.files.get(source_id.0)
+    }
+
+    pub fn file_at(&self, source_span: SourceSpan) -> Option<&SourceFile> {
+        self.get(source_span.source_id)
+    }
+
+    pub fn same_package(&self, left: SourceSpan, right: SourceSpan) -> bool {
+        match (self.file_at(left), self.file_at(right)) {
+            (Some(left), Some(right)) => same_package_files(left, right),
+            _ => false,
+        }
+    }
+
+    pub fn same_checked_instance(&self, left: SourceSpan, right: SourceSpan) -> bool {
+        match (self.file_at(left), self.file_at(right)) {
+            (Some(left), Some(right)) => {
+                left.dependency_scope == right.dependency_scope
+                    && match (left.package_identity, right.package_identity) {
+                        (Some(left), Some(right)) => left == right,
+                        (None, None) => left.package_root == right.package_root,
+                        _ => false,
+                    }
+            }
+            _ => false,
+        }
+    }
+
+    pub fn reference_can_see_declaration(
+        &self,
+        reference: SourceSpan,
+        declaration: SourceSpan,
+    ) -> bool {
+        if let SourceSelection::Explicit(_) = &self.selection
+            && (!self.source_is_selected(declaration.source_id)
+                || (reference.span.start != reference.span.end
+                    && !self.source_is_selected(reference.source_id)))
+        {
+            return false;
+        }
+        if reference.span.start == reference.span.end {
+            return true;
+        }
+        let Some(reference) = self.file_at(reference) else {
+            return true;
+        };
+        let Some(declaration) = self.file_at(declaration) else {
+            return true;
+        };
+        reference.dependency_scope == declaration.dependency_scope
+            && self.reference_can_see_stratum_at(reference, declaration)
+    }
+
+    pub fn reference_can_see_stratum(
+        &self,
+        reference: SourceSpan,
+        declaration: SourceSpan,
+    ) -> bool {
+        if reference.span.start == reference.span.end {
+            return true;
+        }
+        match (self.file_at(reference), self.file_at(declaration)) {
+            (Some(reference), Some(declaration)) => {
+                self.reference_can_see_stratum_at(reference, declaration)
+            }
+            _ => true,
+        }
+    }
+
+    fn reference_can_see_stratum_at(
+        &self,
+        reference: &SourceFile,
+        declaration: &SourceFile,
+    ) -> bool {
+        match declaration.resolution_stratum {
+            SourceResolutionStratum::Base => true,
+            SourceResolutionStratum::CurrentActivationExtension => {
+                reference.resolution_stratum == SourceResolutionStratum::CurrentActivationExtension
+            }
+            SourceResolutionStratum::DependencyActivationExtension => {
+                reference.resolution_stratum != SourceResolutionStratum::Base
+                    || !same_package_files(reference, declaration)
+            }
+        }
+    }
+
+    pub fn captured_reference_can_see_stratum(
+        package: PackageKeyIdentity,
+        stratum: SourceResolutionStratum,
+        declaration: &SourceFile,
+    ) -> bool {
+        match declaration.resolution_stratum {
+            SourceResolutionStratum::Base => true,
+            SourceResolutionStratum::CurrentActivationExtension => {
+                stratum == SourceResolutionStratum::CurrentActivationExtension
+            }
+            SourceResolutionStratum::DependencyActivationExtension => {
+                stratum != SourceResolutionStratum::Base
+                    || declaration.package_identity != Some(package)
+            }
+        }
+    }
+
+    pub fn resolution_strata_separate(&self, left: SourceSpan, right: SourceSpan) -> bool {
+        match (self.file_at(left), self.file_at(right)) {
+            (Some(left), Some(right)) => left.resolution_stratum != right.resolution_stratum,
+            _ => false,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.files.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.files.is_empty()
+    }
+
+    pub fn files(&self) -> impl Iterator<Item = &SourceFile> {
+        self.files.iter()
+    }
+
+    pub fn selected_files(&self) -> impl Iterator<Item = &SourceFile> {
+        self.files
+            .iter()
+            .filter(|file| self.selection.includes(file.source_id))
+    }
+
+    pub fn text_at(&self, source_span: SourceSpan) -> &str {
+        self.get(source_span.source_id)
+            .map(|file| file.text_at(source_span.span))
+            .unwrap_or("")
+    }
+}
+
+fn same_package_files(left: &SourceFile, right: &SourceFile) -> bool {
+    match (left.package_identity, right.package_identity) {
+        (Some(left), Some(right)) => left == right,
+        (None, None) => left.package_root == right.package_root,
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    use crate::{
+        DependencyScope, SourceBytes, SourceFile, SourceId, SourceMap, SourceOrigin,
+        SourceResolutionStratum, SourceSpan, Span,
+    };
+    use semantic_vocabulary::PackageKeyIdentity;
+
+    #[test]
+    fn source_span_carries_source_identity() {
+        let file = SourceFile {
+            source_id: SourceId(7),
+            path: PathBuf::from("main.omg"),
+            package_root: PathBuf::from("."),
+            package_identity: None,
+            dependency_scope: DependencyScope::Product,
+            origin: SourceOrigin::User,
+            resolution_stratum: SourceResolutionStratum::Base,
+            source: Arc::from("machine main {}"),
+        };
+        let span = file.source_span(Span::new(8, 12));
+
+        assert_eq!(span.source_id, SourceId(7));
+        assert_eq!(file.text_at(span.span), "main");
+    }
+
+    #[test]
+    fn byte_view_equality_uses_contents_independent_of_owner_and_offset() {
+        let storage = Arc::new(vec![9, 0, 255, 8]);
+        let view = SourceBytes::from_shared(storage.clone(), 1..3);
+        let separate = SourceBytes::from(vec![0, 255]);
+        assert_eq!(view, separate);
+        assert_ne!(view, SourceBytes::from_shared(storage, 0..2));
+        assert_eq!(format!("{view:?}"), "[0, 255]");
+    }
+
+    #[test]
+    fn query_aliases_stay_in_the_unowned_authors_captured_scope() {
+        let mut sources = SourceMap::default();
+        let root = PathBuf::from("query-root");
+        let selected = PackageKeyIdentity::from_digest([3; 32]).unwrap();
+        let foreign = PackageKeyIdentity::from_digest([5; 32]).unwrap();
+        let foreign_target = PackageKeyIdentity::from_digest([7; 32]).unwrap();
+        let local = sources
+            .add_with_metadata(
+                root.join("build.omg"),
+                String::new(),
+                root.clone(),
+                None,
+                SourceOrigin::User,
+            )
+            .source_id;
+        let helper = sources
+            .add_with_metadata(
+                PathBuf::from("helper/build.omg"),
+                String::new(),
+                PathBuf::from("helper"),
+                Some(foreign),
+                SourceOrigin::User,
+            )
+            .source_id;
+        let toolchain = sources
+            .add_with_metadata(
+                root.join("prelude.omg"),
+                String::new(),
+                root.clone(),
+                None,
+                SourceOrigin::Toolchain,
+            )
+            .source_id;
+        let other = sources
+            .add_with_metadata(
+                PathBuf::from("unbound/build.omg"),
+                String::new(),
+                PathBuf::from("unbound"),
+                None,
+                SourceOrigin::User,
+            )
+            .source_id;
+        sources.retain_product_dependency_scope([(foreign, "dep", foreign_target)]);
+        sources
+            .retain_query_dependencies(root.clone(), [("dep".into(), selected)])
+            .unwrap();
+        let at = |source| SourceSpan::new(source, Span::new(0, 0));
+        assert_eq!(
+            sources.product_dependency_at(at(local), "dep"),
+            Some(selected)
+        );
+        assert_eq!(
+            sources.product_dependency_at(at(helper), "dep"),
+            Some(foreign_target)
+        );
+        assert_eq!(sources.product_dependency_at(at(toolchain), "dep"), None);
+        assert_eq!(sources.product_dependency_at(at(other), "dep"), None);
+        assert_eq!(sources.product_dependency_at(at(local), "missing"), None);
+        assert_eq!(
+            sources.get(local).unwrap().package_identity,
+            None,
+            "query routing must not assign a final declaration owner"
+        );
+        assert!(
+            sources
+                .retain_query_dependencies(root, [("dep".into(), foreign)])
+                .is_err()
+        );
+        assert_eq!(
+            sources.product_dependency_at(at(local), "dep"),
+            Some(selected)
+        );
+    }
+
+    #[test]
+    fn invalid_source_span_resolves_to_empty_text() {
+        let sources = SourceMap::default();
+        let source_span = SourceSpan::new(SourceId(99), Span::new(0, 4));
+
+        assert_eq!(sources.text_at(source_span), "");
+    }
+
+    #[test]
+    fn source_free_reference_remains_permissive_with_an_extension_declaration() {
+        let mut sources = SourceMap::default();
+        let extension = sources
+            .add_with_metadata_and_resolution_stratum(
+                PathBuf::from(".omega/generated/extension.omg"),
+                String::from("data Extension {}"),
+                PathBuf::from("."),
+                None,
+                SourceOrigin::User,
+                SourceResolutionStratum::CurrentActivationExtension,
+            )
+            .source_span(Span::new(5, 14));
+        let source_free = sources
+            .add(PathBuf::from("main.omg"), String::new())
+            .source_span(Span::new(0, 0));
+
+        assert!(sources.reference_can_see_declaration(SourceSpan::default(), extension));
+        assert!(sources.reference_can_see_declaration(source_free, extension));
+    }
+
+    #[test]
+    fn dependency_generated_declaration_hides_from_its_own_authored_units_only() {
+        let kit = PackageKeyIdentity::from_digest([3; 32]).expect("nonzero identity");
+        let consumer = PackageKeyIdentity::from_digest([4; 32]).expect("nonzero identity");
+        let mut sources = SourceMap::default();
+        let authored = sources
+            .add_with_metadata(
+                PathBuf::from("kit/main.omg"),
+                String::from("public machine value() -> i32 { generated_value() }"),
+                PathBuf::from("kit"),
+                Some(kit),
+                SourceOrigin::User,
+            )
+            .source_span(Span::new(29, 44));
+        let generated = sources
+            .add_with_metadata_and_resolution_stratum(
+                PathBuf::from("kit/.omega/generated/generated.omg"),
+                String::from("public machine generated_value() -> i32 { seed() }"),
+                PathBuf::from("kit"),
+                Some(kit),
+                SourceOrigin::User,
+                SourceResolutionStratum::DependencyActivationExtension,
+            )
+            .source_span(Span::new(12, 27));
+        let generated_reference = SourceSpan::new(generated.source_id, Span::new(39, 43));
+        let importer = sources
+            .add_with_metadata(
+                PathBuf::from("app/main.omg"),
+                String::from("use kit::main; machine entry() -> i32 { generated_value() }"),
+                PathBuf::from("app"),
+                Some(consumer),
+                SourceOrigin::User,
+            )
+            .source_span(Span::new(40, 55));
+
+        assert!(!sources.reference_can_see_declaration(authored, generated));
+        assert!(sources.reference_can_see_declaration(importer, generated));
+        assert!(sources.reference_can_see_declaration(generated_reference, authored));
+        assert!(sources.reference_can_see_declaration(generated_reference, generated));
+        assert!(sources.resolution_strata_separate(authored, generated));
+    }
+
+    #[test]
+    fn reconciled_package_identity_supersedes_source_root_spelling() {
+        let first_identity = PackageKeyIdentity::from_digest([1; 32]).expect("nonzero identity");
+        let second_identity = PackageKeyIdentity::from_digest([2; 32]).expect("nonzero identity");
+        let mut sources = SourceMap::default();
+        let first = sources
+            .add_with_metadata(
+                PathBuf::from("cache/a.omg"),
+                String::new(),
+                PathBuf::from("cache"),
+                Some(first_identity),
+                crate::SourceOrigin::User,
+            )
+            .source_id;
+        let second = sources
+            .add_with_metadata(
+                PathBuf::from("cache/b.omg"),
+                String::new(),
+                PathBuf::from("cache"),
+                Some(second_identity),
+                crate::SourceOrigin::User,
+            )
+            .source_id;
+        let relocated = sources
+            .add_with_metadata(
+                PathBuf::from("other/c.omg"),
+                String::new(),
+                PathBuf::from("other"),
+                Some(first_identity),
+                crate::SourceOrigin::User,
+            )
+            .source_id;
+
+        let span = |source_id| SourceSpan::new(source_id, Span::new(0, 0));
+        assert!(!sources.same_package(span(first), span(second)));
+        assert!(sources.same_package(span(first), span(relocated)));
     }
 }

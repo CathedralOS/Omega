@@ -1,31 +1,23 @@
-//! An index owned by the arena-bearing value it describes.
-//!
-//! `Arena::revision()` moves on every mutation-capable call, so the revision
-//! is the exact freshness key for anything derived from an arena's contents.
-//! `OwnedIndex` pairs a lazily built index with the revision it was computed
-//! against; a query rebuilds when the owner's revision moved. Because the
-//! slot lives inside the owner, no caller-side identity key is needed — a
-//! dropped owner takes its index with it, and a replacement can never
-//! inherit verdicts it did not earn.
-//!
-//! An owner that stops mutating seals the index: [`OwnedIndex::seal`] builds
-//! it once through `&mut` and later queries read that copy without locking,
-//! so partitioned workers over one frozen owner never queue on the slot. The
-//! sealed copy still carries its revision; a query for another revision takes
-//! the ordinary lazy path, so sealing changes cost, never answers.
+/*
+We implement the revision-keyed lazy index owned directly by the arena-bearing value
+it summarizes.
+
+`Arena::revision()` advances on every mutation-capable call, making the revision tuple
+the exact freshness key for any derived lookup table over an arena's contents. Pairing
+the cached value with the revision it was built against inside the owning struct ensures
+a dropped owner takes its index with it and a mutated owner rebuilds on the next query.
+When an owner finishes mutating, `seal` moves the built index out of the mutex slot so
+parallel workers read the frozen copy without locking.
+*/
 
 use std::sync::Mutex;
 
-/// A lazily built index owned by the value it describes, guarded by the
-/// revision key the caller supplies. A single arena uses its `u64` revision;
-/// multiple independently changing inputs need their exact tuple, not a sum
-/// that a shrinking visible roster can cancel. Lock poisoning is treated as a
-/// stale entry: the index is pure derived content, so a panicked builder
-/// leaves at most a rebuildable slot.
 pub struct OwnedIndex<T, Revision = u64> {
-    slot: Mutex<Option<(Revision, T)>>,
-    sealed: Option<(Revision, T)>,
+    slot: Mutex<Option<(Revision, T)>>, // Lazy revision-tagged index slot for mutable owners.
+    sealed: Option<(Revision, T)>,      // Lock-free frozen index for sealed owners.
 }
+
+pub type RevisionIndex<T, Revision = u64> = OwnedIndex<T, Revision>;
 
 impl<T, Revision> Default for OwnedIndex<T, Revision> {
     fn default() -> Self {
@@ -36,8 +28,6 @@ impl<T, Revision> Default for OwnedIndex<T, Revision> {
     }
 }
 
-// A cloned owner keeps its source's arena revisions, so the clone can start
-// warm with the same derived content.
 impl<T: Clone, Revision: Clone> Clone for OwnedIndex<T, Revision> {
     fn clone(&self) -> Self {
         Self {
@@ -52,8 +42,6 @@ impl<T: Clone, Revision: Clone> Clone for OwnedIndex<T, Revision> {
     }
 }
 
-// The index is derived content: two owners with equal tables are equal
-// whether or not the index has been built yet.
 impl<T, Revision> PartialEq for OwnedIndex<T, Revision> {
     fn eq(&self, _: &Self) -> bool {
         true
@@ -69,8 +57,6 @@ impl<T, Revision> std::fmt::Debug for OwnedIndex<T, Revision> {
 }
 
 impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
-    /// Run `run` against the index, building it with `build` when the stored
-    /// entry was computed against a different `revision`.
     pub fn with<R>(
         &self,
         revision: Revision,
@@ -89,8 +75,6 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
         run(&slot.as_ref().expect("index just built").1)
     }
 
-    /// Run `run` against the index, updating an existing entry in-place when
-    /// `update` returns `None` or replacing it when `update` returns `Some`.
     pub fn with_updated<R>(
         &self,
         revision: Revision,
@@ -120,9 +104,6 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
         }
     }
 
-    /// Move the built entry out of the lazy slot for an owner that will not
-    /// mutate again; queries at its revision then read it without locking.
-    /// The owner builds the entry first through an ordinary query.
     pub fn seal(&mut self) {
         if let Some(built) = self
             .slot
@@ -134,9 +115,6 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
         }
     }
 
-    /// Seal, then let the owner finish the frozen copy once — for work worth
-    /// doing only when no further rebuild can follow, such as a lookup table
-    /// whose build cost would otherwise repeat on every mutation.
     pub fn seal_with(&mut self, finish: impl FnOnce(&mut T)) {
         self.seal();
         if let Some((_, index)) = &mut self.sealed {
@@ -144,7 +122,6 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
         }
     }
 
-    /// Return a sealed index to the lazy slot when its owner resumes mutation.
     pub fn unseal(&mut self) {
         if let Some(sealed) = self.sealed.take() {
             *self
@@ -154,9 +131,6 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
         }
     }
 
-    /// Run `run` against the index mutably — for indexes whose maps grow
-    /// verdict entries as queries arrive. The stored revision still marks
-    /// the table state the index was built for.
     pub fn with_mut<R>(
         &self,
         revision: Revision,
@@ -170,7 +144,6 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
         run(&mut slot.as_mut().expect("index just built").1)
     }
 
-    /// Drop the stored index; the next query rebuilds.
     pub fn clear(&mut self) {
         self.sealed = None;
         *self
@@ -180,8 +153,6 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
     }
 }
 
-// This cache is a pure function of the owning tables. Its lock, revision and
-// sealed payload never enter a persisted graph or supply a retained judgment.
 impl<T, Revision> compiler_storage::Record for OwnedIndex<T, Revision> {
     fn write(
         &self,

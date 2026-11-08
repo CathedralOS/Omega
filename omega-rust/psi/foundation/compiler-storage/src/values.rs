@@ -1,5 +1,11 @@
-//! Owned values in a private record. Sharing is local to one writer/reader;
-//! pointers never enter the bytes, and decoding cannot create forward cycles.
+/*
+We implement `Record` for standard Rust primitives, collections, smart pointers,
+non-zero integers, paths, durations, and `Mutex<T>`. Shared values (`Arc<T>`,
+`Arc<str>`, `Arc<[T]>`) assign sequential identities per writer/reader so pointer
+addresses never enter the encoded bytes and decoding cannot construct forward or
+cyclic references.
+*/
+
 use crate::{Record, RecordError, RecordReader, RecordWriter};
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -20,6 +26,7 @@ macro_rules! integer {
     )*};
 }
 integer!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, f32, f64);
+
 impl Record for usize {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         u64::try_from(*self)
@@ -30,6 +37,7 @@ impl Record for usize {
         usize::try_from(u64::read(input)?).map_err(|_| input.error("size exceeds host width"))
     }
 }
+
 impl Record for isize {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         i64::try_from(*self)
@@ -41,6 +49,7 @@ impl Record for isize {
             .map_err(|_| input.error("signed size exceeds host width"))
     }
 }
+
 impl Record for bool {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         u8::from(*self).write(output)
@@ -53,6 +62,7 @@ impl Record for bool {
         }
     }
 }
+
 impl Record for char {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         (*self as u32).write(output)
@@ -61,6 +71,7 @@ impl Record for char {
         char::from_u32(u32::read(input)?).ok_or_else(|| input.error("invalid Unicode scalar"))
     }
 }
+
 impl Record for () {
     fn write(&self, _: &mut RecordWriter) -> Result<(), RecordError> {
         Ok(())
@@ -69,6 +80,7 @@ impl Record for () {
         Ok(())
     }
 }
+
 impl<T> Record for PhantomData<T> {
     fn write(&self, _: &mut RecordWriter) -> Result<(), RecordError> {
         Ok(())
@@ -77,6 +89,7 @@ impl<T> Record for PhantomData<T> {
         Ok(PhantomData)
     }
 }
+
 impl<T: Record> Record for Option<T> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.record(|output| match self {
@@ -95,6 +108,7 @@ impl<T: Record> Record for Option<T> {
         })
     }
 }
+
 impl<T: Record, E: Record> Record for Result<T, E> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.record(|output| match self {
@@ -116,6 +130,7 @@ impl<T: Record, E: Record> Record for Result<T, E> {
         })
     }
 }
+
 impl<T: Record> Record for Vec<T> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.record(|output| {
@@ -137,6 +152,7 @@ impl<T: Record> Record for Vec<T> {
         })
     }
 }
+
 impl<T: Record, const N: usize> Record for [T; N] {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.sequence(N)?;
@@ -159,6 +175,7 @@ impl<T: Record, const N: usize> Record for [T; N] {
             .map_err(|_| input.error("fixed array construction failed"))
     }
 }
+
 impl Record for String {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.sequence(self.len())?;
@@ -169,6 +186,7 @@ impl Record for String {
         String::from_utf8(input.take(length)?.to_vec()).map_err(|_| input.error("invalid UTF-8"))
     }
 }
+
 impl Record for Cow<'_, str> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.sequence(self.len())?;
@@ -178,6 +196,7 @@ impl Record for Cow<'_, str> {
         String::read(input).map(Cow::Owned)
     }
 }
+
 impl<T: Record> Record for Box<T> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.record(|output| self.as_ref().write(output))
@@ -189,6 +208,7 @@ impl<T: Record> Record for Box<T> {
         })
     }
 }
+
 impl<T: Record> Record for Box<[T]> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.record(|output| {
@@ -203,6 +223,7 @@ impl<T: Record> Record for Box<[T]> {
         Vec::<T>::read(input).map(Vec::into_boxed_slice)
     }
 }
+
 impl<T: Record + 'static> Record for Arc<T> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.record(|output| {
@@ -228,6 +249,7 @@ impl<T: Record + 'static> Record for Arc<T> {
         })
     }
 }
+
 impl Record for Arc<str> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         let (identity, first) = output.shared_identity(Arc::as_ptr(self), self.len())?;
@@ -250,6 +272,7 @@ impl Record for Arc<str> {
         input.finish_shared(identity, Arc::<str>::from(value))
     }
 }
+
 impl<T: Record + 'static> Record for Arc<[T]> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         let (identity, first) = output.shared_identity(Arc::as_ptr(self), self.len())?;
@@ -283,6 +306,7 @@ impl<T: Record + 'static> Record for Arc<[T]> {
         input.finish_shared(identity, Arc::<[T]>::from(values))
     }
 }
+
 macro_rules! tuple {
     ($($name:ident:$position:tt),*) => {
         impl<$($name: Record),*> Record for ($($name,)*) {
@@ -299,6 +323,7 @@ tuple!(A:0,B:1,C:2,D:3,E:4);
 tuple!(A:0,B:1,C:2,D:3,E:4,F:5);
 tuple!(A:0,B:1,C:2,D:3,E:4,F:5,G:6);
 tuple!(A:0,B:1,C:2,D:3,E:4,F:5,G:6,H:7);
+
 impl<K: Record + Ord, V: Record> Record for BTreeMap<K, V> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.sequence(self.len())?;
@@ -321,6 +346,7 @@ impl<K: Record + Ord, V: Record> Record for BTreeMap<K, V> {
         Ok(values)
     }
 }
+
 impl<T: Record + Ord> Record for BTreeSet<T> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.sequence(self.len())?;
@@ -340,6 +366,7 @@ impl<T: Record + Ord> Record for BTreeSet<T> {
         Ok(values)
     }
 }
+
 impl<K: Record + Hash + Eq, V: Record, S: BuildHasher + Default> Record for HashMap<K, V, S> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.sequence(self.len())?;
@@ -362,6 +389,7 @@ impl<K: Record + Hash + Eq, V: Record, S: BuildHasher + Default> Record for Hash
         Ok(values)
     }
 }
+
 impl<T: Record + Hash + Eq, S: BuildHasher + Default> Record for HashSet<T, S> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.sequence(self.len())?;
@@ -381,6 +409,7 @@ impl<T: Record + Hash + Eq, S: BuildHasher + Default> Record for HashSet<T, S> {
         Ok(values)
     }
 }
+
 impl<T: Record> Record for std::ops::Range<T> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         self.start.write(output)?;
@@ -390,6 +419,7 @@ impl<T: Record> Record for std::ops::Range<T> {
         Ok(T::read(input)?..T::read(input)?)
     }
 }
+
 impl Record for std::time::Duration {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         self.as_secs().write(output)?;
@@ -404,6 +434,7 @@ impl Record for std::time::Duration {
         Ok(Self::new(seconds, nanos))
     }
 }
+
 impl Record for std::ffi::OsString {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         #[cfg(unix)]
@@ -450,6 +481,7 @@ impl Record for std::ffi::OsString {
         }
     }
 }
+
 impl Record for std::path::PathBuf {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         self.as_os_str().to_os_string().write(output)
@@ -473,6 +505,7 @@ impl<T: Clone + Record> Record for Cow<'_, [T]> {
         Vec::<T>::read(input).map(Cow::Owned)
     }
 }
+
 macro_rules! nonzero {
     ($($name:ident:$primitive:ty),*) => {$ (
         impl Record for std::num::$name {

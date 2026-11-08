@@ -1,12 +1,16 @@
-//! Atomic invocation reservations within one aggregate sponsor account.
-//! All two-account operations lock aggregate state before invocation state.
-//! Leases are move-only; backing aliases share the owning lease through Arc.
+/*
+We manage per-invocation resource accounts (`EvaluationInvocationAccount`),
+engine measurement identities (`EvaluationMeasurementIdentity`,
+`TerminalStorageScheduleIdentity`), and movable RAII storage leases
+(`EvaluationStorageLease`). Every two-account transaction locks the aggregate
+sponsor before the invocation account so concurrent invocations never deadlock,
+and any failed charge leaves both counters untouched.
+*/
 
-use crate::{BuildEvaluationSponsor, BuildEvaluationUsage};
+use crate::{BuildEvaluationSponsor, BuildEvaluationSponsorConsumption, BuildEvaluationUsage};
 use semantic_vocabulary::WorkScheduleIdentity;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-/// Resource category retained by a refused charge, not a parsed diagnostic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EvaluationResource {
     Work,
@@ -58,7 +62,6 @@ impl std::fmt::Display for EvaluationAccountingError {
 }
 impl std::error::Error for EvaluationAccountingError {}
 
-/// Logical Terminal storage schedule, separate from its semantic work schedule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalStorageScheduleIdentity(u32);
 
@@ -76,7 +79,6 @@ impl TerminalStorageScheduleIdentity {
     }
 }
 
-/// Equal numeric schedule markers from different engines are different units.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum EvaluationMeasurementIdentity {
     CheckedTree,
@@ -134,7 +136,6 @@ struct InvocationAccount {
     consumed: Mutex<InvocationConsumption>,
 }
 
-/// Clone retains the same invocation, never a second budget.
 #[derive(Debug, Clone)]
 pub struct EvaluationInvocationAccount {
     account: Arc<InvocationAccount>,
@@ -145,8 +146,6 @@ impl BuildEvaluationSponsor {
         Arc::ptr_eq(&self.account, &usage.account.sponsor.account)
     }
 
-    /// Establish one metered invocation. Storage ceilings remain shared across
-    /// the entire closure; the invocation cannot exceed those same ceilings.
     pub fn begin_invocation(
         &self,
         measurement: EvaluationMeasurementIdentity,
@@ -173,13 +172,11 @@ impl BuildEvaluationSponsor {
 }
 
 impl InvocationAccount {
-    /// Locks this invocation's own and its sponsor's consumption counters; a
-    /// poisoned account fails the charge closed.
     fn consumption(
         &self,
     ) -> Result<
         (
-            MutexGuard<'_, crate::sponsor::BuildEvaluationSponsorConsumption>,
+            MutexGuard<'_, BuildEvaluationSponsorConsumption>,
             MutexGuard<'_, InvocationConsumption>,
         ),
         EvaluationAccountingError,
@@ -199,7 +196,6 @@ impl InvocationAccount {
 }
 
 impl EvaluationInvocationAccount {
-    /// Identity of the exact invocation, not equality of limits or sponsor.
     pub fn same_invocation(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.account, &other.account)
     }
@@ -208,8 +204,6 @@ impl EvaluationInvocationAccount {
         self.account.measurement
     }
 
-    /// Call only at the engine's admitted pre-site charge boundary. Failed
-    /// payment changes neither account; semantic execution follows payment.
     pub fn charge_work(&self, units: u64) -> Result<(), EvaluationAccountingError> {
         let (mut shared, mut local) = self.account.consumption()?;
         let aggregate = shared.work_units.checked_add(units).ok_or(
@@ -230,8 +224,6 @@ impl EvaluationInvocationAccount {
         Ok(())
     }
 
-    /// Charge compiler-owned host output before publication. It has a shared
-    /// byte unit independent of the engine's storage schedule.
     pub fn charge_build_log_bytes(&self, bytes: u64) -> Result<(), EvaluationAccountingError> {
         let (mut shared, mut local) = self.account.consumption()?;
         let aggregate = shared.build_log_bytes.checked_add(bytes).ok_or(
@@ -274,8 +266,6 @@ impl EvaluationInvocationAccount {
         Ok(())
     }
 
-    /// Reserve real owned storage before allocation or mutation. Row counts and
-    /// payload bytes use the exact selected storage schedule, not heap capacity.
     pub fn reserve_storage(
         &self,
         cells: u64,
@@ -284,9 +274,6 @@ impl EvaluationInvocationAccount {
         self.reserve_site(0, cells, payload_bytes)
     }
 
-    /// Stage a semantic site's work and storage together before execution.
-    /// Resource refusal pays neither work nor storage; dropping the lease
-    /// releases storage only, never refunds an executed site's work.
     pub fn reserve_site(
         &self,
         work_units: u64,
@@ -379,8 +366,6 @@ impl EvaluationInvocationAccount {
         local.live_payload_bytes -= payload_bytes;
     }
 
-    /// Result publication is an aggregate consumed budget. Dropping a result
-    /// does not refund work already issued; a retry must pay again.
     pub fn charge_result_custody(
         &self,
         cells: u64,
@@ -468,13 +453,12 @@ impl EvaluationInvocationAccount {
     }
 }
 
-/// Live accounting observation coupled to the exact account that measured it.
-/// Its durable record alone carries telemetry, never a transferable authority.
 #[derive(Debug, Clone)]
 pub struct EvaluationInvocationUsage {
     account: Arc<InvocationAccount>,
     record: BuildEvaluationUsage,
 }
+
 impl EvaluationInvocationUsage {
     pub fn record(&self) -> &BuildEvaluationUsage {
         &self.record
@@ -487,9 +471,8 @@ pub struct EvaluationStorageLease {
     cells: u64,
     payload_bytes: u64,
 }
+
 impl EvaluationStorageLease {
-    /// Transfer a reservation without charging it again. On refusal both
-    /// leases remain unchanged; even sibling invocations cannot merge custody.
     pub fn absorb(&mut self, other: &mut Self) -> Result<(), EvaluationAccountingError> {
         if !self.account.same_invocation(&other.account) {
             return Err(EvaluationAccountingError::LeaseAccountMismatch);
@@ -507,9 +490,6 @@ impl EvaluationStorageLease {
         Ok(())
     }
 
-    /// Retain at most this many cells, like truncating an owned collection.
-    /// This can only retire this lease's cells; it never reserves growth or
-    /// changes payload sponsorship. The owner calls after retiring its rows.
     pub fn truncate_cells(&mut self, retained: u64) {
         let retained = retained.min(self.cells);
         self.account.release_storage(self.cells - retained, 0);
@@ -535,6 +515,7 @@ impl EvaluationStorageLease {
         self.payload_bytes = new_bytes;
         Ok(())
     }
+
     pub fn shrink(
         &mut self,
         cells: u64,
@@ -549,6 +530,7 @@ impl EvaluationStorageLease {
         Ok(())
     }
 }
+
 impl Drop for EvaluationStorageLease {
     fn drop(&mut self) {
         self.account.release_storage(self.cells, self.payload_bytes);
