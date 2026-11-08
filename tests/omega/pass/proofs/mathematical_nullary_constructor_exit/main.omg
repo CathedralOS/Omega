@@ -2,8 +2,8 @@
 // Mathematical definitions retain ordinary nullary constructor values.
 use omega::language::core::nat;
 data Choice [copy] { case First; case Other; }
-let is_zero(value: Nat): core::Strict<0> = core::Identity<Nat>(value, Nat::Zero);
-let is_first(value: Choice): core::Strict<0> = core::Identity<Choice>(value, Choice::First);
+let is_zero(value: Nat): core::Type<0> = core::Identity<Nat>(value, Nat::Zero);
+let is_first(value: Choice): core::Type<0> = core::Identity<Choice>(value, Choice::First);
 machine zero_fact() reaches terminates
 ensures is_zero(Nat::Zero)
 { }
