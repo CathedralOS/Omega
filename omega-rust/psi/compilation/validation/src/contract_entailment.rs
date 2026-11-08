@@ -18910,6 +18910,9 @@ pub(crate) mod law_conformance {
                 StructuralTerm::Projection { subject, path } => {
                     format!("{}.{path}", display_structural_term(subject))
                 }
+                StructuralTerm::LogicalNot { operand } => {
+                    format!("!({})", display_structural_term(operand))
+                }
                 StructuralTerm::Identity {
                     carrier,
                     left,
@@ -20560,6 +20563,7 @@ pub(crate) mod observed_projections {
                 path: field_name.to_owned(),
             }),
             StructuralTerm::Identity { .. }
+            | StructuralTerm::LogicalNot { .. }
             | StructuralTerm::ContentValue { .. }
             | StructuralTerm::CollectionMeasure { .. }
             | StructuralTerm::RepeatedArray { .. }
@@ -34190,27 +34194,22 @@ pub(crate) mod refuted_requires {
             expression_table(program).expression(fact)
             && unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
         {
-            let inner = remembered_instantiated_fact_judgment(
-                program,
-                judge,
-                callee_owner,
-                callee_parameters,
-                unary.operand,
-                map,
-                machine_map,
-                type_map,
-                caller_scope,
-                literal_replay,
-                judgments,
-            );
             return if judge.hypotheses_contradictory {
                 StructuralJudgment::Proven
             } else {
-                match inner {
-                    StructuralJudgment::Proven => StructuralJudgment::Refuted,
-                    StructuralJudgment::Refuted => StructuralJudgment::Proven,
-                    StructuralJudgment::Unknown => StructuralJudgment::Unknown,
-                }
+                super::structural_terms::structural_term(
+                    program,
+                    None,
+                    Some((callee_owner, callee_parameters)),
+                    fact,
+                    None,
+                )
+                .map(|predicate| {
+                    StructuralJudge::substitute_call_term(&predicate, map, machine_map)
+                })
+                .map_or(StructuralJudgment::Unknown, |predicate| {
+                    judge.judge_observed_predicate(predicate, 0)
+                })
             };
         }
         if program.static_type_predicate_operands(fact).is_some() {
@@ -41651,7 +41650,8 @@ pub(crate) mod specification_calls {
                         .is_some_and(|primitive| primitive.is_fixed_integer()),
                     _ => false,
                 }),
-            StructuralTerm::ContentValue { value, .. } => {
+            StructuralTerm::ContentValue { value, .. }
+            | StructuralTerm::LogicalNot { operand: value } => {
                 term_has_complete_substitution(program, value)
             }
             StructuralTerm::Identity {
@@ -47013,6 +47013,7 @@ pub(crate) mod structural_judgment {
                         )
                     }
                     StructuralTerm::Identity { .. }
+                    | StructuralTerm::LogicalNot { .. }
                     | StructuralTerm::ContentValue { .. }
                     | StructuralTerm::CallProjection { .. }
                     | StructuralTerm::Opaque(_)
@@ -47654,18 +47655,17 @@ pub(crate) mod structural_judgment {
                 fact: ExpressionHandle,
             ) {
                 self.intake(program, fact);
-                self.retain_proposition_identity(fact);
+                self.retain_formed_proposition(fact);
             }
 
-            pub(crate) fn retain_proposition_identity(&mut self, fact: ExpressionHandle) {
+            pub(crate) fn retain_formed_proposition(&mut self, fact: ExpressionHandle) {
                 if self.case_facts_only {
                     return;
                 }
-                if let Some(StructuralTerm::Identity { left, right, .. }) =
-                    self.declaration_term(fact)
+                if let Some(predicate) = self.declaration_term(fact)
+                    && predicate.is_checked_predicate()
                 {
-                    self.intake_identity(*left, *right);
-                    return;
+                    self.intake_observed_predicate(predicate, 0);
                 }
                 let Some(binary) = self.program.expression_table.binary_node(fact) else {
                     return;
@@ -47673,8 +47673,8 @@ pub(crate) mod structural_judgment {
                 if binary.operator == super::BinaryOperator::And
                     && self.has_boolean_connective_meaning(fact)
                 {
-                    self.retain_proposition_identity(binary.left);
-                    self.retain_proposition_identity(binary.right);
+                    self.retain_formed_proposition(binary.left);
+                    self.retain_formed_proposition(binary.right);
                 } else if binary.operator == super::BinaryOperator::Equal
                     && let Some([left, right]) = self.declaration_data_identity_terms(fact)
                 {
@@ -50681,6 +50681,7 @@ pub(crate) mod structural_judgment {
                         | StructuralTerm::BoundProjection { .. }
                         | StructuralTerm::IndexedValue { .. }
                         | StructuralTerm::MathematicalBinary { .. }
+                        | StructuralTerm::LogicalNot { .. }
                         | StructuralTerm::IntegerEmbedding { .. }
                         | StructuralTerm::ScalarRepresentation { .. }
                         | StructuralTerm::ScalarBinary { .. },
@@ -50699,6 +50700,7 @@ pub(crate) mod structural_judgment {
                         | StructuralTerm::BoundProjection { .. }
                         | StructuralTerm::IndexedValue { .. }
                         | StructuralTerm::MathematicalBinary { .. }
+                        | StructuralTerm::LogicalNot { .. }
                         | StructuralTerm::IntegerEmbedding { .. }
                         | StructuralTerm::ScalarRepresentation { .. }
                         | StructuralTerm::ScalarBinary { .. },
@@ -52308,6 +52310,25 @@ pub(crate) mod structural_judgment {
                 predicate: StructuralTerm,
                 depth: usize,
             ) -> StructuralJudgment {
+                if let StructuralTerm::LogicalNot { operand } = predicate.semantic_value() {
+                    if depth >= 32 {
+                        return StructuralJudgment::Unknown;
+                    }
+                    // A retained premise may establish this complete negation.
+                    // Otherwise only the operand's judgment can decide it; failed
+                    // search and statement formation remain Unknown.
+                    let resolved = self.resolve_at(predicate.clone(), depth + 1);
+                    if let Some(holds) = resolved.boolean_value() {
+                        return if holds {
+                            StructuralJudgment::Proven
+                        } else {
+                            StructuralJudgment::Refuted
+                        };
+                    }
+                    return self
+                        .judge_observed_predicate(*operand.clone(), depth + 1)
+                        .negated();
+                }
                 if let StructuralTerm::Identity { left, right, .. } = predicate.semantic_value() {
                     return self.judge_explicit_identity(
                         left.as_ref().clone(),
@@ -66188,6 +66209,138 @@ pub(crate) mod structural_judgment {
         #[cfg(test)]
         mod predicate_tests {
             use super::*;
+
+            fn negation(operand: StructuralTerm) -> StructuralTerm {
+                StructuralTerm::LogicalNot {
+                    operand: Box::new(operand),
+                }
+            }
+
+            #[test]
+            fn mathematical_negation_preserves_proven_refuted_and_unknown_identity() {
+                let program = typed_trees::TypedTrees::default();
+                let judge = StructuralJudge::from_declaration_requires(
+                    &program,
+                    symbols::SymbolHandle::invalid(),
+                    &[],
+                    &[],
+                    true,
+                );
+                let carrier = program.type_identities.intern("u64");
+                let integer =
+                    |value| StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(value));
+                let identity = |left, right| StructuralTerm::Identity {
+                    carrier,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                };
+                assert!(matches!(
+                    judge.judge_observed_predicate(negation(identity(integer(3), integer(3))), 0),
+                    StructuralJudgment::Refuted
+                ));
+                assert!(matches!(
+                    judge.judge_observed_predicate(negation(identity(integer(3), integer(5))), 0),
+                    StructuralJudgment::Proven
+                ));
+                let unknown = negation(identity(
+                    StructuralTerm::Variable("left".to_owned()),
+                    StructuralTerm::Variable("right".to_owned()),
+                ));
+                assert!(matches!(
+                    judge.judge_observed_predicate(unknown.clone(), 0),
+                    StructuralJudgment::Unknown
+                ));
+                assert!(matches!(
+                    judge.judge_observed_predicate(negation(unknown), 0),
+                    StructuralJudgment::Unknown
+                ));
+            }
+
+            #[test]
+            fn mathematical_negation_replays_only_the_complete_established_predicate() {
+                let program = typed_trees::TypedTrees::default();
+                let mut judge = StructuralJudge::from_declaration_requires(
+                    &program,
+                    symbols::SymbolHandle::invalid(),
+                    &[],
+                    &[],
+                    true,
+                );
+                let carrier = program.type_identities.intern("u64");
+                let predicate = |right: &str| {
+                    negation(StructuralTerm::Identity {
+                        carrier,
+                        left: Box::new(StructuralTerm::Variable("left".to_owned())),
+                        right: Box::new(StructuralTerm::Variable(right.to_owned())),
+                    })
+                };
+                judge.intake_observed_predicate(predicate("right"), 0);
+                assert!(matches!(
+                    judge.judge_observed_predicate(predicate("right"), 0),
+                    StructuralJudgment::Proven
+                ));
+                assert!(matches!(
+                    judge.judge_observed_predicate(predicate("other"), 0),
+                    StructuralJudgment::Unknown
+                ));
+            }
+
+            #[test]
+            fn mathematical_negation_substitution_keeps_the_identity_carrier_and_observation() {
+                let program = typed_trees::TypedTrees::default();
+                let carrier = program.type_identities.intern("u64");
+                let operand = |reference| StructuralTerm::ObservedValue {
+                    observed_type: typed_trees::types::TypeReferenceHandle::from_arena_index(
+                        reference,
+                    ),
+                    value: Box::new(StructuralTerm::Variable("subject".to_owned())),
+                    descriptor: None,
+                };
+                let predicate = |reference| {
+                    negation(StructuralTerm::Identity {
+                        carrier,
+                        left: Box::new(operand(reference)),
+                        right: Box::new(StructuralTerm::Variable("other".to_owned())),
+                    })
+                };
+                assert_eq!(predicate(1), predicate(2));
+                assert!(!predicate(1).same_resolution_payload(&predicate(2)));
+                let changed = StructuralJudge::substitute_term(
+                    &predicate(1),
+                    &[(
+                        "subject".to_owned(),
+                        StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(7)),
+                    )],
+                );
+                let StructuralTerm::LogicalNot { operand } = changed else {
+                    panic!("negation was lost")
+                };
+                let StructuralTerm::Identity {
+                    carrier: actual,
+                    left,
+                    ..
+                } = *operand
+                else {
+                    panic!("identity was lost")
+                };
+                assert_eq!(actual, carrier);
+                let StructuralTerm::ObservedValue {
+                    observed_type,
+                    value,
+                    ..
+                } = *left
+                else {
+                    panic!("observation was lost")
+                };
+                assert_eq!(
+                    observed_type,
+                    typed_trees::types::TypeReferenceHandle::from_arena_index(1)
+                );
+                assert_eq!(
+                    *value,
+                    StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(7))
+                );
+            }
             #[test]
             fn value_resolution_and_predicate_answers_remain_distinct() {
                 let program = typed_trees::TypedTrees::default();
@@ -74999,6 +75152,14 @@ pub(crate) mod structural_judgment {
         }
 
         impl StructuralJudgment {
+            pub(crate) fn negated(self) -> Self {
+                match self {
+                    Self::Proven => Self::Refuted,
+                    Self::Refuted => Self::Proven,
+                    Self::Unknown => Self::Unknown,
+                }
+            }
+
             pub(crate) fn connective(operator: BinaryOperator, left: Self, right: Self) -> Self {
                 match (operator, left, right) {
                     (BinaryOperator::And, Self::Proven, Self::Proven)
@@ -76401,6 +76562,11 @@ pub(crate) mod structural_judgment {
 
     #[derive(Clone)]
     pub(crate) enum StructuralTerm {
+        /// Logical negation retains its formed proposition, including any
+        /// proof-relevant identity. Constructing it establishes no truth.
+        LogicalNot {
+            operand: Box<StructuralTerm>,
+        },
         /// A formed core Id proposition. Its carrier is not an executable
         /// equality selection, and no truth follows from constructing this node.
         Identity {
@@ -76782,6 +76948,7 @@ pub(crate) mod structural_judgment {
                 key.rotate_left(8) ^ u64::from(kind)
             };
             match term.semantic_value() {
+                StructuralTerm::LogicalNot { operand } => (23, nested(operand)),
                 StructuralTerm::ContentValue { value, .. } => (22, nested(value)),
                 StructuralTerm::Identity {
                     carrier,
@@ -76920,6 +77087,7 @@ pub(crate) mod structural_judgment {
             !matches!(
                 term.semantic_value(),
                 StructuralTerm::Identity { .. }
+                    | StructuralTerm::LogicalNot { .. }
                     | StructuralTerm::ContentValue { .. }
                     | StructuralTerm::Float(_)
                     | StructuralTerm::ScalarRepresentation { .. }
@@ -77090,6 +77258,7 @@ pub(crate) mod structural_judgment {
                         }
                         | Self::Projection { subject, .. }
                         | Self::ContentValue { value: subject, .. }
+                        | Self::LogicalNot { operand: subject }
                         | Self::IntegerEmbedding { value: subject, .. }
                         | Self::ScalarRepresentation { value: subject, .. } => {
                             StructuralChildren::Fixed {
@@ -77173,6 +77342,10 @@ pub(crate) mod structural_judgment {
                 };
                 let retain_metadata = matches!(self, Self::ResolutionInput);
                 match left {
+                    StructuralTerm::LogicalNot { operand } => {
+                        matches!(other, StructuralTerm::LogicalNot { operand: other_operand }
+                            if self.matches(operand, other_operand))
+                    }
                     StructuralTerm::ContentValue { algebra, value } => {
                         let StructuralTerm::ContentValue {
                             algebra: other_algebra,
@@ -77506,6 +77679,9 @@ pub(crate) mod structural_judgment {
         impl std::fmt::Debug for StructuralTerm {
             fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 match self {
+                    Self::LogicalNot { operand } => {
+                        formatter.debug_tuple("LogicalNot").field(operand).finish()
+                    }
                     Self::ObservedValue { value, .. } => std::fmt::Debug::fmt(value, formatter),
                     Self::ContentValue { algebra, value } => formatter
                         .debug_struct("ContentValue")
@@ -77869,8 +78045,10 @@ pub(crate) mod structural_judgment {
         }
 
         pub(crate) fn is_checked_predicate(&self) -> bool {
-            if matches!(self.semantic_value(), Self::Identity { .. })
-                || value_predicates::boolean_value(self.semantic_value()).is_some()
+            if matches!(
+                self.semantic_value(),
+                Self::Identity { .. } | Self::LogicalNot { .. }
+            ) || value_predicates::boolean_value(self.semantic_value()).is_some()
             {
                 return true;
             }
@@ -77947,6 +78125,9 @@ pub(crate) mod structural_judgment {
 
         pub(crate) fn map_children(self, mut map: impl FnMut(Self) -> Self) -> Self {
             match self {
+                StructuralTerm::LogicalNot { operand } => StructuralTerm::LogicalNot {
+                    operand: Box::new(map(*operand)),
+                },
                 StructuralTerm::ContentValue { algebra, value } => StructuralTerm::ContentValue {
                     algebra,
                     value: Box::new(map(*value)),
@@ -78675,7 +78856,7 @@ pub(crate) mod structural_judgment {
                 resolve_applications,
             );
             for fact in requires {
-                judge.retain_proposition_identity(*fact);
+                judge.retain_formed_proposition(*fact);
             }
             judge
         }
@@ -79433,16 +79614,10 @@ pub(crate) mod structural_judgment {
                             value: Box::new(value),
                         };
                     }
-                    StructuralTerm::MathematicalBinary {
-                        operator,
-                        left,
-                        right,
-                    } => {
-                        let resolved = StructuralTerm::MathematicalBinary {
-                            operator,
-                            left: Box::new(self.resolve_with_at(*left, depth + 1, purpose)),
-                            right: Box::new(self.resolve_with_at(*right, depth + 1, purpose)),
-                        };
+                    term @ (StructuralTerm::MathematicalBinary { .. }
+                    | StructuralTerm::LogicalNot { .. }) => {
+                        let resolved = term
+                            .map_children(|child| self.resolve_with_at(child, depth + 1, purpose));
                         if let Some((_, replacement)) = self.rewrites.find(&resolved) {
                             term = replacement.clone();
                             continue;
@@ -80641,6 +80816,7 @@ pub(crate) mod structural_judgment {
                                 StructuralTerm::Opaque(format!("{root}.{suffix}"))
                             }
                             StructuralTerm::Identity { .. }
+                            | StructuralTerm::LogicalNot { .. }
                             | StructuralTerm::ContentValue { .. }
                             | StructuralTerm::Integer(_)
                             | StructuralTerm::RepeatedArray { .. }
@@ -80707,17 +80883,13 @@ pub(crate) mod structural_judgment {
             if let ExpressionNode::Unary(unary) = expression_table(program).expression(fact)
                 && unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
             {
-                // Negation composes the operand's proposition judgment. In
-                // particular, a formed Identity is not a scalar Boolean value.
-                let inner = self.judge_proposition(program, unary.operand);
                 return if self.hypotheses_contradictory {
                     StructuralJudgment::Proven
                 } else {
-                    match inner {
-                        StructuralJudgment::Proven => StructuralJudgment::Refuted,
-                        StructuralJudgment::Refuted => StructuralJudgment::Proven,
-                        StructuralJudgment::Unknown => StructuralJudgment::Unknown,
-                    }
+                    self.declaration_term(fact)
+                        .map_or(StructuralJudgment::Unknown, |predicate| {
+                            self.judge_observed_predicate(predicate, 0)
+                        })
                 };
             }
             if program.static_type_predicate_operands(fact).is_some() {
@@ -83794,12 +83966,17 @@ pub(crate) mod structural_terms {
             } else {
                 let (machine, state, _) = scope?;
                 crate::expression_result_type_reference(program, machine, state, unary.operand)
-            }?;
-            if program.primitive_type_reference(reference)
+            };
+            if reference.and_then(|reference| program.primitive_type_reference(reference))
                 != Some(typed_trees::types::PrimitiveType::Bool)
             {
-                return None;
+                return operand
+                    .is_checked_predicate()
+                    .then(|| StructuralTerm::LogicalNot {
+                        operand: Box::new(operand),
+                    });
             }
+            let reference = reference?;
             let meaning = super::scalar_operand_meaning(program, reference, &operand)?;
             Some(StructuralTerm::ScalarBinary {
                 references: [reference; 2],
@@ -84255,11 +84432,9 @@ pub(crate) mod structural_terms {
                                     right: right.clone(),
                                 });
                             }
-                            Some(binary(
-                                BinaryOperator::Equal,
-                                operand,
-                                StructuralTerm::boolean(false),
-                            ))
+                            Some(StructuralTerm::LogicalNot {
+                                operand: Box::new(operand),
+                            })
                         }
                         (
                             PreparedConstantMeaning::SourceOperation {
@@ -85746,6 +85921,7 @@ pub(crate) mod structural_terms {
                         })
                 }
                 StructuralTerm::Identity { .. }
+                | StructuralTerm::LogicalNot { .. }
                 | StructuralTerm::ContentValue { .. }
                 | StructuralTerm::Opaque(_)
                 | StructuralTerm::RepeatedArray { .. }
@@ -86357,6 +86533,9 @@ pub(crate) mod structural_terms {
                 operator.display_name(),
                 term_spelling(program, right)
             ),
+            StructuralTerm::LogicalNot { operand } => {
+                format!("!({})", term_spelling(program, operand))
+            }
             StructuralTerm::Identity {
                 carrier,
                 left,

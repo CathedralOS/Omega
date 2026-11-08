@@ -1,12 +1,13 @@
 // A known zero cannot satisfy the negation of that same exact identity.
 use omega::language::core::nat;
 use omega_language_std::console;
+let not_zero(value: Nat): core::Strict<0> = !core::Identity<Nat>(value, Nat::Zero);
 data Main { }
 machine Main::main(main: &mut Main) { Console::exit_process(70); }
 machine bogus(a: Nat)
 requires
     core::Identity<Nat>(a, Nat::Zero)
 ensures
-    !core::Identity<Nat>(a, Nat::Zero)
+    not_zero(a)
 {
 }
