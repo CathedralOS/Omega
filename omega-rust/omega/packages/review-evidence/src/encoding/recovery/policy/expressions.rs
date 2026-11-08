@@ -1,4 +1,5 @@
-//! Structural contract terms; recovery grants no proof or invocation authority.
+// Structural contract term recovery; recovery grants no proof or invocation authority.
+// Call-target tag `3` is retired (the former receiver collection views) and must never be reused.
 
 use super::Error;
 use super::identity::{nominal, operator_coordinate, type_identity};
@@ -200,7 +201,6 @@ pub(in crate::encoding::recovery) fn call_target(
         2 => PackageReviewContractCallTarget::BuiltinFunction(
             BuiltinFunction::from_ordinal(usize::from(reader.u16()?)).ok_or(Error::InvalidTag)?,
         ),
-        // Tag 3 is retired (the receiver collection views); never reuse it.
         4 => PackageReviewContractCallTarget::ProofView {
             name: reader.string()?,
         },

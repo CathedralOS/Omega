@@ -1,6 +1,10 @@
-//! Exact object absence is a successful, closed batch-check response, never
-//! an interpretation of a command error. Presence still requires later object
-//! authentication before any source bytes can be consumed.
+// Exact-object availability probing (`probe_exact_git_object`) via `git
+// cat-file --batch-check`.
+//
+// Object absence is only accepted from a clean, zero-exit `<oid> missing\n`
+// response line, never inferred from a failed command. Object presence still
+// requires full cryptographic authentication before any source bytes are
+// consumed.
 
 mod protocol;
 #[cfg(test)]

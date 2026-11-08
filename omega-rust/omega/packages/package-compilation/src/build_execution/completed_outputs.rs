@@ -1,8 +1,9 @@
-//! Completed build files, detached from scratch and bound to their execution.
-//!
-//! A staged tree also contains temporary files and generated source. Only the
-//! settled required-output roster selects products. Selection shares immutable
-//! bytes; neither report construction nor publication executes the build again.
+// Completed build output file sets (`RetainedBuildOutputs`,
+// `OMEGA-COMPLETED-BUILD-OUTPUTS-V1\0`) detached from scratch files and bound
+// to their `BuildObservationIdentity`. Only settled `required_output_settlements`
+// enter the retained tree; publishing into `<build_dir>/completed/<hex>` writes
+// `files/` followed by `manifest.bin`, or verifies an existing directory
+// byte-for-byte via `verification::verify_existing_set`.
 
 use super::{BuildObservationIdentity, BuildObservationSummary};
 use build_output::{BuildStagedOutputEntryKind, BuildStagedOutputTree};
@@ -20,8 +21,6 @@ pub struct RetainedBuildOutputs {
 }
 
 impl RetainedBuildOutputs {
-    /// Select exactly the completed files after build settlement. A build
-    /// with no required outputs has no file product, even if it wrote scratch.
     pub fn from_observation(observation: &BuildObservationSummary) -> Result<Option<Self>, String> {
         let names = observation
             .required_output_settlements()
@@ -84,10 +83,6 @@ impl RetainedBuildOutputs {
         self.published_directory.as_deref()
     }
 
-    /// Install the content-addressed file set and its manifest; an existing set
-    /// is reused only after its manifest and complete file namespace match
-    /// the retained product. The manifest is installed last for a fresh set.
-    /// Failure may leave a partial copy but never records successful publication.
     pub fn publish(&mut self, build_directory: &Path) -> Result<(), String> {
         if self.published_directory.is_some() {
             return Err("completed outputs have already been published".into());
@@ -115,8 +110,6 @@ impl RetainedBuildOutputs {
                 self.manifest_bytes(),
             )?;
         } else {
-            // A digest in a host pathname is not custody. An earlier export
-            // can have been interrupted or changed since its publication.
             verification::verify_existing_set(
                 build_directory,
                 &name,

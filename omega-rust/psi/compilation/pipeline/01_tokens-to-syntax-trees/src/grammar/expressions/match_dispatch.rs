@@ -47,7 +47,6 @@ pub(super) fn parse_match_expression_handle<'tokens, 'source>(
                         return None;
                     };
                     Some(DestructureBinding {
-                        component: field.component,
                         binding: binding.clone(),
                         member: field.member.clone(),
                         case_variant: None,
@@ -75,7 +74,6 @@ pub(super) fn parse_match_expression_handle<'tokens, 'source>(
             let saved = syntax_trees
                 .expressions
                 .insert(ExpressionNode::SavedSubject(TableSavedSubject {
-                    component: Default::default(),
                     capture,
                     pattern_head: destructure.head,
                 }));

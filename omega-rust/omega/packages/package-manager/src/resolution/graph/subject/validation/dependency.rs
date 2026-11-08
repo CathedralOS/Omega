@@ -1,3 +1,7 @@
+// We validate dependency request byte limits, optional explicit aliases, and
+// path/Git selection compatibility with the selected source lineage and
+// navigation.
+
 use super::super::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
     CanonicalSourceClosureSubjectError, request_view::Request, usage::Budget,

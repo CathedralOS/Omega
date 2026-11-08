@@ -22,16 +22,6 @@ pub(super) mod read_backing;
 pub(super) mod read_projection;
 mod results;
 
-/// Authenticate the retained member selectors before resolving a saved
-/// descriptor's origin. This supplies no backing or access permission.
-pub(super) fn validate_operand_selectors(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    expression: ExpressionHandle,
-) -> Option<()> {
-    projections::validate_selectors(program, machine, expression)
-}
-
 /// Taking an owned storage address does not load a frozen reference binding.
 /// Earlier descriptor writes may change contents but cannot relocate this home.
 /// Reference-rooted paths still require chronological origin evidence; selectors,

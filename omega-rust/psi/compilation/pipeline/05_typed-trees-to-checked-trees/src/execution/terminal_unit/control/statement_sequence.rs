@@ -911,22 +911,10 @@ pub(in super::super) fn scalar_control(
     if !complete {
         return None;
     }
-    let selected_copies = if matches!(
-        terminator,
-        checked_trees::CheckedScalarStateTerminator::Crash { .. }
-    ) {
-        Vec::new()
-    } else {
-        let copies =
-            super::selected_copies::SelectedCopies::new(program, facts, machine.symbol, state)?;
-        let paths = terminator.returning_paths(&facts.flow.guarded_exits).ok()?;
-        copies.for_destinations(paths.iter().map(|path| &path.destination))?
-    };
     Some((
         checked_trees::CheckedUnitScalarControlPlan {
             primitive_type,
             terminator,
-            selected_copies,
         },
         prefix_count,
     ))

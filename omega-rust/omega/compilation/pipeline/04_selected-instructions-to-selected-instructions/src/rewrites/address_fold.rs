@@ -64,7 +64,7 @@ use selected_instructions::{
     AddressFoldIdentity, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::FuelScheduleIdentity;
+use semantic_vocabulary::WorkScheduleIdentity;
 
 pub(crate) use rewrite::fold_selected_address;
 pub(crate) use validation::measured_steps;

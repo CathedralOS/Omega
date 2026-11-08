@@ -1,3 +1,7 @@
+// Callback binder projection rejoining boundary callback binders to their unique
+// declaring trait-requirement or top-level-requirement telescope and verifying
+// static machine ordinal agreement.
+
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::rejected;
 use crate::capture::semantics::declarations::{

@@ -82,6 +82,7 @@ pub use record_representation::{
 };
 use typed_trees::expression::AccessBorrowBacking;
 use typed_trees::typed_trees::AccessExecutionDeclaration;
+mod read_admission;
 mod representation_types;
 mod scalar_representation;
 mod storage_interpretation;
@@ -91,6 +92,8 @@ pub use literal_indexed_footprints::{
     ValidatedLiteralIndexedRecastFootprint, validate_literal_indexed_recast_footprint,
     validate_runtime_indexed_recast_source,
 };
+pub(crate) use read_admission::established_reference_formation;
+pub(crate) use record_representation::unrestricted_scalar_read_projection;
 pub(crate) use representation_types::{exact_primitive_type, exact_scalar_representation_type};
 
 use diagnostics::Diagnostic;

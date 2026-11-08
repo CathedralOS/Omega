@@ -1,7 +1,9 @@
-//! An implementation that promises to exit must reach an external exit
-//! operation on every path, passing along the original status code. Returning,
-//! looping forever, or calling the same API again does not keep that promise.
-//! Save this check before target selection needs it.
+// We verify that any provider implementation satisfying an external-completion
+// requirement (`BoundaryCompletion::External`) reaches an original external
+// completion leaf (`CompilerIntrinsic` or `Import`) on every checked execution
+// path while preserving the exact status argument (`Some(0)`). Normal returns,
+// crashes, cycles, or service redispatches reject. We capture this review while
+// checked bodies exist and report errors only if the candidate is selected.
 
 use checked_trees::{
     CheckedCallScalarArgument, CheckedComposedUnitControlTerminatorPlan as Terminator,
@@ -13,10 +15,6 @@ use symbols::SymbolHandle;
 
 type Origin = Option<usize>;
 
-/// Check whether this implementation really exits wherever its API promises
-/// to exit. Save the result now; report errors only if the build selects it.
-/// Calls must reach an original external operation from this target's complete
-/// implementation list, rather than another wrapper promising the same thing.
 pub(crate) fn capture(
     checked: &CheckedTrees,
     provider: &crate::ProviderPlanProvenance,
@@ -114,10 +112,6 @@ impl Outcome {
     }
 }
 
-/// Verify the externally completing row through the checked operation graph.
-/// `leaves` is the exact target's original satisfaction inventory, never the
-/// selected wrapper substituted as an intrinsic. The result retains the leaves
-/// that actually discharge the completion promise.
 pub(super) fn checked_completion(
     checked: &CheckedTrees,
     machine: SymbolHandle,
@@ -160,30 +154,44 @@ impl CompletionReview<'_> {
             .ok_or_else(|| "completion call has no exact target realization".to_owned())?;
         if !machine.body_is_present {
             let requirement = self.requirement;
-            let leaves: Vec<_> = self.candidates.iter().flat_map(|candidate| {
-                candidate.plan.rows.iter().enumerate().filter_map(move |(position, row)| {
-                    // The leaf is the external operation the call actually
-                    // reaches: an authored realization names the machine
-                    // directly; a build-owned native binding names it through
-                    // the requirement its satisfies edge carries.
-                    let realization_is_leaf = match candidate.provenance.row_realizations.get(position) {
-                        Some(crate::ProviderRowRealization::Authored(symbol)) => {
-                            *symbol == machine.symbol
-                        }
-                        Some(crate::ProviderRowRealization::BuildNative(origin)) => context
-                            .typed
-                            .machine_trait_conformances(machine)
-                            .iter()
-                            .any(|edge| edge.requirement_symbol == origin.requirement),
-                        _ => false,
-                    };
-                    (realization_is_leaf
-                        && candidate.provenance.row_requirements.get(position) == Some(&requirement)
-                        && matches!(row.binding, effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
-                            | effects::provider_plan::ProviderBinding::Import { .. }))
-                        .then_some(machine.symbol)
+            let leaves: Vec<_> = self
+                .candidates
+                .iter()
+                .flat_map(|candidate| {
+                    candidate
+                        .plan
+                        .rows
+                        .iter()
+                        .enumerate()
+                        .filter_map(move |(position, row)| {
+                            let realization_is_leaf =
+                                match candidate.provenance.row_realizations.get(position) {
+                                    Some(crate::ProviderRowRealization::Authored(symbol)) => {
+                                        *symbol == machine.symbol
+                                    }
+                                    Some(crate::ProviderRowRealization::BuildNative(origin)) => {
+                                        context
+                                            .typed
+                                            .machine_trait_conformances(machine)
+                                            .iter()
+                                            .any(|edge| {
+                                                edge.requirement_symbol == origin.requirement
+                                            })
+                                    }
+                                    _ => false,
+                                };
+                            (realization_is_leaf
+                                && candidate.provenance.row_requirements.get(position)
+                                    == Some(&requirement)
+                                && matches!(
+                                    row.binding,
+                                    effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                                        | effects::provider_plan::ProviderBinding::Import { .. }
+                                ))
+                            .then_some(machine.symbol)
+                        })
                 })
-            }).collect();
+                .collect();
             if leaves.is_empty() {
                 return Err("completion call has no original external satisfaction leaf (service redispatch is not a leaf)".into());
             }
@@ -436,9 +444,6 @@ impl CompletionReview<'_> {
         self.scalar(&value, values)
     }
 
-    /// A no-normal marker is not an external-completion receipt. Follow its
-    /// retained checked call and original actuals through the same selected
-    /// provider review; a crash, unresolved call or cycle still refuses.
     fn no_normal_scalar(
         &mut self,
         argument: &CheckedCallScalarArgument,
@@ -471,8 +476,6 @@ impl CompletionReview<'_> {
         }
     }
 
-    /// Both receiving and nonreceiving scalar positions use the same checked
-    /// call admission and exact argument-origin transport.
     fn scalar_invocation(
         &mut self,
         computation: &CheckedScalarComputationKind,

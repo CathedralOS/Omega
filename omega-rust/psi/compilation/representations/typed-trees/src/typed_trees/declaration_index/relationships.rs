@@ -256,26 +256,6 @@ impl crate::TypedTrees {
         self.with_state_declarations(|index| index.locals.get(symbol).to_vec())
     }
 
-    /// One exact local declaration, without copying its indexed position roster.
-    /// A duplicate binder cannot choose a component contract for another local.
-    pub fn unique_local_data_for_symbol(
-        &self,
-        symbol: SymbolHandle,
-    ) -> Option<&crate::statement::TableLocalData> {
-        let (machine, state, statement) = self.with_state_declarations(|index| {
-            let [position] = index.locals.get(symbol) else {
-                return None;
-            };
-            Some(*position)
-        })?;
-        let machine = self.machines().get(machine as usize)?;
-        let state = self.machine_states(machine).get(state as usize)?;
-        self.statement_table
-            .statements(state.statement_nodes)
-            .get(statement as usize)?
-            .as_local_data()
-    }
-
     /// The first state with this exact binder sequence. Empty spans and forged
     /// duplicate symbols retain the same first-match rule as a source roster.
     pub fn state_position_for_parameter_symbols(

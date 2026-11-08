@@ -1,3 +1,5 @@
+// Witness proposition evidence-interface and inherited trait-requirement collection.
+
 use crate::capture::EvidenceOption;
 use crate::capture::SourceDeclarationInput;
 use diagnostics::Diagnostic;

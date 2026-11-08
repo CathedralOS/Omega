@@ -1,5 +1,9 @@
-//! Publish Product choices after package authentication and Psi source admission.
-//! Evaluation receipts remain Build custody; semantic choices come back owned.
+// We publish Product policy choices (`admit`) after package authentication and
+// Psi source admission (`source.admit_product_policy`). Evaluation receipts
+// remain Build custody while semantic selections (grants, opaque
+// representations, provider selections, native bindings, service audits,
+// assumed bindings, wire demands, and behavior exclusions) populate
+// `ComputedBuildConfig`.
 
 use compilation_products::ComputedBuildConfig;
 use diagnostics::Diagnostic;
@@ -32,8 +36,6 @@ pub(super) fn admit(
         exclusions: &computed.behavior_exclusion_requests,
     })?;
 
-    // Root source formation completes before receipt attachment or dependency
-    // resolution. These independent custody checks cannot change source meaning.
     let mut native_bindings = Vec::new();
     for selection in admitted.native_bindings {
         let evaluation = computed

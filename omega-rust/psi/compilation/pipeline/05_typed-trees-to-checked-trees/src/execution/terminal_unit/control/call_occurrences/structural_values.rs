@@ -17,7 +17,7 @@ pub(super) fn collect<'facts>(
     value: checked_trees::CheckedStructuralValueHandle,
     calls: &'facts [checked_trees::FlowCallFact],
     minimum_call_ordinal: u32,
-    consumed: &mut super::CallOccurrenceLedger<'_>,
+    consumed: &mut super::CallOccurrenceLedger,
     structural: &mut Vec<&'facts checked_trees::FlowCallFact>,
 ) -> Option<()> {
     let mut pending = vec![value];

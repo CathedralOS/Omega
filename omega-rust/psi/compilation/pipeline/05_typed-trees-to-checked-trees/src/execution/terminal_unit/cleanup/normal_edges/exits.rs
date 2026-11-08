@@ -6,10 +6,9 @@
 use checked_trees::{CheckFacts, FlowClaimJoinExit};
 use symbols::SymbolHandle;
 
-pub(super) struct StateExit {
-    pub(super) exit: FlowClaimJoinExit,
+struct StateExit {
+    exit: FlowClaimJoinExit,
     completed_storage: arena::Handle<checked_trees::FlowStorageSnapshot>,
-    pub(super) returned_value: arena::Handle<checked_trees::FlowOperandFact>,
 }
 
 pub(in crate::execution::terminal_unit) fn state_exits(
@@ -60,7 +59,7 @@ pub(in crate::execution::terminal_unit) fn state_exit_storage(
     Ok(snapshots)
 }
 
-pub(super) fn state_exit_rows(
+fn state_exit_rows(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -103,7 +102,6 @@ pub(super) fn state_exit_rows(
         rows.push(StateExit {
             exit,
             completed_storage: outgoing.completed_storage,
-            returned_value: outgoing.returned_value,
         });
     }
     // Machine-boundary exits live in a second channel: a nested machine
@@ -145,7 +143,6 @@ pub(super) fn state_exit_rows(
         rows.push(StateExit {
             exit,
             completed_storage: outgoing.completed_storage,
-            returned_value: outgoing.returned_value,
         });
     }
     Ok(rows)

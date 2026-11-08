@@ -1,5 +1,7 @@
-//! Rejoin producer-retained review addresses to independently supplied Source.
-//! Physical values come from the canonical application, never a rebuilt layout.
+// Callback record layout projection rejoining producer-retained review addresses to
+// independently supplied source declarations and authenticating the supplied checked
+// layout report against the original canonical publication report without executing
+// a layout policy.
 
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::rejected;
@@ -285,8 +287,6 @@ fn application(
     })
 }
 
-/// Authenticate the supplied checked report against the original canonical
-/// report. This reads existing evidence; it never executes a layout policy.
 fn selected_geometry<'a>(
     compilation: &'a PackageReviewInput<'_>,
     source: &CallbackRecordReviewSource,

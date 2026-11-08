@@ -1,7 +1,7 @@
+// Shared lowercase-hex display wrapper (`Hex`) and 64-digit SHA-256 hex parser (`hex_digest`) for reports and lockfile text.
+
 use std::fmt;
 
-/// Shared lowercase-hex display wrapper for digest bytes rendered in reports
-/// and lockfile text.
 pub(crate) struct Hex<'a, B: AsRef<[u8]> + ?Sized>(pub &'a B);
 
 impl<B: AsRef<[u8]> + ?Sized> fmt::Display for Hex<'_, B> {
@@ -13,8 +13,6 @@ impl<B: AsRef<[u8]> + ?Sized> fmt::Display for Hex<'_, B> {
     }
 }
 
-/// Parse exactly 64 lowercase hexadecimal digits — the inverse of [`Hex`]'s
-/// display form. `None` for any other length or a non-hexadecimal byte.
 pub(crate) fn hex_digest(text: &str) -> Option<[u8; 32]> {
     if text.len() != 64
         || !text

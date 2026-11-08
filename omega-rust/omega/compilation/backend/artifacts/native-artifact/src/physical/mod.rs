@@ -896,6 +896,10 @@ impl std::fmt::Display for NativePhysicalEvidenceGap {
                         formatter,
                         "normalized foreign call on machine {machine} is owned by completion edge {edge}"
                     ),
+                    CallSiteOwner::Installation { operation, role } => write!(
+                        formatter,
+                        "normalized foreign call on machine {machine} incorrectly names installation helper {role:?} on operation {operation}"
+                    ),
                     CallSiteOwner::CleanupAction {
                         edge,
                         action_ordinal,

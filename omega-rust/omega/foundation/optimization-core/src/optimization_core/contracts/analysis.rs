@@ -1,8 +1,14 @@
+// Closed 21-variant `AnalysisKind` vocabulary and 8-byte bitset representations
+// (`AnalysisSet`, `AnalysisInvalidationSet`).
+//
+// Iteration over `AnalysisSet` and `AnalysisInvalidationSet` always yields
+// variants in `AnalysisKind::ALL` order, and `decode` rejects any bit outside
+// `KNOWN_ANALYSIS_BITS`.
+
 use super::CoreContractDecodeError;
 
 crate::tagged_vocabulary! {
     21;
-    /// Deterministic analysis products understood by the pass manager.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum AnalysisKind {
         ControlFlowGraph = 1,
@@ -45,8 +51,6 @@ const KNOWN_ANALYSIS_BITS: u64 = {
     bits
 };
 
-/// Canonical set of analysis requirements. Iteration always follows the
-/// closed `AnalysisKind::ALL` order, never insertion or hash-map order.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct AnalysisSet(u64);
 
@@ -99,7 +103,6 @@ impl AnalysisSet {
     }
 }
 
-/// Analyses invalidated atomically by one accepted rewrite.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct AnalysisInvalidationSet(AnalysisSet);
 

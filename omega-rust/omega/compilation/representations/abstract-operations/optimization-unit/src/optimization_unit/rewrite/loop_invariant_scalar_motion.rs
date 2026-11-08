@@ -16,7 +16,7 @@ use semantic_vocabulary::{OperationId, PlaceId, ScalarType, ValueId};
 
 use super::super::cycles::CycleComponentId;
 use super::foundations::{NodeLocation, encode_location};
-use crate::{FuelSettlement, PsiProvenance, codec_bytes::push_encoded};
+use crate::{PsiProvenance, WorkSettlement, codec_bytes::push_encoded};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisSet, OptimizationCandidateIdentity, OptimizationFactReference,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -105,7 +105,7 @@ impl LoopInvariantNodeResult {
 /// One loop-invariant scalar node selected for relocation. The node records
 /// the exact source-owned custody the ledger and validator must see: its
 /// operation identity, preserved result, original location, provenance, and
-/// fuel settlements, plus the operand rebinding an invariant member parameter
+/// work settlements, plus the operand rebinding an invariant member parameter
 /// performs when the computation is re-expressed on its preheader-visible
 /// representative. Scalar-constant leaves and admitted place observations
 /// carry an empty operand rewrite list — an observation whose storage root
@@ -155,7 +155,7 @@ pub struct LoopInvariantScalarNode {
     /// roots are already preheader-visible or produced inside the same run.
     argument_rewrites: Vec<(PlaceId, PlaceId)>,
     provenance: Vec<PsiProvenance>,
-    fuel: Vec<FuelSettlement>,
+    work: Vec<WorkSettlement>,
 }
 
 impl LoopInvariantScalarNode {
@@ -172,7 +172,7 @@ impl LoopInvariantScalarNode {
         root_rewrite: Option<(PlaceId, PlaceId)>,
         argument_rewrites: Vec<(PlaceId, PlaceId)>,
         provenance: Vec<PsiProvenance>,
-        fuel: Vec<FuelSettlement>,
+        work: Vec<WorkSettlement>,
     ) -> Self {
         operand_rewrites.sort_unstable();
         Self {
@@ -183,7 +183,7 @@ impl LoopInvariantScalarNode {
             root_rewrite,
             argument_rewrites,
             provenance,
-            fuel,
+            work,
         }
     }
 
@@ -231,8 +231,8 @@ impl LoopInvariantScalarNode {
         &self.provenance
     }
 
-    pub fn fuel(&self) -> &[FuelSettlement] {
-        &self.fuel
+    pub fn work(&self) -> &[WorkSettlement] {
+        &self.work
     }
 }
 

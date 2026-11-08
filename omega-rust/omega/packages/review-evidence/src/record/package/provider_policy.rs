@@ -1,4 +1,5 @@
-//! Receipt-free selected provider meaning; no acceptance or execution authority.
+// Receipt-free selected provider meaning, carrying no acceptance or execution
+// authority.
 
 mod authority;
 mod binding_validation;

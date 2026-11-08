@@ -11,17 +11,12 @@
 //! Independently supplied or persisted rows need that same authentication.
 
 use crate::published::facts::contextual_cleanup::occurrence_contexts;
-use checked_trees::{CheckFacts, ContextualCleanupDisposition, ContextualCleanupExclusionCause};
+use checked_trees::{ContextualCleanupDisposition, ContextualCleanupExclusionCause};
 use facts::{FactContextHandle, PlaceSegment};
 use language_semantics::PermissionEventSource;
 use std::cell::OnceCell;
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
-mod completed_results;
-pub(crate) use completed_results::{
-    CaseSelections, CompletedResult, CompletedResults, selected_results,
-};
-
 use validation::{
     CanonicalPlace, CheckingInput, CleanupCaseReachability, canonical_place_type_reference,
     unwrapped_type_reference,
@@ -32,18 +27,17 @@ type OccurrenceContexts = Vec<(usize, Vec<FactContextHandle>)>;
 /// Invocation-local query state; it neither publishes nor strengthens facts.
 pub(crate) struct CleanupCaseEvidence<'a> {
     program: &'a dyn CheckingInput,
-    facts: &'a CheckFacts,
+    facts: checked_trees::CheckFactsRef<'a>,
     disposition: &'a ContextualCleanupDisposition,
     inactive: Vec<&'a [PlaceSegment]>,
     definite: Vec<&'a [PlaceSegment]>,
     contexts: OnceCell<Option<OccurrenceContexts>>,
-    completed_result: Option<&'a CompletedResult<'a>>,
 }
 
 impl<'a> CleanupCaseEvidence<'a> {
     pub(crate) fn new(
         program: &'a dyn CheckingInput,
-        facts: &'a CheckFacts,
+        facts: checked_trees::CheckFactsRef<'a>,
         disposition: &'a ContextualCleanupDisposition,
     ) -> Option<Self> {
         let cleanup = &facts.contextual_cleanup;
@@ -94,16 +88,7 @@ impl<'a> CleanupCaseEvidence<'a> {
             inactive,
             definite,
             contexts: OnceCell::new(),
-            completed_result: None,
         })
-    }
-
-    pub(crate) fn at_completed_result(mut self, result: &'a CompletedResult<'a>) -> Option<Self> {
-        if !result.belongs_to(self.program, self.facts) {
-            return None;
-        }
-        self.completed_result = Some(result);
-        Some(self)
     }
 
     /// Producer custody proves a real transfer on every edge where this
@@ -113,9 +98,6 @@ impl<'a> CleanupCaseEvidence<'a> {
     }
 
     pub(crate) fn contexts(&self) -> &Option<OccurrenceContexts> {
-        if let Some(completed) = self.completed_result {
-            return completed.contexts();
-        }
         self.contexts.get_or_init(|| {
             self.facts
                 .flow
@@ -134,9 +116,6 @@ impl<'a> CleanupCaseEvidence<'a> {
     }
 
     fn proves_case(&self, subject: &CanonicalPlace, variant: SymbolHandle, required: bool) -> bool {
-        if let Some(completed) = self.completed_result {
-            return completed.proves_case(self.disposition, subject, variant, required);
-        }
         self.contexts()
             .as_ref()
             .filter(|points| !points.is_empty())
@@ -144,7 +123,7 @@ impl<'a> CleanupCaseEvidence<'a> {
                 points.iter().all(|(statement, contexts)| {
                     super::place_case_has_value(
                         self.program,
-                        &self.facts.semantic,
+                        self.facts.semantic,
                         contexts,
                         self.disposition.machine,
                         self.disposition.state,
@@ -179,7 +158,7 @@ impl<'a> CleanupCaseEvidence<'a> {
                 points.iter().all(|(statement, contexts)| {
                     super::place_case_path_is_inactive(
                         self.program,
-                        &self.facts.semantic,
+                        self.facts.semantic,
                         contexts,
                         self.disposition.machine,
                         self.disposition.state,
@@ -206,9 +185,6 @@ impl<'a> CleanupCaseEvidence<'a> {
                 root: self.disposition.root,
                 segments: path[..position].to_vec(),
             };
-            if self.proves_case(&subject, *variant, false) {
-                return Some(CleanupCaseReachability::Inactive);
-            }
             if self.proves_case(&subject, *variant, true) {
                 continue;
             }

@@ -1,11 +1,20 @@
-//! Checked compilation and the source custody sealed against it.
-//!
-//! The sealed record retains each stage product as the unit its producer
-//! returned: selected execution, the shared evaluated Build, this
-//! compilation's Build admission, provider settlement, checked-tree product
-//! selection and source custody. Consumers borrow the unit they read; the
-//! methods here are those units, the joins that span them, and the record's
-//! measurement and ownership transfer.
+/*
+Checked compilation and the source custody sealed against it.
+
+The sealed `CheckedCompilation` record retains each stage product as the unit
+its producer returned: selected execution, the shared evaluated Build, this
+compilation's Build admission, provider settlement, checked-tree product
+selection, and source custody. Consumers borrow the unit they read; the methods
+here expose those units, reconstruct explicit root trust obligations, project
+package build handoffs, and assemble the `TerminalNativeProposalRequest` that
+Omega 00 joins against provider selection.
+*/
+
+/*
+Measurements, a retained judgment, and invocation-local derived code are not a
+separate checked semantic identity: `PartialEq` compares only `execution` and
+`sources` so populating lazy Terminal publication cannot alter equality.
+*/
 
 use crate::{BuildAdmission, ComputedBuildConfig};
 use artifacts::compile_timings::CompileTimings;
@@ -15,75 +24,37 @@ use package_compilation::CheckedSourceCustody;
 use provider_planning::ProviderSettlement;
 use selected_dispatch::SelectedExecution;
 use std::sync::Arc;
+use terminal_psi_to_abstract_operations::{
+    BoundaryApplicationSettlement, TerminalNativeProposalRequest,
+};
 
 mod report;
-mod terminal;
 
 pub use report::{
     CheckedProductReport, CompileReportSettlement, ProductReportPlan, ProductReportRequest,
 };
 
-/// Invocation-local language judgments retained by the compiler session. Build
-/// and Product are independent checked programs; neither judgment carries
-/// provider selection, executor resources or consent.
 #[derive(Debug, Clone, Default)]
 pub struct RetainedCompilationChecks {
     pub build: Option<psi_compiler::RetainedCheck>,
     pub product: Option<psi_compiler::RetainedCheck>,
-    /// Retained Build judgments made by sibling occurrences of this same
-    /// invocation. Sibling rows scope different entries through projections
-    /// that can still arrive equal; an exact-input match takes the earlier
-    /// judgment rather than repeating the whole-program check it owns.
-    /// The pool is invocation-local: rows never reuse a sibling's admission.
-    pub sibling_build_checks: Vec<psi_compiler::RetainedCheck>,
-    /// Retained product judgments from earlier targets of this same request.
-    /// The single-slot `product` chain only reaches the immediately prior
-    /// target; a target whose program diverged would orphan a later target
-    /// that converges with an earlier one. An exact-input match takes that
-    /// earlier judgment; authority admission still runs per invocation.
-    pub sibling_product_checks: Vec<psi_compiler::RetainedCheck>,
+    pub sibling_build_checks: Vec<psi_compiler::RetainedCheck>, // invocation-local build judgments across sibling occurrences
+    pub sibling_product_checks: Vec<psi_compiler::RetainedCheck>, // invocation-local product judgments across earlier targets
 }
 
-/// Whole stage products supplied when sealing a checked compilation, each as
-/// the record its producing owner returned. These inputs are not an admission
-/// receipt. Sealing retains them immutably; downstream consumers still
-/// independently reconstruct their evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCompilationInputs {
-    /// Checked semantics with target/entry custody and every selected-execution
-    /// sidecar, produced by selected dispatch.
     pub settled: SelectedExecution,
-    /// Checked source is retained only for explicit inspection and reference
-    /// interpretation. Target execution receives the separate settled record.
-    pub source_inspection: Arc<provider_planning::SelectedProviderSource>,
-    /// One immutable evaluated Build shared by target products and review clones.
-    /// Authored choices stay distinct from the realized settlements beside it.
+    pub source_inspection: Arc<provider_planning::SelectedProviderSource>, // retained only for explicit inspection and reference interpretation
     pub build: Arc<ComputedBuildConfig>,
     pub build_admission: BuildAdmission,
-    /// Source-owned defaults include unrequested deployments and share storage
-    /// across realizations. They are not effects of the earlier Build execution.
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub providers: ProviderSettlement,
-    /// Completed independent producing joins, or the native-only reason their
-    /// roster is unavailable. Neither state grants installed provider authority.
     pub independent_components: Result<Vec<crate::SelectedIndependentComponent>, String>,
-    /// Identity-bearing checked-tree product selection evidence, present only
-    /// when the effective build selection named `CheckedTreeProductPruning`.
-    /// `None` means the checked-tree phase ran as the identity boundary. The
-    /// retained roots and pruned roster re-derive the exact product; they are
-    /// not a reselection input.
     pub product_selection: Option<psi_compiler::CheckedTreeProductSelection>,
 }
 
-/// Psi-checked semantics paired with the Omega-owned provider realization
-/// selected for one engine run. The semantic program deliberately does not
-/// retain target/provider installation state.
-///
-/// Clones share immutable program storage. Temporary review types belong to
-/// projection-local trees, not to this evidence-bearing result. Consumers still
-/// perform their independent reconstruction.
-///
 /// ```compile_fail
 /// fn replace_program(checked: &mut compilation_products::CheckedCompilation) {
 ///     let _ = &mut checked.execution;
@@ -95,16 +66,10 @@ pub struct CheckedCompilation {
     execution: CheckedCompilationInputs,
     sources: Arc<CheckedSourceCustody>,
     timings: CompileTimings,
-    /// The settled language judgments and their exact inputs, kept only when the
-    /// request asked to retain it for a later compile of the same occurrence.
     settled_checks: RetainedCompilationChecks,
-    /// Invocation-local derived code, not another source judgment or admission.
     terminal_publication: Arc<crate::ProductTerminalPublication>,
 }
 
-// Measurements, a retained judgment and invocation-local derived code are not
-// another checked semantic identity. The semantic inputs retain their own
-// equality; a lazy publication becoming populated cannot change that judgment.
 impl PartialEq for CheckedCompilation {
     fn eq(&self, other: &Self) -> bool {
         self.execution == other.execution && self.sources == other.sources
@@ -114,9 +79,6 @@ impl PartialEq for CheckedCompilation {
 impl Eq for CheckedCompilation {}
 
 impl CheckedCompilation {
-    /// Retain a target's settlement beside the common source closure. Source
-    /// checking already sealed that closure; realization must not hash it again.
-    /// This assembles products, not package admission or publication authority.
     pub fn from_settled_execution(
         execution: CheckedCompilationInputs,
         sources: Arc<CheckedSourceCustody>,
@@ -141,8 +103,6 @@ impl CheckedCompilation {
         &self.terminal_publication
     }
 
-    /// Retain authored source completion's actual invocation charges separately
-    /// from optional source judgments and target/provider admission.
     pub fn with_source_completion_accounting(
         mut self,
         accounting: build_time_evaluation::SourceCompletionAccounting,
@@ -157,78 +117,49 @@ impl CheckedCompilation {
         &self.source_completion_accounting
     }
 
-    /// Keep the settled checks this compilation ran (or took) for a later
-    /// compile of the same occurrence to hand back.
     pub fn with_settled_checks(mut self, settled_checks: RetainedCompilationChecks) -> Self {
         self.settled_checks = settled_checks;
         self
     }
 
-    /// The retained settled checks, empty when the request asked for none.
     pub const fn settled_checks(&self) -> &RetainedCompilationChecks {
         &self.settled_checks
     }
-}
 
-impl CheckedCompilation {
-    /// The complete immutable result of selected execution: the checked
-    /// program, target-profile and native-ABI selection, program entry, and
-    /// selected provider evidence. Borrowing this unit grants no installation
-    /// or publication authority.
     pub const fn execution(&self) -> &SelectedExecution {
         &self.execution.settled
     }
 
-    /// The one evaluated Build retained by this compilation. Authored choices
-    /// remain distinct from the selected execution and its independently
-    /// reconstructed provider evidence.
     pub fn build(&self) -> &ComputedBuildConfig {
         &self.execution.build
     }
 
-    /// This compilation's admitted Build facts: the application declaration,
-    /// the evaluated build machine's identity and its restricted host requests.
     pub const fn build_admission(&self) -> &BuildAdmission {
         &self.execution.build_admission
     }
 
-    /// Every authored Product default, retained before source root pruning.
     pub fn provider_defaults(
         &self,
     ) -> &[build_time_evaluation::provider_declarations::TargetProviderDefaults] {
         &self.execution.provider_defaults
     }
 
-    /// Provider-planning custody retained for package review, trust replay
-    /// and native realization. Its presence publishes no package ABI or
-    /// admission row.
     pub const fn providers(&self) -> &ProviderSettlement {
         &self.execution.providers
     }
 
-    /// Release checked source while transferring the source-free native joins.
     pub fn into_independent_components(
         self,
     ) -> Result<Vec<crate::SelectedIndependentComponent>, String> {
         self.execution.independent_components
     }
 
-    /// The exact physical/generated source closure sealed against this
-    /// program, with its package subject when package-aware. Source IDs are
-    /// private join coordinates and never enter canonical product bytes.
     pub fn sources(&self) -> &CheckedSourceCustody {
         &self.sources
     }
 
-    /// Reconstruct this product's trust obligations against explicit owner
-    /// admissions, independently of report output. This grants neither package
-    /// review authority nor native publication authority.
-    /// Resolve every root grant to its exact claim or provider plan; a grant
-    /// that names nothing the program selects rejects.
     pub fn admit_trust(&self) -> Result<(), Vec<Diagnostic>> {
         let grants = self.build().config.root_grant_selectors();
-        // No trust subjects are selected in this case. Do not prepare the
-        // dormant declaration census merely to reconstruct an empty set.
         if grants.is_empty() {
             return Ok(());
         }
@@ -247,9 +178,6 @@ impl CheckedCompilation {
         .map(drop)
     }
 
-    /// Retain this package's own explicit generated-source handoffs as one
-    /// compiler-issued bundle suitable for a later dependency compilation.
-    /// The bundle is not admission and carries no filesystem authority.
     pub fn package_build_handoff(
         &self,
     ) -> Result<package_compilation::PackageBuildHandoff, String> {
@@ -290,11 +218,85 @@ impl CheckedCompilation {
         &self.timings
     }
 
-    /// The measurement accumulator the compiler's later product legs record
-    /// into, so stage timings survive inside the checked record until the
-    /// report-facing leg prints them.
     pub fn timings_mut(&mut self) -> &mut CompileTimings {
         &mut self.timings
+    }
+
+    pub fn terminal_native_proposal_request<'input>(
+        &'input self,
+        selections: &optimization_core::OptimizationSelections,
+        exported_calling_applications: &[calling_conventions::BoundaryCallingApplication],
+    ) -> Result<TerminalNativeProposalRequest<'input>, Vec<Diagnostic>> {
+        let execution = self.execution();
+        let providers = self.providers();
+        let native_sources = execution
+            .native_provider_sources
+            .as_ref()
+            .map_err(Clone::clone)?;
+        if native_sources.declarations.len() != execution.selected_provider_provenance.len() {
+            return Err(vec![Diagnostic::error(
+                "native provider declarations lost selected-plan alignment",
+            )]);
+        }
+        let selected_provider_provenance = execution
+            .selected_provider_provenance
+            .iter()
+            .zip(native_sources.declarations.iter())
+            .map(|(retained, declarations)| {
+                if retained.plan != declarations.plan {
+                    return Err(vec![Diagnostic::error(
+                        "native provider declarations substituted a selected plan",
+                    )]);
+                }
+                Ok(terminal_psi_to_abstract_operations::provider_admission::CompilerIntrinsicPlanProvenance {
+                    plan: &retained.plan,
+                    row_executions: &retained.row_compiler_intrinsic_executions,
+                    semantic_schema: &retained.plan.schema,
+                    row_numeric_realizations: &declarations.row_numeric_realizations,
+                })
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        let (
+            package_terminal_authority_permissions,
+            package_terminal_authority_permission_identities,
+        ) = execution.terminal_authority_permissions();
+        Ok(TerminalNativeProposalRequest {
+            evaluated_binding_identities: providers.evaluated_via_bindings.identities(),
+            direct_boundary_leaves: execution.direct_boundary_leaves.iter().collect(),
+            provider_declarations: &native_sources.declarations,
+            family_realizations: &native_sources.family_realizations,
+            target_profile: execution.selected_target_profile,
+            boundaries: BoundaryApplicationSettlement {
+                selected_provider_plans: execution.plans(),
+                selected_provider_provenance,
+                calling_applications: providers
+                    .calling_applications(exported_calling_applications)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
+            },
+            native_target: execution.selected_native_target(),
+            program_entry: execution.selected_program_entry.as_ref().map(|entry| {
+                terminal_psi_to_abstract_operations::NativeProgramEntrySettlement::new(
+                    entry.source_signature(),
+                    entry.calling_plans().map(|plans| {
+                        (
+                            &plans.semantic_calling_application,
+                            &plans.physical_calling_application,
+                            &plans.storage_entry,
+                        )
+                    }),
+                )
+            }),
+            application: self.build_admission().native_application_metadata(
+                &self.build().config.settings,
+                execution.selected_target_profile,
+            ),
+            optimizations: selections.project_post_terminal(),
+            external_bindings: &providers.external_binding_rows,
+            behavior_exclusions: self.build().config.behavior_exclusions.as_slice(),
+            package_terminal_authority_permissions,
+            package_terminal_authority_permission_identities,
+            x86_scalar_fma_provider: execution.x86_scalar_fma_provider,
+        })
     }
 }
 

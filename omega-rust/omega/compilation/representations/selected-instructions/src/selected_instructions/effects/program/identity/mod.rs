@@ -42,7 +42,7 @@ pub(crate) fn encode_terminal_pre_allocation_machine_effect_content(
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, plan.work_schedule.marker().to_le_bytes());
     bytes.extend_from_slice(&plan.target.identity_bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.register_constraints.bytes());

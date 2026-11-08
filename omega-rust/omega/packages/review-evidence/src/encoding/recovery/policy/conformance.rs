@@ -1,4 +1,4 @@
-//! Bounded recovery of the complete inert conformance application component.
+// Bounded recovery of the complete inert conformance application component.
 
 use super::{
     Error,

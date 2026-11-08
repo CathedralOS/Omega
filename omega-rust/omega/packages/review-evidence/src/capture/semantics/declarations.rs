@@ -1,6 +1,4 @@
-//! Canonical identities for checked declarations: nominal identity and
-//! ownership, provider and trait requirement identities, policy requirement
-//! identities and the declaring schema of a provider requirement.
+// Canonical identities for checked declarations: nominal identity and ownership, provider and trait requirement identities, policy requirement identities, and declaring provider schemas.
 
 mod establishment_routes;
 mod identity;

@@ -1,3 +1,9 @@
+// Contract call target, receiver, argument, and fact-call projection verification.
+// Bare receiverless contract calls whose spelled callee selects no package
+// declaration are admitted by checking as opaque `ProofView` atoms (`Bag(items)`-style
+// schematic views), where the unresolved receiverless callee name is the atom's
+// whole identity.
+
 use super::targets::{ContractCallDeclaration, contract_call_target_declarations};
 use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
@@ -245,12 +251,6 @@ pub(crate) fn exact_checked_contract_call_target(
                     }
                 },
             )),
-        // A bare receiverless contract call whose spelled callee selects no
-        // package declaration is admitted by checking as an opaque proof-view
-        // atom (`Bag(items)`-style schematic views); the finalized ledger row
-        // carries the compiler-owned ProofView intrinsic. Package review
-        // rejoins that admission shape: the callee stays unresolved and
-        // receiverless, and the retained name is the atom's whole identity.
         AuthoredDeclarationSelectionTarget::Intrinsic(
             language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::ProofView,
         ) if !call.target_symbol.is_valid()

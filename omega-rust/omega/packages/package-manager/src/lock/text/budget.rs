@@ -1,4 +1,4 @@
-//! One accounting path for recovery and serialization's recoverability check.
+// Shared aggregate resource accounting for lock recovery and canonical serialization's recoverability check.
 
 use super::super::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLockError as Error,

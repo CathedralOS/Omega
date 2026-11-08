@@ -1,23 +1,29 @@
-//! Bind lifecycle inputs to the selected provider's actual completed call.
-//!
-//! A profile's shape and bytes are not its provenance. The unchanged payload
-//! query identifies its producer; installation then supplies the exact selected
-//! call. The profile call and lifecycle must observe the same unchanged extent
-//! occurrence. Native initialization consumes the already checked owned grant,
-//! validates the bound profile at runtime, and publishes Resident only after
-//! committing its complete image. The selected profile provider supplies the
-//! admitted resource premise; an arbitrary constructed profile cannot do so.
-//! No interpreter allocation registry or second numeric-address grant is made.
+// Native access lifecycle and empty-run release settlement.
+//
+// A profile's shape and bytes are not its provenance. The unchanged payload
+// query identifies its producer; installation then supplies the exact selected
+// call, and the profile call and lifecycle must observe the same unchanged
+// extent occurrence. `require_image_contract` verifies the native whole-value
+// codec contract (non-erased runtime fields, acyclic inline storage, and full
+// integer storage widths on initialization).
+//
+// `settle_empty_releases` settles the source-authenticated `EmptyRunRelease`
+// operation, whose checked precondition proves zero cells so the native
+// operation transports the original storage descriptor unchanged without
+// calling a provider.
 
 use super::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedTerminalMechanism,
-    SettledCompilerBuiltin,
+    NativeRealizationInput, SettledCompilerBuiltin, TerminalAuthorityPolicy,
 };
 use crate::provider_installation::{AdmittedInstalledProviderCall, AdmittedProviderInstallation};
 use diagnostics::Diagnostic;
-use semantic_vocabulary::{InvocationSite, MachineId, OperationId};
+use effects::CompilerIntrinsicExecutionIdentity;
+use layout_plans::LayoutPlacementReport;
+use semantic_vocabulary::{InvocationSite, MachineId, OperationId, StructuralTypeId};
 use terminal_psi::{
-    OperationKind, StructuralAccess, StructuralArgument, TerminalAccessLifecycleExecution,
+    CheckedBoundaryExecution, OperationKind, StructuralAccess, StructuralArgument,
+    StructuralFieldDeclaration, StructuralTypeShape, TerminalAccessLifecycleExecution,
     TerminalAccessLifecycleOperation, TerminalAccessLifecyclePlan, TerminalModule,
 };
 use terminal_semantics::descriptor_lifetimes::DescriptorPosition;
@@ -25,12 +31,10 @@ use terminal_semantics::descriptor_results::{
     self, DescriptorAnalysis, DescriptorMachine, DescriptorPayloadTarget,
 };
 
-mod image_contract;
-
 pub(super) fn settle_native_lifecycles<'execution>(
-    input: &super::NativeRealizationInput,
+    input: &NativeRealizationInput,
     installation: Option<&AdmittedProviderInstallation>,
-    policy: &super::TerminalAuthorityPolicy,
+    policy: &TerminalAuthorityPolicy,
 ) -> Result<
     (
         Vec<AdmittedBoundarySettlement<'execution>>,
@@ -87,9 +91,6 @@ pub(super) fn settle_native_lifecycles<'execution>(
                 let Some(&plan) = primitive_plans.get(boundary) else {
                     continue;
                 };
-                // The canonical module also retains operations outside this
-                // native product. A dead call or another target's body must not
-                // demand execution merely because its declaration is present.
                 if !function
                     .operations
                     .iter()
@@ -103,7 +104,7 @@ pub(super) fn settle_native_lifecycles<'execution>(
                         machine.id, operation.id,
                     ))]
                 };
-                image_contract::require(module, plan).map_err(fail)?;
+                require_image_contract(module, plan).map_err(fail)?;
                 {
                     let graph = graph.get_or_insert_with(|| {
                         descriptor_results::terminal_reference_graph(module)
@@ -127,10 +128,6 @@ pub(super) fn settle_native_lifecycles<'execution>(
                     )
                     .map_err(fail)?;
                 }
-                // Admission is per actual occurrence; realization is one row per
-                // declaration. A profile re-observation establishes neither
-                // backing nor content: MoveOut still consumes the original
-                // checked Resident contract, independently of its read supply.
                 if settlements
                     .iter()
                     .any(|row: &AdmittedBoundarySettlement<'_>| row.boundary == plan.boundary)
@@ -167,6 +164,194 @@ pub(super) fn settle_native_lifecycles<'execution>(
         }
     }
     Ok((settlements, mechanisms))
+}
+
+pub(super) fn settle_empty_releases<'execution>(
+    input: &NativeRealizationInput,
+    policy: &TerminalAuthorityPolicy,
+) -> Result<
+    (
+        Vec<AdmittedBoundarySettlement<'execution>>,
+        Vec<AdmittedTerminalMechanism>,
+    ),
+    Vec<Diagnostic>,
+> {
+    let module = input.module();
+    let mut settlements = Vec::new();
+    let mut mechanisms = Vec::new();
+    let mut reached: Vec<_> = input
+        .plan()
+        .functions
+        .iter()
+        .flat_map(|function| &function.operations)
+        .filter_map(|operation| match operation {
+            abstract_operations::AbstractOperation::BoundaryCall { boundary, .. } => {
+                Some(*boundary)
+            }
+            _ => None,
+        })
+        .collect();
+    reached.sort_unstable();
+    reached.dedup();
+    for boundary_id in reached {
+        let Some(boundary) = module.boundary_machine(boundary_id) else {
+            return Err(vec![Diagnostic::error(
+                "reached boundary has no Terminal declaration",
+            )]);
+        };
+        if boundary.declaration.as_ref().map(|row| row.execution)
+            != Some(CheckedBoundaryExecution::EmptyRunRelease)
+        {
+            continue;
+        }
+        let fail = |reason: &str| {
+            vec![Diagnostic::error(format!(
+                "empty-run release {:?}: {reason}",
+                boundary.id,
+            ))]
+        };
+        terminal_semantics::empty_run_release_contract(&module.structural_types, boundary)
+            .map_err(fail)?;
+        let mechanism = CompilerIntrinsicExecutionIdentity::EmptyRunRelease;
+        policy.classify(mechanism).map_err(|error| {
+            fail(&format!(
+                "missing execution classification for {:?}",
+                error.mechanism(),
+            ))
+        })?;
+        let settled = SettledCompilerBuiltin::from_identity(mechanism, boundary.id, None)
+            .ok_or_else(|| fail("missing compiler execution catalog entry"))?;
+        settlements.push(AdmittedBoundarySettlement {
+            boundary: boundary.id,
+            execution: AdmittedBoundaryExecution::CompilerBuiltin(settled),
+            realization: target_operations::BoundarySettlementRealization::Builtin(
+                target_operations::BoundaryRealization::EmptyRunRelease,
+            ),
+        });
+        mechanisms.push(AdmittedTerminalMechanism {
+            boundary: boundary.id,
+            mechanism: mechanism.into(),
+        });
+    }
+    Ok((settlements, mechanisms))
+}
+
+fn require_image_contract(
+    module: &TerminalModule,
+    plan: &TerminalAccessLifecyclePlan,
+) -> Result<(), &'static str> {
+    if plan.operation == terminal_psi::TerminalAccessLifecycleOperation::View {
+        return terminal_semantics::validate_access_view_content(module, plan);
+    }
+    let declaration = module
+        .structural_type(plan.schema)
+        .ok_or("native lifecycle schema is absent")?;
+    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+        return Err("native lifecycle has no complete record image");
+    };
+    if terminal_psi::structural_type_has_borrowed_storage_by(
+        |identity| module.structural_type(identity),
+        plan.schema,
+    ) {
+        return Err(
+            "native resident content requires retained loan forwarding for reference fields",
+        );
+    }
+    require_runtime_value(module, plan.schema, &mut Vec::new())?;
+    if plan.operation != terminal_psi::TerminalAccessLifecycleOperation::Initialize {
+        return Ok(());
+    }
+    for (field, access) in plan
+        .image_fields
+        .iter()
+        .zip(plan.placement.access().plan().entries())
+    {
+        let field = fields
+            .iter()
+            .find(|candidate| candidate.id == *field)
+            .ok_or("native lifecycle image field is absent")?;
+        for entry in plan
+            .placement
+            .layout()
+            .entries
+            .iter()
+            .filter(|entry| entry.field == access.field())
+        {
+            if let LayoutPlacementReport::IntegerAt { stored_width, .. } = entry.placement {
+                let scalar = field
+                    .field_type
+                    .scalar_type()
+                    .ok_or("stored integer image field has no scalar carrier")?;
+                let bytes = terminal_semantics::reference_storage_byte_width(scalar)
+                    .ok_or("stored integer image field has no fixed width")?;
+                if stored_width != u64::from(bytes) * 8 {
+                    return Err(
+                        "native lifecycle narrowing requires checked concrete-value fitting evidence",
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn require_runtime_value(
+    module: &TerminalModule,
+    root: StructuralTypeId,
+    active: &mut Vec<StructuralTypeId>,
+) -> Result<(), &'static str> {
+    if active.contains(&root) {
+        return Err("native lifecycle value has cyclic inline storage");
+    }
+    active.push(root);
+    let declaration = module
+        .structural_type(root)
+        .ok_or("native lifecycle value declaration is absent")?;
+    match &declaration.shape {
+        StructuralTypeShape::Record { fields, .. } => require_fields(module, fields, active)?,
+        StructuralTypeShape::Sum { cases } => {
+            for case in cases {
+                require_fields(module, &case.fields, active)?;
+            }
+        }
+        StructuralTypeShape::Mixed { fields, cases } => {
+            require_fields(module, fields, active)?;
+            for case in cases {
+                require_fields(module, &case.fields, active)?;
+            }
+        }
+        StructuralTypeShape::FixedArray { element, length } if length.literal() != Some(0) => {
+            require_runtime_value(module, *element, active)?
+        }
+        _ => {}
+    }
+    active.pop();
+    Ok(())
+}
+
+fn require_fields(
+    module: &TerminalModule,
+    fields: &[StructuralFieldDeclaration],
+    active: &mut Vec<StructuralTypeId>,
+) -> Result<(), &'static str> {
+    for field in fields {
+        if field.relevance.is_erased() {
+            return Err(
+                "native lifecycle non-runtime fields require an authored custody agreement",
+            );
+        }
+        if let Some(child) = field.field_type.as_structural() {
+            if terminal_semantics::reference_storage_size(module.structural_types.iter(), child)
+                == Some(0)
+            {
+                return Err(
+                    "native lifecycle non-runtime fields require an authored custody agreement",
+                );
+            }
+            require_runtime_value(module, child, active)?;
+        }
+    }
+    Ok(())
 }
 
 fn bind_profile(
@@ -264,9 +449,6 @@ fn bind_profile(
             original.producer,
             borrowed_storage,
         )?;
-        // A run consumes its complete linear owner, while its profile was obtained
-        // for the backing field. Compare that exact projection, not the descriptor
-        // root; matching a parent by address would forget the selected occurrence.
         let mut backing = storage.clone();
         if operand.occupied {
             backing.path.extend(
@@ -367,8 +549,6 @@ mod tests {
             caller: MachineId::new(3).unwrap(),
             invocation_site: InvocationSite::Operation(OperationId::new(11).unwrap()),
             boundary,
-            // This is a coordinate-join unit test, not an installation claim.
-            // The public native path separately supplies admitted installation.
             provider: ProviderCandidateConformance {
                 boundary,
                 requirement_identity: identity,

@@ -1,9 +1,10 @@
-//! Accessors restated by every opaque-representation selection record: the
-//! carrying opaque identity, its conformance application, and the review
-//! dispositions. Declared once so each record impl names only its own type.
+// Shared field-projection macros for package review and policy records.
+//
+// Opaque-representation selections, callable signatures, and parameter records
+// expose identical read-only projections over identically named fields. We
+// declare those projections once here so each record type names only the fields
+// it exposes without restating boilerplate getter bodies.
 
-/// The seven accessors every opaque-representation selection record carries:
-/// identity fields plus the shared review dispositions.
 macro_rules! opaque_representation_selection_accessors {
     () => {
         pub const fn opaque(&self) -> &crate::record::PackageReviewNominalIdentity {
@@ -45,9 +46,6 @@ macro_rules! opaque_representation_selection_accessors {
 }
 pub(crate) use opaque_representation_selection_accessors;
 
-/// The callable-signature surface shared by trait-requirement and
-/// machine-parameter signature shapes: identical `self` projections over
-/// identically-named fields on both record types.
 macro_rules! package_policy_callable_signature_accessors {
     () => {
         pub const fn return_type(&self) -> Option<&crate::record::PackageReviewTypeIdentity> {
@@ -83,9 +81,6 @@ macro_rules! package_policy_callable_signature_accessors {
 }
 pub(crate) use package_policy_callable_signature_accessors;
 
-/// The name/const/mutable parameter surface shared by the callable,
-/// trait-requirement, and machine-parameter signature records: identical
-/// `self` projections over identically-named fields.
 macro_rules! signature_parameter_accessors {
     () => {
         pub fn name(&self) -> &str {
@@ -107,11 +102,6 @@ macro_rules! signature_parameter_accessors {
 }
 pub(crate) use signature_parameter_accessors;
 
-/// The single-field projection forms a record accessor can take: a value
-/// copied out of a shared borrow, a value copied out of a by-value receiver,
-/// a borrowed field, a borrowed slice field, and a borrowed optional field.
-/// Declared once so each record names only the fields it exposes and never
-/// restates the projection body.
 macro_rules! field_projection_accessors {
     (valued $($name:ident : $type:ty),+ $(,)?) => {
         $( pub const fn $name(self) -> $type { self.$name } )+

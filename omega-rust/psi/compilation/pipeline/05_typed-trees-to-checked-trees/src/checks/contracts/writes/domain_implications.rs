@@ -227,7 +227,7 @@ pub(super) fn value_proves_qualification_with_domain_stack(
     }
     if validation::field_domains::domain_requires_provenance(program, domain) {
         if subject.as_ref().is_some_and(|subject| {
-            exact_scalar_membership(program, facts, contexts, subject, domain, identity)
+            exact_scalar_membership(program, facts.view(), contexts, subject, domain, identity)
         }) {
             return true;
         }

@@ -128,7 +128,7 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
     else {
         return false;
     };
-    let origins = crate::flow::exit_parameter_origins(facts, exit_flow)
+    let origins = crate::flow::exit_parameter_origins(facts.view(), exit_flow)
         .iter()
         .filter(|origin| origin.contract == contract)
         .map(|origin| (origin.entry_parameter, origin.state_parameter))
@@ -227,7 +227,7 @@ pub(super) fn check_exit_ensures(
             if evidence_assignment {
                 continue;
             }
-            let missing_origins = crate::flow::exit_parameter_origins(facts, exit_flow)
+            let missing_origins = crate::flow::exit_parameter_origins(facts.view(), exit_flow)
                 .iter()
                 .filter(|origin| {
                     Some(origin.contract) == contract

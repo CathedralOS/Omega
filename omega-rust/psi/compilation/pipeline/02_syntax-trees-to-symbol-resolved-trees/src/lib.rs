@@ -88,3 +88,12 @@ pub mod pre_resolution {
         resolve_deferred_numeric_probe, resolve_numeric_probe,
     };
 }
+
+/// Exact declaration lookup for retained, signature-free metadata operands.
+/// This reads resolved declarations and keeps ordinary visibility/ambiguity rules.
+pub mod declaration_selection {
+    pub use crate::selection::signature_free_requirements::{
+        ExactSignatureFreeRequirement, SignatureFreeRequirementResolutionError,
+        resolve_signature_free_requirement,
+    };
+}

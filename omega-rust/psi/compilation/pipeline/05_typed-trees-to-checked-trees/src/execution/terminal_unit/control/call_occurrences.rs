@@ -21,19 +21,10 @@ struct ComputationVisit {
 /// A retained value can be reached through several roles without executing its
 /// child twice. Different computations still cannot consume one captured call.
 #[derive(Default)]
-struct CallOccurrenceLedger<'prefix> {
-    prefix: Option<&'prefix CallOccurrencePrefix>,
+struct CallOccurrenceLedger {
     calls: Vec<arena::Handle<checked_trees::FlowCallFact>>,
     accounted_computations: Vec<AccountedComputation>,
     pending_minima: Vec<Option<u32>>,
-}
-
-/// Immutable accounting of the common subject/pattern prefix. Branch-local
-/// operands borrow it without copying the statement's call inventory.
-struct CallOccurrencePrefix {
-    calls: Vec<arena::Handle<checked_trees::FlowCallFact>>,
-    call_keys: std::collections::BTreeSet<(u32, u32)>,
-    computations: std::collections::BTreeMap<(u32, u32, usize, u32, u32), Option<u32>>,
 }
 
 struct AccountedComputation {
@@ -45,7 +36,7 @@ struct AccountedComputation {
     minimum_call_ordinal: Option<u32>,
 }
 
-impl CallOccurrenceLedger<'_> {
+impl CallOccurrenceLedger {
     fn record_minimum(&mut self, minimum: Option<u32>) {
         if let Some(minimum) = minimum {
             for pending in &mut self.pending_minima {
@@ -55,11 +46,6 @@ impl CallOccurrenceLedger<'_> {
     }
     fn contains(&self, call: &arena::Handle<checked_trees::FlowCallFact>) -> bool {
         self.calls.contains(call)
-            || self.prefix.as_ref().is_some_and(|prefix| {
-                prefix
-                    .call_keys
-                    .contains(&(call.arena_index(), call.generation()))
-            })
     }
     fn push(&mut self, call: arena::Handle<checked_trees::FlowCallFact>) {
         self.calls.push(call);
@@ -67,43 +53,10 @@ impl CallOccurrenceLedger<'_> {
     /// Record one call occurrence once: a walk that reaches the same authored
     /// call twice records it at its first position and drops the repeat.
     fn record_once(&mut self, call: arena::Handle<checked_trees::FlowCallFact>) {
-        if !self.contains(&call) {
-            self.calls.push(call);
-        }
+        crate::shared::collections::push_unique(&mut self.calls, call);
     }
-    fn iter(&self) -> impl Iterator<Item = &arena::Handle<checked_trees::FlowCallFact>> {
-        self.prefix
-            .iter()
-            .flat_map(|prefix| prefix.calls.iter())
-            .chain(self.calls.iter())
-    }
-    fn accounted_minimum(
-        &self,
-        state: SymbolHandle,
-        statement: usize,
-        computation: CheckedScalarComputationHandle,
-    ) -> Option<Option<u32>> {
-        self.accounted_computations
-            .iter()
-            .find_map(|entry| {
-                (entry.state == state
-                    && entry.statement == statement
-                    && entry.computation == computation)
-                    .then_some(entry.minimum_call_ordinal)
-            })
-            .or_else(|| {
-                self.prefix
-                    .as_ref()?
-                    .computations
-                    .get(&(
-                        state.arena_index(),
-                        state.generation(),
-                        statement,
-                        computation.arena_index(),
-                        computation.generation(),
-                    ))
-                    .copied()
-            })
+    fn iter(&self) -> std::slice::Iter<'_, arena::Handle<checked_trees::FlowCallFact>> {
+        self.calls.iter()
     }
 }
 
@@ -113,11 +66,8 @@ impl CallOccurrenceLedger<'_> {
 /// Return the authored identity to join captured occurrences; the call builder
 /// separately resolves the callee's executable entry and signature.
 mod collecting;
-mod dispatch_producers;
-mod selected_calls;
 mod structural_values;
 mod traced;
-pub(in crate::execution::terminal_unit) use selected_calls::SelectedInvocationAccounting;
 
 pub(in crate::execution::terminal_unit) use collecting::call_owns_statement_computations;
 pub(in crate::execution::terminal_unit) use traced::outer_calls_in_prefix_traced;

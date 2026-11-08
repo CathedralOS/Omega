@@ -511,10 +511,9 @@ fn call_actions(
                     // Contextual retirement below still requires an exact root.
                     super::normal_edges::producer_root(facts, state, producer)
                 }
-                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                    expression,
-                    ..
-                } => Some(facts::PlaceRoot::Expression(expression)),
+                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
+                    Some(facts::PlaceRoot::Expression(expression))
+                }
                 _ => return Err("cleanup source is neither a call result nor an expression"),
             };
             let contextual = root.is_some_and(|root| {
@@ -906,7 +905,6 @@ pub(crate) fn finalize_completion_actions(
                         match operands.get(ordinal as usize)?.as_place()?.source.clone() {
                             CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                                 expression,
-                                ..
                             } => expression,
                             _ => return None,
                         }
@@ -1056,11 +1054,7 @@ pub(crate) fn finalize_completion_actions(
                     coordinate,
                     call.target_symbol,
                     disposition.root,
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                        value_dependency: None,
-                        expression,
-                        logical_root_type_identity: None,
-                    },
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
                 )
                 .ok()?;
                 owners.push((
@@ -1085,9 +1079,7 @@ pub(crate) fn finalize_completion_actions(
                     let selected = super::descriptor_retirement(
                         program,
                         CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                            value_dependency: None,
                             expression: root.expression,
-                            logical_root_type_identity: None,
                         },
                         root.type_reference,
                     )?;
@@ -1232,11 +1224,7 @@ fn finalize_value_completions(
             .root
             .as_expression()
             .ok_or_else(|| format!("{site}: completed root is not an expression"))?;
-        let source = CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-            value_dependency: None,
-            expression,
-            logical_root_type_identity: None,
-        };
+        let source = CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression };
         let selected = disposition_actions(
             program,
             facts,

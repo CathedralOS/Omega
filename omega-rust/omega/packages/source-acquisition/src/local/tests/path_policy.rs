@@ -1,6 +1,12 @@
-use super::{LocalSourceLimits, resolve_local_source, temp_root};
+// Unit tests for local source path policy: non-UTF-8 Unix path distinction,
+// rejection of symlinks targeting excluded `build/` output or absolute paths,
+// and rejection of special file types such as Unix domain sockets.
+
 #[cfg(unix)]
-use super::{PathBuf, SourceResolveError, SystemTime, UNIX_EPOCH};
+use super::{
+    LocalSourceLimits, PathBuf, SourceResolveError, SystemTime, UNIX_EPOCH, resolve_local_source,
+    temp_root,
+};
 
 #[cfg(all(unix, not(target_vendor = "apple")))]
 #[test]

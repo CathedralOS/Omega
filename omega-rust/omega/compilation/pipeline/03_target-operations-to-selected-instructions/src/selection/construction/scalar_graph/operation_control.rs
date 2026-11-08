@@ -5,7 +5,7 @@
 //! this owner supplies only control. All bodies use ordinary selected forms
 //! and the existing allocator, branch relaxation, and target encoders. Internal
 //! branches retain their operation but cannot name an authored edge, bind source
-//! parameters, transfer custody, or settle additional logical fuel.
+//! parameters, transfer custody, or settle additional logical work.
 
 use super::{Builder, SelectedBlock, SelectedBlockId, SelectedInstructionKind, VirtualRegisterId};
 use crate::SelectedInstructionError;
@@ -76,7 +76,7 @@ fn settle_preceding_operations(builder: &mut Builder<'_>) -> Result<(), Selected
         return Ok(());
     }
     // A zero-payload producer still executes before this loop. Put its pending
-    // source/fuel attribution on a preheader instruction, never on the repeated
+    // source/work attribution on a preheader instruction, never on the repeated
     // condition or an internal edge. This register is not a new source value.
     let instruction = super::SelectedInstructionId(
         builder
@@ -116,7 +116,7 @@ fn successor(source: BlockId, operation: OperationId, block: SelectedBlockId) ->
         bindings: Vec::new(),
         structural_bindings: Vec::new(),
         structural_case: None,
-        fuel: Vec::new(),
+        work: Vec::new(),
     }
 }
 
@@ -209,12 +209,8 @@ pub(super) fn require_nonzero(
     predicate: VirtualRegisterId,
 ) -> Result<(), SelectedInstructionError> {
     conditional_body(builder, row, predicate, false, |builder| {
-        builder.emit(
-            SelectedInstructionKind::Crash,
-            builder.constraints.keys.crash,
-            &[],
-            super::structural::provenance(row),
-        )?;
+        let (kind, key) = builder.crash_form()?;
+        builder.emit(kind, key, &[], super::structural::provenance(row))?;
         let instruction = builder.instructions.last().cloned().ok_or_else(failure)?;
         finish(
             builder,
@@ -303,6 +299,97 @@ pub(super) fn while_nonzero(
     builder.open_block = Some(OpenBlock {
         id: continuation,
         origin,
+        start: builder.instructions.len(),
+    });
+    Ok(())
+}
+
+/// The successful installation remains in its nonreturning Work body. This
+/// terminator belongs to Scope, so it introduces no source transition edge.
+pub(super) fn finish_installation_work(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<(), SelectedInstructionError> {
+    let instruction = builder.instructions.last().cloned().ok_or_else(failure)?;
+    if !matches!(
+        instruction.kind,
+        SelectedInstructionKind::InvokeNoNormal { .. }
+    ) {
+        return Err(failure());
+    }
+    finish(
+        builder,
+        SelectedTerminator::OperationInvokeNoNormal {
+            instruction,
+            operation: row.operation,
+        },
+    )
+}
+
+/// One ordinary refusal continuation for an operation's guarded commit. The
+/// caller defines its refusal result before entering; no failed guard traps or
+/// transfers through a fabricated source edge.
+pub(super) struct RefusalRegion {
+    source: BlockId,
+    operation: OperationId,
+    continuation: SelectedBlockId,
+}
+
+pub(super) fn begin_refusal_region(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<RefusalRegion, SelectedInstructionError> {
+    Ok(RefusalRegion {
+        source: open_source_block(builder)?,
+        operation: row.operation,
+        continuation: allocate(builder)?,
+    })
+}
+
+pub(super) fn refuse_unless(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    region: &RefusalRegion,
+    predicate: VirtualRegisterId,
+) -> Result<(), SelectedInstructionError> {
+    if row.operation != region.operation || open_source_block(builder)? != region.source {
+        return Err(failure());
+    }
+    let accepted = allocate(builder)?;
+    branch_on_nonzero(
+        builder,
+        row,
+        region.source,
+        predicate,
+        accepted,
+        region.continuation,
+    )?;
+    builder.open_block = Some(OpenBlock {
+        id: accepted,
+        origin: SelectedBlockOrigin::Operation {
+            source: region.source,
+            operation: row.operation,
+        },
+        start: builder.instructions.len(),
+    });
+    Ok(())
+}
+
+/// Success must already terminate in retained work. Only the guard failures
+/// resume the original source block with the ordinary refusal value.
+pub(super) fn finish_refusal_region(
+    builder: &mut Builder<'_>,
+    region: RefusalRegion,
+) -> Result<(), SelectedInstructionError> {
+    if builder.open_block.is_some() {
+        return Err(failure());
+    }
+    builder.open_block = Some(OpenBlock {
+        id: region.continuation,
+        origin: SelectedBlockOrigin::Operation {
+            source: region.source,
+            operation: region.operation,
+        },
         start: builder.instructions.len(),
     });
     Ok(())

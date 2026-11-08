@@ -288,7 +288,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         &mut self,
         operation: &terminal_psi::Operation,
         handler: &mut impl TerminalEffectHandler,
-        meter: &mut terminal_fuel::TerminalFuelMeter,
+        meter: &mut psi_work::WorkMeter,
         components: &mut crate::embedding::instance::ComponentBindings<'_, 'artifact>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         if let Some(pending) = self.awaiting_effect.as_ref() {
@@ -319,6 +319,15 @@ impl<'artifact> TerminalExecution<'artifact> {
         {
             self.release_empty_run(operation, boundary_declaration)?;
             return Ok(OperationFlow::Advance);
+        }
+        if boundary_declaration
+            .declaration
+            .as_ref()
+            .is_some_and(|callable| callable.execution.static_interrupt_operation().is_some())
+        {
+            // CPU installation requires native admission of its exact roots
+            // and arrival; a host callback cannot substitute for it.
+            return Err(malformed());
         }
         // A compiler primitive's completion is not a selectable assertion.
         // Until its execution binds the live extent, completed profile call
@@ -517,6 +526,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 &select_positions(&callee.structural_parameters, &opaque_positions)?,
                 &self.structural_types(),
                 self.structural_cases.as_map(),
+                None,
                 self.account.as_ref(),
             )?;
             for position in owned_arrays {

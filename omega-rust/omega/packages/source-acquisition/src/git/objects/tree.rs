@@ -1,4 +1,15 @@
-//! Parsing and portable validation for recursive `git ls-tree` listings.
+// Parsing and portable path validation for NUL-delimited `git ls-tree`
+// listings.
+//
+// `parse_git_tree_entries` validates whole-tree listings against package entry,
+// byte, and depth budgets while rejecting submodule gitlinks (`160000 commit`)
+// and `.gitmodules` manifests. `parse_git_tree_graph_entries` parses the
+// complete recursive graph under `GIT_TREE_GRAPH_ENTRY_LIMIT` without charging
+// unopened blob sizes or unselected gitlink edges until a member projection is
+// chosen. `validate_git_path` enforces portable relative paths (rejecting
+// backslashes, `.git`, control characters, Windows-forbidden characters,
+// trailing dots/spaces, and reserved Windows device names) before converting
+// slash-separated Git identity bytes into host-separator `PathBuf`s.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -30,11 +41,6 @@ pub(crate) fn parse_git_tree_entries(
     )
 }
 
-/// Parse a complete recursive graph without charging unopened blob payloads to
-/// the eventual package projection. The listing and graph remain bounded by
-/// compiler-owned entry/depth ceilings and the process-output ceiling. Unselected
-/// gitlinks are inert parent-tree edges; only a selected source projection may
-/// request payloads, and that projection still rejects submodule content.
 pub(super) fn parse_git_tree_graph_entries(
     listing: &[u8],
     repository: &Path,
@@ -240,9 +246,6 @@ pub(super) fn validate_git_path(
             limit: limits.max_depth,
         });
     }
-    // Git identity keeps slash-separated bytes. The acquired entry's PathBuf
-    // instead uses host separators, as required by the captured namespace.
-    // Normalize only after rejecting ambiguous and traversal components above.
     Ok(git_path_from_bytes(path)?.components().collect())
 }
 

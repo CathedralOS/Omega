@@ -1,5 +1,11 @@
-//! Canonical relative paths and symlink targets: the portable component
-//! rules every retained entry must satisfy.
+// Canonical relative path and symlink-target validation shared by physical
+// capture and host materialization.
+//
+// Every component must be UTF-8, free of control characters, Windows separator /
+// wildcard characters (`\`, `:`, `*`, `?`, `"`, `<`, `>`, `|`), trailing dots or
+// spaces, and reserved DOS device stems (`CON`, `PRN`, `AUX`, `NUL`, `COM1..9`,
+// `LPT1..9`, `CONIN$`, `CONOUT$`). Symlink targets must stay relative and never
+// traverse above the Output root.
 
 use crate::staged_output_tree::{MAX_STAGED_OUTPUT_PATH_BYTES, diagnostics};
 use diagnostics::Diagnostic;

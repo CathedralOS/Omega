@@ -160,20 +160,36 @@ pub(crate) fn build_boundary_machine(
                     .is_some_and(|member| member.supplies_checked_body())
             })
     });
-    let reference_outputs = if checked_family {
+    let operation =
+        validation::compiler_operations::static_interrupt_declaration(program, machine)?;
+    let preserves_descriptors = operation.is_some_and(|operation| {
+        operation.entry == state.symbol && operation.preserves_parameter_descriptors()
+    });
+    let reference_outputs = if checked_family || preserves_descriptors {
         Vec::new()
     } else {
         reference_outputs(program, program.state_parameters(state), &[])?
     };
-    Ok(CheckedBoundaryMachinePlan {
-        execution: boundary_execution(program.typed_program(), machine.symbol)?,
-        reference_outputs,
-        result_reference_sources: reference_result_sources(
+    let result_reference_sources =
+        match validation::reference_result_custody::installed_context_sources(
             program,
-            program.state_parameters(state),
-            state.return_type,
-            &[],
-        )?,
+            state.symbol,
+        )? {
+            Some(sources) => sources,
+            None => reference_result_sources(
+                program,
+                program.state_parameters(state),
+                state.return_type,
+                &[],
+            )?,
+        };
+    Ok(CheckedBoundaryMachinePlan {
+        execution: match operation {
+            Some(operation) => CheckedBoundaryExecutionPlan::StaticInterrupt(operation.operation),
+            None => boundary_execution(program.typed_program(), machine.symbol)?,
+        },
+        reference_outputs,
+        result_reference_sources,
         machine: machine.symbol,
         kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
         state: state.symbol,

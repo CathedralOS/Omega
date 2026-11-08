@@ -1,4 +1,4 @@
-# Terminal interpreter
+# Psi interpreter
 
 Start at [terminal_interpreter.rs](src/terminal_interpreter.rs). Execution follows verified
 [calls and outcomes](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md)
@@ -7,15 +7,15 @@ and [structural ownership](../../../../wiki/spec/terminal-psi/ownership.md).
 The domain entrance owns artifact loading and startup: external bytes decode
 once, while in-process callers borrow a sealed Terminal artifact view. Both
 construct instances of the same execution engine. Loading does not perform
-proof verification. [execution.rs](src/execution.rs) is the engine —
-the live state and the resumable dispatch loop. [Call frames](src/calls/frames.rs)
-bind invocations and save live caller state; [custody](src/custody.rs) checks and
+proof verification. [execution.rs](src/engine/execution.rs) is the engine —
+the live state and the resumable dispatch loop. [Call frames](src/engine/calls/frames.rs)
+bind invocations and save live caller state; [custody](src/engine/custody.rs) checks and
 transfers structural ownership and claims.
-[structural_identities.rs](src/structural_identities.rs) owns execution-wide local
+[structural_identities.rs](src/storage/structural_identities.rs) owns execution-wide local
 identity allocation and host reservations; record copies and block transitions
 stage its allocation cursor until their payloads commit. Storage-specific
 operations remain under their named reference, record, array, primitive, and byte-storage owners
-([byte_sequences.rs](src/byte_sequences.rs) and its subordinates).
+([byte_sequences.rs](src/storage/byte_sequences.rs) and its subordinates).
 
 The program retains one immutable canonical module, owned or borrowed.
 Machine, block and declaration lookups use its already-sorted tables without
@@ -29,6 +29,24 @@ self-referential borrows; it does not allocate shared owners per operation.
 Runtime payload copies, effect observations, and retained return/cleanup metadata
 remain separate from executable code. This removes code copying, not all runtime
 allocation, and does not establish a measured speedup.
+
+## Admission and preparation work
+
+The [admission contract](../../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
+requires explicit host trust for execution of an exact producer artifact until
+untrusted containment is audited. The current byte-loading APIs below do not yet
+take that witness. Canonical decoding and the implementation's use of safe Rust
+do not establish guest isolation. Inspection remains available without execution
+trust under shared input and work limits.
+
+The [implementation plan](../../../../wiki/drafts/designs/psi_claim_admission.md)
+tracks the API gate, inspection/preparation codec split, shared 64 MiB input cap
+and aggregate loading budget. It also moves declaration-dependent restrictions
+and descriptor lookups out of repeated dispatch. Primitive stores, reference
+paths and boundary qualifications currently reach static entailment from the
+execution layer. Prepared plans must preserve actual-value predicate checks and
+concrete operation safety. Acceptance measures startup and steady-state costs;
+it does not assume that closed predicate evaluation is always cheap.
 
 ## Embedding contract and probe limits
 
@@ -50,7 +68,7 @@ byte arrays use ordinary compact backing, including initialized empty arrays;
 borrowed descriptors and opaque contents are not synthesized. Erased fields
 remain explicit establishment obligations even though they have no runtime
 cell. Contents provide no claims, qualifications or reference authority.
-The shared [storage contents](src/structural_storage/contents.rs) walker and constructor transaction own this
+The shared [storage contents](src/storage/structural_storage/contents.rs) walker and constructor transaction own this
 operation, including sponsored reservations and failure teardown. Complete
 initializers cannot overlap one another or a partial input lane.
 The former payloadless-only case input and its separate binder are removed;
@@ -71,7 +89,7 @@ same sealed import/export admission and fully prepared component closure as
 pre-entry installation. Receiving code may remain invocation-private: both the
 selection and execution plan retain its full code-owner identity. Equal semantic
 bytes from another private owner cannot reuse either, and native consumers
-require portable receiver identity. Fuel pauses and failed activations cannot authorize the
+require portable receiver identity. Work pauses and failed activations cannot authorize the
 change; an established slot cannot be rebound. The source-produced
 `terminal_effect_readiness` test covers retained and loaded code, actual guest
 provider execution, no prefix replay and premature-call/adapter/rebinding
@@ -87,7 +105,7 @@ authenticated association through the same private carrier. Owned inputs retain 
 transfer rules. An opaque identity cannot supply materialized backing, reference
 companions, write-only access or a borrowed result; those require their own
 carriers and remain refused. A bare borrowed entry annotation also supplies no
-host backing. See [component arguments](src/calls/component_arguments.rs).
+host backing. See [component arguments](src/engine/calls/component_arguments.rs).
 
 Opaque lending supplies no guest field cells. Local scalar/atomic stores and
 subtree replacement refuse before making detached payloads under those exact
@@ -98,7 +116,7 @@ space. Borrowed materialized storage still needs its own transfer carrier.
 `poll_host_computation` yields `HostComputationPending` when a synchronous host
 operation needs executor work before returning. The full invocation, prepared
 arguments and borrowed storage remain live; polling neither replays effects nor
-charges the guest operation again. This is an executor pause like a fuel slice,
+charges the guest operation again. This is an executor pause like a work slice,
 not a source-language suspension. It cannot authorize component installation.
 External provider readiness continues through `poll_effect_readiness` and
 requires a checked suspension crossing. Product-query scheduling belongs to
@@ -127,16 +145,16 @@ Aliases share the backing's lease; even a small window keeps the full backing
 reserved. Copy-on-write reserves the overlapping replacement before copying.
 Boundary byte buffers own the same storage type: capture and growth reserve
 before copying, and whole-owner writeback moves the reservation with the bytes.
-Retirement releases live bytes, not consumed fuel.
-[Runtime rows](src/runtime_rows.rs) own one cell per live scalar or structural
+Retirement releases live bytes, not consumed work.
+[Runtime rows](src/storage/runtime_rows.rs) own one cell per live scalar or structural
 table entry, including staged call/edge bindings and cleanup copies. New entries
 and overlapping copies reserve first; replacements retain their cell, frame moves
 carry the lease, and table joins transfer reservations without charging again.
 Removal and teardown release only retired rows. The complete source-produced
-Build control checks exact and one-cell-short budgets across fuel pauses, retaining
+Build control checks exact and one-cell-short budgets across work-budget pauses, retaining
 faults without replaying effects. Root activations and suspended call headers
 each reserve one cell before creation. The shared frame capture in
-[frames.rs](src/calls/frames.rs) handles scalar, structural and cleanup calls;
+[frames.rs](src/engine/calls/frames.rs) handles scalar, structural and cleanup calls;
 return restores the caller and releases its saved header. The root activation
 remains reserved through result readback until close. A refused capture retains
 its outgoing cleanup continuation in that failed activation, including byte
@@ -163,7 +181,7 @@ rows use this same owner in execution and constructor/transplant staging.
 Publication checks every paid table before retiring source storage; transferring
 the prepared rows does not request another budget. Activation split/merge funds
 its result case and binding before consuming source claims. The source-produced
-case, byte-field and activation controls check exact/short budgets through fuel
+case, byte-field and activation controls check exact/short budgets through work
 pauses for borrowed and loaded artifacts, sticky refusal and teardown release.
 Activation frame ledgers, live claims, grants, backing owners, split associations
 and claim descriptors are also charged. Constructor transport carries descriptor
@@ -200,7 +218,7 @@ admitted binding API.
 
 Checked assembly follows the [instruction interpretation contract](../../../../wiki/spec/language/assembly.md#interpreted-execution):
 reuse ordinary value/place/transition operations, keep scratch state block-local,
-and preserve explicit memory and environment effects across calls and fuel stops.
+and preserve explicit memory and environment effects across calls and work stops.
 The selected target environment must supply every demanded operation before
 execution. A generic effect hook or successful Unit response alone establishes
 neither instruction semantics nor environment correspondence. End-to-end
@@ -209,7 +227,7 @@ this contract is not a claim that all catalog entries already run here.
 
 The source-produced [embedding tests](../../../omega/compilation/compiler/tests/terminal_entry_writeback.rs)
 cover retained/loaded artifacts, borrowed-entry readback, once-only Build effects,
-resource refusal and frame retirement across fuel pauses. Two sequential empty
+resource refusal and frame retirement across work-budget pauses. Two sequential empty
 call trees complete with exactly three live header cells; a two-cell allowance
 refuses the nested call, and an occupied allowance refuses root instantiation.
 Normal return retains one root header until close; fault retries cannot resume.
@@ -228,14 +246,14 @@ graphs under the [control contract](../../../../wiki/spec/terminal-psi/control_f
 The legacy one-machine structural Unit countdown uses its own verifier entrance:
 it reconstructs `0 < remaining` as the unsigned `1 <= remaining` premise and
 checks exact subtraction before creating resumable state. This interpreter
-acceptance grants no native, fixed-fuel, provider-installation, or mixed-work
+acceptance grants no native, fixed-work, provider-installation, or mixed-work
 authority.
 
-[block_bindings.rs](src/terminators/block_bindings.rs) captures all selected operands before
+[block_bindings.rs](src/engine/terminators/block_bindings.rs) captures all selected operands before
 cleanup and simultaneous successor installation. Affine inputs move once;
 Unrestricted descriptors remain reusable. Rebinding changes the descriptor place,
 not its referent or field backing. Missing/duplicate owners and transfer/discard
-overlap reject before mutation. Fuel suspension preserves the uncommitted edge.
+overlap reject before mutation. Work suspension preserves the uncommitted edge.
 Projected affine operands retain the original subtree backing and leave their
 maximal live complement for the selected cleanup schedule. Case paths check the
 current discriminator before moving, select only active payload siblings, and
@@ -267,7 +285,7 @@ is admitted; cyclic block execution has its separate verified route above.
 Installed checked Unit providers forward the boundary's ordered scalar arguments
 through the ordinary call binder, alongside independently prepared structural
 arguments. A Unit result does not imply an empty parameter list. Installation
-replays the exact signatures; fuel suspension retains the same selected frame.
+replays the exact signatures; work suspension retains the same selected frame.
 Fixed-work composition distinguishes normal return bounds from crash bounds:
 only a normal return composes the caller's remaining work.
 
@@ -279,11 +297,11 @@ calling an adapter directly retains its ordinary declared result contract.
 
 ## Primitive array results
 
-[scalar_array.rs](src/scalar_array.rs) owns complete primitive-array construction
+[scalar_array.rs](src/storage/scalar_array.rs) owns complete primitive-array construction
 and return. Ordinary and installed checked-provider structural calls return the
 exact unrestricted payload into
 their saved caller's fresh result place. Earlier caller arrays survive alongside
-that result. Return preflight precedes fuel charging and frame restoration, so
+that result. Return preflight precedes work charging and frame restoration, so
 exhaustion cannot publish a partial result or repeat a completed invocation.
 Nested and empty dimensions, Boolean values, and IEEE payload bits are retained.
 Ordinary Unit, scalar, and structural calls copy whole owned unrestricted arrays
@@ -300,7 +318,7 @@ transport owners.
 
 ## Primitive local storage
 
-[primitive_storage.rs](src/primitive_storage.rs) establishes fresh referents on
+[primitive_storage.rs](src/storage/primitive_storage.rs) establishes fresh referents on
 each activation or loop reentry. Borrowed calls share their backing; reads copy
 the current scalar, so earlier snapshots survive later writes. Suspension retains
 the storage, and departure reclaims it without affine cleanup. Local identities
@@ -310,9 +328,9 @@ does not provide native allocation or permit owned local escape; see
 
 ## References stored in records
 
-[record.rs](src/record.rs) stages descriptor relocation together with ordinary
+[record.rs](src/storage/record.rs) stages descriptor relocation together with ordinary
 record payload construction. Nested packing changes the carrier's owner and
-field path, never the original primitive backing. [reference.rs](src/reference.rs)
+field path, never the original primitive backing. [reference.rs](src/storage/reference.rs)
 resolves typed field paths ending in `Referent`; whole-owner cleanup removes
 descriptor subtrees without disposing the borrowed storage. The verifier checks
 loan ancestry and cleanup order independently. Language fixtures, including
@@ -376,7 +394,7 @@ copy that could overwrite nested changes on return.
 
 Whole-field replacement supplies live backing associated with the original
 structural referent, carrier path, and field. Field-length observations and
-indexed byte stores retain that backing across calls and fuel suspension.
+indexed byte stores retain that backing across calls and work suspension.
 Indexed stores validate the current extent before mutation and detach shared
 immutable backing; they cannot change source literals or sibling fields.
 An opaque incoming structural identity does not supply initialized field bytes:
@@ -406,7 +424,7 @@ Installed checked providers receive a frame-owned mutable field binding, not a
 copy of the incoming bytes. Whole mutable-view arguments can forward that binding
 through ordinary helpers or reborrow it at another boundary. Each external call
 observes the current backing and commits to the original field; returning from
-the provider does not restore its entry snapshot. Calls and fuel suspension
+the provider does not restore its entry snapshot. Calls and work suspension
 retain the binding's exact referent, record/array path, and capacity. An equal
 opaque identity without that binding supplies no mutable loan. Byte reads and
 subslice operations still require immutable bindings. Native byte-field forwarding and
@@ -416,7 +434,7 @@ Fixed-view length and indexed writes use the exact existing mutable field loan
 at a machine or block parameter. Length means the current live extent, never
 capacity. A write validates the typed index, byte, and saved length against that
 extent before changing one byte; it cannot resize storage or alter owner length.
-State transfers capture the original referent binding before fuel and commit,
+State transfers capture the original referent binding before work and commit,
 reject aliasing mutable arguments, and preserve writes through calls and suspension.
 Shared immutable backing detaches on mutation, preserving sibling values and
 the destination's untouched suffix. External boundary replacement remains its
@@ -446,7 +464,7 @@ Ordinary helpers and installed checked providers may borrow the whole array or
 an admitted record-field array as a mutable byte view. Argument preparation
 shares the exact initialized-array binding rather than staging a field replacement.
 Calls and block transfers retain that binding; length remains `N` and indexed
-writes preserve all other elements through fuel
+writes preserve all other elements through work
 suspension. External calls stage the selected initialized range, including
 array storage in suspended caller frames. `bytes_mut` writes that fixed extent;
 successful completion commits it to the captured array and offset, never a
@@ -457,7 +475,7 @@ route does not itself implement source-owned construction or native storage.
 
 ## Boundary responses
 
-[effects/results.rs](src/effects/results.rs) distinguishes Unit, scalar, and opaque
+[effects/results.rs](src/boundary/effects/results.rs) distinguishes Unit, scalar, and opaque
 structural values from an explicit `Crash(Trap | Abort)` response. A crash is
 admitted only against the published same-cause route with the invocation's
 already evaluated scalar inputs. A true guard permits normal completion too.
@@ -550,7 +568,7 @@ exhausted budget leaves residual ownership live. The exact producer/result root
 and claim map survive suspension; no partially moved ancestor becomes whole again.
 
 Structural storage copies and constructor staging use identity-bounded
-[`structural_storage`](src/structural_storage.rs) ranges. Keys order by carrier
+[`structural_storage`](src/storage/structural_storage.rs) ranges. Keys order by carrier
 identity before path and field; subtree selection still checks the complete path.
 Each transaction stages its shared storage families before pruning either region,
 so overlapping copies/moves preserve the original snapshot behavior. This avoids

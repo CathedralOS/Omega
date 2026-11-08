@@ -1,4 +1,5 @@
-//! Exact transitive source membership, with meaning interpreted by evidence.
+// Exact transitive source membership and boundary-application owner validation for accepted package policy baselines.
+// Because `PackageKey` is source/name ordered rather than digest ordered, we build one digest-sorted index up front to avoid rehashing every source key for every nested policy reference.
 
 use super::PackageLockError as Error;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
@@ -12,8 +13,6 @@ pub(super) fn policy_source_membership(
     maximum_owned_bytes: usize,
     maximum_identity_nodes: usize,
 ) -> Result<(), Error> {
-    // PackageKey is source/name ordered, not digest ordered. One bounded index
-    // avoids rehashing every source key for every nested policy reference.
     let index_bytes = source
         .packages()
         .len()

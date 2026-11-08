@@ -1,11 +1,19 @@
-//! Capture the private host output tree once, without a sponsor namespace replay.
-//!
-//! The executor's append-and-seal protocol and private-directory isolation own
-//! mutation. Capture owns the actual bounded tree, portable names and immutable
-//! bytes. It refuses aliases and special files rather than inventing an object
-//! graph to compare against the same invocation's writer. Open-file metadata
-//! guards custody during acquisition; content is read once, not rehashed from
-//! the host after every stage.
+/*
+Physical host-directory capture for sponsored build outputs.
+
+We walk the private output directory bound to a `FilesystemSponsor` once,
+enforcing both the sponsor's configured entry/extent/logical-byte limits and the
+crate's canonical ceilings (`MAX_STAGED_OUTPUT_ENTRIES`,
+`MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES`, `MAX_STAGED_OUTPUT_PATH_BYTES`).
+
+Why refuse symlinks, hard-link aliases, and mid-read mutations instead of
+recording an object graph? The executor's append-and-seal protocol and private
+directory isolation own mutation during build execution. Capture verifies that
+each regular file has link count 1 (`nlink() == 1` on Unix,
+`number_of_links() == Some(1)` on Windows) and identical file identity/metadata
+before and after reading its bytes, then seals the immutable `Arc<[u8]>` slices
+into `BuildStagedOutputTree`.
+*/
 
 use crate::BuildStagedOutputTree;
 use crate::portable_paths::{canonical_relative_path, reserve_path_bytes};

@@ -152,7 +152,6 @@ pub(super) fn lower_saved_subject(
         })?;
     Ok(
         expression_table(lowerer).insert(ExpressionNode::SavedSubject(TableSavedSubject {
-            component: saved.component,
             capture: binding.resolved_capture,
             pattern_head: binding.resolved_head,
         })),
@@ -192,7 +191,6 @@ pub(crate) fn lower_destructure_pattern(
             syntax::MatchFieldAction::Waive => MatchFieldAction::Waive,
         };
         fields.push(TableMatchField {
-            component: field.component,
             member: lower_name(syntax_trees, &field.member),
             field_symbol: Handle::invalid(),
             action,
@@ -217,7 +215,6 @@ pub(crate) fn lower_destructure_pattern(
     lowerer.expression_match_captures.pop();
     let guard = guard?;
     let saved = expression_table(lowerer).insert(ExpressionNode::SavedSubject(TableSavedSubject {
-        component: Default::default(),
         capture,
         pattern_head: head,
     }));

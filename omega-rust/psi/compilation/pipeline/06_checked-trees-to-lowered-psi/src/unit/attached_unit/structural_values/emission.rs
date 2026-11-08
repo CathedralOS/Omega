@@ -36,7 +36,7 @@ use checked_trees::{
     CheckedStructuralValue, CheckedStructuralValueHandle, CheckedStructuralValueKind,
 };
 
-pub(crate) mod completed_projection;
+mod completed_projection;
 mod completed_storage;
 mod completions;
 mod content_transformations;

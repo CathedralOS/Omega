@@ -1,5 +1,4 @@
-//! A comparison replays one finite byte stream without a blocking pipe writer.
-//! Scratch input is separate from retained build artifacts and always disposable.
+// Snapshot caller `stdin` into a private disposable file (`stdin.bin`) so `--both` can give Terminal Psi and the native child independent file descriptors positioned at byte 0 without a background pipe-writer thread.
 
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::fs::{File, OpenOptions};
@@ -24,7 +23,6 @@ impl ReplayInput {
         Ok(Self { directory })
     }
 
-    /// Each engine starts at byte zero with an independent stream position.
     pub(super) fn open_input(&self) -> io::Result<File> {
         File::open(self.directory.path().join("stdin.bin"))
     }

@@ -8,7 +8,7 @@ use selected_instructions::{
     SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
 };
 use semantic_vocabulary::ValueId;
-use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
 use target_operations::TerminalPsiProvenance;
 use terminal_psi::TerminalPsiIdentity;
@@ -20,7 +20,7 @@ fn zero_span_plan() -> FunctionFragmentEmissionPlan {
             vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
             program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
         },
-        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+        work_schedule: WorkScheduleIdentity::new(1).unwrap(),
         selected: SelectedInstructionPlanIdentity::from_bytes([2; 32]),
         target: NativeTarget::linux_x64(),
         entry: MachineId::new(1).unwrap(),

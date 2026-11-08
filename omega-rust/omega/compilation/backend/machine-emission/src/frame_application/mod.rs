@@ -10,9 +10,10 @@
 
 mod error;
 pub(crate) mod insertion;
+mod relative_branches;
 mod validation;
 
-pub(crate) use error::FunctionFragmentFrameApplicationError;
+pub use error::FunctionFragmentFrameApplicationError;
 pub use machine_code::function_fragment_frame_application_identity;
 pub use machine_code::{
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication,

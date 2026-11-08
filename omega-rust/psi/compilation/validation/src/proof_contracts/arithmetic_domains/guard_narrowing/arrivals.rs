@@ -511,6 +511,12 @@ pub(super) fn incoming_environments(
             let mut external = ValueEnvironment::new();
             entry_seeds.apply(program, machine, entry, &mut external);
             for parameter in program.state_parameters(entry) {
+                super::super::record_admitted_integer_fields(
+                    program,
+                    &mut external,
+                    &super::ordered_values::Operand::parameter(parameter),
+                    parameter.type_reference,
+                );
                 super::super::record_declared_float_fields(
                     program,
                     &mut external,
@@ -869,12 +875,12 @@ impl ArrivalWalk<'_, '_> {
         expression: ExpressionHandle,
         environment: &mut ValueEnvironment,
     ) {
-        self.cross_writes(source, environment, self.expression_writes(expression));
-    }
-
-    fn expression_writes(&self, expression: ExpressionHandle) -> Option<Vec<String>> {
-        self.frames
-            .and_then(|frames| frames.expression_may_write_paths(self.machine, expression))
+        self.cross_writes(
+            source,
+            environment,
+            self.frames
+                .and_then(|frames| frames.expression_may_write_paths(self.machine, expression)),
+        );
     }
 
     fn should_arrive(&self, symbol: SymbolHandle) -> bool {
@@ -1282,6 +1288,19 @@ impl ArrivalWalk<'_, '_> {
                         copied_float,
                     );
                     if local.initial_value.is_valid() {
+                        // The initializer has completed. A copied reference is
+                        // only a descriptor, not new admission of its referent.
+                        if crate::reference_shell(self.program, local.type_reference).is_none() {
+                            super::super::record_admitted_integer_fields(
+                                self.program,
+                                environment,
+                                &super::ordered_values::Operand::Place {
+                                    root: local.symbol,
+                                    path: path.clone(),
+                                },
+                                local.type_reference,
+                            );
+                        }
                         super::super::record_declared_float_fields(
                             self.program,
                             environment,
@@ -1455,6 +1474,24 @@ impl ArrivalWalk<'_, '_> {
                             copied_float,
                         );
                         if let (Some(path), Some(reference)) = (path.as_deref(), reference) {
+                            if crate::reference_shell(self.program, reference).is_none()
+                                && let Some(destination) = super::ordered_values::operand(
+                                    self.program,
+                                    self.machine,
+                                    source,
+                                    assignment.target,
+                                    None,
+                                )
+                            {
+                                // Only the assigned value's exact destination
+                                // is established; never republish its ancestors.
+                                super::super::record_admitted_integer_fields(
+                                    self.program,
+                                    environment,
+                                    &destination,
+                                    reference,
+                                );
+                            }
                             super::super::record_declared_float_fields(
                                 self.program,
                                 environment,
@@ -1597,48 +1634,40 @@ impl ArrivalWalk<'_, '_> {
         match expression_table(self.program).expression(expression) {
             ExpressionNode::Match(dispatch) => {
                 self.expression(source, dispatch.subject, environment);
-                let mut prefix = super::super::evaluated_writes::EvaluatedWritePrefix::default();
-                prefix.extend(self.expression_writes(dispatch.subject));
                 let mut remaining = environment.clone();
                 let mut joined: Option<ValueEnvironment> = None;
                 let mut boolean_values = [false; 2];
                 for arm in expression_table(self.program).match_arms(dispatch.arms) {
-                    let pattern = match arm.pattern {
-                        typed_trees::expression::MatchPattern::Value(pattern) => {
-                            if let Some(value) =
-                                expression_table(self.program).boolean_node(pattern)
-                            {
-                                boolean_values[usize::from(*value)] = true;
-                            }
-                            Some(pattern)
-                        }
-                        typed_trees::expression::MatchPattern::Destructure(pattern) => {
-                            Some(pattern.condition)
-                        }
-                        typed_trees::expression::MatchPattern::Wildcard => None,
-                    };
-                    if let Some(pattern) = pattern {
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                         self.expression(source, pattern, &mut remaining);
-                        prefix.extend(self.expression_writes(pattern));
+                        if let Some(value) = expression_table(self.program).boolean_node(pattern) {
+                            boolean_values[usize::from(*value)] = true;
+                        }
                     }
-                    let mut selected = super::super::dispatch_environments::dispatch_arm_context(
-                        expression,
-                        dispatch.subject,
-                        arm.pattern,
-                        &mut remaining,
-                        &mut |_, _| true,
-                        &mut |selected, selection| {
-                            super::super::dispatch_environments::narrow_dispatch_selection(
-                                self.program,
-                                self.machine,
-                                Some(source),
-                                dispatch,
-                                selected,
-                                selection,
-                            );
-                            selected.invalidate_call_prefix(self.program, Some(source), &prefix);
-                        },
-                    );
+                    let mut selected = remaining.clone();
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                        && let ExpressionNode::Boolean(positive) =
+                            expression_table(self.program).expression(pattern)
+                    {
+                        narrow_environment_by_condition(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            &mut selected,
+                            dispatch.subject,
+                            *positive,
+                        );
+                        narrow_environment_by_condition(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            &mut remaining,
+                            dispatch.subject,
+                            !*positive,
+                        );
+                        self.expression_effects(source, dispatch.subject, &mut selected);
+                        self.expression_effects(source, dispatch.subject, &mut remaining);
+                    }
                     self.expression(source, arm.value, &mut selected);
                     joined = Some(
                         joined.map_or_else(|| selected.clone(), |joined| joined.join(&selected)),

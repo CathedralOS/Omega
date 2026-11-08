@@ -295,6 +295,32 @@ pub(super) fn expression_member_name(
 /// no larger than the exact one. A subtraction needs the exact difference on
 /// normal completion, so only Exact and Trapping stores carry it: a wrapped
 /// `0 - 1` is the maximum and a saturated one stays at the old bound.
+/// `target = source + c` stays non-negative when `source` already is and the
+/// sum cannot wrap. A literal store is handled by the caller from the folded
+/// integer; this only covers the counter step `i = i + 1`.
+pub(super) fn assigned_sum_stays_non_negative(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    facts: &RangeFacts<'_>,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+) -> bool {
+    let Some((source_name, offset)) = field_plus_constant(program, value) else {
+        return false;
+    };
+    if offset <= 0 || !facts.non_negative_is_proven(&source_name) {
+        return false;
+    }
+    let Some(type_reference) = expression_type_reference(program, machine, state, target) else {
+        return false;
+    };
+    matches!(
+        program.arithmetic_domain_for_type_reference(type_reference),
+        ArithmeticDomain::Exact | ArithmeticDomain::Trapping
+    )
+}
+
 pub(super) fn offset_index_bound(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,

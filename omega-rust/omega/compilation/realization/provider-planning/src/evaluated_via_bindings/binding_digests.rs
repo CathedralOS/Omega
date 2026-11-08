@@ -1,5 +1,7 @@
-//! Producer closure, stable source, evaluation and materialization
-//! digests.
+// Domain-separated SHA-256 digests for evaluated `via` binding producer
+// closures, stable source files, evaluation results, and target materialization.
+// Undetermined NaN values commit their semantic format name without inventing a
+// runtime payload, leaving bit requirements to the materialization judgment.
 
 use crate::evaluated_via_bindings::MATERIALIZER_SCHEMA_VERSION;
 use build_time_evaluation::{BuildTimeValue, CURRENT_EVALUATION_SEMANTICS, EvaluationUsage};
@@ -155,8 +157,8 @@ fn encode_usage(hash: &mut crate::digest_encoder::DomainDigestEncoder, usage: Ev
     for value in [
         u64::from(usage.schema().schema_version()),
         u64::from(usage.schedule().marker()),
-        usage.fuel_units(),
-        usage.fuel_ceiling(),
+        usage.work_units(),
+        usage.work_budget(),
         usage.build_log_bytes(),
         usage.filesystem_operation_attempts(),
         usage.peak_live_cells(),
@@ -191,8 +193,6 @@ fn encode_value(hash: &mut crate::digest_encoder::DomainDigestEncoder, value: &B
             hash.raw(&value.to_bits().to_le_bytes());
         }
         BuildTimeValue::UndeterminedNaN(format) => {
-            // Commit the semantic input without inventing a runtime payload.
-            // The separate materialization judgment still requires bits.
             hash.byte(8);
             hash_field(hash, format.name().as_bytes());
         }

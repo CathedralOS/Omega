@@ -1,7 +1,7 @@
-//! The exact selected hosted byte leaf over one explicit finite input snapshot.
-//! Checked line readers still execute as guest code. The shape join below
-//! describes the selected builtin's result; it never selects host behavior from
-//! a provider name, a sum spelling, or signature resemblance.
+// We implement the selected hosted byte-read leaf over an explicit finite input
+// snapshot. Each invocation performs a single read attempt returning either the
+// empty EOF case, the 1-byte payload case, or a Crash(CrashCause::Trap) on I/O
+// failure without retrying.
 
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Path, IntegerSign, IntegerType, IntegerValue, ScalarType,
@@ -114,9 +114,6 @@ impl TerminalEffectHandler for ReadByteImport<'_> {
             .lock()
             .map_err(|_| TerminalEffectRejection::new("stdin snapshot lock is poisoned"))?;
         let mut byte = [0u8];
-        // This leaf promises one read attempt. Even an interrupted attempt
-        // follows its declared Trap route; retrying would hide a host failure
-        // and consume extra effects outside the guest operation's fuel charge.
         let read = input.read(&mut byte);
         let (result_case, fields) = match read {
             Ok(0) => (self.empty_case, Vec::new()),
@@ -130,8 +127,6 @@ impl TerminalEffectHandler for ReadByteImport<'_> {
                     },
                 )],
             ),
-            // Exhaustion alone is EOF. Failed reads keep the leaf's declared
-            // Trap outcome; the core independently checks its published route.
             _ => return Ok(TerminalEffectResult::Crash(CrashCause::Trap)),
         };
         Ok(TerminalEffectResult::ScalarAggregate(

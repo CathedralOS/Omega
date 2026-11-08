@@ -1,4 +1,4 @@
-//! Full typed selected-provider recovery with one aggregate reader budget.
+// Full typed selected-provider recovery with one aggregate reader budget.
 
 use crate::record::{
     PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate, PackagePolicyProviderPlan,

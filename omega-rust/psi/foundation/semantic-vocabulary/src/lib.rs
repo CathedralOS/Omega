@@ -65,11 +65,11 @@ pub use identity::{
     CallingAbiIdentity, CallingDeclarationOwner, CallingGenericFormal, CallingOperandKind,
     CallingSignatureId, CallingStaticOperand, ClaimId, ContentDomainId, ContractId,
     CycleComponentId, DomainSemanticId, EdgeId, EvidenceIdentity, EvidenceTermId,
-    ExternalCompletionKind, FuelScheduleIdentity, InvocationSite, MachineId, ObligationId,
-    OperationId, PackageKeyIdentity, PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId,
+    ExternalCompletionKind, InvocationSite, MachineId, ObligationId, OperationId,
+    PackageKeyIdentity, PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId,
     RankingRelationId, RecursiveComponentId, ScalarApplicationId, ScalarDomainId,
     ScalarQualificationSetId, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
-    StructuralTypeId, SuspensionCrossingId, ValueId,
+    StructuralTypeId, SuspensionCrossingId, ValueId, WorkScheduleIdentity,
 };
 pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,

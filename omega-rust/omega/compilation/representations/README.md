@@ -14,11 +14,11 @@ tokens or replay evidence that a stage retains alongside it.
 
 | Family | Current program root | Producing and consuming operations |
 | --- | --- | --- |
-| `abstract-operations/` | [`AbstractOperationPlan`](abstract-operations/src/abstract_operations.rs) | [Omega 00](../pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission.rs) admits Terminal Psi and lowers it; [Omega 01](../pipeline/01_abstract-operations-to-abstract-operations/src/abstract_optimization.rs) optimizes the abstract program without changing its public form; Omega 02 consumes it. |
-| `target-operations/` | [`TargetOperationPlan`](target-operations/src/target_operations.rs) | [Omega 02](../pipeline/02_abstract-operations-to-target-operations/src/lowering/optimized.rs) lowers abstract operations with target and provider settlements; Omega 03 consumes the resulting target program. |
+| `abstract-operations/` | [`AbstractOperationPlan`](abstract-operations/src/lib.rs) | [Omega 00](../pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission.rs) admits Terminal Psi and lowers it; [Omega 01](../pipeline/01_abstract-operations-to-abstract-operations/src/abstract_optimization.rs) optimizes the abstract program without changing its public form; Omega 02 consumes it. |
+| `target-operations/` | [`TargetOperationPlan`](target-operations/src/lib.rs) | [Omega 02](../pipeline/02_abstract-operations-to-target-operations/src/lowering/optimized.rs) lowers abstract operations with target and provider settlements; Omega 03 consumes the resulting target program. |
 | `selected-instructions/` | [`SelectedInstructionPlan`](selected-instructions/src/selected_instructions.rs) | [Omega 03](../pipeline/03_target-operations-to-selected-instructions/src/optimized.rs) legalizes target operations and selects instructions; [Omega 04](../pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs) rewrites that same program form; Omega 05 assigns register homes. |
 | `register-homes/` | [`AllocatedProgram`](register-homes/src/register_homes.rs), including [`RegisterHomePlan`](register-homes/src/register_homes/storage.rs) | [Omega 05](../pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs) consumes the selected program and publishes its current allocation; Omega 06 consumes the replayed allocation. |
-| `post-allocation-machine/` | [`PostAllocationMachinePlan`](post-allocation-machine/src/physical_instructions.rs) | [Omega 06](../pipeline/06_register-homes-to-post-allocation-machine/src/post_allocation_machine.rs) derives physical machine instructions from the allocation; Omega 07 encodes them. The Cargo package is still named `physical-instructions`. |
+| `post-allocation-machine/` | [`PostAllocationMachinePlan`](post-allocation-machine/src/lib.rs) | [Omega 06](../pipeline/06_register-homes-to-post-allocation-machine/src/post_allocation_machine.rs) derives physical machine instructions from the allocation; Omega 07 encodes them. The Cargo package is still named `physical-instructions`. |
 | `machine-code/` | Encoding, resolved-layout, and emitted-code roots listed below | Omega 07–09 and backend emission share this family while retaining distinct program forms. |
 
 Two additional representation packages belong beneath their program families:
@@ -32,7 +32,7 @@ Two additional representation packages belong beneath their program families:
   boundary after abstract operations. Its
   [independent semantic checker](abstract-operations/optimization-unit/semantics/src/lib.rs)
   has its own manifest; neither representation package depends on that checker.
-- [`target-operations/legalized-operations/`](target-operations/legalized-operations/src/legalized_operations.rs)
+- [`target-operations/legalized-operations/`](target-operations/legalized-operations/src/lib.rs)
   owns `LegalizedOperationPlan`. Omega 03 first
   [legalizes the target program](../pipeline/03_target-operations-to-selected-instructions/src/legalization/mod.rs),
   then [selects instructions from that checked intermediate](../pipeline/03_target-operations-to-selected-instructions/src/selection/mod.rs).
@@ -87,22 +87,22 @@ than cloning its program or redeclaring every operation. The
 [allocated program](register-homes/src/register_homes.rs) shares selected
 instructions and register homes through separate immutable artifacts; its
 [borrowed view](register-homes/src/register_homes/view.rs) exposes those same
-artifacts. The [physical program](post-allocation-machine/src/physical_instructions.rs)
+artifacts. The [physical program](post-allocation-machine/src/lib.rs)
 is a genuinely different resolution level with chosen machine alternatives and
 physical operands. Neither representation embeds a chain of transformation
 objects. Replay evidence is not another executable program.
 
 Unchanged structural declarations live in one shared
-[type catalog](abstract-operations/src/abstract_operations/structural_type_catalog.rs).
+[type catalog](abstract-operations/src/structural_type_catalog.rs).
 Function records and later native representations retain that catalog instead of
 deep-copying its declarations. Editing a revision uses explicit copy-on-write;
 replay and encoded identity still compare contents, never allocation identity.
 
 Keep addressing compositional: operations consume places and value sources,
 not a Cartesian family of source/destination-specific opcodes.
-[Target structural values](target-operations/src/target_operations/values/structural.rs)
+[Target structural values](target-operations/src/values.rs)
 retain place identity, complete projection paths, access, qualifications, shapes,
-and placements. [Scalar homes](target-operations/src/target_operations/storage.rs)
+and placements. [Scalar homes](target-operations/src/storage.rs)
 retain their scalar types and source identities. Resolve these semantic facts
 from the checked representation and carry them; native consumers must not infer
 them from source spelling, pointer shape, or a guessed storage slot.

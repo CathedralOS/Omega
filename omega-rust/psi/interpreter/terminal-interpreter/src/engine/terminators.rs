@@ -25,8 +25,8 @@ use crate::engine::execution::{
     TerminatorFlow,
 };
 use crate::storage::runtime_rows::RuntimeRows;
+use psi_work::WorkMeter;
 use semantic_vocabulary::{BlockId, EdgeId, PlaceId, ValueId};
-use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
     StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
     StructuralPathSegment, TerminalMachineResult, Terminator,
@@ -48,7 +48,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_invoke_no_normal(
         &mut self,
         terminator: &Terminator,
-        meter: &mut TerminalFuelMeter,
+        meter: &mut WorkMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let Terminator::InvokeNoNormal {
             edge,
@@ -125,7 +125,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_jump(
         &mut self,
         terminator: &Terminator,
-        meter: &mut TerminalFuelMeter,
+        meter: &mut WorkMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let Terminator::Jump {
             edge,
@@ -155,7 +155,7 @@ impl TerminalExecution<'_> {
         &mut self,
         successor: SelectedSuccessor<'_>,
         terminator: &Terminator,
-        meter: &mut TerminalFuelMeter,
+        meter: &mut WorkMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let scalars = self.scalar_values_at(successor.arguments)?;
         self.settle_successor_with_scalars(successor, &scalars, terminator, meter)
@@ -166,7 +166,7 @@ impl TerminalExecution<'_> {
         successor: SelectedSuccessor<'_>,
         scalars: &[TerminalScalarValue],
         terminator: &Terminator,
-        meter: &mut TerminalFuelMeter,
+        meter: &mut WorkMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let SelectedSuccessor {
             edge,
@@ -232,7 +232,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_conditional(
         &mut self,
         terminator: &Terminator,
-        meter: &mut TerminalFuelMeter,
+        meter: &mut WorkMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let Terminator::Conditional {
             condition,
@@ -263,7 +263,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_structural_case(
         &mut self,
         terminator: &Terminator,
-        meter: &mut TerminalFuelMeter,
+        meter: &mut WorkMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let Terminator::StructuralCase {
             source,
@@ -334,7 +334,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_return(
         &mut self,
         terminator: &Terminator,
-        meter: &mut TerminalFuelMeter,
+        meter: &mut WorkMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         self.reject_no_normal_return()?;
         let Terminator::Return {
@@ -369,7 +369,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_return_unit(
         &mut self,
         terminator: &Terminator,
-        meter: &mut TerminalFuelMeter,
+        meter: &mut WorkMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         self.reject_no_normal_return()?;
         let Terminator::ReturnUnit {
@@ -399,7 +399,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_crash(
         &mut self,
         terminator: &Terminator,
-        meter: &mut TerminalFuelMeter,
+        meter: &mut WorkMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let Terminator::Crash {
             edge,
@@ -434,7 +434,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_external_completion(
         &mut self,
         terminator: &Terminator,
-        meter: &mut TerminalFuelMeter,
+        meter: &mut WorkMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let Terminator::ExternalCompletion {
             edge,

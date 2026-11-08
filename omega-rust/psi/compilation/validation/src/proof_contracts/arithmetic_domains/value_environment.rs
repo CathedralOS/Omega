@@ -609,36 +609,12 @@ impl ValueEnvironment {
         }
     }
 
-    /// Rebinding a saved subject cannot revive any source fact changed by an
-    /// earlier evaluated pattern. The prefix owns only completed operands.
-    pub(super) fn invalidate_call_prefix(
-        &mut self,
-        program: &dyn crate::CheckingInput,
-        state: Option<&State>,
-        prefix: &super::evaluated_writes::EvaluatedWritePrefix,
-    ) {
-        if prefix.is_unknown() {
-            self.invalidate_unknown_writes(program, state);
-            return;
-        }
-        let overlaps = |path: &str| prefix.overlaps(path);
-        self.invalidate_storage_by(overlaps, |operand| {
-            operand.survives_storage_writes_by(program, state, &overlaps, prefix.is_empty())
-        });
-    }
-
     fn invalidate_storage(&mut self, written: &[String], survives: impl Fn(&Operand) -> bool) {
-        self.invalidate_storage_by(
-            |path| written.iter().any(|write| place_paths_overlap(path, write)),
-            survives,
-        );
-    }
-
-    fn invalidate_storage_by(
-        &mut self,
-        overlaps: impl Fn(&str) -> bool,
-        survives: impl Fn(&Operand) -> bool,
-    ) {
+        let overlaps = |path: &str| {
+            written
+                .iter()
+                .any(|written| place_paths_overlap(path, written))
+        };
         self.boolean_values.retain_mut(|value| {
             if !survives(&value.binding) {
                 return false;

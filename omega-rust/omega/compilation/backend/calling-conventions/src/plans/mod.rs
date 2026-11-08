@@ -13,6 +13,7 @@
 mod boundary_entry;
 mod call_plan_evaluation;
 mod diagnostics;
+mod generated_entry_effects;
 mod plan_identity;
 mod state_footprints;
 #[cfg(test)]
@@ -28,6 +29,9 @@ pub use call_plan_evaluation::evaluate_call_plan;
 pub(crate) use call_plan_evaluation::validate_call_plan;
 pub(crate) use diagnostics::BoundaryPlanDiagnostic;
 pub use diagnostics::PlanDiagnostic;
+pub use generated_entry_effects::{
+    GeneratedEntryControl, GeneratedEntryEvidence, GeneratedEntryInstruction, StateEffectsEvidence,
+};
 pub use state_footprints::StateFootprintEvidence;
 pub use vocabulary::{
     CallPlan, CallSignature, CallingPolicy, EntryControl, EntryStack, IndirectPointerLocation,

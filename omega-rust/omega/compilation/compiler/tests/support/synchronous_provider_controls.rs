@@ -105,7 +105,7 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
         .selection
         .as_ref()
         .map_err(|errors| format!("provider selection: {errors:?}"))?;
-    original.admit(loaded.view(), target)?;
+    let installation = original.admit(loaded.view(), target)?;
     let module = loaded.semantic_module();
     let candidate_named = |name: &str| {
         module
@@ -119,8 +119,17 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
             })
             .ok_or_else(|| format!("source fixture must retain provider {name}"))
     };
+    let alpha = candidate_named("SelectedAlpha")?.candidate;
     let alternative = candidate_named("AlternativeBeta")?;
     let quiet = candidate_named("SelectedBeta")?.candidate;
+    inspect_selected_closure(
+        &loaded,
+        target,
+        &installation,
+        alpha,
+        quiet,
+        alternative.candidate,
+    )?;
     let requirement = module
         .identities
         .text(alternative.source_requirement_identity)
@@ -187,6 +196,19 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
     let uncalled = CanonicalTerminalArtifact::from_bytes(&uncalled.to_bytes())
         .map_err(|error| format!("uncalled transport: {error:?}"))?;
     let members = terminal_installation::admit_target_machine_selections(uncalled.view(), target);
+    let profile =
+        target::TargetProfile::from_canonical_target_name(target).map_err(|error| error.message)?;
+    require_graph_error(
+        terminal_psi_to_abstract_operations::provider_admission::selected_synchronous_call_graph(
+            uncalled.view(),
+            Some(&members),
+            None,
+            Some(&installation),
+            profile,
+        ),
+        "synchronous provider graph has another provider installation",
+        "foreign provider installation",
+    )?;
     let calls = terminal_installation::SynchronousCallGraph::new(
         uncalled.semantic_module(),
         Some(&members),
@@ -195,6 +217,14 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
     if !calls.from_root(quiet)?.boundaries.is_empty() {
         return Err("quiet entry unexpectedly calls a provider".into());
     }
+    inspect_program_context(
+        retained,
+        &uncalled,
+        target,
+        alpha,
+        quiet,
+        alternative.candidate,
+    )?;
     require_cycle(
         changed.admit(uncalled.view(), target),
         "uncalled installed cycle",
@@ -258,6 +288,289 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
     }
     opaque.admit(loaded.view(), target)?;
     Ok(())
+}
+
+/// Obtain the context from ordinary admission of the source's selected Alpha
+/// body, then admit its quiet Beta body with an empty local provider scope.
+/// Inspecting Alpha through that smaller scope must keep the original choices
+/// without installing them in Beta. The actual installed private-body witness
+/// remains the saved Cathedral native request.
+fn inspect_program_context(
+    retained: &RetainedTerminalArtifact,
+    foreign: &CanonicalTerminalArtifact,
+    target: &str,
+    alpha: semantic_vocabulary::MachineId,
+    beta: semantic_vocabulary::MachineId,
+    alternative: semantic_vocabulary::MachineId,
+) -> Result<(), String> {
+    use std::sync::Arc;
+    use terminal_psi::TargetMachineCallable;
+    use terminal_psi_to_abstract_operations::{
+        NativeAdmissionRequest, RetainedNativeProviderInputs, admit_prepared_native_realization,
+        provider_admission::{
+            ProviderAdmissionRequest, current_terminal_authority_policy,
+            selected_synchronous_call_graph, terminal_authority_permission_policy_with_rows,
+        },
+    };
+    let artifact = retained.artifact();
+    let proposal = retained
+        .native_realization_proposal()
+        .ok_or("missing native proposal")?;
+    let work = proposal
+        .prepare_native_callable_execution(artifact, TargetMachineCallable::Machine(alpha))
+        .map_err(|errors| format!("program context parent preparation: {errors:?}"))?;
+    let (input, execution) = work
+        .lower(None)
+        .map_err(|errors| format!("program context parent lowering: {errors:?}"))?;
+    let permissions = terminal_authority_permission_policy_with_rows(
+        proposal.package_terminal_authority_permissions().to_vec(),
+        proposal
+            .package_terminal_authority_permission_identities()
+            .clone(),
+    )
+    .map_err(|error| format!("program context package permissions: {error:?}"))?;
+    let providers = proposal
+        .prepare_native_providers(
+            artifact,
+            RetainedNativeProviderInputs {
+                execution: &execution,
+                optimization_selections: proposal.post_terminal_optimizations().selections(),
+                accepted_package_permissions: &permissions,
+                imports: &[],
+            },
+        )
+        .map_err(|errors| format!("program context provider preparation: {errors:?}"))?;
+    let settlements = providers.program_settlements();
+    let policy = current_terminal_authority_policy();
+    let receiving_permissions = None;
+    let request = NativeAdmissionRequest {
+        entry: TargetMachineCallable::Machine(alpha),
+        ..providers.admission_request(&settlements, &policy, &receiving_permissions, &[])
+    };
+    let parent = admit_prepared_native_realization(input, artifact, &request)
+        .map_err(|errors| format!("program context parent admission: {errors:?}"))?;
+    let context = Arc::clone(parent.providers.program_provider_context());
+    let profile = request.providers.profile;
+    context.require(
+        artifact.view().identity(),
+        profile,
+        request.providers.selected_provider_plans,
+    )?;
+    require_graph_error(
+        context.require(
+            foreign.view().identity(),
+            profile,
+            request.providers.selected_provider_plans,
+        ),
+        "program provider context names another Terminal artifact",
+        "foreign program context",
+    )?;
+    let other_target = match target {
+        "macos_arm64" => "linux_arm64",
+        "linux_arm64" => "macos_arm64",
+        "linux_x86_64" => "windows_x86_64",
+        _ => "linux_x86_64",
+    };
+    let other_profile = target::TargetProfile::from_canonical_target_name(other_target)
+        .map_err(|error| error.message)?;
+    require_graph_error(
+        context.require(
+            artifact.view().identity(),
+            other_profile,
+            request.providers.selected_provider_plans,
+        ),
+        "program provider context names another target profile",
+        "foreign program target",
+    )?;
+    require_graph_error(
+        context.require(
+            artifact.view().identity(),
+            profile,
+            &SelectedProviderPlanFacts::default(),
+        ),
+        "program provider context names another selected-plan closure",
+        "changed program choices",
+    )?;
+    drop(parent);
+    let child_input = execution
+        .lower_callable(
+            artifact,
+            proposal,
+            TargetMachineCallable::Machine(beta),
+            None,
+        )
+        .map_err(|errors| format!("program context child lowering: {errors:?}"))?;
+    let child_request = NativeAdmissionRequest {
+        entry: TargetMachineCallable::Machine(beta),
+        providers: ProviderAdmissionRequest {
+            program_provider_context: Some(&context),
+            ..request.providers
+        },
+        ..request
+    };
+    let child = admit_prepared_native_realization(child_input, artifact, &child_request)
+        .map_err(|errors| format!("program context child admission: {errors:?}"))?;
+    if !Arc::ptr_eq(&context, child.providers.program_provider_context())
+        || child
+            .providers
+            .installation
+            .as_ref()
+            .is_some_and(|installation| {
+                installation
+                    .terminal_selection()
+                    .providers()
+                    .next()
+                    .is_some()
+                    || !installation.installed_calls().is_empty()
+            })
+    {
+        return Err("private admission copied program providers into its quiet scope".into());
+    }
+    let members = terminal_installation::admit_target_machine_selections(artifact.view(), target);
+    let original = selected_synchronous_call_graph(
+        artifact.view(),
+        Some(&members),
+        context.entry_bridge(),
+        context.providers(),
+        profile,
+    )?
+    .from_root(alpha)?;
+    let local = selected_synchronous_call_graph(
+        artifact.view(),
+        Some(&members),
+        None,
+        child
+            .providers
+            .installation
+            .as_ref()
+            .map(|row| row.terminal_selection()),
+        profile,
+    )?
+    .from_root(alpha)?;
+    if !original.machines.iter().any(|body| body.id == beta)
+        || original.machines.iter().any(|body| body.id == alternative)
+        || local
+            .machines
+            .iter()
+            .any(|body| body.id == beta || body.id == alternative)
+    {
+        return Err(
+            "program entry inspection did not retain its exact selected provider context".into(),
+        );
+    }
+    Ok(())
+}
+
+fn inspect_selected_closure(
+    artifact: &CanonicalTerminalArtifact,
+    target: &str,
+    installation: &terminal_installation::AdmittedProviderSelections,
+    alpha: semantic_vocabulary::MachineId,
+    beta: semantic_vocabulary::MachineId,
+    alternative: semantic_vocabulary::MachineId,
+) -> Result<(), String> {
+    use terminal_psi_to_abstract_operations::provider_admission::selected_synchronous_call_graph;
+
+    let profile =
+        target::TargetProfile::from_canonical_target_name(target).map_err(|error| error.message)?;
+    let members = terminal_installation::admit_target_machine_selections(artifact.view(), target);
+    let boundary = installation
+        .providers()
+        .find_map(|(boundary, machine)| (machine == beta).then_some(boundary))
+        .ok_or("source fixture must select the quiet Beta body")?;
+    let selected = selected_synchronous_call_graph(
+        artifact.view(),
+        Some(&members),
+        None,
+        Some(installation),
+        profile,
+    )?;
+    let closure = selected.from_root(alpha)?;
+    if selected.boundary_callee(boundary)? != Some(beta)
+        || !closure.boundaries.contains(&boundary)
+        || !closure.machines.iter().any(|body| body.id == alpha)
+        || !closure.machines.iter().any(|body| body.id == beta)
+        || closure.machines.iter().any(|body| body.id == alternative)
+    {
+        return Err(
+            "selected synchronous closure lost its exact provider edge or chose an alternative"
+                .into(),
+        );
+    }
+    let opaque =
+        selected_synchronous_call_graph(artifact.view(), Some(&members), None, None, profile)?;
+    let closure = opaque.from_root(alpha)?;
+    if opaque.boundary_callee(boundary)?.is_some()
+        || !closure.boundaries.contains(&boundary)
+        || closure
+            .machines
+            .iter()
+            .any(|body| body.id == beta || body.id == alternative)
+    {
+        return Err("unresolved synchronous closure acquired a provider body".into());
+    }
+    let other_target = match target {
+        "macos_arm64" => "linux_arm64",
+        "linux_arm64" => "macos_arm64",
+        "linux_x86_64" => "windows_x86_64",
+        _ => "linux_x86_64",
+    };
+    let other_members =
+        terminal_installation::admit_target_machine_selections(artifact.view(), other_target);
+    require_graph_error(
+        selected_synchronous_call_graph(
+            artifact.view(),
+            Some(&other_members),
+            None,
+            Some(installation),
+            profile,
+        ),
+        "synchronous provider graph has another artifact or target selection",
+        "foreign deployment selection",
+    )?;
+    require_graph_error(
+        terminal_installation::SynchronousCallGraph::new(artifact.semantic_module(), None, None)?
+            .with_boundary_calls([(boundary, beta), (boundary, beta)]),
+        "synchronous boundary call repeats a resolved boundary",
+        "duplicate resolved boundary",
+    )?;
+    for coordinates in [
+        (
+            semantic_vocabulary::BoundaryMachineId::new(u64::MAX)
+                .ok_or("absent boundary identity")?,
+            beta,
+        ),
+        (
+            boundary,
+            semantic_vocabulary::MachineId::new(u64::MAX).ok_or("absent body identity")?,
+        ),
+    ] {
+        require_graph_error(
+            terminal_installation::SynchronousCallGraph::new(
+                artifact.semantic_module(),
+                None,
+                None,
+            )?
+            .with_boundary_calls([coordinates]),
+            "synchronous boundary call names an absent boundary or body",
+            "absent resolved coordinate",
+        )?;
+    }
+    Ok(())
+}
+
+fn require_graph_error<T>(
+    result: Result<T, String>,
+    expected: &str,
+    control: &str,
+) -> Result<(), String> {
+    match result {
+        Err(reason) if reason == expected => Ok(()),
+        Err(reason) => Err(format!("{control} refused for another reason: {reason}")),
+        Ok(_) => Err(format!(
+            "{control} accepted an invalid synchronous graph join"
+        )),
+    }
 }
 
 fn require_cycle<T>(result: Result<T, String>, control: &str) -> Result<(), String> {

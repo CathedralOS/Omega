@@ -13,12 +13,12 @@ use super::{
     FunctionFragmentNormalizedForeignCallFixupState, FunctionFragmentSuccessorProvenance,
 };
 use optimization_core::FunctionFragmentEmissionIdentity;
-use optimization_unit::{FuelSettlement, PsiProvenance};
+use optimization_unit::{PsiProvenance, WorkSettlement};
 use selected_instructions::SelectedInstructionProvenance;
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 use target_operations::TerminalPsiProvenance;
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v23";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v24";
 
 pub(crate) fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
@@ -26,7 +26,7 @@ pub(crate) fn function_fragment_emission_identity(
     let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(FRAGMENT_SCHEMA);
     hasher.raw(&plan.psi.vocabulary_marker.get().to_le_bytes());
     hasher.raw(plan.psi.program_fingerprint.as_bytes());
-    hasher.raw(&plan.fuel_schedule.marker().to_le_bytes());
+    hasher.raw(&plan.work_schedule.marker().to_le_bytes());
     hasher.raw(&plan.selected.bytes());
     hasher.raw(&plan.target.identity_bytes());
     hasher.raw(&plan.entry.get().to_le_bytes());
@@ -185,7 +185,7 @@ fn encode_instruction_provenance(
     encode_semantic_ids(hasher, provenance.values.iter().map(|id| id.get()));
     encode_semantic_ids(hasher, provenance.edges.iter().map(|id| id.get()));
     encode_semantic_ids(hasher, provenance.obligations.iter().map(|id| id.get()));
-    encode_fuel(hasher, &provenance.fuel);
+    encode_work(hasher, &provenance.work);
 }
 
 fn encode_semantic_ids(
@@ -198,9 +198,9 @@ fn encode_semantic_ids(
     }
 }
 
-fn encode_fuel(hasher: &mut crate::digest_encoder::DomainDigestEncoder, fuel: &[FuelSettlement]) {
-    hasher.u64(fuel.len() as u64);
-    for settlement in fuel {
+fn encode_work(hasher: &mut crate::digest_encoder::DomainDigestEncoder, work: &[WorkSettlement]) {
+    hasher.u64(work.len() as u64);
+    for settlement in work {
         match settlement.site {
             PsiProvenance::Operation(operation) => {
                 hasher.byte(0);
@@ -332,7 +332,7 @@ fn encode_successor(
             }
         }
     }
-    encode_fuel(hasher, &successor.fuel);
+    encode_work(hasher, &successor.work);
 }
 
 fn encode_branch(

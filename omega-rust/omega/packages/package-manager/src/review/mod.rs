@@ -1,4 +1,13 @@
-//! Admit review candidates, join compiler evidence, compare and apply root decisions.
+/*
+    We admit package review candidates, join compiler-issued evidence to the
+    resolved immutable source closure, compare normalized policy rows against
+    the accepted baseline, and apply root-project policy decisions.
+*/
+
+/*
+    Package review orchestration belongs to the package manager's review
+    boundary (`review/mod.rs`).
+*/
 
 mod audit;
 mod candidate;
@@ -24,8 +33,7 @@ pub use candidate::{
 pub(crate) use compare::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,
     PackagePolicyChangeLimits, PackagePolicyChangeSet, PackagePolicyDependencyPath,
-    PackagePolicyReplacementSite, ReviewOnlyRootRoleChange, ReviewOnlyRootRoleContract,
-    compare_package_policy_changes,
+    PackagePolicyReplacementSite, compare_package_policy_changes,
 };
 pub(crate) use decision::{
     PackagePolicyDecisionSubject, PackagePolicyResolution, PackagePolicyReviewError,

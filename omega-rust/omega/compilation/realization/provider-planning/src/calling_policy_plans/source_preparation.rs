@@ -1,9 +1,8 @@
-//! Capture original review correspondence once beside shared Terminal code.
-//!
-//! These owned addresses are not an IR, execution permission, or another
-//! policy catalog. Canonical requests drive target work; this companion supplies
-//! their original diagnostics and review subjects after Source has expired.
-//! Fallible requests, reviews and target helpers remain inert until consumed.
+// We capture original review correspondence (`CallingSourcePreparation`) once
+// beside shared Terminal code. Canonical requests drive target work while this
+// companion supplies their original diagnostics and review subjects after
+// Source has expired, keeping fallible requests, reviews, and target helpers
+// inert until consumed.
 
 use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use checked_trees::typed_trees::service_declarations::signatures::PreparedBoundarySignatures;

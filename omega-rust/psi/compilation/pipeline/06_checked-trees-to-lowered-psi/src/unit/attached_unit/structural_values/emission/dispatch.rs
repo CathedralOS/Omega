@@ -59,46 +59,29 @@ impl Emission<'_, '_, '_> {
                 )?;
                 self.values.push(value);
             }
-            checked_trees::CheckedDispatchSubject::Structural {
-                expression: subject_expression,
-                value,
-                alias,
-                place,
-            } => {
-                if !value.is_valid() {
-                    let captured =
-                        super::place_id(super::allocate_dense(self.environment.next_place)?);
-                    self.projection_emission().capture_subject(
-                        identities,
-                        subject_expression,
-                        &place,
-                        alias,
-                        captured,
-                    )?;
-                } else {
-                    let request = crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(identities, self.checked, value, self.structural_types)?;
-                    self.environment.produce_value(
-                        identities,
-                        value,
-                        request.structural_type,
-                        self.evaluation,
-                        self.values,
-                        self.next_value,
-                        self.next_block,
-                        self.next_edge,
-                        self.calls,
-                        self.operations,
-                    )?;
-                    if self.operations.invocation_completion.is_some() {
-                        return Ok(ValueOutcome::NoNormal);
-                    }
-                    self.evaluation
-                        .bind_completed_value_alias(value, alias, self.operations)?;
-                    // The actual producer above dominates every predicate and
-                    // selected arm. Carry that dependency into their fresh scalar
-                    // expansions, not every historical entry in computed_values.
-                    self.evaluation.completed_operand_scope.push(value);
+            checked_trees::CheckedDispatchSubject::Structural { value, alias, .. } => {
+                let request = crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(identities, self.checked, value, self.structural_types)?;
+                self.environment.produce_value(
+                    identities,
+                    value,
+                    request.structural_type,
+                    self.evaluation,
+                    self.values,
+                    self.next_value,
+                    self.next_block,
+                    self.next_edge,
+                    self.calls,
+                    self.operations,
+                )?;
+                if self.operations.invocation_completion.is_some() {
+                    return Ok(ValueOutcome::NoNormal);
                 }
+                self.evaluation
+                    .bind_completed_value_alias(value, alias, self.operations)?;
+                // The actual producer above dominates every predicate and
+                // selected arm. Carry that dependency into their fresh scalar
+                // expansions, not every historical entry in computed_values.
+                self.evaluation.completed_operand_scope.push(value);
             }
         }
         let mut owned_continuation;

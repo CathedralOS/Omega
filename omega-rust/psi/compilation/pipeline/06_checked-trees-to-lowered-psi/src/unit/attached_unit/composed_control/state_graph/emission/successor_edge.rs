@@ -549,6 +549,8 @@ impl StateGraphEmission<'_, '_> {
                                     place: source_place, path: source_path,
                                     access: crate::expression_preparation::bindings::structural_paths::terminal_access(subject.access),
                                 };
+                                // The hidden owner argument below carries this descriptor.
+                                let first_operand_operation = operations.len();
                                 let carrier = crate::unit::attached_unit::reference_results::emit_carrier(
                                     identities,
                                     crate::unit::attached_unit::reference_results::Formation {
@@ -563,6 +565,9 @@ impl StateGraphEmission<'_, '_> {
                                     carrier_type, source, crate::unit::attached_unit::reference_results::PublishedReferenceStorage::Declared, &self.catalogs.structural_types,
                                     &edge_evaluation,
                                     place_id(allocate_dense(&mut self.catalogs.next_place)?), operations,
+                                )?;
+                                edge_evaluation.current_claims.publish_operations(
+                                    &operations[first_operand_operation..],
                                 )?;
                                 captured_loans.push((group, carrier.id));
                                 self.structural_places.push(carrier);
@@ -604,6 +609,7 @@ impl StateGraphEmission<'_, '_> {
                                 );
                             }
                             let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
+                            let first_operand_operation = operations.len();
                             self.structural_places.push(case_leaf_copy::emit(
                                 identities,
                                 &self.catalogs.structural_types,
@@ -618,6 +624,9 @@ impl StateGraphEmission<'_, '_> {
                                 destination,
                                 operations,
                             )?);
+                            edge_evaluation.current_claims.publish_operations(
+                                &operations[first_operand_operation..],
+                            )?;
                             destination
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral {
@@ -659,6 +668,9 @@ impl StateGraphEmission<'_, '_> {
                                     )
                                 })
                                 .collect::<Result<Vec<_>, _>>()?;
+                            // Record the new value before cleanup reads it; even a value
+                            // with no ownership claims has a recorded home.
+                            let first_operand_operation = operations.len();
                             let producer = operations.allocate();
                             operations.push(Operation::unsuspended(
                                 producer,
@@ -669,6 +681,9 @@ impl StateGraphEmission<'_, '_> {
                                     qualifications,
                                 },
                             ));
+                            edge_evaluation.current_claims.publish_operations(
+                                &operations[first_operand_operation..],
+                            )?;
                             destination
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue {
@@ -707,6 +722,9 @@ impl StateGraphEmission<'_, '_> {
                                 &self.catalogs.type_ids,
                                 &target_parameter.type_identity,
                             )?;
+                            // Record the new value before cleanup reads it; even a value
+                            // with no ownership claims has a recorded home.
+                            let first_operand_operation = operations.len();
                             let producer = operations.allocate();
                             operations.push(Operation::unsuspended(
                                 producer,
@@ -720,6 +738,9 @@ impl StateGraphEmission<'_, '_> {
                             self.catalogs.temporary_places.push(
                                 operation_result_place(destination, producer, structural_type),
                             );
+                            edge_evaluation.current_claims.publish_operations(
+                                &operations[first_operand_operation..],
+                            )?;
                             destination
                             }
                         }
@@ -1383,7 +1404,6 @@ impl StateGraphEmission<'_, '_> {
                 self.checked,
                 &mut structural_arguments,
                 &capture_parameters,
-                &cleanup_regions,
                 &mut edge_values,
                 &mut self.catalogs.next_place,
                 &mut self.catalogs.temporary_places,

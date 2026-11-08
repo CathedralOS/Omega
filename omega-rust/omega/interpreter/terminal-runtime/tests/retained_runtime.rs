@@ -1,5 +1,6 @@
-//! Build produces one artifact; hosted execution borrows it without source work.
-//! One test owns the process-global decode counter for this binary.
+// Integration test verifying that `orchestration::build` produces a single
+// retained artifact and `terminal_runtime::execute` / `execute_sliced` borrows
+// and runs it without re-decoding the Terminal module.
 
 use orchestration::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
 use platform_custody::temporary_directory::TemporaryDirectory;
@@ -19,6 +20,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         build_directory: Some(directory.path().to_path_buf()),
         targets: BuildTargets::Single(profile),
         product: ProjectProduct::Native {
+            installation_assumptions: Vec::new(),
             destination: NativeDestination::Retained,
             private_entry_ram: Vec::new(),
         },
@@ -53,9 +55,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         provider_proposal: None,
         x86_flags: terminal_runtime::capture_host_x86_flags(profile.target_name()).unwrap(),
         memory_ordering: None,
-        fuel_allowance: 100_000,
-        // This program returns normally; possession of its artifact does not
-        // supply process-domain death authority.
+        work_budget: 100_000,
         domain_exit: TerminalDomainExitDelegation::Unprovided,
         standard_input: None,
         clock: None,
@@ -86,6 +86,6 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         assert!(observed.stdout.is_empty());
         assert!(observed.stderr.is_empty());
     }
-    assert!(sliced.fuel_suspensions > 0);
+    assert!(sliced.work_suspensions > 0);
     assert_eq!(terminal_codec::module_decode_count(), before);
 }

@@ -1,14 +1,19 @@
+/*
+Compiler and command operations for Omega's registry-free package manager.
+
+We organize package management around explicit command admission, review
+decisions, and atomic publication in `package_manager`. Application Build
+schedules the admitted target-review requests, while `operations` exposes
+compiler preparation and read-only source/package inspection.
+
+The crate-wide `bounded_limits!` macro clamps every limit field against
+`Self::default()` (the hard ceiling shape shared by all package limit records),
+and `reserve!` folds `try_reserve_exact(n).map_err(|_| <$error>::AllocationFailed)?`
+into one statement across text readers and projections.
+*/
+
 #![forbid(unsafe_code)]
 
-//! The compiler and command operations for Omega's registry-free package
-//! manager.
-//!
-//! Start with [`package_manager`] for command admission, decisions and publication.
-//! Application Build schedules the admitted target-review requests.
-//! [`operations`] also exposes compiler preparation and read-only inspection.
-
-/// `bounded()` clamps every limit field against `Self::default()` — the hard
-/// ceiling shape all package limit records share.
 macro_rules! bounded_limits {
     ($vis:vis fn; $($field:ident),+ $(,)?) => {
         $vis fn bounded(self) -> Self {
@@ -21,10 +26,6 @@ macro_rules! bounded_limits {
 }
 pub(crate) use bounded_limits;
 
-/// `reserve!` folds the `try_reserve_exact(n).map_err(..)?` chain every text
-/// reader and projection writes by hand into one statement. `$error` is the
-/// caller's error type, whose `AllocationFailed` variant is the only value
-/// the chain ever produced.
 macro_rules! reserve {
     ($items:expr, $additional:expr, $error:ty) => {
         $items
@@ -54,7 +55,3 @@ pub use package_manager::{
     PackageCommandReviewRequest, PackageCommandStatus, PackageCommandTransaction,
     PreparedPackageCommand, discard_package_review,
 };
-
-// The unit tests compile real packages on several threads; mimalloc's
-// per-thread heaps avoid the system allocator's zone locks. Test-only: the
-// product keeps the system allocator.

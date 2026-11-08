@@ -142,6 +142,18 @@ pub(super) fn transfer_statement_facts<'program>(
                     assignment.value,
                 )
             });
+            // Read the pre-store counter. `i = i + 1` invalidates `i` before
+            // the new fact is recorded, so the preserved sign has to be known
+            // from the value that was just replaced.
+            let stored_non_negative = next_integer.is_some_and(|value| value >= 0)
+                || super::statements::assigned_sum_stays_non_negative(
+                    program,
+                    machine,
+                    state,
+                    facts,
+                    assignment.target,
+                    assignment.value,
+                );
             facts.invalidate_assignment_bounds(program, machine, state, statement);
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
                 facts.assign_local(symbol, name, next_length, next_integer);
@@ -183,6 +195,22 @@ pub(super) fn transfer_statement_facts<'program>(
                 facts.assign_field_integer(symbol, name, next_integer);
                 if let Some((target, bound)) = offset_bound {
                     facts.prove_index_upper_bound(target, bound);
+                }
+                // `i = 0` and `i = i + 1` after a non-negative `i` keep the
+                // counter non-negative. The next block's index proof reads
+                // that fact from the handed-off field, not from a fresh guard.
+                if stored_non_negative {
+                    let label = program.expression_table.display_name(assignment.target);
+                    facts.record_expression_dependencies(
+                        program,
+                        machine,
+                        state,
+                        assignment.target,
+                    );
+                    facts.prove_non_negative(label.clone());
+                    if let Some(exclusive) = next_integer.and_then(|value| value.checked_add(1)) {
+                        facts.prove_index_upper_bound(label, exclusive);
+                    }
                 }
                 seed_ensured_call_result_bounds(
                     program,

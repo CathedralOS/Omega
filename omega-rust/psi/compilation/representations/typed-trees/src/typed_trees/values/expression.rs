@@ -113,7 +113,6 @@ pub struct ExpressionTable {
     /// their stable handles when a compilation projects a closed body roster.
     expression_roots: Arena<ExpressionHandle>,
     source_spans: Vec<SourceSpan>,
-    pattern_components: Vec<language_core::PatternComponent>,
     /// Original checked computation of a materialized static value. This
     /// provenance edge preserves invocation custody without executing it again.
     materialization_sources: Vec<ExpressionHandle>,
@@ -297,11 +296,7 @@ impl ExpressionTable {
             && self.expression_is_valid(capture.subject)
             && self.match_arms(dispatch.arms).iter().any(|arm| {
                 matches!(arm.pattern, MatchPattern::Destructure(pattern)
-                    if pattern.head == saved.pattern_head
-                    && (saved.component == language_core::PatternComponent::Fields
-                        || self.match_fields(pattern.fields).iter().any(|field|
-                            field.component == language_core::PatternComponent::Case
-                                && matches!(field.action, MatchFieldAction::Bind(_)))))
+                    if pattern.head == saved.pattern_head)
             }))
         .then_some(capture.subject)
     }
@@ -474,7 +469,6 @@ impl ExpressionTable {
             build_selection_requests: Arena::default(),
             expression_roots: Arena::with_capacity(capacity.expressions),
             source_spans: Vec::with_capacity(capacity.expressions),
-            pattern_components: Vec::with_capacity(capacity.expressions),
             materialization_sources: Vec::new(),
             constructed_value_types: Arena::default(),
             constructed_value_type_handles: Vec::new(),
@@ -752,39 +746,7 @@ impl ExpressionTable {
         self.static_machine_arguments.span_mut_or_empty(arguments)
     }
 
-    pub fn direct_pattern_component(
-        &self,
-        expression: ExpressionHandle,
-    ) -> Option<language_core::PatternComponent> {
-        self.expression_is_valid(expression)
-            .then(|| {
-                self.pattern_components
-                    .get(source_span_index(expression))
-                    .copied()
-            })
-            .flatten()
-    }
-
-    /// A component belongs to the produced occurrence, not the current node
-    /// shape. Replacing a name by its captured place must retain this view.
-    pub fn set_pattern_component(
-        &mut self,
-        expression: ExpressionHandle,
-        component: language_core::PatternComponent,
-    ) {
-        let slot = &mut self.pattern_components[source_span_index(expression)];
-        if *slot != component {
-            *slot = component;
-            // Role changes invalidate the same derived readers as node changes.
-            let _ = self.expressions.get_mut(expression);
-        }
-    }
-
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
-        let component = match &expression {
-            ExpressionNode::SavedSubject(saved) => saved.component,
-            _ => language_core::PatternComponent::Fields,
-        };
         let capture = match &expression {
             ExpressionNode::Match(dispatch) => dispatch.capture,
             _ => Handle::invalid(),
@@ -810,7 +772,6 @@ impl ExpressionTable {
         }
         self.expression_roots.insert(handle);
         self.source_spans.push(SourceSpan::default());
-        self.pattern_components.push(component);
         self.materialization_sources
             .push(ExpressionHandle::invalid());
         self.authored_selection_occurrences
@@ -1365,10 +1326,7 @@ impl ExpressionTable {
         if a == b {
             return true;
         }
-        if !a.is_valid()
-            || !b.is_valid()
-            || self.direct_pattern_component(a) != self.direct_pattern_component(b)
-        {
+        if !a.is_valid() || !b.is_valid() {
             return false;
         }
         match (self.expression(a), self.expression(b)) {
@@ -1393,9 +1351,6 @@ impl ExpressionTable {
                     })
             }
             (ExpressionNode::SavedSubject(left), ExpressionNode::SavedSubject(right)) => {
-                if left.component != right.component {
-                    return false;
-                }
                 left.capture == right.capture
                     && self.expressions_structurally_equal(left.pattern_head, right.pattern_head)
             }
@@ -1770,6 +1725,10 @@ pub struct TableCallExpression {
     /// conformance is proof-static identity; ordinary generic dispatch never
     /// sees it and source code never receives the resulting private place.
     pub private_layout_operation: Option<PrivateLayoutOperationRequest>,
+    /// Exact registrar application and timer slot requested by the canonical
+    /// x86 installation operation. These declarations select retained evidence;
+    /// they are neither executable callback values nor runtime addresses.
+    pub installed_interrupt_operation: Option<InstalledInterruptOperationRequest>,
     /// Exact compiler-known `size_of<T>`/`align_of<T>` request. The operand's
     /// lowered static argument keeps the queried type's authored selection
     /// custody. The answer needs the selected target's validated layout, so
@@ -1782,6 +1741,39 @@ pub struct TableCallExpression {
     pub arguments: HandleSpan<ExpressionHandle>,
     pub evidence_arguments: Box<[Identifier]>,
     pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
+}
+
+/// The caller explicitly identifies the whole registrar and its timer slot.
+/// Retention is not admission: checking must join the selected satisfaction,
+/// complete callback roster, exact table occurrence and installed root evidence.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct InstalledInterruptOperationRequest {
+    /// Occurrence-owned source tuple prepared after specialization. This is
+    /// derivation data; the installation validator still admits its contracts.
+    pub registrar_application: crate::static_applications::StaticMachineApplicationHandle,
+    /// Exact closed public requirement. Invalid while source operands remain open.
+    pub registrar_target: SymbolHandle,
+    /// Selected child application, before projecting an inherited member's owner.
+    pub registrar_receiving_scope: crate::trait_definition::RetainedTraitScope,
+    /// Exact authored occurrence of the registrar requirement, retained before
+    /// static argument identifiers lose their source coordinates.
+    pub registrar_selection:
+        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+    /// Selected trait, distinct from an inherited requirement's declaring owner.
+    /// Its complete authored application remains in `registrar`.
+    pub registrar_trait: SymbolHandle,
+    pub registrar: StaticMachineArgument,
+    pub timer_slot: StaticMachineArgument,
+}
+
+impl InstalledInterruptOperationRequest {
+    /// A copied or substituted request must prepare its own source tuple.
+    pub fn invalidate_preparation(&mut self) {
+        self.registrar_application =
+            crate::static_applications::StaticMachineApplicationHandle::invalid();
+        self.registrar_target = SymbolHandle::invalid();
+        self.registrar_receiving_scope = Default::default();
+    }
 }
 
 /// A compiler-known native query, never an invocation of its selected machine.
@@ -2336,7 +2328,6 @@ pub enum ValueCaptureOwner {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableSavedSubject {
-    pub component: language_core::PatternComponent,
     pub capture: Handle<CompletedValueCapture>,
     pub pattern_head: ExpressionHandle,
 }
@@ -2373,7 +2364,6 @@ pub struct TableDestructurePattern {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableMatchField {
-    pub component: language_core::PatternComponent,
     pub member: Identifier,
     pub field_symbol: SymbolHandle,
     pub action: MatchFieldAction,

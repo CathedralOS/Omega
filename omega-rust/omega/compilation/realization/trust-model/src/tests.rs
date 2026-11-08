@@ -1,3 +1,8 @@
+// We test `reconstruct_trust_obligations` and `TrustAdmission` across exact vs
+// leaf-name grant resolution, deferred unused declaration errors, template vs
+// contract cardinality rejections, package-aware non-provider grant rejection,
+// and domain-separated digest equality.
+
 use crate::{TrustAdmission, reconstruct_trust_obligations};
 use language_semantics::trust_declarations::{
     AcceptedContractDeclaration, AcceptedMachineDeclaration, AcceptedTemplateDeclaration,

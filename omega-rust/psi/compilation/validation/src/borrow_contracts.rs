@@ -93,6 +93,9 @@ pub enum ViewReturnAmbiguity {
 
 /// Resolve the source of a state's returned view from its signature alone.
 pub fn resolve_view_return_source(program: &dyn CheckingInput, state: &State) -> ViewReturnSource {
+    if let Some(relation) = installed_context_lifetime_source(program, state.symbol) {
+        return relation;
+    }
     resolve_signature_view_return_source(
         program,
         program.state_parameters(state),
@@ -191,6 +194,9 @@ pub fn resolve_applied_signature_view_return_source(
     scope_starts: &[usize],
     argument_owner: SymbolHandle,
 ) -> ViewReturnSource {
+    if let Some(relation) = installed_context_lifetime_source(program, signature.symbol) {
+        return relation;
+    }
     // An admitted foreign retention contract is the producer of a logical
     // loan. A nominal lifetime slot alone cannot borrow an unrelated input.
     if let Some(custody) = program
@@ -557,5 +563,37 @@ pub fn retained_lifetime_owner_paths(
             .filter(|leaf| leaf.lifetime_only)
             .map(|leaf| leaf.owner_path)
             .collect()
+    })
+}
+
+/// The installed context can outlive a particular delivery, but this view may
+/// only be used while its acknowledgement is borrowed. This row keeps that
+/// lifetime debt; the authenticated operation supplies the separate descriptor.
+pub fn installed_context_lifetime_source(
+    program: &dyn CheckingInput,
+    target: SymbolHandle,
+) -> Option<ViewReturnSource> {
+    let context = match crate::compiler_operations::static_interrupt_context(program, target) {
+        Ok(Some(context)) => context,
+        Ok(None) => return None,
+        Err(reason) => {
+            return Some(ViewReturnSource::Ambiguous(
+                ViewReturnAmbiguity::IncompleteStructure {
+                    subject: reason.to_owned(),
+                },
+            ));
+        }
+    };
+    Some(ViewReturnSource::Fields {
+        fields: vec![ViewReturnFieldSource {
+            lifetime_only: true,
+            owner_path: Vec::new(),
+            source_path: Vec::new(),
+            source: ViewReturnInputSource::Referent,
+            source_type: context.acknowledgement,
+            source_reference_hops: 0,
+            parameter_index: 0,
+            kind: BorrowAccessKind::Read,
+        }],
     })
 }

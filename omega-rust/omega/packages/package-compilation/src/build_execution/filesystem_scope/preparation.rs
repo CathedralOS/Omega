@@ -1,4 +1,16 @@
-//! Bind the request's package and root staging scope before build admission.
+// Request-to-scope preparation (`prepare_filesystem_scope`) before build admission.
+//
+// Binds the compilation request's package or anonymous source custody, execution
+// profile, and output staging directory into a `BuildMachineFilesystemScope`.
+// Retained package or anonymous source custody automatically activates snapshot
+// mode (`BuildSnapshotRequest`) even when the caller did not supply an explicit
+// snapshot request, ensuring retained custody never falls back to a real-host grant.
+// When snapshot mode is active without a caller-provided session sponsor, we
+// provision a fresh private temporary output staging sponsor (`NEXT_PRIVATE_OUTPUT`)
+// and re-bind `admitted_build_dir_key` to that newly created private root.
+// For narrowed (`Scoped`) package snapshots, we verify that every assembled user
+// source file and the product root are covered and that the scoped inventory is
+// an exact byte-for-byte subset of the authenticated full package capture.
 
 use crate::BuildMachineFilesystemScope;
 use crate::PackageCompilationInputs;
@@ -7,15 +19,8 @@ use diagnostics::Diagnostic;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-/// Unique private output roots; captured inputs require no host directories.
 static NEXT_PRIVATE_OUTPUT: AtomicU64 = AtomicU64::new(0);
 
-/// Bind the request's package/root staging scope before build admission.
-/// The execution profile joins the retained activation identity.
-/// `None` records an admitted host no catalogued profile
-/// describes rather than naming one. `required_sources` are the source
-/// files this compilation already assembled; a scoped capture request must
-/// cover every member located under the captured root.
 pub fn prepare_filesystem_scope(
     root_path: &Path,
     package_inputs: Option<&PackageCompilationInputs>,
@@ -82,16 +87,10 @@ pub fn prepare_filesystem_scope(
         build_machine_filesystem_scope = build_machine_filesystem_scope
             .with_package_activation(inputs.root(), inputs.root_role());
     }
-    // Retained custody always supplies the Source view, including callers
-    // that did not select an explicit snapshot request. It must never become
-    // a real-host grant merely because this activation has no output roster.
     let automatic_snapshot =
         retained_input.map(|_| crate::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
     let build_snapshot = build_snapshot.or(automatic_snapshot.as_ref());
     if let Some(build_snapshot) = build_snapshot {
-        // Review supplies a session sponsor; ordinary compilation does not.
-        // Both must use the same captured-output custody. Provision only a
-        // fresh private write root, never adopt earlier publication contents.
         if build_machine_filesystem_scope.sponsor.is_none() {
             let sponsor = loop {
                 let root = std::env::temp_dir().join(format!(
@@ -118,47 +117,31 @@ pub fn prepare_filesystem_scope(
                 ))]
             })?;
             build_machine_filesystem_scope.build_dir = canonical_root.join("output");
-            // The admitted key must follow the root it describes. Admission
-            // resolved the CALLER's requested spelling, and this provisioning
-            // has just replaced it with a root created privately here, so the
-            // baseline is re-bound to the new root -- its admission IS that
-            // private creation. Establishment's comparison keeps its meaning
-            // for every caller-supplied spelling, which is the case the
-            // baseline exists to protect: an ancestor swapped to a host alias
-            // after admission still changes the resolution and still rejects.
             build_machine_filesystem_scope.admitted_build_dir_key =
                 super::overlap_key(&build_machine_filesystem_scope.build_dir);
             build_machine_filesystem_scope.sponsor = Some(sponsor);
         }
-        // One capture authority produces the immutable input inventory and
-        // its canonical metadata index together; the scope rejects a captured
-        // inventory that disagrees with the binding's validated index.
         let captured_input = match build_snapshot.capture() {
-            crate::BuildSnapshotCapture::PackageInventory => {
-                // An acquired inventory is already closed before it has a
-                // package name. Only the uncaptured physical adapter needs
-                // package custody or an explicit caller-selected inventory.
-                match retained_input {
-                    Some(input) => input.clone(),
-                    None => {
-                        let Some(inputs) = package_inputs else {
-                            return Err(vec![Diagnostic::error(
-                                "a package-inventory build snapshot requires package source custody; a standalone build must declare an explicit source capture request",
-                            )]);
-                        };
-                        if inputs.canonical_source_metadata(inputs.root()).is_none() {
-                            return Err(vec![Diagnostic::error(
-                                "a package-inventory build snapshot requires compiler-validated canonical Source metadata",
-                            )]);
-                        }
-                        crate::capture_package_source_input(&source_root).map_err(|reason| {
-                            vec![Diagnostic::error(format!(
-                                "could not capture the build source snapshot: {reason}"
-                            ))]
-                        })?
+            crate::BuildSnapshotCapture::PackageInventory => match retained_input {
+                Some(input) => input.clone(),
+                None => {
+                    let Some(inputs) = package_inputs else {
+                        return Err(vec![Diagnostic::error(
+                            "a package-inventory build snapshot requires package source custody; a standalone build must declare an explicit source capture request",
+                        )]);
+                    };
+                    if inputs.canonical_source_metadata(inputs.root()).is_none() {
+                        return Err(vec![Diagnostic::error(
+                            "a package-inventory build snapshot requires compiler-validated canonical Source metadata",
+                        )]);
                     }
+                    crate::capture_package_source_input(&source_root).map_err(|reason| {
+                        vec![Diagnostic::error(format!(
+                            "could not capture the build source snapshot: {reason}"
+                        ))]
+                    })?
                 }
-            }
+            },
             crate::BuildSnapshotCapture::Scoped(request) => {
                 let captured = if let Some(complete) = retained_input {
                     let filesystem = package_inputs
@@ -175,9 +158,6 @@ pub fn prepare_filesystem_scope(
                             && file.resolution_stratum == source::SourceResolutionStratum::Base
                             && file.package_root == source_root
                     });
-                    // The requested Product root is required even while its
-                    // loading waits for Build's join. Resolve its identity and
-                    // authored import spellings in the same retained namespace.
                     for path in std::iter::once(root_path)
                         .chain(authored_members.map(|file| file.path.as_path()))
                     {
@@ -224,20 +204,16 @@ pub fn prepare_filesystem_scope(
                     crate::BuildSnapshotCapture::Scoped(_)
                 )
             {
-                // A narrowed inventory has a different commitment from the full
-                // package. Compare exact captured entries against that package's
-                // authenticated full capture rather than dropping provenance or
-                // treating matching path kinds/lengths as matching source bytes.
                 let physical_complete;
                 let complete = match retained_input {
                     Some(complete) => complete,
                     None => {
                         physical_complete =
-                        crate::capture_package_source_input(&source_root).map_err(|reason| {
-                            vec![Diagnostic::error(format!(
-                                "could not validate the scoped package source snapshot: {reason}"
-                            ))]
-                        })?;
+                            crate::capture_package_source_input(&source_root).map_err(|reason| {
+                                vec![Diagnostic::error(format!(
+                                    "could not validate the scoped package source snapshot: {reason}"
+                                ))]
+                            })?;
                         &physical_complete
                     }
                 };

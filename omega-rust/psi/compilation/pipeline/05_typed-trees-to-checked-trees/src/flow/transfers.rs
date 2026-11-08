@@ -39,6 +39,7 @@ use facts::{PlaceHandle, QualificationCorrespondence, QualificationPayloadIdenti
 use symbols::SymbolHandle;
 
 mod byte_sequences;
+pub(super) use byte_sequences::carrier_proves_predicate;
 mod constructed;
 mod context_transport;
 mod declared_domains;
@@ -258,12 +259,11 @@ pub(super) fn propagate_statement_transfers(
             .then(|| build.control.operands.get(stored_value).type_reference)
             .filter(|reference| reference.is_valid());
         if let Some(destination_type) = destination_type {
-            let source_contexts =
-                super::active_context_handles(&build.contexts, assignment_source_contexts);
             owned_qualifications::append_owned_qualification_transfer(
                 program,
                 semantic,
-                &source_contexts,
+                build,
+                assignment_source_contexts,
                 source_expression,
                 source_place,
                 target_place,

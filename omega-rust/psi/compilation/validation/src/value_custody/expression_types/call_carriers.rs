@@ -13,11 +13,6 @@ pub(crate) fn argument_matches_call_carrier(
     required: TypeReferenceHandle,
     required_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    if argument.is_valid()
-        && program.pattern_component(argument) != Some(language_core::PatternComponent::Fields)
-    {
-        return false;
-    }
     if argument_matches_carrier(program, scope, argument, required, required_substitutions) {
         return true;
     }

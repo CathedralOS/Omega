@@ -1,8 +1,7 @@
-//! Check one completed Build and publish its review product.
-//!
-//! The package consumer gets inert evidence and an opaque source owner, never
-//! checked trees. Component publication remains demand-driven; review does not
-//! lower every dependency to Terminal merely because it might be used later.
+// We check a completed `PackageBuild` and publish its `PackageReviewProduct`.
+// Package review receives inert evidence (`PackageReviewEvidence`) and an
+// opaque `PackageReviewSource` handle for review reuse and demand-driven
+// component publication (`publish_component`), never raw checked trees.
 
 use super::{CompilationSession, PackageBuild};
 use compilation_products::{CheckedCompilation, CompileFailure};
@@ -31,8 +30,6 @@ impl From<Vec<Diagnostic>> for PackageReviewFailure {
     }
 }
 
-/// Shared private custody for review reuse and later component demands.
-/// No constructor, mutable access or checked-source extraction is exposed.
 #[derive(Debug, Clone)]
 pub struct PackageReviewSource {
     retained: Arc<RetainedReviewSource>,
@@ -42,9 +39,7 @@ pub struct PackageReviewSource {
 struct RetainedReviewSource {
     checked: CheckedCompilation,
     facts: PackageReviewSourceFacts,
-    // A target-entry projection failure matters only when discovery or cache
-    // capture actually asks for it; explicit binding review does not require it.
-    target_entry: Result<Option<SemanticBindingReviewCandidate>, SemanticBindingProjectionError>,
+    target_entry: Result<Option<SemanticBindingReviewCandidate>, SemanticBindingProjectionError>, // evaluated lazily when discovery or cache capture requests it
 }
 
 impl PackageReviewSource {
@@ -77,8 +72,6 @@ impl PackageReviewSource {
 }
 
 impl CompilationSession {
-    /// Complete review without replaying Build or exposing its checked product.
-    /// The aggregate owner supplies its remaining policy budget.
     pub fn review_package_build(
         &mut self,
         build: PackageBuild,

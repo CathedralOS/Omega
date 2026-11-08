@@ -773,9 +773,6 @@ pub(super) fn effective_member_symbol_from_position(
     receiver_position: Option<MemberPosition>,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
-    if program.pattern_component(receiver) != Some(language_core::PatternComponent::Fields) {
-        return SymbolHandle::invalid();
-    }
     if let ExpressionNode::SavedSubject(saved) = expression_table(program).expression(receiver) {
         return saved_subject_member_symbol(program, saved, receiver_position, member)
             .unwrap_or_else(SymbolHandle::invalid);
@@ -884,7 +881,7 @@ fn saved_subject_member_symbol(
         .data_members(data)
         .iter()
         .flat_map(|entry| match entry {
-            DataMember::Field(field) if !selected.is_valid() => std::slice::from_ref(field),
+            DataMember::Field(field) => std::slice::from_ref(field),
             DataMember::Variant(variant) if variant.symbol == selected => {
                 program.data_payload_fields(variant)
             }

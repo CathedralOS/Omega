@@ -1,8 +1,6 @@
-//! Callable provider projection.
-//!
-//! Conformance classification is the entrance. Exact selected-plan joins and
-//! external binding custody live beside it as independently discoverable
-//! validation responsibilities.
+// Callable provider projection coordinating conformance classification, selected
+// provider plans, boundary application realizations, installation dependencies,
+// and compiler intrinsics.
 
 pub(super) mod application_realizations;
 mod boundary_policy;

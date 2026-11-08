@@ -95,10 +95,24 @@ fn numeric_query_views_preserve_inputs_and_follow_projection_custody() {
     let query = CheckingQuery::numeric_observation(&population, machine, state).unwrap();
     assert!(query.defers_pending_layout_geometry());
     assert!(std::ptr::eq(context.typed_program(), query.typed_program()));
-    assert!(std::ptr::eq(
-        context.checking_memos().unwrap(),
-        query.checking_memos().unwrap(),
-    ));
+    // A memo written under a cut stays in the query that wrote it.
+    query
+        .checking_memos()
+        .unwrap()
+        .shared_proof_walks
+        .lock()
+        .unwrap()
+        .insert(machine, std::sync::Arc::default());
+    assert!(
+        context
+            .checking_memos()
+            .unwrap()
+            .shared_proof_walks
+            .lock()
+            .unwrap()
+            .get(&machine)
+            .is_none()
+    );
     assert!(std::sync::Arc::ptr_eq(
         &context.proof_only_classification(),
         &query.proof_only_classification(),
@@ -189,4 +203,84 @@ fn completed_case_population_ancestry_follows_the_request_and_projection_owner()
     projection.program_mut();
     assert!(projection.checking_memos().is_none());
     assert!(CheckingQuery::completed_case_population(&projection, machine).is_some());
+}
+
+#[test]
+fn only_cut_free_answers_under_a_query_reach_the_context() {
+    let program = TypedTrees::default();
+    let context = CheckingContext::new(&program);
+    let machine = SymbolHandle::from_parts(1, 1);
+    let state = SymbolHandle::from_parts(2, 1);
+    let other = SymbolHandle::from_parts(3, 1);
+    let shared = context.checking_memos().unwrap();
+    let fresh = || CheckingQuery::operand_fit_population(&context, machine).unwrap();
+
+    // A computation that reads no cut publishes to the context.
+    let population = fresh();
+    let query = CheckingQuery::numeric_observation(&population, machine, state).unwrap();
+    let guard = crate::frozen_program::CutGuard::start(&query);
+    assert!(!query.has_active_numeric_observation(machine, other));
+    assert!(std::ptr::eq(guard.memos().unwrap(), shared));
+
+    // Reading the query's own cut, or an enclosing one, keeps it in scratch.
+    let query = CheckingQuery::numeric_observation(&population, machine, state).unwrap();
+    let guard = crate::frozen_program::CutGuard::start(&query);
+    assert!(query.has_active_numeric_observation(machine, state));
+    assert!(std::ptr::eq(
+        guard.memos().unwrap(),
+        query.checking_memos().unwrap()
+    ));
+    let query = CheckingQuery::numeric_observation(&population, machine, state).unwrap();
+    let guard = crate::frozen_program::CutGuard::start(&query);
+    assert!(CheckingQuery::operand_fit_population(&query, machine).is_none());
+    assert!(std::ptr::eq(
+        guard.memos().unwrap(),
+        query.checking_memos().unwrap()
+    ));
+
+    // A cut read earlier in the ancestry may have filled a scratch memo that a
+    // later computation reads without reading a cut itself: that later answer
+    // must not publish either.
+    let population = fresh();
+    let query = CheckingQuery::numeric_observation(&population, machine, state).unwrap();
+    assert!(query.has_active_numeric_observation(machine, state));
+    query
+        .checking_memos()
+        .unwrap()
+        .shared_proof_walks
+        .lock()
+        .unwrap()
+        .insert(machine, std::sync::Arc::default());
+    let guard = crate::frozen_program::CutGuard::start(&query);
+    assert!(
+        query
+            .checking_memos()
+            .unwrap()
+            .shared_proof_walks
+            .lock()
+            .unwrap()
+            .contains_key(&machine)
+    );
+    assert!(std::ptr::eq(
+        guard.memos().unwrap(),
+        query.checking_memos().unwrap()
+    ));
+
+    // A query nested inside the computation counts its own identity on
+    // itself, so it does not taint; its read of an enclosing cut does.
+    let population = fresh();
+    let query = CheckingQuery::numeric_observation(&population, machine, state).unwrap();
+    let guard = crate::frozen_program::CutGuard::start(&query);
+    let nested = CheckingQuery::numeric_observation(&query, machine, other).unwrap();
+    assert!(nested.has_active_numeric_observation(machine, other));
+    assert!(std::ptr::eq(guard.memos().unwrap(), shared));
+    assert!(nested.has_active_operand_fit_population(machine));
+    assert!(std::ptr::eq(
+        guard.memos().unwrap(),
+        query.checking_memos().unwrap()
+    ));
+
+    // The context reads its own memos; a query reads the context's, then its own.
+    assert_eq!(crate::frozen_program::readable_memos(&context).count(), 1);
+    assert_eq!(crate::frozen_program::readable_memos(&query).count(), 2);
 }

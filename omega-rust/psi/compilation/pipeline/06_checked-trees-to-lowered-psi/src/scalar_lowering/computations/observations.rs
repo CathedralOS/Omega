@@ -438,7 +438,7 @@ impl Expansion<'_> {
                 LoweredScalarBranchTerminator::Capture {
                     target: continuation,
                     arguments: super::parameters(&prefixes[ordinal]),
-                    source: capture.source.into(),
+                    source: capture.source,
                     path: capture.path.clone(),
                     access: capture.access,
                 },

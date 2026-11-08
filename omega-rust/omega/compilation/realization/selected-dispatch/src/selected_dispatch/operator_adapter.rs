@@ -1,8 +1,15 @@
-//! Exact checked boundary-operator realization joins.
-//!
-//! Application coverage and specialization rejoin the authored requirement,
-//! selected plan and checked body here. Selection never rebuilds checked Psi
-//! or guesses a missing execution route from the selected provider.
+/*
+Exact checked boundary-operator realization joins.
+
+Application coverage and specialization rejoin the authored requirement,
+selected plan, and checked body here. Selection never rebuilds checked Psi or
+guesses a missing execution route from the selected provider.
+
+selected_use_plan resolves this target's selected plan for one checked use by
+requirement identity because checked uses carry no selection of their own, and
+exact_realization_contract returns one selected realization machine's single
+retained, non-empty contract plan commitment.
+*/
 
 mod application_realization;
 mod specialized_application_realization;
@@ -139,8 +146,6 @@ pub(super) fn exact_operator_definition(
     Ok(*operator)
 }
 
-/// This target's selected plan for one checked use, joined by requirement
-/// identity. Checked uses carry no selection of their own.
 pub(super) fn selected_use_plan<'plans>(
     checked: &CheckedTrees,
     selected_provider_plans: &'plans [effects::provider_plan::ProviderPlan],
@@ -171,8 +176,6 @@ pub(super) fn resolve_exact_selected_plan<'plans>(
     })
 }
 
-/// One selected realization machine's single retained contract plan,
-/// committed rather than empty.
 pub(super) fn exact_realization_contract<'facts>(
     checked: &'facts CheckedTrees,
     realization_machine: symbols::SymbolHandle,
@@ -199,7 +202,6 @@ pub(super) fn exact_realization_contract<'facts>(
     Ok(contract)
 }
 
-/// One boundary operator's nonempty requirement overload identity.
 pub(super) fn requirement_overload_identity(
     checked: &CheckedTrees,
     operator: &typed_trees::operator::OperatorDefinition,
