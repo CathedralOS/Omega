@@ -51,7 +51,7 @@ loan formed in the statement, including `held`, which the arm formed later by
 moving that same descriptor out of `slot`. Split across two statements, the
 same pair is judged in evaluation order: `held` is derived from the slot's loan.
 
-`05_typed-trees-to-checked-trees/src/checks/borrows/statements.rs` now judges
+`05_typed-trees-to-checked-trees/src/checks_borrows.rs` now judges
 a roster row against an operand loan of the same statement in that order: the
 operand loan is the forming loan and the roster row its supplier, through the
 existing `supplier_preserves_loan` rule.

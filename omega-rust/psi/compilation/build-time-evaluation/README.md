@@ -8,7 +8,7 @@ Build activation executes only through Omega's
 [Terminal Build host](../../../omega/build-system/build-settings/src/build_evaluation.rs).
 This service owns neither Build configuration nor package acquisition or target realization.
 
-Start at [build_time_evaluation.rs](src/build_time_evaluation.rs). Its
+Start at [lib.rs](src/lib.rs). Its
 `evaluate_pre_resolution` operation takes one `BuildTimeEvaluationRequest`,
 runs syntax evaluation in order, and returns syntax paired with a one-shot
 `PreCheckEvaluation`. The consuming `evaluate` method shows the typed work in
@@ -30,7 +30,7 @@ separately owns semantic schema graphs, scoped selection snapshots, and checked
 runtime visitation plans; their
 independent replay remains beside their producers.
 
-[Build activation admission](src/machine_execution/build_activation.rs) recognizes
+[Build activation admission](src/machine_execution.rs) recognizes
 the exact toolchain Build and checks source construction, storage, copying, and
 replacement before its caller may execute effects. Omega consumes that verdict
 when constructing the build argument; target configuration stays Omega-owned.
@@ -62,7 +62,7 @@ symbol/operator context. Temporary probes cannot waive that check.
 
 Const-generic arguments containing closed scalar machine calls
 (`Buffer<(sized(4) + 2)>`) evaluate through a whole-expression application probe
-inside [const_generic_calls.rs](src/const_evaluation/const_generic_calls.rs): the authored
+inside [const_evaluation.rs](src/const_evaluation.rs): the authored
 expression is typed on a placeholder carrier, appended as a probe machine,
 excluded from ordinary checking, then evaluated by the exact scalar evaluator
 with const-initializer call admission — selected-entry resolution, concrete
@@ -104,7 +104,7 @@ maps that gate to exact calls, candidate sets, and authored application sites.
 
 Closed integer expressions for data applications and root-owned domain families in
 concrete data fields, payloads and nongeneric machine type annotations use
-[typed expression probes](src/const_evaluation/const_generic_expressions.rs) before generic data
+[typed expression probes](src/const_generic_expressions.rs) before generic data
 synthesis. Nongeneric machine owners also admit Boolean indices through
 the same probe, including literal Boolean expressions and fixed-integer
 comparisons without named operands. Comparisons between two anonymous numeric
@@ -205,7 +205,7 @@ Declaration landing, body/index identity and skipped invalid-arm controls use
 ## Semantic admission boundary
 
 Computed scalar declarations run through
-[initializer evaluation](src/const_evaluation/const_initializers.rs) before index normalization.
+[initializer evaluation](src/const_initializers.rs) before index normalization.
 A non-executing resolution pass selects dependencies without inventing values;
 ready dependency layers share the existing typed scalar evaluator. Anonymous
 rationals land once, while references preserve their declared carriers. Every
@@ -324,9 +324,9 @@ neither a unique visible satisfier nor package admission selects a provider.
 The remaining const-generic normalization forms also need connected paths.
 
 The [semantic-evaluation contract](../../../../wiki/spec/language/evaluation.md)
-is broader than the current implementation. [admission.rs](src/machine_execution/admission.rs)
+is broader than the current implementation. [machine_execution.rs](src/machine_execution.rs)
 owns the common reachable-closure floor; its
-[closure validator](src/machine_execution/admission/closure_validation.rs) rejects
+[closure validator](src/machine_execution.rs) rejects
 authored `requires` in a reachable machine/callable closure unless ordinary
 contract checking discharges them. Ordinary initializer calls obtain that
 evidence from checked invocation summaries, not interpretation. An unconditional
@@ -341,7 +341,7 @@ recursive call cycles without admitted termination evidence. These are
 fail-closed gates, not a prohibition on proof-admissible resources or measured
 recursion in the language.
 
-The [result checker](src/machine_execution/admission/const_evaluable.rs) admits complete closed
+The [result checker](src/machine_execution.rs) admits complete closed
 pure values and rejects escaping references/slices, Text, dynamic/opaque shapes,
 interior-mutable and non-copy results, and unresolved generic shapes.
 The [interpreter bridge](../../interpreter/checked-interpreter/src/build_time.rs) creates fresh

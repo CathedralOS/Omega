@@ -1,11 +1,101 @@
-//! Source-semantics vocabulary that resolution and typing consult:
-//! multiplicities, relevance, carry policies, domain classification, and, in
-//! `receiver_binding`, `place_root` and `contract_result`, the `self` receiver
-//! keyword, rendered place roots, and the reserved `result` binder spelling.
+/*
+We define source-semantics vocabulary that resolution and typing consult:
+binding roles, multiplicities, relevance, carry policies, reference access
+modes, domain classifications, and the canonical `self` receiver keyword,
+rendered place roots, and reserved `result` binder spelling.
+*/
 
-pub mod contract_result;
-pub mod place_root;
-pub mod receiver_binding;
+pub mod contract_result {
+    pub const RESERVED_RESULT: &str = "result";
+
+    pub fn is_reserved_result(name: &str) -> bool {
+        name == RESERVED_RESULT
+    }
+
+    pub fn signature_reserves_result<'name>(
+        mut parameter_names: impl Iterator<Item = &'name str>,
+    ) -> bool {
+        !parameter_names.any(is_reserved_result)
+    }
+}
+
+pub mod place_root {
+    pub const PLACE_MEMBER_SEPARATOR: char = '.';
+
+    pub fn place_label(root: &str, field: &str) -> String {
+        let mut label = String::with_capacity(root.len() + 1 + field.len());
+        label.push_str(root);
+        label.push(PLACE_MEMBER_SEPARATOR);
+        label.push_str(field);
+        label
+    }
+
+    pub fn place_field<'label>(root: &str, label: &'label str) -> Option<&'label str> {
+        label
+            .strip_prefix(root)?
+            .strip_prefix(PLACE_MEMBER_SEPARATOR)
+    }
+
+    pub fn is_rooted_at(root: &str, label: &str) -> bool {
+        label == root || place_field(root, label).is_some()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{is_rooted_at, place_field, place_label};
+
+        #[test]
+        fn place_label_renders_the_member_path_below_the_root() {
+            assert_eq!(place_label("self", "count"), "self.count");
+            assert_eq!(place_label("main", "count"), "main.count");
+            assert_eq!(place_label("main", "items[0]"), "main.items[0]");
+            assert_eq!(place_label("holder", "a.b"), "holder.a.b");
+        }
+
+        #[test]
+        fn place_field_takes_apart_only_labels_rooted_at_the_given_name() {
+            assert_eq!(place_field("self", "self.count"), Some("count"));
+            assert_eq!(place_field("main", "main.a.b"), Some("a.b"));
+            assert_eq!(place_field("main", "main.items[0]"), Some("items[0]"));
+            assert_eq!(place_field("main", "main"), None);
+            assert_eq!(place_field("main", "mainline.a"), None);
+            assert_eq!(place_field("main", "other.count"), None);
+            assert_eq!(place_field("main", ""), None);
+            assert_eq!(place_field("main", "self.count"), None);
+        }
+
+        #[test]
+        fn rootedness_covers_the_root_and_places_below_it() {
+            assert!(is_rooted_at("main", "main"));
+            assert!(is_rooted_at("main", "main.count"));
+            assert!(!is_rooted_at("main", "mainline"));
+            assert!(!is_rooted_at("main", "other.count"));
+            assert!(is_rooted_at("self", "self.count"));
+            assert!(!is_rooted_at("self", "main.count"));
+        }
+    }
+}
+
+pub mod receiver_binding {
+    pub const SELF_RECEIVER: &str = "self";
+
+    pub fn is_self_receiver(name: &str) -> bool {
+        name == SELF_RECEIVER
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::is_self_receiver;
+
+        #[test]
+        fn only_the_bare_keyword_spells_the_receiver() {
+            assert!(is_self_receiver("self"));
+            assert!(!is_self_receiver("selfish"));
+            assert!(!is_self_receiver("main"));
+            assert!(!is_self_receiver(""));
+        }
+    }
+}
 
 /// A decomposition reads either ordinary fields or the case-only component
 /// of the same value. Selecting cases creates no storage or access authority.
@@ -23,12 +113,8 @@ pub enum PatternComponent {
 pub enum LocalBindingRole {
     #[default]
     Value,
-    /// A dispatch evaluates its subject before arm selection. Typed preparation
-    /// chooses an owned copy or an address-preserving place observation.
-    DispatchSubject,
-    /// A reserved immutable binding established by the immediately associated
-    /// atomic event. Its synthetic initializer is not a source value.
-    AtomicObservedResult,
+    DispatchSubject, // Evaluates subject before arm selection; typed preparation chooses copy or place observation.
+    AtomicObservedResult, // Reserved immutable binding established by the associated atomic event.
     RecordPattern,
     ArmPattern,
 }
@@ -40,42 +126,29 @@ impl LocalBindingRole {
             Self::Value | Self::DispatchSubject | Self::AtomicObservedResult
         )
     }
-    /// Pending dispatch subjects still own an ordinary evaluated initializer;
-    /// an atomic observation receives its value from the associated event.
+
     pub const fn has_ordinary_initializer(self) -> bool {
         matches!(self, Self::Value | Self::DispatchSubject)
     }
 }
 
-/// First-class usage multiplicity. `[copy]` maps to `Unrestricted`, ordinary
-/// data defaults to `Affine`, and `[linear]` maps to `Linear`.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, compiler_storage::Record,
 )]
 pub enum Multiplicity {
-    /// Freely duplicable and discardable (`[copy]`).
-    Unrestricted,
-    /// Use at most once; silent discard is legal (ordinary data).
+    Unrestricted, // Freely duplicable and discardable (`[copy]`).
     #[default]
-    Affine,
-    /// Use exactly once; discard is an error (`[linear]`).
-    Linear,
+    Affine, // Use at most once; silent discard is legal (ordinary data).
+    Linear,       // Use exactly once; discard is an error (`[linear]`).
 }
 
-/// Whether one authored binding occurrence contributes runtime representation.
-///
-/// Relevance is deliberately independent of the binding's type and
-/// multiplicity. An erased binding remains part of semantic identity and the
-/// proof calculus even though later lowering omits its runtime representation.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, compiler_storage::Record,
 )]
 pub enum BindingRelevance {
-    /// An ordinary binding with runtime representation.
     #[default]
-    Relevant,
-    /// A proof-side binding authored with `[erased]`.
-    Erased,
+    Relevant, // Ordinary binding with runtime representation.
+    Erased, // Proof-side binding authored with `[erased]`.
 }
 
 impl BindingRelevance {
@@ -84,7 +157,6 @@ impl BindingRelevance {
     }
 }
 
-/// How a data declaration obtains its representation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum DataSupplyMode {
     #[default]
@@ -92,7 +164,6 @@ pub enum DataSupplyMode {
     BoundaryOpaque,
 }
 
-/// Whether a live value may cross a suspension point.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, compiler_storage::Record,
 )]
@@ -102,7 +173,6 @@ pub enum CarrySuspension {
     Allowed,
 }
 
-/// CPU affinity of a live value relative to the CPU recorded at mint.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, compiler_storage::Record,
 )]
@@ -112,7 +182,6 @@ pub enum CarryCpu {
     Any,
 }
 
-/// Host-thread affinity of a live value relative to the thread recorded at mint.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, compiler_storage::Record,
 )]
@@ -122,7 +191,6 @@ pub enum CarryHostThread {
     Any,
 }
 
-/// Whether a live value may move to a different storage address.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, compiler_storage::Record,
 )]
@@ -132,8 +200,6 @@ pub enum CarryAddress {
     Movable,
 }
 
-/// Normalized four-axis carry policy. The default is deliberately strict so
-/// missing evidence fails closed.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, compiler_storage::Record,
 )]
@@ -159,7 +225,6 @@ impl CarryPolicy {
         address: CarryAddress::Movable,
     };
 
-    /// True when `self` permits every transition promised by `required`.
     pub const fn permits(self, required: Self) -> bool {
         (matches!(required.suspension, CarrySuspension::Forbidden)
             || matches!(self.suspension, CarrySuspension::Allowed))
@@ -170,8 +235,6 @@ impl CarryPolicy {
                 || matches!(self.address, CarryAddress::Movable))
     }
 
-    /// Structural composition for aggregate fields: each axis takes the most
-    /// restrictive demand contributed by either live field.
     pub const fn intersect(self, other: Self) -> Self {
         Self {
             suspension: if matches!(self.suspension, CarrySuspension::Allowed)
@@ -229,8 +292,6 @@ impl std::fmt::Display for CarryPolicy {
     }
 }
 
-/// One compiler-owned positive permission that relaxes a resource claim's
-/// born-strict carry policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CarryPermission {
     AcrossSuspend,
@@ -266,8 +327,6 @@ impl CarryPermission {
         }
     }
 
-    /// Apply this positive permission while leaving the independent axes
-    /// untouched.
     pub const fn relax(self, mut policy: CarryPolicy) -> CarryPolicy {
         match self {
             Self::AcrossSuspend => policy.suspension = CarrySuspension::Allowed,
@@ -285,8 +344,6 @@ impl std::fmt::Display for CarryPermission {
     }
 }
 
-/// Exact call-site acknowledgement of the statically known operational
-/// envelope. This is diagnostic/audit metadata, not contract identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct CallOperationalAcknowledgement {
     pub origin: CallOperationalAcknowledgementOrigin,
@@ -301,7 +358,6 @@ pub enum CallOperationalAcknowledgementOrigin {
     CompilerSynthesized,
 }
 
-/// Whether a declared domain carries predicate obligations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum DomainPredicatePresence {
     #[default]
@@ -309,11 +365,6 @@ pub enum DomainPredicatePresence {
     Present,
 }
 
-/// Source-level access carried by a reference type.
-///
-/// `WriteOnly` is exclusive like `Mutable`, but grants no observation of the
-/// referent. Keeping this as one closed axis prevents a reference from being
-/// represented as independently mutable and write-only.
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
 )]
@@ -321,7 +372,7 @@ pub enum ReferenceAccess {
     #[default]
     Shared,
     Mutable,
-    WriteOnly,
+    WriteOnly, // Exclusive like Mutable, but grants no observation of the referent.
 }
 
 impl ReferenceAccess {
@@ -333,7 +384,6 @@ impl ReferenceAccess {
         !matches!(self, Self::WriteOnly)
     }
 
-    /// Prefix spelling used when rendering a borrow of this access kind.
     pub const fn borrow_prefix(self) -> &'static str {
         match self {
             Self::Mutable => "&mut ",
@@ -342,9 +392,6 @@ impl ReferenceAccess {
         }
     }
 
-    /// Access modifier spelling without the `&`: the qualifier a borrow
-    /// spelling carries when a lifetime sits between the `&` and the access
-    /// (`&'a mut T`).
     pub const fn borrow_modifier(self) -> &'static str {
         match self {
             Self::Mutable => "mut ",
@@ -353,7 +400,6 @@ impl ReferenceAccess {
         }
     }
 
-    /// Lowercase spelling used in inspection snapshots.
     pub const fn name(self) -> &'static str {
         match self {
             Self::Shared => "shared",
@@ -363,11 +409,6 @@ impl ReferenceAccess {
     }
 }
 
-/// One closed compiler-owned classification attached explicitly to a domain.
-///
-/// This is not an ordinary trait conformance: each case grants fixed language
-/// semantics that packages cannot extend by declaring another same-shaped
-/// trait. The initial vocabulary contains only progress profiles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum DomainClassification {
     ProgressProfile,

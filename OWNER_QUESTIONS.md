@@ -122,3 +122,98 @@ file records the same rows with fewer checked calls.
 Under any option, each requirement still records its own row for each target.
 No option changes `Float` meaning or lets a provider replace primitive operator
 semantics.
+
+### Q2 - Must every compile check library code its program cannot reach?
+
+Decision name: `reachable-closure-checking`.
+
+**Customer.** Every user compile. A one-line `omega --check` (`main.marker = 0;`)
+runs Psi 05 on 837 machines across its three checks: core's Build, the user's
+`build.omg`, and the product. Only 8 of them are reachable from those checks'
+entries, even counting every contract, proof, lemma and requirement-satisfier
+dependency the checker itself records. The product check covers 555 machines
+and reaches one, `Main::main`. The other 554 are 408 core machines, the 46-machine
+build prelude (also checked in both Build checks), 13 std machines, and 86
+machines across all six `std/targets` directories. 269 of the 555 have no
+incoming dependency edge at all (counts at `541152f9d5c`). On a quiet 16-core
+Linux host at `a35508126ea`, Psi 05 is 1.43 s of the 2.8 s release compile, and
+Jai (beta 2-026) builds the same program to a linked executable in 0.14 s. Binding one hosted target would raise
+the product's reachable set to 28 machines.
+
+**Gap.** The contracts settle the current behavior. They do not settle whether
+the per-compile cost is required.
+[Optimization phases](wiki/spec/build/optimizations.md#phase-and-product-boundaries)
+allow checked-tree pruning only after all authored source is parsed, resolved,
+typed and checked, because deleting unreachable code must not make invalid
+source valid.
+[Component publication](wiki/spec/build/component_publication.md) says unused
+library functionality "does not waive its ordinary source checks".
+[Proof contracts](wiki/spec/proofs/contracts.md) already compute assumption
+closure over the reachable checked declaration graph, and state that unused
+declarations are not dependencies merely by sharing a package. None of these
+says where the bundled library's ordinary checks must run: in every user
+compile, or in a gate that admits that library.
+
+**Audit.** The dependency graph used for the count is the checker's own
+`declaration_call_dependencies`. It follows contracts, requires/ensures, proof
+facts, lemma calls, specialization selections and requirement satisfiers. Body
+calls alone give the same 8 machines. Type and data references were not
+traversed, so a reachable-closure rule would also have to follow those. Reuse of
+earlier check results is ruled out for now, so any saving must come from not
+doing the work, not from replaying it.
+
+**Options.**
+
+- Keep the rule: every compile checks all authored source, including the whole
+  bundled library. Per-compile cost grows with the library, not with the program.
+- Check user-authored source in full, but check bundled library machines only
+  within the program's reachable dependency closure. Each library release must
+  then pass a library-wide check gate (corpus or CI) before it ships. A broken
+  library proof that no program reaches would fail that gate, not a user's
+  compile.
+- As the second option, plus every implementation of each target the Build
+  binds, so a compile still checks the program's declared targets in full.
+
+Under any option, an invalid reachable declaration is still rejected, and
+pruning after checking keeps its existing meaning.
+
+### Q3 - Should a wrapper name and apply its callback requirement's declared result relation?
+
+Decision name: `callback-relation-reuse`.
+
+**Customer.** A forwarding wrapper `forward<machine F>(x: u64) -> u64 { F(x) }`
+cannot publish that its result stands in `F`'s declared relation to `x`
+without restating that relation's formula in its own `ensures`. Every
+callback-based library helper (traversals, adapters, instrumentation) hits
+this, and each restatement drifts from the requirement it copies.
+
+**Gap.** [Static binder contract dependencies](wiki/spec/language/effects.md#static-binder-contract-dependencies)
+carry reach, suspension, blocking, crash and termination through a wrapper by
+substitution, and state that requires and ensures retain their own authored
+checks. [Mathematical bindings](wiki/spec/proofs/mathematical_bindings.md#named-mathematical-definitions)
+let an author thread an explicit relation parameter that both the requirement
+and the wrapper mention. Nothing lets a wrapper cite the requirement's own
+declared postcondition as a predicate, and no published term projects a
+callback's relation onto its wrapper.
+
+**Options.**
+
+- Add a projection surface: the wrapper names the requirement's declared
+  normal-return relation and applies it to its own exact invocation subjects.
+  Naming proves nothing; a checked normal return of the callback supplies the
+  evidence for that invocation's actual arguments and result.
+- Keep the explicit-relation route only: declare a mathematical relation, require
+  the callback's normal return to establish it, publish it from the wrapper.
+  Already expressible; costs a parallel relation parameter on every API.
+- Derive relational terms without source syntax: the compiler composes the
+  selected callback's published relation through the body (`F(x)` yields the
+  relation, `F(F(x))` its composition, a discarded result nothing) under the
+  same substitution the operational axes use. The authoring surface is then
+  ergonomics, decided separately.
+
+Under any option, the wrapper's published relation substitutes the selected
+callback's published contract and never its private body; the body is checked
+once under the requirement; mutable-argument subjects follow the existing
+version and invalidation rules. Decisive fixtures: direct forwarding, `F(F(x))`
+with a non-transitive relation, and a wrapper that calls `F`, discards the
+result and returns a constant. Begin with immutable values.

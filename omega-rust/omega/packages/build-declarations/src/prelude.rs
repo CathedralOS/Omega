@@ -96,11 +96,11 @@ public data ProductEntryRef [copy] {
 // The source producer retains each query's lexical occurrence beside its call;
 // the activation mints descriptions only after that exact query is answered.
 public boundary trait BuildProductOperations {
-    machine entry(product: &BuildProduct, path: &[u8], slot: &[u8]) -> ProductEntryRef reaches;
-    machine schema(product: &BuildProduct, path: &[u8]) -> ProductTypeSchema reaches;
-    machine provider(product: &BuildProduct, path: &[u8]) -> ProductProviderRef reaches;
-    machine schema_path(schema: &ProductTypeSchema) -> &[u8] reaches;
-    machine provider_path(provider: &ProductProviderRef) -> &[u8] reaches;
+    machine entry(product: &BuildProduct, path: &[u8], slot: &[u8]) -> ProductEntryRef reaches none;
+    machine schema(product: &BuildProduct, path: &[u8]) -> ProductTypeSchema reaches none;
+    machine provider(product: &BuildProduct, path: &[u8]) -> ProductProviderRef reaches none;
+    machine schema_path(schema: &ProductTypeSchema) -> &[u8] reaches none;
+    machine provider_path(provider: &ProductProviderRef) -> &[u8] reaches none;
 }
 // Execution protocol for the designated Build::bind syntax. Typing supplies
 // the exact product-selection occurrence beside the ordinary boundary call.
@@ -108,14 +108,14 @@ public boundary trait BuildProductOperations {
 // These are compiler host operations, not a user-selected service binding.
 // Their activation-local ticket is interpreted only at admitted call sites.
 public boundary trait BuildBindingOperations {
-    machine prepare(builder: &Build) -> u64 reaches;
-    machine await_provider(activation: u64) reaches suspends;
-    machine bind(activation: u64) reaches;
-    machine bind_description(activation: u64, description: ProductEntryRef) reaches;
-    machine bind_native<Locator>(activation: u64, target: u64, locator: Locator) reaches;
-    machine select(activation: u64) reaches;
-    machine select_provider(activation: u64, target: u64, independent: bool) reaches;
-    machine exclude(activation: u64, code: u64) reaches;
+    machine prepare(builder: &Build) -> u64 reaches none;
+    machine await_provider(activation: u64) reaches none suspends;
+    machine bind(activation: u64) reaches none;
+    machine bind_description(activation: u64, description: ProductEntryRef) reaches none;
+    machine bind_native<Locator>(activation: u64, target: u64, locator: Locator) reaches none;
+    machine select(activation: u64) reaches none;
+    machine select_provider(activation: u64, target: u64, independent: bool) reaches none;
+    machine exclude(activation: u64, code: u64) reaches none;
 }
 machine build_exclusion_crash_code(cause: CrashCause) -> u64 {
     match cause {
@@ -238,13 +238,13 @@ public data Source {
 // Executed project requests cross one compiler-issued host protocol. Source
 // variants are decomposed by ordinary Omega code, not a host syntax visitor.
 public boundary trait BuildRequestOperations {
-    machine package(builder: &Build, name: &[u8]) reaches;
-    machine application(builder: &Build, name: &[u8]) reaches;
-    machine member(builder: &Build, path: &[u8]) reaches;
-    machine artifact_only(builder: &Build) reaches;
-    machine depend_path(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) reaches;
-    machine depend_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches;
-    machine write_log(log: &BuildLog, text: &[u8]) reaches;
+    machine package(builder: &Build, name: &[u8]) reaches none;
+    machine application(builder: &Build, name: &[u8]) reaches none;
+    machine member(builder: &Build, path: &[u8]) reaches none;
+    machine artifact_only(builder: &Build) reaches none;
+    machine depend_path(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) reaches none;
+    machine depend_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches none;
+    machine write_log(log: &BuildLog, text: &[u8]) reaches none;
 }
 public machine Build::depend(builder: &mut Build, source: Source) reaches BuildRequestOperations invokes BuildRequestOperations {
     Build::request_dependency(builder, false, false, "", source);
@@ -314,21 +314,21 @@ public machine Build::accept_component_assumption(builder: &mut Build, digest: &
 // Ordinary boundary calls carry evaluated operands. Installation requires exact
 // toolchain provenance and the activation's original facets or issued markers.
 public boundary trait BuildFilesystemOperations {
-    machine resolve_source(source: &BuildSource, relative: &[u8]) -> BuildPath reaches;
-    machine resolve_output(output: &BuildOutput, relative: &[u8]) -> BuildPath reaches;
-    machine named_input(inputs: &BuildInputs, name: &[u8]) -> BuildSource reaches;
-    machine open(source: &BuildSource, path: BuildPath, flags: i32) -> i32 reaches;
-    machine read(source: &BuildSource, descriptor: i32, buffer: &mut [u8], count: u64) -> i64 reaches;
-    machine close_source(source: &BuildSource, descriptor: i32) -> i32 reaches;
-    machine create(output: &mut BuildOutput, path: BuildPath, mode: i32) -> i32 reaches;
-    machine write(output: &mut BuildOutput, descriptor: i32, bytes: &[u8]) -> i64 reaches;
-    machine close_output(output: &mut BuildOutput, descriptor: i32) -> i32 reaches;
-    machine include_source(output: &mut BuildOutput, generated: BuildPath) reaches;
-    machine require(output: &mut BuildOutput, name: &[u8]) -> RequiredOutput reaches;
-    machine can_complete(output: &BuildOutput, obligation: &RequiredOutput, file: BuildPath) -> bool reaches;
-    machine complete(output: &mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputReceipt reaches;
-    machine fail(output: &mut BuildOutput, obligation: RequiredOutput, diagnostic: &[u8]) reaches;
-    machine required_path(output: &RequiredOutput) -> &[u8] reaches;
+    machine resolve_source(source: &BuildSource, relative: &[u8]) -> BuildPath reaches none;
+    machine resolve_output(output: &BuildOutput, relative: &[u8]) -> BuildPath reaches none;
+    machine named_input(inputs: &BuildInputs, name: &[u8]) -> BuildSource reaches none;
+    machine open(source: &BuildSource, path: BuildPath, flags: i32) -> i32 reaches none;
+    machine read(source: &BuildSource, descriptor: i32, buffer: &mut [u8], count: u64) -> i64 reaches none;
+    machine close_source(source: &BuildSource, descriptor: i32) -> i32 reaches none;
+    machine create(output: &mut BuildOutput, path: BuildPath, mode: i32) -> i32 reaches none;
+    machine write(output: &mut BuildOutput, descriptor: i32, bytes: &[u8]) -> i64 reaches none;
+    machine close_output(output: &mut BuildOutput, descriptor: i32) -> i32 reaches none;
+    machine include_source(output: &mut BuildOutput, generated: BuildPath) reaches none;
+    machine require(output: &mut BuildOutput, name: &[u8]) -> RequiredOutput reaches none;
+    machine can_complete(output: &BuildOutput, obligation: &RequiredOutput, file: BuildPath) -> bool reaches none;
+    machine complete(output: &mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputReceipt reaches none;
+    machine fail(output: &mut BuildOutput, obligation: RequiredOutput, diagnostic: &[u8]) reaches none;
+    machine required_path(output: &RequiredOutput) -> &[u8] reaches none;
 }
 public machine BuildSource::resolve(source: &BuildSource, relative: &[u8]) -> BuildPath reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::resolve_source(source, relative)

@@ -80,7 +80,15 @@ Interpreter dispatch retains concrete safety and closed actual-value checks,
 with accounted work limits. Static declaration analysis belongs to preparation;
 repeated execution adds no proof search or scans over whole declaration tables.
 Ordinary traversal of runtime data still consumes its normal work. The operation
-schedule alone is not a bound on all implementation or host-service cost.
+schedule alone is not a bound on all implementation or host-service cost: one
+unit may process a whole byte carrier. A host derives conservative
+bulk-data-work bounds by combining the execution budget with validated bounds
+on the data each operation may process. Those bounds are the carrier
+capacities declared in the artifact, such as a `BoundedOwned` result's
+capacity, and the extents of admitted inputs, such as a borrowed view supplied
+across the host boundary; preparation or invocation admission may reject
+extents beyond host policy. Elapsed time and total storage keep their own
+accounting.
 Installed adapters enforce host-work quotas and outstanding-resource limits;
 a guest work meter cannot preempt a synchronous host call or reclaim storage
 still held by a provider. See [embedding](../build/embedding.md#loading-and-preparation).

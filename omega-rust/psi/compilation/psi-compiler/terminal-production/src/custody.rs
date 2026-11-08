@@ -1,7 +1,12 @@
-//! Retained Terminal code and independent portable application judgments.
-//!
-//! Portable artifacts and invocation-only code share Terminal semantics, not
-//! publication rights. These producer results are not another Psi IR.
+/*
+    Retained Terminal production outputs (`ProducedTerminalProgram` and
+    `PortableTerminalProgram`) and independent application judgment custody.
+
+    We pair canonical or invocation-scoped Terminal code with its source-issued
+    Build companions, machine provenance, and per-application root and
+    `ProgramEntry` receipts, supporting compiler-storage record persistence and
+    late application attachment without reopening source trees.
+*/
 
 use crate::TerminalBuildFilesystemCall;
 use crate::{TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildRequests};
@@ -15,43 +20,24 @@ use std::sync::Arc;
 use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError};
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
-/// Source-free inputs for one product's later composition admission. A receipt
-/// refusal stays behind the ordered root checks, preserving first-root policy
-/// diagnostics without executing product policy inside Psi production.
 #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProducedTerminalApplication {
     pub receipt: Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<Diagnostic>>,
     pub roots: Vec<Result<crate::TerminalAdmissionRoot, Vec<Diagnostic>>>,
 }
 
-/// Terminal code beside the checked-source evidence the caller
-/// asked production to retain, in request order. Each application carries its
-/// own refusal or optional checked `ProgramEntry` receipt. Production success
-/// alone does not mean an application was admitted. Earlier representations
-/// never escape.
-///
-/// The retained native route rejoins the checked entry receipt after the
-/// checked frontend is gone, so the receipt leaves production beside the
-/// artifact instead of remaining a direct-route-only custody object.
-/// Build requests and designated operands travel as source-issued companion context,
-/// bound to the artifact and exact emitted operations, never as debug payload.
 #[derive(Debug, PartialEq, Eq)]
 #[must_use = "Terminal production retains independent application judgments"]
 pub struct ProducedTerminalProgram {
-    pub(super) program: terminal_codec::TerminalProgramProduct,
-    pub(super) build_bindings: TerminalBuildBindings,
-    pub(super) build_requests: TerminalBuildRequests,
-    pub(super) build_filesystem: TerminalBuildFilesystem,
-    pub(super) applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
-    pub(super) provenance: terminal_psi::TerminalMachineProvenance,
-    pub(super) source_records: Vec<checked_trees::typed_trees::SourceRecordCorrespondence>,
+    pub(crate) program: terminal_codec::TerminalProgramProduct,
+    pub(crate) build_bindings: TerminalBuildBindings,
+    pub(crate) build_requests: TerminalBuildRequests,
+    pub(crate) build_filesystem: TerminalBuildFilesystem,
+    pub(crate) applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
+    pub(crate) provenance: terminal_psi::TerminalMachineProvenance,
+    pub(crate) source_records: Vec<checked_trees::typed_trees::SourceRecordCorrespondence>,
 }
 
-// Source-completion receipts retain portable production. Recover its canonical
-// bytes through the ordinary validating ingress, then bind the retained source
-// companions to that artifact. Invocation-only code has a live owner and cannot
-// cross this boundary. The enclosing source continuation still requires fresh
-// input and declaration-authority admission before any receipt can be reused.
 impl compiler_storage::Record for ProducedTerminalProgram {
     fn write(&self, output: &mut RecordWriter) -> Result<(), compiler_storage::RecordError> {
         output.record(|output| {
@@ -113,7 +99,6 @@ impl compiler_storage::Record for ProducedTerminalProgram {
                 }
             }
             let view = artifact.view().into();
-            // Reuse the producer constructors with the recovered companion storage.
             let build_bindings =
                 TerminalBuildBindings::new(view, calls, declarations, queries, native_formations);
             let build_requests = TerminalBuildRequests::new(view, requests);
@@ -132,8 +117,6 @@ impl compiler_storage::Record for ProducedTerminalProgram {
 }
 
 impl ProducedTerminalProgram {
-    /// Share portable code and its exact source-issued companions without
-    /// copying bytes or recreating companion custody from external ingress.
     pub fn into_shared_portable(
         self,
     ) -> Result<PortableTerminalProgram, CanonicalTerminalArtifactError> {
@@ -168,17 +151,12 @@ impl ProducedTerminalProgram {
         self.program.portable()
     }
 
-    /// Keep only the canonical portable artifact. This discards application
-    /// judgments and Build request/binding context, and confers no authority to execute
-    /// or publish a native product.
     pub fn into_artifact(
         self,
     ) -> Result<CanonicalTerminalArtifact, CanonicalTerminalArtifactError> {
         self.program.into_portable()
     }
 
-    /// Extract the portable artifact and application judgments, discarding Build
-    /// request/binding context. Build consumers borrow it before extraction.
     pub fn into_parts(
         self,
     ) -> Result<
@@ -192,9 +170,6 @@ impl ProducedTerminalProgram {
     }
 }
 
-/// Portable production storage shared by descriptive consumers. The artifact
-/// and source-issued companions retain one identity; no native authority is
-/// created by sharing them. Invocation-only code cannot construct this result.
 #[derive(Debug)]
 pub struct PortableTerminalProgram {
     artifact: Arc<CanonicalTerminalArtifact>,
@@ -207,14 +182,9 @@ pub struct PortableTerminalProgram {
 }
 
 impl PortableTerminalProgram {
-    /// Exact nominal addresses for source review, never target geometry or
-    /// provider authority. External artifact ingress does not manufacture them.
     pub fn source_records(&self) -> &[checked_trees::typed_trees::SourceRecordCorrespondence] {
         &self.source_records
     }
-    /// Attach a source-issued description to this already published code. The
-    /// description and diagnostic companion carry no source lifetime or handles;
-    /// target/provider admission remains the consuming application's job.
     pub fn attach_application(
         &self,
         application: &crate::TerminalApplicationCustody<'_>,
@@ -245,10 +215,6 @@ impl PortableTerminalProgram {
     }
 }
 
-/// Independent consumers of one checked execution closure. Admission failure
-/// belongs to that application, not to another consumer of the same program.
-/// An empty slice requests code without application judgments; the request's
-/// publication destination determines whether that code can be exported.
 #[derive(Clone, Copy, Default)]
 pub struct TerminalProductionCustody<'a> {
     pub applications: &'a [crate::TerminalApplicationCustody<'a>],

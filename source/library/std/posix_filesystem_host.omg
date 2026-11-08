@@ -74,7 +74,7 @@ public boundary trait PosixFilesystemHost {
     invokes PosixFilesystemDarwin
     invokes PosixFilesystemDarwinByteViews;
     // Release a descriptor.
-    machine close(fd: i32) -> i32 reaches
+    machine close(fd: i32) -> i32 reaches none
     invokes PosixFilesystemLinux
     invokes PosixFilesystemDarwin;
     // Remove a file (`unlink`).
@@ -82,7 +82,7 @@ public boundary trait PosixFilesystemHost {
     invokes PosixFilesystemLinux
     invokes PosixFilesystemDarwin;
     // `lseek`: reposition the cursor; the result is the new absolute offset.
-    machine seek(fd: i32, offset: i64, whence: i32) -> i64 reaches
+    machine seek(fd: i32, offset: i64, whence: i32) -> i64 reaches none
     invokes PosixFilesystemLinux
     invokes PosixFilesystemDarwin;
     // `mkdir`.
@@ -189,19 +189,19 @@ public boundary trait PosixFilesystemHost {
     invokes PosixFilesystemLinux
     invokes PosixFilesystemDarwin;
     // `fsync`.
-    machine sync(fd: i32) -> i32 reaches
+    machine sync(fd: i32) -> i32 reaches none
     invokes PosixFilesystemLinux
     invokes PosixFilesystemDarwin;
     // `fdatasync`: flush a file's data.
-    machine sync_data(fd: i32) -> i32 reaches
+    machine sync_data(fd: i32) -> i32 reaches none
     invokes PosixFilesystemLinux
     invokes PosixFilesystemDarwin;
     // `dup`: a fresh descriptor sharing the open file.
-    machine duplicate(fd: i32) -> i32 reaches
+    machine duplicate(fd: i32) -> i32 reaches none
     invokes PosixFilesystemLinux
     invokes PosixFilesystemDarwin;
     // `flock`: `LOCK_SH`=1, `LOCK_EX`=2, `LOCK_NB`=4, `LOCK_UN`=8.
-    machine lock_file(fd: i32, operation: i32) -> i32 reaches
+    machine lock_file(fd: i32, operation: i32) -> i32 reaches none
     invokes PosixFilesystemLinux
     invokes PosixFilesystemDarwin;
     // `chown`; -1 leaves a component unchanged.

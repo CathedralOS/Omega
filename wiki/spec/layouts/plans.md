@@ -77,7 +77,7 @@ public trait FixedLayout<T> {
     schema: Schema,
     target: LayoutTarget
   ) -> LayoutPlan
-  reaches
+  reaches none
   terminates;
 }
 ```

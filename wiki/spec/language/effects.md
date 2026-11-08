@@ -10,16 +10,17 @@ in [values](../resources/authority.md); implementation trust is recorded by
 | Clause | Meaning |
 | --- | --- |
 | `reaches A + B` | Bounds service reach by the named boundary services and their boundary parents. |
-| `reaches` with no members | Explicitly bounds service reach by the empty set. |
+| `reaches none` | Explicitly bounds service reach by the empty set. |
 | `invokes handler` | May synchronously enter that binding before returning. |
 | `suspends` | May park the current activation. |
 | `blocks` | May occupy its worker while waiting. |
 | `crashes Cause` with route guards | May leave without a successor or cleanup under a covered guard. |
+| `crashes none` | Promises no crash route of any cause. |
 
 Boundary traits supply identities that may be named in `reaches`; declaring or
 calling one does not implicitly add its identity. A boundary call contributes
 its requirement's explicit reach ceiling, with boundary-parent closure. Every
-boundary-trait machine requirement must declare that ceiling, using bare `reaches`
+boundary-trait machine requirement must declare that ceiling, using `reaches none`
 when it permits no services. A memberless service-identity trait has no operation
 requiring an annotation. Ordinary traits are not service
 identities. A wake operation may reach a scheduler without suspending.
@@ -35,17 +36,17 @@ annotation exemption because no checked body needs one.
 
 A present clause is an upper bound, not an assertion of exact equality and not
 an additive contribution. The complete derived reach must fit its normalized
-ceiling. `reaches A + B` permits a body reaching only `A`; bare `reaches` rejects
-any nonempty derived service row. Omission requests inference and is distinct
-from an explicit empty clause. Reach does not count local mutation as a service,
+ceiling. `reaches A + B` permits a body reaching only `A`; `reaches none` rejects
+any nonempty derived service row. The keyword with no value is malformed.
+Omission requests inference and is distinct from an explicit empty clause. Reach does not count local mutation as a service,
 and empty reach promises neither termination nor absence of blocking or crashes.
 
 All machine clauses have no clause-ending semicolon. A following clause or body
 delimits the current clause. A bodyless declaration still has its final
-declaration semicolon: `machine call() reaches suspends blocks;` ends one complete
-declaration with three clauses. A checked body writes `reaches suspends blocks`
-followed directly by `{ ... }`. Termination is not an exception. Nested callable
-requirements use the same [header delimiters](state_contracts.md#machine-header-delimiters);
+declaration semicolon: `machine call() reaches none suspends blocks;` ends one
+complete declaration with three clauses. A checked body writes
+`reaches none suspends blocks` followed directly by `{ ... }`. Termination is
+not an exception. Nested callable requirements use the same [header delimiters](state_contracts.md#machine-header-delimiters);
 do not insert semicolons between their clauses.
 
 Boundary requirements publish their explicit ceilings. Opaque supplies inherit
@@ -80,13 +81,13 @@ machine requirements, and members called through conformance evidence binders.
 | Context | Omitted `reaches` | Authored clause |
 | --- | --- | --- |
 | Checked body, including public APIs | Infer from checked calls. | Bound the derived reach. |
-| Bodyless non-boundary requirement | Defer to the selected implementation's published reach. | Bound admitted implementations; bare `reaches` requires empty reach. |
+| Bodyless non-boundary requirement | Defer to the selected implementation's published reach. | Bound admitted implementations; `reaches none` requires empty reach. |
 | Boundary requirement | Reject the missing declaration. | Publish a stable ceiling across providers. |
 | Runtime callable type | Empty reach. | Publish a fixed finite ceiling. |
 
 Every public machine publishes its checked summary, including unresolved static
 dependencies on generic interfaces. A requirement relying on service-free
-behavior must state bare `reaches`; current pure implementations cannot supply
+behavior must state `reaches none`; current pure implementations cannot supply
 that guarantee to an otherwise open generic body. Omission changes only service
 reach. The callable shape and all other contract axes retain their own rules.
 No `reaches _` spelling is introduced on originating requirements; the existing
@@ -122,12 +123,16 @@ marks them critical. Audit registration changes presentation and acceptance,
 not reach, inheritance, authority or attenuation.
 
 Suspension, blocking, and crashes retain their independent rules. On published
-surfaces omitted `suspends` means never parks, omitted `blocks` means never blocks
-a worker, and an omitted crash cause is forbidden. Private checked bodies may
-omit these operational clauses to request inference. A public generic that
-admits a suspending or blocking callback declares the corresponding ceiling.
-Its published [operational dependency summary](#static-callback-operational-dependencies)
-separately records which static selections contribute those possibilities.
+surfaces omitted `suspends` means never parks and omitted `blocks` means never
+blocks a worker. Their call-site markers are checked against a known bound, so
+a published surface authors them; private checked bodies may omit them to
+request inference. An omitted `crashes` clause is inferred from the checked
+body, private or public, and defers to the selected implementation on a
+bodyless non-boundary requirement. `crashes none` promises no route and rejects
+a body or selection that has one. A public generic that admits a suspending or
+blocking callback declares the corresponding ceiling. Its published
+[dependency terms](#static-binder-contract-dependencies) separately record
+which static selections contribute each possibility.
 
 May-ceilings permit behavior; they do not assert that every run performs it.
 [`terminates`](termination.md) has the opposite polarity: a positive progress promise under its
@@ -264,6 +269,8 @@ remains separately available for provider selection and audit, even with empty r
 
 ## Static callback reach dependencies
 
+This is the reach row of
+[static binder contract dependencies](#static-binder-contract-dependencies).
 A static callable invocation contributes the selected operation's reach
 dependency automatically. Structural and nominal machine binders use the same
 rule. A call such as `S::apply` through `S satisfies ElementStep<T>` contributes
@@ -319,9 +326,65 @@ evaluation admission. A no-reach callback can leave a traversal with empty reach
 a Console-reaching callback contributes Console. Empty reach alone establishes
 none of the other evaluation obligations.
 
+### Static binder contract dependencies
+
+Named decision: `static-binder-contract-dependencies`, ratified 2026-11-07.
+
+A checked generic's published contract is a function of its static callback
+binders' published contracts. Check the body once under the requirements'
+bounds. For each operational axis, derive a normalized term over exact binder
+projections in that axis's algebra together with the body's fixed
+contribution. Each application substitutes the selected callbacks' published
+contracts into those terms before caller admission. The template must remain
+valid for every admitted selection; a favorable selection never rescues an
+invalid body. Every term reads only the selection's published contract. A
+selected callback's private body, observed behavior, predicted optimizer
+target and the current consumer set contribute nothing.
+
+| Axis | Term | Omitted on a checked body | Omitted on a non-boundary requirement | Application receives |
+| --- | --- | --- | --- | --- |
+| `reaches` | union of fixed services and binder rows | infer | defer to the selection | fixed services plus the selected published rows |
+| `suspends`, `blocks` | OR of the fixed contribution and binder flags | private infers; public means never | never | fixed contribution OR the selected published flags |
+| `crashes` | per cause, union of fixed and binder routes, then path-fact disproof | infer | defer to the selection | fixed routes plus the selected published routes, disproved routes removed |
+| `terminates` | own progress AND binder promises | no guarantee | no promise | the guarantee once every binder premise is discharged by a selected published promise |
+| suspension carry | conditions over the suspension term | derived | derived | discharged where substitution removes the suspension |
+
+One rule produces that table. Omission derives the answer wherever the
+compiler can derive it safely. Suspension and blocking have call-site
+acknowledgement markers that are checked against a known bound, so a published
+surface and a requirement author them. Termination is a positive promise, and a
+promise that silently disappears on a body edit is worse than an effect that
+appears, so it stays authored. Every other axis infers on a body and defers on
+a requirement. An explicit empty value, `reaches none`, `crashes none`,
+`suspends false` or `blocks false`, promises the empty value and rejects any
+body or selection that violates it. Boundary requirements and runtime callable
+types author every axis; they have no body to infer from and no static
+selection to defer to.
+
+The axes exchange facts without sharing an algebra. A disproved crash route may
+use the facts a preceding callback's requirement establishes; a false suspension
+condition discharges its guarded carry obligation; a binder termination premise
+is discharged only by a published promise. Each connection is owned by the axis
+section it belongs to.
+
+Every term, bound and premise belongs to the enclosing generic machine's
+published contract and interface identity. Changing one is an interface change
+even when the authored header is unchanged, and dependents revalidate. An
+admitted closed application retains its guarantees across that change; a
+generic recipe and its published identity may change. Requires and ensures
+retain their own authored checks: no published term projects a callback's
+postcondition onto its wrapper.
+
+The reach, operational and carry sections are rows of this table and retain
+their decision names. Crash routes compose in [guarded crashes](#guarded-crashes);
+termination premises in
+[published guarantees](termination.md#published-guarantees-and-private-witnesses).
+
 ### Static callback operational dependencies
 
 Named decision: `static-callback-operational-dependencies`, ratified 2026-11-06.
+This is the suspension and blocking row of
+[static binder contract dependencies](#static-binder-contract-dependencies).
 
 A checked generic calling a nominal or structural static callback publishes
 suspension and blocking dependencies. Service reach follows the static union
@@ -402,10 +465,11 @@ changes the published summary. Closed lowering realizes the specialized
 envelope, without manufacturing continuation or blocking requirements solely
 from the template's wider acknowledgement.
 
-Preconditions, postconditions, crashes, termination and resource composition
-retain their own checks. Forwarding a static callable requirement does not
-automatically forward arbitrary runtime guarantees from that callback to its
-wrapper's callers.
+Crash routes and termination premises compose through the same substitution;
+see the [per-axis table](#static-binder-contract-dependencies). Preconditions,
+postconditions and resource composition retain their own authored checks.
+Forwarding a static callable requirement does not automatically forward a
+callback's logical guarantees to its wrapper's callers.
 
 Callable effect rows have no service subtraction, negation, masking, scoped
 allowance, or algebraic-effect handlers. Independent product exclusions do not
@@ -417,9 +481,11 @@ cannot create its required capability.
 
 #### Conditional suspension carry
 
-Named decision: `conditional-callback-carry`, ratified 2026-11-07. A generic may
-retain a value across a static callback under the condition that, if the call
-can suspend, the value permits that crossing. Derive this condition during the
+Named decision: `conditional-callback-carry`, ratified 2026-11-07. This is the
+suspension-carry row of
+[static binder contract dependencies](#static-binder-contract-dependencies).
+A generic may retain a value across a static callback under the condition
+that, if the call can suspend, the value permits that crossing. Derive this condition during the
 single parametric body check; no new source clause or runtime test is introduced.
 This supersedes the unconditional suspension-permission check for such sites.
 
@@ -564,6 +630,16 @@ facts, and discard disproved routes. Disproving every route removes that cause
 at this invocation without changing the published contract. In contrast,
 suspension/blocking ceilings are not narrowed by one non-waiting path.
 
+A checked generic calling a static callback composes crash routes per cause
+under [static binder contract dependencies](#static-binder-contract-dependencies):
+the body's fixed routes together with each binder's routes, mapped through the
+call site's actuals. Applications substitute the selected callbacks' published
+routes and then apply the disproof above. A requirement that omits `crashes`
+admits any selection and contributes that selection's published routes; a
+requirement stating `crashes none` admits only crash-free selections. The
+wrapper's own omitted clause publishes the composed term. A published surface
+that must stay crash-free for every selection states `crashes none`.
+
 Only a body inside the same fingerprinted verification unit may supply a local
 body summary; otherwise use the published ceiling. Reuse of published judgments
 follows [Psi admission](../terminal-psi/product.md#publication-and-separate-consumption).
@@ -609,10 +685,13 @@ buckets. Proof may discharge legality or enable optimization; it cannot shrink
 an authored export, rewrite its guards, or change interface identity.
 Specializing a published reach or operational dependency is contract
 substitution, not proof-based shrinking of an authored opaque ceiling.
-Conditional suspension-carry rows are part of the enclosing machine's published
-operational contract and interface identity, including their normalized subjects,
-provenance and conditions. Forwarding and specialization preserve or discharge
-them by exact substitution. Changed dependencies require ordinary revalidation;
+Every [static binder dependency term](#static-binder-contract-dependencies),
+including crash routes, termination premises and conditional suspension-carry
+rows, is part of the enclosing machine's published contract and interface
+identity, including normalized subjects, provenance and conditions. A body edit
+that changes such a term changes the public contract even when the authored
+header is unchanged. Forwarding and specialization preserve or discharge them
+by exact substitution. Changed dependencies require ordinary revalidation;
 they do not change installation-bound service rows.
 Stable syntactic/control-flow normalization is
 not heuristic entailment. Exact authored member/keyword spans explain review;
@@ -634,8 +713,9 @@ installation-row declaration form.
 [Installed roots](../build/external_roots.md#installation-bound-reach) owns
 manifest and lineage requirements; equal rows never establish protocol identity.
 
-Automatic dependency propagation is limited to the specified reach unions,
-suspension/blocking OR summaries and conditional suspension-carry obligations.
-It introduces neither arbitrary
+Automatic dependency propagation is limited to the axes of the
+[per-axis table](#static-binder-contract-dependencies): reach unions,
+suspension/blocking OR summaries, crash route unions, termination premises and
+conditional suspension-carry obligations. It introduces neither arbitrary
 callback-contract projections nor new source acknowledgement syntax.
 No anonymous-machine or lambda surface is accepted.

@@ -1,36 +1,10 @@
-//! Semantic index over retained proof derivations.
-//!
-//! `wiki/drafts/reference/proof_search_cache.md` explores retaining a successful
-//! derivation so an unchanged obligation does not repeat proof search. This
-//! module is the lookup substrate that draft requires: untrusted derivations
-//! stored in a content arena, indexed by each obligation's canonical
-//! semantic identity (`ProofObligationKey`) rather than by source position
-//! or spelling. A lookup returns *candidate* derivations — retained evidence
-//! the caller must still re-decide through the admission kernel against the
-//! receiving obligation — never a trusted verdict. A miss and a capacity
-//! refusal are explicit outcomes; the index has no path that accepts an
-//! unchecked claim.
-//!
-//! Layout: `derivations` is the content store; its generational handles are
-//! the derivation identities, so a freed entry's `DerivationId` can never
-//! resolve to a different derivation when its slot is reused. `index` maps
-//! each semantic key to its retained candidates in insertion order;
-//! `ProofObligationKey` is `Ord`, so a `BTreeMap` keeps iteration
-//! deterministic across runs. The key already embeds the encoding schema and
-//! every semantic input the draft lists — selected obligations, resolved
-//! symbols, constraints, operand payloads — so dependency changes produce a
-//! different key and `invalidate` drops the stale row's storage. A caller
-//! that observes a dependency change without knowing the affected keys uses
-//! `invalidate_where`: every retained row whose canonical identity still
-//! names the changed dependency is dropped.
-//!
-//! Out of scope here: persistence format and cross-compilation reuse
-//! policy. The checking-loop consultation landed in
-//! `checker::derivation_cache` (`check_proof_plan_with_derivation_cache`):
-//! the bounded certificate routes ask this index before re-deriving a leg
-//! and retain the certificates the kernel accepts. The store also does not
-//! deduplicate derivations by content: identical derivations stored twice
-//! are distinct candidates the recheck decides independently.
+/*
+    Persistent derivation store keyed by canonical `ProofObligationKey` identity.
+
+    We serialize and look up accepted proof certificates by their semantic
+    obligation fingerprint so repeated obligations re-verify cached evidence
+    through the admission kernel instead of repeating search.
+*/
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -39,11 +13,6 @@ use arena::{Arena, Handle};
 
 use crate::obligations::{ProofObligation, ProofObligationKey, ProofPlan, proof_obligation_key};
 
-/// Identity of one retained derivation inside a `DerivationStore`.
-///
-/// The id copies the arena handle's slot and generation, so it stays
-/// meaningful after the store it came from — or none — is asked to resolve
-/// it: a stale id resolves to nothing rather than aliasing a reused slot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DerivationId {
     arena_index: u32,
@@ -59,9 +28,6 @@ impl DerivationId {
     }
 }
 
-/// The store refused a derivation because it already holds `capacity`
-/// entries. A refusal is an explicit outcome — never a silent eviction of
-/// retained evidence and never an acceptance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DerivationStoreFull;
 
@@ -73,13 +39,6 @@ impl fmt::Display for DerivationStoreFull {
 
 impl std::error::Error for DerivationStoreFull {}
 
-/// Retained proof derivations indexed by obligation semantic identity.
-///
-/// `D` is the derivation payload the producer retains — the complete
-/// statement and dependency context an independent re-decision needs, such
-/// as the certificate packages `checker::certificate` emits. The store is
-/// agnostic to `D` because indexing, not verification, is its
-/// responsibility.
 #[derive(Debug)]
 pub struct DerivationStore<D> {
     derivations: Arena<Option<D>>,
@@ -88,7 +47,6 @@ pub struct DerivationStore<D> {
 }
 
 impl<D> DerivationStore<D> {
-    /// An unbounded store.
     pub fn new() -> Self {
         Self {
             derivations: Arena::new(),
@@ -97,8 +55,6 @@ impl<D> DerivationStore<D> {
         }
     }
 
-    /// A store holding at most `capacity` derivations; inserts beyond it
-    /// fail with [`DerivationStoreFull`].
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             derivations: Arena::new(),
@@ -107,12 +63,10 @@ impl<D> DerivationStore<D> {
         }
     }
 
-    /// The configured capacity, when the store is bounded.
     pub const fn capacity(&self) -> Option<usize> {
         self.capacity
     }
 
-    /// Retained derivations currently occupying the store.
     pub fn len(&self) -> usize {
         self.derivations.len()
     }
@@ -121,12 +75,10 @@ impl<D> DerivationStore<D> {
         self.derivations.is_empty()
     }
 
-    /// Distinct semantic keys the index currently maps to candidates.
     pub fn key_count(&self) -> usize {
         self.index.len()
     }
 
-    /// Retain `derivation` under `key`; returns its store identity.
     pub fn store(
         &mut self,
         key: ProofObligationKey,
@@ -143,8 +95,6 @@ impl<D> DerivationStore<D> {
         Ok(DerivationId::from_handle(handle))
     }
 
-    /// Compute `obligation`'s canonical semantic identity in `proof_plan`
-    /// and retain `derivation` under it.
     pub fn store_for(
         &mut self,
         proof_plan: &ProofPlan<'_>,
@@ -157,9 +107,6 @@ impl<D> DerivationStore<D> {
         self.store(key, derivation).map(Some)
     }
 
-    /// The candidates retained under `key`, in the order they were stored.
-    /// Each returned derivation is evidence the caller must still re-decide
-    /// against the receiving obligation — a hit is not an accepted verdict.
     pub fn candidates<'store>(
         &'store self,
         key: &ProofObligationKey,
@@ -176,8 +123,6 @@ impl<D> DerivationStore<D> {
             })
     }
 
-    /// The candidates retained under `obligation`'s canonical semantic
-    /// identity in `proof_plan`.
     pub fn candidates_for<'store>(
         &'store self,
         proof_plan: &ProofPlan<'_>,
@@ -188,17 +133,11 @@ impl<D> DerivationStore<D> {
             .flat_map(move |key| self.candidates(&key))
     }
 
-    /// The derivation `id` names, or `None` when `id` is stale or never
-    /// issued by this store.
     pub fn derivation(&self, id: DerivationId) -> Option<&D> {
         let handle = Handle::from_parts(id.arena_index, id.generation);
         self.derivations.get(handle).as_ref()
     }
 
-    /// Drop every derivation retained under `key`; returns how many entries
-    /// were dropped. This is the invalidation granularity the semantic key
-    /// provides: a dependency change changes the key, and the stale row's
-    /// slots return to the arena.
     pub fn invalidate(&mut self, key: &ProofObligationKey) -> usize {
         let Some(handles) = self.index.remove(key) else {
             return 0;
@@ -210,16 +149,6 @@ impl<D> DerivationStore<D> {
         removed
     }
 
-    /// Drop every retained derivation whose key `affected` accepts; returns
-    /// how many entries were dropped in total.
-    ///
-    /// This is the invalidation granularity a dependency change needs: the
-    /// canonical key embeds each dependency's resolved identity, so a changed
-    /// dependency affects every row still naming it — not one key the caller
-    /// may no longer be able to reproduce. A caller that observes a changed
-    /// dependency sweeps the index (typically
-    /// `|key| key.as_str().contains(stale_identity)`); every matched row's
-    /// slots return to the arena and untouched rows keep their order.
     pub fn invalidate_where(
         &mut self,
         mut affected: impl FnMut(&ProofObligationKey) -> bool,
@@ -237,7 +166,6 @@ impl<D> DerivationStore<D> {
         removed
     }
 
-    /// Drop every retained derivation and index row.
     pub fn clear(&mut self) {
         self.derivations.clear();
         self.index.clear();
@@ -251,4 +179,121 @@ impl<D> Default for DerivationStore<D> {
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::{DerivationStore, DerivationStoreFull};
+    use crate::obligations::{ProofObligationKey, ProofPlan, proof_obligation_key};
+    use crate::test_program::{bounded_value, main_owned_value, program};
+    use symbols::SymbolHandle;
+    use typed_trees::types::TypeReferenceHandle;
+
+    fn key_for(
+        plan: &ProofPlan<'_>,
+        machine: SymbolHandle,
+        data: SymbolHandle,
+        base: TypeReferenceHandle,
+    ) -> ProofObligationKey {
+        proof_obligation_key(plan, &main_owned_value(machine, data, "count", base))
+            .expect("formed bounded obligation has a canonical key")
+    }
+
+    #[test]
+    fn lookup_uses_semantic_identity_not_spelling() {
+        let mut program = program();
+        let base = program.int_reference();
+        let machine = program.machine;
+        let count = program.data[0];
+        let plan = ProofPlan::new(&program.typed_trees);
+
+        let mut store = DerivationStore::new();
+        let obligation = main_owned_value(machine, count, "count", base);
+        let id = store
+            .store_for(&plan, &obligation, "derivation")
+            .expect("unbounded store accepts")
+            .expect("formed obligation is indexable");
+
+        let renamed = bounded_value(
+            machine,
+            "RenamedMachine",
+            count,
+            "renamed",
+            base,
+            arena::HandleSpan::empty(),
+        );
+        let candidates = store.candidates_for(&plan, &renamed).collect::<Vec<_>>();
+        assert_eq!(candidates, [(id, &"derivation")]);
+        assert_eq!(store.derivation(id), Some(&"derivation"));
+
+        let other = main_owned_value(machine, program.data[1], "count", base);
+        assert_eq!(store.candidates_for(&plan, &other).count(), 0);
+    }
+
+    #[test]
+    fn invalidation_frees_the_key_row_and_stales_its_ids() {
+        let mut program = program();
+        let base = program.int_reference();
+        let machine = program.machine;
+        let [count, total] = program.data;
+        let plan = ProofPlan::new(&program.typed_trees);
+        let count_key = key_for(&plan, machine, count, base);
+        let total_key = key_for(&plan, machine, total, base);
+
+        let mut store = DerivationStore::new();
+        let stale = store.store(count_key.clone(), 1).expect("stored");
+        let kept = store.store(total_key, 2).expect("stored");
+
+        assert_eq!(store.invalidate(&count_key), 1);
+        assert_eq!(store.candidates(&count_key).count(), 0);
+        assert_eq!(
+            store.derivation(stale),
+            None,
+            "a freed id resolves to nothing"
+        );
+        assert_eq!(store.derivation(kept), Some(&2));
+        assert_eq!(store.len(), 1);
+
+        let fresh_key = key_for(&plan, machine, count, base);
+        let recycled = store.store(fresh_key, 3).expect("reuses the slot");
+        assert_eq!(store.derivation(stale), None);
+        assert_eq!(store.derivation(recycled), Some(&3));
+    }
+
+    #[test]
+    fn capacity_refusal_is_explicit() {
+        let mut program = program();
+        let base = program.int_reference();
+        let machine = program.machine;
+        let [count, total] = program.data;
+        let plan = ProofPlan::new(&program.typed_trees);
+
+        let mut store = DerivationStore::with_capacity(1);
+        store
+            .store(key_for(&plan, machine, count, base), 1)
+            .expect("first fits");
+        assert_eq!(
+            store.store(key_for(&plan, machine, total, base), 2),
+            Err(DerivationStoreFull),
+            "a bounded store refuses instead of evicting retained evidence"
+        );
+        assert_eq!(store.len(), 1);
+        assert_eq!(store.capacity(), Some(1));
+    }
+
+    #[test]
+    fn clear_drops_everything() {
+        let mut program = program();
+        let base = program.int_reference();
+        let machine = program.machine;
+        let count = program.data[0];
+        let plan = ProofPlan::new(&program.typed_trees);
+
+        let mut store = DerivationStore::new();
+        let id = store
+            .store_for(&plan, &main_owned_value(machine, count, "count", base), 1)
+            .expect("stored")
+            .expect("formed obligation is indexable");
+        store.clear();
+        assert!(store.is_empty());
+        assert_eq!(store.key_count(), 0);
+        assert_eq!(store.derivation(id), None);
+    }
+}

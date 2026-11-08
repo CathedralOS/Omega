@@ -1,6 +1,19 @@
-//! Structural syntax equality must resolve retained names through both owners.
-//! Deriving the walk keeps every field and enum variant in the comparison when
-//! the representation grows; name leaves supply the contextual comparison.
+/*
+We provide the `#[derive(SyntaxEquivalent)]` and
+`#[derive(PlainSyntaxEquivalent)]` procedural macros for structural equality of
+parsed syntax nodes across dual `SyntaxTextOwner` stores.
+*/
+
+/*
+Deriving the structural walk guarantees that every struct field and enum variant
+in `syntax-trees` participates in Build continuation-sharing comparisons while
+delegating identifier and float-spelling leaves to their owning text contexts.
+*/
+
+/*
+- Consumed by: `syntax-trees` (`SyntaxEquivalent` trait implementations).
+*/
+
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Data, DeriveInput, Fields, parse_macro_input};

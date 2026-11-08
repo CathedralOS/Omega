@@ -277,7 +277,7 @@ or fix the checker if it rejects a valid program.
 ```omega
 public trait LocalLogger = Logger {
     machine *
-        reaches
+        reaches none
         suspends false
         blocks false
         terminates;
@@ -298,7 +298,7 @@ order-independent meet and expand before normalization and fingerprinting.
 Omission here means inheritance, unlike the omission rules of an ordinary
 machine contract. `suspends false` and `blocks false` explicitly remove those
 possibilities; crash refinement may disprove inherited route predicates.
-Bare `reaches` is empty. `reaches _` introduces an independent abstract row for that
+`reaches none` is empty. `reaches _` introduces an independent abstract row for that
 requirement under the inherited reach constraint; it does not correlate different
 requirements or widen a finite inherited ceiling. When the base non-boundary
 requirement omits reach, its selection-dependent row is open. Static uses

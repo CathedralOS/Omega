@@ -18,7 +18,7 @@ uses its separate adapter to preserve signed-zero divisor behavior.
 Float-to-integer saturation has its own clamp/NaN-to-zero law. Reusing the
 arithmetic saturation adapter for conversion would change semantics.
 
-[float_projection.rs](src/float_projection.rs) owns recognized-core projection
+[lib.rs](src/lib.rs) (`float_projection`) owns recognized-core projection
 descriptors; semantic `FloatMeaning` comparison does not expose NaN payloads.
 Source/Terminal projection support and pending denotation work live
 [beside validation](../../compilation/validation/numeric_proofs.md).

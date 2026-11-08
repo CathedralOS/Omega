@@ -1563,6 +1563,7 @@ dependencies = [
  "compiler",
  "diagnostics",
  "image-emission",
+ "native-artifact",
  "native-compiler",
  "package-compilation",
  "package-manager",
@@ -1571,6 +1572,7 @@ dependencies = [
  "sha2",
  "target",
  "terminal-codec",
+ "terminal-psi-to-abstract-operations",
  "terminal-runtime",
 ]
 

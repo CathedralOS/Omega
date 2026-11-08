@@ -730,7 +730,7 @@ Applied to all 434 canary entries and 122 sample entries: **no**
 that batch. The shape is admitted by checking. It fails one stage later, at
 lowering, with the entry's unit plan omitted at
 `state graph: provider attachment requirements`
-(`05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/mod.rs:616`).
+(`05_typed-trees-to-checked-trees/src/execution_terminal_unit_state_graph.rs:616`).
 405 of 427 canary fixtures and 116 of 122 sample packages move there.
 
 So the remaining customer-side population is bounded by state-graph custody

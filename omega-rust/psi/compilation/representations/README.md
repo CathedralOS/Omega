@@ -53,10 +53,10 @@ boundary.
 | [Carry](../../../../wiki/spec/resources/carry.md) | Suspension, CPU, host-thread, and address axes compose independently, with the origins needed to interpret each demand. |
 | [Effects](../../../../wiki/spec/language/effects.md) | Service identity, synchronous invocation, suspension, blocking, crash routes, and positive progress remain separate even when inference shares one graph traversal. |
 
-The [resolved domain](symbol-resolved-trees/src/symbol_resolved_trees/declarations/domain.rs)
-and [typed domain](typed-trees/src/typed_trees/declarations/domain.rs) retain
+The [resolved domain](symbol-resolved-trees/src/declarations_and_machines.rs)
+and [typed domain](typed-trees/src/declarations.rs) retain
 predicate, role, route, alias, classification, and semantic-identity records.
-The [typed machine](typed-trees/src/typed_trees/control_flow/machine.rs) carries
+The [typed machine](typed-trees/src/calls_and_control_flow.rs) carries
 normalized supply, termination plan, service row, and independent operational
 clauses. Shared vocabulary belongs in
 [language-semantics](../../foundation/language-semantics/src/lib.rs), not in a

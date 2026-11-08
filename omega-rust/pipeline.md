@@ -394,7 +394,7 @@ recorded judgment is used.
 
 | Input → output | Owner |
 | --- | --- |
-| Admitted source frontier → parsed syntax | [Psi source parsing](psi/compilation/psi-compiler/src/source_parsing.rs); [package source preparation](omega/packages/package-compilation/src/source/source_assembly.rs) owns import discovery and custody between frontiers |
+| Admitted source frontier → parsed syntax | [Psi source parsing](psi/compilation/psi-compiler/src/lib.rs); [package source preparation](omega/packages/package-compilation/src/source/source_assembly.rs) owns import discovery and custody between frontiers |
 | Assembled syntax → completed typing | [Psi source continuation](psi/compilation/psi-compiler/src/source_compilation.rs), interrupted only for admitted Build execution and generated-source admission |
 | Completed typing → checked program | [Psi source checking](psi/compilation/psi-compiler/src/source_checking.rs); the product coordinator supplies source admission and seals package custody afterward |
 | Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compilation/compiler/src/terminal/terminal_artifact.rs) |

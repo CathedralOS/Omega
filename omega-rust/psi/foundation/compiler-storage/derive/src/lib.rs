@@ -1,18 +1,26 @@
-//! `#[derive(Record)]`: a compiler record's `write` and `read` from its fields.
-//!
-//! The generated `compiler_storage::Record` impl writes a struct's fields in
-//! declaration order and reads them back the same way; an enum writes its
-//! variant's position as a `u32` tag, then that variant's fields. Position is
-//! the tag, so reordering or inserting variants changes the encoding of every
-//! record that holds one: records are compiler-private and re-derived with the
-//! compiler, which is why that is acceptable here and would not be for a wire
-//! format. A field marked `#[record(skip)]` is derived, nonsemantic state: it is
-//! not written, and `read` fills it with `Default::default()`. Unions are
-//! refused. Generic parameters each gain a `Record` bound.
-//!
-//! The whole body of `write` and `read` runs inside the writer's and reader's
-//! `record` scope, so the field framing and bounds the storage crate enforces
-//! apply to derived records exactly as to hand-written ones.
+/*
+We implement the `#[derive(Record)]` procedural macro for `compiler_storage::Record`,
+generating structural `write` and `read` implementations across structs and
+enums. Struct fields serialize in declaration order, enums serialize their
+variant declaration index as a `u32` tag followed by variant fields, and fields
+annotated with `#[record(skip)]` are omitted on write and reconstructed via
+`Default::default()` on read.
+*/
+
+/*
+Compiler-private storage records are compiled and decoded by the exact same
+compiler binary rather than exchanged as an external wire protocol. Using
+declaration-order field framing and positional variant tags inside
+`RecordWriter::record` and `RecordReader::record` scopes eliminates boilerplate
+codecs while enforcing uniform nesting and allocation bounds on every derived
+type.
+*/
+
+/*
+Every generic type parameter on a derived type automatically receives a
+`::compiler_storage::Record` bound, and Rust `union` declarations are rejected
+at compile time because compiler records never store untagged unions.
+*/
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};

@@ -1,48 +1,86 @@
-//! Target-neutral boundary service declarations; no selected calling or execution evidence.
+/*
+We define operational service surfaces, service method signatures, and stable
+service surface identities (`identities`).
+*/
 
-pub mod identities;
+pub mod identities {
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct ProviderIdentityId(u32);
+
+    impl ProviderIdentityId {
+        pub const fn from_index(index: u32) -> Self {
+            Self(index)
+        }
+
+        pub const fn index(self) -> u32 {
+            self.0
+        }
+
+        pub fn is_valid(self) -> bool {
+            self.0 != 0
+        }
+
+        fn slot(self) -> Option<usize> {
+            (self.0 != 0).then(|| self.0 as usize - 1)
+        }
+
+        fn from_slot(slot: usize) -> Self {
+            Self(slot as u32 + 1)
+        }
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct ProviderIdentityTable {
+        texts: Vec<Box<str>>,
+        slots: std::collections::HashMap<Box<str>, ProviderIdentityId>,
+    }
+
+    impl ProviderIdentityTable {
+        pub fn intern(&mut self, text: &str) -> ProviderIdentityId {
+            if let Some(identity) = self.slots.get(text) {
+                return *identity;
+            }
+            let identity = ProviderIdentityId::from_slot(self.texts.len());
+            let text: Box<str> = text.into();
+            self.texts.push(text.clone());
+            self.slots.insert(text, identity);
+            identity
+        }
+
+        pub fn id_at(&self, text: &str) -> Option<ProviderIdentityId> {
+            self.slots.get(text).copied()
+        }
+
+        pub fn text(&self, identity: ProviderIdentityId) -> &str {
+            identity
+                .slot()
+                .and_then(|slot| self.texts.get(slot))
+                .map(AsRef::as_ref)
+                .unwrap_or_default()
+        }
+
+        pub fn texts(&self) -> impl Iterator<Item = &str> {
+            self.texts.iter().map(AsRef::as_ref)
+        }
+    }
+}
 use identities::{ProviderIdentityId, ProviderIdentityTable};
 
-/// The service schema a plan serves: a boundary trait's callable surface,
-/// reified from the typed `TraitDefinition` (today that read is scattered
-/// -- parameter-count walks in the compiler pipeline, Console detection in
-/// the interpreter; the schema type is the one honest carrier).
 #[derive(Debug, Clone, Default)]
 pub struct ServiceSurface {
-    /// The boundary trait's identity (`Console`, `FilesystemHost`) interned
-    /// into `identities`; read the canonical text through
-    /// [`Self::identity_text`] rather than holding another rendering.
     pub trait_name: ProviderIdentityId,
-    /// Interned canonical identities this schema's fields point into.
-    /// Projection, not payload: equality and digests join on the interned
-    /// text, and mint order is never compared.
     pub identities: ProviderIdentityTable,
-    /// Exact package owning the selected boundary trait/operator declaration.
-    /// `None` is explicit for toolchain, standalone, or source-free trees.
     pub trait_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    /// Complete applied receiver views owned by this one whole schema. The
-    /// first view is the selected root; the remainder are inherited views,
-    /// never independently selected provider plans. Empty on non-trait slots
-    /// and when a complete application cannot be retained.
     pub receiver_applications: Vec<ServiceReceiverApplication>,
-    /// One entry per trait machine, in declaration order.
     pub methods: Vec<ServiceMethod>,
 }
 
-/// One exact applied interface and its complete inherited requirement roster.
-/// Arguments participate even when they do not occur in a method signature:
-/// a phantom `Parent<bool>` must not join a selected `Parent<u64>` view. All
-/// identities resolve in the enclosing schema's table, not an external table.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceReceiverApplication {
-    /// Complete portable applied trait identity, including phantom inputs and
-    /// scoped regions, interned in the enclosing schema's existing table.
     pub application: ProviderIdentityId,
     pub trait_name: ProviderIdentityId,
     pub trait_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub argument_identities: Vec<ProviderIdentityId>,
-    /// Complete declaration-relative region operands, including phantom ones.
-    /// These identities are not runtime carriers and grant no borrowing rights.
     pub lifetime_argument_identities: Vec<ProviderIdentityId>,
     pub requirement_identities: Vec<ProviderIdentityId>,
 }
@@ -93,73 +131,26 @@ fn identity_sequence_eq(
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ServiceMethod {
-    /// Completion premise of this exact requirement, preserved by installation.
     pub completion: semantic_vocabulary::BoundaryCompletion,
     pub name: String,
-    /// Semantic owner of the exact requirement. This differs from the
-    /// enclosing schema when a target root inherits a stable core requirement
-    /// and refines only its calling plan.
     pub requirement_owner: String,
-    /// Exact package owning `requirement_owner`. Inherited requirements may
-    /// differ from the selected schema owner. `None` is never repaired from
-    /// the readable owner or overload identity.
     pub requirement_owner_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    /// Stable named-callable identity of the exact requirement overload,
-    /// interned into the schema's `identities`. Provider schemas are never
-    /// name-only, including singleton schemas.
     pub requirement_identity: ProviderIdentityId,
-    /// Declared parameter count (excluding any receiver) -- the same count
-    /// the vtable-field encoder compares against call operands.
     pub parameter_count: usize,
-    /// Positional semantic identities of the declared parameter types,
-    /// excluding any receiver. Domain qualifications and carry permissions
-    /// are part of these identities, so a provider plan cannot be replayed
-    /// after an authority-bearing parameter is weakened or replaced.
-    /// Indices into the schema's `identities` table.
     pub parameter_type_identities: Vec<ProviderIdentityId>,
-    /// Linear routed qualifications accepted at this boundary entry. These
-    /// are structured separately from the complete type identity so provider
-    /// admission, carry planning, predicate discharge, and authority-flow
-    /// artifacts do not have to parse a display string to recover a source
-    /// obligation.
     pub entry_claims: Vec<ServiceEntryClaim>,
-    /// Whether the method declares a return type.
     pub has_result: bool,
-    /// Semantic identity of the declared result type, as an index into the
-    /// schema's `identities` table. `ABSENT` denotes no result, not a
-    /// unit-shaped result.
     pub result_type_identity: ProviderIdentityId,
-    /// Linear routed qualifications established on this exact result. These
-    /// are retained separately from the complete result type so runtime
-    /// transition receipts can bind a concrete subject without parsing a
-    /// normalized type display.
     pub result_claims: Vec<ServiceResultClaim>,
-    /// EFX: normalized boundary-service identities rendered from the
-    /// symbol-resolved service table. This includes the containing boundary
-    /// trait and any explicit additional reach (with parent closure).
     pub service_reach: Vec<String>,
-    /// Direct synchronous boundary bindings this method may enter before it
-    /// returns, rendered as the selected binding's boundary-trait identity.
-    /// This remains a direct edge set; it is never replaced by reach closure.
     pub synchronous_invocations: Vec<String>,
-    /// Independent authored operational ceilings. These never derive from
-    /// service reach and participate directly in provider schema identity.
     pub may_suspend: bool,
     pub may_block: bool,
-    /// Existing public bodyless requirement guarantee. Progress-profile
-    /// premises are retained separately below; private ranking evidence stays
-    /// outside provider identity.
     pub terminates_guarantee: bool,
-    /// Exact normalized premise schemas. The root distinguishes the installed
-    /// provider receiver from caller parameters; projections and profile use
-    /// semantic paths.
     pub termination_premises: Vec<ServiceProgressPremise>,
 }
 
 impl ServiceMethod {
-    /// Semantic equality given the tables each method's identities were
-    /// interned into: interned fields compare by resolved text, and a
-    /// process-local mint order never decides equality.
     pub fn eq_in(
         &self,
         left_table: &ProviderIdentityTable,
@@ -212,7 +203,6 @@ impl ServiceMethod {
 }
 
 impl ServiceProgressPremise {
-    /// As [`ServiceMethod::eq_in`], for the nested progress premises.
     pub fn eq_in(
         &self,
         left_table: &ProviderIdentityTable,
@@ -236,8 +226,6 @@ impl ServiceProgressPremise {
 }
 
 impl PartialEq for ServiceSurface {
-    /// Semantic equality: field values plus the interned text each field
-    /// resolves, never the process-local mint order that produced the ids.
     fn eq(&self, other: &Self) -> bool {
         self.trait_package_identity == other.trait_package_identity
             && self.receiver_applications.len() == other.receiver_applications.len()
@@ -259,8 +247,6 @@ impl PartialEq for ServiceSurface {
 impl Eq for ServiceSurface {}
 
 impl ServiceSurface {
-    /// Select only the implementation for the complete receiver type. Matching
-    /// the method alone would mix different type or lifetime arguments.
     pub fn matches_receiving_application(
         &self,
         requirement: &str,
@@ -288,8 +274,6 @@ impl ServiceSurface {
             return false;
         }
         let Some(receiving) = receiving else {
-            // Non-applied declarations have no closed receiver coordinate. They
-            // cannot supply a parameterized or region-applied receiver selection.
             return views().all(|application| {
                 application.argument_identities.is_empty()
                     && application.lifetime_argument_identities.is_empty()
@@ -301,10 +285,6 @@ impl ServiceSurface {
         views().any(|application| self.identity_text(application.application) == receiving)
     }
 
-    /// One selected static slot includes the complete root application. A
-    /// trait declaration alone conflates distinct phantom arguments/regions.
-    /// Non-trait schemas retain their declaration coordinate without inventing
-    /// an applied receiver.
     pub fn selection_slot_identity(
         &self,
     ) -> (
@@ -325,9 +305,6 @@ impl ServiceSurface {
         (!identity.is_empty()).then_some(identity)
     }
 
-    /// Check the retained roster's structure, not its source authority. Source
-    /// derivation and independent review replay establish the applied edges;
-    /// a decoded annotation cannot establish an inheritance relationship.
     pub fn validate_receiver_applications(&self) -> Result<(), &'static str> {
         let Some(root) = self.receiver_applications.first() else {
             return Ok(());
@@ -398,9 +375,6 @@ impl ServiceSurface {
         Ok(())
     }
 
-    /// The canonical identity text one of this schema's fields names.
-    /// Projects the empty string for the zero id, matching the empty-field
-    /// rendering the encoder wrote before interning.
     pub fn identity_text(&self, identity: ProviderIdentityId) -> &str {
         self.identities.text(identity)
     }
@@ -411,18 +385,12 @@ pub struct ServiceProgressPremise {
     pub profile: String,
     pub subject: ServiceProgressSubject,
     pub subject_projections: Vec<String>,
-    /// Exact owner-authored relationships permitted to establish this
-    /// profile. A selected provider plan retains these declarations for
-    /// final composition, but none of them is itself an establishment
-    /// receipt.
     pub establishment_routes: Vec<ServiceProgressEstablishmentRoute>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceProgressEstablishmentRoute {
     pub kind: ServiceProgressEstablishmentRouteKind,
-    /// Interned into the owning schema's `identities`; route order is fixed
-    /// by kind then canonical text so plan digests never see mint order.
     pub requirement_identity: ProviderIdentityId,
 }
 
@@ -443,13 +411,11 @@ impl ServiceProgressEstablishmentRouteKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ServiceProgressSubject {
-    /// One ordinary caller-visible parameter, excluding the receiver.
     Parameter(usize),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServiceEntryAuthorityFlow {
-    /// The selected provider accepts a caller/external-world claim at entry.
     Accepts,
 }
 
@@ -463,23 +429,10 @@ impl ServiceEntryAuthorityFlow {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceEntryClaim {
-    /// Positional parameter ordinal after excluding any receiver.
     pub parameter_index: usize,
-    /// Canonical normalized identity of the carrier qualified by this routed
-    /// domain, as an index into the enclosing schema's `identities` table.
-    /// Consumers must not recover it by parsing the complete parameter
-    /// type or substitute an authored display spelling.
     pub carrier_identity: ProviderIdentityId,
-    /// Carrier-aware normalized semantic-domain identity retained by the typed
-    /// constraint. This is not the authored short spelling.
     pub domain: String,
-    /// Whether the routed qualification also carries predicates that must be
-    /// proved at the concrete installed occurrence. Bodyless claims may flow
-    /// through the generic external-root acknowledgement path; predicate
-    /// claims require a specialized installer that discharges them first.
     pub predicate_presence: crate::DomainPredicatePresence,
-    /// Accepted resource claims are born maximally strict. Exact positive
-    /// carry permissions remain separate constrained-type facts.
     pub effective_carry: crate::CarryPolicy,
     pub authority_flow: ServiceEntryAuthorityFlow,
 }

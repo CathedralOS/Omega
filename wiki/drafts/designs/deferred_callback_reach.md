@@ -86,7 +86,7 @@ published summaries, library customers and existing suites before closing it.
 | Union | A fixed Console call plus a callback retains both contributions; two callbacks contribute independently. Uncalled members add nothing. |
 | Generic ceilings | An unbounded unresolved callback under a finite ceiling rejects; a bounded callback whose bound fits passes. An authored ceiling adds no service. |
 | Closed callers | Substitute first: a Console-only selection fits `reaches Console`; the same call fails under empty or incompatible ceilings. |
-| Requirement defaults | Omission defers; bare `reaches` requires empty; finite rows bound selections. Boundary omission and originating `reaches _` reject. |
+| Requirement defaults | Omission defers; `reaches none` requires empty; finite rows bound selections. Boundary omission and originating `reaches _` reject. |
 | Proof use | Generic propositions and evaluation cannot assume omitted reach is empty; explicit service-free requirements preserve existing admission. |
 | Runtime values | Close static dependencies before fitting a finite callable type. Omitted runtime reach stays empty; unresolved row leakage rejects. |
 | Other axes | Preserve suspension/blocking ceilings and markers, termination, crashes, access, custody and actual authority requirements. |

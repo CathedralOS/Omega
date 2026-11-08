@@ -1,6 +1,8 @@
-//! Derivation of a phase-aware symbolic materialization plan from a layout
-//! report, symbolic field values, and resolved relocation targets, including
-//! bounded traversal of interior layouts along symbolic paths.
+/*
+We derive `SymbolicMaterializationPlan` instances by joining validated layout
+geometry (`LayoutPlanReport` and nested record/sum interiors) with symbolic
+field values under placement phase and address-range constraints.
+*/
 
 use crate::layout_reports::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalSumLayoutReport, LayoutFieldEntryReport,
@@ -26,13 +28,6 @@ use crate::symbolic_values::{
     RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldInterior, SymbolicFieldValue,
 };
 
-/// Derives a phase-aware consumer plan. `resolve` is compiler/provider
-/// infrastructure; source code never receives its returned address.
-///
-/// A symbolic value spelling inner hops (`outer.field`, `outer.field.sub`)
-/// additionally needs the interior layout carriers of the records it crosses;
-/// derive those paths through
-/// [`derive_symbolic_materialization_with_inner_layouts`].
 pub fn derive_symbolic_materialization(
     layout: &LayoutPlanReport,
     symbolic_fields: &[SymbolicFieldValue],
@@ -48,34 +43,6 @@ pub fn derive_symbolic_materialization(
     )
 }
 
-/// `derive_symbolic_materialization` extended with interior layout carriers.
-///
-/// `inner_layouts` carries the compiler-derived interior layout of a nested
-/// record or a conventional sum beside the flat outer plan. A symbolic value
-/// spelling inner hops (`outer.field`, `outer[index].field`,
-/// `outer.field[index]`, or deeper chains like `outer.field.sub`) resolves
-/// each crossed record boundary's `At` placement in turn, then selects inside
-/// the innermost element's retained interior layout, so the exact path stays
-/// symbolic until the write offset is assigned. Below a conventional sum
-/// boundary the next two hops spell `Case.payload` — the selected case, then
-/// that case's payload field — while a mixed common-field/case shape also
-/// admits one hop spelling a common field packed between the tag and the
-/// shared overlay. A repeated sum field composes its hop's element index
-/// through the carrier's element stride before the member resolves inside
-/// that element. The tag and the inactive cases'
-/// payload bytes stay staged content; the writer only realizes the addressed
-/// member slot. Each record carrier's own `inner_layouts` binds the next
-/// boundary's interior, so record depth is data the traversal walks rather
-/// than a family of depth-specific implementations; the walk is bounded by
-/// [`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`].
-/// [`SymbolicFieldInnerLayout::from_recursive_sum_paths`] folds the recursive
-/// record/sum projection report into the carrier tree directly, so a path
-/// like `outer.middle.choice.Run.payload` resolves through the same bounded
-/// walk with no depth-specific case. Supplying an inner layout no symbolic
-/// path traverses is rejected: a carrier that outlives the semantic path it
-/// describes would let a stale interior join a renamed or reshaped schema.
-/// Empty aggregates are the exception: they retain validated identity and
-/// element geometry, but no valid write can traverse their absent storage.
 pub fn derive_symbolic_materialization_with_inner_layouts(
     layout: &LayoutPlanReport,
     inner_layouts: &[SymbolicFieldInnerLayout],
@@ -90,15 +57,6 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
         .joined_with_layout(layout.align, byte_len)?;
     validate_materialization_field_identities(layout)?;
 
-    // `field[index]` is a distinct semantic slot from `field[j]` and from the
-    // whole-field `field`, so the exact index joins the name and identity when
-    // detecting a duplicate supply. Each inner hop does the same: `outer.field`
-    // is a distinct slot from `outer`, from `outer.field[index]`, and from
-    // `outer.field.sub`. Without the complete path two elements of one array
-    // or two members of nested records would collide even though they write
-    // disjoint placements. The segment bound is a compiler resource limit, not
-    // a language limit: it caps the work a malformed or adversarial path can
-    // make derivation perform.
     let mut supplied = std::collections::BTreeSet::new();
     let mut names = std::collections::BTreeSet::new();
     for symbolic in symbolic_fields {
@@ -161,14 +119,6 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
         }
     }
 
-    // Bind each supplied inner carrier to its field key before any symbolic
-    // path resolves through it. A carrier is evidence the compiler produced
-    // for one named field; a duplicate or a carrier for a field the enclosing
-    // plan never placed would silently substitute one record's interior for
-    // another's. Carriers nest the same way records do: each boundary's own
-    // `inner_layouts` binds the interior of the record fields inside its
-    // interior, so a deeper path resolves against the same shape the compiler
-    // derived. Preparation is one bounded recursion over the carrier tree.
     let mut carrier_nodes = Vec::new();
     let (top_carriers, top_carrier_order) = prepare_inner_layouts(
         inner_layouts,
@@ -194,11 +144,6 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
             let mut prefix = String::new();
             let mut writes = Vec::new();
             let last = hops.len() - 1;
-            // Each segment resolves inside the plan the previous record
-            // boundary supplied: the outer validated plan at the first hop,
-            // then the enclosing element's retained interior. The leaf writes
-            // inside its own record extent; every earlier hop must name the
-            // one element the rest of the path lives in.
             for (depth, &(field, member_identity, element_index)) in hops.iter().enumerate() {
                 if depth > 0 {
                     prefix.push('.');
@@ -238,9 +183,6 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                         )
                     }));
                 }
-                // An empty aggregate's whole-field At is identity/geometry,
-                // not a scalar slot. It can coincide with a live sibling;
-                // reject before the leaf shortcut could write that sibling.
                 if depth == last
                     && let Some(&node_id) = current_carriers.get(&key)
                     && carrier_nodes[node_id].has_no_storage()
@@ -265,11 +207,6 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                                 path_display.as_str()
                             },
                         )?;
-                        // The leaf member may not escape its enclosing
-                        // record's own extent: the outer check below bounds
-                        // the composed write by the whole plan, but only this
-                        // per-level bound keeps a malformed carrier from
-                        // reaching into neighboring fields.
                         validate_write(current_byte_len, &write)?;
                         write.container_byte_offset = base_offset
                             .checked_add(write.container_byte_offset)
@@ -283,27 +220,12 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                     }
                     continue;
                 }
-                // The next hop needs one enclosing element. The bound carrier
-                // spells which kind of interior this field stores, and it
-                // resolves how the hop's element index selects that element:
-                // a repeated interior retains the array's `At` placements —
-                // one whole-extent or one per element — so the index composes
-                // the element's stride offset inside them, while every other
-                // interior selects among the retained element placements.
                 let Some(&node_id) = current_carriers.get(&key) else {
                     return Err(MaterializationDiagnostic(format!(
                         "symbolic field `{path_display}` has no supplied inner layout for `{prefix}`"
                     )));
                 };
                 let node = &carrier_nodes[node_id];
-                // A repeated interior — either a repeated sum or a repeated
-                // record — composes the hop's element index through the
-                // carrier's element stride from the field's array base, then
-                // the next hop resolves inside the addressed element. The
-                // base comes from whichever repeated placement vocabulary
-                // the plan retained: one whole-extent `At`, or one `At` per
-                // element replaying the carrier's count and stride.
-                // `kind` only labels diagnostics.
                 let repetition = match &node.interior {
                     PreparedInterior::Record { repetition, .. } => {
                         repetition.map(|repeated| ("record", repeated))
@@ -324,10 +246,6 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                                 "symbolic field `{path_display}` element index {index} is outside its {element_count} element placements"
                             )));
                         }
-                        // Preparation already replayed whole/per-element At
-                        // geometry, count, stride and enclosing extent, even
-                        // beneath empty ancestors. Select the validated base
-                        // without rebuilding that geometry for every write.
                         let base = entries.iter().filter_map(|entry| match entry.placement {
                             LayoutPlacementReport::At { offset } => Some(offset),
                             _ => None,
@@ -348,10 +266,6 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                         })?
                     }
                     _ => {
-                        // An unindexed segment on a repeated record covers
-                        // several elements, so the path below it cannot name
-                        // a destination; `outer[i].field` spells which element
-                        // the member belongs to.
                         let selected = select_materialization_entries(
                             entries,
                             element_index,
@@ -384,12 +298,6 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                         offset
                     }
                 };
-                // The claimed interior must fit inside the enclosing record's
-                // extent at this offset. Per-level bounds compose: the leaf
-                // check above bounds the member inside this interior, and
-                // this bound keeps the whole interior inside its enclosing
-                // element, so a malformed carrier cannot place writes past
-                // the record boundary it describes.
                 let interior_end = usize::try_from(enclosing_offset)
                     .ok()
                     .and_then(|start| start.checked_add(node.byte_len))
@@ -424,16 +332,6 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                     PreparedInterior::Sum {
                         layout: sum_layout, ..
                     } => {
-                        // A sum boundary ends the path one or two hops later.
-                        // Two hops spell `Case.payload` — the selected case,
-                        // then that case's payload field leaf. A mixed shape
-                        // also admits one hop spelling a common field leaf
-                        // packed between the tag and the shared overlay. The
-                        // carrier retains the complete case and common
-                        // geometry, so the exact member stays symbolic until
-                        // this offset assignment; the tag and the inactive
-                        // cases' payload bytes are staged content the writer
-                        // does not produce.
                         let Some(&(case_field, case_identity, case_index)) = hops.get(depth + 1)
                         else {
                             return Err(MaterializationDiagnostic(format!(
@@ -489,9 +387,6 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                                 )
                             }
                             None => {
-                                // No case owns the spelling: a mixed shape's
-                                // common field is the other leaf a sum path
-                                // may name, and it ends the path at once.
                                 let common = sum_layout
                                     .common_fields
                                     .iter()
@@ -514,10 +409,6 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                                 (common, format!("{prefix}.{case_field}"))
                             }
                         };
-                        // The destination slot is the leaf member's own
-                        // extent: a wider symbolic value would cross into the
-                        // other members the same sum overlays or packs beside
-                        // the tag.
                         let leaf_bits = leaf.size.checked_mul(8).ok_or_else(|| {
                             MaterializationDiagnostic(format!(
                                 "symbolic field `{path_display}` composes an out-of-range payload extent"
@@ -637,62 +528,24 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
     })
 }
 
-/// The prepared interior a carrier binds. The kind of interior is data on the
-/// node: a record interior supplies the next hop's field placements and
-/// carriers, while a sum interior ends the path at the selected member — two
-/// hops for a case's payload field, one hop for a mixed shape's common field.
 enum PreparedInterior<'a> {
-    /// A nested record's interior plan with its nested carriers prepared.
     Record {
-        /// The carrier's validated interior plan; drift checks read its
-        /// entries.
         layout: &'a LayoutPlanReport,
-        /// Interior entries indexed by materialization key.
         planned:
             std::collections::BTreeMap<MaterializationFieldKey, Vec<&'a LayoutFieldEntryReport>>,
-        /// Prepared nested carriers by the enclosing field key they bind to.
         nested: std::collections::BTreeMap<MaterializationFieldKey, usize>,
-        /// Nested carrier node ids in supply order, so untraversed reporting
-        /// is deterministic rather than key order.
         nested_order: Vec<usize>,
-        /// `Some((element_count, element_stride))` when the field repeats the
-        /// record: the plan then retains the field's array extent either as
-        /// one whole `At` placement or as one `At` per element, and the hop's
-        /// element index composes `index * element_stride` from the array's
-        /// base before the next hop resolves inside the addressed element's
-        /// interior.
         repetition: Option<(u64, u64)>,
     },
-    /// A conventional sum's fixed tag/case overlay. The path's case and
-    /// payload hops select inside this compiler-owned geometry; the tag and
-    /// inactive cases' payload bytes are staged content the writer never
-    /// emits.
     Sum {
-        /// One sum element's validated overlay.
         layout: &'a ConventionalSumLayoutReport,
-        /// `Some((element_count, element_stride))` when the field repeats the
-        /// sum: the plan then retains the field's array extent either as one
-        /// whole `At` placement or as one `At` per element, and the hop's
-        /// element index composes `index * element_stride` from the array's
-        /// base instead of selecting among per-element placements directly.
         repetition: Option<(u64, u64)>,
     },
 }
 
-/// One interior layout carrier prepared for symbolic traversal: the interior
-/// extent one selected element occupies and its prepared interior. Nodes live
-/// in one arena so the traversal walks record depth as data instead of
-/// recursing a type the compiler already knows.
 struct PreparedInnerLayout<'a> {
-    /// The fixed extent in bytes of the interior the path descends into: the
-    /// nested record's size, or one sum element's extent for either sum kind.
-    /// Every member or payload write and every nested boundary inside the
-    /// carrier must fit within it.
     byte_len: usize,
-    /// The prepared interior bound to the carrier's field.
     interior: PreparedInterior<'a>,
-    /// Diagnostic spelling of the record path this carrier serves (`slot`,
-    /// `slot.sub`, `choice`).
     path_display: String,
 }
 
@@ -710,13 +563,6 @@ impl PreparedInnerLayout<'_> {
     }
 }
 
-/// Validates and indexes one level of supplied interior carriers. `planned`
-/// is the enclosing plan's field-keyed entries — the outer validated plan at
-/// the top level, or the parent carrier's interior below it. Each carrier's
-/// own `inner_layouts` recurses through this same preparation, bounded by
-/// [`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`] so a malformed carrier tree
-/// cannot make preparation unbounded. Returns the key-indexed carrier map
-/// plus the node ids in supply order.
 fn prepare_inner_layouts<'a>(
     carriers: &'a [SymbolicFieldInnerLayout],
     planned: &std::collections::BTreeMap<MaterializationFieldKey, Vec<&'a LayoutFieldEntryReport>>,
@@ -792,10 +638,6 @@ fn prepare_inner_layouts<'a>(
             interior,
             path_display,
         };
-        // Empty carriers cannot be traversed by a valid write, so their
-        // binding must validate now, before unused-carrier exemption. Still
-        // prepare their complete interior above: zero repetitions do not
-        // excuse stale identities, overlapping strides or malformed children.
         if node.has_no_storage() {
             let entries = &planned[&key];
             if !matches!(entries.as_slice(), [entry]
@@ -808,9 +650,6 @@ fn prepare_inner_layouts<'a>(
                 )));
             }
         } else {
-            // Preparation covers descendants even when an empty ancestor
-            // makes traversal impossible. Check the complete placed extent,
-            // not only geometry of the leaf that a particular write selects.
             let entries = &planned[&key];
             let mut offsets = Vec::with_capacity(entries.len());
             for entry in entries {
@@ -862,12 +701,6 @@ fn prepare_inner_layouts<'a>(
     Ok((bound, order))
 }
 
-/// Validates one record interior a carrier binds — either a single nested
-/// record's own plan or one record-array element's plan — and prepares its
-/// field-keyed entries plus any nested carriers under the same depth bound.
-/// `repetition` carries `(element_count, element_stride)` when the field
-/// repeats the record at a constant byte stride; the stride must cover the
-/// element's complete extent so repeated elements cannot overlap.
 fn prepare_record_interior<'a>(
     interior_layout: &'a LayoutPlanReport,
     repetition: Option<(u64, u64)>,
@@ -925,11 +758,6 @@ fn prepare_record_interior<'a>(
     ))
 }
 
-/// Validates one conventional sum interior bound to a carrier and returns its
-/// byte extent. The overlay's tag and every case payload must fit inside the
-/// claimed extent — the same closed extent build-time materialization
-/// requires — and case and payload spellings must retain consistent
-/// identities so a symbolic path joins them unambiguously.
 fn prepare_sum_interior(
     layout: &ConventionalSumLayoutReport,
     path_display: &str,
@@ -988,17 +816,12 @@ fn prepare_sum_interior(
     Ok(byte_len)
 }
 
-/// Finds the first supplied interior carrier no symbolic path traversed, in
-/// supply order with a parent before its nested carriers. A carrier whose
-/// parent is untraversed can never be reached, so the parent reports first.
 fn first_untraversed_inner_layout(
     nodes: &[PreparedInnerLayout<'_>],
     order: &[usize],
     traversed: &std::collections::BTreeSet<usize>,
 ) -> Option<usize> {
     for &node_id in order {
-        // No symbolic write can reach an empty aggregate or its descendants.
-        // Preparation has already validated their retained element geometry.
         if nodes[node_id].has_no_storage() {
             continue;
         }
@@ -1014,15 +837,6 @@ fn first_untraversed_inner_layout(
     None
 }
 
-/// Resolves a symbolic `element_index` to the exact element `At` placement it
-/// names. An index is the second hop of a field/index path (`field[index]`):
-/// every layout entry for the field must be an element `At`, and the index must
-/// name one of those elements. Entries are ordered by offset so the index
-/// selects the semantic element rather than whichever entry the producer
-/// emitted first. Without an index the symbolic value covers every placement,
-/// which is how a fragmented field is tiled. The bound is checked here, before
-/// any destination byte offset is assigned, so physical lowering cannot change
-/// which element is accessed.
 fn select_materialization_entries<'a>(
     entries: &'a [&'a LayoutFieldEntryReport],
     element_index: Option<u64>,

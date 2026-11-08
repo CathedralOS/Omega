@@ -7,7 +7,7 @@ Owning task: **OPERATOR-MACHINE-SUPPLY** (`TASKS.md`). The exact requirement thi
 row establishes is that item's formation-checks bullet — the checks in
 `omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/specification_calls.rs`
 and
-`omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/contracts/evidence.rs`
+`omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts.rs`
 extended to **calls in abstract signatures** — together with the item's own
 sentence for this row: "A call inside an abstract signature is the premise, and
 the signature records that call's result: `samples/cli/facts/abstract_signature_call/local`

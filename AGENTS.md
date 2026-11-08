@@ -104,7 +104,7 @@ roles below. Close a PR only for a recorded withdrawal or supersession, not age.
 4. **Full pipeline carry-through (`Psi 05 -> 06 -> 08 -> Native`):** Carry every
    semantic repair through Checked Psi (`05`), Lowered/Terminal Psi (`06–08`),
    and native execution (`omega run --both`, exit 0).
-5. **Monotonic board closure & clean golden records:** Delete completed bullets
+5. **Board closure & clean golden records:** Delete completed bullets
    from `TASKS.md` outright (never rewrite into `"preserving / keeping / now
    passes"` history prose). Commit all code and fixture files before running
    `cargo xtask corpus --record --filter <fixtures>` so `corpus_outcomes.txt`
@@ -243,7 +243,8 @@ Never run an unfiltered corpus sweep locally (`mbx xtask corpus` enforces a
 ## Scope and escalation
 
 - Keep `TASKS.md` strictly as a remaining-work board: delete finished bullets
-  monotonically in the same commit as the repair.
+  in the same commit as the repair. A ratified decision may add its
+  implementation item.
 - When a genuine specification ambiguity blocks progress, record the exact
   question in `OWNER_QUESTIONS.md` and cite it in the relevant README rather
   than inventing unratified language semantics.

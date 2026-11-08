@@ -1,9 +1,8 @@
-//! Tokenize every loaded source text, in parallel, keeping their order.
-//!
-//! The texts arrive already in memory, read from files by `load_sources` or
-//! supplied directly, so lexing never touches the filesystem or acquires
-//! package authority. Consumed rows transfer their path buffers to the next
-//! stage; only the source text needs shared ownership for retained lexemes.
+/*
+Parallel batch tokenization (`lex_sources`) over loaded in-memory source units,
+preserving source order, origin metadata, and shared backing text while reporting
+the first lexical failure with exact file, line, and column coordinates.
+*/
 
 use arena::Arena;
 use diagnostics::Diagnostic;
@@ -11,8 +10,6 @@ use rayon::prelude::*;
 use source::{LoadedSource, LoadedSources, SourcePosition};
 use tokens::{LexedSource, LexedSources};
 
-/// Tokenize every loaded source, retaining its backing text and exact metadata.
-/// Report the first lexical failure with its source path, line and column.
 pub fn lex_sources(mut sources: LoadedSources) -> Result<LexedSources, Vec<Diagnostic>> {
     let loaded_sources = sources.sources.span_mut_or_empty(sources.batch);
     let source_count = loaded_sources.len();
@@ -60,4 +57,106 @@ fn lex_source(loaded_source: &mut LoadedSource) -> Result<LexedSource, Diagnosti
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests {
+    use super::lex_sources;
+    use source::{DependencyScope, LoadedSource, LoadedSources, SourceId, SourceOrigin};
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use tokens::TokenKind;
+
+    #[test]
+    fn lexing_retains_source_backing_decoded_bytes_and_exact_instance_metadata() {
+        let text: Arc<str> = Arc::from(r#"alpha "\xff""#);
+        let mut loaded = LoadedSources::default();
+        loaded.batch = loaded.sources.insert_many(
+            [DependencyScope::Build, DependencyScope::Product]
+                .into_iter()
+                .enumerate()
+                .map(|(position, scope)| LoadedSource {
+                    source_id: SourceId(11 + position),
+                    path: PathBuf::from("shared.omg"),
+                    source: text.clone(),
+                    origin: Some(SourceOrigin::Toolchain),
+                    scope,
+                }),
+        );
+        let path_buffers = loaded
+            .sources
+            .span_or_empty(loaded.batch)
+            .iter()
+            .map(|source| source.path.as_os_str().as_encoded_bytes().as_ptr() as usize)
+            .collect::<Vec<_>>();
+        let lexed = lex_sources(loaded).unwrap();
+        let batch = lexed.sources.span_or_empty(lexed.batch);
+        assert_eq!(batch.len(), 2);
+        for (position, source) in batch.iter().enumerate() {
+            assert_eq!(source.source_id, SourceId(11 + position));
+            assert_eq!(source.path, PathBuf::from("shared.omg"));
+            assert_eq!(
+                source.path.as_os_str().as_encoded_bytes().as_ptr() as usize,
+                path_buffers[position]
+            );
+            assert_eq!(source.origin, Some(SourceOrigin::Toolchain));
+            assert!(Arc::ptr_eq(&source.source, &text));
+            let backing = source.tokens.source_owner().unwrap();
+            assert!(Arc::ptr_eq(backing, &text));
+        }
+        assert_eq!(batch[0].scope, DependencyScope::Build);
+        assert_eq!(batch[1].scope, DependencyScope::Product);
+        let retained_tokens = batch[0].tokens.clone();
+        drop(lexed);
+        drop(text);
+        assert_eq!(retained_tokens.text(&retained_tokens[0]).as_str(), "alpha");
+        let literal = retained_tokens
+            .iter()
+            .find(|token| token.kind == TokenKind::StringLiteral)
+            .unwrap();
+        assert_eq!(retained_tokens.text(literal).as_bytes(), &[0xff]);
+    }
+
+    #[test]
+    fn lexing_stops_at_the_first_failure_with_its_exact_source_location() {
+        let mut loaded = LoadedSources::default();
+        loaded.batch = loaded
+            .sources
+            .insert_many(
+                ["first.omg", "second.omg"]
+                    .into_iter()
+                    .map(|path| LoadedSource {
+                        path: PathBuf::from(path),
+                        source: Arc::from("\n  /*"),
+                        ..LoadedSource::default()
+                    }),
+            );
+        let errors = lex_sources(loaded).unwrap_err();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            errors[0].message,
+            "first.omg:2:3: unterminated block comment"
+        );
+    }
+
+    #[test]
+    fn lexing_preserves_source_order_when_a_later_failure_finishes_first() {
+        let mut loaded = LoadedSources::default();
+        loaded.batch = loaded.sources.insert_many([
+            LoadedSource {
+                path: PathBuf::from("first.omg"),
+                source: Arc::from(format!("{}\n/*", "identifier ".repeat(50_000))),
+                ..LoadedSource::default()
+            },
+            LoadedSource {
+                path: PathBuf::from("second.omg"),
+                source: Arc::from("/*"),
+                ..LoadedSource::default()
+            },
+        ]);
+
+        let errors = lex_sources(loaded).unwrap_err();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            errors[0].message,
+            "first.omg:2:1: unterminated block comment"
+        );
+    }
+}

@@ -5022,65 +5022,18 @@ fn trace_storage_conflict(
     }
 }
 
-// Private failure attribution: retain the first conflict in the returned
-// diagnostic, since a failed native product need not retain compiler stderr.
-fn argument_storage_conflict_context(
+fn storage_access_conflicts_beneath_argument(
     function: &PsiOptimizationFunction,
     custody: &Custody,
-    argument_position: usize,
-    argument: &StructuralArgument,
-    argument_contract: Option<StructuralTypeId>,
-    location: &(PlaceId, Vec<StructuralPathSegment>),
-    reference: &Leaf,
-) -> String {
-    struct BoundedContext(String);
-    impl std::fmt::Write for BoundedContext {
-        fn write_str(&mut self, text: &str) -> std::fmt::Result {
-            const LIMIT: usize = 32 * 1024;
-            let remaining = LIMIT.saturating_sub(self.0.len());
-            if text.len() <= remaining {
-                self.0.push_str(text);
-                return Ok(());
-            }
-            let mut end = remaining;
-            while !text.is_char_boundary(end) {
-                end -= 1;
-            }
-            self.0.push_str(&text[..end]);
-            Err(std::fmt::Error)
-        }
-    }
-    let mut output = BoundedContext(String::new());
-    let complete = std::fmt::write(
-        &mut output,
-        format_args!(
-            "machine={:?}; position={:?}; argument_index={argument_position}; argument={argument:?}; contract={argument_contract:?}; first_conflicting_location={location:?}; first_conflicting_leaf={reference:#?}; captured_argument_source={:#?}; captured_lifetime_debts={:#?}; argument_declaration={:?}; conflicting_declaration={:?}",
-            function.machine,
-            custody.reference_position,
-            custody.borrowed_sources.get(&argument.place),
-            custody.captured_lifetime_debts(reference),
-            function.structural_places.iter().find(|place| place.id == argument.place),
-            function.structural_places.iter().find(|place| place.id == location.0),
-        ),
-    ).is_ok();
-    if !complete {
-        output.0.push_str("; context_truncated=true");
-    }
-    output.0
-}
-
-fn storage_access_conflicts_beneath_argument<'a>(
-    function: &PsiOptimizationFunction,
-    custody: &'a Custody,
     types: &[StructuralTypeDeclaration],
     argument: &StructuralArgument,
-) -> Result<Option<(&'a (PlaceId, Vec<StructuralPathSegment>), &'a Leaf)>, LegalizationError> {
+) -> Result<bool, LegalizationError> {
     let captured = custody
         .borrowed_sources
         .contains_key(&argument.place)
         .then(|| normalized_source(function, custody, types, argument))
         .transpose()?;
-    Ok(custody.leaves.iter().find(|(location, reference)| {
+    Ok(custody.leaves.iter().any(|(location, reference)| {
         let (leaf_place, leaf_path) = location;
         let conflict = || {
             let own_key = *leaf_place == argument.place && leaf_path.as_slice() == argument.path;
@@ -5490,9 +5443,7 @@ fn call_arguments(
             }
             continue;
         }
-        if let Some((location, reference)) =
-            storage_access_conflicts_beneath_argument(function, custody, types, argument)?
-        {
+        if storage_access_conflicts_beneath_argument(function, custody, types, argument)? {
             if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
                 eprintln!(
                     "CHECKSITE custody-call-conflict machine={:?} position={:?} kind=argument-storage argument={argument_position} place={:?} path={:?} access={:?} root_type={argument_contract:?}",
@@ -5503,25 +5454,7 @@ fn call_arguments(
                     argument.access,
                 );
             }
-            let mut error = observations::Refusal::StorageInterference.into_error(
-                function,
-                custody,
-                types,
-                argument.place,
-                &argument.path,
-            );
-            if let LegalizationError::ReferenceObservation { context, .. } = &mut error {
-                context.interference = Some(argument_storage_conflict_context(
-                    function,
-                    custody,
-                    argument_position,
-                    argument,
-                    argument_contract,
-                    location,
-                    reference,
-                ));
-            }
-            return Err(error);
+            return Err(invalid());
         }
         let (root, _) = normalized_source(function, custody, types, argument)?;
         normalized.push((

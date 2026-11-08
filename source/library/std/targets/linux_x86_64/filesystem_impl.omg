@@ -10,7 +10,7 @@ use filesystem_host;
 
 StatLayout satisfies FixedLayout<StatRecord> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
-    reaches
+    reaches none
     terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };

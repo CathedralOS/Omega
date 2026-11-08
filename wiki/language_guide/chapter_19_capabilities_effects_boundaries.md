@@ -27,7 +27,7 @@ are imported. `reaches Readable` records service use. `suspends` permits waiting
 and `suspend` marks that possibility at the call. The caller also supplies
 the input facts and runtime authority required by the selected API.
 
-A boundary requirement declares its reach explicitly. Use bare `reaches` for
+A boundary requirement declares its reach explicitly. Use `reaches none` for
 an empty row. The trait name is added only when the declaration names it.
 
 ## Select a provider
@@ -133,8 +133,8 @@ The application still selects a provider for the boundary operation.
 
 Omitting reach on a body means “derive it from my calls.” On a non-boundary
 callback requirement it means “derive it from the selected implementation.”
-Write `requires machine F(value: u32) reaches;` to accept only service-free
-callbacks. The semicolon ends F's whole requirement; clauses after it belong
+Write `requires machine F(value: u32) reaches none;` to accept only
+service-free callbacks. The semicolon ends F's whole requirement; clauses after it belong
 to `apply`.
 
 The same propagation works through trait members and forwarded wrappers.

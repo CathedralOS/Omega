@@ -98,7 +98,7 @@ Both halves of this fact were probed directly, and they behave differently.
 
 - **Static refusal (the loan discipline).** Holding a competing exclusive borrow `held` live
   across the write call is refused before lowering, at the call gate in
-  `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/borrows/calls/conflicts.rs`.
+  `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_borrows_calls.rs`.
   No probe reached a runtime trap on this path: the window violation cannot be seeded into
   execution because checking rejects the program first. That is the obligation's class, not a
   missing reachable trap.
