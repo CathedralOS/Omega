@@ -1,43 +1,462 @@
-//! The dynamic lane: [`emit_elf_dynamic_executable`] runs the 22-stage chain
-//! over one final image and one normalized interpreter plan, grouped below by
-//! phase in chain order.
-//!
-//! ```text
-//!   import_sections    plan_elf_dynamic_link_inputs -> plan_elf_dynamic_sections
-//!                      -> serialize_elf_dynamic_sections
-//!                      -> plan_elf_dynamic_section_descriptors
-//!   procedure_linkage  plan_elf_procedure_linkage_relocations
-//!                      -> plan_elf_procedure_linkage_templates
-//!                      -> plan_elf_procedure_linkage_section_descriptors
-//!   dynamic_table      plan_elf_dynamic_tags -> serialize_elf_dynamic_table
-//!                      -> plan_elf_dynamic_table_section_descriptor
-//!   section_headers    plan_elf_section_name_table -> plan_elf_dynamic_section_roster
-//!                      -> serialize_elf_section_header_table
-//!                      -> plan_elf_indexed_section_payloads
-//!                      -> plan_elf_relative_section_payload_layout
-//!   load_placement     plan_elf_dynamic_load_layout
-//!                      -> apply_elf_section_header_placements
-//!                      -> apply_elf_dynamic_address_fixups
-//!   file_assembly      serialize_elf_dynamic_file_envelope
-//!                      -> apply_elf_procedure_linkage_fixups
-//!                      -> assemble_elf_dynamic_file -> admit_elf_dynamic_executable
-//! ```
-//!
-//! Each stage takes the previous stage's `ValidatedElf*` carrier as its only
-//! input: there is no way to call stage N without holding a value that only
-//! stage N-1 can construct. The chain below is the one place that sequence is
-//! spelled; every rejection returns the exact stage carrier inside one
-//! variant of [`ElfDynamicExecutableEmissionError`]. The crate root also
-//! re-exports every stage's entry function, carrier and error for a caller
-//! that needs to hold an intermediate.
+/*
+We drive the 22-stage dynamic ELF executable pipeline
+(`emit_elf_dynamic_executable`), chaining the six phase modules from
+dynamic-link input preflight through final-byte admission and wrapping any
+stage failure in `ElfDynamicExecutableEmissionError` alongside the shared
+`checked` validation helpers.
+*/
 
-mod checked;
-pub(crate) mod dynamic_table;
-pub(crate) mod file_assembly;
-pub(crate) mod import_sections;
-pub(crate) mod load_placement;
-pub(crate) mod procedure_linkage;
-pub(crate) mod section_headers;
+pub(crate) mod checked {
+    use diagnostics::Diagnostic;
+
+    use crate::constants::{
+        ELF64_DYNAMIC_ROW_SIZE, ELF64_DYNAMIC_VALUE_OFFSET, ELF64_SECTION_HEADER_SIZE,
+    };
+    use target::compatibility_fingerprint::Fnv1a;
+
+    pub(crate) fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
+        condition
+            .then_some(())
+            .ok_or_else(|| Diagnostic::error(message))
+    }
+
+    pub(crate) fn checked_sum(
+        left: usize,
+        right: usize,
+        context: &'static str,
+    ) -> Result<usize, Diagnostic> {
+        left.checked_add(right)
+            .ok_or_else(|| Diagnostic::error(format!("{context} overflows usize")))
+    }
+
+    pub(crate) fn checked_product(
+        left: usize,
+        right: usize,
+        context: &'static str,
+    ) -> Result<usize, Diagnostic> {
+        left.checked_mul(right)
+            .ok_or_else(|| Diagnostic::error(format!("{context} overflows usize")))
+    }
+
+    pub(crate) fn checked_u32(value: usize, context: &'static str) -> Result<u32, Diagnostic> {
+        u32::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Word")))
+    }
+
+    fn read_array<const N: usize>(
+        bytes: &[u8],
+        offset: usize,
+        context: &'static str,
+    ) -> Result<[u8; N], Diagnostic> {
+        let end = checked_sum(offset, N, context)?;
+        bytes
+            .get(offset..end)
+            .and_then(|bytes| bytes.try_into().ok())
+            .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))
+    }
+
+    pub(crate) fn read_u8(
+        bytes: &[u8],
+        offset: usize,
+        context: &'static str,
+    ) -> Result<u8, Diagnostic> {
+        bytes
+            .get(offset)
+            .copied()
+            .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))
+    }
+
+    pub(crate) fn read_u16(
+        bytes: &[u8],
+        offset: usize,
+        context: &'static str,
+    ) -> Result<u16, Diagnostic> {
+        Ok(u16::from_le_bytes(read_array::<2>(bytes, offset, context)?))
+    }
+
+    pub(crate) fn read_u32(
+        bytes: &[u8],
+        offset: usize,
+        context: &'static str,
+    ) -> Result<u32, Diagnostic> {
+        Ok(u32::from_le_bytes(read_array::<4>(bytes, offset, context)?))
+    }
+
+    pub(crate) fn read_u64(
+        bytes: &[u8],
+        offset: usize,
+        context: &'static str,
+    ) -> Result<u64, Diagnostic> {
+        Ok(u64::from_le_bytes(read_array::<8>(bytes, offset, context)?))
+    }
+
+    pub(crate) fn read_i64(
+        bytes: &[u8],
+        offset: usize,
+        context: &'static str,
+    ) -> Result<i64, Diagnostic> {
+        Ok(i64::from_le_bytes(read_array::<8>(bytes, offset, context)?))
+    }
+
+    pub(crate) fn read_field(
+        bytes: &[u8],
+        offset: usize,
+        width: u8,
+        context: &'static str,
+    ) -> Result<u64, Diagnostic> {
+        match width {
+            4 => Ok(u64::from(read_u32(bytes, offset, context)?)),
+            8 => read_u64(bytes, offset, context),
+            _ => Err(Diagnostic::error(format!(
+                "{context} has an unsupported field width"
+            ))),
+        }
+    }
+
+    pub(crate) fn field_mut<'a>(
+        bytes: &'a mut [u8],
+        offset: usize,
+        width: u8,
+        context: &'static str,
+    ) -> Result<&'a mut [u8], Diagnostic> {
+        let end = checked_sum(offset, usize::from(width), context)?;
+        bytes
+            .get_mut(offset..end)
+            .ok_or_else(|| Diagnostic::error(format!("{context} exceeds its storage")))
+    }
+
+    pub(crate) fn stage_fingerprint(tag: &[u8], upstream: u64) -> Fnv1a {
+        let mut hash = Fnv1a::new();
+        hash.bytes(tag);
+        hash.bytes(&upstream.to_le_bytes());
+        hash
+    }
+
+    pub(crate) fn checked_sum_u64(
+        left: u64,
+        right: u64,
+        context: &str,
+        bound: &'static str,
+    ) -> Result<u64, Diagnostic> {
+        left.checked_add(right)
+            .ok_or_else(|| Diagnostic::error(format!("{context} overflows {bound}")))
+    }
+
+    pub(crate) fn checked_product_u64(
+        left: u64,
+        right: u64,
+        context: &str,
+        bound: &'static str,
+    ) -> Result<u64, Diagnostic> {
+        left.checked_mul(right)
+            .ok_or_else(|| Diagnostic::error(format!("{context} overflows {bound}")))
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) struct DecodedElf64SectionHeader {
+        pub(crate) name_offset: u32,
+        pub(crate) section_type: u32,
+        pub(crate) flags: u64,
+        pub(crate) address: u64,
+        pub(crate) file_offset: u64,
+        pub(crate) payload_size: u64,
+        pub(crate) link: u32,
+        pub(crate) info: u32,
+        pub(crate) alignment: u64,
+        pub(crate) entry_size: u64,
+    }
+
+    pub(crate) fn decode_section_header_rows(
+        bytes: &[u8],
+        expected_count: usize,
+    ) -> Result<Vec<DecodedElf64SectionHeader>, Diagnostic> {
+        let expected_size = checked_product(
+            expected_count,
+            ELF64_SECTION_HEADER_SIZE,
+            "decoded ELF64 section-header table size",
+        )?;
+        require(
+            bytes.len() == expected_size,
+            "ELF64 section-header table has a truncated row or trailing bytes",
+        )?;
+        let mut rows = Vec::with_capacity(expected_count);
+        for index in 0..expected_count {
+            let offset = checked_product(
+                index,
+                ELF64_SECTION_HEADER_SIZE,
+                "decoded ELF64 section-header row",
+            )?;
+            let field = |field_offset: usize, context: &'static str| {
+                checked_sum(offset, field_offset, context)
+            };
+            rows.push(DecodedElf64SectionHeader {
+                name_offset: read_u32(bytes, offset, "Elf64_Shdr.sh_name")?,
+                section_type: read_u32(
+                    bytes,
+                    field(4, "Elf64_Shdr.sh_type offset")?,
+                    "Elf64_Shdr.sh_type",
+                )?,
+                flags: read_u64(
+                    bytes,
+                    field(8, "Elf64_Shdr.sh_flags offset")?,
+                    "Elf64_Shdr.sh_flags",
+                )?,
+                address: read_u64(
+                    bytes,
+                    field(16, "Elf64_Shdr.sh_addr offset")?,
+                    "Elf64_Shdr.sh_addr",
+                )?,
+                file_offset: read_u64(
+                    bytes,
+                    field(24, "Elf64_Shdr.sh_offset offset")?,
+                    "Elf64_Shdr.sh_offset",
+                )?,
+                payload_size: read_u64(
+                    bytes,
+                    field(32, "Elf64_Shdr.sh_size offset")?,
+                    "Elf64_Shdr.sh_size",
+                )?,
+                link: read_u32(
+                    bytes,
+                    field(40, "Elf64_Shdr.sh_link offset")?,
+                    "Elf64_Shdr.sh_link",
+                )?,
+                info: read_u32(
+                    bytes,
+                    field(44, "Elf64_Shdr.sh_info offset")?,
+                    "Elf64_Shdr.sh_info",
+                )?,
+                alignment: read_u64(
+                    bytes,
+                    field(48, "Elf64_Shdr.sh_addralign offset")?,
+                    "Elf64_Shdr.sh_addralign",
+                )?,
+                entry_size: read_u64(
+                    bytes,
+                    field(56, "Elf64_Shdr.sh_entsize offset")?,
+                    "Elf64_Shdr.sh_entsize",
+                )?,
+            });
+        }
+        Ok(rows)
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) struct DecodedElfDynamicRow {
+        pub(crate) tag: i64,
+        pub(crate) value: u64,
+    }
+
+    pub(crate) fn decode_dynamic_rows(
+        bytes: &[u8],
+        expected_count: usize,
+    ) -> Result<Vec<DecodedElfDynamicRow>, Diagnostic> {
+        let expected_size = checked_product(
+            expected_count,
+            ELF64_DYNAMIC_ROW_SIZE,
+            "decoded Elf64_Dyn payload size",
+        )?;
+        require(
+            bytes.len() == expected_size,
+            "Elf64_Dyn payload has a truncated row or trailing bytes",
+        )?;
+        let mut rows = Vec::with_capacity(expected_count);
+        for ordinal in 0..expected_count {
+            let offset = checked_product(ordinal, ELF64_DYNAMIC_ROW_SIZE, "decoded Elf64_Dyn row")?;
+            rows.push(DecodedElfDynamicRow {
+                tag: read_i64(bytes, offset, "Elf64_Dyn.d_tag")?,
+                value: read_u64(
+                    bytes,
+                    checked_sum(offset, ELF64_DYNAMIC_VALUE_OFFSET, "Elf64_Dyn.d_un offset")?,
+                    "Elf64_Dyn.d_un",
+                )?,
+            });
+        }
+        Ok(rows)
+    }
+
+    pub(crate) struct CandidateValidationError<C> {
+        pub(crate) candidate: C,
+        pub(crate) diagnostic: Diagnostic,
+    }
+
+    macro_rules! seal_stage {
+        (
+            field: $field:ident,
+            contents: $contents:ident,
+            validated: $validated:ident,
+            validate: $validate:ident,
+            fingerprint: $fingerprint:ident,
+            message: $message:literal
+            $(, vis: $vis:vis)? $(,)?
+        ) => {
+            $( $vis )? fn validate_candidate(
+                candidate: Candidate,
+            ) -> Result<$validated, CandidateValidationError<Candidate>> {
+                checked::validate_candidate(
+                    candidate,
+                    |candidate| $validate(&candidate.$field, &candidate.$contents),
+                    |candidate| {
+                        candidate.$fingerprint == $fingerprint(&candidate.$field, &candidate.$contents)
+                    },
+                    $message,
+                    |candidate| $validated {
+                        $field: candidate.$field,
+                        $contents: candidate.$contents,
+                        $fingerprint: candidate.$fingerprint,
+                    },
+                )
+            }
+        };
+        (
+            field: $field:ident,
+            contents: $contents:ident,
+            validated: $validated:ident,
+            validate: $validate:ident,
+            fingerprint: $fingerprint:ident,
+            nonzero,
+            message: $message:literal
+            $(, vis: $vis:vis)? $(,)?
+        ) => {
+            $( $vis )? fn validate_candidate(
+                candidate: Candidate,
+            ) -> Result<$validated, CandidateValidationError<Candidate>> {
+                checked::validate_candidate(
+                    candidate,
+                    |candidate| $validate(&candidate.$field, &candidate.$contents),
+                    |candidate| {
+                        candidate.$fingerprint != 0
+                            && candidate.$fingerprint
+                                == $fingerprint(&candidate.$field, &candidate.$contents)
+                    },
+                    $message,
+                    |candidate| $validated {
+                        $field: candidate.$field,
+                        $contents: candidate.$contents,
+                        $fingerprint: candidate.$fingerprint,
+                    },
+                )
+            }
+        };
+        (
+            field: $field:ident,
+            contents: $contents:ident,
+            validated: $validated:ident,
+            validate: $validate:ident
+            $(, vis: $vis:vis)? $(,)?
+        ) => {
+            $( $vis )? fn validate_candidate(
+                candidate: Candidate,
+            ) -> Result<$validated, CandidateValidationError<Candidate>> {
+                checked::validate_candidate(
+                    candidate,
+                    |candidate| $validate(&candidate.$field, &candidate.$contents),
+                    |_| true,
+                    "",
+                    |candidate| $validated {
+                        $field: candidate.$field,
+                        $contents: candidate.$contents,
+                    },
+                )
+            }
+        };
+    }
+    pub(crate) use seal_stage;
+
+    pub(crate) fn validate_candidate<C, T>(
+        candidate: C,
+        valid: impl Fn(&C) -> Result<(), Diagnostic>,
+        replays: impl Fn(&C) -> bool,
+        replay_diagnostic: &'static str,
+        validated: impl Fn(C) -> T,
+    ) -> Result<T, CandidateValidationError<C>> {
+        if let Err(diagnostic) = valid(&candidate) {
+            return Err(CandidateValidationError {
+                candidate,
+                diagnostic,
+            });
+        }
+        if !replays(&candidate) {
+            return Err(CandidateValidationError {
+                candidate,
+                diagnostic: Diagnostic::error(replay_diagnostic),
+            });
+        }
+        Ok(validated(candidate))
+    }
+
+    macro_rules! plan_stage {
+        (
+            plan: $plan:ident,
+            derive: $derive:expr,
+            contents: $contents:ident,
+            fingerprint: $fingerprint:ident,
+            error: $error:ident $(,)?
+        ) => {
+            checked::plan_candidate(
+                $plan,
+                $derive,
+                |$plan, $contents| $fingerprint(&$plan, &$contents),
+                |$plan, $contents, fingerprint| Candidate {
+                    $plan,
+                    $contents,
+                    $fingerprint: fingerprint,
+                },
+                validate_candidate,
+                |candidate| candidate.$plan,
+                |$plan, diagnostic| Box::new($error { $plan, diagnostic }),
+            )
+        };
+        (
+            plan: $plan:ident,
+            derive: $derive:expr,
+            contents: $contents:ident,
+            error: $error:ident $(,)?
+        ) => {
+            checked::plan_candidate(
+                $plan,
+                $derive,
+                |_, _| 0,
+                |$plan, $contents, _fingerprint| Candidate { $plan, $contents },
+                validate_candidate,
+                |candidate| candidate.$plan,
+                |$plan, diagnostic| Box::new($error { $plan, diagnostic }),
+            )
+        };
+    }
+    pub(crate) use plan_stage;
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn plan_candidate<P, C, D, V, E>(
+        plan: P,
+        derive_contents: impl Fn(&P) -> Result<D, Diagnostic>,
+        fingerprint: impl Fn(&P, &D) -> u64,
+        into_candidate: impl FnOnce(P, D, u64) -> C,
+        validate: impl FnOnce(C) -> Result<V, CandidateValidationError<C>>,
+        into_plan: impl FnOnce(C) -> P,
+        error: impl Fn(P, Diagnostic) -> E,
+    ) -> Result<V, E> {
+        let contents = match derive_contents(&plan) {
+            Ok(contents) => contents,
+            Err(diagnostic) => return Err(error(plan, diagnostic)),
+        };
+        let fingerprint = fingerprint(&plan, &contents);
+        let candidate = into_candidate(plan, contents, fingerprint);
+        match validate(candidate) {
+            Ok(validated) => Ok(validated),
+            Err(candidate_error) => Err(error(
+                into_plan(candidate_error.candidate),
+                candidate_error.diagnostic,
+            )),
+        }
+    }
+}
+
+pub(crate) use crate::dynamic_table;
+pub(crate) use crate::file_assembly;
+pub(crate) use crate::import_sections;
+pub(crate) use crate::load_placement;
+pub(crate) use crate::procedure_linkage;
+pub(crate) use crate::section_headers;
 
 use diagnostics::Diagnostic;
 use image::FinalImage;
@@ -105,9 +524,6 @@ use section_headers::section_roster::{
     ElfDynamicSectionRosterPlanningError, plan_elf_dynamic_section_roster,
 };
 
-/// The exact failing owner from one stage of the dynamic lane. Every variant
-/// preserves the stage-specific carrier that stage refused; diagnostics are
-/// observations of that custody, never substitutes for it.
 #[derive(Debug)]
 #[must_use = "dynamic ELF emission failure retains the exact failing owner"]
 pub enum ElfDynamicExecutableEmissionError {
@@ -136,9 +552,6 @@ pub enum ElfDynamicExecutableEmissionError {
 }
 
 impl ElfDynamicExecutableEmissionError {
-    /// The failing stage's name paired with the diagnostic its carried
-    /// carrier retains: one row per stage, so a new variant cannot update
-    /// one table and miss the other.
     const fn failing_stage(&self) -> (&'static str, &Diagnostic) {
         match self {
             Self::LinkInputs(error) => ("link-inputs", error.diagnostic()),
@@ -198,16 +611,6 @@ impl std::fmt::Display for ElfDynamicExecutableEmissionError {
 
 impl std::error::Error for ElfDynamicExecutableEmissionError {}
 
-/// Emit one dynamically linked ELF executable from a final image and the
-/// normalized interpreter plan its imports require: plan the dynamic-link
-/// inputs and import sections, the procedure linkage, the dynamic table and
-/// the section headers; place the load layout and resolve the addresses it
-/// fixes; then serialize the file envelope, apply the procedure-linkage
-/// fixups, assemble the file and admit its final bytes.
-///
-/// The interpreter is consumed into the first stage; every rejection returns
-/// the exact stage carrier. The admitted result is final-byte custody only --
-/// it grants no publication or execution authority.
 pub fn emit_elf_dynamic_executable(
     image: FinalImage,
     interpreter: NormalizedElfInterpreterPlan,
@@ -260,7 +663,7 @@ pub fn emit_elf_dynamic_executable(
 }
 
 #[cfg(test)]
-fn interpreter_path(target: target::TargetProfile) -> &'static [u8] {
+pub(crate) fn interpreter_path(target: target::TargetProfile) -> &'static [u8] {
     match target {
         target::TargetProfile::LinuxX64 => b"/lib64/ld-linux-\xfc-x86-64.so.2",
         target::TargetProfile::LinuxArm64 => b"/lib/ld-linux-\xfb-aarch64.so.1",
@@ -277,7 +680,6 @@ pub(crate) const fn image_section_tag(section: image::FinalImageSection) -> u8 {
     }
 }
 
-/// Rejects a usize that cannot ride the Elf64_Xword wire field.
-pub(super) fn checked_u64(value: usize, context: &str) -> Result<u64, Diagnostic> {
+pub(crate) fn checked_u64(value: usize, context: &str) -> Result<u64, Diagnostic> {
     u64::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Xword")))
 }

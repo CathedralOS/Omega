@@ -1,5 +1,11 @@
-//! Proof after the fact that patching touched only relocation fields, by masking
-//! every slot the plan declared and comparing everything that is left.
+/*
+We prove after relocation patching that only declared relocation bitfields
+changed between the compiler-encoded bytes and the final relocated bytes. For
+`.text`, we derive per-byte bitmasks directly from `relocation_field_geometry`
+so the patcher and the envelope verifier share a single source of truth; for
+`.data`, we verify that changes occur exclusively inside non-overlapping,
+eight-byte-aligned `Absolute64` slots.
+*/
 
 use crate::final_image::{FNV_OFFSET, byte_report_fingerprint, fingerprint_bytes};
 use crate::relocations::relocation_field_geometry;
@@ -10,8 +16,6 @@ use crate::{
 use diagnostics::Diagnostic;
 use object_file::{RelocationKind, RelocationPlan, SectionKind, relocation_kind_tag};
 
-/// Prove that final initialized data preserves every encoded byte except the
-/// exact eight-byte slots named by checked absolute data relocations.
 pub fn validate_final_initialized_data_relocation_envelope(
     encoded_data_bytes: &[u8],
     final_data_bytes: &[u8],
@@ -79,8 +83,6 @@ pub fn validate_final_initialized_data_relocation_envelope(
     Ok(())
 }
 
-/// Prove that final `.text` preserves every encoded bit except the exact
-/// immediate fields named by checked relocation records.
 pub fn validate_final_text_relocation_envelope(
     encoded_text_bytes: &[u8],
     final_text_bytes: &[u8],

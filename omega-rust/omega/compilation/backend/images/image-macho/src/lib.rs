@@ -1,80 +1,40 @@
-//! A PIE, ad-hoc-signed, dyld-linked Mach-O MH_EXECUTE for the AArch64 and
-//! x86-64 macOS ABIs, bound eagerly at load with no lazy stubs anywhere in it.
-//!
-//! The load base is 0x1_0000_0000 - four gigabytes of `__PAGEZERO` below
-//! anything real, so a null dereference faults on an unmapped page rather than
-//! reading the header. The loader page is per-ISA (`isa.rs`): 16 KiB on arm64,
-//! 4 KiB on x86-64, and the code directory stores that same size as a log2
-//! exponent; the two move together or every signed page hashes at the wrong
-//! stride. Note this is NOT the ADRP page: ADRP's page is four kilobytes on
-//! every build, and lives in `image`'s relocation patcher. Distinct page
-//! sizes, adjacent in the same emitter, meaning different things.
-//!
-//! `emit_macho_executable` / `emit_macho_executable_signed` run in an order
-//! most of which is forced:
-//!
-//! ```text
-//!   install_import_thunks     preflights the dylib roster, THEN mutates .text
-//!   macho_bind_info_for_segment  the bind opcode stream for those thunks
-//!   macho_rebase_info_for_segment the pointers dyld must slide for a PIE
-//!   plan_macho_container      every offset, now that all four sizes are known
-//!   patch_import_thunks / isa relocation application
-//!   validate_patched_preferred_pointers   rebased pointers still point right
-//!   validate_import_thunk_footprints      thunk opcodes survived relocation
-//!   ... write header, load commands, segments, linkedit ...
-//!   macho_ad_hoc_code_signature_for_container   hashes the finished file, so LAST
-//!   validate_macho_loader_mapping / loader_fixups
-//!       read-only checks of the actual container and exact loader writes
-//! ```
-//!
-//! The signature has to be last because it hashes every byte before it, and its
-//! size has to be known before that because `LC_CODE_SIGNATURE` and the
-//! `__LINKEDIT` extent are written earlier. One `CodeSignatureLayout` supplies
-//! both: the plan asks it for the extent of the planned signature offset and
-//! the writer fills the same offsets for the bytes it actually hashed, so the
-//! recorded length and the emitted blob are one derivation rather than two that
-//! a release build could let drift.
-//!
-//! Binding is eager and total. `write_macho_dyld_info_command` writes rebase and
-//! bind offsets and then six zero words: weak bind offset and size, lazy bind
-//! offset and size, export trie offset and size, all literally zero. The bind
-//! stream is `0x51` (`SET_TYPE_IMM | BIND_TYPE_POINTER`) followed by `0x90`
-//! (`DO_BIND`) per symbol. There is no `dyld_stub_binder` and no
-//! `__la_symbol_ptr` section, because there is nothing left to resolve after
-//! load.
+/*
+We emit position-independent (PIE), ad-hoc code-signed, dyld-linked Mach-O
+`MH_EXECUTE` executables (`emit_macho_executable`, `emit_macho_executable_signed`)
+and `MH_DYLIB` shared components (`emit_macho_shared_component`) for macOS
+AArch64 and x86-64. Executables map a 4 GiB unmapped `__PAGEZERO` segment below
+`IMAGE_BASE = 0x1_0000_0000`, align loader segments to the ISA page size
+(16 KiB on AArch64, 4 KiB on x86-64), bind all imported symbols eagerly at load
+time through `__DATA,__got` pointer slots, and embed a SHA-256 `CodeDirectory`
+superblob at the end of `__LINKEDIT`.
 
-//! Only imports an actual relocation points at get a thunk, a slot and a bind
-//! entry; the rest of the host binding catalog is dropped. Emitting one per
-//! catalog row is simpler and would make a program that touches only the
-//! filesystem drag in libobjc, Foundation, AppKit and CoreGraphics as load-time
-//! dependencies, because a bind entry naming a dylib is a reason to map it.
-//!
-//! The dylib roster is a `Vec` scanned linearly - `ensure_dylib` with `.any`,
-//! ordinal assignment with `.position` - where a `HashMap` keyed by install name
-//! is the obvious choice. Two things make the scan right. The roster is hard
-//! capped at 15 entries, because the bind opcode carries the dylib ordinal in a
-//! four-bit immediate, so the scan is bounded by the format itself. And the
-//! ordinal IS the vector index plus one, with libSystem deliberately first at
-//! ordinal 1 - an ordering a hash map would not preserve.
-//!
-//! `plan_dylibs` runs to completion before the first `image.memory.text.extend`,
-//! and that is a transaction boundary rather than an accident of reading order.
-//! A rejection discovered midway through installation would otherwise leave the
-//! `FinalImage` with text extended, symbols rewritten and executable regions
-//! pushed - a half-mutated value the caller has no way to roll back.
+Emission proceeds in a strict transaction order: we preflight the referenced
+dylib roster (capped at 15 dylibs by the 4-bit dyld bind ordinal immediate,
+with `libSystem.B.dylib` anchored at ordinal 1) before mutating `FinalImage`,
+install import thunks and pointer slots, encode the dyld bind and PIE rebase
+opcode streams, plan all container offsets in a single pass, apply relocations
+and re-verify rebased pointers and thunk opcodes, serialize the Mach-O header,
+load commands, segments, and `__LINKEDIT` payloads, sign the completed prefix,
+and replay the container mapping and loader fixups against the finished bytes.
+*/
 
-//! `image` supplies `FinalImage`, the per-ISA relocation applicators and
-//! `place_executable_regions`. This is the only emitter in the tree that both
-//! binds imports and signs its output.
-//!
-//! `code_signature.rs` derives the signature blob once: its CodeDirectory
-//! prefix is summed from the field widths it stands for, and the extent
-//! `LC_CODE_SIGNATURE` records is that same blob's own length, checked against
-//! the finished container's `__LINKEDIT` extent and file end.
-//!
-//! `file_layout/` places every byte and `dyld_linking/` describes the file to
-//! the loader; `entry_symbol.rs` and `code_signature.rs` stay at the root
-//! beside the emitter.
+/*
+We emit only referenced imports into the dylib roster, bind stream, and GOT so
+programs do not pull in unused macOS frameworks at load time. Because
+`LC_CODE_SIGNATURE` and `__LINKEDIT` sizes are written before the file bytes
+exist to be hashed, `CodeSignatureLayout` derives both the planned signature
+extent and the final superblob layout from a single calculation over the code
+limit and signing identifier, preventing any drift between the load commands
+and the trailing signature blob.
+*/
+
+/*
+`image` supplies `FinalImage`, `apply_relocations`, and region placement;
+`file_layout.rs` owns the container offset plan; `dyld_linking.rs` owns import
+thunks, rebase/bind streams, load commands, and loader replay verifiers;
+`code_signature.rs` owns ad-hoc signing; and `shared_component.rs` owns
+`MH_DYLIB` export tries and component emission.
+*/
 
 pub(crate) use optimization_core::codec_bytes;
 
@@ -92,13 +52,597 @@ pub use shared_component::{
 mod code_signature;
 pub use code_signature::code_signature_identifier;
 mod dyld_linking;
-mod entry_symbol;
+mod entry_symbol {
+    use diagnostics::Diagnostic;
+    use image::FinalImage;
+
+    pub(crate) fn macho_entry_text_offset(image: &FinalImage) -> Result<usize, Diagnostic> {
+        Ok(image::final_image_entry_symbol(image, "Mach-O")?.offset)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::macho_entry_text_offset;
+        use image::{FinalImage, FinalImageSection, FinalImageSymbol};
+
+        #[test]
+        fn resolves_macho_entry_offset_from_final_image_entry_symbol() {
+            let mut image = crate::test_support::image(
+                FinalImage::default().target,
+                image::FinalImageMemory {
+                    text: vec![0; 16],
+                    ..Default::default()
+                },
+            );
+            let entry_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
+                name: "_start".into(),
+                section: FinalImageSection::Text,
+                offset: 8,
+                size: 4,
+                ..FinalImageSymbol::default()
+            });
+            image.symbol_table.entry_symbol = entry_symbol;
+
+            assert_eq!(macho_entry_text_offset(&image).unwrap(), 8);
+        }
+    }
+}
+
 mod file_layout;
-mod isa;
+mod isa {
+    use calling_conventions::StateFootprintEvidence;
+    use diagnostics::Diagnostic;
+
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub(crate) enum MachoIsa {
+        Aarch64,
+        X86_64,
+    }
+
+    pub(crate) fn macho_isa_for(target: target::NativeTarget) -> Result<MachoIsa, Diagnostic> {
+        MachoIsa::from_format(target.object_format, target.architecture).ok_or_else(|| {
+            Diagnostic::error(format!(
+                "Mach-O emission and validation require a macOS ARM64 or x86-64 target, not {:?}",
+                target,
+            ))
+        })
+    }
+
+    impl MachoIsa {
+        pub(crate) fn from_format(
+            object_format: target::ObjectFormat,
+            architecture: target::Architecture,
+        ) -> Option<Self> {
+            match (object_format, architecture) {
+                (target::ObjectFormat::MachO, target::Architecture::Aarch64) => Some(Self::Aarch64),
+                (target::ObjectFormat::MachO, target::Architecture::X86_64) => Some(Self::X86_64),
+                _ => None,
+            }
+        }
+
+        pub(crate) fn native_target(self) -> target::NativeTarget {
+            match self {
+                Self::Aarch64 => target::NativeTarget::macos_arm64(),
+                Self::X86_64 => target::NativeTarget::macos_x64(),
+            }
+        }
+
+        pub(crate) fn target_profile(self) -> target::TargetProfile {
+            match self {
+                Self::Aarch64 => target::TargetProfile::MacosArm64,
+                Self::X86_64 => target::TargetProfile::MacosX64,
+            }
+        }
+
+        pub(crate) fn cpu_type(self) -> u32 {
+            match self {
+                Self::Aarch64 => 0x0100_000c,
+                Self::X86_64 => 0x0100_0007,
+            }
+        }
+
+        pub(crate) fn cpu_subtype(self) -> u32 {
+            match self {
+                Self::Aarch64 => 0,
+                Self::X86_64 => 0x8000_0003,
+            }
+        }
+
+        pub(crate) fn page_size(self) -> u64 {
+            match self {
+                Self::Aarch64 => 0x4000,
+                Self::X86_64 => 0x1000,
+            }
+        }
+
+        pub(crate) fn code_signature_page_power(self) -> u8 {
+            match self {
+                Self::Aarch64 => 14,
+                Self::X86_64 => 12,
+            }
+        }
+
+        pub(crate) fn import_thunk_size(self) -> usize {
+            match self {
+                Self::Aarch64 => 12,
+                Self::X86_64 => isa_x86_64::X86_64_IMPORT_THUNK_BYTE_COUNT,
+            }
+        }
+
+        pub(crate) fn entry_alignment(self) -> u64 {
+            match self {
+                Self::Aarch64 => 4,
+                Self::X86_64 => 1,
+            }
+        }
+
+        pub(crate) fn format_name(self) -> &'static str {
+            match self {
+                Self::Aarch64 => "mach-o-arm64-executable",
+                Self::X86_64 => "mach-o-x86_64-executable",
+            }
+        }
+
+        pub(crate) fn thunk_footprint(self) -> StateFootprintEvidence {
+            match self {
+                Self::Aarch64 => StateFootprintEvidence::new(
+                    calling_conventions::RegisterSet::new([
+                        calling_conventions::MachineRegister::Aarch64X(16),
+                    ]),
+                    calling_conventions::MachineStateSet::new([
+                        calling_conventions::MachineState::InstructionPointer,
+                    ]),
+                ),
+                Self::X86_64 => isa_x86_64::x86_64_import_thunk_footprint(),
+            }
+        }
+    }
+}
+
 #[cfg(test)]
-mod test_support;
+mod test_support {
+    use arena::Handle;
+    use image::{FinalImage, FinalImageMemory, FinalImageRelocation};
+
+    pub(crate) fn image(target: target::NativeTarget, memory: FinalImageMemory) -> FinalImage {
+        FinalImage::with_capacity(target, memory, Handle::invalid(), 0, 0, 0)
+    }
+
+    pub(crate) fn relocation_mut(
+        image: &mut FinalImage,
+        handle: Handle<FinalImageRelocation>,
+    ) -> &mut FinalImageRelocation {
+        image.relocation_table.relocations.get_mut(handle)
+    }
+}
+
 #[cfg(test)]
-mod tests;
+mod tests {
+    use image::{
+        FinalImage, FinalImageMemory, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
+    };
+    use object_file::{RelocationKind, SymbolKind};
+
+    fn word(bytes: &[u8], offset: usize) -> u32 {
+        u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
+    }
+
+    fn wide(bytes: &[u8], offset: usize) -> u64 {
+        u64::from_le_bytes(bytes[offset..offset + 8].try_into().unwrap())
+    }
+
+    fn segment<'image>(bytes: &'image [u8], name: &[u8; 16]) -> &'image [u8] {
+        let mut cursor = 32;
+        let mut matching = None;
+        for _ in 0..word(bytes, 16) {
+            let end = cursor + word(bytes, cursor + 4) as usize;
+            if word(bytes, cursor) == 0x19 && bytes.get(cursor + 8..cursor + 24) == Some(name) {
+                assert!(matching.replace(&bytes[cursor..end]).is_none());
+            }
+            cursor = end;
+        }
+        assert_eq!(cursor, 32 + word(bytes, 20) as usize);
+        matching.expect("one exact segment")
+    }
+
+    fn storage_image(data_size: usize, bss_size: usize, bss_alignment: usize) -> FinalImage {
+        storage_image_for(
+            target::NativeTarget::macos_arm64(),
+            0xd65f_03c0u32.to_le_bytes().to_vec(), // ret
+            data_size,
+            bss_size,
+            bss_alignment,
+        )
+    }
+
+    fn storage_image_for(
+        target: target::NativeTarget,
+        text: Vec<u8>,
+        data_size: usize,
+        bss_size: usize,
+        bss_alignment: usize,
+    ) -> FinalImage {
+        let text_size = text.len();
+        let mut image = crate::test_support::image(
+            target,
+            FinalImageMemory {
+                text,
+                data: vec![0; data_size],
+                bss_size,
+                bss_alignment,
+            },
+        );
+        image.symbol_table.entry_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "entry".into(),
+            section: FinalImageSection::Text,
+            size: text_size,
+            kind: SymbolKind::Function,
+            ..Default::default()
+        });
+        if data_size >= 8 && bss_size > 0 {
+            let storage = image.symbol_table.symbols.insert(FinalImageSymbol {
+                name: "storage".into(),
+                section: FinalImageSection::Bss,
+                size: bss_size,
+                ..Default::default()
+            });
+            image
+                .relocation_table
+                .relocations
+                .insert(FinalImageRelocation {
+                    section: FinalImageSection::Data,
+                    byte_width: 8,
+                    symbol_handle: storage,
+                    kind: RelocationKind::Absolute64,
+                    ..Default::default()
+                });
+        }
+        image
+    }
+
+    #[test]
+    fn emitted_bss_matches_relocated_storage_and_writable_segment() {
+        for (data_size, bss_size, alignment) in [
+            (13, 24, 16),
+            (13, 0x4000, 0x4000),
+            (16, 24, 16),
+            (0, 24, 16),
+            (0, 0x8000, 0x10000),
+        ] {
+            let output =
+                super::emit_macho_executable(storage_image(data_size, bss_size, alignment))
+                    .expect("emit storage image");
+            let data = segment(&output.bytes, b"__DATA\0\0\0\0\0\0\0\0\0\0");
+            let (sections, remainder) = data[72..].as_chunks::<80>();
+            assert!(remainder.is_empty());
+            assert_eq!(sections.len(), word(data, 64) as usize);
+            let bss = sections
+                .iter()
+                .find(|section| &section[..16] == b"__bss\0\0\0\0\0\0\0\0\0\0\0")
+                .expect("BSS section");
+            let bss_address = wide(bss, 32);
+            assert_eq!(
+                bss_address, output.final_image_layout.bss_address,
+                "loader and relocation disagree for data={data_size}, alignment={alignment}"
+            );
+            assert_eq!(bss_address % alignment as u64, 0);
+            assert_eq!(wide(bss, 40), bss_size as u64);
+            assert_eq!(word(bss, 48), 0, "zero-fill has no file payload");
+            assert_eq!(word(bss, 52), alignment.trailing_zeros());
+            assert_eq!(word(bss, 64), 1, "S_ZEROFILL");
+            assert_eq!(word(data, 56), 3, "maximum read/write, non-executable");
+            assert_eq!(word(data, 60), 3, "initial read/write, non-executable");
+            assert_eq!(wide(data, 48), data_size as u64);
+            assert!(bss_address >= wide(data, 24) + data_size as u64);
+            assert!(bss_address + bss_size as u64 <= wide(data, 24) + wide(data, 32));
+            let linkedit = segment(&output.bytes, b"__LINKEDIT\0\0\0\0\0\0");
+            assert!(wide(linkedit, 24) >= bss_address + bss_size as u64);
+            if data_size >= 8 {
+                assert_eq!(wide(&output.final_data_bytes, 0), bss_address);
+                let file_offset = wide(data, 40) as usize;
+                assert_eq!(wide(&output.bytes, file_offset), bss_address);
+            }
+        }
+    }
+
+    fn validate_mapping(
+        output: &image::ExecutableImageOutput,
+    ) -> Result<(), diagnostics::Diagnostic> {
+        super::validate_macho_loader_mapping(
+            &output.bytes,
+            output.final_image_layout,
+            &output.final_text_bytes,
+            &output.final_data_bytes,
+            output.bss_bytes,
+            target::NativeTarget::macos_arm64(),
+        )
+    }
+
+    fn x86_64_storage_image(data_size: usize, bss_size: usize, bss_alignment: usize) -> FinalImage {
+        storage_image_for(
+            target::NativeTarget::macos_x64(),
+            vec![0xc3], // ret
+            data_size,
+            bss_size,
+            bss_alignment,
+        )
+    }
+
+    fn validate_x86_64_mapping(
+        output: &image::ExecutableImageOutput,
+    ) -> Result<(), diagnostics::Diagnostic> {
+        super::validate_macho_loader_mapping(
+            &output.bytes,
+            output.final_image_layout,
+            &output.final_text_bytes,
+            &output.final_data_bytes,
+            output.bss_bytes,
+            target::NativeTarget::macos_x64(),
+        )
+    }
+
+    #[test]
+    fn x86_64_emission_writes_intel_cpu_fields_and_four_kib_pages() {
+        let output =
+            super::emit_macho_executable(x86_64_storage_image(13, 24, 16)).expect("emit x86-64");
+        assert_eq!(output.format, "mach-o-x86_64-executable");
+        assert_eq!(word(&output.bytes, 0), 0xfeed_facf);
+        assert_eq!(word(&output.bytes, 4), 0x0100_0007, "CPU_TYPE_X86_64");
+        assert_eq!(
+            word(&output.bytes, 8),
+            0x8000_0003,
+            "CPU_SUBTYPE_X86_64_ALL|LIB64"
+        );
+        let data = segment(&output.bytes, b"__DATA\0\0\0\0\0\0\0\0\0\0");
+        assert_eq!(wide(data, 40), 0x1000);
+        assert_eq!(output.final_image_layout.data_address, 0x1_0000_1000);
+        validate_x86_64_mapping(&output).expect("x86-64 loader mapping");
+    }
+
+    #[test]
+    fn x86_64_loader_mapping_accepts_storage_variations() {
+        for (data_size, bss_size, alignment) in [
+            (0, 0, 1),
+            (13, 0, 8),
+            (13, 0, 0x10000),
+            (0, 24, 16),
+            (13, 24, 16),
+            (13, 0x4000, 0x4000),
+            (0, 0x8000, 0x10000),
+        ] {
+            let output =
+                super::emit_macho_executable(x86_64_storage_image(data_size, bss_size, alignment))
+                    .expect("emit x86-64 storage variation");
+            validate_x86_64_mapping(&output).expect("exact x86-64 loader mapping");
+        }
+    }
+
+    #[test]
+    fn x86_64_loader_mapping_accepts_eager_import_storage() {
+        let mut image = storage_image_for(
+            target::NativeTarget::macos_x64(),
+            vec![0xc3, 0, 0, 0],
+            13,
+            24,
+            16,
+        );
+        let imported = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "_write".into(),
+            kind: SymbolKind::Import,
+            ..Default::default()
+        });
+        image.symbol_table.imports.insert(image::FinalImageImport {
+            symbol_handle: imported,
+            import: image::FinalImageImportPlan::StringBackedBootstrap {
+                library: String::new(),
+            },
+        });
+        image
+            .relocation_table
+            .relocations
+            .insert(FinalImageRelocation {
+                section: FinalImageSection::Text,
+                byte_width: 4,
+                symbol_handle: imported,
+                kind: RelocationKind::X86_64Relative32,
+                ..Default::default()
+            });
+        let output = super::emit_macho_executable(image).expect("emit x86-64 eager import");
+        validate_x86_64_mapping(&output).expect("x86-64 eager import loader mapping");
+        let thunk = output
+            .executable_regions
+            .regions
+            .iter()
+            .find(|region| region.origin == image::FinalExecutableRegionOrigin::ImportThunk)
+            .expect("x86-64 import thunk region");
+        assert_eq!(thunk.byte_count, 6);
+        let thunk_bytes = &output.final_text_bytes[thunk.section_offset..thunk.section_offset + 6];
+        assert_eq!(&thunk_bytes[..2], &[0xff, 0x25]);
+        super::validate_macho_import_binding_pairing(
+            &output.final_text_bytes,
+            &output.executable_regions,
+            &output.data_regions,
+            target::NativeTarget::macos_x64(),
+        )
+        .expect("x86-64 thunk↔slot pairing");
+    }
+
+    #[test]
+    fn macho_emission_refuses_a_target_off_the_two_supported_diagonals() {
+        let elf = storage_image_for(target::NativeTarget::linux_x64(), vec![0xc3], 0, 0, 1);
+        assert!(super::emit_macho_executable(elf).is_err());
+    }
+
+    fn segment_offset(bytes: &[u8], name: &[u8; 16]) -> usize {
+        segment(bytes, name).as_ptr() as usize - bytes.as_ptr() as usize
+    }
+
+    #[test]
+    fn loader_mapping_accepts_storage_variations() {
+        for (data_size, bss_size, alignment) in [
+            (0, 0, 1),
+            (13, 0, 8),
+            (13, 0, 0x10000),
+            (0, 24, 16),
+            (13, 24, 16),
+            (13, 0x4000, 0x4000),
+            (0, 0x8000, 0x10000),
+        ] {
+            let output =
+                super::emit_macho_executable(storage_image(data_size, bss_size, alignment))
+                    .expect("emit storage variation");
+            validate_mapping(&output).expect("exact loader mapping");
+        }
+    }
+
+    #[test]
+    fn loader_mapping_accepts_eager_import_storage() {
+        for name in ["_write", "_objc_msgSend"] {
+            let mut image = storage_image(13, 24, 16);
+            crate::codec_bytes::patch_encoded(
+                &mut image.memory.text,
+                0,
+                0x9400_0000u32.to_le_bytes(),
+            );
+            let imported = image.symbol_table.symbols.insert(FinalImageSymbol {
+                name: name.into(),
+                kind: SymbolKind::Import,
+                ..Default::default()
+            });
+            image.symbol_table.imports.insert(image::FinalImageImport {
+                symbol_handle: imported,
+                import: image::FinalImageImportPlan::StringBackedBootstrap {
+                    library: String::new(),
+                },
+            });
+            image
+                .relocation_table
+                .relocations
+                .insert(FinalImageRelocation {
+                    section: FinalImageSection::Text,
+                    byte_width: 4,
+                    symbol_handle: imported,
+                    kind: RelocationKind::Aarch64Branch26,
+                    ..Default::default()
+                });
+            let output = super::emit_macho_executable(image).expect("emit eager import");
+            validate_mapping(&output).expect("eager import loader mapping");
+        }
+    }
+
+    #[test]
+    fn loader_mapping_rejects_segment_and_zero_fill_corruption() {
+        let original =
+            super::emit_macho_executable(storage_image(13, 24, 16)).expect("emit storage image");
+        let data_offset = segment_offset(&original.bytes, b"__DATA\0\0\0\0\0\0\0\0\0\0");
+        let text_offset = segment_offset(&original.bytes, b"__TEXT\0\0\0\0\0\0\0\0\0\0");
+        let linkedit_offset = segment_offset(&original.bytes, b"__LINKEDIT\0\0\0\0\0\0");
+        for mutation in 0..10 {
+            let mut output = original.clone();
+            match mutation {
+                0 => output.bytes[data_offset + 68..data_offset + 72]
+                    .copy_from_slice(&1u32.to_le_bytes()),
+                1 => output.bytes[data_offset + 40..data_offset + 48]
+                    .copy_from_slice(&0u64.to_le_bytes()),
+                2 => {
+                    output.bytes[40..56].copy_from_slice(b"__ALIAS\0\0\0\0\0\0\0\0\0");
+                    output.bytes[56..64]
+                        .copy_from_slice(&output.final_image_layout.data_address.to_le_bytes());
+                }
+                3 => output.bytes[data_offset + 60..data_offset + 64]
+                    .copy_from_slice(&7u32.to_le_bytes()),
+                4 => output.bytes[text_offset + 24..text_offset + 32]
+                    .copy_from_slice(&0u64.to_le_bytes()),
+                5 => output.bytes[linkedit_offset + 24..linkedit_offset + 32]
+                    .copy_from_slice(&output.final_image_layout.data_address.to_le_bytes()),
+                6 => {
+                    let bss_file_offset = wide(&output.bytes, data_offset + 40) as usize
+                        + (output.final_image_layout.bss_address
+                            - output.final_image_layout.data_address)
+                            as usize;
+                    output.bytes[bss_file_offset] = 1;
+                }
+                7 => {
+                    let file_offset = wide(&output.bytes, data_offset + 40) as usize;
+                    output.bytes[file_offset] ^= 1;
+                }
+                8 => output.bytes[data_offset + 32..data_offset + 40]
+                    .copy_from_slice(&u64::MAX.to_le_bytes()),
+                _ => output.bytes[text_offset + 68..text_offset + 72]
+                    .copy_from_slice(&1u32.to_le_bytes()),
+            }
+            assert!(validate_mapping(&output).is_err(), "mutation {mutation}");
+        }
+    }
+
+    fn code_signature_identifier(bytes: &[u8]) -> String {
+        super::code_signature_identifier(bytes).expect("one signed CodeDirectory identifier")
+    }
+
+    #[test]
+    fn authored_identifier_is_bound_into_the_code_directory() {
+        let fallback = super::emit_macho_executable(storage_image(13, 24, 16))
+            .expect("emit leaf-fallback image");
+        assert_eq!(code_signature_identifier(&fallback.bytes), "omega-program");
+        assert_eq!(fallback.file_name, "omega-program");
+        let signed =
+            super::emit_macho_executable_signed(storage_image(13, 24, 16), "com.omega.window-app")
+                .expect("emit authored-identifier image");
+        assert_eq!(
+            code_signature_identifier(&signed.bytes),
+            "com.omega.window-app"
+        );
+        assert_ne!(
+            fallback.bytes, signed.bytes,
+            "the signing identity is part of the emitted bytes"
+        );
+        let repeated =
+            super::emit_macho_executable_signed(storage_image(13, 24, 16), "com.omega.window-app")
+                .expect("re-emit authored-identifier image");
+        assert_eq!(
+            signed.bytes, repeated.bytes,
+            "signed emission is deterministic for one bound identifier"
+        );
+        assert!(
+            super::emit_macho_executable_signed(storage_image(13, 24, 16), "").is_err(),
+            "an empty signing identifier rejects before image emission"
+        );
+    }
+
+    #[test]
+    fn loader_mapping_rejects_malformed_command_envelopes() {
+        let original =
+            super::emit_macho_executable(storage_image(0, 24, 16)).expect("emit storage image");
+        for (offset, value) in [
+            (0, 0),
+            (12, 1),
+            (24, 0),
+            (28, 1),
+            (16, u32::MAX),
+            (16, 1),
+            (20, u32::MAX),
+            (36, 0),
+            (36, 7),
+            (36, u32::MAX),
+            (32, 0x8000_0034),
+        ] {
+            let mut output = original.clone();
+            crate::codec_bytes::patch_encoded(&mut output.bytes, offset, value.to_le_bytes());
+            assert!(
+                validate_mapping(&output).is_err(),
+                "offset {offset}, value {value}"
+            );
+        }
+        for length in [0, 7, 31, 40, original.bytes.len() - 1] {
+            let mut output = original.clone();
+            output.bytes.truncate(length);
+            assert!(
+                validate_mapping(&output).is_err(),
+                "truncated length {length}"
+            );
+        }
+    }
+}
 
 pub use dyld_linking::imports::validate_macho_import_binding_pairing;
 use dyld_linking::imports::{
@@ -122,27 +666,12 @@ use dyld_linking::rebases::macho_rebase_info_for_segment;
 use entry_symbol::macho_entry_text_offset;
 use isa::MachoIsa;
 
-/// The executable leaf published today; it doubles as the ad-hoc signing
-/// label when the build authored no application identifier
-/// (wiki/spec/build/macos_application.md). The universal leaf is replaced when
-/// the validated application name reaches image emission; an authored
-/// identifier is bound through [`emit_macho_executable_signed`] instead.
 const OMEGA_EXECUTABLE_LEAF: &str = "omega-program";
 
-/// Emit with the console fallback: the executable leaf is the ad-hoc
-/// CodeDirectory label because no authored application identifier was bound.
 pub fn emit_macho_executable(image: FinalImage) -> Result<ExecutableImageOutput, Diagnostic> {
     emit_macho_executable_signed(image, OMEGA_EXECUTABLE_LEAF)
 }
 
-/// Emit one signed executable binding `code_signature_identifier` as the
-/// CodeDirectory identity.
-///
-/// The identifier must be the build-validated authored application
-/// identifier; it enters the planned `LC_CODE_SIGNATURE` extent before any
-/// load command is written and is embedded verbatim in the CodeDirectory
-/// after the finished bytes are hashed. Publication cannot substitute or
-/// re-sign with a different identity.
 pub fn emit_macho_executable_signed(
     image: FinalImage,
     code_signature_identifier: &str,
@@ -159,8 +688,6 @@ pub fn emit_macho_executable_signed(
         final_image_layout: layout,
         final_text_bytes: image.memory.text.clone(),
         final_data_bytes: image.memory.data.clone(),
-        // Mach-O binding slots already live inside `image.memory.data`, so the
-        // emitted file carries no separate import-data extent.
         final_import_data_bytes: Vec::new(),
         bytes,
         file_name: OMEGA_EXECUTABLE_LEAF.to_owned(),
@@ -210,8 +737,6 @@ fn emit_macho_container_contents(
     }
     let imports = install_import_thunks(&mut image, isa)?;
     let import_thunks = imports.thunks;
-    // The exact ordered set of dylibs and every image-local ordinal were
-    // preflighted before import-thunk installation mutated the final image.
     let dylibs = imports.dylibs;
     let data_segment = file_layout::plan::macho_data_segment_index(&image, identity.is_some());
     let bind_info = macho_bind_info_for_segment(&import_thunks, data_segment.unwrap_or(0))?;
@@ -297,7 +822,6 @@ fn emit_macho_container_contents(
     if let Some(identity) = identity {
         write_macho_id_dylib_command(&mut bytes, identity);
     }
-    // One LC_LOAD_DYLIB per linked dylib, in ordinal order (libSystem first).
     for dylib in &dylibs {
         write_macho_load_dylib_command(&mut bytes, dylib);
     }
@@ -347,8 +871,6 @@ fn emit_macho_container_contents(
         isa,
         identity.is_none(),
     );
-    // This blob and `plan.code_signature_size` come from one layout; the
-    // container mapping check below pins the recorded extent to the file end.
     bytes.extend(code_signature);
 
     dyld_linking::loader_mapping::validate_macho_container_mapping(

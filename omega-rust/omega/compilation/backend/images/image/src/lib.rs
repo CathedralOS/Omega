@@ -1,112 +1,52 @@
-//! The format-neutral final image: object plan in, patched bytes and replay
-//! evidence out. No container is emitted here - ELF, PE and Mach-O each build
-//! their own on top of what this produces.
-//!
-//! `build_final_image` copies an `ObjectPlan` and a `RelocationPlan` into a
-//! `FinalImage` (bytes, symbols, imports, relocations, executable regions).
-//! The emitters then hand back a `FinalImageLayout` naming the addresses they
-//! chose, and `apply_relocations` patches the fields in place against it.
-//!
-//! The load-bearing trick is that symbol handles are not remapped. A
-//! `FinalImageSymbolHandle` reuses its `ObjectSymbolHandle`'s raw coordinate:
-//!
-//! ```text
-//!   final_image_symbol_handle(symbol) = Handle::from_parts(
-//!       symbol.arena_index(), symbol.generation())
-//! ```
-//!
-//! Two distinct `Handle<T>` types with identical eight-byte layout, kept apart
-//! by the type parameter alone, and the index is carried across rather than
-//! translated. That is sound only because `copy_object_symbols` inserts into an
-//! arena the builder just created empty, in one `insert_many` over the object's
-//! own iteration order, so entry N lands at index N with generation 1. An
-//! object symbol that had ever been removed and reinserted would carry
-//! generation 2 or more and the copied handle would resolve to the dummy.
-//! `copy_object_relocations` is the only place that re-checks: it runs the
-//! copied handle through `symbols.is_valid` and downgrades a handle that does
-//! not resolve to `Handle::invalid()` rather than storing a coordinate that
-//! points at the wrong symbol.
-//!
-//! The relocation arithmetic, with the constants the ISA forces on us, lives
-//! in `relocations.rs`, which states each kind's field geometry once.
-//! `relocation_envelope.rs` turns that same declaration around, as
-//! little-endian byte masks, to prove afterwards that only the relocation
-//! fields moved: `Aarch64Page21 -> [0xe0, 0xff, 0xff, 0x60]` is exactly
-//! `(0b11 << 29) | (0x7ffff << 5)` written out as `to_le_bytes`. The mask
-//! table that used to live in the envelope as a hand-kept second copy is gone;
-//! `each_relocation_kind_masks_exactly_its_declared_field_bits` pins the single
-//! declaration against independent byte masks.
-//!
-//! Text and data envelopes are deliberately asymmetric. A final `.text` buffer
-//! may be LONGER than the encoded input, and only the encoded-length prefix is
-//! validated, because the PE and Mach-O emitters append import thunks after the
-//! compiler's own code. Initialized data gets no such latitude: every
-//! `Data`-section relocation must be `Absolute64`, exactly eight bytes wide,
-//! eight-byte aligned, non-overlapping and in bounds.
+/*
+We build the format-neutral final image (`FinalImage`) from an `ObjectPlan` and
+its `RelocationPlan`, apply architecture-specific relocations in place once a
+container backend supplies its chosen virtual section layout
+(`FinalImageLayout`), and emit the strong SHA-256 and compact FNV-1a evidence
+digests that downstream verifiers replay. No container headers are emitted
+here: `image-elf`, `image-pe`, and `image-macho` each wrap `FinalImage` in
+their own wire format while sharing our symbol table, relocation arithmetic,
+and placed region inventories.
 
-//! Every evidence structure here is hashed twice, and the compact hash is never
-//! allowed to stand for the strong one. The strong lane is SHA-256 over a
-//! NUL-terminated versioned domain string; the compact lane is FNV-1a 64. The
-//! reason both exist is a report that wants a short number to print, and the
-//! reason the short number cannot be trusted is that it collides: the test
-//! `compact_collision_cannot_substitute_strong_compiler_text_evidence` builds
-//! two evidence values that agree on the fingerprint and differ on the digest,
-//! and requires the pair to be rejected.
-//!
-//! That distinction is enforced by a NAMING RULE rather than by the type
-//! system. A compact value must be spelled `*_report_fingerprint` and never a
-//! bare `*_fingerprint`, and what checks it is
-//! `tests/architecture/native_image_identity.rs`, which reads this crate's
-//! source as text and asserts that `pub byte_fingerprint: u64`,
-//! `pub text_fingerprint: u64` and `pub inventory_fingerprint: u64` do not
-//! appear. A `ReportFingerprint(u64)` newtype would have made it a type error
-//! instead. It was not taken, and it is worth being honest that a string search
-//! in another crate is the weaker instrument - it cannot see a field introduced
-//! through a type alias or a macro.
-//!
-//! Rebuilding the symbol mapping by name into a hash map was the alternative to
-//! reusing handle coordinates. It loses twice: duplicate symbol names have no
-//! single answer, and the repository's baseline is arenas over hash maps.
-//!
-//! When an import carries both a normalized foreign locator and a legacy
-//! `import_library` string, the locator wins and the symbol's own spelling is
-//! ignored rather than merged. `final_image_keeps_normalized_import_atomic_and
-//! _ignores_symbol_spelling` in `tests.rs` pins that by setting the string to
-//! `"must-not-win.dll"`.
+Our symbol handles (`FinalImageSymbolHandle`) deliberately reuse the raw
+`(arena_index, generation)` coordinates of their source `ObjectSymbolHandle`
+without building a secondary hash map. That zero-remap handoff holds because
+`copy_object_symbols` populates a fresh symbol arena in a single pass over the
+object's iteration order, and `copy_object_relocations` downgrades any handle
+that fails `symbols.is_valid` to `Handle::invalid()`. Text and data relocation
+envelopes are intentionally asymmetric: `.text` validates only the
+compiler-encoded prefix because PE and Mach-O append import thunks after
+compiler code, whereas `.data` requires every relocation to be an in-bounds,
+non-overlapping, eight-byte-aligned `Absolute64` slot.
+*/
 
-//! Consumed by `image-elf`, `image-pe`, `image-macho` and
-//! `image-emission`, which each take `FinalImage` plus
-//! `place_executable_regions` and add their own container.
-//!
-//! @Note: the inventory replay is NOT inert:
-//! `validate_placed_executable_region_inventory` runs in production
-//! from image-emission's `validate_terminal_image_with_import_count` and the
-//! retained-image evidence consumers,
-//! and the PE and Mach-O emitters attach thunk footprints through
-//! `validate_import_thunk_footprints`, which placement then carries into
-//! `PlacedExecutableRegion.footprint`. Only the compiler-entry footprint
-//! binding still waits for a caller.
-//!
-//! @Note: do not decide what is dead here by grepping for type names. The
-//! `CompilerEntryRegionBindingEvidence` and `CompilerEntryFootprintBindingEvidence`
-//! types have no external occurrence of their names at all, and are both live:
-//! `NativeArtifact::recomputed_identity` in `native-artifact/src/native_artifact.rs`
-//! reaches them through
-//! `output.compiler_entry_region_binding` and destructures the fields without
-//! ever spelling the type. Acting on a name grep there would have broken a
-//! consumer crate's build.
+/*
+Every evidence carrier pairs a strong 32-byte SHA-256 digest over a versioned
+domain string with a compact 64-bit FNV-1a reporting fingerprint. Because compact
+fingerprints can collide, we enforce a strict `*_report_fingerprint` naming
+discipline so compact coordinates never stand in for strong digests during
+artifact admission or equivalence checks. When an import symbol carries both a
+normalized foreign locator and a legacy `import_library` string, the normalized
+locator wins unconditionally so object-local symbol spellings never override
+target-validated import identity.
+*/
 
-/// The `[u8; 32]` strong-digest newtype every image evidence and region
-/// inventory declares — one wrapper shape the whole crate shares.
+/*
+`image-elf`, `image-pe`, `image-macho`, and `image-emission` consume
+`FinalImage`, `apply_relocations`, `place_executable_regions`, and
+`place_data_regions` to produce and verify executable and shared-component
+containers. Notice that `CompilerEntryRegionBindingEvidence` and
+`CompilerEntryFootprintBindingEvidence` are destructured through field access
+in `native-artifact` without naming their types directly, so both carriers
+remain load-bearing across crate boundaries.
+*/
+
 macro_rules! image_digest {
     ($name:ident) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct $name([u8; 32]);
 
         impl $name {
-            /// Reconstruct the strong digest carried by checked custody
-            /// evidence so an independent receiver can recompute the same
-            /// commitment without the producing image.
             pub const fn from_digest(digest: [u8; 32]) -> Self {
                 Self(digest)
             }
@@ -118,14 +58,6 @@ macro_rules! image_digest {
     };
 }
 
-/// The rejection carrier every container backend returns when a route refuses
-/// while retaining its complete original inputs — one owner for the accessor
-/// pair, the `Display` over the carried diagnostic, and the `Error` marker.
-///
-/// The backend keeps its own carrier declaration: the name, visibility,
-/// `#[must_use]` message and retained fields are that route's custody decision
-/// and stay written at the route. Invoke with the fields in `into_parts`
-/// order; the diagnostic is appended to the returned tuple.
 #[macro_export]
 macro_rules! rejection_carrier {
     ($name:ident; $($field:ident: $ty:ty),+ $(,)?) => {
@@ -146,16 +78,358 @@ macro_rules! rejection_carrier {
 }
 
 mod builder;
-pub mod codec_bytes;
+pub mod codec_bytes {
+    pub fn write_u16(bytes: &mut Vec<u8>, value: u16) {
+        bytes.extend(value.to_le_bytes());
+    }
+
+    pub fn write_u32(bytes: &mut Vec<u8>, value: u32) {
+        bytes.extend(value.to_le_bytes());
+    }
+
+    pub fn write_u64(bytes: &mut Vec<u8>, value: u64) {
+        bytes.extend(value.to_le_bytes());
+    }
+
+    #[cfg(test)]
+    pub(crate) use optimization_core::codec_bytes::patch_encoded;
+}
+
 mod final_image;
 pub(crate) use optimization_core::digest_encoder;
 mod output;
-mod patch_bytes;
+mod patch_bytes {
+    use std::ops::Range;
+
+    use diagnostics::Diagnostic;
+
+    pub(crate) fn read_u32(
+        bytes: &[u8],
+        offset: usize,
+        relocation_name: &str,
+    ) -> Result<u32, Diagnostic> {
+        let slice = &bytes[relocation_range(bytes.len(), offset, 4, relocation_name)?];
+        Ok(u32::from_le_bytes(
+            slice.try_into().expect("u32 relocation slice has length 4"),
+        ))
+    }
+
+    pub(crate) fn write_u32(
+        bytes: &mut [u8],
+        offset: usize,
+        value: u32,
+        relocation_name: &str,
+    ) -> Result<(), Diagnostic> {
+        write_bytes(bytes, offset, &value.to_le_bytes(), relocation_name)
+    }
+
+    pub(crate) fn write_u64(
+        bytes: &mut [u8],
+        offset: usize,
+        value: u64,
+        relocation_name: &str,
+    ) -> Result<(), Diagnostic> {
+        write_bytes(bytes, offset, &value.to_le_bytes(), relocation_name)
+    }
+
+    pub(crate) fn write_i32(
+        bytes: &mut [u8],
+        offset: usize,
+        value: i32,
+        relocation_name: &str,
+    ) -> Result<(), Diagnostic> {
+        write_bytes(bytes, offset, &value.to_le_bytes(), relocation_name)
+    }
+
+    fn write_bytes(
+        bytes: &mut [u8],
+        offset: usize,
+        value: &[u8],
+        relocation_name: &str,
+    ) -> Result<(), Diagnostic> {
+        let range = relocation_range(bytes.len(), offset, value.len(), relocation_name)?;
+        bytes[range].copy_from_slice(value);
+        Ok(())
+    }
+
+    fn relocation_range(
+        bytes_len: usize,
+        offset: usize,
+        width: usize,
+        relocation_name: &str,
+    ) -> Result<Range<usize>, Diagnostic> {
+        let end = offset.checked_add(width).ok_or_else(|| {
+            Diagnostic::error(format!("{relocation_name} relocation offset overflow"))
+        })?;
+        if end > bytes_len {
+            return Err(Diagnostic::error(format!(
+                "{relocation_name} relocation offset {offset} is outside text section"
+            )));
+        }
+        Ok(offset..end)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::write_u64;
+
+        #[test]
+        fn reports_out_of_bounds_relocation_patches() {
+            let mut bytes = [0u8; 4];
+            let diagnostic =
+                write_u64(&mut bytes, 1, 0x1234, "test").expect_err("patch should exceed text");
+
+            assert!(
+                diagnostic
+                    .message
+                    .contains("test relocation offset 1 is outside text section")
+            );
+        }
+    }
+}
+
 mod relocation_envelope;
 mod relocations;
-mod symbols;
+mod symbols {
+    use crate::final_image::{
+        FinalImage, FinalImageLayout, FinalImageSection, FinalImageSymbol, FinalImageSymbolHandle,
+    };
+    use arena::Handle;
+    use object_file::{ObjectSymbolHandle, SectionKind, SymbolSection};
+
+    pub(crate) fn final_image_symbol_handle(symbol: ObjectSymbolHandle) -> FinalImageSymbolHandle {
+        if symbol.is_valid() {
+            Handle::from_parts(symbol.arena_index(), symbol.generation())
+        } else {
+            FinalImageSymbolHandle::invalid()
+        }
+    }
+
+    pub fn final_image_symbol_address(
+        image: &FinalImage,
+        symbol: FinalImageSymbolHandle,
+        layout: &FinalImageLayout,
+    ) -> Option<u64> {
+        let symbol = image.symbol_table.symbol(symbol)?;
+        let section_address = match symbol.section {
+            FinalImageSection::Text => layout.text_address,
+            FinalImageSection::Data => layout.data_address,
+            FinalImageSection::Bss => layout.bss_address,
+            FinalImageSection::None => return None,
+        };
+
+        Some(section_address + symbol.offset as u64)
+    }
+
+    pub fn final_image_imports_symbol(image: &FinalImage, symbol: FinalImageSymbolHandle) -> bool {
+        image
+            .symbol_table
+            .imports
+            .iter()
+            .any(|(_, import)| import.symbol_handle == symbol)
+    }
+
+    pub fn final_image_symbol_name(image: &FinalImage, symbol: FinalImageSymbolHandle) -> &str {
+        image
+            .symbol_table
+            .symbol(symbol)
+            .map_or("", |symbol| symbol.name.as_str())
+    }
+
+    pub fn final_image_entry_symbol<'a>(
+        image: &'a FinalImage,
+        format: &'static str,
+    ) -> Result<&'a FinalImageSymbol, diagnostics::Diagnostic> {
+        let entry_symbol = image
+            .symbol_table
+            .symbol(image.symbol_table.entry_symbol)
+            .ok_or_else(|| {
+                diagnostics::Diagnostic::error(format!(
+                    "{format} entry symbol `{}` is missing from the final image",
+                    final_image_symbol_name(image, image.symbol_table.entry_symbol)
+                ))
+            })?;
+
+        if entry_symbol.section != FinalImageSection::Text {
+            return Err(diagnostics::Diagnostic::error(format!(
+                "{format} entry symbol `{}` is not in the text section",
+                final_image_symbol_name(image, image.symbol_table.entry_symbol)
+            )));
+        }
+
+        Ok(entry_symbol)
+    }
+
+    pub(crate) fn final_image_section(section: SymbolSection) -> FinalImageSection {
+        match section {
+            SymbolSection::None => FinalImageSection::None,
+            SymbolSection::Section(SectionKind::Text) => FinalImageSection::Text,
+            SymbolSection::Section(SectionKind::Data) => FinalImageSection::Data,
+            SymbolSection::Section(SectionKind::Bss) => FinalImageSection::Bss,
+        }
+    }
+}
+
 #[cfg(test)]
-mod tests;
+mod tests {
+    use crate::{FinalImageImportPlan, FinalImageInput, build_final_image};
+    use object_file::{
+        NormalizedImportPlan, ObjectPlan, RelocationPlan, SymbolKind, SymbolPlan, SymbolSection,
+    };
+    use target::{ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator};
+
+    #[test]
+    fn final_image_keeps_normalized_import_atomic_and_ignores_symbol_spelling() {
+        let target = NativeTarget::windows_x64();
+        let locator = normalize_foreign_locator(
+            ForeignLocatorCandidate::PeByOrdinal {
+                library: b"raw\xff.dll".to_vec(),
+                ordinal: 23,
+            },
+            TargetProfile::WindowsX64,
+        )
+        .expect("valid PE locator");
+        let mut object = ObjectPlan::with_capacity(target, 0, 1);
+        let symbol = object.layout.symbols.insert(SymbolPlan {
+            name: "diagnostic-only".into(),
+            section: SymbolSection::None,
+            offset: 0,
+            size: 0,
+            kind: SymbolKind::Import,
+            import_library: "must-not-win.dll".into(),
+        });
+        object.layout.normalized_imports.push(NormalizedImportPlan {
+            symbol,
+            locator: locator.clone().into(),
+        });
+        let relocations = RelocationPlan::with_target(target);
+
+        let image = build_final_image(FinalImageInput {
+            target,
+            object: &object,
+            relocations: &relocations,
+            text_bytes: &[],
+            data_bytes: &[],
+        });
+        let import = image.symbol_table.imports.iter().next().unwrap().1;
+        assert_eq!(
+            &import.import,
+            &FinalImageImportPlan::Normalized((locator).into()),
+            "normalized coordinates must win atomically over legacy symbol fields"
+        );
+    }
+
+    #[test]
+    fn object_kind_text_symbols_place_as_read_only_data_beside_code() {
+        use crate::{FinalExecutableRegionOrigin, FinalImageLayout, place_executable_regions};
+        use object_file::SectionKind;
+        let target = NativeTarget::macos_arm64();
+        let mut object = ObjectPlan::with_capacity(target, 1, 2);
+        for (name, offset, size, kind) in [
+            ("code", 0, 8, SymbolKind::Function),
+            ("pool", 8, 8, SymbolKind::Object),
+        ] {
+            object.layout.symbols.insert(SymbolPlan {
+                name: name.into(),
+                section: SymbolSection::Section(SectionKind::Text),
+                offset,
+                size,
+                kind,
+                import_library: String::new(),
+            });
+        }
+        let relocations = RelocationPlan::with_target(target);
+        let text = [
+            0x1f, 0x20, 0x03, 0xd5, 0x1f, 0x20, 0x03, 0xd5, b'D', b'o', b'o', b'r', 0, 0, 0, 0,
+        ];
+        let image = build_final_image(FinalImageInput {
+            target,
+            object: &object,
+            relocations: &relocations,
+            text_bytes: &text,
+            data_bytes: &[],
+        });
+        let origins = image
+            .executable_regions
+            .iter()
+            .map(|region| (region.symbol.as_str(), region.origin))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            origins,
+            [
+                ("code", FinalExecutableRegionOrigin::CompilerFunction),
+                ("pool", FinalExecutableRegionOrigin::CompilerReadOnlyData),
+            ]
+        );
+        let inventory = place_executable_regions(
+            &image,
+            FinalImageLayout {
+                text_address: 0x1_0000_4000,
+                data_address: 0,
+                bss_address: 0,
+            },
+        )
+        .unwrap();
+        assert!(inventory.unclassified_gaps.is_empty());
+    }
+
+    #[test]
+    fn executable_extent_uses_resolved_bytes_and_preserves_placement_refusals() {
+        use crate::{
+            FinalExecutableRegion, FinalExecutableRegionOrigin, place_executable_extent,
+            validate_placed_executable_region_inventory,
+        };
+        let text = [11, 23, 47, 89, 131, 173];
+        let region = FinalExecutableRegion {
+            origin: FinalExecutableRegionOrigin::CompilerFunction,
+            section_offset: 2,
+            byte_count: 2,
+            symbol: "resolved".to_owned(),
+            footprint: None,
+            entry_effects: None,
+        };
+        let inventory = place_executable_extent(&text, vec![region.clone()], 0x4000).unwrap();
+        assert_eq!(inventory.text_byte_count, 6);
+        assert_eq!(inventory.regions[0].address, 0x4002);
+        assert_eq!(inventory.unclassified_gaps.len(), 2);
+        assert_eq!(inventory.unclassified_gaps[0].byte_count, 2);
+        assert_eq!(inventory.unclassified_gaps[1].section_offset, 4);
+        validate_placed_executable_region_inventory(&inventory, &text).unwrap();
+        for index in [0, 2, 5] {
+            let mut changed = text;
+            changed[index] ^= 1;
+            assert!(validate_placed_executable_region_inventory(&inventory, &changed).is_err());
+        }
+        let overlapping = FinalExecutableRegion {
+            section_offset: 3,
+            ..region.clone()
+        };
+        assert!(
+            place_executable_extent(&text, vec![region.clone(), overlapping], 0x4000)
+                .unwrap_err()
+                .to_string()
+                .contains("overlaps")
+        );
+        let outside = FinalExecutableRegion {
+            section_offset: 5,
+            ..region.clone()
+        };
+        assert!(
+            place_executable_extent(&text, vec![outside], 0x4000)
+                .unwrap_err()
+                .to_string()
+                .contains("exceeds .text size")
+        );
+        assert!(
+            place_executable_extent(&text, vec![region], u64::MAX)
+                .unwrap_err()
+                .to_string()
+                .contains("address overflows")
+        );
+        let empty = place_executable_extent(&[], Vec::new(), 0).unwrap();
+        validate_placed_executable_region_inventory(&empty, &[]).unwrap();
+    }
+}
 
 pub use builder::{FinalImageInput, build_final_image};
 pub use final_image::{
@@ -185,13 +459,11 @@ pub use symbols::{
     final_image_symbol_name,
 };
 
-/// Round `value` up to a multiple of `alignment` (a zero alignment is one).
 pub fn align_to(value: usize, alignment: usize) -> usize {
     let alignment = alignment.max(1);
     value.div_ceil(alignment) * alignment
 }
 
-/// The `u64` spelling of [`align_to`].
 pub fn align_to_u64(value: u64, alignment: u64) -> u64 {
     let alignment = alignment.max(1);
     value.div_ceil(alignment) * alignment

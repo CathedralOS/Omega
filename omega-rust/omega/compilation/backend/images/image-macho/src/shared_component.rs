@@ -1,13 +1,9 @@
-//! Separately loadable Mach-O component containers with exact symbolic exports.
-//!
-//! The original FinalImage and caller-selected export roster remain owned beside
-//! emitted bytes. MH_DYLIB, its install name and export trie are distinct from a
-//! process MH_EXECUTE: no LC_MAIN, process entry or InstalledCode authority is
-//! inferred from producing a container. Relocations, dyld bindings and signing
-//! use the same format owners as ordinary Mach-O emission.
-//!
-//! Wire authority: Apple's mach-o/loader.h and dyld MachOAnalyzer; a dylib must
-//! carry LC_ID_DYLIB, and exports name offsets relative to its preferred header.
+/*
+We emit separately loadable Mach-O `MH_DYLIB` shared components with
+deterministic ULEB128 export tries (`LC_DYLD_EXPORTS_TRIE`) and `LC_ID_DYLIB`
+identities while replaying the emitted trie to verify that every exported
+symbol resolves to its exact relocated `.text` offset.
+*/
 
 use diagnostics::Diagnostic;
 use image::{FinalImage, FinalImageSymbolHandle};
@@ -39,7 +35,6 @@ impl MachoSharedComponentImage {
     pub fn exports(&self) -> &[MachoComponentExport] {
         &self.exports
     }
-    /// Exact relocated text retained by the format owner for target replay.
     pub fn final_text_bytes(&self) -> &[u8] {
         &self.final_text_bytes
     }
@@ -61,7 +56,193 @@ image::rejection_carrier!(
     exports: Vec<MachoComponentExport>,
 );
 
-mod exports;
+mod exports {
+    use crate::dyld_linking::write_uleb128;
+    use diagnostics::Diagnostic;
+
+    #[derive(Default)]
+    struct Node {
+        address: Option<u64>,
+        children: Vec<(u8, usize)>,
+    }
+
+    fn invalid(reason: &str) -> Diagnostic {
+        Diagnostic::error(format!("Mach-O component export trie: {reason}"))
+    }
+
+    pub(super) fn encode(exports: &[(Vec<u8>, u64)]) -> Result<Vec<u8>, Diagnostic> {
+        let mut nodes = vec![Node::default()];
+        for (name, address) in exports {
+            if name.is_empty() || name.contains(&0) {
+                return Err(invalid(
+                    "export name is absent or outside the supported byte extent",
+                ));
+            }
+            let mut node = 0;
+            for byte in name {
+                let next = if let Some((_, index)) =
+                    nodes[node].children.iter().find(|(edge, _)| edge == byte)
+                {
+                    *index
+                } else {
+                    let index = nodes.len();
+                    nodes.push(Node::default());
+                    nodes[node].children.push((*byte, index));
+                    index
+                };
+                node = next;
+            }
+            if nodes[node].address.replace(*address).is_some() {
+                return Err(invalid("duplicate exported name"));
+            }
+        }
+        for node in &mut nodes {
+            node.children.sort_unstable_by_key(|(byte, _)| *byte);
+        }
+        let encode_node = |node: &Node, offsets: &[usize]| -> Result<Vec<u8>, Diagnostic> {
+            let mut terminal = Vec::new();
+            if let Some(address) = node.address {
+                write_uleb128(&mut terminal, 0); // Regular symbol, no reexport/resolver flags.
+                write_uleb128(&mut terminal, address);
+            }
+            let mut bytes = Vec::new();
+            write_uleb128(&mut bytes, terminal.len() as u64);
+            bytes.extend(terminal);
+            bytes.push(
+                u8::try_from(node.children.len())
+                    .map_err(|_| invalid("node child count overflows"))?,
+            );
+            for (edge, child) in &node.children {
+                bytes.extend([*edge, 0]);
+                write_uleb128(&mut bytes, offsets[*child] as u64);
+            }
+            Ok(bytes)
+        };
+        let mut offsets = vec![0; nodes.len()];
+        for _ in 0..nodes.len().saturating_mul(10).saturating_add(1) {
+            let mut next = Vec::with_capacity(nodes.len());
+            let mut bytes = Vec::new();
+            for node in &nodes {
+                next.push(bytes.len());
+                bytes.extend(encode_node(node, &offsets)?);
+            }
+            if next == offsets {
+                return Ok(bytes);
+            }
+            offsets = next;
+        }
+        Err(invalid(
+            "child-offset layout did not reach its finite fixed point",
+        ))
+    }
+
+    fn unsigned(bytes: &[u8], cursor: &mut usize) -> Result<u64, Diagnostic> {
+        let mut value = 0u64;
+        for shift in (0..70).step_by(7) {
+            let byte = *bytes
+                .get(*cursor)
+                .ok_or_else(|| invalid("truncated ULEB"))?;
+            *cursor += 1;
+            if shift == 63 && byte & 0x7e != 0 {
+                return Err(invalid("ULEB overflow"));
+            }
+            value |= u64::from(byte & 0x7f) << shift;
+            if byte & 0x80 == 0 {
+                if shift != 0 && byte == 0 {
+                    return Err(invalid("noncanonical ULEB"));
+                }
+                return Ok(value);
+            }
+        }
+        Err(invalid("ULEB overflow"))
+    }
+
+    pub(super) fn validate(bytes: &[u8], expected: &[(Vec<u8>, u64)]) -> Result<(), Diagnostic> {
+        if bytes.is_empty() {
+            return Err(invalid("missing root node"));
+        }
+        let mut visited = vec![false; bytes.len()];
+        let mut pending = vec![(0usize, Vec::<u8>::new())];
+        let mut extents = Vec::new();
+        let mut actual = Vec::new();
+        while let Some((offset, prefix)) = pending.pop() {
+            let seen = visited
+                .get_mut(offset)
+                .ok_or_else(|| invalid("child lies outside trie"))?;
+            if std::mem::replace(seen, true) {
+                return Err(invalid("cycle or multiply-owned node"));
+            }
+            let mut cursor = offset;
+            let terminal_size = usize::try_from(unsigned(bytes, &mut cursor)?)
+                .map_err(|_| invalid("terminal extent overflows"))?;
+            let terminal_end = cursor
+                .checked_add(terminal_size)
+                .filter(|end| *end <= bytes.len())
+                .ok_or_else(|| invalid("terminal lies outside trie"))?;
+            if terminal_size != 0 {
+                let terminal = &bytes[..terminal_end];
+                if prefix.is_empty() || unsigned(terminal, &mut cursor)? != 0 {
+                    return Err(invalid("nonregular or empty export"));
+                }
+                let address = unsigned(terminal, &mut cursor)?;
+                if cursor != terminal_end {
+                    return Err(invalid("extra terminal payload"));
+                }
+                actual.push((prefix.clone(), address));
+            }
+            cursor = terminal_end;
+            let count = *bytes
+                .get(cursor)
+                .ok_or_else(|| invalid("missing child count"))?;
+            cursor += 1;
+            let mut first_bytes = [false; 256];
+            for _ in 0..count {
+                let start = cursor;
+                while *bytes
+                    .get(cursor)
+                    .ok_or_else(|| invalid("unterminated edge"))?
+                    != 0
+                {
+                    cursor += 1;
+                }
+                if start == cursor || first_bytes[usize::from(bytes[start])] {
+                    return Err(invalid("absent or ambiguous edge"));
+                }
+                first_bytes[usize::from(bytes[start])] = true;
+                let mut name = prefix.clone();
+                name.extend_from_slice(&bytes[start..cursor]);
+                if name.len() > bytes.len() {
+                    return Err(invalid("expanded name exceeds its byte extent"));
+                }
+                cursor += 1;
+                let child = usize::try_from(unsigned(bytes, &mut cursor)?)
+                    .map_err(|_| invalid("child offset overflows"))?;
+                pending.push((child, name));
+            }
+            extents.push((offset, cursor));
+        }
+        extents.sort_unstable();
+        let mut end = 0;
+        for (start, next) in extents {
+            if start != end {
+                return Err(invalid("overlapping, unreachable or gapped node bytes"));
+            }
+            end = next;
+        }
+        if end != bytes.len() {
+            return Err(invalid("unreachable trailing bytes"));
+        }
+        actual.sort_unstable();
+        let mut expected = expected.to_vec();
+        expected.sort_unstable();
+        if actual != expected {
+            return Err(invalid(
+                "names or offsets differ from original selected exports",
+            ));
+        }
+        Ok(())
+    }
+}
 
 fn invalid(reason: &str) -> Diagnostic {
     Diagnostic::error(format!("Mach-O shared component: {reason}"))
@@ -119,9 +300,6 @@ pub(super) fn export_trie(
     exports::encode(&selected_addresses(image, exports, text_offset)?)
 }
 
-/// Emit MH_DYLIB directly from its selected function image. Failure returns the
-/// complete original image and export roster, including when relocation,
-/// signature construction or independent loader correspondence rejects.
 pub fn emit_macho_shared_component(
     image: FinalImage,
     exports: Vec<MachoComponentExport>,
@@ -149,9 +327,6 @@ pub fn emit_macho_shared_component(
         for byte in identity.finish() {
             write!(&mut label, "{byte:02x}").expect("writing into String");
         }
-        // An install ID names the version-qualified export subject, while the
-        // receiver loads the content-addressed filename. Putting that filename
-        // inside its own hashed bytes would create a circular image digest.
         let install_name =
             MachoDylib::from_install_name(format!("@rpath/lib{label}.dylib").into_bytes());
         emit_macho_container_contents(image.clone(), &label, isa, Some(&install_name), &exports)
@@ -172,9 +347,6 @@ pub fn emit_macho_shared_component(
     }
 }
 
-/// The reader derives exact export names/addresses from original definitions,
-/// not from a regenerated trie or a candidate symbol count. Its payload must
-/// occupy the closed linkedit interval after the independently checked fixups.
 pub(super) fn validate_export_trie(
     bytes: &[u8],
     image: &FinalImage,
@@ -253,8 +425,6 @@ pub(super) fn validate_export_trie(
         .checked_add(count)
         .ok_or_else(|| invalid("export extent overflows"))?;
     let signed_end = signature.ok_or_else(|| invalid("missing signature interval"))?;
-    // The writer starts every LINKEDIT blob on an eight-byte boundary, so at
-    // most seven zero bytes may separate the fixup interval and the trie.
     if offset < start
         || offset - start >= 8
         || !offset.is_multiple_of(8)
@@ -277,4 +447,189 @@ pub(super) fn validate_export_trie(
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::{MachoComponentExport, emit_macho_shared_component};
+    use image::{
+        FinalImage, FinalImageMemory, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
+    };
+    use object_file::{RelocationKind, SymbolKind};
+
+    fn word(bytes: &[u8], offset: usize) -> u32 {
+        u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
+    }
+    fn commands(bytes: &[u8]) -> Vec<&[u8]> {
+        let mut result = Vec::new();
+        let mut cursor = 32;
+        for _ in 0..word(bytes, 16) {
+            let size = word(bytes, cursor + 4) as usize;
+            result.push(&bytes[cursor..cursor + size]);
+            cursor += size;
+        }
+        assert_eq!(cursor, 32 + word(bytes, 20) as usize);
+        result
+    }
+
+    fn image(target: target::NativeTarget) -> (FinalImage, Vec<MachoComponentExport>) {
+        let text = if target.architecture == target::Architecture::Aarch64 {
+            0xd65f_03c0u32.to_le_bytes().to_vec()
+        } else {
+            vec![0xc3, 0, 0, 0]
+        };
+        let mut image = crate::test_support::image(
+            target,
+            FinalImageMemory {
+                text,
+                data: vec![0; 13],
+                bss_size: 24,
+                bss_alignment: 16,
+            },
+        );
+        let entry = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "selected component entry".into(),
+            section: FinalImageSection::Text,
+            size: 4,
+            kind: SymbolKind::Function,
+            ..Default::default()
+        });
+        image.symbol_table.entry_symbol = entry;
+        let storage = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "owned storage".into(),
+            section: FinalImageSection::Bss,
+            size: 24,
+            ..Default::default()
+        });
+        image
+            .relocation_table
+            .relocations
+            .insert(FinalImageRelocation {
+                section: FinalImageSection::Data,
+                byte_width: 8,
+                symbol_handle: storage,
+                kind: RelocationKind::Absolute64,
+                ..Default::default()
+            });
+        (
+            image,
+            vec![MachoComponentExport {
+                symbol: entry,
+                name: b"__exact_selected_slot".to_vec(),
+                slot_commitment: [7; 32],
+            }],
+        )
+    }
+
+    #[test]
+    fn dylib_preserves_original_exports_and_rebases_under_its_own_segment_order() {
+        for target in [
+            target::NativeTarget::macos_arm64(),
+            target::NativeTarget::macos_x64(),
+        ] {
+            let (original, exports) = image(target);
+            let text = original.memory.text.clone();
+            let data = original.memory.data.clone();
+            let emitted =
+                emit_macho_shared_component(original, exports.clone()).expect("emit actual dylib");
+            assert_eq!(emitted.image().memory.text, text);
+            assert_eq!(emitted.image().memory.data, data);
+            assert_eq!(emitted.exports(), exports);
+            let bytes = emitted.contents();
+            assert_eq!(word(bytes, 12), 6); // MH_DYLIB, never a renamed MH_EXECUTE.
+            assert_eq!(word(bytes, 24), 0x85); // Two-level dyld, no executable PIE flag.
+            let commands = commands(bytes);
+            assert!(
+                !commands
+                    .iter()
+                    .any(|command| matches!(word(command, 0), 0xe | 0x8000_0028))
+            );
+            assert!(
+                !commands.iter().any(|command| word(command, 0) == 0x19
+                    && &command[8..24] == b"__PAGEZERO\0\0\0\0\0\0")
+            );
+            let dyld = commands
+                .iter()
+                .find(|command| word(command, 0) == 0x8000_0022)
+                .unwrap();
+            let rebase = word(dyld, 8) as usize;
+            assert_eq!(bytes[rebase], 0x11);
+            assert_eq!(bytes[rebase + 1], 0x21); // Actual DATA segment index one.
+            let text_segment = commands
+                .iter()
+                .find(|command| {
+                    word(command, 0) == 0x19 && &command[8..24] == b"__TEXT\0\0\0\0\0\0\0\0\0\0"
+                })
+                .unwrap();
+            let text_offset = word(text_segment, 72 + 48) as usize;
+            super::validate_export_trie(bytes, emitted.image(), emitted.exports(), text_offset)
+                .expect("independent actual-tree replay");
+            let signature = commands
+                .iter()
+                .find(|command| word(command, 0) == 0x1d)
+                .unwrap();
+            let signature_start = word(signature, 8) as usize;
+            let directory = u32::from_be_bytes(
+                bytes[signature_start + 16..signature_start + 20]
+                    .try_into()
+                    .unwrap(),
+            ) as usize
+                + signature_start;
+            assert_eq!(
+                u64::from_be_bytes(bytes[directory + 80..directory + 88].try_into().unwrap()),
+                0
+            );
+            assert!(
+                crate::code_signature_identifier(bytes)
+                    .unwrap()
+                    .starts_with("omega-component-")
+            );
+        }
+    }
+
+    #[test]
+    fn export_reader_rejects_identity_offset_cycle_truncation_and_unreachable_bytes() {
+        let expected = vec![(b"slot".to_vec(), 256)];
+        let bytes = super::exports::encode(&expected).unwrap();
+        super::exports::validate(&bytes, &expected).unwrap();
+        let mut wrong = bytes.clone();
+        let last = wrong.len() - 1;
+        wrong[last - 2] ^= 1; // Actual exported address, retaining the exact name.
+        assert!(super::exports::validate(&wrong, &expected).is_err());
+        wrong = bytes.clone();
+        wrong[4] = 0; // Root's child points back into root.
+        assert!(super::exports::validate(&wrong, &expected).is_err());
+        wrong = bytes.clone();
+        wrong[last - 3] = 4; // Nonregular export flags.
+        assert!(super::exports::validate(&wrong, &expected).is_err());
+        for length in 0..bytes.len() {
+            assert!(super::exports::validate(&bytes[..length], &expected).is_err());
+        }
+        wrong = bytes.clone();
+        wrong.push(0);
+        assert!(super::exports::validate(&wrong, &expected).is_err());
+        assert!(super::exports::validate(&bytes, &[(b"other".to_vec(), 256)]).is_err());
+        let joined = vec![(b"shared".to_vec(), 8), (b"sharing".to_vec(), 12)];
+        super::exports::validate(&super::exports::encode(&joined).unwrap(), &joined).unwrap();
+    }
+
+    #[test]
+    fn rejected_exports_return_the_complete_original_image_and_roster() {
+        let (original, mut exports) = image(target::NativeTarget::macos_arm64());
+        let text = original.memory.text.clone();
+        let data = original.memory.data.clone();
+        exports.push(exports[0].clone());
+        let expected = exports.clone();
+        let (returned, exports, diagnostic) = emit_macho_shared_component(original, exports)
+            .unwrap_err()
+            .into_parts();
+        assert_eq!(returned.memory.text, text);
+        assert_eq!(returned.memory.data, data);
+        assert_eq!(exports, expected);
+        assert!(diagnostic.message.contains("duplicate"));
+    }
+
+    #[test]
+    fn dyld_segment_immediates_refuse_out_of_range_indices() {
+        let (image, _) = image(target::NativeTarget::macos_arm64());
+        assert!(crate::dyld_linking::imports::macho_bind_info_for_segment(&[], 16).is_err());
+        assert!(crate::dyld_linking::rebases::macho_rebase_info_for_segment(&image, 16).is_err());
+    }
+}

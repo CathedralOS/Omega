@@ -121,7 +121,7 @@ bytes and relocations from the sequence actually emitted, not a separately
 maintained instruction-width mirror. The
 [text-section representation](machine-code/src/text_section.rs)
 retains actual bytes, function/block/instruction spans, and resolved internal-call
-coordinates. The [object handoff](../backend/images/image-emission/src/object/function_fragments/mod.rs)
+coordinates. The [object handoff](../backend/images/image-emission/src/function_fragments.rs)
 projects admitted fragments into the image publisher and independently validates
 that projection. Its relocation-free lane does not imply arbitrary external
 symbol resolution or independent component publication.

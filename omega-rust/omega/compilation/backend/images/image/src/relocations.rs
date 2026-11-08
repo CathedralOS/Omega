@@ -1,33 +1,10 @@
-//! In-place relocation application: one driver over the final image's
-//! relocation table that resolves each symbol once, checks the record against
-//! the image's instruction set, and patches the field its relocation kind
-//! declares.
-//!
-//! This driver used to exist once per instruction set, and each copy carried
-//! its own symbol resolution, addend overflow arm, absolute-slot arm and
-//! foreign-kind rejection; only the field encodings are genuinely
-//! per-instruction-set, so those stay in the named patch functions below.
-//! The relocation kind itself names the instruction set whose encoding it
-//! spells, so an image whose target disagrees is refused here rather than by
-//! which entrypoint a caller happened to pick.
-//!
-//! [`relocation_field_geometry`] is the single declaration of how wide each
-//! kind's field is and which instruction bits it owns. The patchers mask with
-//! it, and `relocation_envelope.rs` excuses exactly those bits after the fact;
-//! the envelope previously carried the masks a second time as little-endian
-//! byte arrays, kept in step with this arithmetic by hand.
-//!
-//! The constants the instruction sets force on us:
-//!
-//! - AArch64 ADRP: pages are 4096 bytes (`address & !0xfff`), the page delta
-//!   must lie in `[-2^20, 2^20)`, and the 21-bit immediate splits into
-//!   `immlo` at instruction bits 29-30 and `immhi` at bits 5-23.
-//! - AArch64 ADD page offset: `symbol_address & 0xfff`, shifted into bits
-//!   10-21.
-//! - x86-64 rel32: `relocation_address = section_address + offset + 4`. That
-//!   `+ 4` is an assumption never stated at the instruction: it says the
-//!   four-byte displacement is the last field of the instruction, and it is
-//!   why the delta is computed in `i128` before being narrowed to `i32`.
+/*
+We apply `FinalImage` relocations in place against a `FinalImageLayout` using a
+single architecture-checked driver. `relocation_field_geometry` declares each
+relocation kind's byte width and mutable instruction bitmask once for both the
+in-place patchers (AArch64 `Page21`, `PageOffset12`, `Branch26`; x86-64
+`Relative32`; and `Absolute64`) and the post-patch relocation envelope verifier.
+*/
 
 use crate::{
     FinalImage, FinalImageLayout, FinalImageSection, final_image_imports_symbol,
@@ -37,8 +14,6 @@ use diagnostics::Diagnostic;
 use object_file::RelocationKind;
 use target::Architecture;
 
-/// Apply every checked relocation in the image's plan to its section bytes
-/// against the layout the emitter chose.
 pub fn apply_relocations(
     image: &mut FinalImage,
     layout: &FinalImageLayout,
@@ -144,9 +119,6 @@ pub fn apply_relocations(
     Ok(())
 }
 
-/// Replay a resolved relative field against its admitted symbol address. The
-/// instruction owner separately checks the form; an envelope alone only proves
-/// which bits may change and cannot establish the destination encoded in them.
 pub fn validate_relative_relocation_target(
     kind: RelocationKind,
     section_bytes: &[u8],
@@ -188,8 +160,6 @@ pub fn validate_relative_relocation_target(
     Ok(())
 }
 
-/// The instruction set whose field encoding a relocation kind spells, or
-/// `None` for an address-sized slot that belongs to every instruction set.
 const fn kind_architecture(kind: RelocationKind) -> Option<Architecture> {
     match kind {
         RelocationKind::Aarch64Page21
@@ -200,8 +170,6 @@ const fn kind_architecture(kind: RelocationKind) -> Option<Architecture> {
     }
 }
 
-/// The diagnostic and patch-label spelling of an architecture. Every
-/// instruction-set name in this module's diagnostics comes from here.
 const fn architecture_name(architecture: Architecture) -> &'static str {
     match architecture {
         Architecture::Aarch64 => "AArch64",
@@ -209,19 +177,11 @@ const fn architecture_name(architecture: Architecture) -> &'static str {
     }
 }
 
-/// The field one relocation kind owns: the byte width a checked plan must
-/// declare for it, and the instruction bits it may rewrite. Bits are numbered
-/// in the little-endian field, so `mask.to_le_bytes()[..byte_width]` is the
-/// byte-array form of the same field.
 pub(crate) struct RelocationFieldGeometry {
     pub byte_width: usize,
     pub mask: u64,
 }
 
-/// The one declaration of each kind's field geometry, read by the patchers
-/// below and by `relocation_envelope`'s after-the-fact proof. The envelope test
-/// `each_relocation_kind_masks_exactly_its_declared_field_bits` pins this
-/// declaration against independently written byte masks.
 pub(crate) const fn relocation_field_geometry(kind: RelocationKind) -> RelocationFieldGeometry {
     match kind {
         RelocationKind::Aarch64Page21 => RelocationFieldGeometry {
@@ -340,9 +300,6 @@ mod tests {
     use object_file::{RelocationKind, SymbolKind};
     use target::NativeTarget;
 
-    /// An address-sized slot belongs to every instruction set, so the same
-    /// signed addend lands on each native target; the two former per-ISA test
-    /// copies carry only the numbers this table holds.
     #[test]
     fn absolute_relocation_applies_signed_addend_per_target() {
         for (native_target, symbol_offset, addend, expected) in [
