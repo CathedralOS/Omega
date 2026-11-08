@@ -68,11 +68,9 @@
 3 omega-rust/psi/compilation/representations/terminal-psi/src/identity.rs
 21 omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs
 5 omega-rust/psi/compilation/representations/typed-trees/src/lib.rs
-2 omega-rust/psi/compilation/validation/src/machine_calls/calls/write_frames/boundary_calls.rs
-4 omega-rust/psi/compilation/validation/src/machine_calls/calls/write_frames/isolation.rs
-3 omega-rust/psi/compilation/validation/src/proof_contracts/arithmetic_domains/ordered_values/congruence.rs
-2 omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment.rs
-2 omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs
-2 omega-rust/psi/compilation/validation/src/value_custody/completed_storage/reference_captures.rs
+3 omega-rust/psi/compilation/validation/src/arithmetic_domains.rs
+6 omega-rust/psi/compilation/validation/src/calls.rs
+2 omega-rust/psi/compilation/validation/src/completed_storage_and_conservation.rs
+4 omega-rust/psi/compilation/validation/src/contract_entailment.rs
 10 omega-rust/psi/foundation/arena/src/owned_index.rs
 8 omega-rust/psi/foundation/symbols/src/table.rs

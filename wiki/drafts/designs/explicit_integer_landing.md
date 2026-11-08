@@ -33,8 +33,8 @@ This adds no syntax or arithmetic mode.
    does not acknowledge a sibling, an earlier call argument or every reuse of
    that expression. Preserve operation selection and target qualification.
 2. Move the existing warning decision in
-   [integer landing](../../../omega-rust/psi/compilation/validation/src/value_custody/literals/integer_landing.rs)
-   and [destination discovery](../../../omega-rust/psi/compilation/validation/src/value_custody/literals/integer_landing/destinations.rs)
+   [integer landing](../../../omega-rust/psi/compilation/validation/src/literals_and_struct_literals.rs)
+   and [destination discovery](../../../omega-rust/psi/compilation/validation/src/literals_and_struct_literals.rs)
    into admission. An explicit cast still checks final integrality, range,
    predicates and authority before lowering. Remove warning emission and its
    suppression/reporting path; retain fractional-origin diagnostics.

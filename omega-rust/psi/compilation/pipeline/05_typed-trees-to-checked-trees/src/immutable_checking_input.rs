@@ -51,17 +51,12 @@ fn checking_does_not_reopen_typed_preparation() {
         !validation.contains("GenericContracts"),
         "checking restored a preparation-granted contract exemption"
     );
-    let effects =
-        include_str!("../../../validation/src/machine_calls/effect_inference/prepared_effects.rs");
-    let operational =
-        include_str!("../../../validation/src/machine_calls/effect_inference/operational.rs");
-    for source in [effects, operational] {
-        for forbidden in ["structural_fingerprint", "ProgramKey"] {
-            assert!(
-                !source.contains(forbidden),
-                "effect inference restored {forbidden}"
-            );
-        }
+    let effects = include_str!("../../../validation/src/effect_inference.rs");
+    for forbidden in ["structural_fingerprint", "ProgramKey"] {
+        assert!(
+            !effects.contains(forbidden),
+            "effect inference restored {forbidden}"
+        );
     }
 
     // Exercise the whole ownership surface, not a hand-maintained roster of
