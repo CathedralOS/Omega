@@ -2817,6 +2817,71 @@ pub(crate) mod definitions_and_contracts {
             "Mark::relay` must declare an explicit `reaches` ceiling",
         );
     }
+
+    #[test]
+    fn explicit_empty_rows_spell_none() {
+        // `reaches none` is the empty service row with its keyword span
+        // retained; `crashes none` publishes no crash contract. Both read
+        // without the rule.
+        let source = r#"
+            public boundary trait Mark { machine read() -> u64 reaches none; }
+            public machine quiet() -> u64 reaches none crashes none { 7 }
+        "#;
+        let parsed = super::parse_source(source, "explicit empty rows parse");
+        let requirement = parsed
+            .root_items()
+            .find_map(|item| match item {
+                Item::Trait(definition) => Some(definition),
+                _ => None,
+            })
+            .expect("boundary trait");
+        let signature = parsed.items.state_signatures(requirement.machines)[0];
+        let signature = parsed.items.state_signature(signature);
+        assert!(signature.service_reaches.is_empty());
+        assert_eq!(signature.service_reach_keyword_source_spans.len(), 1);
+        let quiet = parsed
+            .root_items()
+            .find_map(|item| match item {
+                Item::Machine(machine) if machine.name.as_str(&parsed) == "quiet" => Some(machine),
+                _ => None,
+            })
+            .expect("quiet machine");
+        assert!(
+            parsed
+                .items
+                .identifier_path_members(quiet.service_reaches)
+                .is_empty()
+        );
+        assert_eq!(quiet.service_reach_keyword_source_spans.len(), 1);
+        assert!(
+            parsed
+                .items
+                .capability_contracts(quiet.contracts)
+                .is_empty()
+        );
+
+        for (rejected, message) in [
+            (
+                "reaches none Mark;",
+                "`reaches none` admits no service members",
+            ),
+            (
+                "reaches none crashes none crashes Trap;",
+                "cannot follow `crashes none`",
+            ),
+            (
+                "reaches none crashes Trap crashes none;",
+                "cannot share a header with a `crashes Cause` route",
+            ),
+            ("reaches none crashes none true;", "admits no route guards"),
+        ] {
+            let source =
+                format!("public boundary trait Mark {{ machine read() -> u64 {rejected} }}");
+            let tokens = Lexer::new(&source).tokenize().expect("valid tokens");
+            let error = parse_syntax_trees(&tokens).expect_err(rejected);
+            super::expect_error(&error, message);
+        }
+    }
 }
 pub(crate) mod domains_and_transitions {
     use super::inline_assembly::instruction_statements;

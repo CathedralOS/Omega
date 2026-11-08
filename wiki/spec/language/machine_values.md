@@ -32,7 +32,7 @@ other ordinary containers. Parameter names in its contract bind that callable's
 formal arguments; `result` denotes its result. Lifetime binders and ordinary
 `requires`, `ensures`, reach, invocation, suspension, blocking, crash, progress,
 resource and custody contracts retain their meanings. Runtime callable service
-reach has a fixed finite ceiling: omission and bare `reaches` both mean empty.
+reach has a fixed finite ceiling: omission and `reaches none` both mean empty.
 The deferred omission rule for static requirements does not apply to callable
 types. Other axes retain their existing omission rules.
 

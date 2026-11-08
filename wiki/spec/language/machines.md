@@ -234,8 +234,9 @@ and asks no more from its caller:
 | Atomicity, reentrancy, calling plan | Behavior is compatible with or stronger than the pinned promise. |
 
 For a selected generic application, substitute its published
-[operational dependencies](effects.md#static-callback-operational-dependencies)
-before applying the suspension/blocking refinement condition. The generic body
+[static binder contract dependencies](effects.md#static-binder-contract-dependencies)
+before applying the suspension/blocking, crash and termination refinement
+conditions. The generic body
 must satisfy its declared ceiling for every admitted callback. A fixed opaque
 ceiling cannot be narrowed by inspecting a private implementation.
 

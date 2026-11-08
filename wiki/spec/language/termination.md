@@ -44,15 +44,29 @@ An implementation satisfying a requirement inherits its guarantee and premises;
 it need not repeat the promise. A witness discharges that promise rather than
 redefining it.
 
+A checked generic that authors `terminates` and calls a static callback whose
+requirement publishes no guarantee proves its own progress with that binder's
+termination as a premise, under
+[static binder contract dependencies](effects.md#static-binder-contract-dependencies).
+The published guarantee carries that binder premise. An application whose
+selected callback publishes `terminates` discharges it and receives the
+guarantee; an application with a silent selection is admissible and receives
+none. A context that requires termination must establish every published
+premise. Omission on the generic still publishes no guarantee, a binder premise
+never proves a cycle through that binder, and a requirement that authors
+`terminates` keeps the unconditional form.
+
 A private acyclic body needs no annotation and derives a local `Terminates`
 summary. Local direct calls may use that exact checked summary; trait, generic,
 and exported calls use authored or inherited promises. A cyclic terminating
 body must supply its witness; inference never chooses its subjects or silently
 publishes a guarantee. Unknown progress dependencies prevent a checked guarantee.
 
-Published identity retains the guarantee, explicit premises, and terminal/failure
-contract. Ranking subjects, view, rank range, cyclic-component mapping, and proof
-certificate remain private. Changing a valid witness revalidates the provider
+Published identity retains the guarantee, explicit premises including binder
+premises, and terminal/failure contract. A body edit that adds or removes a
+binder premise changes the published contract even when the header still
+reads `terminates`. Ranking subjects, view, rank range, cyclic-component
+mapping, and proof certificate remain private. Changing a valid witness revalidates the provider
 and its proof cache, not caller/requirement identity or contract-driven dependent
 compilation. Explicit complexity/resource promises belong to their own public
 contracts, not hidden ranking data.
@@ -190,8 +204,10 @@ Premise attachment distinguishes:
 | Checked dependency | Instantiate the exact selected operation's termination premises under its actual argument substitution. Receiving, mentioning, suspending with, or forwarding a qualified value alone adds none. |
 | Coverage | Resolve each derived instance to an authored public schema, an admitted receipt for the exact local subject, or a build-bound provider premise retained in the manifest and discharged at composition. |
 
-Static-machine binders use their nominal requirement's premises, not those of a
-later replacement implementation. Private mutual components propagate finite
+Static-machine binders contribute their requirement's premises or, when that
+requirement publishes no guarantee, a binder premise discharged per application
+from the selected callback's published promise; a later replacement
+implementation's private evidence contributes nothing. Private mutual components propagate finite
 sets of exact subject-qualified premises and build-bound demands. Growing
 projected demands are neither generalized into universal qualification nor
 discarded. Forwarding an unused recursive reference creates no dependency.

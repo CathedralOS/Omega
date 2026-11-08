@@ -1941,9 +1941,9 @@ boundary trait PosixCanonicalLibc {
     machine resolve(path: &[u8; 4096], output: &mut [u8; 4096]) -> u64
     reaches FilesystemMetadataQuery;
     machine error_location() -> u64
-    reaches;
+    reaches none;
     machine copy_error(destination: &mut [u8; 4], source: u64, count: u64) -> u64
-    reaches;
+    reaches none;
 }
 // `PosixCanonicalLibc` requirements are bound by Build rows in the std package
 // (`std/build.omg`); no provider machine forwards them.

@@ -66,11 +66,11 @@ boundary trait PosixFilesystemDarwin {
     machine c_create(path: &[u8; 4096], mode: u16) -> i32
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
     machine c_close(fd: i32) -> i32
-    reaches;
+    reaches none;
     machine c_remove(path: &[u8; 4096]) -> i32
     reaches FilesystemNamespaceMutation;
     machine c_seek(fd: i32, offset: i64, whence: i32) -> i64
-    reaches;
+    reaches none;
     machine c_create_dir(path: &[u8; 4096], mode: u16) -> i32
     reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
     machine c_remove_dir(path: &[u8; 4096]) -> i32
@@ -104,13 +104,13 @@ boundary trait PosixFilesystemDarwin {
     machine c_set_file_times(fd: i32, times: &DarwinFileTimes) -> i32
     reaches FilesystemMetadataMutation;
     machine c_sync(fd: i32) -> i32
-    reaches;
+    reaches none;
     machine c_sync_data(fd: i32) -> i32
-    reaches;
+    reaches none;
     machine c_duplicate(fd: i32) -> i32
-    reaches;
+    reaches none;
     machine c_lock_file(fd: i32, operation: i32) -> i32
-    reaches;
+    reaches none;
     machine c_change_owner(path: &[u8; 4096], uid: u32, gid: u32) -> i32
     reaches FilesystemMetadataMutation;
     machine c_change_owner_no_follow(path: &[u8; 4096], uid: u32, gid: u32) -> i32
@@ -118,9 +118,9 @@ boundary trait PosixFilesystemDarwin {
     machine c_change_file_owner(fd: i32, uid: u32, gid: u32) -> i32
     reaches FilesystemMetadataMutation;
     machine c_error_location() -> u64
-    reaches;
+    reaches none;
     machine c_copy_from_address(destination: &mut [u8; 4], source: u64, count: u64) -> u64
-    reaches
+    reaches none
     requires count <= 4;
 }
 // The negated `errno` of the call that just failed.

@@ -73,10 +73,10 @@ machine build(builder: &mut Build) suspends {
         backing.join("api.omg"),
         r#"
 public boundary trait Parent<Value> {
-    machine echo(value: Value) -> Value reaches;
+    machine echo(value: Value) -> Value reaches none;
 }
 public boundary trait Operations<Value>: Parent<Value> {
-    machine marker() -> u64 reaches;
+    machine marker() -> u64 reaches none;
 }
 public Selected satisfies Operations<u32> {
     machine echo(value: u32) -> u32 { value }

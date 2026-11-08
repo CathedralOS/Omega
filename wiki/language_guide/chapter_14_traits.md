@@ -553,7 +553,7 @@ A transparent refinement gives a reusable name to a narrower trait contract:
 ```omega
 public trait LocalLogger<T> = Logger<T> {
     machine *
-        reaches
+        reaches none
         suspends false
         blocks false
         terminates;
@@ -561,7 +561,7 @@ public trait LocalLogger<T> = Logger<T> {
 
 public trait BufferedLogger<T> = Logger<T> {
     machine Logger::write
-        reaches
+        reaches none
         suspends false;
 
     machine Logger::flush
@@ -589,7 +589,7 @@ Visibility selects neither a refinement nor a base conformance.
 `machine *` narrows every present and future base requirement; a qualified clause
 narrows just that requirement. Omitted axes inherit the base, so use
 `suspends false` or `blocks false` to remove a possibility explicitly.
-`reaches;` means empty; `reaches _;` means an independent row bounded by the
+`reaches none;` means empty; `reaches _;` means an independent row bounded by the
 base. Refinements can narrow obligations or strengthen guarantees, not widen
 the contract. See [transparent refinements](../spec/language/conformances.md#transparent-refinements)
 for composition and normalization.
@@ -665,7 +665,7 @@ ordinary trait is not a service identity. Boundary traits may be named in
 `reaches`, but calling their requirements contributes only the explicitly
 declared row, not the containing trait's name. Boundary requirements always
 declare reach. On an ordinary trait requirement, omission forwards the selected
-implementation's reach; bare `reaches` requires an empty row.
+implementation's reach; `reaches none` requires an empty row.
 
 This also works when a generic selects a whole named implementation:
 

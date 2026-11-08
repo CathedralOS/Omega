@@ -298,7 +298,7 @@ public boundary trait FilesystemService {
     invokes PosixFilesystemHost
     invokes WindowsFilesystemHost;
     machine close(file: File) -> UnitResult
-    reaches
+    reaches none
     blocks
 
     invokes PosixFilesystemHost
@@ -394,19 +394,19 @@ public boundary trait FilesystemService {
     invokes PosixFilesystemHost
     invokes WindowsFilesystemHost;
     machine sync(file: File) -> UnitResult
-    reaches
+    reaches none
     blocks
 
     invokes PosixFilesystemHost
     invokes WindowsFilesystemHost;
     machine sync_data(file: File) -> UnitResult
-    reaches
+    reaches none
     blocks
 
     invokes PosixFilesystemHost
     invokes WindowsFilesystemHost;
     machine try_clone(file: File) -> OpenResult
-    reaches
+    reaches none
     blocks
 
     invokes PosixFilesystemHost
@@ -478,31 +478,31 @@ public boundary trait FilesystemService {
     invokes WindowsFilesystemHost
     invokes PosixCanonicalLibc;
     machine lock(file: File) -> UnitResult
-    reaches
+    reaches none
     blocks
 
     invokes PosixFilesystemHost
     invokes WindowsFilesystemHost;
     machine lock_shared(file: File) -> UnitResult
-    reaches
+    reaches none
     blocks
 
     invokes PosixFilesystemHost
     invokes WindowsFilesystemHost;
     machine try_lock(file: File) -> TryLockResult
-    reaches
+    reaches none
     blocks
 
     invokes PosixFilesystemHost
     invokes WindowsFilesystemHost;
     machine try_lock_shared(file: File) -> TryLockResult
-    reaches
+    reaches none
     blocks
 
     invokes PosixFilesystemHost
     invokes WindowsFilesystemHost;
     machine unlock(file: File) -> UnitResult
-    reaches
+    reaches none
     blocks
 
     invokes PosixFilesystemHost

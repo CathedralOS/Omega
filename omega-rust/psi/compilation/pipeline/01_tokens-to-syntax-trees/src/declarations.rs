@@ -2056,6 +2056,11 @@ pub(crate) mod operator {
         if input.at_contextual("crashes") {
             let keyword_source_span = Some(input.current_source_span());
             *input = input.take_contextual("crashes")?;
+            if input.at_contextual("none") {
+                return Err(input.error_here(
+                    "`crashes none` is not an operator clause; an operator head without `crashes` declares no crash routes",
+                ));
+            }
             let (cause, after_cause) = input.take_identifier()?;
             let cause = crate::grammar::contracts::parse_crash_cause(&cause, after_cause)?;
             let after_header = after_cause;
@@ -2791,7 +2796,7 @@ pub(crate) mod trait_definition {
             signature.is_default = is_default;
             if is_boundary && clauses.service_reach_keyword_source_spans.is_empty() {
                 return Err(rest.error_here(format!(
-                "boundary-trait machine requirement `{}::{}` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach",
+                "boundary-trait machine requirement `{}::{}` must declare an explicit `reaches` ceiling; write `reaches none` for empty reach",
                 name.as_str(syntax_trees),
                 signature.name.as_str(syntax_trees),
             )));

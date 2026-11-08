@@ -218,7 +218,7 @@ requirements; the selected callback must satisfy every one. An explicit
 originating contract is not silently strengthened to repair an invalid body.
 
 `ElementStep::apply` omits reach, so both helpers propagate the services of the
-selected step. A trait author can write bare `reaches` to require service-free
+selected step. A trait author can write `reaches none` to require service-free
 steps instead. Forwarding keeps that choice. See
 [callback services](chapter_19_capabilities_effects_boundaries.md#forward-a-callbacks-services)
 for a complete example with an application-defined service.
@@ -540,21 +540,21 @@ algebra use integer literals:
 
 ```omega
 trait Additive<T> {
-    machine zero() -> T reaches terminates;
+    machine zero() -> T reaches none terminates;
 
     machine + add(
         left: T,
         right: T
-    ) -> T reaches terminates;
+    ) -> T reaches none terminates;
 
     machine right_identity(value: T)
-    reaches
+    reaches none
     ensures core::Identity<T>(add(value, zero()), value);
 }
 
 trait WrappingByteIndices : Additive<u8 in Wrapping> {
     machine zero_is_literal()
-    reaches
+    reaches none
     ensures core::Identity<u8 in Wrapping>(zero(), 0);
 }
 
@@ -573,7 +573,7 @@ machine remove_zero<
 A caller selects a complete implementation, for example
 `remove_zero<8, ByteArithmetic>(value)`. `ByteArithmetic` supplies the inherited
 operations and proves both laws; their names have no compiler authority. The
-bare `reaches` clauses make the operations service-free for use in these laws. The
+`reaches none` clauses make the operations service-free for use in these laws. The
 same pattern connects multiplicative identity to `1`. Each rewrite needs only
 its own laws, not a full ring or semiring. `Count + 1` is not an identity.
 

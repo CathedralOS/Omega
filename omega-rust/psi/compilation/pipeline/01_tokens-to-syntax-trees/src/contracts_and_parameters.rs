@@ -720,6 +720,7 @@ pub(crate) mod contracts {
             let mut suspends = false;
             let mut blocks = false;
             let mut contracts = Vec::new();
+            let mut crashes_none_declared = false;
             let mut outcome_case_groups = Vec::<String>::new();
             let mut public_selectors = Vec::<String>::new();
             let mut return_type = syntax_trees::types::TypeReferenceHandle::invalid();
@@ -846,6 +847,22 @@ pub(crate) mod contracts {
                 if input.at_contextual("crashes") {
                     let keyword_source_span = Some(input.current_source_span());
                     let ((cause, header_token_count), after_header) = parse_crash_header(input)?;
+                    let Some(cause) = cause else {
+                        let other_route = contracts.iter().any(|contract: &CapabilityContract| {
+                            matches!(contract.kind, CapabilityContractKind::Crashes { .. })
+                        });
+                        input = crate::grammar::contracts::finish_crashes_none(
+                            after_header,
+                            other_route,
+                            machine_reaches_clause_boundary,
+                        )?;
+                        crashes_none_declared = true;
+                        continue;
+                    };
+                    if crashes_none_declared {
+                        return Err(input
+                            .error_here("a `crashes Cause` route cannot follow `crashes none`"));
+                    }
                     let ((facts, fact_token_count), rest) =
                 crate::grammar::contracts::facts::parse_proof_facts_until_with_machine_semicolon(
                     syntax_trees,
@@ -1173,11 +1190,15 @@ pub(crate) mod contracts {
 
         fn parse_crash_header<'tokens, 'source>(
             input: Input<'tokens, 'source>,
-        ) -> ParseResult<'tokens, 'source, (CrashCause, usize)> {
+        ) -> ParseResult<'tokens, 'source, (Option<CrashCause>, usize)> {
             let input = input.take_contextual("crashes")?;
+            // `crashes none` carries no cause; the caller finishes the clause.
+            if input.at_contextual("none") {
+                return Ok(((None, 2), input.take_contextual("none")?));
+            }
             let (cause, after_cause) = input.take_identifier()?;
             let cause = crate::grammar::contracts::parse_crash_cause(&cause, after_cause)?;
-            Ok(((cause, 2), after_cause))
+            Ok(((Some(cause), 2), after_cause))
         }
 
         fn parse_ranked_subjects<'tokens, 'source>(
@@ -1346,6 +1367,7 @@ pub(crate) mod contracts {
             let mut suspends = false;
             let mut blocks = false;
             let mut contracts = Vec::new();
+            let mut crashes_none_declared = false;
             let mut terminates_guarantee = false;
 
             while !input.at_punctuation(PunctuationKind::Semicolon)
@@ -1420,6 +1442,22 @@ pub(crate) mod contracts {
                 if input.at_contextual("crashes") {
                     let keyword_source_span = Some(input.current_source_span());
                     let after_keyword = input.take_contextual("crashes")?;
+                    if after_keyword.at_contextual("none") {
+                        let other_route = contracts.iter().any(|contract: &CapabilityContract| {
+                            matches!(contract.kind, CapabilityContractKind::Crashes { .. })
+                        });
+                        input = crate::grammar::contracts::finish_crashes_none(
+                            after_keyword.take_contextual("none")?,
+                            other_route,
+                            signature_clause_boundary,
+                        )?;
+                        crashes_none_declared = true;
+                        continue;
+                    }
+                    if crashes_none_declared {
+                        return Err(input
+                            .error_here("a `crashes Cause` route cannot follow `crashes none`"));
+                    }
                     let (cause, after_cause) = after_keyword.take_identifier()?;
                     let cause = crate::grammar::contracts::parse_crash_cause(&cause, after_cause)?;
                     let after_header = after_cause;
@@ -1596,6 +1634,19 @@ pub(crate) mod contracts {
             "an installation-bound reach bound cannot be combined with another `reaches` clause",
         ));
         }
+        // `reaches none` spells the explicit empty service row. It keeps the
+        // keyword span so later stages still distinguish it from omission and
+        // contributes no member, exactly like the keyword followed directly by
+        // a clause boundary, which stays accepted until the retirement sweep.
+        if !*service_reach_is_installation_bound && input.at_contextual("none") {
+            let after_none = input.take_contextual("none")?;
+            if !at_clause_boundary(after_none) {
+                return Err(after_none.error_here(
+                    "`reaches none` admits no service members; write `reaches <Service> + ...` to name services",
+                ));
+            }
+            return Ok(after_none);
+        }
         while !at_clause_boundary(input) {
             input = take_service_reach_row_member(input, service_reaches)?;
         }
@@ -1618,6 +1669,28 @@ pub(crate) mod contracts {
             span.push(syntax_trees.items.append_capability_contract(contract));
         }
         span.finish()
+    }
+
+    /// `crashes none` promises that no crash route exists. It names no cause,
+    /// admits no route guard and cannot share a header with a `crashes Cause`
+    /// route. The header then publishes no crash contract, which is the empty
+    /// cause set an omitted clause denotes on a published surface today; the
+    /// explicit spelling exists so that promise is readable without the rule.
+    pub(crate) fn finish_crashes_none<'tokens, 'source>(
+        after_none: crate::tokens::token_cursor::Input<'tokens, 'source>,
+        other_route_present: bool,
+        at_clause_boundary: impl Fn(crate::tokens::token_cursor::Input<'_, '_>) -> bool,
+    ) -> Result<crate::tokens::token_cursor::Input<'tokens, 'source>, ParseError> {
+        if other_route_present {
+            return Err(after_none
+                .error_here("`crashes none` cannot share a header with a `crashes Cause` route"));
+        }
+        if !at_clause_boundary(after_none) {
+            return Err(after_none.error_here(
+                "`crashes none` admits no route guards; name a cause to guard a route",
+            ));
+        }
+        Ok(after_none)
     }
 }
 
