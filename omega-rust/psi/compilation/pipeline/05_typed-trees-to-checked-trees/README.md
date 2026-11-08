@@ -151,7 +151,7 @@ Typed elaboration and its allocation probe are documented with the
 Computed scalar tags enter flow after expression effects and result joins, using
 validation's destination-independent result type. This transports predicate-free,
 route-free, index-free qualifications; it is not a predicate or provenance grant.
-The shared `validation/src/proof_contracts/domains/scalar_tags.rs` classifier also identifies
+The shared `validation/src/domains_and_predicates.rs` scalar-tag classifier also identifies
 exact parameter membership requirements carried by qualified Terminal signatures.
 Graph production and source-custody replay both check that boundary. Indexed
 membership needs richer source facts before this path can preserve its identity.

@@ -9,38 +9,38 @@ owners; successful source validation is not a portable proof certificate.
 
 Start at [program_validation.rs](src/program_validation.rs): declaration checks,
 machine/state validation, and result publication run there in order.
-[Statement validation](src/program_validation/statements.rs) owns ordered value
-updates; [contract queries](src/program_validation/contract_queries.rs) owns
+[Statement validation](src/program_validation.rs) owns ordered value
+updates; [contract queries](src/program_validation.rs) owns
 entailment queries and pristine-template checks. [lib.rs](src/lib.rs) wires the API.
 
 Public contract projections belong to
-[`contract_structure`](src/proof_contracts/contract_structure.rs); canonical
+[`contract_structure`](src/proof_contracts_core.rs); canonical
 template, signature and specialization identities belong to
-[`contract_identities`](src/machine_calls/contract_identities.rs). Preparation,
+[`contract_identities`](src/machine_calls_core.rs). Preparation,
 checking and trust admission borrow these queries through validation directly.
 The identity queries preserve positional binders and the published hash grammar;
 specialization and rebinding remain with the transforming stage.
 
 Shared program queries have explicit owners beside that coordinator.
-[Declaration queries](src/declarations/data_queries.rs),
-[custody properties](src/value_custody/type_properties.rs) and
-[call signatures](src/machine_calls/calls/signature_queries.rs) live with their
+[Declaration queries](src/declarations_core.rs),
+[custody properties](src/value_custody_core.rs) and
+[call signatures](src/calls.rs) live with their
 semantic owners. Typed-owned indexes supply declaration relationships rather
 than checking maintaining another copy.
-[frozen_program.rs](src/frozen_program.rs) owns `CheckingContext`: Psi 05 borrows
+[`frozen_program`](src/frozen_program_and_queries.rs) owns `CheckingContext`: Psi 05 borrows
 its prepared typed program with invocation memos in one immutable checking input.
 Read-only consumers take `CheckingInput`, preserving that context through queries;
 bare typed programs used during construction have no frozen memos. Ending the
 context releases that borrow and scratch, never attaching memos to an IR or product.
 No thread or program address selects these memos.
-[Effect inputs](src/machine_calls/effect_inference/prepared_effects.rs) distinguish
+[Effect inputs](src/effect_inference.rs) distinguish
 source-only inference from ownership-complete checking. Psi 05 supplies the
 completed graph by explicit borrow after selecting cleanup; service-reach reuse
 requires the exact operational input. There is no ambient program-plan scope or
 restore guard. Other checker-local ambient state remains unfinished migration.
-[expression_traversal.rs](src/queries/expression_traversal.rs) owns the
+[`queries::expression_traversal`](src/frozen_program_and_queries.rs) owns the
 ordered expression-child roster, while each checker keeps its own visitation and
-pruning policy. [Operator namespaces](src/declarations/operators/namespaces.rs)
+pruning policy. [Operator namespaces](src/operators.rs)
 are declaration resolution, consumed by call checking and local-value checks.
 
 Standalone validation checks generic contracts itself. Post-specialization
@@ -72,7 +72,7 @@ rules; a machine route is not blanket trust or a new capacity origin.
 
 ## Source proof automation
 
-[contract_entailment.rs](src/proof_contracts/contract_entailment.rs) handles a bounded contract
+[contract_entailment.rs](src/contract_entailment.rs) handles a bounded contract
 fragment: canonical integer polynomials, substitutions from equalities,
 difference-bound closure, congruence, correlated intervals, signed remainder
 bounds, and accumulator-style self induction. Each recursive hypothesis needs
@@ -80,7 +80,7 @@ strict descent at its exact edge. This is trusted source automation; it does not
 emit kernel evidence for every accepted obligation.
 
 Closed `FloatMeaning` equalities use the exact sealed float catalog through
-[semantic_values.rs](src/proof_contracts/float_projection_bindings/semantic_values.rs).
+[`float_projection_bindings`](src/float_and_mathematical_contracts.rs).
 The source judgment composes nested meaning-valued applications over literal
 projections, keeps IEEE format identity, distinguishes signed zeros, and uses
 payload-erased NaN equality. It checks the selected equality operation using
@@ -89,7 +89,7 @@ type. Unknown operands and exhausted work budgets provide no fact. Format and
 contract recognition are shared with checked application binding; portable
 published obligation retention and receiver admission remain separate work.
 
-[Collection predicates](src/proof_contracts/collection_predicates.rs) give
+[Collection predicates](src/domains_and_predicates.rs) give
 [collection invariants](../../../../wiki/spec/language/dependent_values.md#collection-invariants)
 their checked consequences by exploring the predicate machine's own body:
 each array element and scalar argument is a value set that a comparison the
@@ -103,10 +103,10 @@ stand-down, so package admission sees no open obligation for it. A citation
 of such a theorem bounds the exact cited element in the caller's arithmetic,
 and a callee requirement that restates a standing `where` fact at the
 argument's field is discharged by that fact. Execution erases a citation of
-a theorem-only machine ([fact-only citations](src/machine_calls/fact_only_citations.rs)):
+a theorem-only machine ([fact-only citations](src/machine_calls_core.rs)):
 it plans no call, so Terminal receives none of the cited conclusions.
 Terminal instead carries the declared facts themselves through the
-[declaration predicate roster](src/machine_calls/structural_call_custody/declaration_predicates.rs):
+[declaration predicate roster](src/structural_call_custody.rs):
 one row per `where` fact on storage a machine's parameters reach, where a
 collection predicate contributes each element's `true`-path interval. The
 roster is exact for a declaration only when exploring the predicate over
@@ -409,8 +409,8 @@ full source acceptance or executable Terminal realization.
 ## Quotient correspondence
 
 The [correspondence judgment](../../../../wiki/spec/proofs/quotients.md#quotient-correspondence-judgment)
-is implemented through [quotients/request_admission.rs](src/proof_contracts/quotients/request_admission.rs)
-and [normalized source judgments](src/proof_contracts/quotients/relation_plan/normalized_judgment.rs). Checked facts retain its exact selected applications,
+is implemented through [quotients/request_admission.rs](src/quotients.rs)
+and [normalized source judgments](src/quotients.rs). Checked facts retain its exact selected applications,
 relations, exact public-parameter or closed-literal actuals, theorem roles and
 normal result flow. Both lift forms consume their complete source implication
 judgments; selected transport never mixes with automatic evidence. After ordinary contract facts
@@ -431,7 +431,7 @@ their separate acceptance conditions.
 
 ## Structural algebra automation
 
-[structural_judgment.rs](src/proof_contracts/contract_entailment/structural_judgment.rs) retains
+[structural_judgment.rs](src/contract_entailment.rs) retains
 operation licenses and paired add/multiply semiring licenses. The paired form
 requires both operations' associativity/commutativity and a conformed
 distributivity law. Natural-coefficient polynomial expansion is bounded;

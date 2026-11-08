@@ -72,7 +72,7 @@ entry marker for an ensures-only block.
 use the exact block-point flow facts and explicitly reject stale postconditions
 whose places were written.
 
-[Authority discharge](../../compilation/validation/src/machine_calls/effects/asm_discharge.rs)
+[Authority discharge](../../compilation/validation/src/machine_calls_core.rs)
 checks each instruction's declared authority class against the build's supplied
 `AsmAuthorityAdmission` evidence. The evaluated `Build.freestanding` selection
 is received as machine-owner admission covering every defined class
