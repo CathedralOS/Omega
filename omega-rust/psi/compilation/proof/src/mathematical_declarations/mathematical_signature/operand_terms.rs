@@ -335,15 +335,19 @@ impl<'a> Elaborator<'a> {
         let source_domain = source_type
             .map(|reference| self.elaborate_source_operand_type(reference))
             .transpose()?;
-        let Some(carrier) = self.operand_carrier(handle) else {
-            return Err(self.unsupported_expression(handle));
-        };
         if let Some(meaning) = integer_embedding_meaning(self.program, handle) {
             return self.embedding_term(handle, meaning);
         }
+        // An applied data carrier already has its complete source domain.
+        // The scalar classifier cannot replace its retained type arguments.
         let result_type = match source_domain {
             Some(domain) => domain,
-            None => self.carrier_term(carrier),
+            None => {
+                let carrier = self
+                    .operand_carrier(handle)
+                    .ok_or_else(|| self.unsupported_expression(handle))?;
+                self.carrier_term(carrier)
+            }
         };
         let mut dependencies = Vec::new();
         // A result domain can mention a generic binder that no value operand
