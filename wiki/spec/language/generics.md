@@ -536,7 +536,8 @@ Calls through a requirement retain its complete
 [substitution contract](machines.md#substitution), including reach, independent
 suspension/blocking possibilities, crashes, progress, and context-visible
 resources. Selected implementations must refine that contract. Reach through a
-nominal static callable uses the published
+structural or nominal static callable, or a selected conformance member, uses
+the published
 [reach dependency](effects.md#static-callback-reach-dependencies); suspension
 and blocking use [operational dependencies](effects.md#static-callback-operational-dependencies).
 Generic bodies use the abstract requirement envelope. Callers substitute selected
@@ -555,6 +556,12 @@ its non-lifetime arguments. An already-closed evidence binder forwards its map.
 Explicit trait type parameters supply all data types needed by the interface.
 There is no implementing data subject, `Self` binder, or associated-type
 declaration surface. Evidence parameters name implementations, not data types.
+
+Omitted service reach on a bodyless non-boundary requirement defers to the
+selected member's published row. An explicit clause bounds that row, with bare
+`reaches` requiring it to be empty. A conformance evidence binder retains a
+separate dependency for each called requirement member and exact application.
+Calling `Order::compare` cannot substitute the reach of another row in `Order`.
 
 ## Static machine binder categories
 
@@ -579,8 +586,9 @@ without introducing a generic abstraction.
 
 The nominal form inherits the exact requirement's complete shape, conditions,
 operational ceilings, and any boundary calling/entry plan; it does not repeat
-the signature. Calling it contributes a reach dependency automatically; the
-consumer authors neither a forwarding clause nor a second reach bound.
+the signature. Both nominal and structural callable invocations contribute
+reach dependencies under the requirement's open or finite bound. The consumer
+authors neither a forwarding clause nor a second row argument.
 The generic body checks suspension/blocking against the requirement's upper
 bound. Applications substitute published
 [operational dependencies](effects.md#static-callback-operational-dependencies)
@@ -624,6 +632,8 @@ Infer the callee's complete requirement after substituting the wrapper's
 arguments, retaining the exact nominal requirement or authored structural
 contract and its nested binders. This applies to public and private checked
 wrappers; it does not depend on the wrapper's current consumers.
+Retain omitted reach as a deferred dependency, explicit empty reach as an empty
+bound, and named ceilings as finite bounds throughout forwarding.
 
 ```omega
 public trait ElementStep<T> {
@@ -649,6 +659,10 @@ terminates
 to `for_each<T, F>` inherits that callee's exact requirement in the same way.
 Neither example searches for an implementation; the consumer still selects `F`
 with its required exact nominal satisfaction edge.
+
+`ElementStep::apply` leaves service reach to the selected implementation. Both
+wrappers publish that same dependency; forwarding does not collapse it to empty.
+The termination promise and the suspension/blocking restrictions are unchanged.
 
 Collect requirements from every forwarding use, independent of source order.
 The selected callback must satisfy their conjunction, including nested

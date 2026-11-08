@@ -188,7 +188,7 @@ The nominal form retains the originating requirement's complete signature,
 conditions and operational/boundary contract without repeating it. A path with
 several overloads is not an exact selection.
 
-### Forwarding A callback contract
+### Forwarding a callback contract
 
 The inner operation declares what it accepts; its wrapper need not repeat it:
 
@@ -216,6 +216,12 @@ The published contract for `visit_one` includes
 `for_each<T, F>` works the same way. Multiple uses contribute all their
 requirements; the selected callback must satisfy every one. An explicit
 originating contract is not silently strengthened to repair an invalid body.
+
+`ElementStep::apply` omits reach, so both helpers propagate the services of the
+selected step. A trait author can write bare `reaches` to require service-free
+steps instead. Forwarding keeps that choice. See
+[callback services](chapter_19_capabilities_effects_boundaries.md#forward-a-callbacks-services)
+for a complete example with an application-defined service.
 
 There is no trait lookup or implementation selection here: callers still name
 their chosen machine with its required nominal satisfaction edges. Public
@@ -534,19 +540,21 @@ algebra use integer literals:
 
 ```omega
 trait Additive<T> {
-    machine zero() -> T terminates;
+    machine zero() -> T reaches terminates;
 
     machine + add(
         left: T,
         right: T
-    ) -> T terminates;
+    ) -> T reaches terminates;
 
     machine right_identity(value: T)
+    reaches
     ensures core::Identity<T>(add(value, zero()), value);
 }
 
 trait WrappingByteIndices : Additive<u8 in Wrapping> {
     machine zero_is_literal()
+    reaches
     ensures core::Identity<u8 in Wrapping>(zero(), 0);
 }
 
@@ -565,6 +573,7 @@ machine remove_zero<
 A caller selects a complete implementation, for example
 `remove_zero<8, ByteArithmetic>(value)`. `ByteArithmetic` supplies the inherited
 operations and proves both laws; their names have no compiler authority. The
+bare `reaches` clauses make the operations service-free for use in these laws. The
 same pattern connects multiplicative identity to `1`. Each rewrite needs only
 its own laws, not a full ring or semiring. `Count + 1` is not an identity.
 

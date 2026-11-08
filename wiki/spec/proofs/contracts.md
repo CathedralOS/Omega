@@ -168,6 +168,13 @@ sum does not turn it into unbounded addition. A call interpreted denotationally
 needs a checked observation-free, reach-free, crash-free, terminating invocation,
 not merely a same-spelled mathematical operation.
 
+A generic proof using a static callable or conformance member must establish
+those conditions from its originating requirement. Write bare `reaches` when
+the requirement must guarantee service-free invocation. Under
+[deferred requirement reach](../language/effects.md#deferred-requirement-reach),
+omission permits the selected implementation's row; today's pure selections
+cannot justify proof use in an otherwise open generic body.
+
 Builtin fixed-integer equality and order have the same meaning as the relation
 between the operands' exact `embed` projections, including operands with different
 widths or signedness. This characterizes the comparison; authors need no explicit

@@ -87,8 +87,12 @@ machine greet() reaches Console {
 ```
 
 `reaches A + B` permits either or both services. Bare `reaches` permits none.
-Cleanup, callbacks and helper calls contribute too. A runtime branch that you
-expect never to take still counts unless the checker proves it unreachable.
+Cleanup, callbacks and helper calls contribute too. Calls on runtime branches
+count toward the published reach.
+
+Public APIs can infer reach too. The compiler publishes the checked summary for
+review and installation. Adding a service can invalidate a caller's ceiling or
+installation policy, so write a ceiling when you want that change caught locally.
 
 Service identities come from declarations. A filesystem requirement may name
 `FilesystemContentRead` in its row; the DLL containing its provider does not
@@ -98,6 +102,45 @@ Reach describes possible service use. Mutation, suspension, blocking, crashes
 and termination have their own contracts. For call prefixes and their legal
 positions, see [calls that may wait](chapter_18_concurrency.md#mark-calls-that-may-wait).
 Extra acknowledgements are permitted and do not add an effect.
+
+## Forward a callback's services
+
+A reusable helper can accept callbacks using services defined by its clients:
+
+```omega
+public boundary trait MotorControl {
+    machine set_speed(speed: u32) reaches MotorControl;
+}
+
+machine command_motor(speed: u32) {
+    MotorControl::set_speed(speed);
+}
+
+public machine apply<machine F>(value: u32)
+requires machine F(value: u32);
+{
+    F(value);
+}
+
+public machine start_motor() reaches MotorControl {
+    apply<command_motor>(42);
+}
+```
+
+`apply` gets its reach from the selected F. Here `start_motor` reaches
+`MotorControl`; another callback can contribute a different service or none.
+The application still selects a provider for the boundary operation.
+
+Omitting reach on a body means “derive it from my calls.” On a non-boundary
+callback requirement it means “derive it from the selected implementation.”
+Write `requires machine F(value: u32) reaches;` to accept only service-free
+callbacks. The semicolon ends F's whole requirement; clauses after it belong
+to `apply`.
+
+The same propagation works through trait members and forwarded wrappers.
+A generic using an unrestricted F leaves its own reach inferred. Once F is
+selected, a caller can check the resulting finite row against its ceiling,
+as `start_motor` does above.
 
 ## Suspension and blocking through callbacks
 

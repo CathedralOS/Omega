@@ -23,11 +23,11 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Migrate all customers ([range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md)) and qualify filesystem oracles with **FILESYSTEM-PLATFORM-SERVICES**.
   Acceptance: all sources pass `omega run --both`; suffix parsing (`parse_type.rs`) and `TypeConstraintNode::Range` are deleted.
 
-- **STATIC-MACHINE-MIGRATION.** (covers **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION**, **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION**) Finish [static machines](wiki/spec/language/machines.md#static-declarations-and-explicit-state), [named implementations](wiki/spec/language/conformances.md#data-and-code-are-independent) and `dropped by`.
+- **STATIC-MACHINE-MIGRATION.** (covers **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION**, **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION**) Finish static machines, named implementations, `dropped by` and [callback reach](wiki/drafts/designs/deferred_callback_reach.md).
   - Finish const-expression closure, package projection, calling policies and `source/psi/` evidence-binder parity.
   - Qualify `positional_implementation_binder`/`open_const_implementation`/`open_record_const_implementation`/`named_conformance_dispatch`/`generic_calling_policy`/`domain_selected_cleanup` on all hosts.
   - Move Build facets to `Build::*`, retire `machine Data::operation`/attached helpers; finish suspension loans and conservative markers.
-  Acceptance: 9-place `dropped by`, `generic_counters`, clock/GUI and `traits/,layouts/,progress/` pass `--both`.
+  Acceptance: 9-place `dropped by`, `generic_counters`, clock/GUI, `traits/,layouts/,progress/` and callback reach controls pass `--both`.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** (covers **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**) Replace `dyn` with [machine values and some](wiki/drafts/designs/machine_values_some.md).
   - Complete callable contracts, package openings, loans, envelopes, indirect lowering and codec migration on all hosts.
