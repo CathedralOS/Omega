@@ -43,6 +43,19 @@ pub(crate) struct AuthorityGraph<'a> {
 }
 
 impl<'a> AuthorityGraph<'a> {
+    pub(super) fn machine(&self, identity: MachineId) -> Option<&'a terminal_psi::TerminalMachine> {
+        self.calls.machine(identity)
+    }
+
+    pub(super) fn dynamic_callees(
+        &self,
+        interface: u32,
+        slot: u32,
+        finite_family: bool,
+    ) -> Result<Vec<MachineId>, String> {
+        self.calls.dynamic_callees(interface, slot, finite_family)
+    }
+
     pub(crate) fn new(
         input: &'a crate::AdmissionSource<'a>,
         target_profile: target::TargetProfile,

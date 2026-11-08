@@ -17,6 +17,215 @@ use semantic_vocabulary::ValueId;
 use std::collections::{BTreeMap, VecDeque};
 use terminal_psi::StructuralTypeDeclaration;
 
+struct ScalarCaptureEdge {
+    target: usize,
+    parameters: Vec<ValueId>,
+}
+
+struct ScalarCaptureStep {
+    definitions: Vec<ValueId>,
+    successors: Vec<ScalarCaptureEdge>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScalarCaptureFailure {
+    NotCompleted,
+    UnknownPosition(DescriptorPosition),
+    MissingOrRenewed,
+    QueryBudget,
+    InvalidFlow,
+}
+
+/// Prepared immutable scalar-version flow for one canonical machine. Queries
+/// borrow no second graph, so equal coordinates from another graph cannot reuse
+/// this analysis. Topology, value definitions and arrival rosters are prepared
+/// once; scratch storage and completed query answers are reused.
+pub struct ScalarCaptureAnalysis {
+    identity: MachineId,
+    positions: BTreeMap<DescriptorPosition, usize>,
+    coordinates: Vec<DescriptorPosition>,
+    entry: usize,
+    steps: Vec<ScalarCaptureStep>,
+    answers: BTreeMap<(usize, usize, Vec<ValueId>), bool>,
+    versions: Vec<Option<bool>>,
+    queued: Vec<bool>,
+    pending: VecDeque<usize>,
+}
+
+impl ScalarCaptureAnalysis {
+    pub fn new(machine: &DescriptorMachine) -> Result<Self, &'static str> {
+        let positions = machine
+            .flow
+            .keys()
+            .copied()
+            .enumerate()
+            .map(|(index, position)| (position, index))
+            .collect::<BTreeMap<_, _>>();
+        let entry = *positions
+            .get(&machine.entry)
+            .ok_or("scalar capture graph has no entry")?;
+        let mut steps = Vec::with_capacity(positions.len());
+        for (&position, step) in &machine.flow {
+            let mut successors = Vec::with_capacity(step.successors.len());
+            for edge in &step.successors {
+                let target = *positions
+                    .get(&edge.target)
+                    .ok_or("scalar capture graph has an absent target")?;
+                let parameters = if edge.target.1 == 0 {
+                    machine
+                        .payload_scalar_parameters
+                        .get(&edge.target.0)
+                        .cloned()
+                        .unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                successors.push(ScalarCaptureEdge { target, parameters });
+            }
+            steps.push(ScalarCaptureStep {
+                definitions: machine
+                    .payload_scalar_definitions
+                    .get(&position)
+                    .cloned()
+                    .unwrap_or_default(),
+                successors,
+            });
+        }
+        Ok(Self {
+            identity: machine.id,
+            entry,
+            versions: vec![None; steps.len()],
+            queued: vec![false; steps.len()],
+            pending: VecDeque::new(),
+            coordinates: positions.keys().copied().collect(),
+            positions,
+            steps,
+            answers: BTreeMap::new(),
+        })
+    }
+
+    pub fn identity(&self) -> MachineId {
+        self.identity
+    }
+
+    /// A real operation completed before the observation on every incoming
+    /// path, and none of these scalar operands renewed afterwards. The caller
+    /// authenticates that operation and its captured operands separately. This
+    /// conservative query retains every syntactic path; it does not assume a
+    /// missing or contradictory path in order to prove a requested capture.
+    pub fn require(
+        &mut self,
+        source: DescriptorPosition,
+        observation: DescriptorPosition,
+        values: &[ValueId],
+    ) -> Result<(), ScalarCaptureFailure> {
+        if source == observation {
+            return Err(ScalarCaptureFailure::NotCompleted);
+        }
+        let source = *self
+            .positions
+            .get(&source)
+            .ok_or(ScalarCaptureFailure::UnknownPosition(source))?;
+        let observation = *self
+            .positions
+            .get(&observation)
+            .ok_or(ScalarCaptureFailure::UnknownPosition(observation))?;
+        let mut values = values.to_vec();
+        values.sort();
+        values.dedup();
+        let key = (source, observation, values);
+        if let Some(valid) = self.answers.get(&key) {
+            return if *valid {
+                Ok(())
+            } else {
+                Err(ScalarCaptureFailure::MissingOrRenewed)
+            };
+        }
+        if self.answers.len() >= 65_536 {
+            return Err(ScalarCaptureFailure::QueryBudget);
+        }
+        let valid = self.solve(source, observation, &key.2, |_, _| true)?;
+        self.answers.insert(key, valid);
+        if valid {
+            Ok(())
+        } else {
+            Err(ScalarCaptureFailure::MissingOrRenewed)
+        }
+    }
+
+    // The legacy wrapper retains its query-specific proved Boolean exclusions.
+    // It uses this same scalar renewal rule, without reusing an all-path cache
+    // answer for a different predecessor domain.
+    fn require_on_edges(
+        &mut self,
+        source: DescriptorPosition,
+        observation: DescriptorPosition,
+        values: &[ValueId],
+        includes_edge: impl Fn(DescriptorPosition, usize) -> bool,
+    ) -> Result<bool, ScalarCaptureFailure> {
+        let source = *self
+            .positions
+            .get(&source)
+            .ok_or(ScalarCaptureFailure::UnknownPosition(source))?;
+        let observation = *self
+            .positions
+            .get(&observation)
+            .ok_or(ScalarCaptureFailure::UnknownPosition(observation))?;
+        let mut values = values.to_vec();
+        values.sort();
+        values.dedup();
+        self.solve(source, observation, &values, includes_edge)
+    }
+
+    fn solve(
+        &mut self,
+        source: usize,
+        observation: usize,
+        values: &[ValueId],
+        includes_edge: impl Fn(DescriptorPosition, usize) -> bool,
+    ) -> Result<bool, ScalarCaptureFailure> {
+        self.versions.fill(None);
+        self.queued.fill(false);
+        self.pending.clear();
+        self.versions[self.entry] = Some(false);
+        self.queued[self.entry] = true;
+        self.pending.push_back(self.entry);
+        while let Some(current) = self.pending.pop_front() {
+            self.queued[current] = false;
+            let before = self.versions[current].ok_or(ScalarCaptureFailure::InvalidFlow)?;
+            let step = &self.steps[current];
+            let after = if current == source {
+                true
+            } else {
+                before
+                    && !step
+                        .definitions
+                        .iter()
+                        .any(|value| values.binary_search(value).is_ok())
+            };
+            for (ordinal, edge) in step.successors.iter().enumerate() {
+                if !includes_edge(self.coordinates[current], ordinal) {
+                    continue;
+                }
+                let arrival = after
+                    && !edge
+                        .parameters
+                        .iter()
+                        .any(|value| values.binary_search(value).is_ok());
+                let joined = self.versions[edge.target].map_or(arrival, |old| old && arrival);
+                if self.versions[edge.target] != Some(joined) {
+                    self.versions[edge.target] = Some(joined);
+                    if !self.queued[edge.target] {
+                        self.queued[edge.target] = true;
+                        self.pending.push_back(edge.target);
+                    }
+                }
+            }
+        }
+        Ok(self.versions[observation] == Some(true))
+    }
+}
+
 /// A current borrow resolves to this exact whole produced storage version.
 /// The producer's operation kind, selected provider and original input custody
 /// are deliberately absent: the consumer must authenticate those separately.
@@ -141,6 +350,47 @@ fn require_unchanged_between(
     observation: DescriptorPosition,
     payload: &DescriptorPayloadTarget,
 ) -> Result<(), &'static str> {
+    require_unchanged_from(
+        machine,
+        analysis,
+        VersionStart::Completed(producer),
+        observation,
+        payload,
+    )
+}
+
+/// Preserve the incoming contents from before the entry operation. This is an
+/// entry-value transport obligation, not a local producer or permission to read
+/// a borrowed input. In particular a write by the first operation is checked;
+/// it cannot be skipped by pretending entry was a completed establishment.
+pub fn require_unchanged_entry_storage(
+    types: &[StructuralTypeDeclaration],
+    graph: &[DescriptorMachine],
+    analysis: &mut DescriptorAnalysis<'_>,
+    identity: MachineId,
+    observation: DescriptorPosition,
+    payload: &DescriptorPayloadTarget,
+) -> Result<(), &'static str> {
+    if !analysis.uses_source_graph(types, graph) {
+        return Err("entry storage analysis belongs to another immutable source graph");
+    }
+    let machine = descriptor_machine(graph, identity).ok_or("entry payload machine is absent")?;
+    require_unchanged_from(machine, analysis, VersionStart::Entry, observation, payload)
+}
+
+#[derive(Clone, Copy)]
+enum VersionStart {
+    Entry,
+    Completed(DescriptorPosition),
+}
+
+fn require_unchanged_from(
+    machine: &DescriptorMachine,
+    analysis: &mut DescriptorAnalysis<'_>,
+    start: VersionStart,
+    observation: DescriptorPosition,
+    payload: &DescriptorPayloadTarget,
+) -> Result<(), &'static str> {
     let identity = machine.id;
     let relevant = super::payload_reachability::predecessors(machine, observation)
         .ok_or("produced payload observation has unresolved control flow")?;
@@ -155,10 +405,10 @@ fn require_unchanged_between(
     };
     let overlaps =
         |location: &DescriptorLocation| home.contains(location) || location.contains(&home);
-    let unchanged = version_flow(
+    let unchanged = version_flow_from(
         &machine.flow,
         machine.entry,
-        producer,
+        start,
         observation,
         |position, ordinal| relevant.includes_edge(position, ordinal),
         |position, step| {
@@ -233,25 +483,25 @@ pub fn require_completed_scalar_capture(
         descriptor_machine(graph, identity).ok_or("evidence capture machine is absent")?;
     let relevant = super::payload_reachability::predecessors(machine, observation)
         .ok_or("evidence capture has unresolved incoming control flow")?;
-    let valid = version_flow(
-        &machine.flow,
-        machine.entry,
-        source,
-        observation,
-        |position, ordinal| relevant.includes_edge(position, ordinal),
-        |position, _| {
-            Ok(machine
-                .payload_scalar_definitions
-                .get(&position)
-                .is_some_and(|definitions| definitions.iter().any(|value| values.contains(value))))
-        },
-        |edge| {
-            machine
-                .payload_scalar_parameters
-                .get(&edge.target.0)
-                .is_some_and(|parameters| parameters.iter().any(|value| values.contains(value)))
-        },
-    )?;
+    // Both constructor failures name absent flow positions; keep the legacy
+    // caller diagnostic while delegating scalar renewal to the shared owner.
+    let mut analysis = ScalarCaptureAnalysis::new(machine)
+        .map_err(|_| "payload version flow names an absent position")?;
+    let valid = analysis
+        .require_on_edges(source, observation, values, |position, ordinal| {
+            relevant.includes_edge(position, ordinal)
+        })
+        .map_err(|reason| match reason {
+            ScalarCaptureFailure::UnknownPosition(_) => {
+                "payload version flow names an absent position"
+            }
+            ScalarCaptureFailure::InvalidFlow => "payload version arrival is absent",
+            ScalarCaptureFailure::NotCompleted => "evidence capture has not completed before use",
+            ScalarCaptureFailure::MissingOrRenewed => {
+                "evidence capture is absent or its SSA instance was renewed before use"
+            }
+            ScalarCaptureFailure::QueryBudget => "scalar capture query budget exceeded",
+        })?;
     if valid {
         Ok(())
     } else {
@@ -262,10 +512,10 @@ pub fn require_completed_scalar_capture(
 /// One bit per reachable position: every arrival must still have the current
 /// producer's version. Re-execution of that producer starts a new version;
 /// loops do not preserve a stale observation from an earlier dynamic instance.
-fn version_flow(
+fn version_flow_from(
     flow: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     entry: DescriptorPosition,
-    producer: DescriptorPosition,
+    start: VersionStart,
     observation: DescriptorPosition,
     includes_edge: impl Fn(DescriptorPosition, usize) -> bool,
     mut modifies: impl FnMut(DescriptorPosition, &DescriptorFlowStep) -> Result<bool, &'static str>,
@@ -279,10 +529,12 @@ fn version_flow(
     };
     let entry_index = position_index(entry)?;
     let observation_index = position_index(observation)?;
-    position_index(producer)?;
+    if let VersionStart::Completed(producer) = start {
+        position_index(producer)?;
+    }
     let mut versions = vec![None; positions.len()];
     let mut writes = vec![None; positions.len()];
-    versions[entry_index] = Some(false);
+    versions[entry_index] = Some(matches!(start, VersionStart::Entry));
     let mut pending = VecDeque::from([entry_index]);
     while let Some(current_index) = pending.pop_front() {
         let current = positions[current_index];
@@ -290,7 +542,7 @@ fn version_flow(
             .get(&current)
             .ok_or("payload version flow lost its step")?;
         let before = versions[current_index].ok_or("payload version arrival is absent")?;
-        let after = if current == producer {
+        let after = if matches!(start, VersionStart::Completed(producer) if current == producer) {
             true
         } else if before {
             let modifies = match writes[current_index] {
@@ -336,8 +588,23 @@ pub fn unchanged_stored_scalar_sources(
     graph: &[DescriptorMachine],
     identity: MachineId,
     value: ValueId,
-    mut actual_writes: impl FnMut(DescriptorPosition) -> Vec<(DescriptorLocation, ValueId)>,
+    actual_writes: impl FnMut(DescriptorPosition) -> Vec<(DescriptorLocation, ValueId)>,
 ) -> Option<Vec<ValueId>> {
+    unchanged_stored_sources(types, graph, identity, value, actual_writes)
+}
+
+/// The same storage-version transport for an independently authenticated
+/// producer identity. Native output arguments, for example, have an exact call
+/// occurrence and output slot but no scalar SSA result. They must not acquire
+/// a fabricated ValueId. The consumer authenticates each writer and identity;
+/// this reader proves only the unchanged original storage at the scalar read.
+pub fn unchanged_stored_sources<Source: Ord>(
+    types: &[StructuralTypeDeclaration],
+    graph: &[DescriptorMachine],
+    identity: MachineId,
+    value: ValueId,
+    actual_writes: impl FnMut(DescriptorPosition) -> Vec<(DescriptorLocation, Source)>,
+) -> Option<Vec<Source>> {
     let machine = descriptor_machine(graph, identity)?;
     let mut reads = machine
         .scalar_payload_reads
@@ -353,6 +620,69 @@ pub fn unchanged_stored_scalar_sources(
         return None;
     }
     let mut analysis = DescriptorAnalysis::with_reference_slots(types, graph);
+    unchanged_stored_projection_sources_in(
+        types,
+        graph,
+        &mut analysis,
+        identity,
+        observation,
+        observed,
+        actual_writes,
+    )
+}
+
+/// Read the unchanged producing sources of an exact storage projection at a
+/// current-body cut, including a projection passed as a call argument or
+/// returned directly without a scalar-read operation. This query establishes
+/// storage version only, not read access, initialization, producer authenticity
+/// or a native call's successful completion. The caller supplies its shared
+/// reference/view analysis and authenticates every reported writer.
+pub fn unchanged_stored_projection_sources_in<Source: Ord>(
+    types: &[StructuralTypeDeclaration],
+    graph: &[DescriptorMachine],
+    analysis: &mut DescriptorAnalysis<'_>,
+    identity: MachineId,
+    observation: DescriptorPosition,
+    observed: &DescriptorLocation,
+    actual_writes: impl FnMut(DescriptorPosition) -> Vec<(DescriptorLocation, Source)>,
+) -> Option<Vec<Source>> {
+    projected_stored_sources_in(
+        types,
+        graph,
+        analysis,
+        identity,
+        observation,
+        observed,
+        actual_writes,
+        |source, suffix| suffix.is_empty().then_some(source),
+    )
+}
+
+/// Follow an authenticated aggregate writer to one observed scalar projection.
+/// The storage owner resolves the actual destination and checks its unchanged
+/// version. The caller alone interprets the owned suffix in its producer tag;
+/// rejecting a suffix supplies no provenance. Numeric equality cannot create a
+/// copy, and this query grants no access or initialized-value authority.
+pub fn projected_stored_sources_in<Source: Ord>(
+    types: &[StructuralTypeDeclaration],
+    graph: &[DescriptorMachine],
+    analysis: &mut DescriptorAnalysis<'_>,
+    identity: MachineId,
+    observation: DescriptorPosition,
+    observed: &DescriptorLocation,
+    mut actual_writes: impl FnMut(DescriptorPosition) -> Vec<(DescriptorLocation, Source)>,
+    mut project: impl FnMut(
+        Source,
+        &[crate::descriptors::descriptor_lifetimes::DescriptorPathSegment],
+    ) -> Option<Source>,
+) -> Option<Vec<Source>> {
+    if !analysis.uses_source_graph(types, graph) {
+        return None;
+    }
+    let machine = descriptor_machine(graph, identity)?;
+    if !machine.flow.contains_key(&observation) {
+        return None;
+    }
     let home = direct_owned_storage(types, machine, observed)
         .or_else(|| analysis.location(identity, observation, observed))?;
     let mut sources = Vec::new();
@@ -374,12 +704,15 @@ pub fn unchanged_stored_scalar_sources(
             let [destination] = destinations.as_slice() else {
                 continue;
             };
-            if destination != &home {
+            if destination.root != home.root || !home.path.starts_with(&destination.path) {
                 continue;
             }
+            let Some(id) = project(id, &home.path[destination.path.len()..]) else {
+                continue;
+            };
             if require_unchanged_between(
                 machine,
-                &mut analysis,
+                analysis,
                 producer,
                 observation,
                 &DescriptorPayloadTarget::Storage(home.clone()),
@@ -502,6 +835,244 @@ mod tests {
             normal_exits: vec![position(5)],
         };
         (types, machine)
+    }
+
+    #[test]
+    fn entry_storage_refuses_overlapping_clobbers_without_tainting_other_homes_or_earlier_cuts() {
+        let (types, mut machine) = copy_graph();
+        for step in machine.flow.values_mut() {
+            step.definitions.clear();
+            step.derivations.clear();
+        }
+        let original = payload();
+        let other = DescriptorLocation::whole(semantic_vocabulary::PlaceId::new(2).unwrap());
+        let preserved = |machine: &DescriptorMachine| {
+            let graph = std::slice::from_ref(machine);
+            let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&types, graph);
+            require_unchanged_entry_storage(
+                &types,
+                graph,
+                &mut analysis,
+                machine.id,
+                position(4),
+                &DescriptorPayloadTarget::Storage(original.clone()),
+            )
+        };
+        machine.payload_invalidations.insert(
+            position(2),
+            vec![Some(super::super::DescriptorContentsQuery::from_location(
+                &other,
+            ))],
+        );
+        assert!(preserved(&machine).is_ok());
+        machine.payload_invalidations.insert(
+            position(2),
+            vec![Some(super::super::DescriptorContentsQuery::from_location(
+                &original,
+            ))],
+        );
+        assert!(preserved(&machine).is_err());
+        // An unresolved mutation is conservative on a path to this read.
+        machine
+            .payload_invalidations
+            .insert(position(2), vec![None]);
+        assert!(preserved(&machine).is_err());
+        // A later mutation cannot retrospectively replace an earlier snapshot.
+        machine.payload_invalidations.clear();
+        machine
+            .payload_invalidations
+            .insert(position(5), vec![None]);
+        assert!(preserved(&machine).is_ok());
+    }
+
+    #[test]
+    fn scalar_formal_renews_on_arrival_not_between_operations_in_its_block() {
+        let (_, mut machine) = copy_graph();
+        let entry = position(1);
+        let capture = (semantic_vocabulary::BlockId::new(2).unwrap(), 0);
+        let middle = (capture.0, 1);
+        let observation = (capture.0, 2);
+        let parameter = ValueId::new(8).unwrap();
+        let step = |target: Option<DescriptorPosition>| DescriptorFlowStep {
+            successors: target
+                .into_iter()
+                .map(|target| DescriptorFlowEdge {
+                    target,
+                    parameters: Vec::new(),
+                    bindings: Vec::new(),
+                })
+                .collect(),
+            ..Default::default()
+        };
+        machine.entry = entry;
+        machine.flow = BTreeMap::from([
+            (entry, step(Some(capture))),
+            (capture, step(Some(middle))),
+            (middle, step(Some(observation))),
+            (observation, step(None)),
+        ]);
+        machine.payload_scalar_parameters = BTreeMap::from([(capture.0, vec![parameter])]);
+        machine.payload_scalar_definitions.clear();
+        let mut analysis = ScalarCaptureAnalysis::new(&machine).unwrap();
+        analysis
+            .require(capture, observation, &[parameter])
+            .unwrap();
+        assert!(analysis.require(entry, observation, &[parameter]).is_err());
+        require_completed_scalar_capture(
+            std::slice::from_ref(&machine),
+            machine.id,
+            capture,
+            observation,
+            &[parameter],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn prepared_scalar_capture_refuses_renewed_operands_without_reusing_old_answers() {
+        let (_, mut machine) = copy_graph();
+        let status = ValueId::new(8).unwrap();
+        machine
+            .payload_scalar_definitions
+            .insert(position(1), vec![status]);
+        let mut original = ScalarCaptureAnalysis::new(&machine).unwrap();
+        original
+            .require(position(2), position(5), &[status])
+            .unwrap();
+        original
+            .require(position(2), position(5), &[status])
+            .unwrap();
+        assert_eq!(original.answers.len(), 1);
+
+        machine
+            .payload_scalar_definitions
+            .insert(position(4), vec![status]);
+        let mut renewed = ScalarCaptureAnalysis::new(&machine).unwrap();
+        assert!(
+            renewed
+                .require(position(2), position(5), &[status])
+                .is_err()
+        );
+        assert!(
+            renewed
+                .require(position(2), position(2), &[status])
+                .is_err()
+        );
+        assert!(renewed.require(position(2), position(5), &[]).is_ok());
+    }
+
+    #[test]
+    fn entry_version_includes_the_first_operation_write() {
+        let (_, machine) = copy_graph();
+        let observe = |start, first_writes| {
+            version_flow_from(
+                &machine.flow,
+                machine.entry,
+                start,
+                position(5),
+                |_, _| true,
+                |position, _| Ok(first_writes && position == machine.entry),
+                |_| false,
+            )
+            .unwrap()
+        };
+        assert!(observe(VersionStart::Entry, false));
+        assert!(!observe(VersionStart::Entry, true));
+        // A completed producer names the post-operation version instead.
+        assert!(observe(VersionStart::Completed(machine.entry), true));
+    }
+
+    #[test]
+    fn opaque_output_identity_needs_unchanged_actual_storage() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, ScalarTerm, ScalarType};
+
+        #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+        struct NativeOutput(DescriptorPosition, u32);
+
+        let (types, mut machine) = copy_graph();
+        let identity = machine.id;
+        let read = ValueId::new(7).unwrap();
+        machine.scalar_payload_reads.insert(
+            position(5),
+            vec![(
+                payload(),
+                ScalarTerm::value(
+                    read,
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+                ),
+            )],
+        );
+        let mut graph = vec![machine];
+        let observe = |graph: &[DescriptorMachine]| {
+            unchanged_stored_sources(&types, graph, identity, read, |writer_position| {
+                if writer_position == position(2) {
+                    vec![(payload(), NativeOutput(writer_position, 3))]
+                } else {
+                    Vec::new()
+                }
+            })
+        };
+        assert_eq!(observe(&graph), Some(vec![NativeOutput(position(2), 3)]));
+        // A later opaque write cannot be replaced with an equal asserted
+        // output identity. It destroys the original storage-version proof.
+        graph[0].unresolved_contents_writes.insert(position(4));
+        assert!(observe(&graph).is_none());
+    }
+
+    #[test]
+    fn copied_projection_names_its_pre_copy_source_and_keeps_its_own_version() {
+        use crate::descriptors::descriptor_lifetimes::DescriptorPathSegment;
+        use semantic_vocabulary::StructuralTypeId;
+        use terminal_psi::{ArrayExtent, StructuralTypeShape};
+        let (mut types, mut machine) = copy_graph();
+        let mut element = types[0].clone();
+        element.id = StructuralTypeId::new(2).unwrap();
+        types[0].shape = StructuralTypeShape::FixedArray {
+            element: element.id,
+            length: ArrayExtent::Literal(2),
+        };
+        types.push(element);
+        let original = payload();
+        let copy = DescriptorLocation::whole(semantic_vocabulary::PlaceId::new(2).unwrap());
+        let mut observed = copy.clone();
+        observed.path.push(DescriptorPathSegment::FixedIndex(1));
+        let mut source_leaf = original.clone();
+        source_leaf.path = observed.path.clone();
+        machine.payload_invalidations.insert(
+            position(4),
+            vec![Some(DescriptorContentsQuery::from_location(&source_leaf))],
+        );
+        let observe = |machine: &DescriptorMachine| {
+            let graph = std::slice::from_ref(machine);
+            let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&types, graph);
+            projected_stored_sources_in(
+                &types,
+                graph,
+                &mut analysis,
+                machine.id,
+                position(5),
+                &observed,
+                |cut| {
+                    if cut == position(3) {
+                        vec![(copy.clone(), (cut, original.clone()))]
+                    } else {
+                        Vec::new()
+                    }
+                },
+                |(capture, mut source), suffix| {
+                    source.path.extend_from_slice(suffix);
+                    Some((capture, source))
+                },
+            )
+        };
+        // A write to the original after copying cannot redirect the captured
+        // source to its new contents. The source cut remains before the copy.
+        assert_eq!(observe(&machine), Some(vec![(position(3), source_leaf)]));
+        machine.payload_invalidations.insert(
+            position(4),
+            vec![Some(DescriptorContentsQuery::from_location(&observed))],
+        );
+        assert!(observe(&machine).is_none());
     }
 
     #[test]
@@ -734,10 +1305,10 @@ mod tests {
     fn all_arrivals_need_the_completed_unchanged_version() {
         let diamond = flow(&[(1, &[2]), (2, &[3, 4]), (3, &[5]), (4, &[5]), (5, &[])]);
         let query = |writes: &[u64]| {
-            version_flow(
+            version_flow_from(
                 &diamond,
                 position(1),
-                position(2),
+                VersionStart::Completed(position(2)),
                 position(5),
                 |_, _| true,
                 |current, _| Ok(writes.iter().any(|write| position(*write) == current)),
@@ -750,10 +1321,10 @@ mod tests {
         assert!(!query(&[4]));
         let bypass = flow(&[(1, &[2, 4]), (2, &[3]), (3, &[5]), (4, &[5]), (5, &[])]);
         assert!(
-            !version_flow(
+            !version_flow_from(
                 &bypass,
                 position(1),
-                position(2),
+                VersionStart::Completed(position(2)),
                 position(5),
                 |_, _| true,
                 |_, _| Ok(false),
@@ -793,10 +1364,10 @@ mod tests {
                 .unwrap(),
             );
             assert_eq!(
-                version_flow(
+                version_flow_from(
                     &diamond,
                     position(1),
-                    position(2),
+                    VersionStart::Completed(position(2)),
                     position(5),
                     |_, _| true,
                     |_, _| Ok(false),
@@ -812,10 +1383,10 @@ mod tests {
     fn new_loop_completion_replaces_the_previous_dynamic_version() {
         let loop_flow = flow(&[(1, &[2]), (2, &[3]), (3, &[4]), (4, &[2, 5]), (5, &[])]);
         assert!(
-            version_flow(
+            version_flow_from(
                 &loop_flow,
                 position(1),
-                position(2),
+                VersionStart::Completed(position(2)),
                 position(3),
                 |_, _| true,
                 |current, _| Ok(current == position(4)),
@@ -825,10 +1396,10 @@ mod tests {
         );
         let stale_loop = flow(&[(1, &[2]), (2, &[3]), (3, &[4]), (4, &[3, 5]), (5, &[])]);
         assert!(
-            !version_flow(
+            !version_flow_from(
                 &stale_loop,
                 position(1),
-                position(2),
+                VersionStart::Completed(position(2)),
                 position(3),
                 |_, _| true,
                 |current, _| Ok(current == position(4)),

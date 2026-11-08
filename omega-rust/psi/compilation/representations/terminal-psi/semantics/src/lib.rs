@@ -61,6 +61,7 @@ mod descriptors;
 mod domain_preservation;
 mod exactly_one;
 mod references;
+pub use scalars::scalar_demand;
 mod scalars;
 mod storage;
 mod structural;

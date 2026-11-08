@@ -311,6 +311,7 @@ pub fn admit_native_providers<'request>(
             effective_policy,
             request.terminal_authority_permission_policy.as_ref(),
             &mechanisms,
+            &settlements,
             installation
                 .as_ref()
                 .map(AdmittedProviderInstallation::installed_candidates)
@@ -342,7 +343,7 @@ pub fn admit_native_providers<'request>(
                 .map_err(|reason| realization_error("callback entry admission", reason))?,
         },
         executions,
-        terminal_authority_policy_identity: effective_policy.identity(),
+        terminal_authority_policy_identity: terminal_authority_closure_review.physical_policy(),
         terminal_authority_permission_policy_identity: request
             .terminal_authority_permission_policy
             .as_ref()

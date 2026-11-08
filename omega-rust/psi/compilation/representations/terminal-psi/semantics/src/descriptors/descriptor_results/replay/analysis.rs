@@ -27,6 +27,20 @@ pub struct DescriptorSourceObservation {
 }
 
 impl<'a> DescriptorAnalysis<'a> {
+    /// Query-local cache identity, not semantic or published evidence. Equal
+    /// coordinates in another graph do not identify these immutable inputs.
+    pub(crate) fn uses_source_graph(
+        &self,
+        types: &[StructuralTypeDeclaration],
+        machines: &[DescriptorMachine],
+    ) -> bool {
+        std::ptr::eq(self.replay.types, types) && std::ptr::eq(self.replay.machines, machines)
+    }
+
+    pub(crate) fn slot_kind(&self) -> DescriptorSlotKind {
+        self.replay.slot_kind
+    }
+
     /// Retain only descriptor slots intersecting this operation's source uses.
     /// Edge demands still observe the pre-operation frontier; a newly produced
     /// edge value must use its producer, not an entry-type reconstruction.

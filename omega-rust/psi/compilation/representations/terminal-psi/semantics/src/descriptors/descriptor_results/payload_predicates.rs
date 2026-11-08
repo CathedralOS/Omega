@@ -424,13 +424,13 @@ pub fn scalar_payload_expression(
 /// each stored operand and edge predicate previously rebuilt the same complete
 /// type table. Retaining it here changes preparation, not expression expansion:
 /// literal recovery, definition order, failure and recursion budgets stay intact.
-pub(super) struct TerminalScalarExpressions<'machine> {
+pub struct TerminalScalarExpressions<'machine> {
     index: crate::MachineScalarIndex<'machine>,
     types: std::collections::BTreeMap<ValueId, ScalarType>,
 }
 
 impl<'machine> TerminalScalarExpressions<'machine> {
-    pub(super) fn new(machine: &'machine terminal_psi::TerminalMachine) -> Self {
+    pub fn new(machine: &'machine terminal_psi::TerminalMachine) -> Self {
         let types: std::collections::BTreeMap<_, _> = machine
             .parameters
             .iter()
@@ -446,6 +446,63 @@ impl<'machine> TerminalScalarExpressions<'machine> {
             index: crate::MachineScalarIndex::new(machine),
             types,
         }
+    }
+
+    /// Borrow the one prepared scalar typing inventory. This carries no
+    /// expanded denotation or statement-epoch premise.
+    pub fn scalar_types(&self) -> impl Iterator<Item = (ValueId, ScalarType)> + '_ {
+        self.types
+            .iter()
+            .map(|(&value, &scalar_type)| (value, scalar_type))
+    }
+
+    pub fn scalar_type(&self, value: ValueId) -> Option<ScalarType> {
+        self.types.get(&value).copied()
+    }
+
+    /// One operation's unexpanded equation in this immutable type context.
+    /// The caller retains the actual operation's body/occurrence custody and
+    /// separately proves availability and captured operand versions.
+    pub fn unexpanded_operation(
+        &self,
+        operation: &terminal_psi::Operation,
+    ) -> Result<Option<ScalarTerm>, String> {
+        use terminal_psi::OperationKind;
+        match operation.kind {
+            OperationKind::IntegerConstant { value } => {
+                let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type
+                else {
+                    return Err("integer literal has a noninteger scalar carrier".into());
+                };
+                return Ok(Some(ScalarTerm::Integer { scalar_type, value }));
+            }
+            OperationKind::BooleanConstant { value } => {
+                return Ok(Some(ScalarTerm::Boolean(value)));
+            }
+            OperationKind::ReadScalarApplication { application } => {
+                return Ok(Some(ScalarTerm::Application {
+                    application,
+                    scalar_type: operation.result.expect_scalar().scalar_type,
+                }));
+            }
+            _ => {}
+        }
+        let equation = crate::goal_free_scalar_leaf_semantics(operation, &self.types)
+            .map_err(|reason| {
+                format!("scalar operation has invalid canonical semantics: {reason:?}")
+            })?
+            .map(|semantics| semantics.result_equation().clone())
+            .or(
+                crate::proof_bearing_scalar_leaf_semantics(operation, &self.types)
+                    .map_err(|reason| {
+                        format!("scalar operation has invalid checked semantics: {reason:?}")
+                    })?
+                    .map(|semantics| semantics.result_equation().clone()),
+            );
+        Ok(match equation {
+            Some(Proposition::Equal(_, right)) => Some(right),
+            _ => None,
+        })
     }
 
     pub(super) fn expression(&self, value: semantic_vocabulary::ValueId) -> Option<ScalarTerm> {

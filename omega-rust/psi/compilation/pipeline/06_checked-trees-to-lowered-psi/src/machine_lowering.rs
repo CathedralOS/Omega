@@ -26,6 +26,7 @@ pub(crate) mod float_meanings;
 pub(crate) mod guarded_exits;
 mod installed_interrupts;
 pub(crate) mod machine_dispatch;
+mod scalar_transport;
 
 use crate::shared::checked_facts::flow_facts;
 use checked_trees::{CheckedTerminalSignatureEligibility, CheckedTrees};
@@ -193,6 +194,10 @@ pub fn lower_machine(
         crate::lower_task_activation_demands(checked, &mut identities)
             .map_err(LoweringError::TaskActivation)?;
     lowered.semantic_module.identities = identities.build();
+    // Private completion blocks need only the values their completed graph
+    // actually reads. Keep every source operation and all retained evidence.
+    scalar_transport::complete(&mut lowered);
+
     // Declaration and evidence producers intern beyond the body snapshot.
     // Validate against their complete module-owned table before publication.
     if let Err(reason) =

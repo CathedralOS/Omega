@@ -24,6 +24,7 @@ occurrence-specific release contract.
 mod classification;
 mod external_mechanisms;
 mod host_cohorts;
+mod windows_imports;
 
 use std::sync::OnceLock;
 
@@ -46,7 +47,7 @@ pub(crate) use external_mechanisms::{
 };
 pub use host_cohorts::{filesystem_host_permission_rows, time_host_permission_rows};
 
-pub(crate) const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 9;
+pub(crate) const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 10;
 const POLICY_COMMITMENT_DOMAIN: &[u8] = b"omega.terminal-authority.policy.v3\0";
 const PARAMETERIZED_POLICY_FAMILY_COUNT: u32 = 1;
 const ACCESS_CALLER_RAM_SCALAR_POLICY_V1: &[u8] =
@@ -248,6 +249,14 @@ pub(crate) fn cohort_mechanism_row(
     schema: &ServiceSchema,
     method: &ServiceMethod,
 ) -> Option<TerminalAuthorityPolicyRow> {
+    // Windows foreign imports have their own reviewed physical meanings.
+    // A readable portable/Console/Time method name cannot classify an unknown
+    // export or replace an import's complete admitted argument contract.
+    if let TerminalMechanismIdentity::NormalizedForeign(foreign) = mechanism
+        && foreign.target() == target::TargetProfile::WindowsX64
+    {
+        return windows_imports::mechanism_row(foreign);
+    }
     host_cohorts::filesystem_mechanism_row(mechanism, method)
         .or_else(|| host_cohorts::time_host_mechanism_row(mechanism, method))
         .or_else(|| host_cohorts::console_mechanism_row(mechanism, method))
