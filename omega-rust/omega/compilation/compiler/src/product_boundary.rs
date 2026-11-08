@@ -752,9 +752,8 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
     let custody =
         include_str!("../../../../psi/compilation/psi-compiler/terminal-production/src/custody.rs");
     assert!(!custody.contains("pub admission_roots: &'a [symbols::SymbolHandle]"));
-    let preparation = include_str!(
-        "../../../../psi/compilation/representations/terminal-psi/src/prepared_roots.rs"
-    );
+    let preparation =
+        include_str!("../../../../psi/compilation/representations/terminal-psi/src/lib.rs");
     assert!(!preparation.contains("symbols::SymbolHandle"));
     assert!(preparation.contains("declaration.same_identity_as("));
     assert!(preparation.contains("pub fn new("));

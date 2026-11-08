@@ -153,6 +153,213 @@ pub use shared_component::{
     emit_pe_shared_component,
 };
 
+use constants::{IMAGE_BASE, TEXT_RVA};
+use entry_symbol::pe_entry_rva;
+use headers::{PeHeaderInput, write_dos_header, write_pe_headers, write_section_header};
+use imports::{
+    build_import_table, install_import_thunks, patch_import_thunks,
+    validate_import_thunk_footprints,
+};
+use layout::align_to;
+use sections::{plan_pe_sections, rdata_rva_after_text};
+
+pub(crate) enum PeImageKind {
+    Executable,
+    SharedComponent { exports: Vec<PeComponentExport> },
+}
+
+pub fn emit_pe_x86_64_executable(
+    image: FinalImage,
+    subsystem: u16,
+) -> Result<ExecutableImageOutput, Diagnostic> {
+    emit_pe_x86_64(image, subsystem, PeImageKind::Executable)
+}
+
+pub(crate) fn emit_pe_x86_64(
+    mut image: FinalImage,
+    subsystem: u16,
+    kind: PeImageKind,
+) -> Result<ExecutableImageOutput, Diagnostic> {
+    let import_thunks = install_import_thunks(&mut image, subsystem)?;
+    let rdata_rva = rdata_rva_after_text(&image);
+    let import_table = build_import_table(&import_thunks, rdata_rva);
+    let (export_bytes, export_directory_rva, export_directory_size) = match &kind {
+        PeImageKind::Executable => (Vec::new(), 0, 0),
+        PeImageKind::SharedComponent { exports } => {
+            let aligned = align_to(import_table.bytes.len(), 4);
+            let directory_rva = shared_component::directory_rva_of(rdata_rva, aligned)?;
+            let bytes = shared_component::export_directory_bytes(&image, exports, directory_rva)?;
+            let size = bytes.len();
+            (bytes, directory_rva, size)
+        }
+    };
+    let mut rdata_bytes = import_table.bytes.clone();
+    if !export_bytes.is_empty() {
+        rdata_bytes.resize(align_to(rdata_bytes.len(), 4), 0);
+        rdata_bytes.extend_from_slice(&export_bytes);
+    }
+    let sections = plan_pe_sections(&image, rdata_bytes.len());
+    let layout = sections.final_image_layout();
+
+    patch_import_thunks(&mut image, &layout, &import_thunks, &import_table)?;
+    apply_relocations(&mut image, &layout, "PE direct executable")?;
+    validate_import_thunk_footprints(&mut image, &import_thunks)?;
+    let executable_regions = place_executable_regions(&image, layout)?;
+    let data_regions = place_data_regions(&image, layout)?;
+
+    let import_data_regions = if import_table.bytes.is_empty() {
+        PlacedDataRegionInventory::empty()
+    } else {
+        let slots = import_thunks
+            .iter()
+            .zip(import_table.iat_table_offsets.iter().copied())
+            .map(|(thunk, table_offset)| FinalDataRegion {
+                origin: FinalDataRegionOrigin::ImportBindingSlot,
+                section_offset: table_offset,
+                byte_count: 8,
+                symbol: thunk.symbol.clone(),
+            })
+            .collect();
+        place_data_extent(
+            &import_table.bytes,
+            slots,
+            IMAGE_BASE + u64::from(sections.rdata_rva),
+            "import data",
+        )?
+    };
+
+    let entry_rva = match &kind {
+        PeImageKind::Executable => pe_entry_rva(&image)?,
+        PeImageKind::SharedComponent { .. } => 0,
+    };
+    let file_characteristics = match &kind {
+        PeImageKind::Executable => 0x0022,
+        PeImageKind::SharedComponent { .. } => 0x2022,
+    };
+
+    let (reloc_directory_rva, reloc_directory_size) = if sections.has_reloc {
+        (sections.reloc_rva, sections.reloc.bytes.len())
+    } else {
+        (0, 0)
+    };
+
+    let mut bytes = Vec::new();
+    write_dos_header(&mut bytes);
+    write_pe_headers(
+        &mut bytes,
+        PeHeaderInput {
+            section_count: sections.section_count,
+            entry_rva,
+            size_of_code: sections.text_raw_size,
+            size_of_initialized_data: sections.rdata_raw_size + sections.data_raw_size,
+            size_of_image: sections.size_of_image,
+            size_of_headers: sections.headers_size,
+            import_directory_rva: import_table.import_directory_rva,
+            import_directory_size: import_table.import_directory_size,
+            iat_rva: import_table.iat_rva,
+            iat_size: import_table.iat_size,
+            reloc_directory_rva,
+            reloc_directory_size,
+            has_reloc: sections.has_reloc,
+            subsystem,
+            file_characteristics,
+            export_directory_rva,
+            export_directory_size,
+        },
+    );
+    write_section_header(
+        &mut bytes,
+        ".text",
+        sections.text_virtual_size,
+        TEXT_RVA,
+        sections.text_raw_size,
+        sections.text_raw,
+        0x6000_0020,
+    );
+    if sections.has_rdata {
+        write_section_header(
+            &mut bytes,
+            ".rdata",
+            sections.rdata_virtual_size,
+            sections.rdata_rva,
+            sections.rdata_raw_size,
+            sections.rdata_raw,
+            0x4000_0040,
+        );
+    }
+    if sections.has_data {
+        write_section_header(
+            &mut bytes,
+            ".data",
+            image.memory.data.len(),
+            sections.data_rva,
+            sections.data_raw_size,
+            sections.data_raw,
+            0xc000_0040,
+        );
+    }
+    if sections.has_reloc {
+        write_section_header(
+            &mut bytes,
+            ".reloc",
+            sections.reloc.bytes.len(),
+            sections.reloc_rva,
+            sections.reloc_raw_size,
+            sections.reloc_raw,
+            0x4200_0040,
+        );
+    }
+    if sections.has_bss {
+        write_section_header(
+            &mut bytes,
+            ".bss",
+            image.memory.bss_size,
+            sections.bss_rva,
+            0,
+            0,
+            0xc000_0080,
+        );
+    }
+
+    bytes.resize(sections.text_raw, 0);
+    bytes.extend(&image.memory.text);
+    bytes.resize(sections.text_raw + sections.text_raw_size, 0);
+    if sections.has_rdata {
+        bytes.resize(sections.rdata_raw, 0);
+        bytes.extend(&rdata_bytes);
+        bytes.resize(sections.rdata_raw + sections.rdata_raw_size, 0);
+    }
+    if sections.has_data {
+        bytes.resize(sections.data_raw, 0);
+        bytes.extend(&image.memory.data);
+        bytes.resize(sections.data_raw + sections.data_raw_size, 0);
+    }
+    if sections.has_reloc {
+        bytes.resize(sections.reloc_raw, 0);
+        bytes.extend(&sections.reloc.bytes);
+        bytes.resize(sections.reloc_raw + sections.reloc_raw_size, 0);
+    }
+
+    Ok(ExecutableImageOutput {
+        final_image_layout: layout,
+        final_text_bytes: image.memory.text.clone(),
+        final_data_bytes: image.memory.data.clone(),
+        final_import_data_bytes: import_table.bytes,
+        bytes,
+        file_name: "omega-program.exe".to_owned(),
+        format: "pe64-x86_64-executable".to_owned(),
+        text_bytes: image.memory.text.len(),
+        data_bytes: image.memory.data.len(),
+        bss_bytes: image.memory.bss_size,
+        symbols: image.symbol_table.symbols.len(),
+        imports: image.symbol_table.imports.len(),
+        relocations: image.relocation_table.relocations.len(),
+        executable_regions,
+        data_regions,
+        import_data_regions,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use crate::constants::{IMAGE_BASE, TEXT_RVA};
@@ -365,211 +572,4 @@ mod tests {
             );
         }
     }
-}
-
-use constants::{IMAGE_BASE, TEXT_RVA};
-use entry_symbol::pe_entry_rva;
-use headers::{PeHeaderInput, write_dos_header, write_pe_headers, write_section_header};
-use imports::{
-    build_import_table, install_import_thunks, patch_import_thunks,
-    validate_import_thunk_footprints,
-};
-use layout::align_to;
-use sections::{plan_pe_sections, rdata_rva_after_text};
-
-pub(crate) enum PeImageKind {
-    Executable,
-    SharedComponent { exports: Vec<PeComponentExport> },
-}
-
-pub fn emit_pe_x86_64_executable(
-    image: FinalImage,
-    subsystem: u16,
-) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_pe_x86_64(image, subsystem, PeImageKind::Executable)
-}
-
-pub(crate) fn emit_pe_x86_64(
-    mut image: FinalImage,
-    subsystem: u16,
-    kind: PeImageKind,
-) -> Result<ExecutableImageOutput, Diagnostic> {
-    let import_thunks = install_import_thunks(&mut image, subsystem)?;
-    let rdata_rva = rdata_rva_after_text(&image);
-    let import_table = build_import_table(&import_thunks, rdata_rva);
-    let (export_bytes, export_directory_rva, export_directory_size) = match &kind {
-        PeImageKind::Executable => (Vec::new(), 0, 0),
-        PeImageKind::SharedComponent { exports } => {
-            let aligned = align_to(import_table.bytes.len(), 4);
-            let directory_rva = shared_component::directory_rva_of(rdata_rva, aligned)?;
-            let bytes = shared_component::export_directory_bytes(&image, exports, directory_rva)?;
-            let size = bytes.len();
-            (bytes, directory_rva, size)
-        }
-    };
-    let mut rdata_bytes = import_table.bytes.clone();
-    if !export_bytes.is_empty() {
-        rdata_bytes.resize(align_to(rdata_bytes.len(), 4), 0);
-        rdata_bytes.extend_from_slice(&export_bytes);
-    }
-    let sections = plan_pe_sections(&image, rdata_bytes.len());
-    let layout = sections.final_image_layout();
-
-    patch_import_thunks(&mut image, &layout, &import_thunks, &import_table)?;
-    apply_relocations(&mut image, &layout, "PE direct executable")?;
-    validate_import_thunk_footprints(&mut image, &import_thunks)?;
-    let executable_regions = place_executable_regions(&image, layout)?;
-    let data_regions = place_data_regions(&image, layout)?;
-
-    let import_data_regions = if import_table.bytes.is_empty() {
-        PlacedDataRegionInventory::empty()
-    } else {
-        let slots = import_thunks
-            .iter()
-            .zip(import_table.iat_table_offsets.iter().copied())
-            .map(|(thunk, table_offset)| FinalDataRegion {
-                origin: FinalDataRegionOrigin::ImportBindingSlot,
-                section_offset: table_offset,
-                byte_count: 8,
-                symbol: thunk.symbol.clone(),
-            })
-            .collect();
-        place_data_extent(
-            &import_table.bytes,
-            slots,
-            IMAGE_BASE + u64::from(sections.rdata_rva),
-            "import data",
-        )?
-    };
-
-    let entry_rva = match &kind {
-        PeImageKind::Executable => pe_entry_rva(&image)?,
-        PeImageKind::SharedComponent { .. } => 0,
-    };
-    let file_characteristics = match &kind {
-        PeImageKind::Executable => 0x0022,
-        PeImageKind::SharedComponent { .. } => 0x2022,
-    };
-
-    let (reloc_directory_rva, reloc_directory_size) = if sections.has_reloc {
-        (sections.reloc_rva, sections.reloc.bytes.len())
-    } else {
-        (0, 0)
-    };
-
-    let mut bytes = Vec::new();
-    write_dos_header(&mut bytes);
-    write_pe_headers(
-        &mut bytes,
-        PeHeaderInput {
-            section_count: sections.section_count,
-            entry_rva,
-            size_of_code: sections.text_raw_size,
-            size_of_initialized_data: sections.rdata_raw_size + sections.data_raw_size,
-            size_of_image: sections.size_of_image,
-            size_of_headers: sections.headers_size,
-            import_directory_rva: import_table.import_directory_rva,
-            import_directory_size: import_table.import_directory_size,
-            iat_rva: import_table.iat_rva,
-            iat_size: import_table.iat_size,
-            reloc_directory_rva,
-            reloc_directory_size,
-            has_reloc: sections.has_reloc,
-            subsystem,
-            file_characteristics,
-            export_directory_rva,
-            export_directory_size,
-        },
-    );
-    write_section_header(
-        &mut bytes,
-        ".text",
-        sections.text_virtual_size,
-        TEXT_RVA,
-        sections.text_raw_size,
-        sections.text_raw,
-        0x6000_0020,
-    );
-    if sections.has_rdata {
-        write_section_header(
-            &mut bytes,
-            ".rdata",
-            sections.rdata_virtual_size,
-            sections.rdata_rva,
-            sections.rdata_raw_size,
-            sections.rdata_raw,
-            0x4000_0040,
-        );
-    }
-    if sections.has_data {
-        write_section_header(
-            &mut bytes,
-            ".data",
-            image.memory.data.len(),
-            sections.data_rva,
-            sections.data_raw_size,
-            sections.data_raw,
-            0xc000_0040,
-        );
-    }
-    if sections.has_reloc {
-        write_section_header(
-            &mut bytes,
-            ".reloc",
-            sections.reloc.bytes.len(),
-            sections.reloc_rva,
-            sections.reloc_raw_size,
-            sections.reloc_raw,
-            0x4200_0040,
-        );
-    }
-    if sections.has_bss {
-        write_section_header(
-            &mut bytes,
-            ".bss",
-            image.memory.bss_size,
-            sections.bss_rva,
-            0,
-            0,
-            0xc000_0080,
-        );
-    }
-
-    bytes.resize(sections.text_raw, 0);
-    bytes.extend(&image.memory.text);
-    bytes.resize(sections.text_raw + sections.text_raw_size, 0);
-    if sections.has_rdata {
-        bytes.resize(sections.rdata_raw, 0);
-        bytes.extend(&rdata_bytes);
-        bytes.resize(sections.rdata_raw + sections.rdata_raw_size, 0);
-    }
-    if sections.has_data {
-        bytes.resize(sections.data_raw, 0);
-        bytes.extend(&image.memory.data);
-        bytes.resize(sections.data_raw + sections.data_raw_size, 0);
-    }
-    if sections.has_reloc {
-        bytes.resize(sections.reloc_raw, 0);
-        bytes.extend(&sections.reloc.bytes);
-        bytes.resize(sections.reloc_raw + sections.reloc_raw_size, 0);
-    }
-
-    Ok(ExecutableImageOutput {
-        final_image_layout: layout,
-        final_text_bytes: image.memory.text.clone(),
-        final_data_bytes: image.memory.data.clone(),
-        final_import_data_bytes: import_table.bytes,
-        bytes,
-        file_name: "omega-program.exe".to_owned(),
-        format: "pe64-x86_64-executable".to_owned(),
-        text_bytes: image.memory.text.len(),
-        data_bytes: image.memory.data.len(),
-        bss_bytes: image.memory.bss_size,
-        symbols: image.symbol_table.symbols.len(),
-        imports: image.symbol_table.imports.len(),
-        relocations: image.relocation_table.relocations.len(),
-        executable_regions,
-        data_regions,
-        import_data_regions,
-    })
 }

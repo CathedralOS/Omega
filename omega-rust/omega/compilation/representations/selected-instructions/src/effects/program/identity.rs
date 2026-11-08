@@ -535,6 +535,60 @@ mod values {
     }
 }
 
+use crate::{PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan};
+
+use crate::codec_bytes::encode_len;
+use crate::digest_encoder::content_identity;
+use instruction::encode_cfg_instruction;
+pub(crate) use instruction::encode_kind;
+pub use ownership::{encode_cleanup, encode_ownership, encode_path, encode_reference_origin_path};
+pub use provenance::encode_provenance;
+pub use values::encode_ids;
+
+pub fn pre_allocation_machine_effect_identity(
+    plan: &PreAllocationMachineEffectPlan,
+) -> PreAllocationMachineEffectIdentity {
+    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v36\0")
+}
+
+fn identity_with_domain(
+    plan: &PreAllocationMachineEffectPlan,
+    domain: &[u8],
+) -> PreAllocationMachineEffectIdentity {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(domain);
+    bytes.extend_from_slice(&encode_terminal_pre_allocation_machine_effect_content(plan));
+    PreAllocationMachineEffectIdentity::from_bytes(content_identity(&bytes))
+}
+
+pub(crate) fn encode_terminal_pre_allocation_machine_effect_content(
+    plan: &PreAllocationMachineEffectPlan,
+) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(&plan.selected.bytes());
+    bytes.extend_from_slice(&plan.optimization_unit.bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, plan.work_schedule.marker().to_le_bytes());
+    bytes.extend_from_slice(&plan.target.identity_bytes());
+    bytes.extend_from_slice(&plan.register_environment.bytes());
+    bytes.extend_from_slice(&plan.register_constraints.bytes());
+    bytes.extend_from_slice(&plan.machine_effect_catalog.bytes());
+
+    encode_len(&mut bytes, plan.functions.len());
+    for function in &plan.functions {
+        crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
+        encode_len(&mut bytes, function.blocks.len());
+        for block in &function.blocks {
+            crate::codec_bytes::push_encoded(&mut bytes, block.block.0.to_le_bytes());
+            encode_len(&mut bytes, block.instructions.len());
+            for instruction in &block.instructions {
+                encode_cfg_instruction(&mut bytes, instruction);
+            }
+        }
+    }
+
+    bytes
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -631,57 +685,4 @@ mod tests {
             MachineSizeKnowledge::ExactBytes(4);
         assert_ne!(baseline, pre_allocation_machine_effect_identity(&changed));
     }
-}
-use crate::{PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan};
-
-use crate::codec_bytes::encode_len;
-use crate::digest_encoder::content_identity;
-use instruction::encode_cfg_instruction;
-pub(crate) use instruction::encode_kind;
-pub use ownership::{encode_cleanup, encode_ownership, encode_path, encode_reference_origin_path};
-pub use provenance::encode_provenance;
-pub use values::encode_ids;
-
-pub fn pre_allocation_machine_effect_identity(
-    plan: &PreAllocationMachineEffectPlan,
-) -> PreAllocationMachineEffectIdentity {
-    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v36\0")
-}
-
-fn identity_with_domain(
-    plan: &PreAllocationMachineEffectPlan,
-    domain: &[u8],
-) -> PreAllocationMachineEffectIdentity {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(domain);
-    bytes.extend_from_slice(&encode_terminal_pre_allocation_machine_effect_content(plan));
-    PreAllocationMachineEffectIdentity::from_bytes(content_identity(&bytes))
-}
-
-pub(crate) fn encode_terminal_pre_allocation_machine_effect_content(
-    plan: &PreAllocationMachineEffectPlan,
-) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(&plan.selected.bytes());
-    bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, plan.work_schedule.marker().to_le_bytes());
-    bytes.extend_from_slice(&plan.target.identity_bytes());
-    bytes.extend_from_slice(&plan.register_environment.bytes());
-    bytes.extend_from_slice(&plan.register_constraints.bytes());
-    bytes.extend_from_slice(&plan.machine_effect_catalog.bytes());
-
-    encode_len(&mut bytes, plan.functions.len());
-    for function in &plan.functions {
-        crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
-        encode_len(&mut bytes, function.blocks.len());
-        for block in &function.blocks {
-            crate::codec_bytes::push_encoded(&mut bytes, block.block.0.to_le_bytes());
-            encode_len(&mut bytes, block.instructions.len());
-            for instruction in &block.instructions {
-                encode_cfg_instruction(&mut bytes, instruction);
-            }
-        }
-    }
-
-    bytes
 }

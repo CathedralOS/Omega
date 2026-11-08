@@ -6,6 +6,543 @@ target operation is accounted for in the final native instructions.
 */
 
 mod attribution {
+    use super::{Error, host};
+    use crate::order::strictly_increasing;
+    use abstract_operations::{AbstractFunction, AbstractOperation};
+    use machine_code::{
+        FunctionFragment, FunctionFragmentBranchEvidence,
+        FunctionFragmentControlProvenance as Control, SemanticCodeAttribution, SemanticCodeSite,
+    };
+    use selected_instructions::SelectedSuccessorRole;
+
+    fn semantic_edge(
+        successor: &machine_code::FunctionFragmentSuccessorProvenance,
+    ) -> Result<semantic_vocabulary::EdgeId, Error> {
+        successor
+            .psi_edge
+            .ok_or(Error::Mismatch("semantic successor lost its authored edge"))
+    }
+
+    fn implementation_successor(
+        successor: &machine_code::FunctionFragmentSuccessorProvenance,
+        provenance: &selected_instructions::SelectedInstructionProvenance,
+    ) -> bool {
+        if !successor.work.is_empty() || !successor.bindings.is_empty() {
+            return false;
+        }
+        match successor.role {
+            SelectedSuccessorRole::CaseDispatchContinuation => successor.psi_edge.is_some(),
+            SelectedSuccessorRole::OperationContinuation { operation } => {
+                successor.psi_edge.is_none()
+                    && provenance.operations.contains(&operation)
+                    && provenance.edges.is_empty()
+                    && provenance.work.is_empty()
+            }
+            _ => false,
+        }
+    }
+
+    fn build_ordinal_index(
+        source: &AbstractFunction,
+    ) -> std::collections::BTreeMap<SemanticCodeSite, Option<usize>> {
+        let mut index = std::collections::BTreeMap::new();
+        let mut record = |site: SemanticCodeSite, ordinal: usize| {
+            index
+                .entry(site)
+                .and_modify(|existing| *existing = None)
+                .or_insert(Some(ordinal));
+        };
+        for (ordinal, operation) in source.operations.iter().enumerate() {
+            if let Some(psi_operation) = operation.psi_operation() {
+                record(SemanticCodeSite::Operation(psi_operation), ordinal);
+            } else {
+                match operation {
+                    abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
+                    | AbstractOperation::InvokeNoNormal { psi_edge, .. }
+                    | AbstractOperation::ExternalCompletion { psi_edge, .. }
+                    | AbstractOperation::Crash { psi_edge, .. }
+                    | AbstractOperation::ReturnStructural { psi_edge, .. }
+                    | AbstractOperation::Jump { psi_edge, .. } => {
+                        record(SemanticCodeSite::Edge(*psi_edge), ordinal);
+                    }
+                    AbstractOperation::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => {
+                        record(SemanticCodeSite::Edge(when_true.psi_edge), ordinal);
+                        if when_false.psi_edge != when_true.psi_edge {
+                            record(SemanticCodeSite::Edge(when_false.psi_edge), ordinal);
+                        }
+                    }
+                    AbstractOperation::StructuralCase { cases, .. } => {
+                        let mut seen = Vec::new();
+                        for case in cases {
+                            if !seen.contains(&case.psi_edge) {
+                                seen.push(case.psi_edge);
+                                record(SemanticCodeSite::Edge(case.psi_edge), ordinal);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        index
+    }
+
+    fn lookup_ordinal(
+        index: &std::collections::BTreeMap<SemanticCodeSite, Option<usize>>,
+        site: SemanticCodeSite,
+    ) -> Result<usize, Error> {
+        index.get(&site).copied().flatten().ok_or(Error::Mismatch(
+            "fragment semantic site has no unique authored ordinal",
+        ))
+    }
+
+    pub(super) fn ordinal(
+        source: &AbstractFunction,
+        site: SemanticCodeSite,
+    ) -> Result<usize, Error> {
+        let mut matches = source
+            .operations
+            .iter()
+            .enumerate()
+            .filter_map(|(index, operation)| {
+                let matches = if let Some(psi_operation) = operation.psi_operation() {
+                    site == SemanticCodeSite::Operation(psi_operation)
+                } else {
+                    match operation {
+                        abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
+                        | AbstractOperation::InvokeNoNormal { psi_edge, .. }
+                        | AbstractOperation::ExternalCompletion { psi_edge, .. }
+                        | AbstractOperation::Crash { psi_edge, .. }
+                        | AbstractOperation::ReturnStructural { psi_edge, .. }
+                        | AbstractOperation::Jump { psi_edge, .. } => {
+                            site == SemanticCodeSite::Edge(*psi_edge)
+                        }
+                        AbstractOperation::Conditional {
+                            when_true,
+                            when_false,
+                            ..
+                        } => {
+                            site == SemanticCodeSite::Edge(when_true.psi_edge)
+                                || site == SemanticCodeSite::Edge(when_false.psi_edge)
+                        }
+                        AbstractOperation::StructuralCase { cases, .. } => cases
+                            .iter()
+                            .any(|case| site == SemanticCodeSite::Edge(case.psi_edge)),
+                        _ => false,
+                    }
+                };
+                matches.then_some(index)
+            });
+        match (matches.next(), matches.next()) {
+            (Some(index), None) => Ok(index),
+            _ => Err(Error::Mismatch(
+                "fragment semantic site has no unique authored ordinal",
+            )),
+        }
+    }
+
+    pub(super) fn produce(
+        fragment: &FunctionFragment,
+        source: &AbstractFunction,
+    ) -> Result<Vec<SemanticCodeAttribution>, Error> {
+        let ordinals = build_ordinal_index(source);
+        let mut rows = Vec::new();
+        for instruction in fragment.instructions() {
+            let offset = host(instruction.offset)?;
+            let length = instruction.bytes.len();
+            let mut push = |site, code_offset, byte_count| -> Result<(), Error> {
+                rows.push(SemanticCodeAttribution {
+                    site,
+                    operation_ordinal: lookup_ordinal(&ordinals, site)?,
+                    code_offset,
+                    byte_count,
+                });
+                Ok(())
+            };
+            for operation in &instruction.provenance.operations {
+                push(SemanticCodeSite::Operation(*operation), offset, length)?;
+            }
+            match &instruction.control {
+                Control::OperationTrap { operation } => {
+                    if instruction.provenance.operations.as_slice() != [*operation]
+                        || !instruction.provenance.edges.is_empty()
+                        || !instruction.provenance.work.is_empty()
+                    {
+                        return Err(Error::Mismatch(
+                            "operation trap changed its owning occurrence",
+                        ));
+                    }
+                }
+                Control::Crash { psi_edge, .. } => {
+                    push(SemanticCodeSite::Edge(*psi_edge), offset, length)?
+                }
+                Control::HostedExitProcess { completion_edge } => {
+                    push(SemanticCodeSite::Edge(*completion_edge), offset, length)?;
+                }
+                Control::Return { psi_return_edge } => {
+                    push(SemanticCodeSite::Edge(*psi_return_edge), offset, length)?
+                }
+                Control::Jump { successor }
+                    if successor.role == SelectedSuccessorRole::Semantic =>
+                {
+                    push(
+                        SemanticCodeSite::Edge(semantic_edge(successor)?),
+                        offset,
+                        length,
+                    )?
+                }
+                Control::Jump { successor } => {
+                    if matches!(
+                        successor.role,
+                        SelectedSuccessorRole::OperationContinuation { .. }
+                    ) && !implementation_successor(successor, &instruction.provenance)
+                    {
+                        return Err(Error::Mismatch(
+                            "operation jump changed its owning occurrence",
+                        ));
+                    }
+                }
+                Control::ConditionalBranch {
+                    when_taken,
+                    when_fallthrough,
+                    ..
+                } => {
+                    if [when_taken, when_fallthrough].iter().any(|successor| {
+                        successor.role != SelectedSuccessorRole::Semantic
+                            && !implementation_successor(successor, &instruction.provenance)
+                    }) {
+                        return Err(Error::Mismatch(
+                            "conditional successor has nonsemantic attribution role",
+                        ));
+                    }
+                    if when_taken.role == SelectedSuccessorRole::Semantic {
+                        push(
+                            SemanticCodeSite::Edge(semantic_edge(when_taken)?),
+                            offset,
+                            length,
+                        )?;
+                    }
+                    let Some(branch) = instruction.branch.as_deref() else {
+                        return Err(Error::Mismatch("conditional has no decoded branch"));
+                    };
+                    let FunctionFragmentBranchEvidence::Conditional(branch) = branch else {
+                        return Err(Error::Mismatch("conditional has jump evidence"));
+                    };
+                    if when_fallthrough.role == SelectedSuccessorRole::Semantic {
+                        push(
+                            SemanticCodeSite::Edge(semantic_edge(when_fallthrough)?),
+                            host(branch.when_fallthrough_offset)?,
+                            0,
+                        )?;
+                    }
+                }
+                Control::InternalCall { owner, .. } => {
+                    if let Some(edge) = owner.edge() {
+                        push(SemanticCodeSite::Edge(edge), offset, length)?;
+                    }
+                }
+                Control::NormalizedForeignCall {
+                    invocation_site, ..
+                } => {
+                    if let semantic_vocabulary::InvocationSite::ExternalCompletion(edge) =
+                        invocation_site
+                    {
+                        push(SemanticCodeSite::Edge(*edge), offset, length)?;
+                    }
+                }
+                Control::None => {
+                    for edge in &instruction.provenance.edges {
+                        push(SemanticCodeSite::Edge(*edge), offset, length)?;
+                    }
+                }
+            }
+        }
+        rows.sort_by_key(|row| (row.operation_ordinal, row.code_offset, row.byte_count));
+        rows.dedup();
+        let mut joined: Vec<SemanticCodeAttribution> = Vec::new();
+        for row in rows {
+            if let Some(previous) = joined
+                .last_mut()
+                .filter(|previous| previous.site == row.site)
+            {
+                let end = previous
+                    .code_offset
+                    .checked_add(previous.byte_count)
+                    .ok_or(Error::Overflow)?;
+                if row.code_offset > end {
+                    joined.push(row);
+                    continue;
+                }
+                if row.code_offset < end {
+                    return Err(Error::Mismatch("semantic physical intervals overlap"));
+                }
+                previous.byte_count = previous
+                    .byte_count
+                    .checked_add(row.byte_count)
+                    .ok_or(Error::Overflow)?;
+            } else {
+                joined.push(row);
+            }
+        }
+        Ok(joined)
+    }
+
+    pub(super) fn validate(
+        fragment: &FunctionFragment,
+        source: &AbstractFunction,
+        rows: &[SemanticCodeAttribution],
+    ) -> Result<(), Error> {
+        let ordinals = build_ordinal_index(source);
+        for (index, row) in rows.iter().enumerate() {
+            if lookup_ordinal(&ordinals, row.site)? != row.operation_ordinal
+                || rows[..index].iter().any(|previous| {
+                    previous.site == row.site
+                        && previous
+                            .code_offset
+                            .checked_add(previous.byte_count)
+                            .is_none_or(|end| end >= row.code_offset)
+                })
+                || !interval_is_exact(fragment, row)?
+            {
+                return Err(Error::Mismatch(
+                    "object semantic interval differs from its physical spans",
+                ));
+            }
+        }
+        if !strictly_increasing(rows, |row| (row.operation_ordinal, row.code_offset)) {
+            return Err(Error::Mismatch(
+                "object semantic attribution order is not canonical",
+            ));
+        }
+        for instruction in fragment.instructions() {
+            let present = |site, offset, length| {
+                rows.iter().any(|row| {
+                    row.site == site
+                        && row.code_offset <= offset
+                        && offset.checked_add(length).is_some_and(|end| {
+                            row.code_offset
+                                .checked_add(row.byte_count)
+                                .is_some_and(|row_end| end <= row_end)
+                        })
+                })
+            };
+            for operation in &instruction.provenance.operations {
+                if !present(
+                    SemanticCodeSite::Operation(*operation),
+                    host(instruction.offset)?,
+                    instruction.bytes.len(),
+                ) {
+                    return Err(Error::Mismatch("object omits an attributed operation"));
+                }
+            }
+            let edges: Vec<_> = match &instruction.control {
+                Control::OperationTrap { operation } => {
+                    if instruction.provenance.operations.as_slice() != [*operation]
+                        || !instruction.provenance.edges.is_empty()
+                        || !instruction.provenance.work.is_empty()
+                    {
+                        return Err(Error::Mismatch(
+                            "operation trap changed its owning occurrence",
+                        ));
+                    }
+                    Vec::new()
+                }
+                Control::Crash { psi_edge, .. } => vec![*psi_edge],
+                Control::HostedExitProcess { completion_edge } => vec![*completion_edge],
+                Control::Return { psi_return_edge } => vec![*psi_return_edge],
+                Control::Jump { successor } => {
+                    if successor.role == SelectedSuccessorRole::Semantic {
+                        vec![semantic_edge(successor)?]
+                    } else {
+                        if matches!(
+                            successor.role,
+                            SelectedSuccessorRole::OperationContinuation { .. }
+                        ) && !implementation_successor(successor, &instruction.provenance)
+                        {
+                            return Err(Error::Mismatch(
+                                "operation jump changed its owning occurrence",
+                            ));
+                        }
+                        Vec::new()
+                    }
+                }
+                Control::ConditionalBranch {
+                    when_taken,
+                    when_fallthrough,
+                    ..
+                } => {
+                    if [when_taken, when_fallthrough].iter().any(|successor| {
+                        successor.role != SelectedSuccessorRole::Semantic
+                            && !implementation_successor(successor, &instruction.provenance)
+                    }) {
+                        return Err(Error::Mismatch(
+                            "conditional successor has nonsemantic attribution role",
+                        ));
+                    }
+                    [when_taken.as_ref(), when_fallthrough.as_ref()]
+                        .into_iter()
+                        .filter(|successor| successor.role == SelectedSuccessorRole::Semantic)
+                        .map(semantic_edge)
+                        .collect::<Result<Vec<_>, _>>()?
+                }
+                Control::InternalCall { owner, .. } => owner.edge().into_iter().collect(),
+                Control::NormalizedForeignCall {
+                    invocation_site, ..
+                } => match invocation_site {
+                    semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => {
+                        return Err(Error::Mismatch(
+                            "foreign invocation names a module invocation edge",
+                        ));
+                    }
+                    semantic_vocabulary::InvocationSite::Operation(_) => Vec::new(),
+                    semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
+                        vec![*edge]
+                    }
+                },
+                Control::None => instruction.provenance.edges.clone(),
+            };
+            let instruction_offset = host(instruction.offset)?;
+            let instruction_end = instruction_offset
+                .checked_add(instruction.bytes.len())
+                .ok_or(Error::Overflow)?;
+            for edge in edges {
+                if let Control::ConditionalBranch {
+                    when_fallthrough, ..
+                } = &instruction.control
+                    && when_fallthrough.role == SelectedSuccessorRole::Semantic
+                    && when_fallthrough.psi_edge == Some(edge)
+                    && let Some(FunctionFragmentBranchEvidence::Conditional(branch)) =
+                        instruction.branch.as_deref()
+                    && present(
+                        SemanticCodeSite::Edge(edge),
+                        host(branch.when_fallthrough_offset)?,
+                        0,
+                    )
+                {
+                    continue;
+                }
+                if !rows.iter().any(|row| {
+                    row.site == SemanticCodeSite::Edge(edge)
+                        && (supports(instruction, row.site, row.code_offset, row.byte_count)
+                            || (supports(
+                                instruction,
+                                row.site,
+                                instruction_offset,
+                                instruction.bytes.len(),
+                            ) && row.code_offset <= instruction_offset
+                                && row
+                                    .code_offset
+                                    .checked_add(row.byte_count)
+                                    .is_some_and(|end| instruction_end <= end)))
+                }) {
+                    return Err(Error::Mismatch("object omits an attributed control edge"));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn supports(
+        instruction: &machine_code::FunctionFragmentInstructionSpan,
+        site: SemanticCodeSite,
+        offset: usize,
+        length: usize,
+    ) -> bool {
+        let ordinary = u64::try_from(offset).ok() == Some(instruction.offset)
+            && length == instruction.bytes.len();
+        match site {
+            SemanticCodeSite::Operation(operation) => {
+                ordinary && instruction.provenance.operations.contains(&operation)
+            }
+            SemanticCodeSite::Edge(edge) => match &instruction.control {
+                Control::OperationTrap { .. } => false,
+                Control::Crash { psi_edge, .. } => ordinary && edge == *psi_edge,
+                Control::HostedExitProcess { completion_edge } => {
+                    edge == *completion_edge && ordinary
+                }
+                Control::Return { psi_return_edge } => ordinary && edge == *psi_return_edge,
+                Control::Jump { successor } => {
+                    successor.role == SelectedSuccessorRole::Semantic
+                        && ordinary
+                        && Some(edge) == successor.psi_edge
+                }
+                Control::ConditionalBranch {
+                    when_taken,
+                    when_fallthrough,
+                    ..
+                } => {
+                    (when_taken.role == SelectedSuccessorRole::Semantic
+                        && ordinary
+                        && Some(edge) == when_taken.psi_edge)
+                        || (when_fallthrough.role == SelectedSuccessorRole::Semantic
+                            && Some(edge) == when_fallthrough.psi_edge
+                            && length == 0
+                            && matches!(
+                                instruction.branch.as_deref(),
+                                Some(FunctionFragmentBranchEvidence::Conditional(branch)) if u64::try_from(offset).ok() == Some(branch.when_fallthrough_offset)
+                            ))
+                }
+                Control::None => ordinary && instruction.provenance.edges.contains(&edge),
+                Control::InternalCall { owner, .. } => ordinary && owner.edge() == Some(edge),
+                Control::NormalizedForeignCall {
+                    invocation_site, ..
+                } => {
+                    ordinary
+                        && *invocation_site
+                            == semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
+                }
+            },
+        }
+    }
+    fn interval_is_exact(
+        fragment: &FunctionFragment,
+        row: &SemanticCodeAttribution,
+    ) -> Result<bool, Error> {
+        if row.byte_count == 0
+            && fragment
+                .instructions()
+                .any(|instruction| supports(instruction, row.site, row.code_offset, 0))
+        {
+            return Ok(true);
+        }
+        let end = row
+            .code_offset
+            .checked_add(row.byte_count)
+            .ok_or(Error::Overflow)?;
+        let mut minimum = usize::MAX;
+        let mut maximum = 0usize;
+        let mut covered = 0usize;
+        let mut found = false;
+        for instruction in fragment.instructions() {
+            let start = host(instruction.offset)?;
+            let instruction_end = start
+                .checked_add(instruction.bytes.len())
+                .ok_or(Error::Overflow)?;
+            if supports(instruction, row.site, start, instruction.bytes.len()) {
+                if (instruction_end <= row.code_offset || start >= end)
+                    && (!instruction.bytes.is_empty() || start != row.code_offset || end != start)
+                {
+                    continue;
+                }
+                found = true;
+                minimum = minimum.min(start);
+                maximum = maximum.max(instruction_end);
+                covered = covered
+                    .checked_add(instruction.bytes.len())
+                    .ok_or(Error::Overflow)?;
+            } else if (start < end && instruction_end > row.code_offset)
+                || (instruction.bytes.is_empty() && start > row.code_offset && start < end)
+            {
+                return Ok(false);
+            }
+        }
+        Ok(found && minimum == row.code_offset && maximum == end && covered == row.byte_count)
+    }
+
     #[cfg(test)]
     mod tests {
         use super::{
@@ -719,543 +1256,6 @@ mod attribution {
             rows.insert(1, second);
             assert!(validate(&fragment, &source, &rows).is_err());
         }
-    }
-
-    use super::{Error, host};
-    use crate::order::strictly_increasing;
-    use abstract_operations::{AbstractFunction, AbstractOperation};
-    use machine_code::{
-        FunctionFragment, FunctionFragmentBranchEvidence,
-        FunctionFragmentControlProvenance as Control, SemanticCodeAttribution, SemanticCodeSite,
-    };
-    use selected_instructions::SelectedSuccessorRole;
-
-    fn semantic_edge(
-        successor: &machine_code::FunctionFragmentSuccessorProvenance,
-    ) -> Result<semantic_vocabulary::EdgeId, Error> {
-        successor
-            .psi_edge
-            .ok_or(Error::Mismatch("semantic successor lost its authored edge"))
-    }
-
-    fn implementation_successor(
-        successor: &machine_code::FunctionFragmentSuccessorProvenance,
-        provenance: &selected_instructions::SelectedInstructionProvenance,
-    ) -> bool {
-        if !successor.work.is_empty() || !successor.bindings.is_empty() {
-            return false;
-        }
-        match successor.role {
-            SelectedSuccessorRole::CaseDispatchContinuation => successor.psi_edge.is_some(),
-            SelectedSuccessorRole::OperationContinuation { operation } => {
-                successor.psi_edge.is_none()
-                    && provenance.operations.contains(&operation)
-                    && provenance.edges.is_empty()
-                    && provenance.work.is_empty()
-            }
-            _ => false,
-        }
-    }
-
-    fn build_ordinal_index(
-        source: &AbstractFunction,
-    ) -> std::collections::BTreeMap<SemanticCodeSite, Option<usize>> {
-        let mut index = std::collections::BTreeMap::new();
-        let mut record = |site: SemanticCodeSite, ordinal: usize| {
-            index
-                .entry(site)
-                .and_modify(|existing| *existing = None)
-                .or_insert(Some(ordinal));
-        };
-        for (ordinal, operation) in source.operations.iter().enumerate() {
-            if let Some(psi_operation) = operation.psi_operation() {
-                record(SemanticCodeSite::Operation(psi_operation), ordinal);
-            } else {
-                match operation {
-                    abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
-                    | AbstractOperation::InvokeNoNormal { psi_edge, .. }
-                    | AbstractOperation::ExternalCompletion { psi_edge, .. }
-                    | AbstractOperation::Crash { psi_edge, .. }
-                    | AbstractOperation::ReturnStructural { psi_edge, .. }
-                    | AbstractOperation::Jump { psi_edge, .. } => {
-                        record(SemanticCodeSite::Edge(*psi_edge), ordinal);
-                    }
-                    AbstractOperation::Conditional {
-                        when_true,
-                        when_false,
-                        ..
-                    } => {
-                        record(SemanticCodeSite::Edge(when_true.psi_edge), ordinal);
-                        if when_false.psi_edge != when_true.psi_edge {
-                            record(SemanticCodeSite::Edge(when_false.psi_edge), ordinal);
-                        }
-                    }
-                    AbstractOperation::StructuralCase { cases, .. } => {
-                        let mut seen = Vec::new();
-                        for case in cases {
-                            if !seen.contains(&case.psi_edge) {
-                                seen.push(case.psi_edge);
-                                record(SemanticCodeSite::Edge(case.psi_edge), ordinal);
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-        index
-    }
-
-    fn lookup_ordinal(
-        index: &std::collections::BTreeMap<SemanticCodeSite, Option<usize>>,
-        site: SemanticCodeSite,
-    ) -> Result<usize, Error> {
-        index.get(&site).copied().flatten().ok_or(Error::Mismatch(
-            "fragment semantic site has no unique authored ordinal",
-        ))
-    }
-
-    pub(super) fn ordinal(
-        source: &AbstractFunction,
-        site: SemanticCodeSite,
-    ) -> Result<usize, Error> {
-        let mut matches = source
-            .operations
-            .iter()
-            .enumerate()
-            .filter_map(|(index, operation)| {
-                let matches = if let Some(psi_operation) = operation.psi_operation() {
-                    site == SemanticCodeSite::Operation(psi_operation)
-                } else {
-                    match operation {
-                        abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
-                        | AbstractOperation::InvokeNoNormal { psi_edge, .. }
-                        | AbstractOperation::ExternalCompletion { psi_edge, .. }
-                        | AbstractOperation::Crash { psi_edge, .. }
-                        | AbstractOperation::ReturnStructural { psi_edge, .. }
-                        | AbstractOperation::Jump { psi_edge, .. } => {
-                            site == SemanticCodeSite::Edge(*psi_edge)
-                        }
-                        AbstractOperation::Conditional {
-                            when_true,
-                            when_false,
-                            ..
-                        } => {
-                            site == SemanticCodeSite::Edge(when_true.psi_edge)
-                                || site == SemanticCodeSite::Edge(when_false.psi_edge)
-                        }
-                        AbstractOperation::StructuralCase { cases, .. } => cases
-                            .iter()
-                            .any(|case| site == SemanticCodeSite::Edge(case.psi_edge)),
-                        _ => false,
-                    }
-                };
-                matches.then_some(index)
-            });
-        match (matches.next(), matches.next()) {
-            (Some(index), None) => Ok(index),
-            _ => Err(Error::Mismatch(
-                "fragment semantic site has no unique authored ordinal",
-            )),
-        }
-    }
-
-    pub(super) fn produce(
-        fragment: &FunctionFragment,
-        source: &AbstractFunction,
-    ) -> Result<Vec<SemanticCodeAttribution>, Error> {
-        let ordinals = build_ordinal_index(source);
-        let mut rows = Vec::new();
-        for instruction in fragment.instructions() {
-            let offset = host(instruction.offset)?;
-            let length = instruction.bytes.len();
-            let mut push = |site, code_offset, byte_count| -> Result<(), Error> {
-                rows.push(SemanticCodeAttribution {
-                    site,
-                    operation_ordinal: lookup_ordinal(&ordinals, site)?,
-                    code_offset,
-                    byte_count,
-                });
-                Ok(())
-            };
-            for operation in &instruction.provenance.operations {
-                push(SemanticCodeSite::Operation(*operation), offset, length)?;
-            }
-            match &instruction.control {
-                Control::OperationTrap { operation } => {
-                    if instruction.provenance.operations.as_slice() != [*operation]
-                        || !instruction.provenance.edges.is_empty()
-                        || !instruction.provenance.work.is_empty()
-                    {
-                        return Err(Error::Mismatch(
-                            "operation trap changed its owning occurrence",
-                        ));
-                    }
-                }
-                Control::Crash { psi_edge, .. } => {
-                    push(SemanticCodeSite::Edge(*psi_edge), offset, length)?
-                }
-                Control::HostedExitProcess { completion_edge } => {
-                    push(SemanticCodeSite::Edge(*completion_edge), offset, length)?;
-                }
-                Control::Return { psi_return_edge } => {
-                    push(SemanticCodeSite::Edge(*psi_return_edge), offset, length)?
-                }
-                Control::Jump { successor }
-                    if successor.role == SelectedSuccessorRole::Semantic =>
-                {
-                    push(
-                        SemanticCodeSite::Edge(semantic_edge(successor)?),
-                        offset,
-                        length,
-                    )?
-                }
-                Control::Jump { successor } => {
-                    if matches!(
-                        successor.role,
-                        SelectedSuccessorRole::OperationContinuation { .. }
-                    ) && !implementation_successor(successor, &instruction.provenance)
-                    {
-                        return Err(Error::Mismatch(
-                            "operation jump changed its owning occurrence",
-                        ));
-                    }
-                }
-                Control::ConditionalBranch {
-                    when_taken,
-                    when_fallthrough,
-                    ..
-                } => {
-                    if [when_taken, when_fallthrough].iter().any(|successor| {
-                        successor.role != SelectedSuccessorRole::Semantic
-                            && !implementation_successor(successor, &instruction.provenance)
-                    }) {
-                        return Err(Error::Mismatch(
-                            "conditional successor has nonsemantic attribution role",
-                        ));
-                    }
-                    if when_taken.role == SelectedSuccessorRole::Semantic {
-                        push(
-                            SemanticCodeSite::Edge(semantic_edge(when_taken)?),
-                            offset,
-                            length,
-                        )?;
-                    }
-                    let Some(branch) = instruction.branch.as_deref() else {
-                        return Err(Error::Mismatch("conditional has no decoded branch"));
-                    };
-                    let FunctionFragmentBranchEvidence::Conditional(branch) = branch else {
-                        return Err(Error::Mismatch("conditional has jump evidence"));
-                    };
-                    if when_fallthrough.role == SelectedSuccessorRole::Semantic {
-                        push(
-                            SemanticCodeSite::Edge(semantic_edge(when_fallthrough)?),
-                            host(branch.when_fallthrough_offset)?,
-                            0,
-                        )?;
-                    }
-                }
-                Control::InternalCall { owner, .. } => {
-                    if let Some(edge) = owner.edge() {
-                        push(SemanticCodeSite::Edge(edge), offset, length)?;
-                    }
-                }
-                Control::NormalizedForeignCall {
-                    invocation_site, ..
-                } => {
-                    if let semantic_vocabulary::InvocationSite::ExternalCompletion(edge) =
-                        invocation_site
-                    {
-                        push(SemanticCodeSite::Edge(*edge), offset, length)?;
-                    }
-                }
-                Control::None => {
-                    for edge in &instruction.provenance.edges {
-                        push(SemanticCodeSite::Edge(*edge), offset, length)?;
-                    }
-                }
-            }
-        }
-        rows.sort_by_key(|row| (row.operation_ordinal, row.code_offset, row.byte_count));
-        rows.dedup();
-        let mut joined: Vec<SemanticCodeAttribution> = Vec::new();
-        for row in rows {
-            if let Some(previous) = joined
-                .last_mut()
-                .filter(|previous| previous.site == row.site)
-            {
-                let end = previous
-                    .code_offset
-                    .checked_add(previous.byte_count)
-                    .ok_or(Error::Overflow)?;
-                if row.code_offset > end {
-                    joined.push(row);
-                    continue;
-                }
-                if row.code_offset < end {
-                    return Err(Error::Mismatch("semantic physical intervals overlap"));
-                }
-                previous.byte_count = previous
-                    .byte_count
-                    .checked_add(row.byte_count)
-                    .ok_or(Error::Overflow)?;
-            } else {
-                joined.push(row);
-            }
-        }
-        Ok(joined)
-    }
-
-    pub(super) fn validate(
-        fragment: &FunctionFragment,
-        source: &AbstractFunction,
-        rows: &[SemanticCodeAttribution],
-    ) -> Result<(), Error> {
-        let ordinals = build_ordinal_index(source);
-        for (index, row) in rows.iter().enumerate() {
-            if lookup_ordinal(&ordinals, row.site)? != row.operation_ordinal
-                || rows[..index].iter().any(|previous| {
-                    previous.site == row.site
-                        && previous
-                            .code_offset
-                            .checked_add(previous.byte_count)
-                            .is_none_or(|end| end >= row.code_offset)
-                })
-                || !interval_is_exact(fragment, row)?
-            {
-                return Err(Error::Mismatch(
-                    "object semantic interval differs from its physical spans",
-                ));
-            }
-        }
-        if !strictly_increasing(rows, |row| (row.operation_ordinal, row.code_offset)) {
-            return Err(Error::Mismatch(
-                "object semantic attribution order is not canonical",
-            ));
-        }
-        for instruction in fragment.instructions() {
-            let present = |site, offset, length| {
-                rows.iter().any(|row| {
-                    row.site == site
-                        && row.code_offset <= offset
-                        && offset.checked_add(length).is_some_and(|end| {
-                            row.code_offset
-                                .checked_add(row.byte_count)
-                                .is_some_and(|row_end| end <= row_end)
-                        })
-                })
-            };
-            for operation in &instruction.provenance.operations {
-                if !present(
-                    SemanticCodeSite::Operation(*operation),
-                    host(instruction.offset)?,
-                    instruction.bytes.len(),
-                ) {
-                    return Err(Error::Mismatch("object omits an attributed operation"));
-                }
-            }
-            let edges: Vec<_> = match &instruction.control {
-                Control::OperationTrap { operation } => {
-                    if instruction.provenance.operations.as_slice() != [*operation]
-                        || !instruction.provenance.edges.is_empty()
-                        || !instruction.provenance.work.is_empty()
-                    {
-                        return Err(Error::Mismatch(
-                            "operation trap changed its owning occurrence",
-                        ));
-                    }
-                    Vec::new()
-                }
-                Control::Crash { psi_edge, .. } => vec![*psi_edge],
-                Control::HostedExitProcess { completion_edge } => vec![*completion_edge],
-                Control::Return { psi_return_edge } => vec![*psi_return_edge],
-                Control::Jump { successor } => {
-                    if successor.role == SelectedSuccessorRole::Semantic {
-                        vec![semantic_edge(successor)?]
-                    } else {
-                        if matches!(
-                            successor.role,
-                            SelectedSuccessorRole::OperationContinuation { .. }
-                        ) && !implementation_successor(successor, &instruction.provenance)
-                        {
-                            return Err(Error::Mismatch(
-                                "operation jump changed its owning occurrence",
-                            ));
-                        }
-                        Vec::new()
-                    }
-                }
-                Control::ConditionalBranch {
-                    when_taken,
-                    when_fallthrough,
-                    ..
-                } => {
-                    if [when_taken, when_fallthrough].iter().any(|successor| {
-                        successor.role != SelectedSuccessorRole::Semantic
-                            && !implementation_successor(successor, &instruction.provenance)
-                    }) {
-                        return Err(Error::Mismatch(
-                            "conditional successor has nonsemantic attribution role",
-                        ));
-                    }
-                    [when_taken.as_ref(), when_fallthrough.as_ref()]
-                        .into_iter()
-                        .filter(|successor| successor.role == SelectedSuccessorRole::Semantic)
-                        .map(semantic_edge)
-                        .collect::<Result<Vec<_>, _>>()?
-                }
-                Control::InternalCall { owner, .. } => owner.edge().into_iter().collect(),
-                Control::NormalizedForeignCall {
-                    invocation_site, ..
-                } => match invocation_site {
-                    semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => {
-                        return Err(Error::Mismatch(
-                            "foreign invocation names a module invocation edge",
-                        ));
-                    }
-                    semantic_vocabulary::InvocationSite::Operation(_) => Vec::new(),
-                    semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
-                        vec![*edge]
-                    }
-                },
-                Control::None => instruction.provenance.edges.clone(),
-            };
-            let instruction_offset = host(instruction.offset)?;
-            let instruction_end = instruction_offset
-                .checked_add(instruction.bytes.len())
-                .ok_or(Error::Overflow)?;
-            for edge in edges {
-                if let Control::ConditionalBranch {
-                    when_fallthrough, ..
-                } = &instruction.control
-                    && when_fallthrough.role == SelectedSuccessorRole::Semantic
-                    && when_fallthrough.psi_edge == Some(edge)
-                    && let Some(FunctionFragmentBranchEvidence::Conditional(branch)) =
-                        instruction.branch.as_deref()
-                    && present(
-                        SemanticCodeSite::Edge(edge),
-                        host(branch.when_fallthrough_offset)?,
-                        0,
-                    )
-                {
-                    continue;
-                }
-                if !rows.iter().any(|row| {
-                    row.site == SemanticCodeSite::Edge(edge)
-                        && (supports(instruction, row.site, row.code_offset, row.byte_count)
-                            || (supports(
-                                instruction,
-                                row.site,
-                                instruction_offset,
-                                instruction.bytes.len(),
-                            ) && row.code_offset <= instruction_offset
-                                && row
-                                    .code_offset
-                                    .checked_add(row.byte_count)
-                                    .is_some_and(|end| instruction_end <= end)))
-                }) {
-                    return Err(Error::Mismatch("object omits an attributed control edge"));
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn supports(
-        instruction: &machine_code::FunctionFragmentInstructionSpan,
-        site: SemanticCodeSite,
-        offset: usize,
-        length: usize,
-    ) -> bool {
-        let ordinary = u64::try_from(offset).ok() == Some(instruction.offset)
-            && length == instruction.bytes.len();
-        match site {
-            SemanticCodeSite::Operation(operation) => {
-                ordinary && instruction.provenance.operations.contains(&operation)
-            }
-            SemanticCodeSite::Edge(edge) => match &instruction.control {
-                Control::OperationTrap { .. } => false,
-                Control::Crash { psi_edge, .. } => ordinary && edge == *psi_edge,
-                Control::HostedExitProcess { completion_edge } => {
-                    edge == *completion_edge && ordinary
-                }
-                Control::Return { psi_return_edge } => ordinary && edge == *psi_return_edge,
-                Control::Jump { successor } => {
-                    successor.role == SelectedSuccessorRole::Semantic
-                        && ordinary
-                        && Some(edge) == successor.psi_edge
-                }
-                Control::ConditionalBranch {
-                    when_taken,
-                    when_fallthrough,
-                    ..
-                } => {
-                    (when_taken.role == SelectedSuccessorRole::Semantic
-                        && ordinary
-                        && Some(edge) == when_taken.psi_edge)
-                        || (when_fallthrough.role == SelectedSuccessorRole::Semantic
-                            && Some(edge) == when_fallthrough.psi_edge
-                            && length == 0
-                            && matches!(
-                                instruction.branch.as_deref(),
-                                Some(FunctionFragmentBranchEvidence::Conditional(branch)) if u64::try_from(offset).ok() == Some(branch.when_fallthrough_offset)
-                            ))
-                }
-                Control::None => ordinary && instruction.provenance.edges.contains(&edge),
-                Control::InternalCall { owner, .. } => ordinary && owner.edge() == Some(edge),
-                Control::NormalizedForeignCall {
-                    invocation_site, ..
-                } => {
-                    ordinary
-                        && *invocation_site
-                            == semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
-                }
-            },
-        }
-    }
-    fn interval_is_exact(
-        fragment: &FunctionFragment,
-        row: &SemanticCodeAttribution,
-    ) -> Result<bool, Error> {
-        if row.byte_count == 0
-            && fragment
-                .instructions()
-                .any(|instruction| supports(instruction, row.site, row.code_offset, 0))
-        {
-            return Ok(true);
-        }
-        let end = row
-            .code_offset
-            .checked_add(row.byte_count)
-            .ok_or(Error::Overflow)?;
-        let mut minimum = usize::MAX;
-        let mut maximum = 0usize;
-        let mut covered = 0usize;
-        let mut found = false;
-        for instruction in fragment.instructions() {
-            let start = host(instruction.offset)?;
-            let instruction_end = start
-                .checked_add(instruction.bytes.len())
-                .ok_or(Error::Overflow)?;
-            if supports(instruction, row.site, start, instruction.bytes.len()) {
-                if (instruction_end <= row.code_offset || start >= end)
-                    && (!instruction.bytes.is_empty() || start != row.code_offset || end != start)
-                {
-                    continue;
-                }
-                found = true;
-                minimum = minimum.min(start);
-                maximum = maximum.max(instruction_end);
-                covered = covered
-                    .checked_add(instruction.bytes.len())
-                    .ok_or(Error::Overflow)?;
-            } else if (start < end && instruction_end > row.code_offset)
-                || (instruction.bytes.is_empty() && start > row.code_offset && start < end)
-            {
-                return Ok(false);
-            }
-        }
-        Ok(found && minimum == row.code_offset && maximum == end && covered == row.byte_count)
     }
 }
 
@@ -17681,473 +17681,6 @@ mod source {
     }
 
     pub(super) use stack_calls::{CallStackEdge, stack_calls};
-    #[cfg(test)]
-    mod tests {
-        use super::{AbstractOperation, ieee_literal_retained, requires_graph_storage_replay};
-        use semantic_vocabulary::{IeeeFloatValue, OperationId, ValueId};
-        use target_operations::TargetUnitOperation;
-
-        #[test]
-        fn atomic_storage_requires_retained_graph_replay() {
-            use abstract_operations::atomic::AbstractAtomicLocation;
-            use abstract_operations::{AbstractAtomicEvent, AtomicResidencyEdge};
-            use semantic_vocabulary::PlaceId;
-
-            let operation = AbstractOperation::AtomicEvent {
-                psi_operation: OperationId::new(1).unwrap(),
-                event: AbstractAtomicEvent::Store {
-                    location: AbstractAtomicLocation {
-                        root: PlaceId::new(1).unwrap(),
-                        path: vec![terminal_psi::StructuralPathSegment::Field(
-                            terminal_psi::TerminalIdentityIndex(1),
-                        )],
-                    },
-                    ordering: terminal_psi::MemoryOrdering::NoOrdering,
-                    value: ValueId::new(1).unwrap(),
-                },
-                reads_from: None,
-                modification_after: Some(AtomicResidencyEdge::InitialResidency),
-                resident_obligation: None,
-            };
-            assert!(requires_graph_storage_replay(&[operation]));
-        }
-
-        #[test]
-        fn replay_requirement_is_specific_to_primitive_storage_operations() {
-            use abstract_operations::AbstractResult;
-            use semantic_vocabulary::{
-                IntegerSign, IntegerType, PlaceId, ScalarType, StructuralTypeId,
-            };
-            use terminal_psi::{
-                StructuralAccess, StructuralMultiplicity, StructuralOperationResult,
-                StructuralParameterDeclaration,
-            };
-
-            let operation = OperationId::new(1).unwrap();
-            let scalar = AbstractResult {
-                value: ValueId::new(1).unwrap(),
-                scalar_type: ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                ),
-            };
-            let result = StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place: PlaceId::new(1).unwrap(),
-                structural_type: StructuralTypeId::new(1).unwrap(),
-                multiplicity: StructuralMultiplicity::Unrestricted,
-                qualifications: vec![],
-                projected_qualifications: vec![],
-                additional_input_qualifications: Vec::new(),
-                claims: vec![],
-            };
-            let existing = [AbstractOperation::BooleanConstant {
-                psi_operation: operation,
-                result: scalar.value,
-                value: true,
-            }];
-            assert!(!requires_graph_storage_replay(&[]));
-            assert!(!requires_graph_storage_replay(&existing));
-            for operation in [
-                AbstractOperation::WriteOnlyPrimitiveStore {
-                    psi_operation: operation,
-                    path: Vec::new(),
-                    destination: abstract_operations::StructuralScalarStoreDestination::Parameter(
-                        StructuralParameterDeclaration {
-                            place: result.place,
-                            position: 0,
-                            structural_type: result.structural_type,
-                            multiplicity: StructuralMultiplicity::Unrestricted,
-                            access: StructuralAccess::MutableBorrow,
-                            qualifications: vec![],
-                            projected_qualifications: vec![],
-                            additional_input_qualifications: Vec::new(),
-                        },
-                    ),
-                    value: scalar,
-                    range_obligation: None,
-                },
-                AbstractOperation::EstablishPrimitiveLocal {
-                    psi_operation: operation,
-                    result: result.clone(),
-                    value: scalar,
-                    range_obligation: None,
-                },
-                AbstractOperation::PrimitiveLocalStore {
-                    psi_operation: operation,
-                    destination: result.place,
-                    value: scalar,
-                },
-                AbstractOperation::PrimitiveScalarRead {
-                    psi_operation: operation,
-                    path: Vec::new(),
-                    result: scalar,
-                    source: result.place,
-                },
-            ] {
-                assert!(requires_graph_storage_replay(std::slice::from_ref(
-                    &operation
-                )));
-                let mut mixed = existing.to_vec();
-                mixed.push(operation);
-                assert!(requires_graph_storage_replay(&mixed));
-            }
-        }
-
-        #[test]
-        fn ieee_literal_publication_requires_unique_operation_value_type_and_bits() {
-            let operation = OperationId::new(1).unwrap();
-            let result = ValueId::new(1).unwrap();
-            for value in [
-                IeeeFloatValue::Binary32(0x7fc0_0041),
-                IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
-            ] {
-                let source = AbstractOperation::IeeeFloatConstant {
-                    psi_operation: operation,
-                    result,
-                    value,
-                };
-                let target = TargetUnitOperation::IeeeFloatConstant {
-                    psi_operation: operation,
-                    result,
-                    value,
-                };
-                assert!(ieee_literal_retained(
-                    &source,
-                    std::slice::from_ref(&target)
-                ));
-                assert!(!ieee_literal_retained(&source, &[]));
-                assert!(!ieee_literal_retained(
-                    &source,
-                    &[target.clone(), target.clone()]
-                ));
-                for mutation in 0..4 {
-                    let mut changed = target.clone();
-                    let TargetUnitOperation::IeeeFloatConstant {
-                        psi_operation,
-                        result,
-                        value,
-                    } = &mut changed
-                    else {
-                        unreachable!()
-                    };
-                    match mutation {
-                        0 => *psi_operation = OperationId::new(2).unwrap(),
-                        1 => *result = ValueId::new(2).unwrap(),
-                        2 => {
-                            *value = match *value {
-                                IeeeFloatValue::Binary32(bits) => {
-                                    IeeeFloatValue::Binary32(bits ^ 1)
-                                }
-                                IeeeFloatValue::Binary64(bits) => {
-                                    IeeeFloatValue::Binary64(bits ^ 1)
-                                }
-                            }
-                        }
-                        _ => {
-                            *value = match *value {
-                                IeeeFloatValue::Binary32(bits) => {
-                                    IeeeFloatValue::Binary64(u64::from(bits))
-                                }
-                                IeeeFloatValue::Binary64(bits) => {
-                                    IeeeFloatValue::Binary32(bits as u32)
-                                }
-                            }
-                        }
-                    }
-                    assert!(
-                        !ieee_literal_retained(&source, &[changed]),
-                        "mutation {mutation}"
-                    );
-                }
-            }
-        }
-
-        #[test]
-        fn concatenation_publication_retains_ordered_sources_result_and_bound() {
-            use semantic_vocabulary::{ObligationId, PlaceId, StructuralTypeId};
-            use terminal_psi::control_flow::ByteSequenceOperand;
-            let operation = OperationId::new(1).unwrap();
-            let result = terminal_psi::StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place: PlaceId::new(3).unwrap(),
-                structural_type: StructuralTypeId::new(1).unwrap(),
-                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                additional_input_qualifications: Vec::new(),
-                claims: Vec::new(),
-            };
-            let left = ByteSequenceOperand::Whole {
-                source: terminal_psi::StructuralArgument::whole(
-                    PlaceId::new(1).unwrap(),
-                    terminal_psi::StructuralAccess::SharedBorrow,
-                ),
-                length: ValueId::new(1).unwrap(),
-            };
-            let right = ByteSequenceOperand::Whole {
-                source: terminal_psi::StructuralArgument::whole(
-                    PlaceId::new(2).unwrap(),
-                    terminal_psi::StructuralAccess::SharedBorrow,
-                ),
-                length: ValueId::new(2).unwrap(),
-            };
-            let obligation = ObligationId::new(1).unwrap();
-            let abstracted = AbstractOperation::EstablishByteSequenceConcatenation {
-                psi_operation: operation,
-                result: result.clone(),
-                left: left.clone(),
-                right: right.clone(),
-                capacity_obligation: obligation,
-            };
-            let target = TargetUnitOperation::EstablishByteSequenceConcatenation {
-                psi_operation: operation,
-                result,
-                left,
-                right,
-                capacity_obligation: obligation,
-            };
-            assert!(requires_graph_storage_replay(std::slice::from_ref(
-                &abstracted
-            )));
-            assert!(super::byte_concatenation_retained(&abstracted, [&target]));
-            assert!(!super::byte_concatenation_retained(
-                &abstracted,
-                [&target, &target]
-            ));
-            let mut changed = target.clone();
-            if let TargetUnitOperation::EstablishByteSequenceConcatenation { left, right, .. } =
-                &mut changed
-            {
-                std::mem::swap(left, right);
-            }
-            assert!(!super::byte_concatenation_retained(&abstracted, [&changed]));
-            let mut changed = target.clone();
-            if let TargetUnitOperation::EstablishByteSequenceConcatenation {
-                capacity_obligation,
-                ..
-            } = &mut changed
-            {
-                *capacity_obligation = ObligationId::new(2).unwrap();
-            }
-            assert!(!super::byte_concatenation_retained(&abstracted, [&changed]));
-            let mut changed = target;
-            if let TargetUnitOperation::EstablishByteSequenceConcatenation { result, .. } =
-                &mut changed
-            {
-                result.place = PlaceId::new(4).unwrap();
-            }
-            assert!(!super::byte_concatenation_retained(&abstracted, [&changed]));
-        }
-
-        mod temporary_stack {
-            use super::super::temporary_stack_bytes_for_function;
-            use machine_code::{
-                SelectedFormDecodedFootprint, SelectedFormEncodedRowStore, SelectedFormEncodingRow,
-                SelectedFormEncodingState, SelectedFormMachineDisposition,
-            };
-            use selected_instructions::{
-                MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
-                MachineEncodedStackEffect, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
-                SelectedFunction, SelectedFunctions, SelectedInstruction, SelectedInstructionId,
-                SelectedInstructionKind, SelectedTerminator,
-            };
-            use semantic_vocabulary::{BlockId, EdgeId, MachineId};
-
-            fn instruction(id: u32, kind: SelectedInstructionKind) -> SelectedInstruction {
-                SelectedInstruction {
-                    id: SelectedInstructionId(id),
-                    kind,
-                    constraint: register_model::RegisterConstraintKey {
-                        family: register_model::RegisterConstraintFamily::Instruction,
-                        variant: 0,
-                    },
-                    operands: Vec::new(),
-                    implicit_uses: Vec::new(),
-                    implicit_defs: Vec::new(),
-                    clobbers: Vec::new(),
-                    provenance: Default::default(),
-                }
-            }
-
-            fn function(machine: u64) -> SelectedFunction {
-                SelectedFunction {
-                    machine: MachineId::new(machine).unwrap(),
-                    attachment: None,
-                    nominal_cleanup_subject: None,
-                    provenance: Default::default(),
-                    structural: None,
-                    local_storage_slots: Vec::new(),
-                    outgoing_arguments: Vec::new(),
-                    calls: Vec::new(),
-                    normalized_foreign_calls: Vec::new(),
-                    memory_accesses: Vec::new(),
-                    boundary_settlements: Vec::new(),
-                    entry_block: SelectedBlockId(0),
-                    virtual_registers: Vec::new(),
-                    blocks: (vec![SelectedBlock {
-                        id: SelectedBlockId(0),
-                        origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
-                        instructions: vec![instruction(0, SelectedInstructionKind::CopyI64)],
-                        terminator: SelectedTerminator::Return {
-                            instruction: instruction(1, SelectedInstructionKind::ReturnUnit),
-                            psi_return_edge: EdgeId::new(1).unwrap(),
-                        },
-                    }])
-                    .into(),
-                }
-            }
-
-            fn encoding(
-                peaks: &[u16],
-            ) -> (Vec<SelectedFormEncodingRow>, SelectedFormEncodedRowStore) {
-                let mut store = SelectedFormEncodedRowStore::new();
-                let mut rows = Vec::new();
-                for &peak in peaks {
-                    for id in 0..2 {
-                        let mut effects =
-                            MachineEncodedEffects::fallthrough_v1(Vec::new(), Vec::new());
-                        if id == 0 && peak != 0 {
-                            effects.stack = MachineEncodedStackEffect::TemporaryBytesV1 {
-                                stack_pointer: register_model::RegisterViewId(4),
-                                byte_count: peak,
-                            };
-                        }
-                        let (code, footprint) = store.intern(
-                            &[if id == 0 { 0x90 } else { 0xc3 }],
-                            SelectedFormDecodedFootprint {
-                                register_reads: Vec::new(),
-                                register_writes: Vec::new(),
-                                implicit_defs: Vec::new(),
-                                implicit_clobbers: Vec::new(),
-                                encoded: effects,
-                            },
-                        );
-                        rows.push(SelectedFormEncodingRow {
-                            instruction: SelectedInstructionId(id),
-                            alternative: MachineAlternativeKey {
-                                family: MachineAlternativeFamily::CopyI64,
-                                variant: 0,
-                            },
-                            machine_disposition: SelectedFormMachineDisposition::RetainedV1,
-                            state: SelectedFormEncodingState::Encoded,
-                            address: None,
-                            code,
-                            footprint,
-                        });
-                    }
-                }
-                (rows, store)
-            }
-
-            fn assert_function_peaks(order: &[(u64, u16)]) {
-                let mut functions = SelectedFunctions::default();
-                for &(machine, _) in order {
-                    functions.push(function(machine));
-                }
-                let (rows, store) =
-                    encoding(&order.iter().map(|&(_, peak)| peak).collect::<Vec<_>>());
-                let actual = functions
-                    .iter()
-                    .map(|function| {
-                        temporary_stack_bytes_for_function(
-                            function.machine,
-                            &functions,
-                            &rows,
-                            &store,
-                        )
-                        .unwrap()
-                    })
-                    .collect::<Vec<_>>();
-                let expected = order
-                    .iter()
-                    .map(|&(_, peak)| u32::from(peak))
-                    .collect::<Vec<_>>();
-                assert_eq!(actual, expected);
-            }
-
-            #[test]
-            fn temporary_stack_keeps_ordinary_and_flags_functions_separate() {
-                assert_function_peaks(&[(1, 0), (2, 8)]);
-            }
-
-            #[test]
-            fn temporary_stack_does_not_import_another_functions_directed_fp_peak() {
-                assert_function_peaks(&[(1, 0), (2, 8), (3, 16)]);
-            }
-
-            #[test]
-            fn temporary_stack_identity_survives_reverse_function_order() {
-                assert_function_peaks(&[(3, 16), (2, 8), (1, 0)]);
-            }
-
-            #[test]
-            fn temporary_stack_rejects_changed_missing_extra_and_duplicate_roster_rows() {
-                let mut functions = SelectedFunctions::default();
-                functions.push(function(1));
-                functions.push(function(2));
-                let (rows, store) = encoding(&[0, 8]);
-                let check = |rows: &[SelectedFormEncodingRow]| {
-                    temporary_stack_bytes_for_function(
-                        MachineId::new(1).unwrap(),
-                        &functions,
-                        rows,
-                        &store,
-                    )
-                };
-                check(&rows).unwrap();
-                let mut changed = rows.clone();
-                changed[1].instruction = SelectedInstructionId(7);
-                assert!(check(&changed).is_err());
-                assert!(check(&rows[..3]).is_err());
-                changed = rows.clone();
-                changed.push(rows[0].clone());
-                assert!(check(&changed).is_err());
-                let mut duplicate = functions.clone();
-                duplicate[0].blocks[0].instructions[0].id = SelectedInstructionId(1);
-                changed = rows.clone();
-                changed[0].instruction = SelectedInstructionId(1);
-                assert!(
-                    temporary_stack_bytes_for_function(
-                        MachineId::new(1).unwrap(),
-                        &duplicate,
-                        &changed,
-                        &store
-                    )
-                    .is_err()
-                );
-                assert!(
-                    temporary_stack_bytes_for_function(
-                        MachineId::new(3).unwrap(),
-                        &functions,
-                        &rows,
-                        &store
-                    )
-                    .is_err()
-                );
-            }
-
-            #[test]
-            fn temporary_stack_keeps_tight_under_budget_numeric_controls() {
-                let mut functions = SelectedFunctions::default();
-                for machine in 1..=3 {
-                    functions.push(function(machine));
-                }
-                let (rows, store) = encoding(&[0, 8, 16]);
-                for (machine, exact, insufficient) in [(2, 8, 7), (3, 16, 15)] {
-                    let required = temporary_stack_bytes_for_function(
-                        MachineId::new(machine).unwrap(),
-                        &functions,
-                        &rows,
-                        &store,
-                    )
-                    .unwrap();
-                    assert!(required <= exact);
-                    assert!(required > insufficient);
-                }
-            }
-        }
-    }
-
     pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) -> bool {
         operations.iter().any(|operation| {
             if operation.cleanup_rosters().any(|(_, actions)| {
@@ -19459,6 +18992,473 @@ mod source {
                 } else {
                     selected_instructions::SelectedMemoryAccessRole::ReadPlace
                 }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{AbstractOperation, ieee_literal_retained, requires_graph_storage_replay};
+        use semantic_vocabulary::{IeeeFloatValue, OperationId, ValueId};
+        use target_operations::TargetUnitOperation;
+
+        #[test]
+        fn atomic_storage_requires_retained_graph_replay() {
+            use abstract_operations::atomic::AbstractAtomicLocation;
+            use abstract_operations::{AbstractAtomicEvent, AtomicResidencyEdge};
+            use semantic_vocabulary::PlaceId;
+
+            let operation = AbstractOperation::AtomicEvent {
+                psi_operation: OperationId::new(1).unwrap(),
+                event: AbstractAtomicEvent::Store {
+                    location: AbstractAtomicLocation {
+                        root: PlaceId::new(1).unwrap(),
+                        path: vec![terminal_psi::StructuralPathSegment::Field(
+                            terminal_psi::TerminalIdentityIndex(1),
+                        )],
+                    },
+                    ordering: terminal_psi::MemoryOrdering::NoOrdering,
+                    value: ValueId::new(1).unwrap(),
+                },
+                reads_from: None,
+                modification_after: Some(AtomicResidencyEdge::InitialResidency),
+                resident_obligation: None,
+            };
+            assert!(requires_graph_storage_replay(&[operation]));
+        }
+
+        #[test]
+        fn replay_requirement_is_specific_to_primitive_storage_operations() {
+            use abstract_operations::AbstractResult;
+            use semantic_vocabulary::{
+                IntegerSign, IntegerType, PlaceId, ScalarType, StructuralTypeId,
+            };
+            use terminal_psi::{
+                StructuralAccess, StructuralMultiplicity, StructuralOperationResult,
+                StructuralParameterDeclaration,
+            };
+
+            let operation = OperationId::new(1).unwrap();
+            let scalar = AbstractResult {
+                value: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+            };
+            let result = StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: PlaceId::new(1).unwrap(),
+                structural_type: StructuralTypeId::new(1).unwrap(),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: vec![],
+                projected_qualifications: vec![],
+                additional_input_qualifications: Vec::new(),
+                claims: vec![],
+            };
+            let existing = [AbstractOperation::BooleanConstant {
+                psi_operation: operation,
+                result: scalar.value,
+                value: true,
+            }];
+            assert!(!requires_graph_storage_replay(&[]));
+            assert!(!requires_graph_storage_replay(&existing));
+            for operation in [
+                AbstractOperation::WriteOnlyPrimitiveStore {
+                    psi_operation: operation,
+                    path: Vec::new(),
+                    destination: abstract_operations::StructuralScalarStoreDestination::Parameter(
+                        StructuralParameterDeclaration {
+                            place: result.place,
+                            position: 0,
+                            structural_type: result.structural_type,
+                            multiplicity: StructuralMultiplicity::Unrestricted,
+                            access: StructuralAccess::MutableBorrow,
+                            qualifications: vec![],
+                            projected_qualifications: vec![],
+                            additional_input_qualifications: Vec::new(),
+                        },
+                    ),
+                    value: scalar,
+                    range_obligation: None,
+                },
+                AbstractOperation::EstablishPrimitiveLocal {
+                    psi_operation: operation,
+                    result: result.clone(),
+                    value: scalar,
+                    range_obligation: None,
+                },
+                AbstractOperation::PrimitiveLocalStore {
+                    psi_operation: operation,
+                    destination: result.place,
+                    value: scalar,
+                },
+                AbstractOperation::PrimitiveScalarRead {
+                    psi_operation: operation,
+                    path: Vec::new(),
+                    result: scalar,
+                    source: result.place,
+                },
+            ] {
+                assert!(requires_graph_storage_replay(std::slice::from_ref(
+                    &operation
+                )));
+                let mut mixed = existing.to_vec();
+                mixed.push(operation);
+                assert!(requires_graph_storage_replay(&mixed));
+            }
+        }
+
+        #[test]
+        fn ieee_literal_publication_requires_unique_operation_value_type_and_bits() {
+            let operation = OperationId::new(1).unwrap();
+            let result = ValueId::new(1).unwrap();
+            for value in [
+                IeeeFloatValue::Binary32(0x7fc0_0041),
+                IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
+            ] {
+                let source = AbstractOperation::IeeeFloatConstant {
+                    psi_operation: operation,
+                    result,
+                    value,
+                };
+                let target = TargetUnitOperation::IeeeFloatConstant {
+                    psi_operation: operation,
+                    result,
+                    value,
+                };
+                assert!(ieee_literal_retained(
+                    &source,
+                    std::slice::from_ref(&target)
+                ));
+                assert!(!ieee_literal_retained(&source, &[]));
+                assert!(!ieee_literal_retained(
+                    &source,
+                    &[target.clone(), target.clone()]
+                ));
+                for mutation in 0..4 {
+                    let mut changed = target.clone();
+                    let TargetUnitOperation::IeeeFloatConstant {
+                        psi_operation,
+                        result,
+                        value,
+                    } = &mut changed
+                    else {
+                        unreachable!()
+                    };
+                    match mutation {
+                        0 => *psi_operation = OperationId::new(2).unwrap(),
+                        1 => *result = ValueId::new(2).unwrap(),
+                        2 => {
+                            *value = match *value {
+                                IeeeFloatValue::Binary32(bits) => {
+                                    IeeeFloatValue::Binary32(bits ^ 1)
+                                }
+                                IeeeFloatValue::Binary64(bits) => {
+                                    IeeeFloatValue::Binary64(bits ^ 1)
+                                }
+                            }
+                        }
+                        _ => {
+                            *value = match *value {
+                                IeeeFloatValue::Binary32(bits) => {
+                                    IeeeFloatValue::Binary64(u64::from(bits))
+                                }
+                                IeeeFloatValue::Binary64(bits) => {
+                                    IeeeFloatValue::Binary32(bits as u32)
+                                }
+                            }
+                        }
+                    }
+                    assert!(
+                        !ieee_literal_retained(&source, &[changed]),
+                        "mutation {mutation}"
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn concatenation_publication_retains_ordered_sources_result_and_bound() {
+            use semantic_vocabulary::{ObligationId, PlaceId, StructuralTypeId};
+            use terminal_psi::control_flow::ByteSequenceOperand;
+            let operation = OperationId::new(1).unwrap();
+            let result = terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: PlaceId::new(3).unwrap(),
+                structural_type: StructuralTypeId::new(1).unwrap(),
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+                claims: Vec::new(),
+            };
+            let left = ByteSequenceOperand::Whole {
+                source: terminal_psi::StructuralArgument::whole(
+                    PlaceId::new(1).unwrap(),
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                ),
+                length: ValueId::new(1).unwrap(),
+            };
+            let right = ByteSequenceOperand::Whole {
+                source: terminal_psi::StructuralArgument::whole(
+                    PlaceId::new(2).unwrap(),
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                ),
+                length: ValueId::new(2).unwrap(),
+            };
+            let obligation = ObligationId::new(1).unwrap();
+            let abstracted = AbstractOperation::EstablishByteSequenceConcatenation {
+                psi_operation: operation,
+                result: result.clone(),
+                left: left.clone(),
+                right: right.clone(),
+                capacity_obligation: obligation,
+            };
+            let target = TargetUnitOperation::EstablishByteSequenceConcatenation {
+                psi_operation: operation,
+                result,
+                left,
+                right,
+                capacity_obligation: obligation,
+            };
+            assert!(requires_graph_storage_replay(std::slice::from_ref(
+                &abstracted
+            )));
+            assert!(super::byte_concatenation_retained(&abstracted, [&target]));
+            assert!(!super::byte_concatenation_retained(
+                &abstracted,
+                [&target, &target]
+            ));
+            let mut changed = target.clone();
+            if let TargetUnitOperation::EstablishByteSequenceConcatenation { left, right, .. } =
+                &mut changed
+            {
+                std::mem::swap(left, right);
+            }
+            assert!(!super::byte_concatenation_retained(&abstracted, [&changed]));
+            let mut changed = target.clone();
+            if let TargetUnitOperation::EstablishByteSequenceConcatenation {
+                capacity_obligation,
+                ..
+            } = &mut changed
+            {
+                *capacity_obligation = ObligationId::new(2).unwrap();
+            }
+            assert!(!super::byte_concatenation_retained(&abstracted, [&changed]));
+            let mut changed = target;
+            if let TargetUnitOperation::EstablishByteSequenceConcatenation { result, .. } =
+                &mut changed
+            {
+                result.place = PlaceId::new(4).unwrap();
+            }
+            assert!(!super::byte_concatenation_retained(&abstracted, [&changed]));
+        }
+
+        mod temporary_stack {
+            use super::super::temporary_stack_bytes_for_function;
+            use machine_code::{
+                SelectedFormDecodedFootprint, SelectedFormEncodedRowStore, SelectedFormEncodingRow,
+                SelectedFormEncodingState, SelectedFormMachineDisposition,
+            };
+            use selected_instructions::{
+                MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
+                MachineEncodedStackEffect, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
+                SelectedFunction, SelectedFunctions, SelectedInstruction, SelectedInstructionId,
+                SelectedInstructionKind, SelectedTerminator,
+            };
+            use semantic_vocabulary::{BlockId, EdgeId, MachineId};
+
+            fn instruction(id: u32, kind: SelectedInstructionKind) -> SelectedInstruction {
+                SelectedInstruction {
+                    id: SelectedInstructionId(id),
+                    kind,
+                    constraint: register_model::RegisterConstraintKey {
+                        family: register_model::RegisterConstraintFamily::Instruction,
+                        variant: 0,
+                    },
+                    operands: Vec::new(),
+                    implicit_uses: Vec::new(),
+                    implicit_defs: Vec::new(),
+                    clobbers: Vec::new(),
+                    provenance: Default::default(),
+                }
+            }
+
+            fn function(machine: u64) -> SelectedFunction {
+                SelectedFunction {
+                    machine: MachineId::new(machine).unwrap(),
+                    attachment: None,
+                    nominal_cleanup_subject: None,
+                    provenance: Default::default(),
+                    structural: None,
+                    local_storage_slots: Vec::new(),
+                    outgoing_arguments: Vec::new(),
+                    calls: Vec::new(),
+                    normalized_foreign_calls: Vec::new(),
+                    memory_accesses: Vec::new(),
+                    boundary_settlements: Vec::new(),
+                    entry_block: SelectedBlockId(0),
+                    virtual_registers: Vec::new(),
+                    blocks: (vec![SelectedBlock {
+                        id: SelectedBlockId(0),
+                        origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
+                        instructions: vec![instruction(0, SelectedInstructionKind::CopyI64)],
+                        terminator: SelectedTerminator::Return {
+                            instruction: instruction(1, SelectedInstructionKind::ReturnUnit),
+                            psi_return_edge: EdgeId::new(1).unwrap(),
+                        },
+                    }])
+                    .into(),
+                }
+            }
+
+            fn encoding(
+                peaks: &[u16],
+            ) -> (Vec<SelectedFormEncodingRow>, SelectedFormEncodedRowStore) {
+                let mut store = SelectedFormEncodedRowStore::new();
+                let mut rows = Vec::new();
+                for &peak in peaks {
+                    for id in 0..2 {
+                        let mut effects =
+                            MachineEncodedEffects::fallthrough_v1(Vec::new(), Vec::new());
+                        if id == 0 && peak != 0 {
+                            effects.stack = MachineEncodedStackEffect::TemporaryBytesV1 {
+                                stack_pointer: register_model::RegisterViewId(4),
+                                byte_count: peak,
+                            };
+                        }
+                        let (code, footprint) = store.intern(
+                            &[if id == 0 { 0x90 } else { 0xc3 }],
+                            SelectedFormDecodedFootprint {
+                                register_reads: Vec::new(),
+                                register_writes: Vec::new(),
+                                implicit_defs: Vec::new(),
+                                implicit_clobbers: Vec::new(),
+                                encoded: effects,
+                            },
+                        );
+                        rows.push(SelectedFormEncodingRow {
+                            instruction: SelectedInstructionId(id),
+                            alternative: MachineAlternativeKey {
+                                family: MachineAlternativeFamily::CopyI64,
+                                variant: 0,
+                            },
+                            machine_disposition: SelectedFormMachineDisposition::RetainedV1,
+                            state: SelectedFormEncodingState::Encoded,
+                            address: None,
+                            code,
+                            footprint,
+                        });
+                    }
+                }
+                (rows, store)
+            }
+
+            fn assert_function_peaks(order: &[(u64, u16)]) {
+                let mut functions = SelectedFunctions::default();
+                for &(machine, _) in order {
+                    functions.push(function(machine));
+                }
+                let (rows, store) =
+                    encoding(&order.iter().map(|&(_, peak)| peak).collect::<Vec<_>>());
+                let actual = functions
+                    .iter()
+                    .map(|function| {
+                        temporary_stack_bytes_for_function(
+                            function.machine,
+                            &functions,
+                            &rows,
+                            &store,
+                        )
+                        .unwrap()
+                    })
+                    .collect::<Vec<_>>();
+                let expected = order
+                    .iter()
+                    .map(|&(_, peak)| u32::from(peak))
+                    .collect::<Vec<_>>();
+                assert_eq!(actual, expected);
+            }
+
+            #[test]
+            fn temporary_stack_keeps_ordinary_and_flags_functions_separate() {
+                assert_function_peaks(&[(1, 0), (2, 8)]);
+            }
+
+            #[test]
+            fn temporary_stack_does_not_import_another_functions_directed_fp_peak() {
+                assert_function_peaks(&[(1, 0), (2, 8), (3, 16)]);
+            }
+
+            #[test]
+            fn temporary_stack_identity_survives_reverse_function_order() {
+                assert_function_peaks(&[(3, 16), (2, 8), (1, 0)]);
+            }
+
+            #[test]
+            fn temporary_stack_rejects_changed_missing_extra_and_duplicate_roster_rows() {
+                let mut functions = SelectedFunctions::default();
+                functions.push(function(1));
+                functions.push(function(2));
+                let (rows, store) = encoding(&[0, 8]);
+                let check = |rows: &[SelectedFormEncodingRow]| {
+                    temporary_stack_bytes_for_function(
+                        MachineId::new(1).unwrap(),
+                        &functions,
+                        rows,
+                        &store,
+                    )
+                };
+                check(&rows).unwrap();
+                let mut changed = rows.clone();
+                changed[1].instruction = SelectedInstructionId(7);
+                assert!(check(&changed).is_err());
+                assert!(check(&rows[..3]).is_err());
+                changed = rows.clone();
+                changed.push(rows[0].clone());
+                assert!(check(&changed).is_err());
+                let mut duplicate = functions.clone();
+                duplicate[0].blocks[0].instructions[0].id = SelectedInstructionId(1);
+                changed = rows.clone();
+                changed[0].instruction = SelectedInstructionId(1);
+                assert!(
+                    temporary_stack_bytes_for_function(
+                        MachineId::new(1).unwrap(),
+                        &duplicate,
+                        &changed,
+                        &store
+                    )
+                    .is_err()
+                );
+                assert!(
+                    temporary_stack_bytes_for_function(
+                        MachineId::new(3).unwrap(),
+                        &functions,
+                        &rows,
+                        &store
+                    )
+                    .is_err()
+                );
+            }
+
+            #[test]
+            fn temporary_stack_keeps_tight_under_budget_numeric_controls() {
+                let mut functions = SelectedFunctions::default();
+                for machine in 1..=3 {
+                    functions.push(function(machine));
+                }
+                let (rows, store) = encoding(&[0, 8, 16]);
+                for (machine, exact, insufficient) in [(2, 8, 7), (3, 16, 15)] {
+                    let required = temporary_stack_bytes_for_function(
+                        MachineId::new(machine).unwrap(),
+                        &functions,
+                        &rows,
+                        &store,
+                    )
+                    .unwrap();
+                    assert!(required <= exact);
+                    assert!(required > insufficient);
+                }
+            }
+        }
     }
 }
 
@@ -22228,235 +22228,6 @@ mod structural {
             }
         }
 
-        #[cfg(test)]
-        mod tests {
-            use calling_conventions::{
-                IndirectPointerLocation, MachineRegister, ValueLocation, ValuePlacement, ValueShape,
-            };
-            use machine_code::StructuralSourceLocation;
-            use terminal_psi::StructuralAccess;
-
-            use super::validate_incoming_location;
-
-            fn borrowed(location: IndirectPointerLocation) -> StructuralSourceLocation {
-                StructuralSourceLocation::IncomingBorrowedPointer { location }
-            }
-
-            #[test]
-            fn borrowed_register_and_stack_locations_preserve_exact_pointer_residence() {
-                for access in [
-                    StructuralAccess::SharedBorrow,
-                    StructuralAccess::MutableBorrow,
-                    StructuralAccess::WriteOnlyBorrow,
-                ] {
-                    let register = MachineRegister::Aarch64X(0);
-                    let placement = ValuePlacement {
-                        shape: ValueShape::borrowed_reference(4, 2),
-                        locations: vec![ValueLocation::Register {
-                            register,
-                            value_byte_offset: 0,
-                            byte_size: 8,
-                        }],
-                    };
-                    assert!(
-                        validate_incoming_location(
-                            access,
-                            &placement,
-                            borrowed(IndirectPointerLocation::Register(register))
-                        )
-                        .is_ok()
-                    );
-                    assert!(
-                        validate_incoming_location(
-                            access,
-                            &placement,
-                            borrowed(IndirectPointerLocation::Register(
-                                MachineRegister::Aarch64X(1)
-                            ))
-                        )
-                        .is_err()
-                    );
-                    assert!(
-                        validate_incoming_location(
-                            access,
-                            &placement,
-                            StructuralSourceLocation::IncomingIndirectPointer { register }
-                        )
-                        .is_err()
-                    );
-                    for stack_byte_offset in [0, 8, 32, 56] {
-                        let pointer = IndirectPointerLocation::Stack {
-                            stack_byte_offset,
-                            alignment: 8,
-                        };
-                        for location in [
-                            ValueLocation::Stack {
-                                stack_byte_offset,
-                                value_byte_offset: 0,
-                                byte_size: 8,
-                                alignment: 8,
-                            },
-                            ValueLocation::Indirect {
-                                pointer,
-                                copy_stack_byte_offset: None,
-                                byte_size: 4,
-                                alignment: 2,
-                            },
-                        ] {
-                            let placement = ValuePlacement {
-                                shape: ValueShape::borrowed_reference(4, 2),
-                                locations: vec![location],
-                            };
-                            assert!(
-                                validate_incoming_location(access, &placement, borrowed(pointer))
-                                    .is_ok()
-                            );
-                            assert!(
-                                validate_incoming_location(
-                                    access,
-                                    &placement,
-                                    borrowed(IndirectPointerLocation::Stack {
-                                        stack_byte_offset: stack_byte_offset + 8,
-                                        alignment: 8
-                                    })
-                                )
-                                .is_err()
-                            );
-                            assert!(
-                                validate_incoming_location(
-                                    access,
-                                    &placement,
-                                    StructuralSourceLocation::Stack {
-                                        byte_offset: stack_byte_offset
-                                    }
-                                )
-                                .is_err()
-                            );
-                        }
-                    }
-                }
-            }
-
-            #[test]
-            fn borrowed_locations_reject_copies_carrier_width_alignment_and_access_substitution() {
-                let pointer = IndirectPointerLocation::Register(MachineRegister::Aarch64X(0));
-                let mut placement = ValuePlacement {
-                    shape: ValueShape::borrowed_reference(16, 8),
-                    locations: vec![ValueLocation::Indirect {
-                        pointer,
-                        copy_stack_byte_offset: None,
-                        byte_size: 16,
-                        alignment: 8,
-                    }],
-                };
-                let location = borrowed(pointer);
-                assert!(
-                    validate_incoming_location(
-                        StructuralAccess::WriteOnlyBorrow,
-                        &placement,
-                        location
-                    )
-                    .is_ok()
-                );
-                assert!(
-                    validate_incoming_location(StructuralAccess::Owned, &placement, location)
-                        .is_err()
-                );
-                for malformed in [
-                    ValueLocation::Indirect {
-                        pointer,
-                        copy_stack_byte_offset: Some(0),
-                        byte_size: 16,
-                        alignment: 8,
-                    },
-                    ValueLocation::Indirect {
-                        pointer,
-                        copy_stack_byte_offset: None,
-                        byte_size: 8,
-                        alignment: 8,
-                    },
-                    ValueLocation::Indirect {
-                        pointer,
-                        copy_stack_byte_offset: None,
-                        byte_size: 16,
-                        alignment: 4,
-                    },
-                    ValueLocation::Register {
-                        register: MachineRegister::Aarch64X(0),
-                        value_byte_offset: 1,
-                        byte_size: 8,
-                    },
-                    ValueLocation::Register {
-                        register: MachineRegister::Aarch64X(0),
-                        value_byte_offset: 0,
-                        byte_size: 4,
-                    },
-                ] {
-                    placement.locations[0] = malformed;
-                    assert!(
-                        validate_incoming_location(
-                            StructuralAccess::WriteOnlyBorrow,
-                            &placement,
-                            location
-                        )
-                        .is_err()
-                    );
-                }
-                placement.locations = vec![ValueLocation::Register {
-                    register: MachineRegister::Aarch64X(0),
-                    value_byte_offset: 0,
-                    byte_size: 8,
-                }];
-                placement.shape = ValueShape::integer(8, 8);
-                assert!(
-                    validate_incoming_location(
-                        StructuralAccess::WriteOnlyBorrow,
-                        &placement,
-                        location
-                    )
-                    .is_err()
-                );
-            }
-
-            #[test]
-            fn owned_indirect_location_keeps_owned_copy_meaning() {
-                let register = MachineRegister::Aarch64X(0);
-                let placement = ValuePlacement {
-                    shape: ValueShape::integer(16, 8),
-                    locations: vec![ValueLocation::Indirect {
-                        pointer: IndirectPointerLocation::Register(register),
-                        copy_stack_byte_offset: Some(0),
-                        byte_size: 16,
-                        alignment: 8,
-                    }],
-                };
-                assert!(
-                    validate_incoming_location(
-                        StructuralAccess::Owned,
-                        &placement,
-                        StructuralSourceLocation::IncomingIndirectPointer { register }
-                    )
-                    .is_ok()
-                );
-                assert!(
-                    validate_incoming_location(
-                        StructuralAccess::Owned,
-                        &placement,
-                        borrowed(IndirectPointerLocation::Register(register))
-                    )
-                    .is_err()
-                );
-                assert!(
-                    validate_incoming_location(
-                        StructuralAccess::SharedBorrow,
-                        &placement,
-                        borrowed(IndirectPointerLocation::Register(register))
-                    )
-                    .is_err()
-                );
-            }
-        }
-
         pub(in crate::function_fragments) fn validate_settlements(
             source: &StagedOptimizedRelocationFreeObjectContainer,
             rows: &[ObjectBoundarySettlement],
@@ -22698,6 +22469,235 @@ mod structural {
                 return Err(invalid());
             }
             Ok(())
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use calling_conventions::{
+                IndirectPointerLocation, MachineRegister, ValueLocation, ValuePlacement, ValueShape,
+            };
+            use machine_code::StructuralSourceLocation;
+            use terminal_psi::StructuralAccess;
+
+            use super::validate_incoming_location;
+
+            fn borrowed(location: IndirectPointerLocation) -> StructuralSourceLocation {
+                StructuralSourceLocation::IncomingBorrowedPointer { location }
+            }
+
+            #[test]
+            fn borrowed_register_and_stack_locations_preserve_exact_pointer_residence() {
+                for access in [
+                    StructuralAccess::SharedBorrow,
+                    StructuralAccess::MutableBorrow,
+                    StructuralAccess::WriteOnlyBorrow,
+                ] {
+                    let register = MachineRegister::Aarch64X(0);
+                    let placement = ValuePlacement {
+                        shape: ValueShape::borrowed_reference(4, 2),
+                        locations: vec![ValueLocation::Register {
+                            register,
+                            value_byte_offset: 0,
+                            byte_size: 8,
+                        }],
+                    };
+                    assert!(
+                        validate_incoming_location(
+                            access,
+                            &placement,
+                            borrowed(IndirectPointerLocation::Register(register))
+                        )
+                        .is_ok()
+                    );
+                    assert!(
+                        validate_incoming_location(
+                            access,
+                            &placement,
+                            borrowed(IndirectPointerLocation::Register(
+                                MachineRegister::Aarch64X(1)
+                            ))
+                        )
+                        .is_err()
+                    );
+                    assert!(
+                        validate_incoming_location(
+                            access,
+                            &placement,
+                            StructuralSourceLocation::IncomingIndirectPointer { register }
+                        )
+                        .is_err()
+                    );
+                    for stack_byte_offset in [0, 8, 32, 56] {
+                        let pointer = IndirectPointerLocation::Stack {
+                            stack_byte_offset,
+                            alignment: 8,
+                        };
+                        for location in [
+                            ValueLocation::Stack {
+                                stack_byte_offset,
+                                value_byte_offset: 0,
+                                byte_size: 8,
+                                alignment: 8,
+                            },
+                            ValueLocation::Indirect {
+                                pointer,
+                                copy_stack_byte_offset: None,
+                                byte_size: 4,
+                                alignment: 2,
+                            },
+                        ] {
+                            let placement = ValuePlacement {
+                                shape: ValueShape::borrowed_reference(4, 2),
+                                locations: vec![location],
+                            };
+                            assert!(
+                                validate_incoming_location(access, &placement, borrowed(pointer))
+                                    .is_ok()
+                            );
+                            assert!(
+                                validate_incoming_location(
+                                    access,
+                                    &placement,
+                                    borrowed(IndirectPointerLocation::Stack {
+                                        stack_byte_offset: stack_byte_offset + 8,
+                                        alignment: 8
+                                    })
+                                )
+                                .is_err()
+                            );
+                            assert!(
+                                validate_incoming_location(
+                                    access,
+                                    &placement,
+                                    StructuralSourceLocation::Stack {
+                                        byte_offset: stack_byte_offset
+                                    }
+                                )
+                                .is_err()
+                            );
+                        }
+                    }
+                }
+            }
+
+            #[test]
+            fn borrowed_locations_reject_copies_carrier_width_alignment_and_access_substitution() {
+                let pointer = IndirectPointerLocation::Register(MachineRegister::Aarch64X(0));
+                let mut placement = ValuePlacement {
+                    shape: ValueShape::borrowed_reference(16, 8),
+                    locations: vec![ValueLocation::Indirect {
+                        pointer,
+                        copy_stack_byte_offset: None,
+                        byte_size: 16,
+                        alignment: 8,
+                    }],
+                };
+                let location = borrowed(pointer);
+                assert!(
+                    validate_incoming_location(
+                        StructuralAccess::WriteOnlyBorrow,
+                        &placement,
+                        location
+                    )
+                    .is_ok()
+                );
+                assert!(
+                    validate_incoming_location(StructuralAccess::Owned, &placement, location)
+                        .is_err()
+                );
+                for malformed in [
+                    ValueLocation::Indirect {
+                        pointer,
+                        copy_stack_byte_offset: Some(0),
+                        byte_size: 16,
+                        alignment: 8,
+                    },
+                    ValueLocation::Indirect {
+                        pointer,
+                        copy_stack_byte_offset: None,
+                        byte_size: 8,
+                        alignment: 8,
+                    },
+                    ValueLocation::Indirect {
+                        pointer,
+                        copy_stack_byte_offset: None,
+                        byte_size: 16,
+                        alignment: 4,
+                    },
+                    ValueLocation::Register {
+                        register: MachineRegister::Aarch64X(0),
+                        value_byte_offset: 1,
+                        byte_size: 8,
+                    },
+                    ValueLocation::Register {
+                        register: MachineRegister::Aarch64X(0),
+                        value_byte_offset: 0,
+                        byte_size: 4,
+                    },
+                ] {
+                    placement.locations[0] = malformed;
+                    assert!(
+                        validate_incoming_location(
+                            StructuralAccess::WriteOnlyBorrow,
+                            &placement,
+                            location
+                        )
+                        .is_err()
+                    );
+                }
+                placement.locations = vec![ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                }];
+                placement.shape = ValueShape::integer(8, 8);
+                assert!(
+                    validate_incoming_location(
+                        StructuralAccess::WriteOnlyBorrow,
+                        &placement,
+                        location
+                    )
+                    .is_err()
+                );
+            }
+
+            #[test]
+            fn owned_indirect_location_keeps_owned_copy_meaning() {
+                let register = MachineRegister::Aarch64X(0);
+                let placement = ValuePlacement {
+                    shape: ValueShape::integer(16, 8),
+                    locations: vec![ValueLocation::Indirect {
+                        pointer: IndirectPointerLocation::Register(register),
+                        copy_stack_byte_offset: Some(0),
+                        byte_size: 16,
+                        alignment: 8,
+                    }],
+                };
+                assert!(
+                    validate_incoming_location(
+                        StructuralAccess::Owned,
+                        &placement,
+                        StructuralSourceLocation::IncomingIndirectPointer { register }
+                    )
+                    .is_ok()
+                );
+                assert!(
+                    validate_incoming_location(
+                        StructuralAccess::Owned,
+                        &placement,
+                        borrowed(IndirectPointerLocation::Register(register))
+                    )
+                    .is_err()
+                );
+                assert!(
+                    validate_incoming_location(
+                        StructuralAccess::SharedBorrow,
+                        &placement,
+                        borrowed(IndirectPointerLocation::Register(register))
+                    )
+                    .is_err()
+                );
+            }
         }
     }
 

@@ -102,8 +102,6 @@ pub(crate) mod import_sections;
 pub(crate) mod load_placement;
 pub(crate) mod procedure_linkage;
 pub(crate) mod section_headers;
-#[cfg(test)]
-pub(crate) use dynamic_executable::interpreter_path;
 pub(crate) use dynamic_executable::{checked, checked_u64};
 mod entry_symbol {
     use diagnostics::Diagnostic;

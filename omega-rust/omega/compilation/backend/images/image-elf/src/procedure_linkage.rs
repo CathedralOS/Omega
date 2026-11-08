@@ -2887,6 +2887,75 @@ pub(crate) mod dynamic_linkage_templates {
     }
 
     #[cfg(test)]
+    pub(crate) use template_plans::{ElfProcedureLinkageFixup, ElfProcedureLinkageTemplatePolicy};
+    pub(crate) use template_plans::{
+        ElfProcedureLinkageFixupKind, ElfProcedureLinkageFixupStorage,
+        ElfProcedureLinkagePlacementConstraint, ElfProcedureLinkagePlacementConstraintKind,
+        ElfProcedureLinkageSemanticTarget,
+    };
+
+    pub(crate) use template_plans::{
+        ElfProcedureLinkageTemplatePlanningError, ValidatedElfProcedureLinkageTemplatePlan,
+    };
+
+    use crate::dynamic_executable::procedure_linkage::dynamic_import_relocations::{ValidatedElfProcedureLinkageRelocationPlan};
+    use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::compatibility_fingerprint::non_authoritative_template_compatibility_fingerprint;
+    use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::candidates::{Candidate, derive_contents};
+    use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_validation::validate_candidate;
+    use super::super::checked;
+
+    const ELF64_GOT_WORD_SIZE: usize = 8;
+
+    const X86_PLT_HEADER_SIZE: usize = 16;
+
+    const X86_PLT_ENTRY_SIZE: usize = 16;
+
+    const AARCH64_PLT_HEADER_SIZE: usize = 32;
+
+    const AARCH64_PLT_ENTRY_SIZE: usize = 16;
+
+    const GOT_PLT_HEADER_WORDS: usize = 3;
+
+    const X86_PLT_HEADER: [u8; X86_PLT_HEADER_SIZE] = [
+        0xff, 0x35, 0, 0, 0, 0, // pushq GOT[1](%rip)
+        0xff, 0x25, 0, 0, 0, 0, // jmpq *GOT[2](%rip)
+        0x0f, 0x1f, 0x40, 0x00, // nopl 0(%rax)
+    ];
+
+    const AARCH64_PLT_HEADER: [u8; AARCH64_PLT_HEADER_SIZE] = [
+        0xf0, 0x7b, 0xbf, 0xa9, // stp x16, x30, [sp,#-16]!
+        0x10, 0x00, 0x00, 0x90, // adrp x16, .got.plt[2]
+        0x11, 0x02, 0x40, 0xf9, // ldr x17, [x16, :lo12:.got.plt[2]]
+        0x10, 0x02, 0x00, 0x91, // add x16, x16, :lo12:.got.plt[2]
+        0x20, 0x02, 0x1f, 0xd6, // br x17
+        0x1f, 0x20, 0x03, 0xd5, // nop
+        0x1f, 0x20, 0x03, 0xd5, // nop
+        0x1f, 0x20, 0x03, 0xd5, // nop
+    ];
+
+    const AARCH64_PLT_ENTRY: [u8; AARCH64_PLT_ENTRY_SIZE] = [
+        0x10, 0x00, 0x00, 0x90, // adrp x16, .got.plt[N + 3]
+        0x11, 0x02, 0x40, 0xf9, // ldr x17, [x16, :lo12:.got.plt[N + 3]]
+        0x10, 0x02, 0x00, 0x91, // add x16, x16, :lo12:.got.plt[N + 3]
+        0x20, 0x02, 0x1f, 0xd6, // br x17
+    ];
+
+    pub(crate) fn plan_elf_procedure_linkage_templates(
+        linkage: ValidatedElfProcedureLinkageRelocationPlan,
+    ) -> Result<
+        ValidatedElfProcedureLinkageTemplatePlan,
+        Box<ElfProcedureLinkageTemplatePlanningError>,
+    > {
+        checked::plan_stage!(
+            plan: linkage,
+            derive: derive_contents,
+            contents: contents,
+            fingerprint: non_authoritative_template_compatibility_fingerprint,
+            error: ElfProcedureLinkageTemplatePlanningError,
+        )
+    }
+
+    #[cfg(test)]
     mod tests {
         use super::{AARCH64_PLT_ENTRY, AARCH64_PLT_HEADER, ELF64_RELA_SIZE, ElfProcedureLinkageFixup, ElfProcedureLinkageFixupKind, ElfProcedureLinkageFixupStorage, ElfProcedureLinkagePlacementConstraintKind, ElfProcedureLinkageSemanticTarget, ElfProcedureLinkageTemplatePolicy, ValidatedElfProcedureLinkageRelocationPlan, non_authoritative_template_compatibility_fingerprint, plan_elf_procedure_linkage_templates};
         use crate::{
@@ -3175,74 +3244,5 @@ pub(crate) mod dynamic_linkage_templates {
             };
             assert!(validate_fixup_coverage(&[overflowing, overflowing]).is_err());
         }
-    }
-
-    #[cfg(test)]
-    pub(crate) use template_plans::{ElfProcedureLinkageFixup, ElfProcedureLinkageTemplatePolicy};
-    pub(crate) use template_plans::{
-        ElfProcedureLinkageFixupKind, ElfProcedureLinkageFixupStorage,
-        ElfProcedureLinkagePlacementConstraint, ElfProcedureLinkagePlacementConstraintKind,
-        ElfProcedureLinkageSemanticTarget,
-    };
-
-    pub(crate) use template_plans::{
-        ElfProcedureLinkageTemplatePlanningError, ValidatedElfProcedureLinkageTemplatePlan,
-    };
-
-    use crate::dynamic_executable::procedure_linkage::dynamic_import_relocations::{ValidatedElfProcedureLinkageRelocationPlan};
-    use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::compatibility_fingerprint::non_authoritative_template_compatibility_fingerprint;
-    use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::candidates::{Candidate, derive_contents};
-    use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_validation::validate_candidate;
-    use super::super::checked;
-
-    const ELF64_GOT_WORD_SIZE: usize = 8;
-
-    const X86_PLT_HEADER_SIZE: usize = 16;
-
-    const X86_PLT_ENTRY_SIZE: usize = 16;
-
-    const AARCH64_PLT_HEADER_SIZE: usize = 32;
-
-    const AARCH64_PLT_ENTRY_SIZE: usize = 16;
-
-    const GOT_PLT_HEADER_WORDS: usize = 3;
-
-    const X86_PLT_HEADER: [u8; X86_PLT_HEADER_SIZE] = [
-        0xff, 0x35, 0, 0, 0, 0, // pushq GOT[1](%rip)
-        0xff, 0x25, 0, 0, 0, 0, // jmpq *GOT[2](%rip)
-        0x0f, 0x1f, 0x40, 0x00, // nopl 0(%rax)
-    ];
-
-    const AARCH64_PLT_HEADER: [u8; AARCH64_PLT_HEADER_SIZE] = [
-        0xf0, 0x7b, 0xbf, 0xa9, // stp x16, x30, [sp,#-16]!
-        0x10, 0x00, 0x00, 0x90, // adrp x16, .got.plt[2]
-        0x11, 0x02, 0x40, 0xf9, // ldr x17, [x16, :lo12:.got.plt[2]]
-        0x10, 0x02, 0x00, 0x91, // add x16, x16, :lo12:.got.plt[2]
-        0x20, 0x02, 0x1f, 0xd6, // br x17
-        0x1f, 0x20, 0x03, 0xd5, // nop
-        0x1f, 0x20, 0x03, 0xd5, // nop
-        0x1f, 0x20, 0x03, 0xd5, // nop
-    ];
-
-    const AARCH64_PLT_ENTRY: [u8; AARCH64_PLT_ENTRY_SIZE] = [
-        0x10, 0x00, 0x00, 0x90, // adrp x16, .got.plt[N + 3]
-        0x11, 0x02, 0x40, 0xf9, // ldr x17, [x16, :lo12:.got.plt[N + 3]]
-        0x10, 0x02, 0x00, 0x91, // add x16, x16, :lo12:.got.plt[N + 3]
-        0x20, 0x02, 0x1f, 0xd6, // br x17
-    ];
-
-    pub(crate) fn plan_elf_procedure_linkage_templates(
-        linkage: ValidatedElfProcedureLinkageRelocationPlan,
-    ) -> Result<
-        ValidatedElfProcedureLinkageTemplatePlan,
-        Box<ElfProcedureLinkageTemplatePlanningError>,
-    > {
-        checked::plan_stage!(
-            plan: linkage,
-            derive: derive_contents,
-            contents: contents,
-            fingerprint: non_authoritative_template_compatibility_fingerprint,
-            error: ElfProcedureLinkageTemplatePlanningError,
-        )
     }
 }

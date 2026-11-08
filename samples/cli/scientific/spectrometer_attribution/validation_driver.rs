@@ -249,6 +249,7 @@ fn main() {
             ProjectProduct::Terminal
         } else {
             ProjectProduct::Native {
+                installation_assumptions: Vec::new(),
                 destination: NativeDestination::Retained,
                 private_entry_ram: Vec::new(),
             }
