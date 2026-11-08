@@ -1,22 +1,378 @@
-//! Start here. The contiguous `Arena`: one per node kind, addressed by
-//! `Handle` and iterated in insertion order.
-//!
-//! An unretired page already has one generation and no holes. Keep that identity
-//! in the arena instead of allocating and filling generation/occupancy vectors
-//! beside every payload row. Retirement materializes those vectors in a cold
-//! owner; payloads remain contiguous and every stale-handle check still applies.
-//! The first retirement therefore initializes O(n) metadata. Append-only pages
-//! avoid that work and the cold vector headers; reset and clone_from retain any
-//! allocated buffers for subsequent reuse. Physical metadata mode is separate
-//! from logical freshness so a failed payload operation keeps its prior contract.
+/*
+We implement the contiguous `Arena`, its typed `Handle` and `HandleSpan` coordinates,
+and the `HierarchyArena` and `OrderedRootArena` wrappers that organize parent-child
+ranges and ordered declaration roots over dense storage.
 
+An unretired `Arena` page has one generation and no holes, so we keep that uniform slot
+identity on the arena header and resolve handles and spans by bounds arithmetic alone
+until the first retirement materializes cold per-slot generation and occupancy vectors.
+`HierarchyArena` assigns each parent one contiguous child `HandleSpan` in the shared
+dense `Arena`, and `OrderedRootArena` maintains an ordered span of root handles while
+preserving stable declaration identities in the backing `Arena`.
+*/
+
+use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
-use std::ops::Range;
+use std::ops::{Index, IndexMut, Range};
 
-use crate::{Handle, HandleSpan};
+pub struct Handle<T> {
+    arena_index: u32,
+    generation: u32,
+    marker: PhantomData<fn() -> T>,
+}
 
-/// Complete nonuniform slot identity, including allocation order for vacant rows.
-/// Storage recovery checks this roster before any handle can resolve against it.
+impl<T> Handle<T> {
+    #[inline]
+    pub const fn invalid() -> Self {
+        Self {
+            arena_index: 0,
+            generation: 0,
+            marker: PhantomData,
+        }
+    }
+
+    #[inline]
+    pub const fn from_arena_index(arena_index: u32) -> Self {
+        Self {
+            arena_index,
+            generation: 1,
+            marker: PhantomData,
+        }
+    }
+
+    #[inline]
+    pub const fn from_parts(arena_index: u32, generation: u32) -> Self {
+        Self {
+            arena_index,
+            generation,
+            marker: PhantomData,
+        }
+    }
+
+    #[inline]
+    pub const fn arena_index(self) -> u32 {
+        self.arena_index
+    }
+
+    #[inline]
+    pub const fn generation(self) -> u32 {
+        self.generation
+    }
+
+    #[inline]
+    pub const fn is_valid(self) -> bool {
+        self.arena_index != 0
+    }
+}
+
+impl<T> Clone for Handle<T> {
+    #[inline]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for Handle<T> {}
+
+impl<T> Default for Handle<T> {
+    #[inline]
+    fn default() -> Self {
+        Self::invalid()
+    }
+}
+
+impl<T> PartialEq for Handle<T> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.arena_index == other.arena_index && self.generation == other.generation
+    }
+}
+
+impl<T> Eq for Handle<T> {}
+
+impl<T> Hash for Handle<T> {
+    #[inline]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.arena_index.hash(state);
+        self.generation.hash(state);
+    }
+}
+
+impl<T> fmt::Debug for Handle<T> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("Handle")
+            .field("arena_index", &self.arena_index)
+            .field("generation", &self.generation)
+            .finish()
+    }
+}
+
+pub fn unique_handles_in_order<T>(handles: impl IntoIterator<Item = Handle<T>>) -> Vec<Handle<T>> {
+    let mut ordered: Vec<_> = handles
+        .into_iter()
+        .enumerate()
+        .map(|(order, handle)| (handle, order))
+        .collect();
+    ordered.sort_by_key(|(handle, _)| (handle.arena_index(), handle.generation()));
+    ordered.dedup_by_key(|(handle, _)| (handle.arena_index(), handle.generation()));
+    ordered.sort_by_key(|(_, order)| *order);
+    ordered.into_iter().map(|(handle, _)| handle).collect()
+}
+
+impl<T: 'static> compiler_storage::Record for Handle<T> {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        self.arena_index.write(output)?;
+        self.generation.write(output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        let arena_index = u32::read(input)?;
+        let generation = u32::read(input)?;
+        let generation = if arena_index == 0 {
+            generation
+        } else {
+            input.generation::<T>(generation)?
+        };
+        Ok(Self::from_parts(arena_index, generation))
+    }
+}
+
+pub struct HandleSpan<T> {
+    start: Handle<T>,
+    count: u32,
+    marker: PhantomData<fn() -> T>,
+}
+
+impl<T> HandleSpan<T> {
+    pub const fn empty() -> Self {
+        Self {
+            start: Handle::invalid(),
+            count: 0,
+            marker: PhantomData,
+        }
+    }
+
+    pub const fn from_parts(start: Handle<T>, count: u32) -> Self {
+        Self {
+            start,
+            count,
+            marker: PhantomData,
+        }
+    }
+
+    pub const fn from_parts_or_empty(start: Handle<T>, count: u32) -> Self {
+        if count == 0 {
+            Self::empty()
+        } else {
+            Self::from_parts(start, count)
+        }
+    }
+
+    pub const fn start(self) -> Handle<T> {
+        self.start
+    }
+
+    pub const fn count(self) -> u32 {
+        self.count
+    }
+
+    pub const fn len(self) -> usize {
+        self.count as usize
+    }
+
+    pub const fn is_empty(self) -> bool {
+        self.count == 0
+    }
+
+    pub fn handle_at(self, offset: u32) -> Handle<T> {
+        Handle::from_parts(
+            self.start
+                .arena_index()
+                .checked_add(offset)
+                .expect("handle span index overflow"),
+            self.start.generation(),
+        )
+    }
+
+    pub fn handles(self) -> SpanHandles<T> {
+        SpanHandles {
+            span: self,
+            offset: 0,
+        }
+    }
+
+    pub fn is_followed_by(self, handle: Handle<T>) -> bool {
+        !self.is_empty()
+            && handle.generation() == self.start.generation()
+            && handle.arena_index() == self.start.arena_index() + self.count
+    }
+
+    pub fn push_contiguous(&mut self, handle: Handle<T>) {
+        if self.is_empty() {
+            *self = Self::from_parts(handle, 1);
+            return;
+        }
+
+        let expected_index = self
+            .start
+            .arena_index()
+            .checked_add(self.count)
+            .expect("handle span index overflow");
+        assert_eq!(
+            handle.arena_index(),
+            expected_index,
+            "handle span push must be contiguous"
+        );
+        assert_eq!(
+            handle.generation(),
+            self.start.generation(),
+            "handle span push must keep one generation"
+        );
+        self.count = self
+            .count
+            .checked_add(1)
+            .expect("handle span count overflow");
+    }
+}
+
+#[derive(Debug)]
+pub struct SpanHandles<T> {
+    span: HandleSpan<T>,
+    offset: u32,
+}
+
+impl<T> SpanHandles<T> {
+    pub const fn empty() -> Self {
+        Self {
+            span: HandleSpan::empty(),
+            offset: 0,
+        }
+    }
+
+    #[inline]
+    fn remaining(&self) -> u32 {
+        self.span.count() - self.offset
+    }
+}
+
+impl<T> Clone for SpanHandles<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for SpanHandles<T> {}
+
+impl<T> Iterator for SpanHandles<T> {
+    type Item = Handle<T>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.offset >= self.span.count() {
+            return None;
+        }
+
+        let handle = self.span.handle_at(self.offset);
+        self.offset += 1;
+
+        Some(handle)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.remaining() as usize;
+        (remaining, Some(remaining))
+    }
+
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        match u32::try_from(n) {
+            Ok(skip) if skip < self.remaining() => {
+                self.offset += skip;
+                self.next()
+            }
+            _ => {
+                self.offset = self.span.count();
+                None
+            }
+        }
+    }
+}
+
+impl<T> ExactSizeIterator for SpanHandles<T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.remaining() as usize
+    }
+}
+
+impl<T> std::iter::FusedIterator for SpanHandles<T> {}
+
+impl<T> Clone for HandleSpan<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for HandleSpan<T> {}
+
+impl<T> Default for HandleSpan<T> {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
+impl<T> PartialEq for HandleSpan<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.start == other.start && self.count == other.count
+    }
+}
+
+impl<T> Eq for HandleSpan<T> {}
+
+impl<T> std::hash::Hash for HandleSpan<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.start.hash(state);
+        self.count.hash(state);
+    }
+}
+
+impl<T> fmt::Debug for HandleSpan<T> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("HandleSpan")
+            .field("start", &self.start)
+            .field("count", &self.count)
+            .finish()
+    }
+}
+
+impl<T: 'static> compiler_storage::Record for HandleSpan<T> {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        self.start.write(output)?;
+        self.count.write(output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        let start = Handle::read(input)?;
+        let count = u32::read(input)?;
+        if count != 0 && (!start.is_valid() || start.arena_index().checked_add(count - 1).is_none())
+        {
+            return Err(input.error("arena span has an invalid start or overflowing range"));
+        }
+        Ok(Self::from_parts(start, count))
+    }
+}
+
 #[derive(Default, compiler_storage::Record)]
 pub struct ArenaSlotStorage {
     pub generations: Vec<u32>,
@@ -26,8 +382,6 @@ pub struct ArenaSlotStorage {
 
 type SlotMetadata = ArenaSlotStorage;
 
-/// Borrow the complete logical storage without copying payloads. Mutation
-/// revisions are invocation-local observations and do not travel with storage.
 pub struct ArenaStorageView<'storage, T> {
     pub dummy: &'storage T,
     pub items: &'storage [T],
@@ -62,28 +416,11 @@ pub struct Arena<T> {
     items: Vec<T>,
     slot_metadata: Option<Box<SlotMetadata>>,
     active_count: usize,
-    /// Generation assigned to every newly appended row. Ordinary arenas use
-    /// one; worker-owned syntax pages use their page identity so handles remain
-    /// globally distinct when the dense item vector publishes unchanged.
-    fresh_generation: u32,
-    /// No slot has been freed or cleared since the arena was last empty, so
-    /// every slot is occupied at `fresh_generation`. A span whose start handle
-    /// resolves then resolves whole within bounds, without revisiting each
-    /// row's occupancy and generation. This logical freshness is independent of
-    /// whether metadata storage has materialized: a payload operation may unwind
-    /// after allocating metadata but before completing retirement.
-    fresh: bool,
-    // Physical storage mode is separate from freshness. Materializing rows must
-    // not change the existing freshness contract if a payload operation unwinds.
-    implicit_slot_metadata: bool,
-    /// Advances on every call that can change the arena's contents — inserts,
-    /// frees, truncations, wholesale replacement, and every mutable-slice or
-    /// mutable-element escape. Caches that outlive one borrow key freshness on
-    /// this counter instead of sampling lengths and boundary rows: a
-    /// same-length in-place rewrite moves it exactly like an append does.
-    /// Mutation metadata like `fresh`, so it takes no part in equality.
-    revision: u64,
-    rewrite_revision: u64,
+    fresh_generation: u32, // Generation assigned to every newly appended row.
+    fresh: bool, // True while no slot has been freed or cleared since the arena was last empty.
+    implicit_slot_metadata: bool, // Physical storage mode separate from logical `fresh`.
+    revision: u64, // Monotonic mutation counter across inserts, frees, and mutable borrows.
+    rewrite_revision: u64, // Monotonic counter bumped on non-append rewrites and frees.
 }
 
 impl<T> Arena<T> {
@@ -97,9 +434,6 @@ impl<T> Arena<T> {
         }
     }
 
-    /// Recover an owned page while preserving holes, generations and the next
-    /// reusable slot. This admits storage structure only, never the meaning of
-    /// the payload or any references between pages.
     pub fn from_storage(
         dummy: T,
         items: Vec<T>,
@@ -211,9 +545,6 @@ impl<T> Arena<T> {
         }
     }
 
-    /// Compare allocation metadata and every stored row through a caller-owned
-    /// equality operation. This includes vacant rows and the absent-value row,
-    /// exactly like ordinary arena equality; revision caches remain excluded.
     pub fn equal_by(&self, other: &Self, mut equal: impl FnMut(&T, &T) -> bool) -> bool {
         equal(&self.dummy, &other.dummy)
             && self.items.len() == other.items.len()
@@ -228,6 +559,7 @@ impl<T> Arena<T> {
             && self.fresh_generation == other.fresh_generation
     }
 }
+
 impl<T: PartialEq> PartialEq for Arena<T> {
     fn eq(&self, other: &Self) -> bool {
         self.dummy == other.dummy
@@ -325,9 +657,6 @@ impl<T: Clone> Clone for Arena<T> {
         self.fresh = source.fresh;
         self.implicit_slot_metadata = source.implicit_slot_metadata;
 
-        // Vec clones may unwind after truncating or partially extending the
-        // payload. Keep the metadata for exactly that initialized prefix; a
-        // failed clone need not preserve values, but the arena must stay usable.
         struct PayloadCloneGuard<'arena, T> {
             arena: &'arena mut Arena<T>,
             complete: bool,
@@ -374,10 +703,6 @@ pub struct ArenaSpanInserter<'arena, T> {
 }
 
 impl<T> Arena<T> {
-    /// The owned freshness counter, bumped by every mutation-capable call.
-    /// A consumer comparing revisions across borrows sees any change to the
-    /// arena's contents, including in-place rewrites that keep the length
-    /// fixed — the case a length fingerprint cannot distinguish.
     #[inline]
     pub fn revision(&self) -> u64 {
         self.revision
@@ -513,14 +838,6 @@ impl<T: Default> Arena<T> {
         Handle::from_parts(arena_index, self.fresh_generation)
     }
 
-    /// A span grows in place only while its rows still end at the arena tail
-    /// carrying the arena's fresh generation. A
-    /// span that went stale — other rows landed on this arena's tail between
-    /// appends, or the span was built on recycled-generation slots — is first
-    /// relocated to the tail, the same snapshot move `copy_span_pair` performs
-    /// for retained prefixes, so the span keeps resolving to the same row
-    /// sequence. A stale span whose rows no longer resolve (freed or
-    /// generation-shifted slots) has nothing to relocate and still panics.
     pub fn append_to_span(&mut self, span: &mut HandleSpan<T>, item: T) -> Handle<T>
     where
         T: Clone,
@@ -557,8 +874,6 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn insert_many(&mut self, items: impl IntoIterator<Item = T>) -> HandleSpan<T> {
-        // Spans promise contiguous storage, so bulk insert appends instead of
-        // consuming arbitrary free-list slots.
         self.bump_revision();
         let start_index = next_arena_index(self.items.len());
         let mut count = 0u32;
@@ -588,8 +903,6 @@ impl<T: Default> Arena<T> {
         &mut self,
         insert_items: impl FnOnce(&mut ArenaSpanInserter<'_, T>) -> Result<(), E>,
     ) -> Result<HandleSpan<T>, E> {
-        // Spans promise contiguous storage. This fallible variant lets
-        // producers emit directly into the arena while preserving rollback.
         self.bump_revision();
         let start_len = self.items.len();
         let start_active_count = self.active_count;
@@ -623,9 +936,6 @@ impl<T: Default> Arena<T> {
         &mut self,
         items: impl IntoIterator<Item = Result<T, E>>,
     ) -> Result<HandleSpan<T>, E> {
-        // Spans promise contiguous storage, so bulk insert appends instead of
-        // consuming arbitrary free-list slots. On failure, discard the partial
-        // append so callers do not leave unreachable arena payloads behind.
         self.bump_revision();
         let start_len = self.items.len();
         let start_index = next_arena_index(start_len);
@@ -755,8 +1065,6 @@ impl<T: Default> Arena<T> {
         self.index_from_valid_handle(handle) != invalid_index()
     }
 
-    /// If `item` is a reference to an occupied element in this arena's slice,
-    /// returns its `Handle<T>` in $O(1)$ by pointer-offset arithmetic.
     #[inline]
     pub fn handle_of(&self, item: &T) -> Option<Handle<T>> {
         let size = std::mem::size_of::<T>();
@@ -830,10 +1138,6 @@ impl<T: Default> Arena<T> {
 
     #[inline]
     fn valid_span_range(&self, span: HandleSpan<T>) -> Option<Range<usize>> {
-        // A fresh arena has every slot occupied at its assigned generation, so the
-        // start handle resolves to its index by arithmetic alone — no
-        // per-slot metadata reads, and the whole-span check reduces to a
-        // single bounds test.
         if self.fresh {
             let start_handle = span.start();
             if !start_handle.is_valid() || start_handle.generation() != self.fresh_generation {
@@ -897,8 +1201,6 @@ impl<T: Default> Arena<T> {
         self.fresh = self.items.is_empty();
     }
 
-    /// Drop an unpublished append-only suffix, retaining allocation capacity.
-    /// Callers must not publish suffix handles or mutate/free earlier rows.
     pub fn rewind_appended(&mut self, retained_length: usize) {
         assert!(self.fresh, "append rewind requires an unretired arena");
         assert!(
@@ -972,8 +1274,6 @@ impl<T: Default> Arena<T> {
 
     pub fn into_items(self) -> impl Iterator<Item = T> {
         let implicit = self.implicit_slot_metadata;
-        // Generations and free slots no longer serve a consuming iterator.
-        // Retain only occupancy, releasing the other cold buffers immediately.
         let occupied = self.slot_metadata.map(|metadata| metadata.occupied);
         self.items
             .into_iter()
@@ -1014,9 +1314,6 @@ impl<T: Default> Arena<T> {
 
         let index = storage_index_from_arena_index(handle.arena_index());
 
-        // A fresh arena has every slot occupied at its assigned generation, so a handle
-        // resolves by its generation and a bounds test alone, without reading
-        // the per-slot metadata — the single-handle twin of the span check.
         if self.fresh {
             return if handle.generation() == self.fresh_generation && index < self.items.len() {
                 index
@@ -1080,9 +1377,6 @@ impl<'arena, T: Default> Iterator for ArenaIter<'arena, T> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        // The borrowed arena cannot change under the iterator. A fresh one
-        // has every slot occupied at its assigned generation, so each row is yielded
-        // without reading the per-slot occupancy and generation metadata.
         if self.arena.fresh {
             let item = self.arena.items.get(self.index)?;
             let handle =
@@ -1137,11 +1431,6 @@ fn next_generation(generation: u32) -> u32 {
     if next == 0 { 1 } else { next }
 }
 
-#[cfg(test)]
-mod tests;
-
-// Storage keeps every row, including holes and dummy values. Revisions describe
-// local mutations and restart cold; they convey neither source nor proof identity.
 impl<T: compiler_storage::Record> compiler_storage::Record for Arena<T> {
     fn write(
         &self,
@@ -1182,5 +1471,1246 @@ impl<T: compiler_storage::Record> compiler_storage::Record for Arena<T> {
             Self::from_storage(dummy, items, slots, u32::read(input)?, bool::read(input)?)
                 .map_err(|reason| input.error(reason))
         })
+    }
+}
+
+pub trait HierarchyNode: Clone + Default + Sized {
+    fn parent(&self) -> Handle<Self>;
+    fn set_parent(&mut self, parent: Handle<Self>);
+    fn children(&self) -> HandleSpan<Self>;
+    fn set_children(&mut self, children: HandleSpan<Self>);
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HierarchyArena<T: HierarchyNode> {
+    nodes: Arena<T>,
+}
+
+impl<T: HierarchyNode> HierarchyArena<T> {
+    pub fn new() -> Self {
+        Self {
+            nodes: Arena::new(),
+        }
+    }
+
+    #[inline]
+    pub fn get(&self, node: Handle<T>) -> &T {
+        self.nodes.get(node)
+    }
+
+    pub fn get_mut(&mut self, node: Handle<T>) -> &mut T {
+        self.nodes.get_mut(node)
+    }
+
+    pub fn insert_root(&mut self, mut node: T) -> Handle<T> {
+        node.set_parent(Handle::invalid());
+        node.set_children(HandleSpan::empty());
+
+        self.nodes.append(node)
+    }
+
+    pub fn insert_children(
+        &mut self,
+        parent: Handle<T>,
+        children: impl IntoIterator<Item = T>,
+    ) -> HandleSpan<T> {
+        assert!(
+            self.nodes.is_valid(parent),
+            "hierarchy arena parent handle must be valid"
+        );
+        assert!(
+            self.get(parent).children().is_empty(),
+            "hierarchy arena parent already has a child range"
+        );
+
+        let children = self
+            .nodes
+            .insert_many(children.into_iter().map(|mut child| {
+                child.set_parent(parent);
+                child.set_children(HandleSpan::empty());
+                child
+            }));
+
+        self.nodes.get_mut(parent).set_children(children);
+
+        children
+    }
+
+    pub fn insert_supplemental_child(&mut self, parent: Handle<T>, mut node: T) -> Handle<T> {
+        node.set_parent(parent);
+        node.set_children(HandleSpan::empty());
+
+        self.nodes.append(node)
+    }
+
+    pub fn children(&self, parent: Handle<T>) -> Option<&[T]> {
+        self.nodes.span(self.get(parent).children())
+    }
+
+    pub fn child_handles(&self, parent: Handle<T>) -> Option<SpanHandles<T>> {
+        let children = self.get(parent).children();
+
+        if children.is_empty() {
+            return Some(SpanHandles::empty());
+        }
+
+        self.nodes.span(children)?;
+
+        Some(children.handles())
+    }
+
+    pub fn find_child(
+        &self,
+        parent: Handle<T>,
+        mut matches: impl FnMut(Handle<T>, &T) -> bool,
+    ) -> Option<Handle<T>> {
+        self.child_handles(parent)?
+            .find(|&child| matches(child, self.get(child)))
+    }
+
+    pub fn len(&self) -> usize {
+        self.nodes.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+
+    pub fn nodes(&self) -> &Arena<T> {
+        &self.nodes
+    }
+}
+
+impl<T: HierarchyNode> Default for HierarchyArena<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T: HierarchyNode + compiler_storage::Record> compiler_storage::Record for HierarchyArena<T> {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        self.nodes.write(output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        let nodes = Arena::<T>::read(input)?;
+        for (handle, node) in nodes.iter() {
+            if node.parent().is_valid() && !nodes.is_valid(node.parent()) {
+                return Err(input.error("hierarchy parent does not name live storage"));
+            }
+            let children = nodes
+                .span(node.children())
+                .ok_or_else(|| input.error("hierarchy child range does not name live storage"))?;
+            if children.iter().any(|child| child.parent() != handle) {
+                return Err(input.error("hierarchy child range disagrees with its parent"));
+            }
+        }
+        let mut completed = vec![false; nodes.storage_slice().len()];
+        let mut visiting = vec![false; completed.len()];
+        for (handle, _) in nodes.iter() {
+            let mut chain = Vec::new();
+            let mut current = handle;
+            while current.is_valid() {
+                let position = current.arena_index() as usize - 1;
+                if completed[position] {
+                    break;
+                }
+                if visiting[position] {
+                    return Err(input.error("hierarchy parent chain is cyclic"));
+                }
+                visiting[position] = true;
+                chain.push(position);
+                current = nodes.get(current).parent();
+            }
+            for position in chain {
+                visiting[position] = false;
+                completed[position] = true;
+            }
+        }
+        Ok(Self { nodes })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrderedRootArena<T: Default> {
+    handles: Arena<Handle<T>>,
+    roots: HandleSpan<Handle<T>>,
+    storage: Arena<T>,
+}
+
+impl<T: Default> OrderedRootArena<T> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn push(&mut self, value: T) -> Handle<T> {
+        let value = self.storage.append(value);
+        self.handles.append_to_span(&mut self.roots, value);
+
+        value
+    }
+
+    pub fn len(&self) -> usize {
+        self.roots.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.roots.is_empty()
+    }
+
+    pub fn first(&self) -> Option<&T> {
+        self.iter().next()
+    }
+
+    pub fn get(&self, handle: Handle<T>) -> &T {
+        self.storage.get(handle)
+    }
+
+    pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
+        self.storage.get_mut(handle)
+    }
+
+    pub fn contains(&self, handle: Handle<T>) -> bool {
+        self.handles.span_or_empty(self.roots).contains(&handle)
+    }
+
+    pub fn iter(&self) -> OrderedRootArenaIter<'_, T> {
+        OrderedRootArenaIter {
+            storage: &self.storage,
+            handles: self.handles.span_or_empty(self.roots).iter(),
+            marker: PhantomData,
+        }
+    }
+
+    pub fn retain(&mut self, mut keep: impl FnMut(&T) -> bool) {
+        let retained = self
+            .handles
+            .span_or_empty(self.roots)
+            .iter()
+            .copied()
+            .filter(|handle| keep(self.storage.get(*handle)))
+            .collect::<Vec<_>>();
+        if retained.len() != self.roots.len() {
+            self.roots = self.handles.insert_many(retained);
+        }
+    }
+
+    pub fn for_each_mut(&mut self, mut visit: impl FnMut(&mut T)) {
+        let handles = self.handles.span_or_empty(self.roots);
+        let storage = &mut self.storage;
+
+        for handle in handles {
+            visit(storage.get_mut(*handle));
+        }
+    }
+
+    pub fn find_mut(&mut self, mut matches: impl FnMut(&T) -> bool) -> Option<&mut T> {
+        let handles = self.handles.span_or_empty(self.roots);
+        let storage = &mut self.storage;
+
+        for handle in handles {
+            if matches(storage.get(*handle)) {
+                return Some(storage.get_mut(*handle));
+            }
+        }
+
+        None
+    }
+
+    #[inline]
+    pub fn revision(&self) -> u64 {
+        self.storage
+            .revision()
+            .wrapping_add(self.handles.revision())
+    }
+}
+
+impl<T: Default> Default for OrderedRootArena<T> {
+    fn default() -> Self {
+        Self {
+            handles: Arena::new(),
+            roots: HandleSpan::empty(),
+            storage: Arena::new(),
+        }
+    }
+}
+
+impl<T: Default> Index<usize> for OrderedRootArena<T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        let handle = self.handles.span_or_empty(self.roots)[index];
+
+        self.storage.get(handle)
+    }
+}
+
+impl<T: Default> IndexMut<usize> for OrderedRootArena<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        let handle = self.handles.span_or_empty(self.roots)[index];
+
+        self.storage.get_mut(handle)
+    }
+}
+
+impl<'arena, T: Default> IntoIterator for &'arena OrderedRootArena<T> {
+    type Item = &'arena T;
+    type IntoIter = OrderedRootArenaIter<'arena, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+pub struct OrderedRootArenaIter<'arena, T: Default> {
+    storage: &'arena Arena<T>,
+    handles: std::slice::Iter<'arena, Handle<T>>,
+    marker: PhantomData<&'arena T>,
+}
+
+impl<'arena, T: Default> Iterator for OrderedRootArenaIter<'arena, T> {
+    type Item = &'arena T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let handle = self.handles.next()?;
+
+        Some(self.storage.get(*handle))
+    }
+}
+
+impl<T: Default + compiler_storage::Record + 'static> compiler_storage::Record
+    for OrderedRootArena<T>
+{
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            self.handles.write(output)?;
+            self.roots.write(output)?;
+            self.storage.write(output)
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            let result = Self {
+                handles: Arena::read(input)?,
+                roots: HandleSpan::read(input)?,
+                storage: Arena::read(input)?,
+            };
+            let roots = result
+                .handles
+                .span(result.roots)
+                .ok_or_else(|| input.error("ordered roots have no live roster"))?;
+            if roots.iter().any(|handle| !result.storage.is_valid(*handle)) {
+                return Err(input.error("ordered root does not name live declaration storage"));
+            }
+            let mut identities = roots.to_vec();
+            identities.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
+            if identities.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(input.error("ordered roots repeat a declaration"));
+            }
+            Ok(result)
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::{
+        Arena, ArenaSlotStorage, Handle, HandleSpan, HierarchyArena, HierarchyNode,
+        OrderedRootArena, storage_index_from_arena_index, unique_handles_in_order,
+    };
+
+    struct NonHashItem;
+
+    #[test]
+    fn hash_uses_the_complete_untyped_handle_identity() {
+        let first = Handle::<NonHashItem>::from_parts(7, 2);
+        let same = Handle::<NonHashItem>::from_parts(7, 2);
+        let next_generation = Handle::<NonHashItem>::from_parts(7, 3);
+
+        assert_eq!(HashSet::from([first, same, next_generation]).len(), 2);
+    }
+
+    #[test]
+    fn unique_handles_preserve_generations_and_first_appearance() {
+        let handles = [
+            Handle::<NonHashItem>::from_parts(8, 1),
+            Handle::from_parts(7, 2),
+            Handle::from_parts(7, 1),
+            Handle::invalid(),
+        ];
+        for length in 0..=5 {
+            for sequence_number in 0..handles.len().pow(length) {
+                let mut digits = sequence_number;
+                let mut sequence = Vec::new();
+                for _ in 0..length {
+                    sequence.push(handles[digits % handles.len()]);
+                    digits /= handles.len();
+                }
+                let mut expected = Vec::new();
+                for handle in &sequence {
+                    if !expected.contains(handle) {
+                        expected.push(*handle);
+                    }
+                }
+                assert_eq!(unique_handles_in_order(sequence), expected);
+            }
+        }
+    }
+
+    #[test]
+    fn pushes_contiguous_handles() {
+        let mut span = HandleSpan::<String>::empty();
+
+        span.push_contiguous(Handle::from_arena_index(4));
+        span.push_contiguous(Handle::from_arena_index(5));
+
+        assert_eq!(span.start(), Handle::from_arena_index(4));
+        assert_eq!(span.count(), 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "handle span push must be contiguous")]
+    fn panics_on_non_contiguous_handles() {
+        let mut span = HandleSpan::<String>::empty();
+
+        span.push_contiguous(Handle::from_arena_index(4));
+        span.push_contiguous(Handle::from_arena_index(6));
+    }
+
+    #[test]
+    #[should_panic(expected = "handle span push must keep one generation")]
+    fn panics_on_mixed_generation_handles() {
+        let mut span = HandleSpan::<String>::empty();
+
+        span.push_contiguous(Handle::from_arena_index(4));
+        span.push_contiguous(Handle::from_parts(5, 2));
+    }
+
+    #[test]
+    fn resolves_zero_to_dummy_slot() {
+        let mut arena = Arena::new();
+        let invalid = Handle::<String>::invalid();
+        let first = arena.insert("alpha".to_owned());
+        let second = arena.insert("beta".to_owned());
+
+        assert!(!invalid.is_valid());
+        assert_eq!(arena.len(), 2);
+        assert_eq!(first.arena_index(), 1);
+        assert_eq!(second.arena_index(), 2);
+        assert_eq!(arena.get(invalid).as_str(), "");
+        assert_eq!(arena.get(first).as_str(), "alpha");
+        assert_eq!(arena.get(second).as_str(), "beta");
+    }
+
+    #[test]
+    fn invalidates_freed_handles() {
+        let mut arena = Arena::new();
+        let first = arena.insert("alpha".to_owned());
+
+        assert_eq!(arena.get(first).as_str(), "alpha");
+        assert!(arena.is_valid(first));
+        assert!(arena.free(first));
+        assert!(!arena.is_valid(first));
+        assert_eq!(arena.get(first).as_str(), "");
+
+        let reused = arena.insert("beta".to_owned());
+
+        assert_eq!(reused.arena_index(), first.arena_index());
+        assert_ne!(reused.generation(), first.generation());
+        assert_eq!(arena.get(first).as_str(), "");
+        assert_eq!(arena.get(reused).as_str(), "beta");
+    }
+
+    #[test]
+    fn stores_contiguous_handle_spans() {
+        let mut arena = Arena::new();
+        let span = arena.insert_many(["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned()]);
+
+        assert_eq!(span.start().arena_index(), 1);
+        assert_eq!(span.count(), 3);
+        assert_eq!(
+            arena.span(span).expect("span should resolve"),
+            &["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned()]
+        );
+
+        arena.span_mut(span).expect("span should resolve")[1] = "bravo".to_owned();
+
+        assert_eq!(
+            arena.span(span).expect("span should resolve"),
+            &["alpha".to_owned(), "bravo".to_owned(), "gamma".to_owned()]
+        );
+    }
+
+    #[test]
+    fn relocates_stale_spans_to_the_tail_before_appending() {
+        let mut arena = Arena::new();
+        let mut span = HandleSpan::empty();
+        arena.append_to_span(&mut span, "alpha".to_owned());
+        let gap = arena.append("gap".to_owned());
+
+        let beta = arena.append_to_span(&mut span, "beta".to_owned());
+
+        assert_eq!(beta.arena_index(), 4);
+        assert_eq!(span.start().arena_index(), 3);
+        assert_eq!(span.count(), 2);
+        assert_eq!(
+            arena.span(span).expect("span should resolve"),
+            &["alpha".to_owned(), "beta".to_owned()]
+        );
+        assert_eq!(arena.get(gap).as_str(), "gap");
+    }
+
+    #[test]
+    #[should_panic(expected = "arena span append on an unresolvable span")]
+    fn panics_when_extending_a_span_with_freed_rows() {
+        let mut arena = Arena::new();
+        let mut span = HandleSpan::empty();
+        let alpha = arena.append_to_span(&mut span, "alpha".to_owned());
+        assert!(arena.free(alpha));
+        arena.append("gap".to_owned());
+
+        arena.append_to_span(&mut span, "beta".to_owned());
+    }
+
+    #[test]
+    fn fallible_span_insert_rolls_back_partial_appends() {
+        let mut arena = Arena::new();
+        let first = arena.insert("alpha".to_owned());
+
+        let result =
+            arena.try_insert_many([Ok("beta".to_owned()), Err("boom"), Ok("gamma".to_owned())]);
+
+        assert_eq!(result, Err("boom"));
+        assert_eq!(arena.len(), 1);
+        assert_eq!(arena.get(first).as_str(), "alpha");
+
+        let next = arena.append("delta".to_owned());
+
+        assert_eq!(next.arena_index(), 2);
+        assert_eq!(arena.get(next).as_str(), "delta");
+    }
+
+    #[test]
+    fn fallible_span_insert_returns_contiguous_span_on_success() {
+        let mut arena = Arena::new();
+        let span = arena
+            .try_insert_many::<&str>([Ok("alpha".to_owned()), Ok("beta".to_owned())])
+            .expect("fallible insert should succeed");
+
+        assert_eq!(span.start().arena_index(), 1);
+        assert_eq!(span.count(), 2);
+        assert_eq!(
+            arena.span(span).expect("span should resolve"),
+            &["alpha".to_owned(), "beta".to_owned()]
+        );
+    }
+
+    #[test]
+    fn fallible_direct_span_insert_rolls_back_partial_appends() {
+        let mut arena = Arena::new();
+        let first = arena.insert("alpha".to_owned());
+
+        let result = arena.try_insert_many_with(|inserter| {
+            inserter.insert("beta".to_owned());
+            Err("boom")
+        });
+
+        assert_eq!(result, Err("boom"));
+        assert_eq!(arena.len(), 1);
+        assert_eq!(arena.get(first).as_str(), "alpha");
+
+        let next = arena.append("delta".to_owned());
+
+        assert_eq!(next.arena_index(), 2);
+        assert_eq!(arena.get(next).as_str(), "delta");
+    }
+
+    #[test]
+    fn fallible_direct_span_insert_returns_contiguous_span_on_success() {
+        let mut arena = Arena::new();
+        let span = arena
+            .try_insert_many_with::<&str>(|inserter| {
+                inserter.insert("alpha".to_owned());
+                inserter.insert("beta".to_owned());
+                Ok(())
+            })
+            .expect("fallible direct insert should succeed");
+
+        assert_eq!(span.start().arena_index(), 1);
+        assert_eq!(span.count(), 2);
+        assert_eq!(
+            arena.span(span).expect("span should resolve"),
+            &["alpha".to_owned(), "beta".to_owned()]
+        );
+    }
+
+    #[test]
+    fn copies_two_spans_into_one_contiguous_span() {
+        let mut arena = Arena::new();
+        let first = arena.insert_many(["alpha".to_owned(), "beta".to_owned()]);
+        let _gap = arena.insert_many(["gap".to_owned()]);
+        let second = arena.insert_many(["gamma".to_owned(), "delta".to_owned()]);
+
+        let copied = arena.copy_span_pair(first, second);
+
+        assert_eq!(copied.start().arena_index(), 6);
+        assert_eq!(copied.count(), 4);
+        assert_eq!(
+            arena.span(copied).expect("span should resolve"),
+            &[
+                "alpha".to_owned(),
+                "beta".to_owned(),
+                "gamma".to_owned(),
+                "delta".to_owned()
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_spans_with_freed_slots() {
+        let mut arena = Arena::new();
+        let span = arena.insert_many(["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned()]);
+        let middle = Handle::from_arena_index(2);
+
+        assert!(arena.span(span).is_some());
+        assert!(arena.free(middle));
+        assert!(arena.span(span).is_none());
+        assert!(arena.span_mut(span).is_none());
+    }
+
+    #[test]
+    fn rejects_spans_with_reused_slots() {
+        let mut arena = Arena::new();
+        let span = arena.insert_many(["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned()]);
+        let middle = Handle::from_arena_index(2);
+
+        assert!(arena.free(middle));
+        let reused = arena.insert("delta".to_owned());
+
+        assert_eq!(reused.arena_index(), middle.arena_index());
+        assert!(arena.span(span).is_none());
+        assert!(arena.span_mut(span).is_none());
+    }
+
+    #[test]
+    fn clear_invalidates_existing_handles() {
+        let mut arena = Arena::new();
+        let first = arena.insert("alpha".to_owned());
+
+        arena.clear();
+
+        assert_eq!(arena.len(), 0);
+        assert!(!arena.is_valid(first));
+        assert_eq!(arena.get(first).as_str(), "");
+
+        let reused = arena.insert("beta".to_owned());
+
+        assert_eq!(reused.arena_index(), first.arena_index());
+        assert_ne!(reused.generation(), first.generation());
+        assert_eq!(arena.get(first).as_str(), "");
+        assert_eq!(arena.get(reused).as_str(), "beta");
+    }
+
+    #[test]
+    fn clone_from_preserves_free_slots_generations_and_later_operations() {
+        let mut source = Arena::new();
+        let first = source.insert("alpha".to_owned());
+        let retired = source.insert("beta".to_owned());
+        let free = source.insert("gamma".to_owned());
+        assert!(source.free(retired));
+        let replacement = source.insert("replacement".to_owned());
+        assert_ne!(replacement.generation(), retired.generation());
+        assert!(source.free(free));
+        *source.get_mut(Handle::invalid()) = "source dummy".to_owned();
+
+        let mut copied = Arena::new();
+        copied.insert("old".to_owned());
+        copied.clone_from(&source);
+        let mut expected = source.clone();
+        assert_eq!(copied, expected);
+        assert!(!copied.is_valid(retired));
+        assert!(!copied.is_valid(free));
+        assert_eq!(copied.get(replacement), source.get(replacement));
+        assert_eq!(copied.get(retired), source.dummy());
+
+        assert_eq!(
+            copied.insert("reuse".to_owned()),
+            expected.insert("reuse".to_owned())
+        );
+        assert_eq!(
+            copied.append("append".to_owned()),
+            expected.append("append".to_owned())
+        );
+        assert_eq!(copied.free(first), expected.free(first));
+        assert_eq!(copied, expected);
+
+        copied.get_mut(replacement).push_str(" changed");
+        assert_eq!(source.get(replacement), "replacement");
+        copied.clone_from(&Arena::default());
+        assert_eq!(copied, Arena::default());
+        copied.clone_from(&source);
+        assert_eq!(copied, source.clone());
+    }
+
+    #[test]
+    fn clone_from_reuses_storage_and_nested_payload_capacity_when_source_fits() {
+        let mut source = Arena::new();
+        source.append(vec!["short".to_owned()]);
+        let free = source.append(vec!["unused".to_owned()]);
+        assert!(source.free(free));
+        *source.get_mut(Handle::invalid()) = vec!["dummy".to_owned()];
+
+        let mut copied = Arena::with_capacity(8);
+        copied.slot_metadata_mut().free_indices.reserve(8);
+        for _ in 0..4 {
+            copied.append(vec!["longer destination payload".to_owned()]);
+        }
+        let retired = copied.append(vec!["retired destination payload".to_owned()]);
+        assert!(copied.free(retired));
+        *copied.get_mut(Handle::invalid()) = vec!["longer destination dummy".to_owned()];
+        let storage_pointers = (
+            copied.items.as_ptr(),
+            copied.slot_metadata().generations.as_ptr(),
+            copied.slot_metadata().occupied.as_ptr(),
+            copied.slot_metadata().free_indices.as_ptr(),
+        );
+        let capacities = (
+            copied.items.capacity(),
+            copied.slot_metadata().generations.capacity(),
+            copied.slot_metadata().occupied.capacity(),
+            copied.slot_metadata().free_indices.capacity(),
+        );
+        let nested_pointer = copied.items[0].as_ptr();
+        let payload_pointer = copied.items[0][0].as_ptr();
+        let dummy_pointer = copied.dummy[0].as_ptr();
+
+        copied.clone_from(&source);
+
+        assert_eq!(copied, source.clone());
+        assert_eq!(
+            storage_pointers,
+            (
+                copied.items.as_ptr(),
+                copied.slot_metadata().generations.as_ptr(),
+                copied.slot_metadata().occupied.as_ptr(),
+                copied.slot_metadata().free_indices.as_ptr(),
+            )
+        );
+        assert_eq!(
+            capacities,
+            (
+                copied.items.capacity(),
+                copied.slot_metadata().generations.capacity(),
+                copied.slot_metadata().occupied.capacity(),
+                copied.slot_metadata().free_indices.capacity(),
+            )
+        );
+        assert_eq!(nested_pointer, copied.items[0].as_ptr());
+        assert_eq!(payload_pointer, copied.items[0][0].as_ptr());
+        assert_eq!(dummy_pointer, copied.dummy[0].as_ptr());
+        copied.items[0][0].push_str(" changed");
+        assert_eq!(source.items[0][0], "short");
+    }
+
+    #[derive(Debug, Default, PartialEq, Eq)]
+    struct PanicOnClone {
+        value: u32,
+        panic_on_clone: bool,
+    }
+
+    impl Clone for PanicOnClone {
+        fn clone(&self) -> Self {
+            assert!(!self.panic_on_clone, "requested payload clone panic");
+            Self {
+                value: self.value,
+                panic_on_clone: false,
+            }
+        }
+    }
+
+    fn assert_usable_after_clone_panic(arena: &mut Arena<PanicOnClone>) {
+        assert_eq!(arena.items.len(), arena.slot_metadata().generations.len());
+        assert_eq!(arena.items.len(), arena.slot_metadata().occupied.len());
+        assert_eq!(arena.len(), arena.iter().count());
+        for arena_index in &arena.slot_metadata().free_indices {
+            let index = storage_index_from_arena_index(*arena_index);
+            assert!(!arena.slot_metadata().occupied[index]);
+        }
+        for (handle, value) in arena.iter() {
+            assert!(arena.is_valid(handle));
+            assert_eq!(arena.get(handle), value);
+        }
+        let count = arena.len();
+        let inserted = arena.insert(PanicOnClone {
+            value: 100,
+            ..Default::default()
+        });
+        let appended = arena.append(PanicOnClone {
+            value: 101,
+            ..Default::default()
+        });
+        assert_eq!(arena.len(), count + 2);
+        assert_eq!(arena.get(inserted).value, 100);
+        assert_eq!(arena.get(appended).value, 101);
+        assert!(arena.free(inserted));
+        assert!(!arena.is_valid(inserted));
+        assert_eq!(arena.len(), count + 1);
+        assert_eq!(arena.len(), arena.iter().count());
+    }
+
+    #[test]
+    fn clone_from_payload_panic_after_shrinking_preserves_arena_structure() {
+        let mut source = Arena::new();
+        source.append(PanicOnClone::default());
+        source.append(PanicOnClone {
+            value: 1,
+            panic_on_clone: true,
+        });
+        let free = source.append(PanicOnClone::default());
+        assert!(source.free(free));
+        let mut copied = Arena::new();
+        for _ in 0..6 {
+            copied.append(PanicOnClone::default());
+        }
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            copied.clone_from(&source);
+        }));
+
+        assert!(result.is_err());
+        assert_eq!(copied.items.len(), 3);
+        assert_eq!(
+            copied.slot_metadata().generations,
+            source.slot_metadata().generations
+        );
+        assert_eq!(
+            copied.slot_metadata().free_indices,
+            source.slot_metadata().free_indices
+        );
+        assert_usable_after_clone_panic(&mut copied);
+    }
+
+    #[test]
+    fn clone_from_payload_panic_after_partial_growth_preserves_arena_structure() {
+        let mut source = Arena::new();
+        for value in 0..6 {
+            source.append(PanicOnClone {
+                value,
+                panic_on_clone: value == 2,
+            });
+        }
+        assert!(source.free(Handle::from_arena_index(5)));
+        let mut copied = Arena::new();
+        copied.append(PanicOnClone::default());
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            copied.clone_from(&source);
+        }));
+
+        assert!(result.is_err());
+        assert_eq!(copied.items.len(), 2);
+        assert!(copied.slot_metadata().free_indices.is_empty());
+        assert_usable_after_clone_panic(&mut copied);
+    }
+
+    #[test]
+    fn span_resolution_rechecks_rows_once_a_slot_was_freed() {
+        let mut arena = Arena::new();
+        let span = arena.insert_many(["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned()]);
+        let past_end = HandleSpan::from_parts(span.start(), 4);
+        assert_eq!(arena.span(span).map(<[String]>::len), Some(3));
+        assert!(
+            arena.span(past_end).is_none(),
+            "a fresh arena still bounds spans"
+        );
+
+        let middle = span.handle_at(1);
+        assert!(arena.free(middle));
+        assert!(arena.span(span).is_none(), "a freed row breaks the span");
+
+        arena.insert("bravo".to_owned());
+        assert!(
+            arena.span(span).is_none(),
+            "a row recycled at a later generation does not rejoin the span"
+        );
+
+        arena.reset_retain_capacity();
+        let fresh = arena.insert_many(["delta".to_owned(), "echo".to_owned()]);
+        assert_eq!(arena.span(fresh).map(<[String]>::len), Some(2));
+    }
+
+    #[test]
+    fn uniform_page_retirement_preserves_unretired_handles_and_rejects_stale_slot() {
+        let mut arena = Arena::with_capacity_and_generation(8, 17);
+        let span = arena.insert_many([10_u32, 20, 30]);
+        let first = span.handle_at(0);
+        let retired = span.handle_at(1);
+        let last = span.handle_at(2);
+        assert_eq!(arena.clone().into_items().collect::<Vec<_>>(), [10, 20, 30]);
+        arena.for_each_mut(|_, value| *value += 1);
+        assert!(arena.free(retired));
+        let replacement = arena.insert(42);
+        assert_eq!(replacement.arena_index(), retired.arena_index());
+        assert_ne!(replacement.generation(), retired.generation());
+        assert!(!arena.is_valid(retired));
+        assert_eq!(*arena.get(first), 11);
+        assert_eq!(*arena.get(last), 31);
+        assert!(arena.span(span).is_none());
+        let copy = arena.clone().map(u64::from);
+        assert_eq!(copy.into_items().collect::<Vec<_>>(), [11, 42, 31]);
+        arena.clear();
+        for handle in [first, retired, last, replacement] {
+            assert!(!arena.is_valid(handle));
+        }
+        assert_eq!(arena.into_items().count(), 0);
+    }
+
+    #[test]
+    fn uniform_source_clone_unwind_keeps_the_initialized_prefix_usable() {
+        let mut source = Arena::new();
+        for value in 0..6 {
+            source.append(PanicOnClone {
+                value,
+                panic_on_clone: value == 2,
+            });
+        }
+        let mut copied = Arena::new();
+        let retired = copied.insert(PanicOnClone::default());
+        copied.free(retired);
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| copied.clone_from(&source)));
+        assert!(result.is_err());
+        assert_eq!(
+            copied
+                .iter()
+                .map(|(_, value)| value.value)
+                .collect::<Vec<_>>(),
+            [0, 1]
+        );
+        assert_eq!(copied.len(), 2);
+        let handle = copied.insert(PanicOnClone {
+            value: 10,
+            ..Default::default()
+        });
+        assert_eq!(copied.get(handle).value, 10);
+        assert!(copied.free(handle));
+        assert!(!copied.is_valid(handle));
+    }
+
+    #[test]
+    fn failed_first_retirement_preserves_logical_equality() {
+        #[derive(Clone, Debug, PartialEq)]
+        struct Payload(u32);
+        thread_local! { static FAIL_DEFAULT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+        impl Default for Payload {
+            fn default() -> Self {
+                assert!(
+                    !FAIL_DEFAULT.with(|flag| flag.get()),
+                    "requested default panic"
+                );
+                Self(0)
+            }
+        }
+        for clear_all in [false, true] {
+            let mut rows = Arena::new();
+            let handle = rows.append(Payload(42));
+            let expected = rows.clone();
+            FAIL_DEFAULT.with(|flag| flag.set(true));
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                if clear_all {
+                    rows.clear();
+                } else {
+                    rows.free(handle);
+                }
+            }));
+            FAIL_DEFAULT.with(|flag| flag.set(false));
+            assert!(result.is_err());
+            assert_eq!(rows, expected);
+            assert!(rows.equal_by(&expected, |left, right| left == right));
+            assert!(expected.equal_by(&rows, |left, right| left == right));
+            rows.rewind_appended(1);
+            let next = rows.append(Payload(7));
+            assert_eq!(rows.get(handle), &Payload(42));
+            assert_eq!(rows.get(next), &Payload(7));
+            assert!(rows.free(handle));
+            assert!(!rows.is_valid(handle));
+        }
+    }
+
+    #[test]
+    fn recovered_storage_preserves_retirement_and_next_allocation() {
+        let mut original = Arena::<u32>::with_generation(7);
+        let first = original.insert(11);
+        let second = original.insert(22);
+        let third = original.insert(33);
+        assert!(original.free(first));
+        assert!(original.free(third));
+        let view = original.storage_view();
+        let mut recovered = Arena::from_storage(
+            *view.dummy,
+            view.items.to_vec(),
+            view.slots.cloned(),
+            view.fresh_generation,
+            view.fresh,
+        )
+        .expect("valid storage");
+        assert_eq!(original, recovered);
+        assert!(!recovered.is_valid(first));
+        assert!(!recovered.is_valid(third));
+        assert_eq!(recovered.get(second), original.get(second));
+        for value in [44, 55, 66] {
+            let expected = original.insert(value);
+            assert_eq!(recovered.insert(value), expected);
+            assert_eq!(original, recovered);
+        }
+        assert!(!recovered.is_valid(first));
+        assert!(!recovered.is_valid(third));
+    }
+
+    #[test]
+    fn recovered_storage_rejects_incomplete_or_repeated_free_roster() {
+        for free_indices in [vec![], vec![1, 1], vec![0], vec![2]] {
+            let slots = ArenaSlotStorage {
+                generations: vec![2],
+                occupied: vec![false],
+                free_indices,
+            };
+            assert!(Arena::from_storage(0u32, vec![0], Some(slots), 1, false).is_err());
+        }
+    }
+
+    #[test]
+    fn recovered_storage_refuses_a_false_uniform_generation_claim() {
+        let slots = ArenaSlotStorage {
+            generations: vec![3],
+            occupied: vec![true],
+            free_indices: vec![],
+        };
+        assert!(Arena::from_storage(0u32, vec![10], Some(slots), 1, true).is_err());
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    struct TestNode {
+        parent: Handle<TestNode>,
+        children: HandleSpan<TestNode>,
+        name: &'static str,
+    }
+
+    impl TestNode {
+        fn named(name: &'static str) -> Self {
+            Self {
+                name,
+                ..Self::default()
+            }
+        }
+    }
+
+    impl HierarchyNode for TestNode {
+        fn parent(&self) -> Handle<Self> {
+            self.parent
+        }
+
+        fn set_parent(&mut self, parent: Handle<Self>) {
+            self.parent = parent;
+        }
+
+        fn children(&self) -> HandleSpan<Self> {
+            self.children
+        }
+
+        fn set_children(&mut self, children: HandleSpan<Self>) {
+            self.children = children;
+        }
+    }
+
+    #[test]
+    fn construction_sets_parent_and_exact_child_range() {
+        let mut arena = HierarchyArena::new();
+        let root = arena.insert_root(TestNode::named("root"));
+        let children =
+            arena.insert_children(root, [TestNode::named("alpha"), TestNode::named("beta")]);
+
+        assert_eq!(arena.get(root).children(), children);
+        assert_eq!(children.start().arena_index(), 2);
+        assert_eq!(children.count(), 2);
+        assert_eq!(
+            arena.children(root).expect("children should resolve")[0].name,
+            "alpha"
+        );
+        assert_eq!(
+            arena.children(root).expect("children should resolve")[1].parent(),
+            root
+        );
+    }
+
+    #[test]
+    fn bulk_child_range_resolves_as_one_slice() {
+        let mut arena = HierarchyArena::new();
+        let root = arena.insert_root(TestNode::named("root"));
+        let children = arena.insert_children(root, (0..600).map(|_| TestNode::named("child")));
+
+        let resolved = arena.children(root).expect("children should resolve");
+        assert_eq!(resolved.len(), 600);
+        assert_eq!(children.count(), 600);
+        assert_eq!(
+            arena
+                .child_handles(root)
+                .expect("children should resolve")
+                .count(),
+            600
+        );
+    }
+
+    #[test]
+    fn walks_child_handles() {
+        let mut arena = HierarchyArena::new();
+        let root = arena.insert_root(TestNode::named("root"));
+        arena.insert_children(root, [TestNode::named("alpha"), TestNode::named("beta")]);
+
+        let child_names = arena
+            .child_handles(root)
+            .expect("children should resolve")
+            .map(|child| arena.get(child).name)
+            .collect::<Vec<_>>();
+
+        assert_eq!(child_names, vec!["alpha", "beta"]);
+    }
+
+    #[test]
+    fn child_handles_skip_by_index_and_stay_exhausted() {
+        let mut arena = HierarchyArena::new();
+        let root = arena.insert_root(TestNode::named("root"));
+        arena.insert_children(root, [TestNode::named("alpha"), TestNode::named("beta")]);
+
+        let mut children = arena.child_handles(root).expect("children should resolve");
+        assert_eq!(children.len(), 2);
+        let second = children.nth(1).expect("second child");
+        assert_eq!(arena.get(second).name, "beta");
+        assert_eq!(children.len(), 0);
+        assert_eq!(children.next(), None);
+        assert_eq!(children.next(), None);
+    }
+
+    #[test]
+    fn finds_child_by_local_sibling_scan() {
+        let mut arena = HierarchyArena::new();
+        let root = arena.insert_root(TestNode::named("root"));
+        arena.insert_children(root, [TestNode::named("alpha"), TestNode::named("beta")]);
+
+        let beta = arena
+            .find_child(root, |_, node| node.name == "beta")
+            .expect("beta should resolve");
+
+        assert_eq!(arena.get(beta).name, "beta");
+        assert_eq!(arena.get(beta).parent(), root);
+    }
+
+    #[test]
+    fn extends_a_retained_hierarchy_without_rebinding_authored_handles() {
+        let mut arena = HierarchyArena::new();
+        let root = arena.insert_root(TestNode::named("root"));
+        let authored = arena.insert_children(root, [TestNode::named("alpha")]);
+
+        let generated = arena.insert_root(TestNode::named("generated"));
+        let supplemental = arena.insert_supplemental_child(root, TestNode::named("late"));
+
+        assert_eq!(arena.get(authored.start()).name, "alpha");
+        assert_eq!(arena.get(root).children(), authored);
+        assert_eq!(
+            arena.children(root).expect("authored range")[0].name,
+            "alpha"
+        );
+        assert_eq!(arena.get(supplemental).parent(), root);
+        assert_eq!(arena.len(), 4);
+        assert_eq!(arena.nodes().len(), 4);
+        assert_eq!(arena.get(generated).parent(), Handle::invalid());
+    }
+
+    #[test]
+    fn rejects_duplicate_child_ranges() {
+        let mut arena = HierarchyArena::new();
+        let root = arena.insert_root(TestNode::named("root"));
+        arena.insert_children(root, [TestNode::named("alpha")]);
+
+        let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            arena.insert_children(root, [TestNode::named("beta")]);
+        }));
+
+        assert!(panic.is_err());
+    }
+
+    #[test]
+    fn selecting_roots_preserves_retained_identity_and_changes_revision() {
+        let mut roots = OrderedRootArena::<u64>::new();
+        let first = roots.push(10);
+        let removed = roots.push(20);
+        let last = roots.push(30);
+        let revision = roots.revision();
+        roots.retain(|value| *value != 20);
+        assert_eq!(roots.get(first), &10);
+        assert_eq!(roots.get(last), &30);
+        assert_eq!(roots[1], 30);
+        assert!(!roots.contains(removed));
+        assert!(roots.revision() > revision);
+    }
+
+    #[test]
+    fn preserves_insertion_order_over_stable_handles() {
+        let mut arena = OrderedRootArena::<String>::new();
+
+        let first = arena.push("alpha".to_owned());
+        let second = arena.push("beta".to_owned());
+
+        assert_eq!(arena.len(), 2);
+        assert_eq!(arena.first().map(String::as_str), Some("alpha"));
+        assert_eq!(arena[0], "alpha");
+        assert_eq!(arena[1], "beta");
+        assert_ne!(first, second);
+        assert_eq!(
+            arena.iter().map(String::as_str).collect::<Vec<_>>(),
+            ["alpha", "beta"]
+        );
+    }
+
+    #[test]
+    fn mutates_roots_in_order() {
+        let mut arena = OrderedRootArena::<usize>::new();
+        arena.push(1);
+        arena.push(2);
+
+        arena.for_each_mut(|value| *value *= 10);
+        *arena.find_mut(|value| *value == 20).expect("root exists") = 25;
+
+        assert_eq!(arena.iter().copied().collect::<Vec<_>>(), [10, 25]);
+    }
+
+    #[test]
+    fn selecting_roots_preserves_backing_handles_and_moves_freshness() {
+        let mut arena = OrderedRootArena::<usize>::new();
+        let first = arena.push(1);
+        let second = arena.push(2);
+        let before = arena.revision();
+        arena.retain(|value| *value == 2);
+        assert_eq!(arena.iter().copied().collect::<Vec<_>>(), [2]);
+        assert_eq!(*arena.storage.get(first), 1);
+        assert_eq!(*arena.storage.get(second), 2);
+        assert_ne!(before, arena.revision());
+        let selected = arena.revision();
+        arena.retain(|_| true);
+        assert_eq!(selected, arena.revision());
+        arena.push(3);
+        assert_eq!(arena.iter().copied().collect::<Vec<_>>(), [2, 3]);
+        assert_eq!(*arena.storage.get(second), 2);
     }
 }

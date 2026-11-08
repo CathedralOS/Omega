@@ -1,34 +1,32 @@
+/*
+We define normalized access policy (`AccessPlan`, `AccessFields`, and
+`ValidatedAccessPlan`), provider resource profiles (`ResourceProfile`), range
+placements and resident/external custody views (`placements`), and sealed
+primitive access specialization (`primitive_access`) over `LayoutPlan` geometry.
+*/
+
+/*
+Layout geometry alone never confers MMIO, atomic, or volatile memory rights, and
+source code must never bypass access validation via raw offset arithmetic. By
+joining a validated `LayoutPlanReport` with per-field observation models,
+allowed primitive operations (`plan_policy`), boundary service reach, and
+provider-supplied `ResourceProfile` capabilities (`resources`), we guarantee
+that every stable, atomic, or external access request is authorized against both
+its layout and its backing address-space extent before lowering.
+*/
+
+/*
+`access_fields.rs` defines field descriptors and `AccessPlanDiagnostic`;
+`plan_policy.rs` validates field access permissions and footprint conflicts;
+`resources.rs` governs provider resource profiles and device operation closure;
+`placements.rs` manages borrowed/owned resident and schema-corresponded views;
+`primitive_access.rs` projects fields into sealed specialization requests.
+*/
+
 #![forbid(unsafe_code)]
 
-//! Normalized access policy for access views.
-//!
-//! `LayoutPlan` owns representation and geometry with no access rights.
-//! `AccessPlan` contains one layout plan, the per-field decisions
-//! (`AccessFields`: observation and the exact primitive operations permitted
-//! over that geometry) and the required boundary reach. A layout plan never
-//! acquires MMIO vocabulary, and no arbitrary-offset volatile escape hatch can
-//! bypass plan validation, because access decisions exist only inside an
-//! access plan that was validated against its layout.
-//!
-//! Start at `access_fields.rs`: the decisions, their validated form, the sealed
-//! field descriptors and the diagnostic every operation reports. Around it,
-//! `plan_policy/access_operations.rs` names what a field can be asked to do,
-//! `plan_policy/boundary_reach.rs` which services an access plan may reach,
-//! `resources/resource_profile.rs` what a provider region supplies, and
-//! `placements/access_plan.rs` joins layout, fields and reach. The remaining
-//! modules are the operations: validation, admission, custody, views,
-//! projection and primitive specialization, each owning the carriers it moves
-//! an access view through.
-//!
-//! The modules are grouped by what they decide: `plan_policy/` what a plan
-//! permits, `resources/` what a provider supplies, `placements/` how a plan
-//! lands on a range, and `primitive_access/` how one access lowers.
-
-/// Every carrier in this crate reports the same diagnostic field under the
-/// same accessor name.
 macro_rules! diagnostic_accessor {
     () => {
-        /// The diagnostic the carrier reports.
         pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
             &self.diagnostic
         }
@@ -37,7 +35,38 @@ macro_rules! diagnostic_accessor {
 
 pub(crate) use optimization::digest_encoder;
 mod access_fields;
-mod normalized_identity;
+mod normalized_identity {
+    macro_rules! normalized_identity {
+        ($name:ident, $label:literal $(, $field_vis:vis)?) => {
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+            pub struct $name($($field_vis)? u64);
+            impl compiler_storage::Record for $name {
+                fn write(&self, output: &mut compiler_storage::RecordWriter) -> Result<(), compiler_storage::RecordError> { compiler_storage::Record::write(&self.0, output) }
+                fn read<Context>(input: &mut compiler_storage::RecordReader<'_, Context>) -> Result<Self, compiler_storage::RecordError> {
+                    Self::from_normalized_identity(compiler_storage::Record::read(input)?)
+                        .map_err(|_| input.error(concat!($label, " identity cannot be zero")))
+                }
+            }
+
+            impl $name {
+                pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
+                    if identity == 0 {
+                        return Err(AccessPlanDiagnostic(
+                            concat!($label, " cannot be zero").into(),
+                        ));
+                    }
+                    Ok(Self(identity))
+                }
+
+                pub const fn normalized_identity(self) -> u64 {
+                    self.0
+                }
+            }
+        };
+    }
+
+    pub(crate) use normalized_identity;
+}
 mod placements;
 
 pub(crate) use normalized_identity::normalized_identity;
@@ -45,8 +74,6 @@ mod plan_policy;
 mod primitive_access;
 mod resources;
 pub use resources::run_relocation::validate_run_relocation_resources;
-#[cfg(test)]
-mod tests;
 
 pub use access_fields::diagnostic::AccessPlanDiagnostic;
 pub use access_fields::{
@@ -144,3 +171,6 @@ pub use resources::resource_profile_admission::{
     ResourceProfileReceiptId,
 };
 pub use resources::resource_profile_validation::validate_resource_profile;
+
+#[cfg(test)]
+mod tests;

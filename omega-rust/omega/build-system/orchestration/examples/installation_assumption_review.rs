@@ -1,5 +1,7 @@
-//! Review exact installation assumptions through the ordinary project API.
-//! This tool never observes or certifies the physical environment.
+//! Check a project once, review its exact environment assumptions, then finish
+//! native compilation from the saved program. No physical truth is certified.
+#[path = "installation_assumption_review/saved_project.rs"]
+mod saved_project;
 use compilation_products::{
     BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
     InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
@@ -13,7 +15,13 @@ type Result<T> = std::result::Result<T, Box<dyn Error>>;
 fn main() -> Result<()> {
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     match arguments.as_slice() {
+        [mode] if mode == "--optimization-level" => {
+            println!("{}", compiler::compiler_optimization_level());
+            Ok(())
+        }
         [mode, root, target, output] if mode == "inspect" => inspect(root, target, output),
+        [mode, root, target, output] if mode == "prepare" => saved_project::prepare(root, target, output),
+        [mode, prepared, output, records @ ..] if mode == "finish" => saved_project::finish(prepared, output, records),
         [mode, artifact, target, entry, installation, environment, caller, output] if mode == "accept-bootstrap" || mode == "accept-interrupt-delivery" => {
             accept(mode, artifact, target, entry, installation, environment, caller, output)
         }
@@ -23,7 +31,7 @@ fn main() -> Result<()> {
             }
             Ok(())
         }
-        _ => Err("usage: installation_assumption_review inspect ROOT TARGET NEW_DIRECTORY | accept-bootstrap|accept-interrupt-delivery TERMINAL TARGET ENTRY_ID INSTALLATION_ID ENVIRONMENT_DESCRIPTION CALLER NEW_RECORD | show RECORD".into()),
+        _ => Err("usage: installation_assumption_review inspect|prepare ROOT TARGET NEW_DIRECTORY | accept-bootstrap|accept-interrupt-delivery TERMINAL TARGET ENTRY_ID INSTALLATION_ID ENVIRONMENT_DESCRIPTION CALLER NEW_RECORD | finish PREPARED_DIRECTORY NEW_DIRECTORY [REVIEW_RECORD...] | show RECORD".into()),
     }
 }
 
@@ -66,6 +74,14 @@ fn inspect(root: &str, target: &str, output: &str) -> Result<()> {
     let retained = report
         .into_retained_terminal_artifact()
         .ok_or("inspection has no Terminal artifact")?;
+    write_inspection(&retained, target, output)
+}
+
+fn write_inspection(
+    retained: &compilation_products::RetainedTerminalArtifact,
+    target: &str,
+    output: &Path,
+) -> Result<()> {
     let proposal = retained
         .native_realization_proposal()
         .ok_or("inspection has no target proposal")?;

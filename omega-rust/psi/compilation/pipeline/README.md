@@ -448,7 +448,7 @@ Scalar result annotations are established in the producing body: ordinary exits
 prove the machine and state result obligations from live exact membership or the
 arithmetic prover, closed indices retain their declaration binders, and routed
 qualifications require authorized provenance
-(`05_typed-trees-to-checked-trees/src/checks/contracts/exits/result_domains.rs`).
+(`05_typed-trees-to-checked-trees/src/checks_contracts_exits.rs`).
 Computed Boolean indices use the existing typed index probe. For remaining
 predicate-constrained and module-qualified applications, its family discovery
 must retain exact source selection, and a provisional `false` must not
@@ -762,7 +762,7 @@ cargo run -p omega -- --check tests/omega/pass/modules/aggregate_machine_indices
 [Resolution](02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) owns declaration
 identity and exact lexical lookup, not type compatibility, borrow legality,
 proof discharge or runtime support. Its private
-[generic-data normalization](02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/mod.rs)
+[generic-data normalization](02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs)
 closes eligible data applications before stamping names. Templates, pending
 substitutions and evaluation scratch are not new public representations.
 Known-builtin anonymous remainder formation is checked before reduction; an

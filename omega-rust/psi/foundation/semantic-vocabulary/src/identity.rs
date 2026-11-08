@@ -1,33 +1,26 @@
-//! The identities every terminal artifact names: machines, blocks, edges,
-//! operations, values, places, claims, obligations, contracts, services,
-//! structural types, domains and fields, plus package-key, work-schedule
-//! and scalar-qualification-set identities.
+/*
+We define the dense `semantic_id!` family of typed identifiers (machines,
+blocks, edges, operations, values, places, claims, obligations, contracts,
+services, structural types, domains, and calling signatures) used across Psi and
+Omega.
+*/
 
 use std::fmt;
 use std::num::NonZeroU32;
 use std::num::NonZeroU64;
 
-/// Authored owner of a bodyless requirement. Absence of a nominal attachment
-/// does not identify a trait: an operator also has no service receiver.
-/// This role travels with the declaration, independently of provider selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum BoundaryRequirementKind {
-    /// Includes token-bearing machines and explicit top-level requirements.
-    /// Their application custody remains independent of declaration kind.
     Machine,
     Trait,
     Operator,
 }
 
-/// Closed external terminal outcomes. This vocabulary does not grant authority
-/// to invoke an outcome or replace its provider conformance obligations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ExternalCompletionKind {
     ProcessExit,
 }
 
-/// Exact location of an invocation. Terminal completions are edges,
-/// not result-producing operations; the two namespaces never alias.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum InvocationSite {
     Operation(OperationId),
@@ -36,8 +29,6 @@ pub enum InvocationSite {
 }
 
 impl InvocationSite {
-    /// Canonical tagged identity; operation and completion-edge namespaces are
-    /// distinct even when their nonzero numeric coordinates coincide.
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
         let (tag, identity) = match self {
             Self::Operation(operation) => (0, operation.get()),
@@ -48,7 +39,6 @@ impl InvocationSite {
         crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
     }
 
-    /// Decode only the closed namespace tags and valid nonzero coordinates.
     pub fn from_tagged_identity(tag: u8, identity: u64) -> Option<Self> {
         match tag {
             0 => OperationId::new(identity).map(Self::Operation),
@@ -82,10 +72,6 @@ impl fmt::Display for InvocationSite {
     }
 }
 
-/// Completion premise of an exact opaque requirement, independent of its
-/// normal-result shape and service ceiling. Provider admission must preserve it.
-/// The transitional Unit exit encoding retains `External(ProcessExit)` here;
-/// this does not supply the still-missing terminal invocation representation.
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
 )]
@@ -95,11 +81,6 @@ pub enum BoundaryCompletion {
     External(ExternalCompletionKind),
 }
 
-/// Opaque commitment to a named package lineage or a versioned anonymous
-/// content-owner record. Their canonical record domains are distinct.
-///
-/// Construction of the commitment belongs to the package layer. Psi carries
-/// the resulting identity without depending on source-location policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PackageKeyIdentity([u8; 32]);
 
@@ -113,10 +94,6 @@ impl PackageKeyIdentity {
     }
 }
 
-/// Identity of the current logical-cost schedule, independent from terminal
-/// Psi semantics. The schedule implementation lives above this dependency-
-/// light identity so installation/resource records can name its units without
-/// depending on a semantic evaluator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct WorkScheduleIdentity(NonZeroU32);
 
@@ -133,7 +110,6 @@ impl WorkScheduleIdentity {
     }
 }
 
-/// Common behavior for nonzero semantic identities carried by terminal Psi.
 pub trait PsiSemanticId: Copy + Eq + Ord + std::hash::Hash {
     fn new(raw: u64) -> Option<Self>;
     fn get(self) -> u64;
@@ -181,7 +157,6 @@ semantic_id!(
     "Stable identity of one target-dependent scalar application in terminal Psi."
 );
 impl ValueId {
-    /// The first nonzero value coordinate, also used in closed formal namespaces.
     pub const FIRST: Self = Self(NonZeroU64::MIN);
 }
 semantic_id!(
@@ -189,8 +164,6 @@ semantic_id!(
     "Stable identity of one scalar qualification domain in terminal Psi."
 );
 
-/// Immutable canonical module coordinate. Zero denotes the bare qualification
-/// set and has no catalog row; this is not a reclaimable arena handle.
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
 )]
@@ -243,9 +216,6 @@ semantic_id!(
     "Nominal coordinate of one declaration ABI application, independently of callback selection."
 );
 
-/// The declaration which may own a physical calling ABI. An ordinary trait
-/// inherited by a boundary trait does not thereby become a boundary owner.
-/// This classification supplies no provider, invocation or execution authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CallingDeclarationOwner {
     BoundaryTrait,
@@ -269,8 +239,6 @@ pub struct CallingStaticOperand {
     pub identity: String,
 }
 
-/// Complete portable declaration ABI key. Callback actuals belong to invocation
-/// selection and are deliberately absent from this declaration application.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct CallingAbiIdentity {
     pub requirement_identity: String,
@@ -279,7 +247,6 @@ pub struct CallingAbiIdentity {
 }
 
 impl CallingAbiIdentity {
-    /// A compact checked coordinate, never a substitute for comparing this key.
     pub fn id(&self) -> CallingSignatureId {
         CallingSignatureId::for_application(
             &self.requirement_identity,
@@ -315,9 +282,6 @@ pub struct CallingGenericFormal {
 }
 
 impl CallingSignatureId {
-    /// Exact identity inputs are retained beside this compact coordinate.
-    /// Callback actuals are absent: their universal binder declarations belong
-    /// to the signature, while invocation selection has its own identity.
     pub fn for_application(
         requirement: &str,
         declaring_application: &str,

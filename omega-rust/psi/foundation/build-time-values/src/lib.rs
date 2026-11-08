@@ -1,35 +1,39 @@
+/*
+We represent immutable structured values (`BuildTimeValue`) exchanged across the
+compile-time argument and result boundaries, together with exact recursive cell
+and text-payload retained-size calculations (`retained_cell_count`,
+`retained_text_byte_count`). Every value contributes one root cell, while struct
+fields, case payloads, and array elements contribute their recursively retained
+cells and text bytes.
+*/
+
+/*
+Compile-time evaluation admission and result elaboration need a representation
+that preserves deterministic field order and descriptor labels without coupling
+to source program IRs, execution engines, host services, or backend layouts.
+Keeping retained-size accounting on `BuildTimeValue` lets us measure result
+custody in value cells and payload bytes directly, while keeping terminal work
+metering inside the shared interpreter.
+*/
+
+/*
+We depend only on `numerics`, `layout_plans`, and `compiler_storage`. Field and
+variant labels remain pure result descriptors that issue no nominal identity or
+host authority; source-bound callers join actual declaration handles before
+admitting or executing these values.
+*/
+
 #![forbid(unsafe_code)]
 
-//! Immutable values exchanged by compile-time admission and result elaboration.
-//!
-//! This owner contains data and recursive retained-size calculations only. It
-//! depends on numeric vocabulary, never source program IRs, execution engines,
-//! host services or scheduler/accounting identities. Field and variant labels
-//! are result descriptors; they issue no nominal identity or host authority.
-//! Source-bound callers join actual declaration handles before admitting or
-//! executing these values. Converting interpreter storage is an engine concern.
-//!
-//! Retained-size functions count this value's cells and text payload, not work
-//! performed by any particular engine. Terminal work remains independently
-//! measured by the shared interpreter; these counts do not substitute for it.
-
-/// A structured value crossing the compile-time argument/result boundary in
-/// either direction: compiler-built arguments in, the machine's terminal
-/// value out. Field order is preserved for deterministic reporting; struct
-/// fields retain descriptor labels without depending on backend layout.
 #[derive(Debug, Clone, PartialEq, compiler_storage::Record)]
 pub enum BuildTimeValue {
     Unit,
-    /// Compiler-issued opaque context; ordinary source constructors cannot issue it.
-    LayoutTarget(layout_plans::LayoutTargetFacts),
+    LayoutTarget(layout_plans::LayoutTargetFacts), // Compiler-issued opaque context; ordinary source constructors cannot issue it.
     Int(i64),
     Bool(bool),
     Float(f64),
-    /// Evaluation may transport this meaning, but cannot publish its bits.
-    UndeterminedNaN(numerics::literals::FloatFormat),
-    /// Text/byte content (Omega text is bytes that are only Utf8 at domain
-    /// boundaries).
-    Text(Vec<u8>),
+    UndeterminedNaN(numerics::literals::FloatFormat), // Evaluation may transport this meaning, but cannot publish its bits.
+    Text(Vec<u8>), // Text/byte content (Omega text is bytes that are only UTF-8 at domain boundaries).
     Struct {
         type_name: String,
         fields: Vec<(String, BuildTimeValue)>,
@@ -42,11 +46,6 @@ pub enum BuildTimeValue {
 }
 
 impl BuildTimeValue {
-    /// Canonical retained result-cell count. Every value
-    /// contributes one root cell; aggregate fields, case payloads, and array
-    /// elements contribute their recursively retained cells as well. Text is
-    /// one value cell regardless of byte length; its exact retained payload is
-    /// measured separately.
     pub fn retained_cell_count(&self) -> Option<u64> {
         let children = match self {
             Self::Struct { fields, .. }
@@ -69,9 +68,6 @@ impl BuildTimeValue {
         children.checked_add(1)
     }
 
-    /// Exact Text payload bytes retained by this result. Structural names and
-    /// Rust allocation overhead are compiler metadata/implementation details,
-    /// not fabricated semantic byte size.
     pub fn retained_text_byte_count(&self) -> Option<u64> {
         match self {
             Self::Text(bytes) => u64::try_from(bytes.len()).ok(),

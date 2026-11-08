@@ -3,7 +3,7 @@
 //!   `stage06_shape_gates.txt`, `stage06_source_context.txt`, `dense_id_maps.txt`,
 //!   `cache_state.txt`)
 //! - Dangling task ID citations (`dangling_task_ids.txt`)
-//! - Monotonic discrete `TASKS.md` board rules
+//! - Discrete `TASKS.md` board shape and size caps
 //! - Golden (`tests/omega/corpus_outcomes.txt`) freshness and row quality
 //! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, `facts/` freeze, raw measurements limit,
 //!   existing `expected.txt` diagnostic pins)
@@ -1066,7 +1066,10 @@ fn is_tasks_item_line(line: &str) -> bool {
     false
 }
 
-pub fn tasks_board_violations(head_text: &str, base_text: &str) -> Vec<String> {
+/// The board may gain tasks. A new decision needs a place to land its
+/// implementation work, so growth against the base is not a violation; the
+/// absolute size caps and the one-line discrete shape still hold.
+pub fn tasks_board_violations(head_text: &str) -> Vec<String> {
     if head_text.is_empty() {
         return Vec::new();
     }
@@ -1083,29 +1086,6 @@ pub fn tasks_board_violations(head_text: &str, base_text: &str) -> Vec<String> {
         violations.push(format!(
             "{TASKS_BOARD}: {head_chars} characters (limit is {TASKS_CHAR_LIMIT}); keep bullets concise rather than packing prose onto single lines"
         ));
-    }
-    if !base_text.is_empty() {
-        let base_lines: Vec<&str> = base_text.lines().collect();
-        let base_chars = base_text.chars().count();
-        if head_lines.len() > base_lines.len() {
-            violations.push(format!(
-                "{TASKS_BOARD}: grew from {} to {} lines; update by subtraction (delete completed bullets or fold without growing the board, AGENTS.md 'Monotonic board closure')",
-                base_lines.len(),
-                head_lines.len()
-            ));
-        }
-        if head_chars > base_chars {
-            violations.push(format!(
-                "{TASKS_BOARD}: grew from {base_chars} to {head_chars} characters; update by subtraction rather than appending prose to existing lines"
-            ));
-        }
-        let base_sub = base_lines.iter().filter(|l| l.starts_with("  - ")).count();
-        let head_sub = head_lines.iter().filter(|l| l.starts_with("  - ")).count();
-        if head_sub > base_sub {
-            violations.push(format!(
-                "{TASKS_BOARD}: sub-bullets grew from {base_sub} to {head_sub}; fix discovered roadblocks in the same PR or fold into an existing bullet instead of adding deferred sub-bullets"
-            ));
-        }
     }
     let mut in_items = false;
     for (idx, line) in head_lines.iter().enumerate() {
@@ -1767,8 +1747,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
     let head_tasks = fs::read_to_string(root.join(TASKS_BOARD))
         .unwrap_or_else(|_| show_git_file(&root, "HEAD", TASKS_BOARD));
-    let base_tasks = show_git_file(&root, &base_rev, TASKS_BOARD);
-    violations.extend(tasks_board_violations(&head_tasks, &base_tasks));
+    violations.extend(tasks_board_violations(&head_tasks));
 
     if let Some(t) = title {
         let agents_text = fs::read_to_string(root.join("AGENTS.md")).unwrap_or_default();

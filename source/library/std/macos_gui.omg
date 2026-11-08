@@ -50,7 +50,7 @@ public boundary trait ObjectiveC {
     machine register_selector<const Count: u64>(name: &[u8; Count]) -> u64
     requires Count > 0
     requires name[Count - 1] == 0
-    reaches;
+    reaches none;
     machine send(recv: u64, sel: u64) -> u64
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
@@ -126,7 +126,7 @@ public boundary trait ObjectiveC {
     // outside any Cocoa-managed pool, so dequeued autoreleased NSEvents would
     // leak every frame without one. `pool_pop` is a void C call; the u64 result
     // is scratch.
-    machine pool_push() -> u64 reaches;
+    machine pool_push() -> u64 reaches none;
     machine pool_pop(pool: u64) -> u64
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
@@ -139,8 +139,8 @@ public boundary trait ObjectiveC {
 
 // The Core Graphics seam (CoreGraphics framework) for the framebuffer blit.
 public boundary trait CoreGraphics {
-    machine color_space_rgb() -> u64 reaches;
-    machine color_space_release(space: u64) reaches;
+    machine color_space_rgb() -> u64 reaches none;
+    machine color_space_release(space: u64) reaches none;
     // `CGEventSourceKeyState(state_id, keycode) -> bool` — is a physical key down?
     // The macOS backing for `Input.key_state` (see macos_key_state below).
     machine event_source_key_state(state_id: u64, keycode: u64) -> u64

@@ -9,10 +9,10 @@ them against the exact source graph; Psi does not interpret package aliases.
 
 The [selection vocabulary](../../../foundation/language-semantics/src/declaration_selection/mod.rs)
 retains exact occurrence, source span, exposure, and declaration/intrinsic/late
-target. [Resolution](../02_syntax-trees-to-symbol-resolved-trees/src/selection/authored_selections.rs)
+target. [Resolution](../02_syntax-trees-to-symbol-resolved-trees/src/selection_authored.rs)
 captures paths while they are still attached to source. Typing records exact
 nominal selections and enclosing public/private position.
-[Checked finalization](src/authored_selections.rs) settles late receiver calls,
+[Checked finalization](src/shared.rs) settles late receiver calls,
 overloads, operators, and inferred conformances after checking succeeds.
 The typed ledger retains its pre-check resolution data. `CheckFacts` owns the
 finalized ledger and the exact expression associations for proof-view occurrences
@@ -80,7 +80,7 @@ A private toolchain declaration still rejects; make the intended API public.
 
 ## Carried semantics
 
-[Carried dependency capture](src/flow/carried_semantic_dependencies.rs) assembles
+[Carried dependency capture](src/flow.rs) assembles
 a checked-flow sidecar only after successful checking. It joins machine-head,
 checked result, and ownership-place types; promotes public exposure; and retains
 automatic cleanup only for the exact attached nominal declaration. Same-spelled

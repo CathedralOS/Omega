@@ -1,7 +1,7 @@
 # Atomic vocabulary and downstream admission
 
 Contract: [concurrency and atomic observation](../../../../wiki/spec/language/concurrency.md).
-[atomic vocabulary](src/atomic/mod.rs) owns the shared normalized atomic ordering vocabulary.
+[atomic vocabulary](src/atomic.rs) owns the shared normalized atomic ordering vocabulary.
 The [access-plan owner](../access-plans/README.md) separately validates placed
 permissions, resident custody, and specialized requests.
 

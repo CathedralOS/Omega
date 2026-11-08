@@ -109,6 +109,13 @@ Provider-owned confidential state can remain behind a checked handle. Changing
 public structure changes the source interface; binary replacement additionally
 uses [component contracts](../spec/build/component_publication.md).
 
+There are no private fields. A representation that must stay replaceable is
+hidden at the package boundary instead: put the storage type in a package your
+clients do not depend on directly and export operations over it. Clients can
+hold, move, borrow and store the value but cannot select its fields, cases or
+conformances, so renaming or reorganizing the storage changes no client. The
+next section shows the client side.
+
 ## Use a type returned by a dependency
 
 An API may return a type owned by one of its own dependencies. You can pass that

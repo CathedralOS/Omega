@@ -24,10 +24,10 @@ public StaticInterruptAcknowledgementRepresentation satisfies
 // alone is insufficient. A true result establishes that exact policy
 // on the current table; publication separately checks materialization and roots.
 public boundary trait StaticInterruptTableValidation<Table, machine Valid>
-requires machine Valid(accepted: bool, table: &Table) -> bool reaches terminates;
+requires machine Valid(accepted: bool, table: &Table) -> bool reaches none terminates;
 {
     machine validate(table: &Table) -> bool
-    reaches
+    reaches none
     ensures Valid(result, table);
 }
 
@@ -92,7 +92,7 @@ public boundary machine X86StaticInterruptScope::run<
     context: &Context
 ) -> bool
 requires GdtEntries >= 2 && GdtEntries <= 8192
-requires machine Valid(accepted: bool, table: &Table) -> bool reaches terminates;
+requires machine Valid(accepted: bool, table: &Table) -> bool reaches none terminates;
 requires machine Validate satisfies StaticInterruptTableValidation<Table, Valid>::validate;
 requires machine Work satisfies StaticInterruptWork<Context>::run;
 requires machine Completion satisfies InterruptAcknowledgementCompletion::complete;
@@ -111,7 +111,7 @@ public boundary machine view_static_interrupt_context<'arrival, Context>(
     acknowledgement: &'arrival InterruptAcknowledgement
 ) -> &'arrival Context
 requires acknowledgement in InterruptAcknowledgement::Pending
-reaches;
+reaches none;
 
 // This private permit keeps completion tied to one active invocation across the
 // ordinary controller body. Neither it nor its opaque acknowledgement is a
@@ -130,11 +130,11 @@ boundary machine begin_static_interrupt_completion<machine Completion>(
 ) -> StaticInterruptCompletionPermit
 requires acknowledgement in InterruptAcknowledgement::Pending
 requires machine Completion satisfies InterruptAcknowledgementCompletion::complete;
-reaches;
+reaches none;
 
 boundary machine finish_static_interrupt_completion(
     permit: StaticInterruptCompletionPermit
-) reaches;
+) reaches none;
 
 // Authenticate the selected controller operation, run it, then commit this debt
 // as complete. A failed or nonreturning controller body cannot authorize IRET.

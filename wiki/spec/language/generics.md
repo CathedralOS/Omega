@@ -538,8 +538,9 @@ suspension/blocking possibilities, crashes, progress, and context-visible
 resources. Selected implementations must refine that contract. Reach through a
 structural or nominal static callable, or a selected conformance member, uses
 the published
-[reach dependency](effects.md#static-callback-reach-dependencies); suspension
-and blocking use [operational dependencies](effects.md#static-callback-operational-dependencies).
+[reach dependency](effects.md#static-callback-reach-dependencies); suspension,
+blocking, crashes and termination use the other rows of
+[static binder contract dependencies](effects.md#static-binder-contract-dependencies).
 Generic bodies use the abstract requirement envelope. Callers substitute selected
 published contracts into those dependencies, not incidental stronger behavior.
 
@@ -558,8 +559,11 @@ There is no implementing data subject, `Self` binder, or associated-type
 declaration surface. Evidence parameters name implementations, not data types.
 
 Omitted service reach on a bodyless non-boundary requirement defers to the
-selected member's published row. An explicit clause bounds that row, with bare
-`reaches` requiring it to be empty. A conformance evidence binder retains a
+selected member's published row, and omitted `crashes` defers to its published
+routes. An explicit clause bounds that row, with `reaches none` requiring it
+to be empty and `crashes none` admitting only crash-free members. Omitted
+`suspends` and `blocks` still mean never, since their markers need a known
+bound. A conformance evidence binder retains a
 separate dependency for each called requirement member and exact application.
 Calling `Order::compare` cannot substitute the reach of another row in `Order`.
 

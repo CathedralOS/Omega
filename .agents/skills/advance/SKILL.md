@@ -109,7 +109,7 @@ that photograph: a different object, and a green check on it is not done.
      `pass/` or `run/` row is `checked`/`built`, every `fail/` row is
      `rejected ... expected`, and no row carries a `+wt` stamp or
      `regressed-from:` marker.
-3. **Update `TASKS.md` monotonically:** Delete the completed bullet or clause
+3. **Update `TASKS.md`:** Delete the completed bullet or clause
    from `TASKS.md` outright (never rewrite into `"preserving / keeping / now
    passes"` history prose), and run `cargo xtask check-rules --base origin/main`.
 

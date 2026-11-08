@@ -25,7 +25,7 @@ limits, not a different generated-source language.
   syntax forests through Psi 00/01 before this continuation resolves them.
 - [seeded resolution](../02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs)
   appends the later stratum and rebases only extension-owned selections.
-- [typed continuation](src/lowerer/seeded_continuation.rs)
+- [typed continuation](src/lowerer.rs)
   validates append cohorts and preserves the base. Extension-owned nominal
   static-machine binders are pinned by the corpus fixtures under
   `tests/omega/pass/build` and `tests/omega/fail/build`, which bind a program

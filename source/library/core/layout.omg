@@ -589,7 +589,7 @@ public data ResourceProfile requires region_count <= 32 {
 // distinguishes independently selected backing policies in one artifact. It is
 // a static selector, not evidence of that backing or permission to access it.
 public boundary trait ResourceProfileSupply<Role> {
-    machine profile(storage: &Extent in Granted) -> ResourceProfile reaches;
+    machine profile(storage: &Extent in Granted) -> ResourceProfile reaches none;
 }
 
 // Settled access-view identity and recovery vocabulary. `Access<P, T>` is an
@@ -866,7 +866,7 @@ public data LayoutTargetFacts<'target> [copy] {
 // storage or Build authority to an authored value.
 public boundary machine layout_target_facts<'target>(target: &'target LayoutTarget)
     -> LayoutTargetFacts<'target>
-reaches
+reaches none
 terminates;
 
 // The compiler retains and validates the exact semantic type, policy,
@@ -875,7 +875,7 @@ public boundary data LayoutStorage<T, Policy satisfies FixedLayout<T>>;
 
 public trait FixedLayout<T> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
-    reaches
+    reaches none
     terminates;
 }
 

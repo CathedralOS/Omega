@@ -1,31 +1,711 @@
-//! Own the resolver/typing continuation across admitted Build execution.
-//!
-//! The resolver frontier and its seeded typing arenas are one owner. Consumers
-//! cannot combine unrelated frontiers, complete bodies in a different order, or
-//! resume generated source against a reconstructed predecessor. Build authority,
-//! package custody and source acquisition remain with their respective owners.
+/*
+    Resolver and typing continuation across admitted Build execution, generated
+    source extension, and post-join Product policy admission.
+
+    We pair the resolver frontier with its seeded typing base inside
+    `SourceContinuation`, complete authored bodies into `CompletedSource`,
+    extend completed sources with admitted generated units, and admit Product
+    provider requests, root grants, declarations, and behavior exclusions.
+*/
 
 use crate::{PsiCompilationObserver, PsiCompilationStage};
 use build_time_evaluation::{BuildTimeSelectionAuthority, PreCheckEvaluation};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 
-mod activation;
+mod activation {
+    use super::{PreCheckEvaluation, SourceCompilationRequest};
+    use build_time_evaluation::BuildTimeSelectionAuthority;
+    use diagnostics::Diagnostic;
+    use source::{SourceId, SourceMap, SourceSpan, Span};
+    use std::collections::HashSet;
+    use std::sync::Arc;
+    use symbol_resolved_trees_to_typed_trees::SeededTypingBase;
+    use symbols::SourceScopedTopLevelBinding;
+    use syntax_trees::SyntaxTrees;
+
+    #[derive(Clone)]
+    pub(super) struct SourceContext {
+        pub declaration_syntax: Arc<SyntaxTrees>,
+        pub bindings: Vec<SourceScopedTopLevelBinding>,
+        pub authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+        pub build_helper_identity: std::borrow::Cow<'static, str>,
+        pub recorded_authority: Option<validation::RecordedDeclarationAuthority>,
+    }
+
+    impl SourceContext {
+        pub fn same_input(&self, other: &Self) -> bool {
+            self.recorded_authority.is_none()
+                && other.recorded_authority.is_none()
+                && Arc::ptr_eq(&self.declaration_syntax, &other.declaration_syntax)
+                && self.bindings == other.bindings
+                && self.build_helper_identity == other.build_helper_identity
+                && match (&self.authority, &other.authority) {
+                    (None, None) => true,
+                    (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+                    _ => false,
+                }
+        }
+
+        fn compatibility(
+            &self,
+            current: &Self,
+            previous: &SourceMap,
+            sources: &SourceMap,
+            activation: &SourceMap,
+        ) -> Result<(), SourceReuseMiss> {
+            if self.build_helper_identity != current.build_helper_identity {
+                return Err(SourceReuseMiss::BuildHelperSelection);
+            }
+            for added in sources
+                .selected_files()
+                .filter(|file| !previous.source_is_selected(file.source_id))
+            {
+                let added_span = SourceSpan::new(added.source_id, Span::default());
+                if previous.selected_files().any(|file| {
+                    sources.same_checked_instance(
+                        added_span,
+                        SourceSpan::new(file.source_id, Span::default()),
+                    )
+                }) {
+                    return Err(SourceReuseMiss::LookupContributors);
+                }
+            }
+            for file in activation.selected_files() {
+                let old_bindings = self
+                    .bindings
+                    .iter()
+                    .filter(|binding| binding.reference_source() == file.source_id);
+                let new_bindings = current
+                    .bindings
+                    .iter()
+                    .filter(|binding| binding.reference_source() == file.source_id);
+                if !old_bindings.eq(new_bindings) {
+                    return Err(SourceReuseMiss::Imports);
+                }
+                let Some(requester) = file.package_identity else {
+                    continue;
+                };
+                if !sources.same_product_dependency_scope(previous, requester) {
+                    return Err(SourceReuseMiss::ProductAliases);
+                }
+                if current.recorded_authority.is_some() {
+                    return Err(SourceReuseMiss::DeclarationAuthority);
+                }
+                let old_has_authority = self.recorded_authority.as_ref().map_or(
+                    self.authority.is_some(),
+                    validation::RecordedDeclarationAuthority::has_authority,
+                );
+                if old_has_authority != current.authority.is_some() {
+                    return Err(SourceReuseMiss::DeclarationAuthority);
+                }
+                if let Some(new) = &current.authority {
+                    for owner in sources
+                        .selected_files()
+                        .filter_map(|file| file.package_identity)
+                    {
+                        let old = match &self.recorded_authority {
+                            Some(recorded) => recorded.allows(requester, owner),
+                            None => self
+                                .authority
+                                .as_ref()
+                                .map(|old| old.allows_declaration_selection(requester, owner)),
+                        }
+                        .ok_or(SourceReuseMiss::DeclarationAuthority)?;
+                        if old != new.allows_declaration_selection(requester, owner) {
+                            return Err(SourceReuseMiss::DeclarationAuthority);
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+    }
+
+    enum SourceReuseMiss {
+        BuildHelperSelection,
+        LookupContributors,
+        Imports,
+        ProductAliases,
+        DeclarationAuthority,
+    }
+
+    pub(super) struct ActivatedSource {
+        pub typing: SeededTypingBase,
+        pub pre_checks: Vec<PreCheckEvaluation>,
+        pub declaration_syntax: Arc<SyntaxTrees>,
+        sources: Arc<SourceMap>,
+    }
+
+    impl ActivatedSource {
+        pub fn remove_retained_syntax(
+            &self,
+            syntax: &mut SyntaxTrees,
+            source_items: &[(SourceId, Vec<syntax_trees::item::ItemHandle>)],
+        ) {
+            let retained = source_items
+                .iter()
+                .filter(|(source, _)| self.sources.source_is_selected(*source))
+                .flat_map(|(_, items)| items.iter().copied())
+                .collect::<HashSet<_>>();
+            syntax.roots.items.retain(|item| !retained.contains(item));
+            let items = &syntax.tables.items;
+            syntax.roots.mathematical_definitions.retain(|handle| {
+                let span = items.mathematical_definition(*handle).name.source_span();
+                span.span.start == span.span.end || !self.sources.source_is_selected(span.source_id)
+            });
+            let expressions = &syntax.tables.expressions;
+            syntax.roots.constant_extent_probes.retain(|(handle, _)| {
+                let span = expressions.source_span(*handle);
+                span.span.start == span.span.end || !self.sources.source_is_selected(span.source_id)
+            });
+            let source_id = syntax.source_id;
+            let selected = std::mem::replace(syntax, SyntaxTrees::new(source_id));
+            syntax.extend_from(&selected);
+            for (expression, public) in &selected.roots.constant_extent_probes {
+                let copied = syntax.copy_expression_from(&selected, *expression);
+                syntax.roots.constant_extent_probes.push((copied, *public));
+            }
+        }
+    }
+
+    pub(super) fn select_retained_source(
+        request: &SourceCompilationRequest,
+        context: &SourceContext,
+        observer: &mut impl crate::PsiCompilationObserver,
+    ) -> Result<Option<ActivatedSource>, Vec<Diagnostic>> {
+        let mut candidates = Vec::new();
+        for source in request.frontends.snapshots()? {
+            let typing = &source.typing;
+            let source_context = &source.context;
+            let Some(previous) = typing.typed().symbols.source_map() else {
+                continue;
+            };
+            if !request.sources.retains_source_storage(&previous) {
+                continue;
+            }
+            let mut activation = request.sources.as_ref().clone();
+            activation.retain_selected_sources(|file| {
+                previous.source_is_selected(file.source_id)
+                    && !request.root_sources.contains(&file.source_id)
+            });
+            let count = activation.selected_files().count();
+            if count == 0 {
+                continue;
+            }
+            if source_context
+                .compatibility(context, &previous, &request.sources, &activation)
+                .is_err()
+            {
+                continue;
+            }
+            candidates.push((count, source, Arc::new(activation)));
+        }
+        candidates.sort_unstable_by_key(|(count, _, _)| std::cmp::Reverse(*count));
+        for (_, source, sources) in candidates {
+            let declaration_syntax = Arc::clone(&source.context.declaration_syntax);
+            let (typing, pending_pre_checks) = super::SourceContinuation::complete_selected(
+                source,
+                Arc::clone(&sources),
+                context.bindings.clone(),
+                observer,
+            )?;
+            let original = typing.clone();
+            let typing = typing.activate_sources(
+                Arc::clone(&sources),
+                Arc::clone(&request.sources),
+                context.bindings.clone(),
+            )?;
+            if typing.typed().machines().iter().any(|machine| {
+                machine.body_status == typed_trees::machine::MachineBodyStatus::Deferred
+            }) {
+                return Err(vec![Diagnostic::error(
+                    "selected retained source still has a deferred authored body",
+                )]);
+            }
+            let references = typed_trees::references::collect_program_references(typing.typed());
+            let selections = typing
+                .typed()
+                .authored_declaration_selections()
+                .iter()
+                .filter(|selection| typing.typed().checks_authored_selection(selection))
+                .filter_map(|selection| match selection.target() {
+                    typed_trees::AuthoredDeclarationSelectionTarget::Resolved(target) => {
+                        Some(target.selected_symbol())
+                    }
+                    _ => None,
+                });
+            if references
+                .symbols
+                .iter()
+                .copied()
+                .chain(selections)
+                .any(|symbol| {
+                    typing
+                        .typed()
+                        .symbols
+                        .symbol_provenance_source_span(symbol)
+                        .is_some_and(|span| !sources.source_is_selected(span.source_id))
+                })
+            {
+                continue;
+            }
+            let mut pre_checks = pending_pre_checks
+                .iter()
+                .map(|pending| pending.activate_sources(original.typed(), typing.typed()))
+                .collect::<Result<Vec<_>, _>>()?;
+            let mut authority_miss = None;
+            for pending in &mut pre_checks {
+                if let Err(reason) =
+                    pending.rejoin_source_authority(typing.typed(), context.authority.clone())
+                {
+                    authority_miss = Some(reason);
+                    break;
+                }
+            }
+            if authority_miss.is_some() {
+                continue;
+            }
+            return Ok(Some(ActivatedSource {
+                typing,
+                pre_checks,
+                declaration_syntax,
+                sources,
+            }));
+        }
+        Ok(None)
+    }
+}
 use activation::SourceContext;
 
-mod authored_completion;
-use authored_completion::AuthoredCompletions;
-mod product_policy;
-mod provider_requests;
-pub use product_policy::{AdmittedProductPolicy, ProductPolicyRequest};
-mod storage;
+mod authored_completion {
+    use std::sync::{Arc, Mutex};
 
-/// Parsed, source-scoped input after package admission and Build-helper selection.
+    use diagnostics::Diagnostic;
+
+    use super::{CompletedSource, SourceCompletionInput};
+
+    #[derive(Clone, Default, compiler_storage::Record)]
+    pub(super) struct AuthoredCompletions {
+        entries: Arc<Mutex<Vec<Completion>>>,
+    }
+
+    #[derive(compiler_storage::Record)]
+    struct Completion {
+        input: Arc<SourceCompletionInput>,
+        source: CompletedSource,
+    }
+
+    impl AuthoredCompletions {
+        pub(super) fn find(
+            &self,
+            input: &SourceCompletionInput,
+        ) -> Result<Option<CompletedSource>, Vec<Diagnostic>> {
+            let entries = self.entries.lock().map_err(|_| unavailable())?;
+            let Some(completion) = entries
+                .iter()
+                .find(|entry| entry.input.same_completion_input(input))
+            else {
+                return Ok(None);
+            };
+            completion
+                .source
+                .accounting
+                .validate_charges()
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            let mut source = completion.source.clone();
+            source.accounting.mark_reused();
+            Ok(Some(source))
+        }
+
+        pub(super) fn retain(
+            &self,
+            input: Arc<SourceCompletionInput>,
+            source: &CompletedSource,
+        ) -> Result<(), Vec<Diagnostic>> {
+            if !source.accounting.has_complete_usage() {
+                return Ok(());
+            }
+            source
+                .accounting
+                .validate_charges()
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            self.entries
+                .lock()
+                .map_err(|_| unavailable())?
+                .push(Completion {
+                    input,
+                    source: source.clone(),
+                });
+            Ok(())
+        }
+    }
+
+    fn unavailable() -> Vec<Diagnostic> {
+        vec![Diagnostic::error(
+            "authored source completion retention owner is poisoned",
+        )]
+    }
+
+    impl AuthoredCompletions {
+        pub(super) fn rejoin_current_authority(
+            &self,
+            authority: Option<Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>>,
+        ) -> Result<Self, String> {
+            let stored = self
+                .entries
+                .lock()
+                .map_err(|_| "authored source completion retention owner is poisoned")?;
+            let mut entries = Vec::new();
+            for entry in stored.iter() {
+                let Ok(input) = entry.input.rejoin_current_authority(authority.clone()) else {
+                    continue;
+                };
+                let mut source = entry.source.clone();
+                if source.pending_pre_checks.iter_mut().any(|pending| {
+                    pending
+                        .rejoin_source_authority(source.typing.typed(), authority.clone())
+                        .is_err()
+                }) {
+                    continue;
+                }
+                entries.push(Completion { input, source });
+            }
+            Ok(Self {
+                entries: Arc::new(Mutex::new(entries)),
+            })
+        }
+    }
+}
+use authored_completion::AuthoredCompletions;
+mod product_policy {
+    use super::SourceContinuation;
+    use build_time_evaluation::native_bindings::NativeBindingSelection;
+    use build_time_evaluation::product_declarations::AdmittedProductDeclarations;
+    use build_time_evaluation::provider_declarations::ProviderSelection;
+    use diagnostics::Diagnostic;
+    use language_semantics::declaration_selection::{
+        AuthoredBehaviorExclusion, AuthoredRootGrant, CapturedNativeDeclaration,
+        CapturedNativeIntent, ExecutedEnumExclusion, ExecutedNativeBinding,
+        ExecutedProductSelection, ProductDeclarationRequest,
+    };
+    use representation_selections::OpaqueRepresentationSelection;
+    use std::sync::Arc;
+    use symbols::SymbolHandle;
+
+    pub struct ProductPolicyRequest<'request> {
+        pub activation: Option<SymbolHandle>,
+        pub declared: &'request [Arc<ProductDeclarationRequest>],
+        pub executed: &'request [ExecutedProductSelection],
+        pub native_bindings: &'request [ExecutedNativeBinding],
+        pub exclusions: &'request [ExecutedEnumExclusion],
+    }
+
+    pub struct AdmittedProductPolicy {
+        pub providers: Vec<ProviderSelection>,
+        pub representations: Vec<OpaqueRepresentationSelection>,
+        pub native_bindings: Vec<NativeBindingSelection>,
+        pub grants: Vec<AuthoredRootGrant>,
+        pub declarations: AdmittedProductDeclarations,
+        pub exclusions: Vec<AuthoredBehaviorExclusion>,
+    }
+
+    impl SourceContinuation {
+        pub fn capture_package_native_bindings(
+            &self,
+            package: semantic_vocabulary::PackageKeyIdentity,
+            formations: &[language_semantics::declaration_selection::NativeBindingFormation],
+            executed: &[ExecutedNativeBinding],
+        ) -> Result<(Vec<CapturedNativeDeclaration>, Vec<CapturedNativeIntent>), Vec<Diagnostic>>
+        {
+            build_time_evaluation::native_bindings::capture_package_intents(
+                self.typed(),
+                package,
+                formations,
+                executed,
+            )
+        }
+
+        pub fn admit_product_policy(
+            &mut self,
+            request: ProductPolicyRequest<'_>,
+        ) -> Result<AdmittedProductPolicy, Vec<Diagnostic>> {
+            let providers = self.admit_product_provider_requests(
+                request.activation,
+                request.declared,
+                request.executed,
+            )?;
+            let typed = self.typed();
+            let representations =
+                representation_planning::collect_opaque_representation_selections(
+                    typed,
+                    request.activation,
+                    request.declared,
+                    request.executed,
+                )?;
+            let native_bindings = build_time_evaluation::native_bindings::collect(
+                typed,
+                request.activation,
+                request.declared,
+                request.native_bindings,
+            )?;
+            let grants = build_time_evaluation::product_policy::collect_product_root_grants(
+                typed,
+                request.activation,
+                request.declared,
+                request.executed,
+            )?;
+            let declarations = build_time_evaluation::product_declarations::admit(
+                typed,
+                request.activation,
+                request.declared,
+                request.executed,
+            )?;
+            let exclusions = build_time_evaluation::product_policy::collect_behavior_exclusions(
+                typed,
+                request.activation,
+                request.declared,
+                request.executed,
+                request.exclusions,
+            )?;
+            Ok(AdmittedProductPolicy {
+                providers,
+                representations,
+                native_bindings,
+                grants,
+                declarations,
+                exclusions,
+            })
+        }
+
+        pub fn admit_captured_native_bindings(
+            &self,
+            declarations: &[CapturedNativeDeclaration],
+            intents: &[CapturedNativeIntent],
+        ) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
+            build_time_evaluation::native_bindings::collect_captured(
+                self.typed(),
+                declarations,
+                intents,
+            )
+        }
+    }
+}
+mod provider_requests {
+    use super::SourceContinuation;
+    use build_time_evaluation::provider_declarations::{
+        ProviderPlanningContext, ProviderSelection, collect_product_provider_selections,
+    };
+    use diagnostics::Diagnostic;
+    use language_semantics::declaration_selection::product_operands::ProductStaticEnvironment;
+    use language_semantics::declaration_selection::{
+        BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
+    };
+    use std::sync::Arc;
+    use symbols::SymbolHandle;
+    use typed_trees::product_operand::ProductApplicationDemand;
+
+    impl SourceContinuation {
+        pub(super) fn admit_product_provider_requests(
+            &mut self,
+            activation: Option<SymbolHandle>,
+            declared: &[Arc<ProductDeclarationRequest>],
+            executed: &[ExecutedProductSelection],
+        ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+            let formations = self.provider_formation_authors(declared)?;
+            for (request, author) in formations {
+                self.prepare_provider_request(
+                    &request,
+                    author,
+                    None,
+                    ProductApplicationDemand::FormationOnly,
+                )?;
+            }
+            for event in executed
+                .iter()
+                .filter(|event| has_provider_application(&event.request))
+            {
+                let author = typed_trees::product_operand::resolve_build_request_author(
+                    self.typed(),
+                    event.selecting_machine.ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "executed provider recipe lost its original author",
+                        )]
+                    })?,
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                self.prepare_provider_request(
+                    &event.request,
+                    author,
+                    event.static_environment.as_deref(),
+                    ProductApplicationDemand::Selected,
+                )?;
+            }
+            collect_product_provider_selections(
+                ProviderPlanningContext::new(self.typed(), source::DependencyScope::Product),
+                activation,
+                declared,
+                executed,
+            )
+        }
+
+        fn provider_formation_authors(
+            &self,
+            declared: &[Arc<ProductDeclarationRequest>],
+        ) -> Result<Vec<(Arc<ProductDeclarationRequest>, SymbolHandle)>, Vec<Diagnostic>> {
+            let typed = self.typed();
+            let occurrences =
+                typed_trees::product_operand::collect_product_selection_occurrences(typed);
+            let mut formations = Vec::new();
+            for request in declared
+                .iter()
+                .filter(|request| has_provider_application(request))
+            {
+                let mut owners = occurrences
+                    .iter()
+                    .filter(|occurrence| {
+                        typed.same_product_request_source(&occurrence.request, request)
+                    })
+                    .map(|occurrence| typed.symbols.authored_origin(occurrence.machine));
+                let owner = owners.next().ok_or_else(|| {
+                    vec![
+                        Diagnostic::error(
+                            "Product provider recipe lost its original authored body occurrence",
+                        )
+                        .with_source_span(request.source_span),
+                    ]
+                })?;
+                if owners.any(|other| other != owner) {
+                    return Err(vec![
+                        Diagnostic::error(
+                            "Product provider recipe has multiple original lexical owners",
+                        )
+                        .with_source_span(request.source_span),
+                    ]);
+                }
+                formations.push((Arc::clone(request), owner));
+            }
+            Ok(formations)
+        }
+
+        fn prepare_provider_request(
+            &mut self,
+            request: &ProductDeclarationRequest,
+            author: SymbolHandle,
+            static_environment: Option<&ProductStaticEnvironment>,
+            demand: ProductApplicationDemand,
+        ) -> Result<(), Vec<Diagnostic>> {
+            for (operand_index, operand) in request.operands.iter().enumerate() {
+                let role = request
+                    .operation
+                    .product_operand_role(operand_index)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error("provider recipe lost its operand role")]
+                    })?;
+                typed_trees_to_typed_trees::prepare_product_operand_application(
+                    Arc::make_mut(&mut self.input).typing.typed_mut(),
+                    operand,
+                    role,
+                    author,
+                    static_environment,
+                    demand,
+                )?;
+            }
+            Ok(())
+        }
+    }
+
+    fn has_provider_application(request: &ProductDeclarationRequest) -> bool {
+        request.operation == BuildOperation::ProviderSelection
+            && request
+                .operands
+                .iter()
+                .any(|operand| operand.application.is_some())
+    }
+}
+pub use product_policy::{AdmittedProductPolicy, ProductPolicyRequest};
+mod storage {
+    use super::{SourceCompletionInput, SourceContext, SourceContinuation};
+    use build_time_evaluation::BuildTimeSelectionAuthority;
+    use compiler_storage::{Record, RecordError, RecordReader, RecordWriter};
+    use std::sync::Arc;
+
+    impl Record for SourceContext {
+        fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
+            output.record(|output| {
+                self.declaration_syntax.write(output)?;
+                self.bindings.write(output)?;
+                self.build_helper_identity.write(output)?;
+                let captured;
+                let recorded = match &self.recorded_authority {
+                    Some(recorded) => recorded,
+                    None => {
+                        captured = validation::RecordedDeclarationAuthority::capture(
+                            self.authority.as_deref(),
+                        )
+                        .map_err(|reason| output.error(reason))?;
+                        &captured
+                    }
+                };
+                recorded.write(output)
+            })
+        }
+        fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
+            input.record(|input| {
+                Ok(Self {
+                    declaration_syntax: Record::read(input)?,
+                    bindings: Record::read(input)?,
+                    build_helper_identity: Record::read(input)?,
+                    authority: None,
+                    recorded_authority: Some(Record::read(input)?),
+                })
+            })
+        }
+    }
+    impl SourceCompletionInput {
+        pub(super) fn rejoin_current_authority(
+            self: &Arc<Self>,
+            authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+        ) -> Result<Arc<Self>, String> {
+            let Some(recorded) = &self.context.recorded_authority else {
+                return Ok(self.clone());
+            };
+            let sources = self
+                .typing
+                .typed()
+                .symbols
+                .source_map()
+                .ok_or("restored source continuation has no source context")?;
+            recorded.require_current(authority.as_deref(), &sources)?;
+            let mut input = self.as_ref().clone();
+            for pending in &mut input.pending_pre_checks {
+                pending.rejoin_source_authority(input.typing.typed(), authority.clone())?;
+            }
+            input.context.authority = authority;
+            input.context.recorded_authority = None;
+            Ok(Arc::new(input))
+        }
+    }
+    impl SourceContinuation {
+        pub fn rejoin_current_authority(
+            self,
+            authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+        ) -> Result<Self, String> {
+            if self.input.context.recorded_authority.is_none() {
+                return Ok(self);
+            }
+            Ok(Self {
+                input: self.input.rejoin_current_authority(authority.clone())?,
+                completions: self.completions.rejoin_current_authority(authority)?,
+            })
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct SourceCompilationRequest {
     pub syntax: syntax_trees::SyntaxTrees,
     pub source_items: Vec<(source::SourceId, Vec<syntax_trees::item::ItemHandle>)>,
-    /// Consumer-owned sources are fresh work even when dependency coordinates match.
     pub root_sources: Vec<source::SourceId>,
     pub frontends: SourceFrontends,
     pub build_helper_identity: &'static str,
@@ -34,15 +714,12 @@ pub struct SourceCompilationRequest {
     pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
 }
 
-/// Pending Product bodies paired with the exact declaration/Build typing base.
-/// Cloning retains a reusable compilation input, never permission to execute Build.
 #[derive(Clone, compiler_storage::Record)]
 pub struct SourceContinuation {
     input: Arc<SourceCompletionInput>,
     completions: AuthoredCompletions,
 }
 
-/// Exact post-Build input, excluding the invocation's retention owner.
 #[derive(Clone, compiler_storage::Record)]
 struct SourceCompletionInput {
     typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
@@ -51,14 +728,11 @@ struct SourceCompletionInput {
     context: SourceContext,
 }
 
-/// The mutable inputs an independently admitted Build evaluator consumes.
-/// Its generated declarations remain in this continuation's typing arena.
 pub struct BuildSourceInput<'source> {
     pub typed: &'source mut typed_trees::TypedTrees,
     pub pre_checks: &'source mut Vec<PreCheckEvaluation>,
 }
 
-/// Authored bodies are complete; generated sources may extend this exact base.
 #[derive(Clone, compiler_storage::Record)]
 pub struct CompletedSource {
     declaration_syntax: Arc<syntax_trees::SyntaxTrees>,
@@ -67,7 +741,6 @@ pub struct CompletedSource {
     pending_pre_checks: Vec<PreCheckEvaluation>,
 }
 
-/// Package-admitted generated units and their combined source custody.
 pub struct SourceExtensionRequest {
     pub units: Vec<syntax_trees::SyntaxTrees>,
     pub sources: Arc<source::SourceMap>,
@@ -75,18 +748,12 @@ pub struct SourceExtensionRequest {
     pub selection_authority: Arc<dyn BuildTimeSelectionAuthority>,
 }
 
-/// Complete Product typing with deferred obligations recorded in the program.
-/// Checking retains their evaluation entries; Terminal scalar completion consumes
-/// them without an authored-source snapshot or an execution continuation.
 pub struct PreparedSource {
     pub accounting: build_time_evaluation::SourceCompletionAccounting,
     pub typed: typed_trees::TypedTrees,
 }
 
 impl PreparedSource {
-    /// Rejoin executed Build root choices against the completed Product source.
-    /// The result retains exact lexical declarations; it does not choose a
-    /// realized target or settle physical entry calling plans.
     pub fn admit_root_bindings(
         &self,
         executed: &[language_semantics::declaration_selection::ExecutedRootBinding],
@@ -188,8 +855,6 @@ impl SourceCompilationRequest {
             };
             (typing, frontier)
         };
-        // Build may use its admitted declaration context. Product bodies stay
-        // pending: completing them here would demand unrelated constants/layouts.
         loop {
             let build_bodies = build_bodies(&pending_bodies);
             if build_bodies.is_empty() {
@@ -203,16 +868,12 @@ impl SourceCompilationRequest {
                 .record_result(PsiCompilationStage::Typing, || {
                     typing.complete_bodies(completed)
                 })?;
-            // Completion can append attached implementations. Those use the
-            // same scope test, not a second Product declaration selection.
         }
         let pre_check = match retained_program {
             Some(previous) => pre_check.exclude_completed_work(typing.typed(), &previous)?,
             None => pre_check,
         };
         pending_pre_checks.push(pre_check);
-        // Only the canonical pre-Build input is shared. A Build mutation forks
-        // the whole input, including pending recipes; probe products never enter here.
         let input = Arc::new(SourceCompletionInput {
             typing,
             pending_bodies,
@@ -228,9 +889,6 @@ impl SourceCompilationRequest {
 }
 
 impl SourceContinuation {
-    /// Complete only the old bodies this consumer actually selected, retaining
-    /// their original syntax/ordinals until completion. Lookup changes first:
-    /// checking references afterward cannot repair a stale ambiguity diagnostic.
     fn complete_selected(
         input: Arc<SourceCompletionInput>,
         sources: Arc<source::SourceMap>,
@@ -271,12 +929,9 @@ impl SourceContinuation {
                     typing.complete_bodies(resolved)
                 })?;
         }
-        // Pre-checks may depend on the receiving Build's representation choices.
-        // Keep their exact work; projection and ordinary evaluation follow later.
         Ok((typing, input.pending_pre_checks.clone()))
     }
 
-    /// Describe a data declaration without checking or executing Product bodies.
     pub fn describe_schema(
         &self,
         occurrence: source::SourceSpan,
@@ -285,7 +940,6 @@ impl SourceContinuation {
         validation::product_queries::describe_schema(self.typed(), occurrence, path)
     }
 
-    /// Describe an exact named implementation, not a nominal data owner.
     pub fn describe_provider(
         &self,
         occurrence: source::SourceSpan,
@@ -294,8 +948,6 @@ impl SourceContinuation {
         validation::product_queries::describe_provider(self.typed(), occurrence, path)
     }
 
-    /// Describe a Product entry without completing or executing its body. The
-    /// caller supplies the slot's source-signature contract, not a truth bit.
     pub fn describe_entry(
         &self,
         occurrence: source::SourceSpan,
@@ -306,22 +958,14 @@ impl SourceContinuation {
         validation::product_queries::describe_entry(self.typed(), occurrence, path, slot, slots)
     }
 
-    /// Whether two admitted Build continuations have exactly the same remaining
-    /// source work. A common pre-Build origin alone is insufficient: Build may
-    /// have elaborated declarations or consumed different evaluation obligations.
     pub fn same_completion_input(&self, other: &Self) -> bool {
         self.input.same_completion_input(&other.input)
     }
 
-    /// Borrow declaration descriptions for package custody; this is not executable input.
     pub fn typed(&self) -> &typed_trees::TypedTrees {
         self.input.typing.typed()
     }
 
-    /// Locate the same authored machine in a distinct source context. This
-    /// transfers selection, never a checking judgment or execution authority.
-    /// Anonymous ownership may become final; already supplied owners, source
-    /// bytes, and checked-instance metadata must remain unchanged.
     pub fn rejoin_machine(
         &self,
         previous: &Self,
@@ -339,9 +983,6 @@ impl SourceContinuation {
             .map_err(refuse)
     }
 
-    /// Form a reached designated application in this exact joined Product.
-    /// Mutable preparation forks the whole continuation input, so retained
-    /// authored completion can only match the same prepared typed source.
     pub fn prepare_product_requirement_operand(
         &mut self,
         operand: &language_semantics::declaration_selection::ProductDeclarationOperand,
@@ -358,8 +999,6 @@ impl SourceContinuation {
         )
     }
 
-    /// Rejoin one admitted dependency's executed Product choice without
-    /// importing its Build code or resolving private names in the consumer.
     pub fn rejoin_product_provider_selection(
         &mut self,
         selection: &build_time_evaluation::provider_declarations::RetainedProviderSelection,
@@ -381,9 +1020,6 @@ impl SourceContinuation {
         }
     }
 
-    /// Materialize original body edges when designated operands need their
-    /// exact lexical state. This is the same body-completion owner used by
-    /// complete_authored; constant evaluation and checking remain later steps.
     pub fn materialize_authored_bodies(
         self,
         observer: &mut impl PsiCompilationObserver,
@@ -407,7 +1043,6 @@ impl SourceContinuation {
         })
     }
 
-    /// Consume the post-Build continuation and complete every authored body once.
     pub fn complete_authored(
         self,
         observer: &mut impl PsiCompilationObserver,
@@ -427,8 +1062,6 @@ impl SourceContinuation {
             context,
         } = Arc::unwrap_or_clone(owned_input);
         (typing, pending_bodies) = complete_authored_bodies(typing, pending_bodies, observer)?;
-        // The paired resolved frontier remains alive until body completion; no
-        // consumer reconstructs it from typed declarations.
         drop(pending_bodies);
         let mut deferred = Vec::new();
         let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
@@ -450,7 +1083,6 @@ impl SourceContinuation {
     }
 }
 
-/// Resolution and typing stay paired across every demand for authored bodies.
 fn complete_authored_bodies(
     mut typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     mut pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
@@ -463,8 +1095,6 @@ fn complete_authored_bodies(
     Vec<Diagnostic>,
 > {
     loop {
-        // Build may append concrete declarations. Join their exact suffix
-        // before body resolution allocates more symbols in the same owner.
         pending_bodies = typing.join_prepared_allocations(pending_bodies)?;
         let selected = pending_bodies.pending_machines().collect::<Vec<_>>();
         if selected.is_empty() {
@@ -485,9 +1115,6 @@ fn complete_authored_bodies(
 }
 
 impl CompletedSource {
-    /// Complete authored Product declarations before this Build's generated
-    /// extension. Selection consumers may resolve inert requests here; the
-    /// later extension retains these same arenas and cannot supply new names.
     pub fn authored_program(&self) -> &typed_trees::TypedTrees {
         self.typing.typed()
     }
@@ -499,9 +1126,6 @@ impl CompletedSource {
         }
     }
 
-    /// Type a later generated stratum against the completed authored predecessor.
-    /// Unit normalization shares that predecessor; generated siblings cannot
-    /// participate in one another's generic synthesis.
     pub fn extend(
         mut self,
         extension: SourceExtensionRequest,
@@ -537,9 +1161,6 @@ impl CompletedSource {
                 self.typing.lower_extension(seeded)
             })?
             .into_typed();
-        // Evaluation records deferred recipes and complete initializer entries
-        // in `typed`. There is no source-evaluation continuation after this
-        // final extension: Product completion consumes the canonical entries.
         PreCheckEvaluation::evaluate_extension_or_defer(
             pre_checks,
             wire_schema_frontier,
@@ -566,27 +1187,21 @@ impl SourceCompletionInput {
     }
 }
 
-/// Invocation-owned canonical frontend inputs. Retention supplies declarations
-/// and pending bodies, never a language judgment, Build authority or free charge.
-/// Stored inputs contain no reference to this container, avoiding ownership cycles.
 #[derive(Clone, Default)]
 pub struct SourceFrontends {
     entries: Arc<std::sync::Mutex<Vec<Arc<SourceCompletionInput>>>>,
 }
 impl SourceFrontends {
-    /// Retained frontend inputs so far; retention only appends.
     pub fn retained_count(&self) -> Result<usize, Vec<Diagnostic>> {
         self.snapshots().map(|entries| entries.len())
     }
 
-    /// An independent container holding the same retained inputs.
     pub fn fork(&self) -> Result<Self, Vec<Diagnostic>> {
         Ok(Self {
             entries: Arc::new(std::sync::Mutex::new(self.snapshots()?)),
         })
     }
 
-    /// Make this container hold exactly `other`'s retained inputs.
     pub fn replace_with(&self, other: &Self) -> Result<(), Vec<Diagnostic>> {
         let entries = other.snapshots()?;
         *self.entries.lock().map_err(|_| {

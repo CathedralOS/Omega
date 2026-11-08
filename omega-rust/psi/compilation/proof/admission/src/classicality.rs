@@ -1,50 +1,22 @@
-//! Logical-foundation classification of the certificate proof rules.
-//!
-//! The classicality audit (`wiki/spec/proofs/classicality.md`)
-//! classifies every rule an accepted certificate can cite against the
-//! classical/constructive boundary the matching-logic exploration requires:
-//! classical reasoning must never be silently imported into the accepted
-//! foundation. The classification is enforced by exhaustive `match` — a new
-//! `AcceptedProofRule` variant that is not classified here does not compile.
+/*
+    Constructive and classical foundation classification for admitted proof
+    rules.
+
+    We assign each `AcceptedProofRule` its `ProofRuleFoundation` so consumers
+    can audit whether a certificate remains within the constructive core.
+*/
 
 use crate::proof::AcceptedProofRule;
 
-/// The logical foundation an accepted proof rule stands on.
-///
-/// This is a review classification, not a second checker: it names the
-/// reasoning principle each rule is allowed to use, so a reader can audit
-/// the boundary without re-deriving it from the checkers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ProofRuleFoundation {
-    /// Intuitionistically valid inference: the conclusion is witnessed from
-    /// checked premises with no appeal to excluded middle, double-negation
-    /// elimination, or proof by contradiction.
     Constructive,
-    /// Constructive only because the checked relation is decidable over its
-    /// carrier — closed integer relations, carrier bounds, discreteness of
-    /// fixed integers, bounded denotation and checked witness conversion.
-    /// A rule in this class must not be generalized to an undecidable
-    /// domain without reclassification; decision over an undecidable
-    /// relation is a disguised excluded middle.
     ConstructiveDecidable,
-    /// Not an inference rule: the node cites a verifier-reconstructed
-    /// semantic axiom whose proposition is itself a trusted premise of the
-    /// compilation, recorded on the acceptance for audit.
     TrustedAdmission,
-    /// A rule resting on a classically-only principle — excluded middle,
-    /// double-negation elimination, proof by contradiction, choice, or a
-    /// decision procedure over an undecidable relation. Negation is definable
-    /// as implication to Falsehood, so classical formulas are expressible.
-    /// No rule is classified here: acceptance requires a checked derivation
-    /// under recorded premises, not merely a well-formed classical goal.
-    /// Decidable instances may have constructive proofs; a supplied classical
-    /// premise remains a dependency. Classification is a review inventory,
-    /// not a soundness proof of the implementations.
     Classical,
 }
 
 impl AcceptedProofRule {
-    /// The foundation this rule's justification stands on.
     pub const fn foundation(self) -> ProofRuleFoundation {
         match self {
             Self::Primitive => ProofRuleFoundation::ConstructiveDecidable,
@@ -78,9 +50,6 @@ impl AcceptedProofRule {
         }
     }
 
-    /// Whether checking this rule records cited semantic axioms on the
-    /// acceptance — the bound rules prove nothing by themselves; each
-    /// accepted use re-commits the witness's cited axiom roster.
     pub const fn cites_semantic_axioms(self) -> bool {
         matches!(
             self,
@@ -98,10 +67,6 @@ impl AcceptedProofRule {
 mod tests {
     use super::{AcceptedProofRule, ProofRuleFoundation};
 
-    /// Every rule an accepted certificate records. Duplicating the variant
-    /// list here is the audit's completeness check: the exhaustive `match`
-    /// in `foundation` forces new rules into the classifier, and this list
-    /// forces them into the test assertions.
     const ALL: [AcceptedProofRule; 28] = [
         AcceptedProofRule::Primitive,
         AcceptedProofRule::SemanticAxiom,

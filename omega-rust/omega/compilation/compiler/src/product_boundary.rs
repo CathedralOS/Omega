@@ -74,9 +74,7 @@ fn product_policy_admission_has_one_source_owner() {
             "native_binding_evaluation",
         ],
     );
-    let source = include_str!(
-        "../../../../psi/compilation/psi-compiler/src/source_compilation/product_policy.rs"
-    );
+    let source = include_str!("../../../../psi/compilation/psi-compiler/src/source_compilation.rs");
     assert_in_order(
         source,
         "Psi product policy",
@@ -309,7 +307,7 @@ fn checked_operator_choice_consumes_retained_candidates() {
 #[test]
 fn issuer_identities_precede_occurrence_production() {
     let preparation = include_str!(
-        "../../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published/semantic/facts.rs"
+        "../../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published.rs"
     );
     assert_in_order(
         preparation,
@@ -552,9 +550,8 @@ fn exclusion_source_resolution_stays_out_of_terminal_policy() {
 
 #[test]
 fn terminal_composition_admission_follows_canonical_publication() {
-    let producer = include_str!(
-        "../../../../psi/compilation/psi-compiler/terminal-production/src/terminal_production.rs"
-    );
+    let producer =
+        include_str!("../../../../psi/compilation/psi-compiler/terminal-production/src/lib.rs");
     assert_eq!(producer.matches("application.attach(").count(), 1);
     assert_in_order(
         producer,
@@ -566,9 +563,8 @@ fn terminal_composition_admission_follows_canonical_publication() {
         "Psi production runs Omega policy:",
         &["admission.admit(", "policy.admit("],
     );
-    let composition = include_str!(
-        "../../../../psi/compilation/psi-compiler/terminal-production/src/composition_roots.rs"
-    );
+    let composition =
+        include_str!("../../../../psi/compilation/psi-compiler/terminal-production/src/lib.rs");
     assert_absent(
         &[composition],
         "Psi composition runs Omega policy:",
@@ -777,7 +773,7 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
         &["checked_trees", "typed_trees", "psi_terminal_production"],
     );
     let declarations = include_str!(
-        "../../../../psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/projections/external_provider_declarations/callbacks.rs"
+        "../../../../psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/projections.rs"
     );
     assert!(declarations.contains("checked.callback_declaration(usage)"));
     assert!(declarations.contains("declarations::identity("));
@@ -786,9 +782,8 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
     assert!(declarations.contains("usage.published_requirement_envelope"));
     assert!(declarations.contains("usage.selected_actual_envelope"));
     assert!(declarations.contains("usage.callback_entry.map("));
-    let admission = include_str!(
-        "../../../../psi/compilation/psi-compiler/terminal-production/src/composition_roots.rs"
-    );
+    let admission =
+        include_str!("../../../../psi/compilation/psi-compiler/terminal-production/src/lib.rs");
     assert!(admission.contains("roots.push(project_root(module, provenance, entry))"));
     assert!(admission.contains("callbacks.retained_roots(module)"));
 }
@@ -800,7 +795,7 @@ fn service_surface_projection_is_psi_owned_and_calling_is_an_omega_attachment() 
     assert!(!surface.contains("BoundaryCallingPlanCommitment"));
     assert!(!surface.contains("calling_plan_report_fingerprint"));
     let projection = include_str!(
-        "../../../../psi/compilation/representations/typed-trees/src/service_declarations/projection.rs"
+        "../../../../psi/compilation/representations/typed-trees/src/service_declarations.rs"
     );
     assert!(projection.contains("requirements.push(ServiceRequirementSource"));
     assert!(projection.contains("scope.type_identity("));

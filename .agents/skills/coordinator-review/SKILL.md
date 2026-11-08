@@ -134,7 +134,7 @@ Inspect every added or modified line in `tests/omega/corpus_outcomes.txt`:
   - `… changes no corpus outcome`: accept it only as performance or
     restructuring work with its measurement in the PR body. Any other repair
     with no observable outcome goes back to the worker.
-- **Monotonic `TASKS.md` closure:** Confirm a `TASKS.md` bullet is deleted only
+- **`TASKS.md` closure:** Confirm a `TASKS.md` bullet is deleted only
   when all nine places and nine reject twins pass and are pinned under
   `tests/omega/{pass,fail}/facts/`, and never rewritten into `"preserving /
   keeping / now passes"` history prose.
