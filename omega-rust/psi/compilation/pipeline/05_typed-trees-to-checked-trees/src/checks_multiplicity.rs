@@ -1136,19 +1136,6 @@ mod content_transformations {
             {
                 return Err("derived equation does not retain its exact completion frame");
             }
-            // Several outgoing uses can discover the very same formation demand.
-            // Keep that one equation once; different equations still face joint
-            // accounting rather than each spending the same input independently.
-            if transaction.equations.iter().any(|derived| {
-                let previous = content.body_conservations.get(derived.conservation);
-                previous.plan_index == equation.plan_index
-                    && content
-                        .body_conservation_plans
-                        .get(previous.body_plan_index)
-                        == Some(body_plan)
-            }) {
-                continue;
-            }
             let available = content
                 .body_available_inputs
                 .span_or_empty(equation.available_inputs);
@@ -1181,6 +1168,22 @@ mod content_transformations {
                     program, facts, equation,
                 )?)
             };
+            // Independently checked declarations can impose the same completed
+            // equation. Keep one exact transaction rather than spending it twice.
+            // Boundary replay still retains its own authenticated source law.
+            if transaction.equations.iter().any(|derived| {
+                let previous = content.body_conservations.get(derived.conservation);
+                let same_custody = match (&derived.custody, &custody) {
+                    (PreparedCustody::Derived, PreparedCustody::Derived) => true,
+                    (PreparedCustody::Boundary(_), PreparedCustody::Boundary(_)) => {
+                        previous.plan_index == equation.plan_index
+                    }
+                    _ => false,
+                };
+                same_custody && same_completed_equation(facts, previous, equation)
+            }) {
+                continue;
+            }
             let mut roots = Vec::new();
             let mut owner = None;
             for input in available {
@@ -1560,6 +1563,59 @@ mod content_transformations {
             }
         }
         places
+    }
+
+    fn same_completed_equation(
+        facts: checked_trees::CheckFactsRef<'_>,
+        left: &ContentBodyConservationFact,
+        right: &ContentBodyConservationFact,
+    ) -> bool {
+        let content = &facts.qualifications.content;
+        let paths = &facts.flow.ownership.segments;
+        let same_binding = |left: &ContentBodyClaimBinding, right: &ContentBodyClaimBinding| {
+            same_qualification(left, right)
+                && left.parameter_symbol == right.parameter_symbol
+                && left.observation == right.observation
+                && paths.span_or_empty(left.segments) == paths.span_or_empty(right.segments)
+        };
+        let same_bindings = |left, right| {
+            let left = content.body_claim_bindings.span_or_empty(left);
+            let right = content.body_claim_bindings.span_or_empty(right);
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|(left, right)| same_binding(left, right))
+        };
+        let left_available = content
+            .body_available_inputs
+            .span_or_empty(left.available_inputs);
+        let right_available = content
+            .body_available_inputs
+            .span_or_empty(right.available_inputs);
+        left.machine_symbol == right.machine_symbol
+            && left.state_symbol == right.state_symbol
+            && left.returned_at == right.returned_at
+            && left.completed_value == right.completed_value
+            && left.evaluation == right.evaluation
+            && content.body_conservation_plans.get(left.body_plan_index)
+                == content.body_conservation_plans.get(right.body_plan_index)
+            && same_bindings(left.inputs, right.inputs)
+            && same_bindings(left.outputs, right.outputs)
+            && left_available.len() == right_available.len()
+            && left_available
+                .iter()
+                .zip(right_available)
+                .all(|(left, right)| {
+                    left.root == right.root
+                        && left.provenance == right.provenance
+                        && paths.span_or_empty(left.segments) == paths.span_or_empty(right.segments)
+                        && same_binding(
+                            content.body_claim_bindings.get(left.binding),
+                            content.body_claim_bindings.get(right.binding),
+                        )
+                        && same_bindings(left.entry_bindings, right.entry_bindings)
+                })
     }
 
     fn same_qualification(left: &ContentBodyClaimBinding, right: &ContentBodyClaimBinding) -> bool {
