@@ -24,7 +24,9 @@ impl StructuralJudge<'_> {
             StaticMachineArgument,
         )],
     ) -> StructuralJudgment {
-        if !self.runtime_body_values || self.case_facts_only {
+        // Proof contexts and runtime prefixes both supply instantiated actuals.
+        // Tag preservation alone cannot establish a value predicate.
+        if self.case_facts_only {
             return StructuralJudgment::Unknown;
         }
         let predicate = super::super::structural_terms::mathematical_application_term(
