@@ -32,11 +32,11 @@ public data RepresentationError<EncodingError, DecodingError> {
 // Its uniqueness law gives semantic identity, not resource or storage authority.
 public trait RepresentationModel<Value, Frame> {
     machine valid<'view>(frame: &'view Frame) -> bool
-    reaches none suspends false blocks false terminates;
+    reaches none terminates;
     machine represents<'view, 'value>(frame: &'view Frame, value: &'value Value) -> bool
-    reaches none suspends false blocks false terminates;
+    reaches none terminates;
     machine unique<'view, 'left, 'right>(frame: &'view Frame, left: &'left Value, right: &'right Value)
-    reaches none suspends false blocks false terminates
+    reaches none terminates
     requires represents(frame, left)
     requires represents(frame, right)
     ensures core::Identity<Value>(left, right);

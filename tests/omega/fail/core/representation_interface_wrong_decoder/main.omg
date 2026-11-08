@@ -9,11 +9,11 @@ data ReadError [copy] { case InvalidTag; }
 
 OwnedModel satisfies RepresentationModel<u8, Frame> {
     machine valid<'view>(frame: &'view Frame) -> bool
-    reaches none suspends false blocks false terminates { frame.tag == 165u8 }
+    reaches none terminates { frame.tag == 165u8 }
     machine represents<'view, 'value>(frame: &'view Frame, value: &'value u8) -> bool
-    reaches none suspends false blocks false terminates { frame.value == value }
+    reaches none terminates { frame.value == value }
     machine unique<'view, 'left, 'right>(frame: &'view Frame, left: &'left u8, right: &'right u8)
-    reaches none suspends false blocks false terminates
+    reaches none terminates
     requires represents(frame, left)
     requires represents(frame, right)
     ensures core::Identity<u8>(left, right) { }
@@ -122,11 +122,11 @@ data BufferedFrame<'buffer> requires self.output.len >= 2u64 { output: &'buffer 
 data BufferFailure<'buffer> { output: &'buffer mut [u8]; }
 BufferModel<'buffer> satisfies RepresentationModel<u8, BufferedFrame<'buffer>> {
     machine valid<'view>(frame: &'view BufferedFrame<'buffer>) -> bool
-    reaches none suspends false blocks false terminates { frame.output[0u64] == 165u8 }
+    reaches none terminates { frame.output[0u64] == 165u8 }
     machine represents<'view, 'value>(frame: &'view BufferedFrame<'buffer>, value: &'value u8) -> bool
-    reaches none suspends false blocks false terminates { frame.output[1u64] == value }
+    reaches none terminates { frame.output[1u64] == value }
     machine unique<'view, 'left, 'right>(frame: &'view BufferedFrame<'buffer>, left: &'left u8, right: &'right u8)
-    reaches none suspends false blocks false terminates
+    reaches none terminates
     requires represents(frame, left)
     requires represents(frame, right)
     ensures core::Identity<u8>(left, right) { }
