@@ -906,12 +906,8 @@ impl RemainingCustody {
         statement: usize,
         place: &validation::CanonicalPlace,
     ) -> Option<Vec<(symbols::SymbolHandle, validation::CanonicalPlace)>> {
-        let Some(machine) = program.machine_holding_state(state) else {
-            return None;
-        };
-        let Some(state_definition) = program.state_in_machine(machine, state) else {
-            return None;
-        };
+        let machine = program.machine_holding_state(state)?;
+        let state_definition = program.state_in_machine(machine, state)?;
         if !crate::flow::stable_case_subject(program, machine, state_definition, statement, place)
             || !(0..=place.segments.len()).all(|length| {
                 validation::canonical_place_type_reference(
@@ -928,12 +924,8 @@ impl RemainingCustody {
         {
             return None;
         }
-        let Some(data) =
-            validation::canonical_place_type_reference(program, state, statement, place)
-                .and_then(|reference| program.closed_data_definition(reference))
-        else {
-            return None;
-        };
+        let data = validation::canonical_place_type_reference(program, state, statement, place)
+            .and_then(|reference| program.closed_data_definition(reference))?;
         let variants = program
             .data_members(data)
             .iter()
