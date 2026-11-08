@@ -15292,16 +15292,21 @@ pub(crate) mod contract_refinement {
         ) {
             return false;
         }
-        let Some(binary) = program.expression_table.binary_node(expression) else {
+        let subjects = if let Ok(identity) =
+            crate::mathematical_applications::identity_application_at(program, expression)
+        {
+            identity.subjects
+        } else if let Some(binary) = program.expression_table.binary_node(expression)
+            && binary.operator == BinaryOperator::Equal
+        {
+            [binary.left, binary.right]
+        } else {
             return false;
         };
-        if binary.operator != BinaryOperator::Equal {
-            return false;
-        }
         matches!(
             (
-                structural_term(program, None, None, binary.left, None),
-                structural_term(program, None, None, binary.right, None),
+                structural_term(program, None, None, subjects[0], None),
+                structural_term(program, None, None, subjects[1], None),
             ),
             (Some(_), Some(_))
         )

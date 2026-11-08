@@ -174,7 +174,7 @@ mod body_conservation {
                                 invocation.target,
                                 invocation.expression,
                                 invocation.arguments,
-                                &plan,
+                                plan,
                                 &mut remaining,
                             );
                             trace_transfer(
@@ -432,7 +432,7 @@ mod body_conservation {
                 });
                 if let Some(source) = source
                     && let Some(StoredOperand::Incoming(source)) =
-                        validation::completed_storage::at_snapshot(
+                        validation::completed_storage::sources_at_snapshot(
                             program,
                             facts.flow.control,
                             capture.storage_snapshot,

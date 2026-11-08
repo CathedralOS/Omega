@@ -2588,8 +2588,8 @@ fn claim_outcomes_for_expression(
     // The selection retains each arm's consumed frontier. Read that evidence
     // before the joined home, whose provenance can hide distinct arm origins.
     if ownership
-        .owned_selection_at(state.symbol, statement_index as u32)
-        .is_some_and(|(_, receipt)| receipt.expression == expression)
+        .owned_selection_for_expression(state.symbol, statement_index as u32, expression)
+        .is_some()
     {
         return claim_outcomes_for_owned_selection(
             program,
@@ -2831,13 +2831,11 @@ fn claim_outcomes_for_owned_selection(
     permission_events: &[FlowPermissionEventFact],
     output_prefix: &[facts::PlaceSegment],
 ) -> Vec<CheckedClaimOutcomeEntry> {
-    let Some((_, receipt)) = ownership.owned_selection_at(state.symbol, statement_index as u32)
+    let Some((_, receipt)) =
+        ownership.owned_selection_for_expression(state.symbol, statement_index as u32, expression)
     else {
         return Vec::new();
     };
-    if receipt.expression != expression {
-        return Vec::new();
-    }
     let mut entries = Vec::new();
     for transfer in ownership
         .selection_transfers
