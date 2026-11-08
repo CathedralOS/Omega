@@ -203,13 +203,6 @@ mod body_conservation {
                                     &plan,
                                     &mut remaining,
                                 );
-                                trace_transfer(
-                                    program,
-                                    state,
-                                    current_state,
-                                    invocation.target,
-                                    &transferred,
-                                );
                                 if let Ok(next) = transferred {
                                     pending.push(next);
                                 }
