@@ -39,3 +39,23 @@ and selected custom and IEEE comparisons. The existing
 retains nine-place coverage of its separate integer-complement path. This repair
 does not close PROOF-KERNEL-CORE's broader acceptance or claim foreign-host
 execution. Raw runs remain outside git under the existing qualification workflow.
+
+## Observed candidate
+
+[Run 42513563575](https://github.com/CathedralOS/Omega/actions/runs/42513563575)
+authenticates source `0ef9213f3832293de6df91f544d1ef32af68b633`, the optimized
+producer profiles and all 44 selected source/oracle blobs. All eleven checking
+rows satisfy their intended oracles. The frozen positive, ordinary integer
+negation, double integer negation and existing IEEE identity program each
+execute with native exit 0, Psi exit 0 and agreement on Linux x86-64.
+
+[Run 42512068420](https://github.com/CathedralOS/Omega/actions/runs/42512068420)
+passes the three focused Rust tests, formatting, dependency boundaries and
+production Clippy on `e78c5edc15c`. Its Rust/library/toolchain dependency closure
+is unchanged in the program qualification and subsequent record/documentation
+commit. The records keep their actual producer revision.
+
+The two existing custom-order/changed-operand expected fragments were refreshed
+after [baseline run 42512531236](https://github.com/CathedralOS/Omega/actions/runs/42512531236)
+reproduced the same complete diagnostics on preserved source `0bda069e4d2`.
+Their authored programs are unchanged.

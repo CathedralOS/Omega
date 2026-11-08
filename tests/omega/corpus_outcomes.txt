@@ -16723,13 +16723,16 @@ fail/proofs/mathematical_machine_result_requires rejected 1092ms expected @ccdb9
 	cannot prove requires contract for specification call `packet` in mathematical definition `unproved_call`: establish its selected precondition in an independently formed prior requires fact
 fail/proofs/mathematical_mutated_capture rejected 943ms expected @ccdb99ca2214
 	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
-fail/proofs/mathematical_negated_changed_operand rejected 1580ms expected @ccdb99ca2214
-	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	machine `main` state `entry` value call to `consume` violates required fact `within(5, value)`: the instantiated fact is structurally false
-fail/proofs/mathematical_negated_custom_order rejected 1467ms expected @ccdb99ca2214
-	exact arithmetic in machine `unjustified` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/proofs/mathematical_negated_changed_operand rejected 5696ms expected @0ef9213f3832
+	cannot prove requires contract: machine `main` state `entry` value call to `consume` violates required fact `within(5, value)`: the instantiated fact is structurally false
+fail/proofs/mathematical_negated_custom_order rejected 8345ms expected @0ef9213f3832
+	exact arithmetic in machine `unjustified` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
 fail/proofs/mathematical_negated_false_call rejected 1360ms expected @ccdb99ca2214
 	machine `main` state `entry` value call to `consume` violates required fact `within(5, value)`: the instantiated fact is structurally false
+fail/proofs/mathematical_negated_identity_refuted rejected 7045ms expected @0ef9213f3832
+	machine `bogus` ensures contract proof fact `different<Nat>(a, Nat)` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
+fail/proofs/mathematical_negated_identity_unknown rejected 8215ms expected @0ef9213f3832
+	cannot prove ensures contract for exit from arbitrary at statement 0: different<Pair>(left, right)
 fail/proofs/mathematical_negated_ieee_order rejected 4572ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from unjustified at statement 0: value <= 5.0
 fail/proofs/mathematical_opaque_operation_source_meaning rejected 2193ms expected @ccdb99ca2214
@@ -26746,6 +26749,7 @@ pass/proofs/loop_postcondition_after_element_store rejected 1977ms regressed-fro
 pass/proofs/machine_parameterized_data_compile checked 2354ms @ccdb99ca2214
 pass/proofs/mathematical_generic_result_carrier checked 2443ms @ccdb99ca2214
 pass/proofs/mathematical_machine_result_carrier checked 3425ms check-target:macos_arm64 @ccdb99ca2214
+pass/proofs/mathematical_negated_identity_exit checked 12048ms check-target:macos_arm64 @0ef9213f3832
 pass/proofs/mathematical_negated_integer_order_double_exit checked 3598ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/mathematical_negated_integer_order_exit checked 3835ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/mathematical_predicate_contract_import_exit rejected 3486ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
