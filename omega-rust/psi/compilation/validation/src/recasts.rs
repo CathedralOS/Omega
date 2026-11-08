@@ -4476,7 +4476,7 @@ pub(crate) mod read_admission {
             &mut diagnostics,
         );
         if !diagnostics.is_empty() {
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if crate::trace_flags::struct_trace() {
                 eprintln!(
                     "STRUCT retained-view-formation-refused expression={expression:?} machine={:?} state={:?} statement={index} diagnostic={:?}",
                     machine.symbol,

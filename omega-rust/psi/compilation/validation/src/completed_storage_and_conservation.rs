@@ -513,7 +513,7 @@ pub mod completed_storage {
         }
 
         fn trace_query_enabled(source: &CanonicalPlace) -> bool {
-            if std::env::var_os("OMEGA_STORAGE_QUERY_TRACE").is_none() {
+            if !crate::trace_flags::storage_query_trace() {
                 return false;
             }
             std::env::var("OMEGA_STORAGE_QUERY_TRACE_ROOT")
@@ -2056,7 +2056,7 @@ pub mod completed_storage {
                 path: &[PlaceSegment],
                 reason: &str,
             ) {
-                if std::env::var_os("OMEGA_STORAGE_QUERY_TRACE").is_none()
+                if !crate::trace_flags::storage_query_trace()
                     || !self.control.operands.is_valid(value)
                 {
                     return;
@@ -3405,7 +3405,7 @@ pub mod completed_storage {
                     Some(Ok(())) => return true,
                     Some(Err(reason)) => {
                         (walk.on_refusal)(reason);
-                        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        if crate::trace_flags::struct_trace() {
                             let captured = facts.flow.control.operands.get(value);
                             eprintln!(
                                 "STRUCT owned-membership value={value:?} state={:?} statement={} lane={:?} path_len={} storage_cut={:?} domain={domain:?} reason={reason}",

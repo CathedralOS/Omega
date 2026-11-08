@@ -1736,7 +1736,7 @@ mod loan_backing {
             )
             .is_some()
             {
-                if std::env::var_os("OMEGA_STATE_REFERENCE_DIAGNOSTICS").is_some() {
+                if ::validation::trace_flags::state_reference_diagnostics() {
                     eprintln!(
                         "CHECKSITE state reference resource missing: machine={machine:?} state={state:?} call={call_handle:?} operand={operand:?} type={:?} expression={:?} completion={:?} permission={:?}",
                         capture.type_reference,
@@ -4994,7 +4994,7 @@ mod result_custody {
                 + reference_releases
                 + independent_view_releases;
             if total != 1 && !(total == 0 && !has_normal_caller_completion) {
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if ::validation::trace_flags::struct_trace() {
                     eprintln!(
                         "result custody: machine={:?} state={:?} result={result:?} local={result_local:?} construction={construction_transfers} cleanup={cleanup_discards} implicit={implicit_disposition} consumed={consumed} stored={stored} projected={projected_disposition} retired={retired_whole} calls={call_transfers} release={reference_releases} views={independent_view_releases} operations={operations:#?}",
                         machine.symbol, state.symbol
@@ -5894,7 +5894,7 @@ pub(super) mod returns {
             state.return_type,
             &crate::execution::terminal_unit::types::machine_binders(program, machine),
         );
-        if result.is_none() && std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+        if result.is_none() && ::validation::trace_flags::trace_completion() {
             eprintln!(
                 "CHECKSITE completion-return-type machine={} state={} type={:?} declaration={:?} stored_loan={:?} slice={:?}",
                 machine.name,
@@ -5922,7 +5922,7 @@ pub(super) mod returns {
             false,
             &mut operand_calls,
         );
-        if operation.is_none() && std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+        if operation.is_none() && ::validation::trace_flags::trace_completion() {
             eprintln!(
                 "CHECKSITE completion-return-producer machine={} state={} root={:?} value={:?}",
                 machine.name,
@@ -8009,9 +8009,7 @@ mod terminator {
                     let sources = validation::reference_result_custody::captured_return_sources(
                         program, facts, state,
                     );
-                    if sources.is_none()
-                        && std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some()
-                    {
+                    if sources.is_none() && ::validation::trace_flags::trace_completion() {
                         eprintln!(
                             "CHECKSITE completion-return-sources-missing machine={} state={} type={:?}",
                             machine.name, state.name, state.return_type

@@ -768,7 +768,7 @@ mod persistent {
                         .enumerate()
                 {
                     let requires_relation = calls.iter().any(|call| {
-                        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+                        if ::validation::trace_flags::struct_trace()
                             && call.statement_index == statement_index
                         {
                             eprintln!("STRUCT stored-output machine={} state={} statement={} resolver={} target={:?}", machine.name, state.name, statement_index, frames.is_some(), call.target_symbol);
@@ -5774,7 +5774,7 @@ mod statements {
                     {
                         continue;
                     }
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if ::validation::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT local-loan-conflict new={loan_handle:?} row={loan:?} active={active_loan_handle:?} row={active_loan:?} new_path={:?} active_path={:?} lineage={retained_lineage:?}",
                             facts.borrow.loan_segments(loan),
@@ -6131,7 +6131,7 @@ mod statements {
                     .map(|reason| format!("; {reason}"))
                     .unwrap_or_default();
                 let loan = facts.borrow.loans.get(loan_handle);
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if ::validation::trace_flags::struct_trace() {
                     eprintln!(
                         "STRUCT mutation-loan-conflict statement={} loan={loan_handle:?} row={loan:?} path={:?} suppliers={:?} incoming={:?}",
                         statement.statement_index,
@@ -6924,7 +6924,7 @@ mod access_sources {
             ) {
                 Ok(resolved) => Some(resolved),
                 Err(reason) => {
-                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    if ::validation::trace_flags::check_sites() {
                         eprintln!(
                             "CHECKSITE descriptor-load state={:?} statement={} constraints={:?} place={:?} refusal={}",
                             state.state_symbol, statement_index, constraints, place, reason,
@@ -10969,7 +10969,7 @@ mod place_access {
             .ok_or("the source place has no retained authority");
         }
         let selected = selected.ok_or_else(|| {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if ::validation::trace_flags::check_sites() {
                 trace_argument_capture_refusal(facts, state, call, access);
             }
             "the access has no unique completed operand"

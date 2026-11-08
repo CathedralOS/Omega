@@ -2550,7 +2550,7 @@ pub(crate) mod lifetime_contract {
                 &crate::borrow::owner_path_from_place_segments(program, owner_path),
             );
             if let Err(reason) = completion {
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if ::validation::trace_flags::struct_trace() {
                     eprintln!(
                         "STRUCT output-lifetime-contract-refused output={identity:?} reason={reason}"
                     );

@@ -161,7 +161,7 @@ mod call_writes {
                 length,
             );
             if let Err(reason) = &result
-                && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                && ::validation::trace_flags::check_sites()
             {
                 eprintln!(
                     "CHECKSITE captured-index-bound state={:?} statement={statement_index} expression={expression:?} length={length} refusal={reason:?}",

@@ -2336,7 +2336,7 @@ pub(in crate::checks::borrows) mod invocation_permissions {
                 })
         });
         let Some(permission) = permissions.next() else {
-            if std::env::var_os("OMEGA_STATE_REFERENCE_DIAGNOSTICS").is_some() {
+            if ::validation::trace_flags::state_reference_diagnostics() {
                 eprintln!(
                     "returned-reference-permission-refused call={call:?} expression={:?} path={path:?} expected_type={selected:?} expected_access={access:?} capture={capture:?}",
                     invocation.authored_expression,
@@ -3889,7 +3889,7 @@ mod permission_sources {
         };
         active.pop();
         if !resolved {
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if ::validation::trace_flags::struct_trace() {
                 eprintln!(
                     "STRUCT descriptor-permission-unavailable source={source:?} expression={:?} completion={:?} permission={:?} path={projection:?} frozen={frozen_kind}",
                     capture.expression, capture.completion, capture.descriptor_permission
@@ -4139,7 +4139,7 @@ mod permission_sources {
                 true
             }
             Err(reason) => {
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if ::validation::trace_flags::struct_trace() {
                     eprintln!("STRUCT supplied-descriptor-permission-refused {reason}");
                 }
                 false
@@ -4183,7 +4183,7 @@ mod permission_sources {
             validation::completed_storage::StoredOperand::Value { .. } => "value",
         };
         let Some(selected) = selected.captures() else {
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if ::validation::trace_flags::struct_trace() {
                 eprintln!(
                     "STRUCT descriptor-capture-frontier-unavailable source={source:?} path={projection:?} kind={selection_kind} capture={capture:?}"
                 );
@@ -4404,7 +4404,7 @@ mod permission_sources {
                 parents,
                 failures,
             ) {
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if ::validation::trace_flags::struct_trace() {
                     eprintln!(
                         "STRUCT descriptor-predecessor-permission-unavailable source={source:?} predecessor={selected:?} path={projection:?}"
                     );
@@ -4441,7 +4441,7 @@ mod permission_sources {
         parents: &mut Arena<Handle<BorrowLoanFact>>,
     ) -> InvocationAccessCoverage {
         let unavailable = |reason| {
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if ::validation::trace_flags::struct_trace() {
                 eprintln!(
                     "STRUCT captured-call-access-refused source={source:?} call={call:?} expression={:?} reason={reason}",
                     capture.expression
@@ -5625,7 +5625,7 @@ mod stored_call_inputs {
                 }
                 match retained_inputs(program, facts, loan_occurrences, state, loan, row) {
                     Ok(inputs) => retained.push((loan, inputs)),
-                    Err(reason) if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() => {
+                    Err(reason) if ::validation::trace_flags::check_sites() => {
                         eprintln!(
                             "CHECKSITE stored-call-input-unavailable loan={loan:?} reason={reason}"
                         );
@@ -6782,7 +6782,7 @@ pub(in crate::checks::borrows) mod supplied_permissions {
                 path,
                 &access,
             ).inspect_err(|reason| {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if ::validation::trace_flags::check_sites() {
                     eprintln!("CHECKSITE completed-output-input-refused source={source:?} stored={stored:?} owner={owner:?} operand={operand:?} original_call={original:?} lending_call={lending_call:?} path={path:?} access={access:?} reason={reason}");
                     let value = facts.flow.control.operands.get(operand);
                     if facts.flow.control.operand_retentions.is_valid(value.retention) {

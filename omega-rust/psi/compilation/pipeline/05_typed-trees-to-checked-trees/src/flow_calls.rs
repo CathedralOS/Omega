@@ -186,7 +186,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     *active_constraints =
         retained_constraint_refs(&build.contexts.constraint_refs, exit.constraints);
 
-    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+    if ::validation::trace_flags::struct_trace() {
         eprintln!(
             "FLOW call-storage-writes caller={} state={} target={:?} statement={} ordinal={} complete={} summary={storage_writes:?} observed={:?}",
             machine.name,
@@ -575,7 +575,7 @@ pub(in crate::flow) fn result_identity_is_available(
             ) {
                 Ok(matches) => matches,
                 Err(reason) => {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if ::validation::trace_flags::struct_trace() {
                         eprintln!("selected result domain correspondence: {reason}");
                     }
                     false

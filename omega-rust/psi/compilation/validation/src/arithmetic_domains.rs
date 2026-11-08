@@ -7646,7 +7646,7 @@ pub(crate) mod expression_analysis {
                     interval,
                 )
             });
-            if std::env::var_os("OMEGA_REFERENCE_SLOT_TRACE").is_some()
+            if crate::trace_flags::reference_slot_trace()
                 && crate::reference_shell(program, handle).is_some()
             {
                 eprintln!(
@@ -18835,7 +18835,7 @@ pub(crate) mod ordered_values {
                 }
             };
             let sources = frames.completed_reference_read_sources(machine, state, expression)?;
-            if std::env::var_os("OMEGA_REFERENCE_SLOT_TRACE").is_some() {
+            if crate::trace_flags::reference_slot_trace() {
                 eprintln!(
                     "SLOT read-sources machine={} expression={expression:?} sources={sources:?}",
                     machine.name
@@ -25925,7 +25925,7 @@ pub(crate) mod value_environment {
             state: Option<&State>,
             written: &[String],
         ) {
-            if std::env::var_os("OMEGA_REFERENCE_SLOT_TRACE").is_some() && !written.is_empty() {
+            if crate::trace_flags::reference_slot_trace() && !written.is_empty() {
                 eprintln!(
                     "SLOT invalidation-before state={:?} written={written:?} intervals={:?} relations={:?}",
                     state.map(|state| state.symbol),
@@ -25936,7 +25936,7 @@ pub(crate) mod value_environment {
             self.invalidate_storage(written, |operand| {
                 operand.survives_storage_writes(program, state, written)
             });
-            if std::env::var_os("OMEGA_REFERENCE_SLOT_TRACE").is_some() && !written.is_empty() {
+            if crate::trace_flags::reference_slot_trace() && !written.is_empty() {
                 eprintln!(
                     "SLOT invalidation-after state={:?} intervals={:?} relations={:?}",
                     state.map(|state| state.symbol),

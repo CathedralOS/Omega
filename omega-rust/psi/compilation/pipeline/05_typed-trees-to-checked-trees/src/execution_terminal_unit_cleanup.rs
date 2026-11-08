@@ -985,7 +985,7 @@ pub(super) mod anonymous {
         completion_phase("normal completion: input lifetimes");
         for operand in facts.flow.control.operands.span(source_call.operands)? {
             let roots = crate::flow::captured_lifetime_roots(program, &facts.flow.control, operand);
-            if roots.is_none() && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if roots.is_none() && ::validation::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE normal-completion-input-lifetime machine={} state={} call={:?} operand={:?} profile={:?}",
                     machine.name,
@@ -2019,7 +2019,7 @@ pub(super) mod normal_edges {
                 }
                 row.actions.extend(actions);
             } else {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if ::validation::trace_flags::check_sites() {
                     eprintln!(
                         "CHECKSITE normal-cleanup-unmatched machine={machine:?} state={:?} disposition={disposition:?} exits={:?} outgoing={:?}",
                         state.symbol,
@@ -3894,7 +3894,7 @@ pub(super) mod temporary_actions {
                         refusal = format!(
                             "{site}: temporary operand has incomplete backing lifetime coverage"
                         );
-                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        if ::validation::trace_flags::check_sites() {
                             refusal.push_str(&incomplete_lifetime_capture_diagnostic(
                                 program,
                                 &facts.flow.control,

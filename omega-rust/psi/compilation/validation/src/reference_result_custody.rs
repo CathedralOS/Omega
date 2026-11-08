@@ -2171,7 +2171,7 @@ pub(crate) mod captured_returns {
                     Ok(output)
                 })();
                 if let Err(reason) = &result
-                    && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                    && crate::trace_flags::check_sites()
                 {
                     eprintln!(
                         "CHECKSITE returned-invocation-input state={:?} statement={} expression={:?} invocation={invocation:?} path={path:?} refusal={reason}",
@@ -2849,7 +2849,7 @@ pub(crate) mod captured_returns {
             ) -> Option<Vec<CheckedReferenceOriginSourcePlan>> {
                 let result = self.loaded_descriptor_origins_inner(state, loan, leaf, segments);
                 if let Err(reason) = &result
-                    && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                    && crate::trace_flags::check_sites()
                 {
                     eprintln!(
                         "CHECKSITE returned-descriptor-load state={:?} identity={:?} formation={:?} result_path={:?} refusal={reason}",
@@ -3686,7 +3686,7 @@ pub(crate) mod captured_returns {
                                 .iter()
                                 .find(|source| !candidates.contains(source))
                             {
-                                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                                if crate::trace_flags::check_sites() {
                                     eprintln!(
                                         "CHECKSITE captured-return-equation state={:?} refusal=recursive-source-outside-capture source={source:?} candidates={candidates:?}",
                                         row.state,
@@ -3780,7 +3780,7 @@ pub(crate) mod captured_returns {
         }
 
         fn refusal<T>(reason: &'static str, state: Option<SymbolHandle>) -> Option<T> {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if crate::trace_flags::check_sites() {
                 eprintln!("CHECKSITE captured-return-equation state={state:?} refusal={reason}");
             }
             None
@@ -4015,6 +4015,9 @@ pub(crate) mod captured_returns {
 
     impl Captures<'_> {
         fn trace_return_state(&self, state: &State) -> bool {
+            if !crate::trace_flags::trace_completion() {
+                return false;
+            }
             let Ok(selected) = std::env::var("OMEGA_COMPILER_TRACE_COMPLETION") else {
                 return false;
             };
@@ -7798,7 +7801,7 @@ pub fn storage_place_loans(
             home_path.as_ref(),
         )
         .ok_or_else(|| {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if crate::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE storage-loan-home loan={handle:?} formation={:?} storage_owner={:?} root={:?} reference={reference:?} published_path={:?} home_path={home_path:?}",
                     loan.formation_expression, loan.storage_owner, loan.root,

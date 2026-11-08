@@ -734,7 +734,7 @@ mod case_access {
                 let prepared = self.prepare_stable_subject(subject);
                 selected = self.dispatch_copy_carries_case(&prepared.place, case, required);
             }
-            if !selected && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if !selected && ::validation::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE current-case machine={:?} state={:?} statement={} subject={subject:?} stable={stable} case={case:?} required={required} observations={:?}",
                     self.machine.symbol,

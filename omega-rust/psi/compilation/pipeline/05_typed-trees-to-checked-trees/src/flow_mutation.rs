@@ -4198,7 +4198,7 @@ fn shared_call_storage_regions(
     )?;
     let resolver = call_frames?;
     let frame = resolver.signature_invocation_write_frame(machine, &site);
-    let trace = std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some();
+    let trace = ::validation::trace_flags::call_write_trace();
     if trace {
         eprintln!(
             "CALLWRITE boundary-frame state={caller_state_symbol:?} statement={} ordinal={} frame={frame:?}",

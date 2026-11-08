@@ -1612,7 +1612,7 @@ pub mod compiler_operations {
                 return Ok(None);
             };
             if declaration.operation == StaticInterruptOperation::Context
-                && std::env::var_os("OMEGA_COMPILER_TRACE_INSTALLED_CONTEXT").is_some()
+                && crate::trace_flags::trace_installed_context()
             {
                 eprintln!(
                     "INSTALLED_CONTEXT query target={:?} machine={:?} declaration={:?} specialization={:?} open_parameters={} return={:?}",
@@ -1643,7 +1643,7 @@ pub mod compiler_operations {
             let state = &program.machine_states(machine)[0];
             let (referent, _) = shared_reference(program, state.return_type)?;
             let closed = context_is_closed(program, referent);
-            if std::env::var_os("OMEGA_COMPILER_TRACE_INSTALLED_CONTEXT").is_some() {
+            if crate::trace_flags::trace_installed_context() {
                 eprintln!(
                     "INSTALLED_CONTEXT referent={:?} closed={closed}",
                     program.type_reference_table.type_reference(referent)
@@ -4657,7 +4657,7 @@ pub mod denotational_calls {
                     Some(language_semantics::TerminationGuarantee::Terminates { premises })
                         if premises.is_empty()
                 ) {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!(
                             "DENOTATION termination request={request:?} machine={} summary={summary:?} expression={:?}",
                             program.symbols.name(request.target_machine),
@@ -4892,7 +4892,7 @@ pub mod denotational_calls {
             if !machine.supplies_checked_body() || !machine.body_is_present {
                 let satisfiers = requirement_satisfiers(program, machine.symbol);
                 if satisfiers.is_empty() {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!(
                             "DENOTATION observation closure machine={:?} name={} is a requirement with no satisfier",
                             machine.symbol, machine.name,
@@ -4910,7 +4910,7 @@ pub mod denotational_calls {
                     .services(machine.service_reach_row)
                     .is_empty()
             {
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if crate::trace_flags::struct_trace() {
                     eprintln!(
                         "DENOTATION observation closure machine={:?} name={} supply={:?} body={} owned={} reach={}",
                         machine.symbol,
@@ -4932,7 +4932,7 @@ pub mod denotational_calls {
                     .iter()
                     .any(|parameter| parameter.is_mutable)
                 {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!(
                             "DENOTATION observation closure machine={:?} name={} state={:?} has mutable parameters",
                             machine.symbol, machine.name, state.symbol,
@@ -4982,7 +4982,7 @@ pub mod denotational_calls {
                         },
                     );
                     if !allowed {
-                        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        if crate::trace_flags::struct_trace() {
                             eprintln!(
                                 "DENOTATION observation closure machine={:?} name={} state={:?} statement={statement:?}",
                                 machine.symbol, machine.name, state.symbol,
@@ -5036,8 +5036,7 @@ pub mod denotational_calls {
                     ),
                     _ => SubtreeVisit::Descend,
                 };
-                if visit == SubtreeVisit::Found && std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
-                {
+                if visit == SubtreeVisit::Found && crate::trace_flags::struct_trace() {
                     eprintln!("DENOTATION observation expression={handle:?} node={node:?}",);
                 }
                 visit

@@ -429,7 +429,7 @@ mod conflicts {
                         },
                     )
                 };
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if ::validation::trace_flags::check_sites() {
                     eprintln!(
                         "CHECKSITE simultaneous-hold state={:?} statement={} ordinal={} target={:?} first_index={} second_index={} first={:?} second={:?}",
                         state_flow.state_symbol,
@@ -573,7 +573,7 @@ mod conflicts {
                     *loan_handle,
                     borrow_call.statement_index,
                 );
-                if std::env::var_os("OMEGA_STATE_REFERENCE_DIAGNOSTICS").is_some() {
+                if ::validation::trace_flags::state_reference_diagnostics() {
                     eprintln!(
                         "call-live-loan-conflict target={target_name} state={:?} statement={} ordinal={} access={access:?} loan={loan_handle:?} fact={loan:?}",
                         state_flow.state_symbol,

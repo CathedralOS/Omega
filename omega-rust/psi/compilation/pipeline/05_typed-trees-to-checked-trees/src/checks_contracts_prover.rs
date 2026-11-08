@@ -1019,7 +1019,7 @@ mod place_predicates {
                         {
                             return true;
                         }
-                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        if ::validation::trace_flags::check_sites() {
                             eprintln!(
                                 "CHECKSITE saved-reference-source-predicate-refusal source={:?} state={:?} statement={} source_context_count={} qualified_context_count={} qualified_contexts={:?}",
                                 source.operand.expression,
@@ -1035,7 +1035,7 @@ mod place_predicates {
                         if matches!(
                             captured.operand.completion,
                             checked_trees::FlowOperandCompletion::Copied { .. }
-                        ) && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() =>
+                        ) && ::validation::trace_flags::check_sites() =>
                     {
                         eprintln!(
                             "CHECKSITE saved-reference-observation-refusal capture={:?} reason={reason}",
@@ -1045,7 +1045,7 @@ mod place_predicates {
                     Err(_) => {}
                 }
             }
-            if !proven && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if !proven && ::validation::trace_flags::check_sites() {
                 self.trace_capture_refusal(facts, call, contexts, captured);
             }
             proven
