@@ -27237,17 +27237,14 @@ pass/recast/runtime_captured_guard_conjunction_exit checked 4074ms check-target:
 pass/recast/runtime_encoded_record_view_loan_exit checked 11265ms check-target:macos_arm64 @0fab8dbb32c3
 pass/recast/runtime_field_precondition_capture_exit checked 11820ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_float_range_representation_recast_exit checked 76361ms check-target:macos_arm64 @911f6617ba9e
-pass/recast/runtime_guarded_offset_recast_exit rejected 7660ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `read` state `entry`: cannot bound the recast offset `off` -- the region holds 12 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint
+pass/recast/runtime_guarded_offset_recast_exit checked 27816ms check-target:macos_arm64 @6bfec7307ed0
 pass/recast/runtime_inline_shared_slice_record_read_exit checked 86632ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_inline_slice_recast_call_exit checked 75518ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_inline_slice_recast_scalar_machine_exit checked 65921ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_inline_slice_recast_shared_parameter_exit incomplete 13530ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`suffix_words` has no executable body: this compiler does not lower an expression of it yet (call operation: structural arguments: parameter path); in state `suffix_words::entry`, statement 0
 pass/recast/runtime_inline_slice_view_mutable_write_exit checked 65734ms check-target:macos_arm64 @911f6617ba9e
-pass/recast/runtime_integer_bit_view_recast_exit rejected 8270ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `region` state `entry`: cannot bound the recast offset `offset` -- the region holds 6 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint
-	machine `region` state `entry`: cannot bound the recast offset `offset` -- the region holds 6 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint
+pass/recast/runtime_integer_bit_view_recast_exit checked 19144ms check-target:macos_arm64 @6bfec7307ed0
 pass/recast/runtime_interior_slice_congruent_offset_exit checked 64728ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_interior_slice_view_mutable_write_exit checked 59499ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 12865ms check-target:macos_arm64 @ccdb99ca2214
