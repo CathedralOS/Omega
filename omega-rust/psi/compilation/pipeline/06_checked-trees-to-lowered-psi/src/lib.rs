@@ -1,99 +1,61 @@
 #![forbid(unsafe_code)]
 
-//! Checked trees to unsealed, target-neutral Psi.
-//!
-//! Output retains source custody, proof and debug companions for later stages.
-//! Unsupported constructs fail closed; this stage does not optimize or publish.
-//! Expression place/result types and storage carriers come from the frozen
-//! checked facts; lowering does not resolve them again from source context.
-//! The identity table is shared across bodies and retained declarations, then
-//! sealed at the production handoff. It does not merge the machine,
-//! state, value, block, edge or place namespaces, or runtime and erased formals.
-//!
-//! One entrance: [`lower_machine`], in `machine_lowering.rs`. Read
-//! `lower_terminal_selection` there to read this stage — the module order
-//! below is the order it runs them in. A callback body is not a second
-//! entrance: it lowers through the same route rooted at the callback entry,
-//! and retains its checked declaration directly in the produced machine.
-//!
-//! 1. `machine_lowering` validates the checked permission ledger before any
-//!    consumer uses its evidence, then selects the checked machine named by a
-//!    [`TerminalMachineSelection`], gates its guarded exits, then dispatches
-//!    through `machine_lowering::machine_dispatch` to the plan family that
-//!    owns the machine's shape.
-//! 2. The plan families are layered, and each one reaches only downward:
-//!    [`unit`] lowers attached, structural-control and cleanup Unit
-//!    machines, including every structural or scalar result a body returns;
-//!    [`scalar_lowering`] lowers the scalar computations, contracts, callees
-//!    and branch states those bodies embed;
-//!    [`expression_preparation`] turns source-bound expressions and bindings
-//!    into what a body needs; [`emission`] writes the operations and stores
-//!    every body shares.
-//! 3. [`retention`] installs the checked custody the assembled module must
-//!    keep: closed reaches, access view inputs, restored reborrow call uses,
-//!    suspension call plans, foreign borrow custody and operation crash
-//!    contracts.
-//! 4. [`proofs`] lowers authored propositions, contracts, evidence terms,
-//!    crash routes, content conservation and float-meaning projections.
-//!
-//! The entrance closes by attaching the Terminal debug companion that
-//! `machine_lowering::debug_map` builds when the checked plan is eligible.
-//!
-//! Beside the route, `shared/` holds what every plan family reads:
-//! `producer_result` names what a family hands back, `terminal_identities`
-//! and `lowering_error` carry the identity and failure vocabulary, `declarations`
-//! maps a checked state symbol to its machine and state, `direct_calls` is the
-//! one place a direct call's facts choose its Terminal operation, and
-//! `structural_types` turns checked structural plans into Terminal declarations.
-//! `projections/` holds what is produced beside the lowered machine: program
-//! roots, the declaration-only projection package review reads, task
-//! activation demands and diagnostic provenance.
+/*
+We lower checked source trees (`CheckedTrees`) and their frozen type, loan, and permission facts
+into unsealed, target-neutral Lowered Psi (`LoweredPsi`), retaining source custody, proof
+obligations, and optional debug companions for downstream optimization (`Psi 07`) and canonical
+Terminal Psi publication (`Psi 08`).
+*/
 
-// The entrance.
+/*
+Why resolve every expression place/result type, storage carrier, and loan transfer directly from
+Psi 05's frozen fact tables rather than re-reading authored syntax or re-running type/borrow
+inference during lowering? Separating semantic decision-making (Psi 05) from structural CFG and
+operation construction (Psi 06) guarantees that lowering cannot silently diverge from checked
+judgments or invent unverified fallback behavior; any construct without an explicit checked plan
+fails closed immediately (`LoweringError::Unsupported`).
+*/
+
+/*
+Entered through `lower_machine` and `select_terminal_machine` (alongside companion projections
+`project_external_provider_declarations`, `lower_task_activation_demands`, and
+`lowered_module_provenance`), which dispatch selected machines through `unit`, `scalar_lowering`,
+`expression_preparation`, `emission`, `retention`, and `proofs` before handing the resulting
+`LoweredPsi` module to `07_lowered-psi-to-lowered-psi` and `08_lowered-psi-to-terminal-psi`.
+*/
+
 pub(crate) use optimization::digest_encoder;
-mod machine_lowering;
-pub use projections::program_roots::TerminalProgramRoots;
-pub use terminal_psi::{PreparedTerminalRoots, RetainedTerminalRoot};
-
-// The plan families `machine_dispatch` selects between, in their dependency
-// order: each reaches down this list and never back up it.
+mod attached_unit;
 mod emission;
+mod emission_cleanup;
+mod expression_bindings;
 mod expression_preparation;
-mod scalar_lowering;
-mod unit;
-
-// What the entrance runs over the assembled module, in that order.
+mod machine_lowering;
+mod operation_emission;
+mod projections;
 mod proofs;
 mod retention;
-
-// Beside the route: what every family reads, and the projections produced
-// beside the lowered machine.
-mod projections;
+mod scalar_computations;
+mod scalar_lowering;
 mod shared;
+mod unit;
+mod unit_arguments;
+mod unit_composed_control;
+mod unit_operation_frame;
+mod unit_structural_values;
+
+pub use machine_lowering::lower_machine;
+pub use machine_lowering::machine_dispatch::{TerminalMachineSelection, select_terminal_machine};
 pub use projections::external_provider_declarations::{
     ExternalProviderDeclarations, PreparedExternalProviderDeclarations,
     project_external_provider_declarations,
 };
-pub use projections::task_activation::lower_task_activation_demands;
-
-// The entrance, and the failure vocabulary its callers match on.
-pub use machine_lowering::lower_machine;
-pub use machine_lowering::machine_dispatch::{TerminalMachineSelection, select_terminal_machine};
-pub use shared::lowering_error::LoweringError;
-
-// Diagnostic-only source attribution for the unoptimized lowering.
 pub use projections::lowered_provenance::lowered_module_provenance;
-
-// Proof artifacts this stage produces for owners outside it.
+pub use projections::program_roots::TerminalProgramRoots;
+pub use projections::task_activation::lower_task_activation_demands;
 pub use proofs::content_conservation::{
     LoweredContentConservation, LoweredContentIdentityReshuffles,
 };
 pub use proofs::float_meaning_projection::FloatMeaningProjectionLoweringError;
-
-// The front-end pipeline the tests run, shared with the `suite` integration
-// target that includes the same file; see its module documentation.
-
-// The integer prover runs scoped worker threads that allocate heavily; the
-// macOS system allocator serializes them on its zone locks, and mimalloc's
-// per-thread heaps do not. Test-only: the compiler binaries keep the system
-// allocator.
+pub use shared::lowering_error::LoweringError;
+pub use terminal_psi::{PreparedTerminalRoots, RetainedTerminalRoot};
