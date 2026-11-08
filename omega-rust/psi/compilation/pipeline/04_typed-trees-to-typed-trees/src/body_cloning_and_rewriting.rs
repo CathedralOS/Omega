@@ -2908,13 +2908,7 @@ pub(crate) mod body_rewriting {
                 .iter()
                 .filter_map(|(parameter, target, _)| {
                     let declarations = source.unwrap_or(program);
-                    let machine = declarations.machines().iter().find(|machine| {
-                        typed_trees::state::state_by_symbol(
-                            declarations.machine_states(machine),
-                            *target,
-                        )
-                        .is_some()
-                    })?;
+                    let machine = declarations.machine_containing_state(*target)?;
                     if !machine.attached_data_symbol.is_valid() {
                         return None;
                     }

@@ -4299,9 +4299,8 @@ pub mod expression_types {
                     if forwarding_root.is_none()
                         && let ExpressionNode::Name(root) =
                             expression_table(program).expression(member.receiver)
-                        && let Some(machine) = program.machines().iter().find(|machine| {
-                            root.head_symbol.is_valid() && machine.symbol == root.head_symbol
-                        })
+                        && root.head_symbol.is_valid()
+                        && let Some(machine) = program.machines_with_symbol(root.head_symbol).next()
                     {
                         return crate::value_custody::places::exact_self_field(
                             program, machine, expression,

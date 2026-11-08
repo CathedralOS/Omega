@@ -13232,12 +13232,7 @@ pub(crate) mod call_projection_identity {
         request: ProjectionRequest,
     ) -> Option<ProjectionValue> {
         let state = program.state_by_symbol(caller_state)?;
-        let machine = program.machines().iter().find(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|candidate| candidate.symbol == caller_state)
-        })?;
+        let machine = program.machine_containing_state(caller_state)?;
         let in_transition_target = match call {
             CallSite::Expression { expression, .. } => {
                 super::structural_prefix::expression_is_transition_target(
@@ -17699,10 +17694,12 @@ pub(crate) mod law_conformance {
             program: &dyn crate::CheckingInput,
             machine_symbol: SymbolHandle,
         ) -> Vec<MatchedLawGuarantee> {
-            let Some(machine) = program.machines().iter().find(|machine| {
-                machine.symbol == machine_symbol
-                    && machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-            }) else {
+            let Some(machine) = program
+                .machines_with_symbol(machine_symbol)
+                .find(|machine| {
+                    machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                })
+            else {
                 return Vec::new();
             };
             let mut outcomes = Vec::new();
@@ -31728,12 +31725,7 @@ pub(crate) mod ranking_range {
             program: &'program dyn crate::CheckingInput,
             state: &State,
         ) -> Option<&'program typed_trees::machine::Machine> {
-            program.machines().iter().find(|machine| {
-                program
-                    .machine_states(machine)
-                    .iter()
-                    .any(|candidate| candidate.symbol == state.symbol)
-            })
+            program.machine_containing_state(state.symbol)
         }
 
         fn unsigned_carrier(

@@ -769,13 +769,7 @@ mod disposition_events {
         let Some(target_state) = program.state_by_symbol(observation.target_symbol) else {
             return false;
         };
-        let Some(target_machine) = program.machines().iter().find(|machine| {
-            typed_trees::state::state_by_symbol(
-                program.machine_states(machine),
-                target_state.symbol,
-            )
-            .is_some()
-        }) else {
+        let Some(target_machine) = program.machine_containing_state(target_state.symbol) else {
             return false;
         };
         if target_machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -941,13 +935,7 @@ mod disposition_events {
             let Some(target_state) = program.state_by_symbol(call.target_symbol) else {
                 continue;
             };
-            let Some(target_machine) = program.machines().iter().find(|machine| {
-                typed_trees::state::state_by_symbol(
-                    program.machine_states(machine),
-                    target_state.symbol,
-                )
-                .is_some()
-            }) else {
+            let Some(target_machine) = program.machine_containing_state(target_state.symbol) else {
                 continue;
             };
             if call.has_receiver && target_machine.attached_data_symbol != call.receiver_symbol {

@@ -474,14 +474,7 @@ pub(crate) mod equivalence_selection {
         for dependency in
             crate::machine_calls::call_cycles::machine_call_dependency_symbols(program, machine)
         {
-            let Some(callee) = program.machines().iter().find(|candidate| {
-                candidate.symbol == dependency
-                    || typed_trees::state::state_by_symbol(
-                        program.machine_states(candidate),
-                        dependency,
-                    )
-                    .is_some()
-            }) else {
+            let Some(callee) = program.machine_by_own_or_state_symbol(dependency) else {
                 continue;
             };
             if callee.symbol != machine.symbol {
