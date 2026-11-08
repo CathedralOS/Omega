@@ -2596,9 +2596,12 @@ pub(crate) mod namespaces {
                     .ok_or("applied namespace call lost its exact requirement")?;
                 calls.push((*handle, call.receiver));
             }
+            calls.sort_unstable_by_key(|(_, receiver)| {
+                (receiver.arena_index(), receiver.generation())
+            });
             if calls.is_empty() || expressions.iter().any(|handle| {
                 matches!(program.expression_table.expression(*handle), crate::expression::ExpressionNode::Name(path) if path.head_symbol == binder)
-                    && !calls.iter().any(|(_, receiver)| receiver == handle)
+                    && calls.binary_search_by_key(&(handle.arena_index(), handle.generation()), |(_, receiver)| (receiver.arena_index(), receiver.generation())).is_err()
             }) {
                 return Err("applied namespace needs a complete qualified call");
             }
