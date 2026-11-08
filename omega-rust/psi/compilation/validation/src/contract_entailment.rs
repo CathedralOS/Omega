@@ -42959,7 +42959,7 @@ pub(crate) mod structural_case_arms {
         }
 
         #[allow(clippy::too_many_arguments)]
-        pub(crate) fn observe_calls<'program>(
+        pub(super) fn observe_calls<'program>(
             program: &'program dyn crate::CheckingInput,
             theorem: &Machine,
             invocation: &Machine,
