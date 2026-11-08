@@ -765,7 +765,7 @@ mod joins {
         events: &PermissionEvents<'_>,
     ) -> Option<CheckedClaimOutcomeSource> {
         let definitions = events
-            .iter()
+            .at_claim_identity(state.symbol, identity)
             .filter(|event| {
                 event.state_symbol == state.symbol
                     && matches!(
@@ -1821,6 +1821,7 @@ mod event_queries {
     struct EventAssociations {
         statements: SortedRows,
         origins: SortedRows,
+        claim_identities: SortedRows,
         places: SortedRows,
         places_across_statements: SortedRows,
     }
@@ -1853,6 +1854,13 @@ mod event_queries {
                     ordinal,
                 )
             }));
+            let claim_identities =
+                SortedRows::new(events.iter().enumerate().map(|(ordinal, event)| {
+                    (
+                        key_hash((event.state_symbol, event.claim_identity)),
+                        ordinal,
+                    )
+                }));
             let places = SortedRows::new(events.iter().enumerate().map(|(ordinal, event)| {
                 let statement = permission_event_statement_index(event.source);
                 (
@@ -1881,6 +1889,7 @@ mod event_queries {
                 associations: Some(EventAssociations {
                     statements,
                     origins,
+                    claim_identities,
                     places,
                     places_across_statements,
                 }),
@@ -1913,6 +1922,20 @@ mod event_queries {
                 rows.origins
                     .matching(key_hash((state, identity, provenance)))
             }))
+        }
+
+        // An origin search needs every provenance for this exact claim. Keep it
+        // separate so queries with a known provenance retain their narrow key.
+        pub(super) fn at_claim_identity(
+            &self,
+            state: SymbolHandle,
+            identity: PermissionClaimIdentity,
+        ) -> EventCandidates<'_> {
+            self.candidates(
+                self.associations
+                    .as_ref()
+                    .map(|rows| rows.claim_identities.matching(key_hash((state, identity)))),
+            )
         }
 
         pub(super) fn at_place(
@@ -2054,6 +2077,25 @@ mod event_queries {
             (events, segments)
         }
 
+        fn claim_definitions<'a>(
+            events: impl Iterator<Item = &'a FlowPermissionEventFact>,
+            state: SymbolHandle,
+            identity: PermissionClaimIdentity,
+        ) -> Vec<&'a FlowPermissionEventFact> {
+            events
+                .filter(|event| {
+                    event.state_symbol == state
+                        && matches!(
+                            event.kind,
+                            PermissionEventKind::Establish | PermissionEventKind::Restore
+                        )
+                        && event.access == PermissionAccess::Owned
+                        && event.obligation_live
+                        && event.claim_identity == identity
+                })
+                .collect()
+        }
+
         fn compare_batches(
             events: &[FlowPermissionEventFact],
             segments: &arena::PagedArenaSet<facts::PlaceSegment>,
@@ -2065,11 +2107,12 @@ mod event_queries {
             let indexed_rows = prepared.associations.as_ref().map_or(0, |rows| {
                 rows.statements.rows.len()
                     + rows.origins.rows.len()
+                    + rows.claim_identities.rows.len()
                     + rows.places.rows.len()
                     + rows.places_across_statements.rows.len()
             });
             eprintln!(
-                "permission event preparation: {} source rows across four passes; {} indexed rows; {:?}",
+                "permission event preparation: {} source rows across five passes; {} indexed rows; {:?}",
                 events.len(),
                 indexed_rows,
                 preparation_elapsed
@@ -2077,6 +2120,9 @@ mod event_queries {
             let direct_scans = Cell::new(0);
             let prepared_scans = Cell::new(0);
             let matched = Cell::new(0);
+            let identity_direct = Cell::new(0);
+            let identity_prepared = Cell::new(0);
+            let identity_matches = Cell::new(0);
             for event in events.iter().step_by(31) {
                 let statement = permission_event_statement_index(event.source);
                 let path = segments.span_or_empty(event.segments);
@@ -2101,6 +2147,29 @@ mod event_queries {
                     .collect::<Vec<_>>();
                 assert_eq!(indexed, direct);
                 matched.set(matched.get() + direct.len());
+                let direct = claim_definitions(
+                    recorded
+                        .at_claim_identity(event.state_symbol, event.claim_identity)
+                        .inspect(|_| {
+                            direct_scans.set(direct_scans.get() + 1);
+                            identity_direct.set(identity_direct.get() + 1);
+                        }),
+                    event.state_symbol,
+                    event.claim_identity,
+                );
+                let indexed = claim_definitions(
+                    prepared
+                        .at_claim_identity(event.state_symbol, event.claim_identity)
+                        .inspect(|_| {
+                            prepared_scans.set(prepared_scans.get() + 1);
+                            identity_prepared.set(identity_prepared.get() + 1);
+                        }),
+                    event.state_symbol,
+                    event.claim_identity,
+                );
+                assert_eq!(indexed, direct);
+                matched.set(matched.get() + direct.len());
+                identity_matches.set(identity_matches.get() + direct.len());
                 // Absence searches all earlier establishments, not one exact
                 // statement. The last equal-position row must still win.
                 let inactive = |candidate: &&FlowPermissionEventFact| {
@@ -2191,6 +2260,12 @@ mod event_queries {
                     matched.set(matched.get() + direct.len());
                 }
             }
+            eprintln!(
+                "claim identity table: direct {} visited rows; prepared {} visited rows; {} matched rows",
+                identity_direct.get(),
+                identity_prepared.get(),
+                identity_matches.get()
+            );
             (direct_scans.get(), prepared_scans.get(), matched.get())
         }
 
@@ -2355,18 +2430,119 @@ mod event_queries {
             assert_eq!(direct_scans, repeated.len() * repeated.len());
             assert_eq!(prepared_scans, repeated.len());
             eprintln!(
-                "repeated place table: {} source rows across four preparation passes; {} exact-statement queries; direct {} visited rows; prepared {} visited rows; preparation {:?}",
+                "repeated place table: {} source rows across five preparation passes; {} exact-statement queries; direct {} visited rows; prepared {} visited rows; preparation {:?}",
                 repeated.len(),
                 repeated.len(),
                 direct_scans,
                 prepared_scans,
                 preparation_elapsed,
             );
+
+            // Duplicate entries and differing provenances must reach the origin
+            // consumer unchanged; selecting candidates must not settle ambiguity.
+            let (mut definitions, definition_segments) = rows(64);
+            let mut entry = definitions[1].clone();
+            entry.state_symbol = SymbolHandle::from_parts(90001, 7);
+            entry.claim_identity = PermissionClaimIdentity::Established {
+                machine_symbol: SymbolHandle::from_parts(90000, 1),
+                state_symbol: entry.state_symbol,
+                source: PermissionEventSource::StateEntry,
+                ordinal: 44,
+            };
+            entry.source = PermissionEventSource::StateEntry;
+            entry.kind = PermissionEventKind::Establish;
+            entry.access = PermissionAccess::Owned;
+            entry.obligation_live = true;
+            entry.provenance = PermissionProvenance::Unknown;
+            let identity = entry.claim_identity;
+            let entry_position = definitions.len();
+            definitions.push(entry.clone());
+            definitions.push(entry.clone());
+            let mut restored = entry.clone();
+            restored.source = PermissionEventSource::Statement { statement_index: 9 };
+            restored.kind = PermissionEventKind::Restore;
+            restored.provenance = definitions[2].provenance;
+            definitions.push(restored.clone());
+            let mut excluded = restored.clone();
+            excluded.kind = PermissionEventKind::Transfer;
+            definitions.push(excluded);
+            let mut excluded = restored.clone();
+            excluded.access = PermissionAccess::Shared;
+            definitions.push(excluded);
+            let mut excluded = restored.clone();
+            excluded.obligation_live = false;
+            definitions.push(excluded);
+            let other_state = SymbolHandle::from_parts(90001, 8);
+            let mut excluded = restored.clone();
+            excluded.state_symbol = other_state;
+            definitions.push(excluded);
+            let other_identity = PermissionClaimIdentity::Established {
+                machine_symbol: SymbolHandle::from_parts(90000, 2),
+                state_symbol: entry.state_symbol,
+                source: PermissionEventSource::StateEntry,
+                ordinal: 44,
+            };
+            let mut excluded = restored.clone();
+            excluded.claim_identity = other_identity;
+            definitions.push(excluded);
+            restored.claim_identity = PermissionClaimIdentity::Unknown;
+            definitions.push(restored);
+            let inspect = |events: &[FlowPermissionEventFact]| {
+                let prepared = PermissionEvents::prepare(events, &definition_segments);
+                for (state, claim) in [
+                    (entry.state_symbol, identity),
+                    (entry.state_symbol, PermissionClaimIdentity::Unknown),
+                    (other_state, identity),
+                    (entry.state_symbol, other_identity),
+                ] {
+                    assert_eq!(
+                        claim_definitions(prepared.at_claim_identity(state, claim), state, claim),
+                        claim_definitions(events.iter(), state, claim),
+                    );
+                }
+                let selected = claim_definitions(
+                    prepared.at_claim_identity(entry.state_symbol, identity),
+                    entry.state_symbol,
+                    identity,
+                );
+                assert!(
+                    selected
+                        .iter()
+                        .any(|event| event.provenance == PermissionProvenance::Unknown)
+                );
+                assert!(
+                    selected
+                        .iter()
+                        .any(|event| event.provenance != PermissionProvenance::Unknown)
+                );
+                (
+                    selected.len(),
+                    selected
+                        .iter()
+                        .filter(|event| event.source == PermissionEventSource::StateEntry)
+                        .count(),
+                    claim_definitions(
+                        prepared.at_claim_identity(
+                            entry.state_symbol,
+                            PermissionClaimIdentity::Unknown,
+                        ),
+                        entry.state_symbol,
+                        PermissionClaimIdentity::Unknown,
+                    )
+                    .len(),
+                )
+            };
+            assert_eq!(inspect(&definitions), (3, 2, 1));
+            definitions[entry_position].claim_identity = PermissionClaimIdentity::Unknown;
+            assert_eq!(inspect(&definitions), (2, 1, 2));
         }
 
         #[test]
         fn colliding_event_keys_keep_original_order_and_exact_filtering() {
-            let (events, segments) = rows(80);
+            let (mut events, segments) = rows(80);
+            let mut duplicate = events[18].clone();
+            duplicate.expression = typed_trees::expression::ExpressionHandle::from_parts(90001, 7);
+            events.push(duplicate);
             let mut prepared = PermissionEvents::prepare(&events, &segments);
             let selected = &events[17];
             let statement =
@@ -2422,6 +2598,29 @@ mod event_queries {
                 .collect::<Vec<_>>();
             let expected = events.iter().filter(same_place).collect::<Vec<_>>();
             assert_eq!(actual, expected);
+            let selected = &events[18];
+            prepared
+                .associations
+                .as_mut()
+                .expect("prepared fixture")
+                .claim_identities = SortedRows::new((0..events.len()).rev().map(|ordinal| {
+                (
+                    key_hash((selected.state_symbol, selected.claim_identity)),
+                    ordinal,
+                )
+            }));
+            let actual = claim_definitions(
+                prepared.at_claim_identity(selected.state_symbol, selected.claim_identity),
+                selected.state_symbol,
+                selected.claim_identity,
+            );
+            let expected = claim_definitions(
+                events.iter(),
+                selected.state_symbol,
+                selected.claim_identity,
+            );
+            assert_eq!(actual, expected);
+            assert_eq!(actual.len(), 2);
         }
     }
 }
