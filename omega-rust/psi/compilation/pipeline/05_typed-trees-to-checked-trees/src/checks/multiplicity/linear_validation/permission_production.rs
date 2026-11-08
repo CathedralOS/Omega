@@ -295,7 +295,7 @@ pub(crate) fn evaluate_statement_permissions(
         evaluation,
     };
     let routes =
-        ExpressionRoutes::from_steps(program, occurrences, &facts.flow.control, selection_site);
+        ExpressionRoutes::from_steps(program, occurrences, facts.flow.control, selection_site);
     // Every produced occurrence leaves each departing scope through the same
     // retirement route; the four occurrences (observe, arm-local move,
     // complete, and the statement's own exit) each restated the same
