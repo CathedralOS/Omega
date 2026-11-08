@@ -400,3 +400,34 @@ fn predicate_may_unwrap_to_integer_comparison(predicate: &StructuralTerm, depth:
         _ => false,
     }
 }
+
+use super::complete_equality::CompleteEq;
+
+impl CompleteEq for RewriteTable {
+    fn complete_eq(&self, other: &Self) -> bool {
+        let Self {
+            entries,
+            index,
+            potential_integer_premise_indices,
+            deferred_collection_measures,
+            integer_premise_revision,
+            max_premise_occurrence,
+            has_mathematical_binary_pattern,
+            has_mathematical_equal_pattern,
+        } = self;
+        entries.complete_eq(&other.entries)
+            && *index == other.index
+            && *potential_integer_premise_indices == other.potential_integer_premise_indices
+            && *deferred_collection_measures == other.deferred_collection_measures
+            && *integer_premise_revision == other.integer_premise_revision
+            && *max_premise_occurrence == other.max_premise_occurrence
+            && *has_mathematical_binary_pattern == other.has_mathematical_binary_pattern
+            && *has_mathematical_equal_pattern == other.has_mathematical_equal_pattern
+    }
+}
+
+impl RewriteTable {
+    pub(super) fn len(&self) -> usize {
+        self.entries.len()
+    }
+}

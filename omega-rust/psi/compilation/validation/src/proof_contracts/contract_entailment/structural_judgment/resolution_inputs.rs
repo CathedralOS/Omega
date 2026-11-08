@@ -4,6 +4,7 @@
 //! sufficient only while it remains live. Weak handles prevent address reuse
 //! without pinning payloads; a changed COW owner or expired handle misses.
 
+use super::complete_equality::CompleteEq;
 use super::{ExpressionHandle, StructuralJudge, SymbolHandle};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::{Arc, Weak};
@@ -71,6 +72,74 @@ impl<'program, T: Send + Sync + 'program> LiveInputOwner<'program> for Arc<T> {
 
 const OWNER_COUNT: usize = 19;
 
+/// The owners sibling contexts rebuild with equal contents in a fresh
+/// allocation. A completed query may accept such an owner when its contents
+/// are completely equal (`CompleteEq`) to the retained one; every other owner
+/// must be the same allocation. Retained weakly, like `InputOwner`, so an old
+/// context's payload is released once nothing else holds it.
+macro_rules! content_owners {
+    ($($index:literal $field:ident: $type:ty),* $(,)?) => {
+        struct RetainedContents<'program> {
+            $($field: Weak<$type>,)*
+            lengths: [usize; CONTENT_OWNER_COUNT],
+            marker: std::marker::PhantomData<&'program ()>,
+        }
+
+        struct CurrentContents<'current> {
+            $($field: &'current Arc<$type>,)*
+        }
+
+        impl<'program> RetainedContents<'program> {
+            /// Whether owner `index` of the roster holds completely equal
+            /// contents in both; `false` for an owner matched by identity only
+            /// or a retained payload already released.
+            fn same_contents(&self, index: usize, current: &CurrentContents<'_>) -> bool {
+                match index {
+                    $($index => self
+                        .$field
+                        .upgrade()
+                        .is_some_and(|retained| retained.complete_eq(current.$field)),)*
+                    _ => false,
+                }
+            }
+        }
+
+        impl<'current> CurrentContents<'current> {
+            fn retain<'program>(&self) -> RetainedContents<'program> {
+                RetainedContents {
+                    $($field: Arc::downgrade(self.$field),)*
+                    lengths: self.lengths(),
+                    marker: std::marker::PhantomData,
+                }
+            }
+
+            fn lengths(&self) -> [usize; CONTENT_OWNER_COUNT] {
+                [$(self.$field.len(),)*]
+            }
+
+            fn is_content_owner(index: usize) -> bool {
+                matches!(index, $($index)|*)
+            }
+        }
+    };
+}
+
+content_owners!(
+    2 normal_results: Vec<(ExpressionHandle, super::StructuralTerm)>,
+    4 returned_field_owners: Vec<SymbolHandle>,
+    5 body_invocations: Vec<SymbolHandle>,
+    9 invalidated_storage: Vec<SymbolHandle>,
+    10 stored_values: super::storage_effects::StoredValues,
+    11 normal_guarantees: Vec<(super::StructuralTerm, super::StructuralTerm)>,
+    12 captured_result_equations: Vec<super::normal_returns::CapturedResultEquation>,
+    14 substitutions: Vec<(String, super::StructuralTerm)>,
+    15 rewrites: super::rewrite_table::RewriteTable,
+    16 disequalities: Vec<(super::StructuralTerm, super::StructuralTerm)>,
+    18 case_substitutions: Vec<(String, super::StructuralTerm)>,
+);
+
+const CONTENT_OWNER_COUNT: usize = 11;
+
 #[derive(Clone, Copy, PartialEq)]
 struct Modes {
     resolve_applications: bool,
@@ -127,6 +196,7 @@ pub(super) struct ResolutionInputs<'program> {
     storage_version: Option<super::storage_effects::StorageVersion>,
     returned_value_source: Option<ReturnedValueInput<'program>>,
     owners: [InputOwner<'program>; OWNER_COUNT],
+    contents: RetainedContents<'program>,
     modes: Modes,
 }
 
@@ -143,12 +213,16 @@ pub(super) struct CurrentResolutionInputs<'current, 'program> {
     storage_version: Option<super::storage_effects::StorageVersion>,
     returned_value_source: Option<&'current super::normal_returns::CompletedValueSource<'program>>,
     owners: [&'current dyn LiveInputOwner<'program>; OWNER_COUNT],
+    contents: CurrentContents<'current>,
     modes: Modes,
 }
 
 impl<'program> ResolutionInputs<'program> {
-    pub(super) fn allocation_fingerprint(&self) -> u64 {
-        allocation_fingerprint(self.owners.iter().map(InputOwner::allocation_address))
+    pub(super) fn input_fingerprint(&self) -> u64 {
+        input_fingerprint(
+            self.owners.iter().map(InputOwner::allocation_address),
+            &self.contents.lengths,
+        )
     }
 
     pub(super) fn same_inputs(&self, other: &Self) -> bool {
@@ -182,18 +256,24 @@ impl<'program> ResolutionInputs<'program> {
                 (Some(retained), Some(current)) => retained.same_current(current),
                 _ => false,
             }
-            && self
-                .owners
-                .iter()
-                .zip(current.owners)
-                .all(|(retained, current)| current.same_retained_allocation(retained))
+            && self.owners.iter().zip(current.owners).enumerate().all(
+                |(index, (retained, owner))| {
+                    // Same allocation first, which is free; otherwise only an
+                    // owner a sibling may rebuild can match, and only completely.
+                    owner.same_retained_allocation(retained)
+                        || self.contents.same_contents(index, &current.contents)
+                },
+            )
             && self.modes == current.modes
     }
 }
 
 impl<'program> CurrentResolutionInputs<'_, 'program> {
-    pub(super) fn allocation_fingerprint(&self) -> u64 {
-        allocation_fingerprint(self.owners.iter().map(|owner| owner.allocation_address()))
+    pub(super) fn input_fingerprint(&self) -> u64 {
+        input_fingerprint(
+            self.owners.iter().map(|owner| owner.allocation_address()),
+            &self.contents.lengths(),
+        )
     }
 
     fn retain(self) -> ResolutionInputs<'program> {
@@ -208,6 +288,7 @@ impl<'program> CurrentResolutionInputs<'_, 'program> {
             storage_version: self.storage_version,
             returned_value_source: self.returned_value_source.map(ReturnedValueInput::capture),
             owners: self.owners.map(|owner| owner.retain()),
+            contents: self.contents.retain(),
             modes: self.modes,
         }
     }
@@ -297,6 +378,19 @@ impl<'program> StructuralJudge<'program> {
                 case_facts,
                 case_substitutions,
             ],
+            contents: CurrentContents {
+                normal_results,
+                returned_field_owners,
+                body_invocations,
+                invalidated_storage,
+                stored_values,
+                normal_guarantees,
+                captured_result_equations,
+                substitutions,
+                rewrites,
+                disequalities,
+                case_substitutions,
+            },
             modes: Modes {
                 resolve_applications: *resolve_applications,
                 require_closed_computation: *require_closed_computation,
@@ -308,12 +402,21 @@ impl<'program> StructuralJudge<'program> {
     }
 }
 
-// Equal input owners always share this filter. Hash collisions and expired
-// allocations still need the complete input and live-owner comparisons.
-fn allocation_fingerprint(owners: impl Iterator<Item = usize>) -> u64 {
+// Inputs a completed query may reuse always share this filter: the same
+// allocation for an identity-matched owner, and the same length for a
+// content-matched one (a content owner's address is left out, since a sibling
+// rebuilds it). Hash collisions and expired allocations still need the
+// complete input and live-owner comparisons.
+fn input_fingerprint(
+    owners: impl Iterator<Item = usize>,
+    content_lengths: &[usize; CONTENT_OWNER_COUNT],
+) -> u64 {
     let mut hash = DefaultHasher::new();
-    for owner in owners {
-        owner.hash(&mut hash);
+    for (index, owner) in owners.enumerate() {
+        if !CurrentContents::is_content_owner(index) {
+            owner.hash(&mut hash);
+        }
     }
+    content_lengths.hash(&mut hash);
     hash.finish()
 }

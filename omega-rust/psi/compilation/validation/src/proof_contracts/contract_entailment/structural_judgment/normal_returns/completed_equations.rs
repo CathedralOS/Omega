@@ -3,6 +3,7 @@
 //! different authority to their consumers.
 
 use super::super::StructuralTerm;
+use crate::proof_contracts::contract_entailment::structural_judgment::complete_equality::CompleteEq;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CapturedEquationMeaning {
@@ -101,5 +102,18 @@ impl CapturedResultEquation {
             right,
             meaning,
         }
+    }
+}
+
+impl CompleteEq for CapturedResultEquation {
+    fn complete_eq(&self, other: &Self) -> bool {
+        let Self {
+            left,
+            right,
+            meaning,
+        } = self;
+        left.complete_eq(&other.left)
+            && right.complete_eq(&other.right)
+            && *meaning == other.meaning
     }
 }

@@ -240,3 +240,24 @@ fn mix(key: u64, value: u64) -> u64 {
 
 #[cfg(test)]
 mod tests;
+
+// Rows are compared by allocation: a row's own payload keeps partially
+// compared terms, so identity is the complete answer available here.
+impl crate::proof_contracts::contract_entailment::structural_judgment::complete_equality::CompleteEq
+    for StoredValues
+{
+    fn complete_eq(&self, other: &Self) -> bool {
+        let Self {
+            values,
+            last_with_key,
+            previous_with_key,
+        } = self;
+        values.len() == other.values.len()
+            && values
+                .iter()
+                .zip(&other.values)
+                .all(|(left, right)| Arc::ptr_eq(left, right))
+            && *last_with_key == other.last_with_key
+            && *previous_with_key == other.previous_with_key
+    }
+}

@@ -166,6 +166,20 @@ impl PartialEq for FloatLiteral {
     }
 }
 
+impl FloatLiteral {
+    /// Equality over every field, landing included. `==` compares only the
+    /// spelling and presented bits; a consumer that must know two literals
+    /// are interchangeable in every respect uses this instead.
+    pub fn same_literal_completely(&self, other: &Self) -> bool {
+        let Self {
+            text,
+            landing,
+            presented,
+        } = self;
+        *text == other.text && *landing == other.landing && *presented == other.presented
+    }
+}
+
 impl Eq for FloatLiteral {}
 
 impl Default for FloatLiteral {

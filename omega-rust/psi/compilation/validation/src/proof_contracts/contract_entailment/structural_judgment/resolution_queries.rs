@@ -94,7 +94,7 @@ enum StructuralQueryAnswer {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct ResolutionBucket {
     term: u64,
-    input_allocations: u64,
+    inputs: u64,
 }
 
 struct CompletedResolution<'program> {
@@ -114,7 +114,7 @@ impl CompletedResolution<'_> {
     fn bucket(&self) -> ResolutionBucket {
         ResolutionBucket {
             term: self.fingerprint,
-            input_allocations: self.inputs.allocation_fingerprint(),
+            inputs: self.inputs.input_fingerprint(),
         }
     }
 }
@@ -202,7 +202,7 @@ impl<'program> CompletedResolutions<'program> {
         let current_inputs = judge.current_resolution_inputs();
         let bucket = ResolutionBucket {
             term: fingerprint,
-            input_allocations: current_inputs.allocation_fingerprint(),
+            inputs: current_inputs.input_fingerprint(),
         };
         let index = self
             .buckets
