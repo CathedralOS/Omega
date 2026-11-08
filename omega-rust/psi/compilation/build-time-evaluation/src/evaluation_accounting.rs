@@ -1,9 +1,11 @@
-//! Invocation-owned accounting for pure source-completion evaluations.
-//!
-//! The ordinary admission and interpreter still execute each cold job. Its exact
-//! immutable program, request, result and real evaluator usage stay together so
-//! retaining a completed source never turns warm work into a zero logical charge.
-//! This owner neither grants execution nor debits a Build activation's sponsor.
+/*
+    Compile-time evaluation receipts, work and cell usage accounting, and
+    canonical scalar evaluation records.
+
+    We record per-invocation step and cell usage across pre-resolution and
+    pre-check evaluation rounds and bind canonical scalar evaluation receipts to
+    their verified Terminal execution outcomes.
+*/
 
 use std::sync::{Arc, Mutex};
 
@@ -18,12 +20,173 @@ use crate::{BuildTimeValue, SelectedBuildTimeBinaryOperator, SelectedBuildTimeMa
 use compiler_storage::{RecordError, RecordReader};
 use terminal_interpreter::TerminalExecutionResult;
 
-mod canonical_scalar;
+mod canonical_scalar {
+    use super::{PURE_PSI_WORK_BUDGET, PureTerminalEvaluationOutcome};
+    use compiler_storage::{Record, RecordError, RecordReader};
+    use semantic_vocabulary::{ScalarApplicationId, ScalarType, ValueId};
+    use std::sync::Arc;
+    use terminal_codec::CanonicalTerminalArtifact;
+    use terminal_installation::{
+        AssumedBindingSelection, ProviderInstallationSelection, TerminalScalarValue,
+    };
+
+    #[derive(Debug, Clone)]
+    struct RecordedArtifact(Arc<CanonicalTerminalArtifact>);
+
+    impl Record for RecordedArtifact {
+        fn write(&self, output: &mut compiler_storage::RecordWriter) -> Result<(), RecordError> {
+            self.0.to_bytes().write(output)
+        }
+
+        fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
+            let bytes = Vec::<u8>::read(input)?;
+            let artifact = CanonicalTerminalArtifact::from_bytes(&bytes)
+                .map_err(|error| input.error(error.to_string()))?;
+            Ok(Self(Arc::new(artifact)))
+        }
+    }
+
+    #[derive(Debug, Clone, Record)]
+    pub(crate) struct CanonicalScalarScope {
+        artifact: RecordedArtifact,
+        target: String,
+        providers: Vec<ProviderInstallationSelection>,
+        assumptions: Vec<AssumedBindingSelection>,
+        carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
+    }
+
+    impl CanonicalScalarScope {
+        pub(crate) fn capture(
+            artifact: &Arc<CanonicalTerminalArtifact>,
+            target: &str,
+            providers: &terminal_installation::AdmittedProviderSelections,
+            carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
+        ) -> Result<Arc<Self>, String> {
+            if artifact.view().identity() != providers.terminal_psi() {
+                return Err("scalar evaluation accounting has a different artifact".into());
+            }
+            let module = artifact.semantic_module();
+            let mut selections = Vec::new();
+            for candidate in module
+                .provider_candidates
+                .iter()
+                .filter(|candidate| providers.contains_candidate(candidate))
+            {
+                selections.push(ProviderInstallationSelection {
+                    boundary: candidate.boundary,
+                    candidate: candidate.candidate,
+                    provider_identity: module
+                        .identities
+                        .text(candidate.provider_identity)
+                        .ok_or("scalar accounting lost provider identity")?
+                        .to_owned(),
+                    provider_declaration: module
+                        .identities
+                        .text(candidate.provider_declaration.identity())
+                        .ok_or("scalar accounting lost selecting declaration")?
+                        .to_owned(),
+                });
+            }
+            if selections.len() != providers.providers().count() {
+                return Err("scalar accounting lost exact selected provider rows".into());
+            }
+            let assumptions = providers
+                .assumed_bindings()
+                .iter()
+                .map(|binding| AssumedBindingSelection {
+                    required: binding.required,
+                    supplied_requirement: binding.supplied_requirement,
+                })
+                .collect();
+            Ok(Arc::new(Self {
+                artifact: RecordedArtifact(Arc::clone(artifact)),
+                target: target.to_owned(),
+                providers: selections,
+                assumptions,
+                carrier_layout,
+            }))
+        }
+    }
+
+    #[derive(Debug, Clone, Record)]
+    pub struct CanonicalScalarEvaluationReceipt {
+        scope: Arc<CanonicalScalarScope>,
+        application: ScalarApplicationId,
+        values: Vec<(ScalarApplicationId, TerminalScalarValue)>,
+        captures: Vec<(ValueId, ScalarType)>,
+        outcome: PureTerminalEvaluationOutcome,
+        usage: psi_work::WorkUsage,
+    }
+
+    impl CanonicalScalarEvaluationReceipt {
+        pub(crate) fn new(
+            scope: Arc<CanonicalScalarScope>,
+            application: ScalarApplicationId,
+            values: Vec<(ScalarApplicationId, TerminalScalarValue)>,
+            captures: Vec<(ValueId, ScalarType)>,
+            outcome: PureTerminalEvaluationOutcome,
+            usage: psi_work::WorkUsage,
+        ) -> Self {
+            Self {
+                scope,
+                application,
+                values,
+                captures,
+                outcome,
+                usage,
+            }
+        }
+
+        pub fn application(&self) -> ScalarApplicationId {
+            self.application
+        }
+        pub fn artifact(&self) -> &CanonicalTerminalArtifact {
+            &self.scope.artifact.0
+        }
+        pub fn target(&self) -> &str {
+            &self.scope.target
+        }
+        pub fn outcome(&self) -> &PureTerminalEvaluationOutcome {
+            &self.outcome
+        }
+        pub fn usage(&self) -> &psi_work::WorkUsage {
+            &self.usage
+        }
+
+        pub(crate) fn returned(&self) -> bool {
+            matches!(self.outcome, PureTerminalEvaluationOutcome::Returned { .. })
+        }
+
+        pub fn validate_charge(&self) -> Result<(), String> {
+            if self.usage.schedule() != psi_work::WorkSchedule::CURRENT.identity()
+                || self.usage.total_units() > PURE_PSI_WORK_BUDGET
+            {
+                return Err("canonical scalar evaluation work policy changed".into());
+            }
+            let total = self
+                .usage
+                .attribution()
+                .values()
+                .try_fold(0_u64, |total, row| total.checked_add(row.units()));
+            if total != Some(self.usage.total_units()) {
+                return Err("canonical scalar evaluation attribution is inconsistent".into());
+            }
+            if !matches!(
+                self.artifact()
+                    .semantic_module()
+                    .scalar_applications
+                    .declaration(self.application),
+                Some(terminal_psi::ScalarApplication::Evaluate { .. })
+            ) {
+                return Err("canonical scalar receipt has no actual evaluation entry".into());
+            }
+            Ok(())
+        }
+    }
+}
 pub use canonical_scalar::CanonicalScalarEvaluationReceipt;
 pub(crate) use canonical_scalar::CanonicalScalarScope;
 
-/// The actual executable input of a successful pure invocation. Checked inputs
-/// retain their facts and separate Product declaration frontier unchanged.
 #[derive(Debug, Clone, compiler_storage::Record)]
 pub enum PureEvaluationProgram {
     Typed(Arc<TypedTrees>),
@@ -80,8 +243,6 @@ impl PureEvaluationProgram {
     }
 }
 
-/// One root invocation, not one row per interpreted child call. The private
-/// constructor keeps request/result association with the measured execution.
 #[derive(Debug, Clone, compiler_storage::Record)]
 pub struct PureEvaluationReceipt {
     program: Arc<PureEvaluationProgram>,
@@ -93,9 +254,6 @@ pub struct PureEvaluationReceipt {
     semantics: EvaluationSemanticsIdentity,
 }
 
-/// Failed pure evaluation currently returns no measured usage. Retain that
-/// absence explicitly; a tolerated probe failure must not refuse its source,
-/// and an incompletely measured completion must never become a warm hit.
 #[derive(Debug, Clone, compiler_storage::Record)]
 pub enum PureEvaluationOutcome {
     Returned {
@@ -137,9 +295,6 @@ impl PureEvaluationReceipt {
         }
     }
 
-    /// Reapply the recorded invocation's fixed logical ceiling. Pure jobs have
-    /// no aggregate Build sponsor; its independent charges are never replayed
-    /// or waived here. This is accounting consistency, not renewed admission.
     pub fn validate_charge(&self) -> Result<(), String> {
         if self.semantics != checked_interpreter::CURRENT_EVALUATION_SEMANTICS {
             return Err("source-completion evaluator semantics changed".to_owned());
@@ -171,8 +326,6 @@ impl PureEvaluationReceipt {
     }
 }
 
-/// One root execution in source order, with its engine's own usage vocabulary.
-/// A Terminal receipt never manufactures checked-interpreter steps.
 #[derive(Debug, Clone, compiler_storage::Record)]
 pub enum PureEvaluationRecord {
     Checked(PureEvaluationReceipt),
@@ -204,13 +357,8 @@ impl PureEvaluationRecord {
     }
 }
 
-/// The ordinary constant route's fixed Terminal semantic budget. This is
-/// deliberately separate from the checked interpreter's step schedule.
 pub(crate) const PURE_PSI_WORK_BUDGET: u64 = 100_000;
 
-/// One Terminal execution with the exact checked source, produced artifact,
-/// selected numeric imports, result and meter actually used by that execution.
-/// A failed production may have no artifact; it never becomes a warm hit.
 #[derive(Debug, Clone, compiler_storage::Record)]
 pub struct PureTerminalEvaluationReceipt {
     source_program: Arc<PureEvaluationProgram>,
@@ -297,9 +445,6 @@ impl PureTerminalEvaluationReceipt {
     }
 }
 
-/// Immutable charge ledger for one successful completion. Reuse preserves
-/// source order, multiplicity, schema and ceiling rather than adding nested
-/// interpreter counts a second time or reporting a fresh execution.
 #[derive(Debug, Clone, Default, compiler_storage::Record)]
 pub struct SourceCompletionAccounting {
     receipts: Arc<[PureEvaluationRecord]>,
@@ -333,8 +478,6 @@ impl SourceCompletionAccounting {
     }
 }
 
-/// Explicit scratch owner passed by the pending-work domain. Ordinary callers
-/// that do not retain completion use the disabled default, with no snapshots.
 #[derive(Clone, Default)]
 pub(crate) struct EvaluationAccounting {
     state: Option<Arc<Mutex<EvaluationAccountingState>>>,
@@ -342,9 +485,6 @@ pub(crate) struct EvaluationAccounting {
 
 #[derive(Default)]
 struct EvaluationAccountingState {
-    /// One immutable custody owner per exact execution-program version. Full
-    /// content comparison precedes sharing, including all checked facts and
-    /// Product frontier custody; mutable addresses and names are not keys.
     programs: Vec<Arc<PureEvaluationProgram>>,
     receipts: Vec<Option<PureEvaluationRecord>>,
 }
@@ -405,9 +545,6 @@ impl EvaluationAccounting {
         Ok(Some((ordinal, retained)))
     }
 
-    /// The production callback retains the artifact before entering its
-    /// instance. Accounting owns the finite meter, including real partial work
-    /// on failures; only a normal result with that exact input is reusable.
     pub(crate) fn evaluate_terminal(
         &self,
         program: BuildMachineProgram<'_>,
@@ -462,8 +599,6 @@ impl EvaluationAccounting {
         program: BuildMachineProgram<'_>,
         request: BuildMachineEvaluationRequest<'_>,
     ) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, BuildMachineEvaluationError> {
-        // Snapshot before execution. Neither the retained result nor a later
-        // mutation of the caller's tree can redefine the measured input.
         let input = self
             .reserve_invocation(program)?
             .map(|(ordinal, retained)| {
@@ -518,8 +653,6 @@ impl EvaluationAccounting {
     }
 }
 
-/// A complete precheck's pending work and its real pure evaluation charges.
-/// The driver combines cohorts in source order before retaining completion.
 pub struct RecordedPreCheck {
     pub pending: Option<crate::PreCheckEvaluation>,
     pub accounting: SourceCompletionAccounting,
@@ -554,9 +687,6 @@ impl SourceCompletionAccounting {
     }
 }
 
-// Pending domains carry no attempt-local collector across invocations. Completed
-// receipts persist separately in SourceCompletionAccounting, with their real
-// charges. A collector still attached here means the continuation is not sealed.
 impl compiler_storage::Record for EvaluationAccounting {
     fn write(&self, output: &mut compiler_storage::RecordWriter) -> Result<(), RecordError> {
         if self.state.is_some() {

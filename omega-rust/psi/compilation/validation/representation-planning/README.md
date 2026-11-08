@@ -17,9 +17,9 @@ movement rules from source.
 
 The same file exposes final-graph rederivation beside the initial harvest, then
 the per-selection conformance closure they share. Its subordinate
-[carrier_closure.rs](src/representation_selection/carrier_closure.rs) checks the
+[carrier_closure.rs](src/representation_selection.rs) checks the
 complete carrier graph for inertness and, when required, semantic copy.
-[representation_trait.rs](src/representation_trait.rs) independently recognizes
+[representation_trait.rs](src/lib.rs) independently recognizes
 the toolchain-owned trait; package availability review uses that check without
 activating a build selection. Retained selection values belong to the sibling
 `representation-selections` representation crate.

@@ -12,9 +12,9 @@ resolves accepted-machine selectors, and constructs role-separated strong trust
 digests. An explicit root grant is acceptance; the operation reads no policy
 file and invents no approval.
 
-Psi's existing [provider inventory](../../../../psi/compilation/representations/checked-trees/src/provider_inventory.rs)
+Psi's existing [provider inventory](../../../../psi/compilation/representations/checked-trees/src/providers_and_trust.rs)
 owns the immutable source judgment and prepares its complete trust-declaration
-roster once. Its [producer](../../../../psi/compilation/representations/checked-trees/src/trust_declarations.rs)
+roster once. Its [producer](../../../../psi/compilation/representations/checked-trees/src/providers_and_trust.rs)
 records exact declaration coordinates, eligible template identities, concrete
 contract commitments, and missing or duplicate evidence. Dormant declarations
 remain present. Their evidence failures stay deferred until the selected grant

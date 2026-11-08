@@ -14,7 +14,7 @@ Admission checks supplied mathematical evidence through the routes under
 its own. These checks serve source proof obligations; the Terminal artifact
 does not carry a certificate of the compiler's translation.
 
-[closed_integer.rs](src/integer_rules/closed_integer.rs) owns exact signed mathematical integer
+[integer_rules.rs](src/integer_rules.rs) owns exact signed mathematical integer
 denotation shared by primitive judgments and execution-time closed guard checks.
 It does not truncate to a runtime carrier or admit a new proof rule. Open values
 and undefined negative shift counts have no closed relation; resource refusal is
@@ -52,10 +52,10 @@ certificate the kernel rejects is rejected.
 
 ## Normalization is not authority
 
-[integer_affine.rs](src/integer_rules/integer_affine.rs),
-[integer_cast.rs](src/integer_rules/integer_cast.rs),
-[integer_shift.rs](src/integer_rules/integer_shift.rs), and
-[integer_forbidden_root.rs](src/integer_rules/integer_forbidden_root.rs) independently replay
+[integer_affine.rs](src/integer_affine.rs),
+[integer_cast](src/integer_rules.rs),
+[integer_shift](src/integer_rules.rs), and
+[integer_forbidden_root](src/integer_rules.rs) independently replay
 exact witness coordinates. A checked normalization result is not an assumed
 bound. Only its specified proof rule, checked child evidence, and accepted
 premise closure establish the conclusion.

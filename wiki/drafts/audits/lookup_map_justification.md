@@ -29,7 +29,7 @@ every justification recorded here.
 
 **Zero name-keyed declaration-lookup maps exist beside the scoped symbol
 tree.** Declaration resolution already routes through `SymbolTable`
-(`symbols/lookup.rs`, `symbols/scoped_paths.rs`, `symbols/symbol_table/`).
+(`symbols.rs` `lookup` and `scoped_paths`, `symbols_symbol_table.rs`).
 Every retained name-keyed map carries one of the reasons below; none is a
 faster path around scoped lookup, so the policy currently holds with nothing
 to remove.
@@ -37,8 +37,8 @@ to remove.
 ### Justified classes observed
 
 - **Generic-application substitution environments**
-  (`02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/{substitution,synthesis,eligibility,trait_defaults,const_evaluation/*}.rs`,
-  `preparation/type_equations.rs`):
+  (`02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs`, `preparation_const_evaluation.rs`, `preparation.rs` (`trait_defaults`),
+  `preparation_type_equations.rs`):
   `HashMap<String, TypeReferenceHandle>` /
   `HashMap<String, ClosedArgumentIdentity>`. Key space is one declaration's
   own `const`/`type` parameter names; lifetime is one bound application. The
@@ -67,7 +67,7 @@ to remove.
   is built once per module/package for a bounded rejoin, then dropped.
 
 - **Module/diagnostic metadata maps**
-  (`selection/domain_operator_homes.rs`: `HashMap<SourceId, String>` /
+  (`selection.rs` `domain_operator_homes`: `HashMap<SourceId, String>` /
   `HashMap<SourceId, Vec<String>>`): source→module-name records for
   diagnostics; keyed by source coordinate, not a declaration name.
 

@@ -1,69 +1,113 @@
+/*
+We execute the selected target-neutral Psi optimization passes over `LoweredPsi`
+and seal the validated `PsiOptimizationStageResult` and
+`PsiOptimizationExecutionRecord` required by canonical Terminal publication
+(`run_psi_optimization`).
+*/
+
+/*
+Our optimizer dispatches selected passes in canonical order in
+`psi_optimization.rs`, backed by control-flow cleanup and proof/ranking
+identity retention in `control_flow_and_retention.rs` and scalar and value
+rewrites (`sparse_conditional_constant_propagation`, `copy_propagation`,
+`global_value_numbering`, and `dead_scalar_elimination`) in
+`scalar_and_value_passes.rs`. Only `run_psi_optimization` can construct
+`PsiOptimizationStageResult`, ensuring every published Terminal artifact
+records its input and output semantic identities.
+*/
+
+/*
+Stage 07 (`lowered-psi-to-lowered-psi`) consumes `LoweredPsi` from
+`checked-trees-to-lowered-psi` (Stage 06) and produces
+`PsiOptimizationStageResult` for `lowered-psi-to-terminal-psi` (Stage 08).
+*/
+
 #![forbid(unsafe_code)]
 
-//! Optimizer module role: executable entrance.
-//!
-//! Target-neutral optimization between checked lowering and Terminal
-//! publication.
-//!
-//! One entrance: [`run_psi_optimization`], in `psi_optimization.rs`. It takes
-//! the complete unsealed Psi product, validates the carrier, runs the selected
-//! passes, validates the carrier again, and returns the
-//! [`PsiOptimizationStageResult`] that canonical Terminal publication accepts.
-//! The coordinator alone constructs that validated result; no pass can mint
-//! one. The empty selection is not a no-op — it validates both sides of the
-//! identity transformation.
-//!
-//! The five implemented passes below execute in the canonical order a
-//! selection records them in, which is the order the entrance's dispatch
-//! states them in. Each folder owns one selectable optimization and nothing
-//! else:
-//!
-//! 1. `control_flow_cleanup`
-//! 2. `sparse_conditional_constant_propagation`
-//! 3. `copy_propagation`
-//! 4. `global_value_numbering`
-//! 5. `dead_scalar_elimination`
-//!
-//! Four vocabulary members have no folder here: `ProofCheckElision`,
-//! `StateSpecialization`, `RepresentationSpecialization` and
-//! `LoopInvariantScalarMotion` rewrite the abstract-operations unit produced
-//! only after this stage and execute in the post-Terminal stage. The
-//! entrance's exhaustive dispatch still names each of them, and a selection
-//! containing one executes no rule here.
-//!
-//! Beneath the passes, `retained_identities` records the proof and ranking
-//! identities a rewrite must preserve — `copy_propagation`,
-//! `global_value_numbering` and `dead_scalar_elimination` all consult it —
-//! and `optimization_error` carries the refusals the entrance and every pass
-//! return. `rewrite_refusal` records the deliberate, non-error refusals: a
-//! proof-bearing module whose reconstructed proof question a proposed
-//! rewrite would change keeps the module as authored, and the stage result
-//! lists which pass withheld its rewrite and why.
-
-// The entrance.
+mod control_flow_and_retention;
 mod psi_optimization;
+mod scalar_and_value_passes;
 
-// The five implemented passes; the numbered list above is their canonical
-// execution order.
-mod control_flow_cleanup;
-mod copy_propagation;
-mod dead_scalar_elimination;
-mod global_value_numbering;
-mod sparse_conditional_constant_propagation;
+pub(crate) use control_flow_and_retention::{control_flow_cleanup, retained_identities};
+pub(crate) use scalar_and_value_passes::{
+    copy_propagation, dead_scalar_elimination, global_value_numbering,
+    sparse_conditional_constant_propagation,
+};
 
-// Beneath the passes: edge arguments, retained identities, and refusals.
-mod edge_arguments;
-mod optimization_error;
-mod retained_identities;
+pub(crate) mod edge_arguments {
+    use semantic_vocabulary::{BlockId, ValueId};
+    use std::collections::BTreeMap;
+    use terminal_psi::{TerminalMachine, Terminator};
 
-// The entrance and its validated carrier.
-pub use psi_optimization::{PsiOptimizationStageResult, run_psi_optimization};
+    pub(crate) fn drop_removed_positions(
+        arguments: &mut Vec<ValueId>,
+        removed: Option<&Vec<usize>>,
+    ) {
+        let Some(removed) = removed else { return };
+        let mut position = 0;
+        arguments.retain(|_| {
+            let retained = !removed.contains(&position);
+            position += 1;
+            retained
+        });
+    }
 
-// The refusal a caller of that entrance matches on.
+    pub(crate) fn drop_removed_positions_across_edges(
+        machine: &mut TerminalMachine,
+        removed_positions: &BTreeMap<BlockId, Vec<usize>>,
+    ) {
+        for block in &mut machine.blocks {
+            match &mut block.terminator {
+                Terminator::Jump {
+                    target, arguments, ..
+                } => drop_removed_positions(arguments, removed_positions.get(target)),
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    for edge in [when_true, when_false] {
+                        drop_removed_positions(
+                            &mut edge.arguments,
+                            removed_positions.get(&edge.target),
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+pub(crate) mod optimization_error {
+    use terminal_codec::{CodecError, DebugMapError, PsiOptimizationExecutionRecordError};
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum PsiOptimizationStageError {
+        InvalidSemantic(CodecError),
+        InvalidDebugMap(DebugMapError),
+        InvalidExecutionRecord(PsiOptimizationExecutionRecordError),
+    }
+
+    impl std::fmt::Display for PsiOptimizationStageError {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::InvalidSemantic(error) => {
+                    write!(formatter, "invalid optimization semantics: {error}")
+                }
+                Self::InvalidDebugMap(error) => {
+                    write!(formatter, "invalid optimization debug map: {error}")
+                }
+                Self::InvalidExecutionRecord(error) => {
+                    write!(formatter, "invalid optimization execution record: {error}")
+                }
+            }
+        }
+    }
+
+    impl std::error::Error for PsiOptimizationStageError {}
+}
+
 pub use optimization_error::PsiOptimizationStageError;
-
-// The deliberate rewrite withholdings the validated result lists.
-
-// The execution record this stage fills: owned by `terminal_codec`, which
-// encodes it, and re-exported here beside the entrance that produces it.
+pub use psi_optimization::{PsiOptimizationStageResult, run_psi_optimization};
 pub use terminal_codec::{PsiOptimizationExecutionIdentity, PsiOptimizationExecutionRecord};

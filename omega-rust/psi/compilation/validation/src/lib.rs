@@ -1,24 +1,1400 @@
-//! Semantic validation API. Start at `program_validation.rs` for the validation lifecycle.
-//!
-//! That file owns `validate_specialized_program` and the order of the passes.
-//! The remaining modules are either one validator each (calls, traits,
-//! domains, literals, transitions, wire) or reusable semantic queries (places,
-//! expression types, definition facts) that checking and lowering also read.
-//!
-//! The root modules are grouped by what they validate: `machine_calls.rs`,
-//! `proof_contracts.rs`, `value_custody.rs` and `declarations.rs` each open
-//! one folder of validators and the queries they share.
-//! `execution_projection.rs` selects executable declaration contexts without
-//! granting a checked judgment; compile-time evaluation and checking share it.
+/*
+We decide whether a typed Omega program means what it says. `validate_program`
+and `prepare_specialized_program` check declarations, machine calls, effects,
+contracts, arithmetic domains, and value custody over `TypedTrees`, and
+`CheckingContext` / `CheckingInput` give every later reader the same immutable
+program plus its invocation memos. Successful validation is a source judgment,
+not a portable proof certificate.
+*/
+
+/*
+We keep one coordinator and four domain families. `program_validation.rs` runs
+declaration checks, machine and state validation, and result publication in
+order; `frozen_program_and_queries.rs` owns the immutable checking context and
+the shared read-only queries. The families are declarations (`declarations_core`,
+`operators`, `traits`), machine calls (`machine_calls_core`, `calls`,
+`call_cycles`, `effect_inference`, `machine_parameters_and_bindings`,
+`reference_result_custody`, `structural_call_custody`), proof contracts
+(`proof_contracts_core`, `arithmetic_domains`, `contract_entailment`,
+`domains_and_predicates`, `float_and_mathematical_contracts`, `quotients`), and
+value custody (`value_custody_core`, `access_views_and_borrows`,
+`completed_storage_and_conservation`, `expression_types_and_fields`,
+`literals_and_struct_literals`, `places`, `recasts`, `type_references_and_wire`,
+`borrow_and_reflection`). The `declarations`, `machine_calls`,
+`proof_contracts`, and `value_custody` facade modules below keep the module
+paths every checker already names, so a flat file layout costs no call site.
+Checking only reads typed tables: preparation may rewrite them, checking may
+not, and no thread or program address selects a memo.
+*/
+
+/*
+We sit between typing and checked facts. `symbol-resolved-trees-to-typed-trees`
+(Psi 03) produces the `TypedTrees` we read; `typed-trees-to-typed-trees` (Psi 04)
+borrows our queries while preparing and specializing, `typed-trees-to-checked-trees`
+(Psi 05) runs full validation and publishes checked facts, and `proof`,
+`checked-trees-to-lowered-psi`, `lowered-psi-to-terminal-psi`,
+`checked-interpreter`, `representation-planning`, build evaluation, and the
+compiler driver reuse the same read-only judgments.
+*/
+
+mod access_views_and_borrows;
+pub(crate) mod arithmetic_domains;
+mod borrow_and_reflection;
+pub(crate) mod call_cycles;
+pub(crate) mod calls;
+mod completed_storage_and_conservation;
+pub(crate) mod contract_entailment;
+mod declarations_core;
+mod domains_and_predicates;
+pub(crate) mod effect_inference;
+mod expression_types_and_fields;
+mod float_and_mathematical_contracts;
+mod frozen_program_and_queries;
+mod literals_and_struct_literals;
+mod machine_calls_core;
+mod machine_parameters_and_bindings;
+pub(crate) mod operators;
+pub(crate) mod places;
+mod program_validation;
+mod proof_contracts_core;
+pub(crate) mod quotients;
+pub(crate) mod recasts;
+pub mod reference_result_custody;
+pub(crate) mod structural_call_custody;
+pub mod trace_flags;
+pub(crate) mod traits;
+mod type_references_and_wire;
+mod value_custody_core;
+
+pub use borrow_and_reflection::{borrow_contracts, reflection};
+pub(crate) use frozen_program_and_queries::{frozen_program, queries};
+
+pub(crate) mod declarations {
+    pub use crate::declarations_core::{
+        data_queries, declaration_visibility, definition_facts, selection_authority,
+        selection_resolution, source_completion, standard_declarations, state_signatures, symbols,
+        transitions, type_aliases,
+    };
+    pub(crate) use crate::operators;
+    pub(crate) use crate::traits;
+}
+
+pub(crate) mod machine_calls {
+    pub(crate) use crate::call_cycles;
+    pub(crate) use crate::calls;
+    pub(crate) use crate::effect_inference;
+    pub(crate) use crate::machine_calls_core::record_reference;
+    pub use crate::machine_calls_core::{
+        assembly_services, attached_method_bounds, boundary_calls, callable_overloads,
+        compiler_operations, contract_dependencies, contract_identities, denotational_calls,
+        effects, fact_call_projections, fact_only_citations, graph_components, invocations,
+        machine_data, machine_specialization_identity, result_overloads,
+        static_machine_call_contracts, terminal_transitions,
+    };
+    pub use crate::machine_parameters_and_bindings::{
+        machine_parameters, static_arguments, static_bindings,
+    };
+    pub use crate::reference_result_custody;
+    pub(crate) use crate::structural_call_custody;
+}
+
+pub(crate) mod proof_contracts {
+    pub(crate) use crate::arithmetic_domains;
+    pub(crate) use crate::contract_entailment;
+    pub use crate::domains_and_predicates::{
+        bound_expression_meaning, collection_predicates, default_domains, domains,
+    };
+    pub use crate::float_and_mathematical_contracts::{
+        float_projection_bindings, float_projection_invocations, mathematical_applications,
+    };
+    pub use crate::proof_contracts_core::{
+        carrier_contents, contract_argument_root, contract_results, contract_structure,
+        domain_weakening, expression_owners, immutable_integer_bounds, instruction_effects,
+        parameter_domains, parameter_expression_meaning, proof_embeddings, proof_facts,
+        proof_only_faces, properties, proposition_context, proposition_entailment,
+        qualification_evidence, relevance, scalar_boundary_guarantees, signature_ensures,
+        slice_ranking,
+    };
+    pub(crate) use crate::quotients;
+}
+
+pub(crate) mod value_custody {
+    pub use crate::access_views_and_borrows::{
+        access_atomic_observing_results, access_views, write_only_borrows,
+    };
+    pub use crate::completed_storage_and_conservation::{
+        completed_storage, content_conservation, content_projections,
+    };
+    pub use crate::expression_types_and_fields::{expression_types, field_domains};
+    pub use crate::literals_and_struct_literals::{literals, struct_literals};
+    pub(crate) use crate::places;
+    pub(crate) use crate::recasts;
+    pub use crate::type_references_and_wire::{type_references, wire};
+    pub use crate::value_custody_core::{
+        activation_storage, atomic_fences, atomic_operations, byte_observations, claim_frontier,
+        cleanup, cleanup_selection, collect_executable_value_origins, const_expressions, constants,
+        content_classes, data, destructure, dispatch_extraction, intrinsic_boundaries, locals,
+        logical_matches, membership_evidence, owned_value_source, partial_affine_residuals,
+        permission_provenance, plan_laid, qualification_casts, receiving_values, reference_access,
+        reference_local_establishment, reference_shells, resident_content, scalar_case_constructor,
+        scalar_representation_range, source_liveness, static_inline_storage, storage_contents,
+        structural_identity, transition_operand_moves, type_properties, type_shapes,
+        visit_executable_value_occurrences, visit_statement_value_occurrences,
+    };
+}
+
+pub mod compiler_evaluation {
+    use language_semantics::{MachineSupplyMode, Multiplicity};
+    use semantic_vocabulary::compiler_evaluation::{
+        CompilerEvaluationDeclaration, CompilerEvaluationEffects,
+    };
+    use symbols::SymbolHandle;
+    use typed_trees::TypedTrees;
+    use typed_trees::machine::Machine;
+
+    pub fn checked_declaration(
+        checked: &checked_trees::CheckedTrees,
+        machine: &Machine,
+        selections: &arena::Arena<checked_trees::CheckedSelectionRequirement>,
+        sidecars: &typed_trees::references::MachineSidecarIndex,
+    ) -> Result<CompilerEvaluationDeclaration, String> {
+        let facts = &checked.facts;
+        let reach = facts
+            .service_reaches
+            .for_machine(machine.symbol)
+            .ok_or("checked compiler-evaluation declaration has no service-reach summary")?;
+        let operational = facts
+            .operational
+            .machines()
+            .iter()
+            .find(|row| row.symbol == machine.symbol)
+            .ok_or("checked compiler-evaluation declaration has no operational summary")?;
+        let termination = facts
+        .termination
+        .rank_arrivals
+        .judgment_for_body(machine.symbol, machine.states)
+        .ok_or(
+            "checked compiler-evaluation declaration has no exact local body termination judgment",
+        )?;
+        let mut services = Vec::new();
+        for service in facts.service_reaches.rows.services(reach.effective) {
+            let definition = facts
+                .service_reaches
+                .services
+                .definition(*service)
+                .ok_or("checked compiler-evaluation declaration reaches an unknown service")?;
+            services.push(definition.name.as_str().to_owned());
+        }
+        let typed = &checked.typed;
+        let states = typed.machine_states(machine);
+        let entry = states
+            .iter()
+            .find(|state| {
+                state.name.as_str()
+                    == machine
+                        .name
+                        .as_str()
+                        .rsplit("::")
+                        .next()
+                        .unwrap_or_default()
+            })
+            .or_else(|| states.first());
+        let has_requires = |contracts: &[typed_trees::signature::SignatureContract]| {
+            contracts.iter().any(|contract| {
+                contract.kind == typed_trees::signature::SignatureContractKind::Requires
+            })
+        };
+        Ok(CompilerEvaluationDeclaration {
+            name: machine.name.as_str().to_owned(),
+            custody: symbol_custody(typed, machine.symbol),
+            effects: CompilerEvaluationEffects {
+                services,
+                may_suspend: operational.transitive_may_suspend,
+                may_block: operational.transitive_may_block,
+            },
+            local_terminates: typed.layout_target_facts_result(machine.symbol)?.is_some()
+                || (machine.supply_mode == MachineSupplyMode::CheckedBody
+                    && termination.local_terminates
+                    && termination.diagnostic.is_empty()),
+            entry_requires: has_requires(typed.machine_contracts(machine))
+                || entry.is_none_or(|entry| has_requires(typed.state_contracts(entry))),
+            linear_carrier: linear_carrier_violation(typed, machine),
+            static_application: if machine.structural_type_equations_pending {
+                Some(format!(
+                    "machine `{}` retains an undischarged structural type equation",
+                    machine.name
+                ))
+            } else if !machine.type_parameters.is_empty() {
+                Some(format!(
+                    "machine `{}` retains an unspecialized static application",
+                    machine.name
+                ))
+            } else {
+                None
+            },
+            selections: selection_requests(checked, machine, selections, sidecars),
+        })
+    }
+
+    pub fn symbol_custody(
+        program: &TypedTrees,
+        symbol: symbols::SymbolHandle,
+    ) -> semantic_vocabulary::compiler_evaluation::DeclarationCustody {
+        use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
+        if let Some(package) = program.symbols.symbol_package_identity(symbol) {
+            return DeclarationCustody::Package(package);
+        }
+        match program.symbols.symbol_source_origin(symbol) {
+            Some(source::SourceOrigin::Toolchain) => DeclarationCustody::Toolchain,
+            Some(source::SourceOrigin::User) => DeclarationCustody::UnownedUser,
+            None => DeclarationCustody::Missing,
+        }
+    }
+
+    fn selection_requests(
+        checked: &checked_trees::CheckedTrees,
+        machine: &Machine,
+        selections: &arena::Arena<checked_trees::CheckedSelectionRequirement>,
+        sidecars: &typed_trees::references::MachineSidecarIndex,
+    ) -> Result<Vec<semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest>, String>
+    {
+        let references =
+            typed_trees::references::collect_machine_references(&checked.typed, machine, sidecars);
+        let mut requests = Vec::new();
+        let mut occurrences = references
+            .authored_selection_occurrences
+            .into_iter()
+            .collect::<Vec<_>>();
+        occurrences.sort_unstable();
+        for occurrence in occurrences {
+            let rows = selections.storage_slice();
+            let position = rows
+            .binary_search_by_key(
+                &occurrence.ordinal(),
+                checked_trees::CheckedSelectionRequirement::occurrence_ordinal,
+            )
+            .map_err(
+                |_| "compiler-evaluation body lost a finalized declaration-selection occurrence",
+            )?;
+            let selection = &rows[position];
+            let checked_trees::CheckedSelectionRequirement::Selection {
+                excluded, request, ..
+            } = selection
+            else {
+                return Err(
+                    "compiler-evaluation declaration-selection requirement is absent".into(),
+                );
+            };
+            if *excluded {
+                return Err("compiler-evaluation body contains a declaration-selection occurrence outside Product authority coverage".into());
+            }
+            if let Some(request) = request.as_ref().map_err(Clone::clone)?
+                && !requests.contains(request)
+            {
+                requests.push(request.clone());
+            }
+        }
+        requests.sort_by_key(|request| (request.requester, request.owner));
+        Ok(requests)
+    }
+
+    pub fn linear_carrier_violation(program: &TypedTrees, machine: &Machine) -> Option<String> {
+        let describe = |context: &str, type_reference| {
+            (program.type_multiplicity(type_reference)
+            == Multiplicity::Linear)
+            .then(|| {
+                format!(
+                    "{context} has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
+                    program.display_type_reference(type_reference),
+                    machine.name.as_str()
+                )
+            })
+        };
+
+        if let Some(attached_data) = machine.attached_data.as_ref()
+            && program
+                .attached_data_definition(machine)
+                .is_some_and(|definition| {
+                    definition.properties.multiplicity == Multiplicity::Linear
+                })
+        {
+            return Some(format!(
+                "machine instance `{}` has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
+                machine.name,
+                attached_data,
+                machine.name.as_str()
+            ));
+        }
+
+        for owned in program.machine_owned_data(machine) {
+            if let Some(violation) = describe(
+                &format!("machine-owned value `{}`", owned.name),
+                owned.type_reference,
+            ) {
+                return Some(violation);
+            }
+        }
+
+        for state in program.machine_states(machine) {
+            for parameter in program.state_parameters(state) {
+                if let Some(violation) = describe(
+                    &format!("state `{}` parameter `{}`", state.name, parameter.name),
+                    parameter.type_reference,
+                ) {
+                    return Some(violation);
+                }
+            }
+            if let Some(violation) =
+                describe(&format!("state `{}` result", state.name), state.return_type)
+            {
+                return Some(violation);
+            }
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let Some(local) = statement.as_local_data() else {
+                    continue;
+                };
+                if let Some(violation) = describe(
+                    &format!("state `{}` local `{}`", state.name, local.name),
+                    local.type_reference,
+                ) {
+                    return Some(violation);
+                }
+            }
+        }
+
+        None
+    }
+
+    pub fn checked_dependencies(
+        checked: &checked_trees::CheckedTrees,
+    ) -> checked_trees::CheckedCompilerEvaluationDependencies {
+        let ranks = &checked.facts.termination.rank_arrivals;
+        let mut components = arena::Arena::new();
+        let mut members = arena::Arena::new();
+        let mut calls = arena::Arena::new();
+        for (_, component) in ranks.runtime_components.iter() {
+            let bodies = ranks.runtime_members.span_or_empty(component.members);
+            if bodies.is_empty()
+                || !component.diagnostic.is_empty()
+                || !bodies.iter().all(|member| {
+                    ranks
+                        .judgment_for_body(member.machine, member.body)
+                        .is_some_and(|judgment| {
+                            judgment.local_terminates && judgment.diagnostic.is_empty()
+                        })
+                        && {
+                            let mut current = checked
+                                .machines()
+                                .iter()
+                                .filter(|machine| machine.symbol == member.machine);
+                            current
+                                .next()
+                                .is_some_and(|machine| machine.states == member.body)
+                                && current.next().is_none()
+                        }
+                })
+            {
+                continue;
+            }
+            let retained_edges = ranks.runtime_edges.span_or_empty(component.edges);
+            let mut body_calls = Vec::new();
+            let mut complete = true;
+            for member in bodies {
+                let Some(machine) = checked
+                    .facts
+                    .operational
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == member.machine)
+                else {
+                    complete = false;
+                    break;
+                };
+                let mut ordinal = 0u32;
+                for state in checked
+                    .facts
+                    .operational
+                    .states
+                    .span_or_empty(machine.states)
+                {
+                    for call in checked.facts.operational.calls.span_or_empty(state.calls) {
+                        if bodies
+                            .iter()
+                            .any(|body| body.machine == call.target_machine_symbol)
+                        {
+                            if !retained_edges.iter().any(|edge| {
+                                edge.source == state.symbol
+                                    && edge.target == call.target_state_symbol
+                                    && usize::try_from(edge.statement_ordinal).ok()
+                                        == Some(call.statement_index)
+                            }) {
+                                complete = false;
+                            }
+                            body_calls.push(checked_trees::CheckedCompilerEvaluationCall {
+                                caller: member.machine,
+                                call_ordinal: ordinal,
+                                callee: call.target_machine_symbol,
+                            });
+                        }
+                        let Some(next) = ordinal.checked_add(1) else {
+                            complete = false;
+                            break;
+                        };
+                        ordinal = next;
+                    }
+                }
+            }
+            if complete {
+                let members = members.insert_many(bodies.iter().cloned());
+                let calls = calls.insert_many(body_calls);
+                components
+                    .insert(checked_trees::CheckedCompilerEvaluationComponent { members, calls });
+            }
+        }
+        let mut pending_conditions = arena::Arena::new();
+        pending_conditions.insert_many(pending_condition_owners(checked));
+        checked_trees::CheckedCompilerEvaluationDependencies {
+            recursive_components: components,
+            recursive_members: members,
+            recursive_calls: calls,
+            pending_conditions,
+        }
+    }
+
+    fn pending_condition_owners(checked: &checked_trees::CheckedTrees) -> Vec<SymbolHandle> {
+        let mut owners = Vec::new();
+        for plan in &checked.facts.flow.terminal_unit_effects.boundary_machines {
+            if !plan.pending_scalar_requires.is_empty() || !plan.pending_scalar_recipes.is_empty() {
+                owners.extend([plan.machine, plan.state]);
+                for family in &checked.typed.target_machine_families {
+                    if family.canonical == plan.machine {
+                        owners.extend(family.members.iter().map(|member| member.machine));
+                    }
+                }
+            }
+        }
+        owners.extend(
+            checked
+                .facts
+                .constant_recipe_obligations
+                .iter()
+                .filter(|obligation| obligation.is_pending())
+                .map(|obligation| obligation.owner()),
+        );
+        owners.extend(
+            checked
+                .facts
+                .constant_predicate_obligations
+                .iter()
+                .filter(|obligation| obligation.is_pending())
+                .map(|obligation| obligation.caller()),
+        );
+        owners.extend(
+            checked
+                .facts
+                .integer_range_obligations
+                .iter()
+                .filter(|obligation| obligation.is_pending())
+                .map(|obligation| obligation.owner()),
+        );
+        owners.sort_by_key(|owner| (owner.arena_index(), owner.generation()));
+        owners.dedup();
+        owners
+    }
+}
+
+pub mod product_entries {
+    use diagnostics::Diagnostic;
+    use semantic_vocabulary::ProgramEntryVisibleParameters;
+    use typed_trees::TypedTrees;
+    use typed_trees::product_operand::ProductEntryDeclaration;
+
+    pub(crate) mod root_bindings {
+        use diagnostics::Diagnostic;
+        use language_semantics::declaration_selection::{
+            ExecutedRootBinding, RootBindingSelection,
+        };
+        use typed_trees::TypedTrees;
+
+        use super::RootBinding;
+
+        pub fn collect_root_bindings(
+            typed: &TypedTrees,
+            executed: &[ExecutedRootBinding],
+        ) -> Result<Vec<RootBinding>, Vec<Diagnostic>> {
+            let typed = typed.product_declarations();
+            let mut bindings: Vec<RootBinding> = Vec::with_capacity(executed.len());
+            let mut diagnostics = Vec::new();
+            for binding in executed {
+                let slot = binding.slot.clone();
+                let (implementation, implementation_symbol) = match &binding.implementation {
+                    RootBindingSelection::Described(described) => {
+                        if slot != described.slot {
+                            diagnostics.push(
+                        Diagnostic::error(format!(
+                            "root binding slot `{slot}` does not match the product description's slot `{}`",
+                            described.slot
+                        ))
+                        .with_source_span(binding.source_span),
+                    );
+                            continue;
+                        }
+                        let selected = described
+                            .declaration
+                            .rejoin(
+                                &typed.symbols,
+                                typed.machines().iter().map(|machine| machine.symbol),
+                            )
+                            .map_err(|reason| {
+                                vec![
+                                    Diagnostic::error(reason).with_source_span(binding.source_span),
+                                ]
+                            })?;
+                        (described.machine_name.clone(), selected)
+                    }
+                    RootBindingSelection::AuthoredPath(implementation) => {
+                        let implementation = implementation.clone();
+                        let occurrence =
+                            typed.symbols.rejoin_product_occurrence(binding.source_span);
+                        let qualified = implementation.split_once("::");
+                        let dependency = qualified.and_then(|(alias, _)| {
+                            typed.symbols.product_dependency_target(occurrence, alias)
+                        });
+                        let declaration_path = match (qualified, dependency) {
+                            (Some((_, path)), Some(_)) => path,
+                            _ => implementation.as_str(),
+                        };
+                        let mut candidates = typed
+                            .machines()
+                            .iter()
+                            .filter(|machine| {
+                                ((dependency.is_none()
+                                    && machine.name.as_str() == declaration_path)
+                                    || typed.symbols.display_path(machine.symbol, "::")
+                                        == declaration_path)
+                                    && match dependency {
+                                        Some(package) => {
+                                            machine.is_public
+                                                && typed
+                                                    .symbols
+                                                    .symbol_product_package_identity(machine.symbol)
+                                                    == Some(package)
+                                        }
+                                        None => typed
+                                            .symbols
+                                            .symbol_source_span(machine.symbol)
+                                            .is_some_and(|span| {
+                                                typed
+                                                    .symbols
+                                                    .same_product_package_instance(occurrence, span)
+                                            }),
+                                    }
+                            })
+                            .filter(|machine| {
+                                typed.symbols.source_reference_can_describe_product_symbol(
+                                    occurrence,
+                                    machine.symbol,
+                                )
+                            })
+                            .collect::<Vec<_>>();
+                        if candidates.iter().any(|machine| {
+                            typed.symbols.display_path(machine.symbol, "::") == declaration_path
+                        }) {
+                            candidates.retain(|machine| {
+                                typed.symbols.display_path(machine.symbol, "::") == declaration_path
+                            });
+                        }
+                        match candidates.as_slice() {
+                            [machine] => (implementation, machine.symbol),
+                            [] => {
+                                let probe =
+                                    qualified.map_or(implementation.as_str(), |(_, path)| path);
+                                let message = if typed.machines().iter().any(|machine| {
+                                    machine.name.as_str() == probe
+                                        || typed.symbols.display_path(machine.symbol, "::") == probe
+                                }) {
+                                    format!(
+                                        "root binding names `{implementation}`, which is not a product declaration visible from this build source's package; borrowing Build does not grant the caller's product namespace"
+                                    )
+                                } else {
+                                    format!(
+                                        "root binding names unknown entry machine `{implementation}` in this build source's package"
+                                    )
+                                };
+                                diagnostics.push(
+                                    Diagnostic::error(message)
+                                        .with_source_span(binding.source_span),
+                                );
+                                continue;
+                            }
+                            _ => {
+                                diagnostics.push(
+                            Diagnostic::error(format!(
+                                "root binding `{implementation}` is ambiguous within its package"
+                            ))
+                            .with_source_span(binding.source_span),
+                        );
+                                continue;
+                            }
+                        }
+                    }
+                };
+                if let Some(existing) = bindings.iter().find(|binding| binding.slot == slot) {
+                    diagnostics.push(Diagnostic::error(format!(
+                "root slot `{slot}` is already bound to `{}`; it cannot also bind `{implementation}`", existing.implementation
+            )).with_source_span(binding.source_span));
+                    continue;
+                }
+                bindings.push(RootBinding {
+                    slot,
+                    implementation,
+                    implementation_symbol,
+                });
+            }
+            if diagnostics.is_empty() {
+                Ok(bindings)
+            } else {
+                Err(diagnostics)
+            }
+        }
+    }
+    pub use root_bindings::collect_root_bindings;
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct RootBinding {
+        pub slot: String,
+        pub implementation: String,
+        pub implementation_symbol: symbols::SymbolHandle,
+    }
+
+    pub fn validate_source_compatibility(
+        typed: &TypedTrees,
+        declaration: ProductEntryDeclaration<'_>,
+        slot: semantic_vocabulary::ProgramEntrySourceContract,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let declaration =
+            ProductEntryDeclaration::from_declared_owner(typed, declaration.machine_symbol())
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "ProgramEntry source declaration has no exact complete product owner",
+                    )]
+                })?;
+        let machine_name = declaration.name;
+        let Some(entry) = declaration.entry else {
+            return Err(vec![Diagnostic::error(format!(
+                "entry machine `{machine_name}` has no executable entry state"
+            ))]);
+        };
+
+        let mut diagnostics = Vec::new();
+        if declaration.erased_requires_inputs().next().is_some() {
+            diagnostics.push(Diagnostic::error(format!(
+            "ProgramEntry cannot supply erased requires evidence to entry machine `{machine_name}`"
+        )));
+        }
+        if !declaration.type_parameters.is_empty() {
+            diagnostics.push(Diagnostic::error(format!(
+                "entry machine `{machine_name}` is generic; a root slot must bind one exact machine"
+            )));
+        }
+        if entry.return_type.is_valid() {
+            diagnostics.push(Diagnostic::error(format!(
+                "entry machine `{machine_name}` returns a value, but `ProgramEntry` has no result"
+            )));
+        }
+
+        let parameters = entry.parameters;
+        let visible = visible_entry_parameters(typed, parameters);
+        match slot.visible_parameters {
+            ProgramEntryVisibleParameters::None if !visible.is_empty() => {
+                diagnostics.push(Diagnostic::error(format!(
+                "hosted `ProgramEntry` exposes no arrival parameters, but `{machine_name}` declares `{}`",
+                visible
+                    .iter()
+                    .map(|parameter| parameter.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join("`, `")
+            )));
+            }
+            ProgramEntryVisibleParameters::ImageAndInitialStorage if visible.len() != 2 => {
+                diagnostics.push(Diagnostic::error(format!(
+                "target schema `{:?}` exposes exactly image and initial-storage roots, but `{machine_name}` declares {} visible parameter{}",
+                slot.schema,
+                visible.len(),
+                if visible.len() == 1 { "" } else { "s" },
+            )));
+            }
+            _ => {}
+        }
+
+        if slot.visible_parameters == ProgramEntryVisibleParameters::ImageAndInitialStorage
+            && visible.len() == 2
+        {
+            match core_arrival_requirement_contract(typed, slot.semantic_arrival_requirement) {
+            Ok(required) if required.parameters.len() == visible.len() => {
+                for (index, (actual, required)) in
+                    visible.iter().zip(required.parameters.iter()).enumerate()
+                {
+                    if typed.normalized_type_identity(actual.type_reference) != required.identity
+                        || actual.is_const != required.is_const
+                        || actual.is_mutable != required.is_mutable
+                    {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "target root slot `{}::{}` requires visible parameter {index} ({}) to have exact type `{}`, but entry machine `{machine_name}` declares `{}`",
+                            slot.owner,
+                            slot.slot_name,
+                            ["image", "initial storage"][index],
+                            required.display,
+                            typed.display_type_reference_with_constraints(actual.type_reference),
+                        )));
+                    }
+                }
+            }
+            Ok(required) => diagnostics.push(Diagnostic::error(format!(
+                "target root slot `{}::{}` selects arrival requirement `{}` with {} visible parameters, but its target schema declares {}",
+                slot.owner,
+                slot.slot_name,
+                slot.semantic_arrival_requirement,
+                required.parameters.len(),
+                visible.len(),
+            ))),
+            Err(diagnostic) => diagnostics.push(diagnostic),
+        }
+        }
+
+        if !diagnostics.is_empty() {
+            return Err(diagnostics);
+        }
+        Ok(())
+    }
+
+    pub struct ArrivalRequirementParameterType {
+        pub identity: typed_trees::type_identity::NormalizedTypeIdentity,
+        pub display: String,
+        pub is_const: bool,
+        pub is_mutable: bool,
+    }
+
+    pub struct ArrivalRequirementContract {
+        pub signature: symbols::SymbolHandle,
+        pub requirement_identity: String,
+        pub parameters: Vec<ArrivalRequirementParameterType>,
+        pub result_type_identity: Option<typed_trees::type_identity::NormalizedTypeIdentity>,
+    }
+
+    pub fn core_arrival_requirement_contract(
+        typed: &TypedTrees,
+        requirement: &str,
+    ) -> Result<ArrivalRequirementContract, Diagnostic> {
+        let Some((owner, _)) = requirement.split_once("::") else {
+            return Err(Diagnostic::error(
+                "target semantic arrival has no requirement owner",
+            ));
+        };
+        let mut declarations = typed
+            .symbols
+            .source_files()
+            .filter(|file| {
+                file.origin == source::SourceOrigin::Toolchain
+                    && file.dependency_scope == source::DependencyScope::Product
+                    && file.path.strip_prefix(&file.package_root).ok()
+                        == Some(std::path::Path::new("extent.omg"))
+            })
+            .flat_map(|file| {
+                typed.traits().iter().filter(move |definition| {
+                    typed
+                        .symbols
+                        .symbol_source_span(definition.symbol)
+                        .is_some_and(|span| span.source_id == file.source_id)
+                        && definition.name.as_str() == owner
+                })
+            });
+        let Some(definition) = declarations.next() else {
+            return Err(Diagnostic::error(format!(
+                "target semantic arrival `{requirement}` has no exact core declaration"
+            )));
+        };
+        if declarations.next().is_some() {
+            return Err(Diagnostic::error(format!(
+                "target semantic arrival `{requirement}` has multiple core declaration instances"
+            )));
+        }
+        arrival_requirement_contract(typed, definition, requirement)
+    }
+
+    pub fn arrival_requirement_contract(
+        typed: &TypedTrees,
+        schema: &typed_trees::trait_definition::TraitDefinition,
+        requirement: &str,
+    ) -> Result<ArrivalRequirementContract, Diagnostic> {
+        let Some((owner, method)) = requirement.split_once("::") else {
+            return Err(Diagnostic::error(format!(
+                "target entry arrival requirement `{requirement}` is not an exact `Trait::machine` identity"
+            )));
+        };
+        let mut inherited = vec![schema];
+        let mut position = 0;
+        while let Some(definition) = inherited.get(position).copied() {
+            for parent in typed.trait_requirements(definition) {
+                if inherited
+                    .iter()
+                    .any(|candidate| candidate.symbol == parent.symbol)
+                {
+                    continue;
+                }
+                if let Some(parent) = typed.trait_definition_by_symbol(parent.symbol) {
+                    inherited.push(parent);
+                }
+            }
+            position += 1;
+        }
+        let definitions = inherited
+            .into_iter()
+            .filter(|definition| definition.is_boundary && definition.name.as_str() == owner)
+            .collect::<Vec<_>>();
+        let [definition] = definitions.as_slice() else {
+            return Err(Diagnostic::error(format!(
+                "target entry arrival requirement `{requirement}` resolves to {} boundary trait declarations in the selected schema instead of exactly one",
+                definitions.len()
+            )));
+        };
+        let signatures = typed
+            .trait_machine_signatures(definition)
+            .iter()
+            .filter(|signature| signature.name.as_str() == method)
+            .collect::<Vec<_>>();
+        let [signature] = signatures.as_slice() else {
+            return Err(Diagnostic::error(format!(
+                "target entry arrival requirement `{requirement}` resolves to {} machine declarations instead of exactly one",
+                signatures.len()
+            )));
+        };
+        Ok(ArrivalRequirementContract {
+            signature: signature.symbol,
+            requirement_identity: typed
+                .trait_requirement_callable_identity_text(definition, signature),
+            parameters: typed
+                .state_signature_parameters(signature)
+                .iter()
+                .map(|parameter| ArrivalRequirementParameterType {
+                    identity: typed.normalized_type_identity(parameter.type_reference),
+                    display: typed
+                        .display_type_reference_with_constraints(parameter.type_reference),
+                    is_const: parameter.is_const,
+                    is_mutable: parameter.is_mutable,
+                })
+                .collect(),
+            result_type_identity: signature
+                .return_type
+                .is_valid()
+                .then(|| typed.normalized_type_identity(signature.return_type)),
+        })
+    }
+
+    pub fn visible_entry_parameters<'program>(
+        typed: &TypedTrees,
+        parameters: &'program [typed_trees::signature::StateParameter],
+    ) -> Vec<&'program typed_trees::signature::StateParameter> {
+        parameters
+            .iter()
+            .filter(|parameter| {
+                typed
+                    .access_view_plan_for_input_type_reference(parameter.type_reference)
+                    .is_none()
+            })
+            .collect::<Vec<_>>()
+    }
+}
+
+pub mod native_locators {
+    pub(crate) mod vocabulary {
+        use diagnostics::Diagnostic;
+        use source::{SourceFile, SourceOrigin};
+        use std::path::Path;
+        use symbols::SymbolHandle;
+        use typed_trees::TypedTrees;
+        use typed_trees::data::{DataDefinition, DataMember, TypeParameterKind};
+        use typed_trees::types::{
+            FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+        };
+
+        #[derive(Debug, Clone, Copy)]
+        pub struct NativeLocatorVocabulary {
+            pub binding: SymbolHandle,
+            pub dll_import: SymbolHandle,
+        }
+
+        pub fn vocabulary(
+            typed: &TypedTrees,
+            in_scope: impl Fn(SymbolHandle) -> bool,
+        ) -> Result<NativeLocatorVocabulary, Vec<Diagnostic>> {
+            let exact = |name: &str| {
+                typed
+                    .data_definitions()
+                    .iter()
+                    .filter(|definition| {
+                        in_scope(definition.symbol)
+                            && definition.name.as_str() == name
+                            && definition.generic_instance.is_none()
+                            && definition.is_public
+                            && definition.supply_mode
+                                == language_semantics::DataSupplyMode::CheckedShape
+                            && exact_external_binding_source(typed, definition.symbol).is_some()
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let bindings = exact("ForeignBinding");
+            let imports = exact("DllImport");
+            let ([binding], [dll_import]) = (bindings.as_slice(), imports.as_slice()) else {
+                return Err(vec![Diagnostic::error(
+                    "native locator requires the unique compiler-owned ForeignBinding and DllImport vocabulary",
+                )]);
+            };
+            let binding_parameters = exact_width_parameters(typed, binding)?;
+            let import_parameters = exact_width_parameters(typed, dll_import)?;
+            validate_dll_import_shape(typed, dll_import, import_parameters)?;
+            validate_binding_shape(typed, binding, binding_parameters, dll_import.symbol)?;
+            Ok(NativeLocatorVocabulary {
+                binding: binding.symbol,
+                dll_import: dll_import.symbol,
+            })
+        }
+
+        pub fn application_widths(
+            typed: &TypedTrees,
+            reference: TypeReferenceHandle,
+        ) -> Result<[u64; 3], Vec<Diagnostic>> {
+            let application = binding_application(typed, reference)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            let TypeReferenceNode::Generic { base_symbol, .. } =
+                typed.type_reference_table.type_reference(application)
+            else {
+                return Err(vec![Diagnostic::error(
+                    "native locator lost its exact generic origin",
+                )]);
+            };
+            let binding = exact_vocabulary(typed, *base_symbol, "ForeignBinding")?;
+            let import_symbol = typed
+                .data_members(binding)
+                .first()
+                .and_then(DataMember::as_variant)
+                .and_then(|variant| typed.data_payload_fields(variant).first())
+                .and_then(|field| {
+                    match typed
+                        .type_reference_table
+                        .type_reference(field.type_reference)
+                    {
+                        TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
+                        _ => None,
+                    }
+                })
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "compiler-owned ForeignBinding lost its exact DllImport payload",
+                    )]
+                })?;
+            let import = exact_vocabulary(typed, import_symbol, "DllImport")?;
+            let parameters = exact_width_parameters(typed, binding)?;
+            let import_parameters = exact_width_parameters(typed, import)?;
+            validate_dll_import_shape(typed, import, import_parameters)?;
+            validate_binding_shape(typed, binding, parameters, import.symbol)?;
+            binding_widths(typed, binding.symbol, reference)
+                .map_err(|message| vec![Diagnostic::error(message)])
+        }
+
+        pub fn unused_coordinate_widths(
+            typed: &TypedTrees,
+            symbol: SymbolHandle,
+            case: SymbolHandle,
+        ) -> Option<[bool; 3]> {
+            if let Ok(definition) = exact_vocabulary(typed, symbol, "DllImport") {
+                let parameters = exact_width_parameters(typed, definition).ok()?;
+                validate_dll_import_shape(typed, definition, parameters).ok()?;
+                let ordinal = typed.data_members(definition).iter().position(|member| {
+                    member
+                        .as_variant()
+                        .is_some_and(|variant| variant.symbol == case)
+                })?;
+                return [
+                    [false, false, true],
+                    [false, true, true],
+                    [false; 3],
+                    [false, false, true],
+                ]
+                .get(ordinal)
+                .copied();
+            }
+            let definition = exact_vocabulary(typed, symbol, "ForeignBinding").ok()?;
+            let widths = exact_width_parameters(typed, definition).ok()?;
+            let import_symbol = typed
+                .data_members(definition)
+                .first()?
+                .as_variant()
+                .and_then(|variant| typed.data_payload_fields(variant).first())
+                .and_then(|field| {
+                    match typed
+                        .type_reference_table
+                        .type_reference(field.type_reference)
+                    {
+                        TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
+                        _ => None,
+                    }
+                })?;
+            let import = exact_vocabulary(typed, import_symbol, "DllImport").ok()?;
+            validate_dll_import_shape(typed, import, exact_width_parameters(typed, import).ok()?)
+                .ok()?;
+            validate_binding_shape(typed, definition, widths, import_symbol).ok()?;
+            let ordinal = typed.data_members(definition).iter().position(|member| {
+                member
+                    .as_variant()
+                    .is_some_and(|variant| variant.symbol == case)
+            })?;
+            [[false; 3], [true; 3]].get(ordinal).copied()
+        }
+
+        fn exact_vocabulary<'a>(
+            typed: &'a TypedTrees,
+            symbol: SymbolHandle,
+            name: &str,
+        ) -> Result<&'a DataDefinition, Vec<Diagnostic>> {
+            let definition = typed
+                .unique_data_definition_by_symbol(symbol)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "native binding lost the exact `{name}` template declaration"
+                    ))]
+                })?;
+            let admitted = typed.symbols.name(symbol) == name
+                && definition.generic_instance.is_none()
+                && definition.is_public
+                && definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape
+                && typed
+                    .symbols
+                    .symbol_source_span(symbol)
+                    .and_then(|span| typed.symbols.source_file(span))
+                    .is_some_and(|file| {
+                        file.origin == SourceOrigin::Toolchain
+                            && file
+                                .path
+                                .ends_with(std::path::Path::new("core/external_binding.omg"))
+                    });
+            if !admitted {
+                return Err(vec![Diagnostic::error(format!(
+                    "native binding requires the exact compiler-owned `{name}` declaration"
+                ))]);
+            }
+            Ok(definition)
+        }
+
+        fn binding_application(
+            typed: &TypedTrees,
+            reference: TypeReferenceHandle,
+        ) -> Result<TypeReferenceHandle, String> {
+            match typed.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Named { symbol, .. } => typed
+                    .unique_data_definition_by_symbol(*symbol)
+                    .and_then(|definition| definition.generic_instance)
+                    .ok_or_else(|| {
+                        "native locator must return a closed Binding application".to_owned()
+                    }),
+                TypeReferenceNode::Generic { .. } => Ok(reference),
+                _ => Err("native locator must return a closed Binding application".to_owned()),
+            }
+        }
+
+        fn exact_external_binding_source(
+            typed: &TypedTrees,
+            symbol: SymbolHandle,
+        ) -> Option<&SourceFile> {
+            let source = typed
+                .symbols
+                .symbol_source_span(symbol)
+                .and_then(|span| typed.symbols.source_file(span))?;
+            (source.origin == SourceOrigin::Toolchain
+                && source
+                    .path
+                    .ends_with(Path::new("core/external_binding.omg")))
+            .then_some(source)
+        }
+
+        fn exact_width_parameters(
+            typed: &TypedTrees,
+            definition: &DataDefinition,
+        ) -> Result<[SymbolHandle; 3], Vec<Diagnostic>> {
+            let parameters = typed.data_type_parameters(definition);
+            if parameters.len() != 3 {
+                return Err(vec![Diagnostic::error(format!(
+                    "compiler-owned `{}` must retain exactly three width parameters",
+                    definition.name
+                ))]);
+            }
+            let names = ["ObjectLength", "SymbolLength", "VersionLength"];
+            let mut symbols = [SymbolHandle::invalid(); 3];
+            for (index, (parameter, expected_name)) in parameters.iter().zip(names).enumerate() {
+                let TypeParameterKind::Const { type_reference } = parameter.kind else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "compiler-owned `{}` parameter `{expected_name}` must remain const u64",
+                        definition.name
+                    ))]);
+                };
+                if parameter.name.as_str() != expected_name
+                    || typed.primitive_type_reference(type_reference) != Some(PrimitiveType::U64)
+                {
+                    return Err(vec![Diagnostic::error(format!(
+                        "compiler-owned `{}` parameter `{expected_name}` drifted from const u64",
+                        definition.name
+                    ))]);
+                }
+                symbols[index] = parameter.symbol;
+            }
+            Ok(symbols)
+        }
+
+        fn validate_dll_import_shape(
+            typed: &TypedTrees,
+            definition: &DataDefinition,
+            widths: [SymbolHandle; 3],
+        ) -> Result<(), Vec<Diagnostic>> {
+            let members = typed.data_members(definition);
+            let expected = [
+                ("PeByName", &["library", "export"][..]),
+                ("PeByOrdinal", &["library", "ordinal"][..]),
+                ("ElfVersioned", &["object", "symbol", "version"][..]),
+                ("MachODylibSymbol", &["install_name", "symbol"][..]),
+            ];
+            if members.len() != expected.len() {
+                return Err(vec![Diagnostic::error(
+                    "compiler-owned DllImport case set drifted",
+                )]);
+            }
+            for (index, (member, (variant_name, field_names))) in
+                members.iter().zip(expected).enumerate()
+            {
+                let Some(variant) = member.as_variant() else {
+                    return Err(vec![Diagnostic::error(
+                        "compiler-owned DllImport must remain a closed case sum",
+                    )]);
+                };
+                let fields = typed.data_payload_fields(variant);
+                if variant.name.as_str() != variant_name
+                    || fields.len() != field_names.len()
+                    || fields
+                        .iter()
+                        .zip(field_names)
+                        .any(|(field, name)| field.name.as_str() != *name)
+                {
+                    return Err(vec![Diagnostic::error(format!(
+                        "compiler-owned DllImport::{variant_name} shape drifted"
+                    ))]);
+                }
+                match index {
+                    0 => {
+                        require_fixed_bytes(typed, fields[0].type_reference, widths[0])?;
+                        require_fixed_bytes(typed, fields[1].type_reference, widths[1])?;
+                    }
+                    1 => {
+                        require_fixed_bytes(typed, fields[0].type_reference, widths[0])?;
+                        if typed.primitive_type_reference(fields[1].type_reference)
+                            != Some(PrimitiveType::U16)
+                        {
+                            return Err(vec![Diagnostic::error(
+                                "compiler-owned PeByOrdinal ordinal must remain u16",
+                            )]);
+                        }
+                    }
+                    2 => {
+                        require_fixed_bytes(typed, fields[0].type_reference, widths[0])?;
+                        require_fixed_bytes(typed, fields[1].type_reference, widths[1])?;
+                        require_fixed_bytes(typed, fields[2].type_reference, widths[2])?;
+                    }
+                    3 => {
+                        require_fixed_bytes(typed, fields[0].type_reference, widths[0])?;
+                        require_fixed_bytes(typed, fields[1].type_reference, widths[1])?;
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            Ok(())
+        }
+
+        fn validate_binding_shape(
+            typed: &TypedTrees,
+            definition: &DataDefinition,
+            widths: [SymbolHandle; 3],
+            dll_import: SymbolHandle,
+        ) -> Result<(), Vec<Diagnostic>> {
+            let [
+                DataMember::Variant(import_variant),
+                DataMember::Variant(syscall_variant),
+            ] = typed.data_members(definition)
+            else {
+                return Err(vec![Diagnostic::error(
+                    "compiler-owned Binding must retain the exact DllImport and Syscall cases",
+                )]);
+            };
+            let [field] = typed.data_payload_fields(import_variant) else {
+                return Err(vec![Diagnostic::error(
+                    "compiler-owned ForeignBinding::DllImport payload drifted",
+                )]);
+            };
+            if import_variant.name.as_str() != "DllImport" || field.name.as_str() != "import" {
+                return Err(vec![Diagnostic::error(
+                    "compiler-owned ForeignBinding::DllImport names drifted",
+                )]);
+            }
+            let TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } = typed
+                .type_reference_table
+                .type_reference(field.type_reference)
+            else {
+                return Err(vec![Diagnostic::error(
+                    "compiler-owned Binding payload must remain an exact DllImport application",
+                )]);
+            };
+            let arguments = typed
+                .type_reference_table
+                .type_reference_handles(*arguments);
+            if *base_symbol != dll_import || arguments.len() != 3 {
+                return Err(vec![Diagnostic::error(
+                    "compiler-owned Binding payload generic identity drifted",
+                )]);
+            }
+            for (argument, expected) in arguments.iter().zip(widths) {
+                let Some(symbol) = typed
+                    .type_reference_table
+                    .type_reference(*argument)
+                    .as_named_symbol()
+                else {
+                    return Err(vec![Diagnostic::error(
+                        "compiler-owned Binding widths must pass through exact const binders",
+                    )]);
+                };
+                if symbol != expected {
+                    return Err(vec![Diagnostic::error(
+                        "compiler-owned Binding width binder identity drifted",
+                    )]);
+                }
+            }
+            let [number] = typed.data_payload_fields(syscall_variant) else {
+                return Err(vec![Diagnostic::error(
+                    "compiler-owned ForeignBinding::Syscall payload drifted",
+                )]);
+            };
+            if syscall_variant.name.as_str() != "Syscall"
+                || number.name.as_str() != "number"
+                || typed.primitive_type_reference(number.type_reference) != Some(PrimitiveType::U64)
+            {
+                return Err(vec![Diagnostic::error(
+                    "compiler-owned ForeignBinding::Syscall must retain one u64 `number` field",
+                )]);
+            }
+            Ok(())
+        }
+
+        fn require_fixed_bytes(
+            typed: &TypedTrees,
+            reference: TypeReferenceHandle,
+            width: SymbolHandle,
+        ) -> Result<(), Vec<Diagnostic>> {
+            let TypeReferenceNode::FixedArray {
+                element_type,
+                length: FixedArrayLength::ConstParameter { symbol, .. },
+            } = typed.type_reference_table.type_reference(reference)
+            else {
+                return Err(vec![Diagnostic::error(
+                    "compiler-owned foreign coordinate must remain a const-sized byte array",
+                )]);
+            };
+            if *symbol != width
+                || typed.primitive_type_reference(*element_type) != Some(PrimitiveType::U8)
+            {
+                return Err(vec![Diagnostic::error(
+                    "compiler-owned foreign coordinate width or element type drifted",
+                )]);
+            }
+            Ok(())
+        }
+
+        pub fn binding_widths(
+            typed: &TypedTrees,
+            binding_symbol: SymbolHandle,
+            return_type: TypeReferenceHandle,
+        ) -> Result<[u64; 3], String> {
+            let application = match typed.type_reference_table.type_reference(return_type) {
+                TypeReferenceNode::Named { symbol, .. } => typed
+                    .data_definition_by_symbol(*symbol)
+                    .and_then(|definition| definition.generic_instance)
+                    .ok_or_else(|| {
+                        "ordinary external `via` producer must return a closed Binding application"
+                            .to_owned()
+                    })?,
+                TypeReferenceNode::Generic { .. } => return_type,
+                _ => {
+                    return Err(
+                        "ordinary external `via` producer must return a closed Binding application"
+                            .to_owned(),
+                    );
+                }
+            };
+            let TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } = typed.type_reference_table.type_reference(application)
+            else {
+                return Err(
+                    "ordinary external `via` producer return lost its generic Binding origin"
+                        .to_owned(),
+                );
+            };
+            let arguments = typed
+                .type_reference_table
+                .type_reference_handles(*arguments);
+            if *base_symbol != binding_symbol || arguments.len() != 3 {
+                return Err("ordinary external `via` producer must return the exact compiler-owned ForeignBinding<ObjectLength, SymbolLength, VersionLength>".to_owned());
+            }
+            let mut widths = [0u64; 3];
+            for (index, argument) in arguments.iter().enumerate() {
+                let TypeReferenceNode::Named { symbol, name } =
+                    typed.type_reference_table.type_reference(*argument)
+                else {
+                    return Err(
+                        "ordinary external `via` Binding widths must be closed decimal constants"
+                            .to_owned(),
+                    );
+                };
+                if symbol.is_valid()
+                    || name.as_str().is_empty()
+                    || !name.as_str().bytes().all(|byte| byte.is_ascii_digit())
+                {
+                    return Err(
+                        "ordinary external `via` Binding widths must be closed decimal constants"
+                            .to_owned(),
+                    );
+                }
+                widths[index] = name.as_str().parse::<u64>().map_err(|_| {
+                    "ordinary external `via` Binding width does not fit u64".to_owned()
+                })?;
+            }
+            Ok(widths)
+        }
+    }
+    pub use vocabulary::{
+        NativeLocatorVocabulary, application_widths, binding_widths, unused_coordinate_widths,
+        vocabulary,
+    };
+}
 
 pub use declarations::data_queries::data_field_is_where_independent;
 pub use declarations::traits::conformance_applications;
-pub mod compiler_evaluation;
+
 pub use queries::execution_projection;
-pub mod product_entries;
+
 pub use queries::product_queries;
-// Shared by typed elaboration and compile-time evaluation, which depends on it.
-pub mod reflection;
+
 pub use declarations::operators::{
     OperatorApplicationScope, ScopedOperatorApplication, ScopedOperatorResolution,
     build_operator_facts, derive_checked_operator_crash_contracts,
@@ -225,7 +1601,6 @@ pub use value_custody::{
     visit_statement_value_occurrences,
 };
 
-/// The sealed operation an [`AtomicCarrierAccess`] names.
 pub use access_plans::AtomicAccessOperation;
 pub use value_custody::atomic_operations::{
     AtomicCarrierAccess, atomic_assignment_carrier, atomic_execution_children, atomic_load_carrier,
@@ -430,9 +1805,6 @@ pub use value_custody::literals::evaluate_anonymous_numeric_expression;
 pub use value_custody::literals::has_anonymous_numeric_results;
 pub use value_custody::literals::has_anonymous_operator_meaning;
 pub use value_custody::literals::land_anonymous_integer_expression;
-/// The declared type of a simple place argument (bare name / `self.field`,
-/// through the `&mut` marker), WITH its Constrained shells -- exposed for the
-/// typed-trees machine-monomorphization pass's param-position inference.
 pub use value_custody::literals::land_float_literal_destinations;
 pub use value_custody::literals::land_integer_value;
 pub use value_custody::literals::select_anonymous_numeric_match_arm;
@@ -578,28 +1950,19 @@ pub use proof_contracts::proof_embeddings::{
     ValidatedIntegerEmbeddingCall, integer_embedding_argument,
 };
 
-pub mod borrow_contracts;
-mod declarations;
 pub(crate) use optimization::digest_encoder;
 pub use queries::expression_traversal;
-mod frozen_program;
-mod queries;
+
 pub(crate) use queries::layout_checking::layout_checking_targets;
 pub use queries::layout_checking::{LayoutCheckingContext, pending_layout_geometry};
-mod machine_calls;
-mod program_validation;
-mod proof_contracts;
+
 pub use queries::substitutions;
 pub use queries::type_applications::DeclarationScopes;
-mod value_custody;
 
-// The front-end pipeline the tests run, shared with the `suite` integration
-// target that includes the same file; see its module documentation.
 pub use frozen_program::{
     CheckingContext, CheckingInput, CheckingMemos, CheckingProjection, proof_only_classification,
 };
 pub use machine_calls::effect_inference::PreparedEffectPlans;
-pub use machine_calls::reference_result_custody;
 pub use program_validation::{
     ContractEntailment, DeferredEntailment, DependencyBodyJudgment, ExactIntegerCastFact,
     FrozenDependencyBody, OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,
@@ -613,8 +1976,6 @@ pub(crate) use program_validation::{DependencyBodyRead, note_dependency_body_rea
 
 pub use proof_contracts::scalar_boundary_guarantees::derive_scalar_boundary_guarantees;
 
-// Exact typed-program queries are independently owned here so preparation
-// and immutable checking share declaration identity and occurrence order.
 pub use machine_calls::calls::{
     CallSite, CompletingTransfer, call_is_unconditional, call_receiver_parts, call_result_type,
     call_site_argument_expressions, call_site_evidence_arguments, call_target_entry_symbol,
@@ -658,9 +2019,6 @@ pub use value_custody::places::{
     symbol_type_symbol, unique_data_definition_by_symbol, whole_collection_view_source,
 };
 
-/// Walk a type-reference table once into a positional row vector: row 0 is
-/// the classification of the invalid handle, and every named index answers
-/// its own row's classification.
 pub(crate) fn classify_type_references<R: Clone, F>(
     program: &dyn crate::CheckingInput,
     classify: impl Fn(&dyn crate::CheckingInput, TypeReferenceHandle) -> R,
@@ -697,7 +2055,6 @@ pub use proof_contracts::arithmetic_domains::{
     DeclaredFloatFieldBound, declared_float_field_bounds,
 };
 
-/// Exact selected-call dependency availability for ordinary result refinements.
 pub use machine_calls::contract_dependencies::{
     independent_call_application, independent_call_site,
 };
@@ -709,7 +2066,6 @@ pub use value_custody::const_expressions::{
     ConstProjectionStep, ImmutableConstProjection, fixed_array_geometry, immutable_const_projection,
 };
 
-// One produced-storage association serves checking and flow consumers.
 pub use value_custody::completed_storage;
 pub use value_custody::places::storage_path_relations;
 
@@ -720,7 +2076,6 @@ pub use machine_calls::terminal_transitions::normalize_terminal_transition_calls
 pub use proof_contracts::bound_expression_meaning::{
     case_membership_type_facts, static_type_boolean_equalities,
 };
-pub mod native_locators;
 
 pub use value_custody::literals::land_owned_fixed_byte_literal;
 

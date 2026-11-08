@@ -1,45 +1,53 @@
+/*
+We parse Omega token streams into unresolved source-shaped syntax arenas
+(`SyntaxTrees`, `ParsedSources`, and `ParsedSyntaxPages`) across parallel
+worker-owned pages.
+*/
+
+/*
+Our recursive-descent parser separates page scheduling and root publication
+(`parser.rs`), token cursor navigation and arena span builders
+(`tokens_and_storage.rs`), top-level declaration dispatch (`declarations.rs`),
+machine and trait-default body structure (`bodies_and_transitions.rs`),
+statement and inline-assembly grammar (`statements_and_assembly.rs`), contract
+and parameter clauses (`contracts_and_parameters.rs`), precedence expressions
+(`expressions.rs`), and type references and structural patterns
+(`type_syntax_and_patterns.rs`). This stage recognizes syntactic structure
+without attaching symbol resolution or type meaning.
+*/
+
+/*
+Stage 01 (`tokens-to-syntax-trees`) consumes `LexedSources` from
+`source-files-to-tokens` (Stage 00) and produces `SyntaxTrees` for
+`syntax-trees-to-symbol-resolved-trees` (Stage 02).
+*/
+
 #![forbid(unsafe_code)]
 
-//! Psi-owned parsing of Omega tokens into unresolved source-shaped syntax.
-//!
-//! Start at `parser.rs`: [`parse_sources`] appends an ordered source batch;
-//! [`parse`] owns the per-source grammar route. It walks tokens on a
-//! `tokens::token_cursor::Input` and hands each top-level item to
-//! `grammar::declarations::parse_declaration`, publishing the roots into the
-//! caller's `SyntaxTrees`. [`parse_syntax_trees`] and
-//! [`parse_syntax_trees_with_id`] are the same route with the arena created
-//! for you.
-//!
-//! - `grammar` holds the recursive-descent rules, one module per construct:
-//!   `declarations` dispatches one top-level item to the form that owns it,
-//!   `bodies` reads a machine or trait-default body, `contracts` the contract
-//!   clauses, `parameters` parameter lists and return parameters,
-//!   `expressions` the precedence grammar, `type_syntax` one type reference,
-//!   and `patterns` the field patterns of `match` and `transition`.
-//! - `tokens` owns the cursor every grammar rule reads through.
-//! - `storage` appends parsed nodes into the `SyntaxTrees` arenas.
-//! - `diagnostics` owns the failure surface every rule reports to.
-//!
-//! Meaning belongs to the resolution and typing stages that follow; this stage
-//! only recognizes shape.
-
-// The entrance.
+mod bodies_and_transitions;
+mod contracts_and_parameters;
+mod declarations;
+mod expressions;
 pub mod parser;
+mod statements_and_assembly;
+mod tokens_and_storage;
+mod type_syntax_and_patterns;
 
-// The grammar, and what it reads through, appends into and reports to.
-mod diagnostics;
-mod grammar;
-mod storage;
-mod tokens;
+pub(crate) use tokens_and_storage::{diagnostics, storage, tokens};
 
-// The entrance, and the two forms that create the arena for the caller.
+pub(crate) mod grammar {
+    pub(crate) use crate::bodies_and_transitions::bodies;
+    pub(crate) use crate::contracts_and_parameters::{contracts, parameters};
+    pub(crate) use crate::declarations;
+    pub(crate) use crate::expressions;
+    pub(crate) use crate::type_syntax_and_patterns::{patterns, type_syntax};
+}
+
+pub use diagnostics::parse_error::ParseError;
 pub use parser::{
     ParsedSyntaxPages, ParsedSyntaxSource, parse, parse_source_pages_from, parse_source_units,
     parse_sources, parse_syntax_trees, parse_syntax_trees_with_id,
 };
-
-// Per-source grammar failure; batch parsing adds source locations as diagnostics.
-pub use diagnostics::parse_error::ParseError;
 
 #[cfg(test)]
 mod tests;

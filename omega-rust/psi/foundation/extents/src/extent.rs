@@ -1,8 +1,42 @@
-//! The extent itself: the opaque authority carrier, its conserved split,
-//! partition, attenuation and merge operations, and the errors that hand the
-//! authority back on failure.
+/*
+We implement the linear `Extent` carrier, its diagnostic vocabulary
+(`ExtentDiagnostic`), and its authority-conserving `split`, `partition`,
+`attenuate`, `loan`, and `merge` operations that return the unconsumed carrier
+whenever a precondition fails.
+*/
 
-pub(crate) mod diagnostic;
+pub(crate) mod diagnostic {
+    pub(crate) fn validate_range(base: u64, length: u64) -> Result<(), ExtentDiagnostic> {
+        if length == 0 {
+            return Err(ExtentDiagnostic(
+                "root extent must carry nonempty authority".into(),
+            ));
+        }
+        base.checked_add(length)
+            .ok_or_else(|| ExtentDiagnostic("extent range overflows address width".into()))?;
+        Ok(())
+    }
+
+    pub(crate) fn nonzero_identity(identity: u64, name: &str) -> Result<(), ExtentDiagnostic> {
+        if identity == 0 {
+            return Err(ExtentDiagnostic(format!(
+                "normalized {name} identity cannot be zero"
+            )));
+        }
+        Ok(())
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct ExtentDiagnostic(pub String);
+
+    impl std::fmt::Display for ExtentDiagnostic {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str(&self.0)
+        }
+    }
+
+    impl std::error::Error for ExtentDiagnostic {}
+}
 
 use crate::extent::diagnostic::ExtentDiagnostic;
 use crate::identities::{
@@ -25,24 +59,12 @@ pub(crate) struct Lineage {
     pub(crate) path: Vec<SplitBranch>,
 }
 
-/// Whether this extent's backing stays exclusive to one custody lineage or
-/// the provider admitted peer aliases the checker cannot see.
-///
-/// Exclusive claims over the same stable backing descend from one custody
-/// root; a writable peer cannot be wished into an exclusive borrow, so a
-/// `PeerShared` extent refuses [`Extent::loan_mut`]. Shared reads of hostile
-/// backing remain the consumer's copy-and-validate responsibility.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExtentSharingMode {
     Exclusive,
     PeerShared,
 }
 
-/// Opaque authority over one concrete address-space range.
-///
-/// This Rust carrier is deliberately non-`Clone`; Omega's `[linear]` checker
-/// supplies the source-language must-consume rule. Every consuming operation
-/// below returns the authority on failure rather than silently dropping it.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Extent {
     pub(crate) base: u64,
@@ -101,8 +123,6 @@ impl Extent {
         self.lineage.root
     }
 
-    /// Whether the backing may have writable peer aliases outside the
-    /// checker's ledger.
     pub const fn sharing(&self) -> ExtentSharingMode {
         self.sharing
     }
@@ -161,12 +181,6 @@ impl Extent {
         (lower, upper)
     }
 
-    /// Extract one independently owned subextent while retaining every byte
-    /// of the parent authority in an explicit conserved partition.
-    ///
-    /// Borrowed layout/static views should use [`Extent::loan`] instead. This
-    /// operation is for an allocation or other subresource that genuinely
-    /// leaves the parent's ownership domain.
     pub fn partition_owned(
         self,
         offset: u64,
@@ -279,10 +293,6 @@ impl Extent {
     }
 }
 
-/// One exact owned extraction and all authority needed to account for its
-/// parent. Private fields prevent callers from silently dropping a remainder
-/// while inspecting the partition; `into_parts` explicitly transfers every
-/// resulting claim.
 #[derive(Debug)]
 pub struct OwnedExtentPartition {
     before: Option<Extent>,
@@ -307,7 +317,6 @@ impl OwnedExtentPartition {
         (self.before, self.selected, self.after)
     }
 
-    /// Recompose an unmodified partition into its exact parent authority.
     pub fn rejoin(self) -> Extent {
         let mut restored = self.selected;
         if let Some(after) = self.after {

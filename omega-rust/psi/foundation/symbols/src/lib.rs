@@ -1,16 +1,37 @@
-#![forbid(unsafe_code)]
+/*
+    Target-neutral symbol identities, names, paths and hierarchy storage.
 
-//! Target-neutral symbol identities, names, paths, and hierarchy storage.
-//!
-//! A `SymbolHandle` is the durable identity of one declaration; names and paths
-//! are lookup and display metadata around it. `builtin` seeds the language's
-//! builtin types and functions, and `table` owns the hierarchy arena that scoped
-//! lookup walks. String names never stand in for identity after resolution.
-//!
-//! Start at `table.rs`; `symbol` holds the handle, name, path and kind types
-//! it stores, `builtin` the seeded builtin symbols, and `fast_map` the
-//! handle-keyed map and hasher its callers key by `SymbolHandle` rather than
-//! by name.
+    We give every declaration one durable `SymbolHandle`; names and paths are
+    lookup and display metadata around it. `table` owns the hierarchy arena
+    that scoped lookup walks, together with the builder, appender and
+    extension that grow it, the per-source module and import namespaces, and
+    the lazily built name indices. `builtin` seeds the language's source-free
+    types, members and functions at fixed root-child ordinals, and
+    `retained_declaration` carries an already selected declaration across
+    independently allocated source contexts.
+*/
+
+/*
+    We keep identity separate from spelling because every later stage compares
+    declarations, not strings: once resolution finishes, a string name never
+    stands in for a symbol. The table is an arena of dense handles with child
+    spans rather than a map of names, so lookup walks contiguous storage and
+    an extension can append generated source without rebuilding the base.
+    Callers that do need hashing key `SymbolMap` and `SymbolKeyMap` by handle
+    through the cheap `fast_map` hasher instead of SipHash.
+*/
+
+/*
+    This is a Psi foundation crate with no pipeline stage of its own. Stage
+    02 (`syntax-trees-to-symbol-resolved-trees`) builds the table and assigns
+    every handle; the symbol-resolved, typed and checked tree representations
+    store those handles, and stages 03 through 08, validation, proof,
+    build-time evaluation, the interpreters and Omega's realization and
+    package crates read them. Start at `table`; `symbol` holds the handle,
+    name, path and kind types it stores.
+*/
+
+#![forbid(unsafe_code)]
 
 mod builtin;
 mod fast_map;
