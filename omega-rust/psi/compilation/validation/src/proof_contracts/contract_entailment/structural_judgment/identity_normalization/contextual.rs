@@ -20,6 +20,8 @@ impl StructuralJudge<'_> {
         remaining: &mut usize,
         substitutions: &mut IdentitySubstitutions<'_>,
     ) -> Result<StructuralTerm, &'static str> {
+        substitutions.work.rewrite_calls += 1;
+        substitutions.work.max_rewrite_depth = substitutions.work.max_rewrite_depth.max(depth);
         if substitutions.rows.is_empty() {
             return Ok(value);
         }
@@ -29,6 +31,7 @@ impl StructuralJudge<'_> {
         // Visit the same shallow frontier across all siblings before opening
         // a deeper compound value. A change always retries the outer context.
         for frontier in 0..(32 - depth) {
+            substitutions.work.frontier_passes[frontier] += 1;
             let step =
                 self.identity_context_step(&value, depth, frontier, remaining, substitutions)?;
             if let Some(next) = step.changed {
@@ -51,12 +54,15 @@ impl StructuralJudge<'_> {
         remaining: &mut usize,
         substitutions: &mut IdentitySubstitutions<'_>,
     ) -> Result<Option<StructuralTerm>, &'static str> {
+        substitutions.work.root_visits += 1;
         if depth >= 32 {
             return Err("the contextual Id substitution exceeds the query depth bound");
         }
         spend_component_work(remaining)?;
         if let Some(observed) = self.identity_content_observation(value) {
-            return Ok((!observed.same_resolution_payload(value)).then_some(observed));
+            let changed = !observed.same_resolution_payload(value);
+            substitutions.work.observation_changes += usize::from(changed);
+            return Ok(changed.then_some(observed));
         }
         let owned = structural_terms::owned_observation_type(self.program, value).is_some();
         if !matches!(
@@ -77,6 +83,7 @@ impl StructuralJudge<'_> {
             .unwrap_or(substitutions.rows[component].values[1]);
         // Keep an existing owned view of the chosen representation. Returning
         // its raw RHS could otherwise alternate with declared-field wrappers.
+        substitutions.work.view_matches += 1;
         if matches!(
             self.identity_representation_correspondence(
                 value.clone(),
@@ -86,10 +93,12 @@ impl StructuralJudge<'_> {
             ),
             StructuralJudgment::Proven
         ) {
+            substitutions.work.preserved_views += 1;
             return Ok(None);
         }
         // This is an established endpoint, not a completed normal form. Let
         // the parent retry before resolving it; do not populate the cache.
+        substitutions.work.raw_changes += 1;
         Ok(Some(target.clone()))
     }
 
@@ -101,6 +110,8 @@ impl StructuralJudge<'_> {
         remaining: &mut usize,
         substitutions: &mut IdentitySubstitutions<'_>,
     ) -> Result<ContextStep, &'static str> {
+        substitutions.work.context_visits += 1;
+        substitutions.work.max_node_depth = substitutions.work.max_node_depth.max(depth);
         if frontier == 0 {
             return self
                 .identity_context_root_step(value, depth, remaining, substitutions)
@@ -114,8 +125,10 @@ impl StructuralJudge<'_> {
         }
         spend_component_work(remaining)?;
         if let Some(observed) = self.identity_content_observation(value) {
+            let changed = !observed.same_resolution_payload(value);
+            substitutions.work.observation_changes += usize::from(changed);
             return Ok(ContextStep {
-                changed: (!observed.same_resolution_payload(value)).then_some(observed),
+                changed: changed.then_some(observed),
                 reached: false,
             });
         }
@@ -165,6 +178,7 @@ impl StructuralJudge<'_> {
             }
         };
         if !prepared.same_resolution_payload(value) {
+            substitutions.work.observation_changes += 1;
             return Ok(ContextStep {
                 changed: Some(prepared),
                 reached: true,
