@@ -24,6 +24,12 @@ impl<'program> StaticTypeArgumentOwner<'program> {
                 signature,
             });
         }
+        if let Some((declaration, signature)) = program.machine_parameter_signature(owner) {
+            return Some(Self::MachineSignature {
+                declaration,
+                signature,
+            });
+        }
         if let Some(data) = program.data_definition_by_symbol(owner) {
             return Some(Self::Data(data));
         }
@@ -70,6 +76,19 @@ impl<'program> StaticTypeArgumentOwner<'program> {
                     program.trait_type_parameters(declaration),
                     &declaration.lifetime_parameters,
                 );
+                (Cow::Owned(types), Cow::Owned(lifetimes), signature.symbol)
+            }
+            Self::MachineSignature {
+                declaration,
+                signature,
+            } => {
+                let mut types = program.state_signature_type_parameters(signature).to_vec();
+                let mut lifetimes = signature.lifetime_parameters.clone();
+                let (outer_types, outer_lifetimes) = program
+                    .machine_type_reference_scope(declaration, |left, right| {
+                        left.name == right.name
+                    });
+                append_scope(&mut types, &mut lifetimes, &outer_types, &outer_lifetimes);
                 (Cow::Owned(types), Cow::Owned(lifetimes), signature.symbol)
             }
             Self::Constant { symbol, .. } => {

@@ -79,17 +79,27 @@ pub(crate) fn check_operator_contract_conformance(
         )
     };
 
+    let located = |diagnostic: Diagnostic| {
+        if let Some(span) = program
+            .symbols
+            .symbol_provenance_source_span(machine.symbol)
+        {
+            diagnostic.with_source_span(span)
+        } else {
+            diagnostic
+        }
+    };
     for provider_requires_fact in &provider.requires {
         if !requirement
             .requires
             .iter()
             .any(|required| matches(*required, *provider_requires_fact))
         {
-            diagnostics.push(Diagnostic::error(format!(
+            diagnostics.push(located(Diagnostic::error(format!(
                 "checked operator provider `{}` requires `{}`, which operator requirement `{operator_identity}` does not require",
                 machine.name,
                 program.expression_table.display_name(provider_requires_fact.expression()),
-            )));
+            ))));
         }
     }
     for requirement_ensures_fact in &requirement.ensures {
@@ -98,11 +108,11 @@ pub(crate) fn check_operator_contract_conformance(
             .iter()
             .any(|provided| matches(*requirement_ensures_fact, *provided))
         {
-            diagnostics.push(Diagnostic::error(format!(
+            diagnostics.push(located(Diagnostic::error(format!(
                 "checked operator provider `{}` proves no ensures matching operator requirement `{operator_identity}` contract `{}`",
                 machine.name,
                 program.expression_table.display_name(requirement_ensures_fact.expression()),
-            )));
+            ))));
         }
     }
     check_operator_crash_contract_refinement(

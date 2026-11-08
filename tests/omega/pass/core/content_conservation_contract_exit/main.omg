@@ -131,7 +131,12 @@ machine Main::main(main: &mut Main) reaches Console, RegionSplit, RegionSink {
 }
 
 RegionSplitImplementation satisfies RegionSplit {
-    machine split(whole: Region in Owned, head: u64) -> SplitResult { RegionSplitProvider::split(whole, head) }
+    machine split(whole: Region in Owned, head: u64) -> SplitResult
+    ensures core::Identity<CountedQuantity<ByteUnit>>(
+        Owned::content(old(&whole)),
+        separate(Owned::content(&result.left), Owned::content(&result.right))
+    )
+    { RegionSplitProvider::split(whole, head) }
 }
 RegionSinkImplementation satisfies RegionSink {
     machine accept(piece: Region in Owned) { RegionSinkProvider::accept(piece) }

@@ -150,7 +150,18 @@ pub(crate) fn validate_proof_embeddings(
             _ => false,
         };
         if mathematical && (!proof_seen.contains(&handle) || runtime_seen.contains(&handle)) {
-            diagnostics.push(Diagnostic::error("mathematical terms are proof-only and cannot be used as executable values or statements"));
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "mathematical terms are proof-only and cannot be used as executable values or statements: `{}` {}",
+                    expression_table(program).display_name(handle),
+                    if runtime_seen.contains(&handle) {
+                        "is demanded by executable code"
+                    } else {
+                        "has no retained proof context"
+                    },
+                ))
+                .with_source_span(expression_table(program).source_span(handle)),
+            );
         }
         let ExpressionNode::Call(call) = node else {
             continue;

@@ -100,6 +100,10 @@ pub enum StaticTypeArgumentOwner<'program> {
         declaration: &'program typed_trees::trait_definition::TraitDefinition,
         signature: &'program typed_trees::signature::StateSignature,
     },
+    MachineSignature {
+        declaration: &'program typed_trees::machine::Machine,
+        signature: &'program typed_trees::signature::StateSignature,
+    },
     Constant {
         symbol: symbols::SymbolHandle,
         name: &'program str,
@@ -377,6 +381,13 @@ impl fmt::Display for TypeReferenceOwner<'_> {
                             formatter,
                             "trait `{}` requirement `{}`",
                             declaration.name, signature.name
+                        )?;
+                    }
+                    StaticTypeArgumentOwner::MachineSignature { signature, .. } => {
+                        write!(
+                            formatter,
+                            "machine-parameter requirement `{}`",
+                            signature.name
                         )?;
                     }
                     StaticTypeArgumentOwner::Constant { name, .. } => {

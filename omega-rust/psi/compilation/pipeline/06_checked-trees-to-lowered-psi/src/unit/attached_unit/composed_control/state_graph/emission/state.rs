@@ -1184,11 +1184,26 @@ impl StateGraphEmission<'_, '_> {
                     lookup_type_id(&self.catalogs.type_ids, &result.type_identity)?,
                     &self.catalogs.structural_types,
                 )?;
+                // Each return uses its own checked correspondence. A proof on
+                // another arm cannot supply this arm's missing guarantee.
+                let identity_parameters = self.state_contract_rosters[position]
+                    .iter()
+                    .map(|(_, parameter)| parameter.clone())
+                    .collect::<Vec<_>>();
+                let state_identities = crate::unit::attached_unit::claims::lower_result_identity(
+                    checked,
+                    owner,
+                    state.state,
+                    &state.structural_parameters,
+                    &identity_parameters,
+                    &self.machine_result,
+                    &self.claims.source_claims,
+                )?;
                 if self.content_entry_claims.iter().any(|entry| {
                     returned_claims
                         .iter()
                         .any(|binding| binding.claim == entry.claim)
-                        && !self.content_identity_reshuffles.iter().any(|identity| {
+                        && !state_identities.iter().any(|identity| {
                             identity.claim == entry.claim
                                 && identity.input == entry.input
                                 && identity.projections == entry.projections
@@ -1197,6 +1212,16 @@ impl StateGraphEmission<'_, '_> {
                     return unsupported(
                         "structural return lost its checked content identity guarantee",
                     );
+                }
+                for identity in state_identities {
+                    if self.content_entry_claims.iter().any(|entry| {
+                        identity.claim == entry.claim
+                            && identity.input == entry.input
+                            && identity.projections == entry.projections
+                    }) && !self.content_identity_reshuffles.contains(&identity)
+                    {
+                        self.content_identity_reshuffles.push(identity);
+                    }
                 }
                 Terminator::ReturnStructural {
                     edge: edge_id(allocate_dense(&mut next_edge)?),

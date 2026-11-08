@@ -3020,6 +3020,18 @@ fn guard_case_value(
 ) -> Option<StructuralTerm> {
     let (definition, variant) =
         super::structural_terms::case_guard_classifier(program, machine, Some(state), guard)?;
+    let subject = program.expression_table.binary_node(guard)?.left;
+    let reference = crate::expression_result_type_reference(program, machine, state, subject)?;
+    let reference =
+        crate::value_custody::field_domains::readable_type_reference(program, reference)?;
+    let identity = super::structural_judgment::ConstructorIdentity::at_reference(
+        program,
+        reference,
+        definition,
+        Some(variant),
+    )?;
+    let variant = program.data_constructor_case(reference, definition.symbol, variant.symbol)?;
+    let definition = program.data_constructor_definition(reference, definition.symbol)?;
     let data = definition.name.as_str().to_owned();
     let case = variant.name.as_str().to_owned();
     let variant_fields: Vec<String> = program
@@ -3049,11 +3061,6 @@ fn guard_case_value(
         })
         .collect();
     fields.sort_by(|(left, _), (right, _)| left.cmp(right));
-    let identity = super::structural_judgment::ConstructorIdentity::nominal(
-        program,
-        definition,
-        Some(variant),
-    )?;
     Some(StructuralTerm::Constructor {
         identity,
         data,

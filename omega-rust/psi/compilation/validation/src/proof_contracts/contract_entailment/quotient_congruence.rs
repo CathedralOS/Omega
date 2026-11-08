@@ -145,27 +145,31 @@ fn quotient_equality_goal(
     program: &dyn crate::CheckingInput,
     fact: ExpressionHandle,
 ) -> Option<(&DataDefinition, ExpressionHandle, ExpressionHandle)> {
-    let binary = program.expression_table.binary_node(fact)?;
-    if binary.operator != BinaryOperator::Equal {
-        return None;
-    }
+    let identity = crate::mathematical_applications::identity_application_at(program, fact).ok()?;
+    let [left_subject, right_subject] = identity.subjects;
     let (ExpressionNode::Cast(left), ExpressionNode::Cast(right)) = (
-        program.expression_table.expression(binary.left),
-        program.expression_table.expression(binary.right),
+        program.expression_table.expression(left_subject),
+        program.expression_table.expression(right_subject),
     ) else {
         return None;
     };
-    if left.form.is_recast() || right.form.is_recast() {
+    if left.form.is_recast()
+        || right.form.is_recast()
+        || ![left.target_type, right.target_type]
+            .into_iter()
+            .all(|reference| {
+                crate::value_custody::type_references::type_references_match(
+                    program,
+                    reference,
+                    identity.carrier,
+                )
+            })
+    {
         return None;
     }
-    let left_name = program.named_type_reference(left.target_type)?;
-    let right_name = program.named_type_reference(right.target_type)?;
-    if left_name.as_str() != right_name.as_str() {
-        return None;
-    }
-    let quotient = program.data_definitions().iter().find(|definition| {
-        definition.name.as_str() == left_name.as_str() && definition.quotient.is_some()
-    })?;
+    let quotient =
+        crate::value_custody::places::data_definition_for_type(program, identity.carrier)?;
+    quotient.quotient.as_ref()?;
     Some((quotient, left.value, right.value))
 }
 

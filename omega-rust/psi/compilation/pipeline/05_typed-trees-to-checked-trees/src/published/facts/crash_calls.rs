@@ -71,6 +71,23 @@ fn predicate_expression(
     }
     let lower =
         |operand| predicate_expression(program, operand, parameter_names, content_conservation);
+    if program
+        .expression_table
+        .call_node(expression)
+        .is_some_and(|call| {
+            validation::mathematical_applications::is_mathematical_call(program, call)
+        })
+        && let Ok(identity) =
+            validation::mathematical_applications::identity_application_at(program, expression)
+    {
+        return CrashPredicateExpression::structural_identity(
+            program.normalized_type_identity(identity.carrier),
+            &program.type_identities,
+            lower(identity.subjects[0]),
+            lower(identity.subjects[1]),
+        )
+        .unwrap_or(CrashPredicateExpression::Invalid);
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => CrashPredicateExpression::Binary {
             operator: binary.operator as u8,

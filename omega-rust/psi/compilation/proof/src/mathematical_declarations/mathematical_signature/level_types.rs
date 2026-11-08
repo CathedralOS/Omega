@@ -316,6 +316,21 @@ impl<'a> Elaborator<'a> {
             if let Some(term) = self.constant_for_declaration(symbol)? {
                 return Ok(term);
             }
+            if let Some(reference) = self
+                .program
+                .unique_data_definition_by_symbol(symbol)
+                .and_then(|definition| definition.generic_instance)
+            {
+                if matches!(
+                    self.program.type_reference_table.type_reference(reference),
+                    TypeReferenceNode::Named { symbol: selected, .. } if *selected == symbol
+                ) {
+                    return Err(self.refuse(
+                        "a specialized mathematical carrier lost its source application".into(),
+                    ));
+                }
+                return self.elaborate_type_reference(reference);
+            }
             if let Some(term) = self.carrier_for_symbol(symbol) {
                 return Ok(term);
             }

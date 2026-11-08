@@ -3479,10 +3479,15 @@ impl<'program> StructuralJudge<'program> {
         {
             // Negation composes the operand's proposition judgment. In
             // particular, a formed Identity is not a scalar Boolean value.
-            return match self.judge_proposition(program, unary.operand) {
-                StructuralJudgment::Proven => StructuralJudgment::Refuted,
-                StructuralJudgment::Refuted => StructuralJudgment::Proven,
-                StructuralJudgment::Unknown => StructuralJudgment::Unknown,
+            let inner = self.judge_proposition(program, unary.operand);
+            return if self.hypotheses_contradictory {
+                StructuralJudgment::Proven
+            } else {
+                match inner {
+                    StructuralJudgment::Proven => StructuralJudgment::Refuted,
+                    StructuralJudgment::Refuted => StructuralJudgment::Proven,
+                    StructuralJudgment::Unknown => StructuralJudgment::Unknown,
+                }
             };
         }
         if program.static_type_predicate_operands(fact).is_some() {

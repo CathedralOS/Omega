@@ -1404,8 +1404,61 @@ fn equivalent_work_pin(root: &Path, base_rev: &str, status: char, path: &str) ->
         == canonical_work_pins(&fragments(show_git_file(root, "HEAD", path)))
 }
 
-fn expected_pin_violations(root: &Path, base_rev: &str, changes: &[(char, String)]) -> Vec<String> {
+fn pin_records_by_fixture(
+    text: &str,
+) -> Option<BTreeMap<String, Vec<crate::corpus::CorpusRecord>>> {
+    let mut fixtures = BTreeMap::<String, Vec<crate::corpus::CorpusRecord>>::new();
+    for record in crate::corpus::parse_records(text).ok()? {
+        fixtures
+            .entry(record.fixture.clone())
+            .or_default()
+            .push(record);
+    }
+    Some(fixtures)
+}
+
+// A compiler repair can change the first reported error or its spelling.
+// Every replacement fragment must occur in a newly recorded intended rejection.
+// Review still checks that the diagnostic names the fixture's broken obligation.
+fn recorded_pin_migration(
+    pins: &BTreeSet<String>,
+    records: &[crate::corpus::CorpusRecord],
+    previous: &[crate::corpus::CorpusRecord],
+) -> bool {
+    let [record] = records else { return false };
+    let Some(stamp) = record.recorded_at.as_deref() else {
+        return false;
+    };
+    !pins.is_empty()
+        && record.fixture.starts_with("fail/")
+        && record.tier == "fail"
+        && record.status == "rejected"
+        && record.expected_satisfied == Some(true)
+        && record.regressed_from.is_none()
+        && (12..=40).contains(&stamp.len())
+        && stamp.bytes().all(|byte| byte.is_ascii_hexdigit())
+        && previous
+            .iter()
+            .all(|old| old.recorded_at.as_deref() != Some(stamp))
+        && pins.iter().all(|pin| {
+            record
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.contains(pin))
+        })
+}
+
+fn expected_pin_violations(
+    root: &Path,
+    base_rev: &str,
+    changes: &[(char, String)],
+    rewritten: &BTreeSet<String>,
+    base_golden: &str,
+    head_golden: &str,
+) -> Vec<String> {
     let mut violations = Vec::new();
+    let base_records = pin_records_by_fixture(base_golden);
+    let head_records = pin_records_by_fixture(head_golden);
     for (status, path) in changes {
         if *status == 'A' || !path.starts_with("tests/omega/") || !path.ends_with("/expected.txt") {
             continue;
@@ -1429,6 +1482,20 @@ fn expected_pin_violations(root: &Path, base_rev: &str, changes: &[(char, String
         if canonical_work_pins(&old) == canonical_work_pins(&new) {
             continue;
         }
+        if *status == 'M'
+            && let Some(fixture) = path
+                .strip_prefix("tests/omega/")
+                .and_then(|path| path.strip_suffix("/expected.txt"))
+            && rewritten.contains(fixture)
+            && let (Some(base), Some(head)) = (&base_records, &head_records)
+            && recorded_pin_migration(
+                &new,
+                head.get(fixture).map(Vec::as_slice).unwrap_or_default(),
+                base.get(fixture).map(Vec::as_slice).unwrap_or_default(),
+            )
+        {
+            continue;
+        }
         let detail = if *status == 'D' {
             "removed the file and its pinned diagnostic".to_owned()
         } else {
@@ -1444,7 +1511,7 @@ fn expected_pin_violations(root: &Path, base_rev: &str, changes: &[(char, String
             parts.join("; ")
         };
         violations.push(format!(
-            "{path}: broke existing-diagnostic-pin: {detail}. An expected.txt that already existed on the base keeps its pinned diagnostic; add a new fixture file to pin a different diagnostic."
+            "{path}: broke existing-diagnostic-pin: {detail}. Keep expected.txt; a changed pin requires a unique refreshed rejected/expected row with a new clean revision and every new fragment in its recorded diagnostics."
         ));
     }
     violations
@@ -1732,6 +1799,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             git(&root, &["diff", "-U0", &base_rev, "HEAD", "--", GOLDEN]).unwrap_or_default();
         let base_golden = show_git_file(&root, &base_rev, GOLDEN);
         let head_golden = show_git_file(&root, "HEAD", GOLDEN);
+        let rewritten = changed_golden_rows(&golden_diff);
         let freshness_changes: Vec<_> = changes
             .iter()
             .filter(|(status, path)| !equivalent_work_pin(&root, &base_rev, *status, path))
@@ -1741,12 +1809,19 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             &freshness_changes,
             &golden_rows(&base_golden),
             &golden_rows(&head_golden),
-            &changed_golden_rows(&golden_diff),
+            &rewritten,
             &fixture_directories(&root),
         ));
         violations.extend(golden_row_quality_violations(&golden_diff));
         violations.extend(diff_hygiene_violations(&changes));
-        violations.extend(expected_pin_violations(&root, &base_rev, &changes));
+        violations.extend(expected_pin_violations(
+            &root,
+            &base_rev,
+            &changes,
+            &rewritten,
+            &base_golden,
+            &head_golden,
+        ));
         for (status, path) in &changes {
             if *status == 'A' && path.starts_with(MEASUREMENTS_ROOT) {
                 if !path.ends_with(".md") {
@@ -1824,6 +1899,53 @@ mod tests {
             "dangling task IDs differed:\n{}",
             violations.join("\n")
         );
+    }
+
+    #[test]
+    fn pin_migration_requires_a_fresh_intended_rejection() {
+        let pins = ["missing output".to_owned(), "Identity".to_owned()]
+            .into_iter()
+            .collect();
+        let previous = crate::corpus::parse_records(
+            "fail/contracts/example rejected 1ms expected @aaaaaaaaaaaa\n\told wording\n",
+        )
+        .unwrap();
+        let current = crate::corpus::parse_records(
+            "fail/contracts/example rejected 2ms expected @bbbbbbbbbbbb\n\tmissing output Identity\n",
+        ).unwrap();
+        assert!(recorded_pin_migration(&pins, &current, &previous));
+        assert!(!recorded_pin_migration(&pins, &current, &current));
+        assert!(!recorded_pin_migration(
+            &BTreeSet::new(),
+            &current,
+            &previous
+        ));
+        assert!(!recorded_pin_migration(&pins, &[], &previous));
+        let mut duplicates = current.clone();
+        duplicates.extend(current.clone());
+        assert!(!recorded_pin_migration(&pins, &duplicates, &previous));
+
+        for text in [
+            "fail/contracts/example checked 2ms expected @bbbbbbbbbbbb\n\tmissing output Identity\n",
+            "fail/contracts/example rejected 2ms unexpected @bbbbbbbbbbbb\n\tmissing output Identity\n",
+            "fail/contracts/example rejected 2ms expected @bbbbbbbbbbbb+wt\n\tmissing output Identity\n",
+            "fail/contracts/example rejected 2ms expected\n\tmissing output Identity\n",
+            "fail/contracts/example rejected 2ms expected @bbbbbbbbbbbb\n\tunrelated rejection\n",
+        ] {
+            let records = crate::corpus::parse_records(text).unwrap();
+            assert!(
+                !recorded_pin_migration(&pins, &records, &previous),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn pin_record_index_retains_duplicate_rows_and_refuses_malformed_input() {
+        let text = "fail/contracts/example rejected 1ms expected @bbbbbbbbbbbb\n";
+        let index = pin_records_by_fixture(&text.repeat(2)).unwrap();
+        assert_eq!(index["fail/contracts/example"].len(), 2);
+        assert!(pin_records_by_fixture("not a corpus record").is_none());
     }
 
     #[test]

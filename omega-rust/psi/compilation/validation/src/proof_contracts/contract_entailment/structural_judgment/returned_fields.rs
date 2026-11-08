@@ -306,20 +306,20 @@ fn declaration_input_value(
     value: &StructuralTerm,
 ) -> bool {
     let input = |name: &str| {
-        parameters.iter().find(|parameter| {
-            parameter.name.as_str() == name
-                && !parameter.is_mutable
-                && judge.frame_resolver().is_some_and(|frames| {
-                    frames.proof_value_is_caller_isolated(parameter.type_reference)
-                })
-        })
+        parameters
+            .iter()
+            .find(|parameter| parameter.name.as_str() == name && !parameter.is_mutable)
     };
     match value {
         StructuralTerm::Integer(_) => true,
         StructuralTerm::Constructor {
             identity, fields, ..
         } => identity.boolean().is_some() && fields.is_empty(),
-        StructuralTerm::Variable(name) => input(name).is_some(),
+        StructuralTerm::Variable(name) => input(name).is_some_and(|parameter| {
+            judge.frame_resolver().is_some_and(|frames| {
+                frames.proof_value_is_caller_isolated(parameter.type_reference)
+            })
+        }),
         StructuralTerm::Projection { subject, path } => {
             let StructuralTerm::Variable(name) = subject.as_ref() else {
                 return false;
@@ -327,6 +327,9 @@ fn declaration_input_value(
             let Some(parameter) = input(name) else {
                 return false;
             };
+            // An immutable input's owned scalar field keeps its captured value
+            // even when the enclosing carrier is linear. The equation carries
+            // that scalar only; it supplies no whole-value denotation or claim.
             term_field_paths(
                 judge.program,
                 parameter.type_reference,
@@ -335,7 +338,20 @@ fn declaration_input_value(
             )
             .iter()
             .any(|path| {
-                owned_projection_type(judge.program, parameter.type_reference, path).is_some()
+                let Some(reference) =
+                    owned_projection_type(judge.program, parameter.type_reference, path)
+                else {
+                    return false;
+                };
+                let Some(primitive) = judge.program.primitive_type_reference(reference) else {
+                    return false;
+                };
+                (primitive.is_fixed_integer() || primitive == PrimitiveType::Bool)
+                    && super::super::structural_terms::scalar_operand_is_observed(
+                        judge.program,
+                        reference,
+                        value,
+                    )
             })
         }
         StructuralTerm::ScalarBinary {

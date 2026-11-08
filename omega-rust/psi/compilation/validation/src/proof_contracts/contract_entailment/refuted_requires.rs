@@ -469,6 +469,33 @@ fn fresh_instantiated_fact_judgment(
     literal_replay: bool,
     judgments: &mut OperandJudgments,
 ) -> StructuralJudgment {
+    if let typed_trees::expression::ExpressionNode::Unary(unary) =
+        expression_table(program).expression(fact)
+        && unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
+    {
+        let inner = remembered_instantiated_fact_judgment(
+            program,
+            judge,
+            callee_owner,
+            callee_parameters,
+            unary.operand,
+            map,
+            machine_map,
+            type_map,
+            caller_scope,
+            literal_replay,
+            judgments,
+        );
+        return if judge.hypotheses_contradictory {
+            StructuralJudgment::Proven
+        } else {
+            match inner {
+                StructuralJudgment::Proven => StructuralJudgment::Refuted,
+                StructuralJudgment::Refuted => StructuralJudgment::Proven,
+                StructuralJudgment::Unknown => StructuralJudgment::Unknown,
+            }
+        };
+    }
     if program.static_type_predicate_operands(fact).is_some() {
         return super::structural_terms::static_type_predicate_term(program, fact, type_map)
             .map_or(StructuralJudgment::Unknown, |predicate| {
