@@ -236,6 +236,7 @@ fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
 
 fn execute_accepted_project(project: &Path) {
     let mut outcomes = build(BuildRequest {
+        exits_after_build: false,
         root_path: project.join("main.omg"),
         build_directory: Some(project.join("build/accepted-native")),
         targets: BuildTargets::Host,
@@ -475,6 +476,7 @@ fn compile_accepted_project(project: &Path, executions: u64) {
         let before = counters::source_build_execution_count();
         let suppliers = counters::provider_defaults_execution_count();
         let outcomes = build(BuildRequest {
+            exits_after_build: false,
             root_path: project.join("main.omg"),
             build_directory: Some(project.join("build/sdk")),
             targets: BuildTargets::Batch(targets.clone()),

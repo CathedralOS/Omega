@@ -48,6 +48,7 @@ fn inspect(root: &str, target: &str, output: &str) -> Result<()> {
     let output = Path::new(output);
     fs::create_dir(output)?;
     let mut outcomes = orchestration::build(BuildRequest {
+        exits_after_build: false,
         root_path: root.into(),
         build_directory: Some(output.join("build")),
         targets: BuildTargets::Single(profile),

@@ -19,6 +19,7 @@ pub(crate) fn compile(
                 snapshot: request.build_snapshot.as_ref(),
                 verify: request.verify,
                 timings: request.timings,
+                exits_after_build: request.exits_after_build,
                 product: request
                     .product
                     .to_compilation_product(&request.optimization_rollback, targets),

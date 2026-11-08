@@ -241,6 +241,7 @@ fn build_targets(
     )
     .map_err(|diagnostics| format!("{diagnostics:?}"))?;
     let outcomes = build(BuildRequest {
+        exits_after_build: false,
         root_path: request.root.clone(),
         build_directory: Some(directory),
         targets: BuildTargets::Batch(targets),

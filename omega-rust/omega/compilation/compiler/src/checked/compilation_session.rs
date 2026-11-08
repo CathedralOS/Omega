@@ -288,6 +288,29 @@ impl CompilationSession {
         Ok(checked)
     }
 
+    /// Leave the retained checked programs to process exit instead of freeing
+    /// them. Freeing the typed and checked trees of the core Build, the user
+    /// Build and the Product took about 12 ms at the end of every successful
+    /// `omega --check`, after all output was decided.
+    ///
+    /// Only these two fields are leaked, because nothing they own can act
+    /// outside the process when dropped: `RetainedCompilationChecks` and
+    /// `ProductSelections` hold `TypedTrees`, `CheckedTrees`, symbols, provider
+    /// default rows and portable Terminal productions, whose crates
+    /// (`typed-trees`, `checked-trees`, `typed-trees-to-checked-trees`,
+    /// `validation`, `psi-terminal-production`) depend on no interpreter,
+    /// filesystem-authority, process or custody crate and hold no trait objects.
+    /// Everything with a visible destructor (package staging, build
+    /// directories, locks, Build host files) stays with the rest of the session
+    /// and drops as before.
+    ///
+    /// Call this only when the process exits right after the build returns;
+    /// a process that compiles again would keep every leaked program.
+    pub fn release_for_process_exit(&mut self) {
+        std::mem::forget(std::mem::take(&mut self.checks));
+        std::mem::forget(std::mem::take(&mut self.selections));
+    }
+
     pub(crate) fn reuse(&self) -> SettledCheckReuse {
         SettledCheckReuse {
             prior: self.checks.clone(),

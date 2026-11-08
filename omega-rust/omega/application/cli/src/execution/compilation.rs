@@ -51,6 +51,7 @@ pub(super) fn compile(
         None => BuildTargets::Host,
     };
     let outcomes = orchestration::build(BuildRequest {
+        exits_after_build: false,
         root_path: options.root_path,
         build_directory: options.build_dir,
         targets,

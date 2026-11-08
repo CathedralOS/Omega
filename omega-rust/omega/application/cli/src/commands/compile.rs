@@ -63,6 +63,7 @@ pub(crate) fn run(arguments: CompileArguments) {
         Err(error) => exit_on_refusal([&error]),
     };
     let request = BuildRequest {
+        exits_after_build: true,
         build_directory: arguments.build_dir,
         root_path: arguments.root_path,
         targets,

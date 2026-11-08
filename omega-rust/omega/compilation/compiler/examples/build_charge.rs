@@ -1832,6 +1832,7 @@ fn project_session_lifecycle() {
     let root = project.join("main.omg");
     let before = counters::build_execution_count();
     let mut outcomes = orchestration::build(orchestration::BuildRequest {
+        exits_after_build: false,
         root_path: root.clone(),
         build_directory: Some(temporary.path().join("ordinary")),
         targets: orchestration::BuildTargets::Single(profile),
@@ -2251,6 +2252,7 @@ fn production_project_discovery() {
     let before = counters::build_execution_count();
     let completions = counters::product_source_completion_count();
     let request = orchestration::BuildRequest {
+        exits_after_build: false,
         root_path: project.join("main.omg"),
         build_directory: Some(temporary.path().join("output")),
         targets: orchestration::BuildTargets::Batch(targets.clone()),

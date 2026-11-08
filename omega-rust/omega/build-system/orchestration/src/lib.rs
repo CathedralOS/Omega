@@ -139,6 +139,12 @@ pub struct BuildRequest {
     pub require_package_project: bool, // Enforced after transaction recovery and project discovery.
     pub optimization_rollback: OptimizationRollback,
     pub build_snapshot: Option<compiler::BuildSnapshotRequest>,
+    /// The caller exits once this build returns and its output is flushed. The
+    /// compilation session then leaves its retained checked programs to process
+    /// exit instead of freeing them (`CompilationSession::release_for_process_exit`).
+    /// A caller that compiles again in the same process (tests, corpus runners)
+    /// must leave this false.
+    pub exits_after_build: bool,
 }
 
 pub struct BuildOutcome {

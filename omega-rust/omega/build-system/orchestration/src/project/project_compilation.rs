@@ -23,6 +23,7 @@ pub(crate) struct ProjectCompilationRequest<'request> {
     pub snapshot: Option<&'request build_settings::BuildSnapshotRequest>,
     pub verify: bool,
     pub timings: bool,
+    pub exits_after_build: bool,
     pub product: compiler::CompilationProduct,
 }
 
@@ -32,6 +33,7 @@ pub(crate) fn compile_returned(
     mut session: BuildSession,
     execution_profile: target::TargetProfile,
 ) -> Vec<ProjectCompilationOutcome> {
+    let exits_after_build = request.exits_after_build;
     let request = ProjectCompilationAdmissionRequest {
         prepared: request.prepared,
         target_profiles: request.target_profiles,
@@ -77,7 +79,11 @@ pub(crate) fn compile_returned(
         admitted.requests,
         &mut completed,
     );
-    admitted
+    let outcomes = admitted
         .completion
-        .complete(products, &mut session.packages)
+        .complete(products, &mut session.packages);
+    if exits_after_build {
+        session.compiler.release_for_process_exit();
+    }
+    outcomes
 }

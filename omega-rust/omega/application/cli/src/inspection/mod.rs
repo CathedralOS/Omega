@@ -64,6 +64,7 @@ pub fn inspect_terminal(
         None => BuildTargets::Host,
     };
     let outcomes = orchestration::build(BuildRequest {
+        exits_after_build: false,
         root_path: request.root_path.clone(),
         build_directory: None,
         targets,
