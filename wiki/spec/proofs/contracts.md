@@ -169,7 +169,7 @@ needs a checked observation-free, reach-free, crash-free, terminating invocation
 not merely a same-spelled mathematical operation.
 
 A generic proof using a static callable or conformance member must establish
-those conditions from its originating requirement. Write bare `reaches` when
+those conditions from its originating requirement. Write `reaches none` when
 the requirement must guarantee service-free invocation. Under
 [deferred requirement reach](../language/effects.md#deferred-requirement-reach),
 omission permits the selected implementation's row; today's pure selections

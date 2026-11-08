@@ -27,7 +27,7 @@ data LinuxArm64StatView { value: LayoutStorage<LinuxArm64StatRecord, LinuxArm64S
 
 LinuxArm64StatLayout satisfies FixedLayout<LinuxArm64StatRecord> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
-    reaches
+    reaches none
     terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };

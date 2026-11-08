@@ -29,9 +29,9 @@ boundary trait PosixFilesystemLinux {
     machine openat(dirfd: i32, path: &[u8; 4096], flags: i32, mode: i32) -> i32
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
     machine close(fd: i32) -> i32
-    reaches;
+    reaches none;
     machine lseek(fd: i32, offset: i64, whence: i32) -> i64
-    reaches;
+    reaches none;
     machine mkdirat(dirfd: i32, path: &[u8; 4096], mode: i32) -> i32
     reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
     // The kernel reads a NUL-terminated path. The loan is the whole terminated
@@ -58,13 +58,13 @@ boundary trait PosixFilesystemLinux {
     machine utimensat(dirfd: i32, path: u64, times: &u8, flags: i32) -> i32
     reaches FilesystemMetadataMutation;
     machine fsync(fd: i32) -> i32
-    reaches;
+    reaches none;
     machine fdatasync(fd: i32) -> i32
-    reaches;
+    reaches none;
     machine dup(fd: i32) -> i32
-    reaches;
+    reaches none;
     machine flock(fd: i32, operation: i32) -> i32
-    reaches;
+    reaches none;
     machine fchownat(dirfd: i32, path: &u8, uid: i32, gid: i32, flags: i32) -> i32
     reaches FilesystemMetadataMutation;
     machine fchown(fd: i32, uid: i32, gid: i32) -> i32

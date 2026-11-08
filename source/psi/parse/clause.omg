@@ -19,7 +19,7 @@ crashes Trap
 
     machine next(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
         let reaches: bool = Parser::at_word(parser, input, "reaches");
-        transition reaches {
+        transition reaches none {
             true -> admit(parser, input, owner, ClauseKind::Reaches)
             _ -> invokes_word(parser, input, owner)
         }
@@ -491,11 +491,26 @@ crashes Trap
         transition { _ -> store(parser, input, owner, ended) }
     }
 
-    // An authored empty row is a ceiling in every callable context. Its
-    // delimiter belongs to the declaration or following clause, so retaining
-    // a zero-member Reaches row distinguishes it from omission without eating
-    // that next token, including on a transparent refinement member.
+    // An authored empty row is a ceiling in every callable context. It is
+    // spelled `reaches none`: the word is consumed and the row keeps zero
+    // members, which distinguishes it from omission. The following delimiter
+    // belongs to the declaration or next clause, including on a transparent
+    // refinement member. The keyword with no value is still accepted here
+    // until this parser retires it alongside the reference parser.
     machine reached(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
+        let empty_word: bool = Parser::at_word(parser, input, "none");
+        transition empty_word {
+            true -> reached_none(parser, input, owner)
+            _ -> reached_delimiter(parser, input, owner)
+        }
+    }
+
+    machine reached_none(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
+        Parser::take_current(parser, input);
+        transition { _ -> reaches_end(parser, input, owner) }
+    }
+
+    machine reached_delimiter(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
         let semicolon: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
         let body: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
         let result: bool = Parser::at_punctuation(parser, input, PunctuationKind::Arrow);
@@ -603,7 +618,23 @@ crashes Trap
         transition { _ -> store(parser, input, owner, clause) }
     }
 
+    // `crashes none` promises no route: consume the word and store no clause,
+    // which is the empty cause set an omitted clause denotes on a published
+    // surface.
     machine crashes_cause(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
+        let empty_word: bool = Parser::at_word(parser, input, "none");
+        transition empty_word {
+            true -> crashes_none(parser, input, owner)
+            _ -> crashes_trap(parser, input, owner)
+        }
+    }
+
+    machine crashes_none(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
+        Parser::take_current(parser, input);
+        transition { _ -> next(parser, input, owner) }
+    }
+
+    machine crashes_trap(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
         let trap: bool = Parser::at_word(parser, input, "Trap");
         transition trap {
             true -> crash_clause(parser, input, owner, CrashCause::Trap)

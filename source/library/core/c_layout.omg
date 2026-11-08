@@ -7,7 +7,7 @@ use omega::language::core::option;
 public data CLayout<T> = LayoutStorage<T, CAbiPolicy<T>>;
 
 public CAbiPolicy<T> satisfies FixedLayout<T> {
-    public machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    public machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
         let mut entries: [FieldEntry; 64];
         let initial: LayoutPlan = LayoutPlan { entries: entries, entry_count: 0, size_fixed: 0, size_is_dynamic: false, align: 1 };
         match schema.case_count == 0 && schema.field_count > 0 {
@@ -19,13 +19,13 @@ public CAbiPolicy<T> satisfies FixedLayout<T> {
 
 // A plan cannot certify unsupported input. The ordinary receiving validator
 // rejects this out-of-capacity count before exposing storage or projections.
-machine c_abi_unsupported(mut plan: LayoutPlan) -> LayoutPlan reaches terminates {
+machine c_abi_unsupported(mut plan: LayoutPlan) -> LayoutPlan reaches none terminates {
     plan.entry_count = 65;
     plan
 }
 
 machine c_abi_padding(offset: u64, alignment: u64) -> u64
-reaches terminates
+reaches none terminates
 requires alignment >= 1 && alignment <= 16
 ensures result < alignment
 {
@@ -36,7 +36,7 @@ ensures result < alignment
 // One represented field per step, then trailing padding. Bounds include the final step;
 // checked arithmetic rejects unrepresentable extents rather than wrapping them.
 machine c_abi_fields(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64) -> LayoutPlan
-reaches terminates by remaining_steps
+reaches none terminates by remaining_steps
 requires index <= 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 1 && remaining_steps <= 33
 {
     transition index < schema.field_count && index < 32 && remaining_steps > 1 {

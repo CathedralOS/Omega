@@ -14,7 +14,7 @@ public machine schema<T>() -> TypeSchema { TypeSchema { storage: "" } }
 
 // An ordinary size observation used when choosing owned image storage. It
 // returns no address and does not perform another structural query.
-public machine schema_image_length(graph: &TypeSchema) -> u64 reaches terminates {
+public machine schema_image_length(graph: &TypeSchema) -> u64 reaches none terminates {
     graph.storage.len
 }
 
