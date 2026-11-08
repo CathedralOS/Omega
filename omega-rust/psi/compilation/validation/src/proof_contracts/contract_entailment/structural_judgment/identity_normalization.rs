@@ -4,8 +4,44 @@
 
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 
+#[derive(Clone, Copy)]
+enum RepresentationHead {
+    Application {
+        target: symbols::SymbolHandle,
+        arguments: usize,
+    },
+    Constructor,
+    Other,
+}
+
+impl RepresentationHead {
+    fn may_correspond(self, other: Self) -> bool {
+        match (self, other) {
+            (
+                Self::Application {
+                    target: left,
+                    arguments: left_count,
+                },
+                Self::Application {
+                    target: right,
+                    arguments: right_count,
+                },
+            ) => left == right && left_count == right_count,
+            (Self::Application { .. }, Self::Constructor)
+            | (Self::Constructor, Self::Application { .. }) => false,
+            // Unknown and opaque heads retain the complete checked matcher.
+            _ => true,
+        }
+    }
+}
+
+struct IdentitySubstitution<'value> {
+    values: [&'value StructuralTerm; 2],
+    heads: [RepresentationHead; 2],
+}
+
 struct IdentitySubstitutions<'value> {
-    rows: Vec<(&'value StructuralTerm, &'value StructuralTerm)>,
+    rows: Vec<IdentitySubstitution<'value>>,
     representatives: Vec<usize>,
     component_ready: Vec<bool>,
     query_depth: usize,
@@ -22,15 +58,15 @@ impl<'value> IdentitySubstitutions<'value> {
     ) -> Result<Self, &'static str> {
         let mut admitted = Vec::new();
         for (left, right) in rows {
-            spend_component_work(remaining).inspect_err(|reason| {
-                judge.trace_le_case(
-                    "component-preparation",
-                    &[("left", left), ("right", right)],
-                    format_args!("stage=collection rows={} depth={depth} remaining={remaining} reason={reason}", admitted.len()),
-                );
-            })?;
+            spend_component_work(remaining)?;
             if judge.identity_value_is_available(left) && judge.identity_value_is_available(right) {
-                admitted.push((left, right));
+                admitted.push(IdentitySubstitution {
+                    values: [left, right],
+                    heads: [
+                        judge.identity_representation_head(left, remaining)?,
+                        judge.identity_representation_head(right, remaining)?,
+                    ],
+                });
             }
         }
         let count = admitted.len();
@@ -63,24 +99,19 @@ impl<'value> IdentitySubstitutions<'value> {
         while cursor < members.len() {
             let row = members[cursor];
             cursor += 1;
-            for (candidate, &(other_left, other_right)) in self.rows.iter().enumerate() {
+            for (candidate, other) in self.rows.iter().enumerate() {
                 if included[candidate] {
                     continue;
                 }
-                let (left, right) = self.rows[row];
+                let [left, right] = self.rows[row].values;
+                let [other_left, other_right] = other.values;
                 for (left, right) in [
                     (left, other_left),
                     (left, other_right),
                     (right, other_left),
                     (right, other_right),
                 ] {
-                    spend_component_work(remaining).inspect_err(|reason| {
-                        judge.trace_le_case(
-                            "component-preparation",
-                            &[("left", left), ("right", right)],
-                            format_args!("stage=join seed={seed} row={row} candidate={candidate} members={} total={} depth={} remaining={remaining} reason={reason}", members.len(), self.rows.len(), self.query_depth),
-                        );
-                    })?;
+                    spend_component_work(remaining)?;
                     let verdict = judge.identity_representation_correspondence(
                         left.clone(),
                         right.clone(),
@@ -93,11 +124,6 @@ impl<'value> IdentitySubstitutions<'value> {
                         break;
                     }
                     if *remaining == 0 {
-                        judge.trace_le_case(
-                            "component-preparation",
-                            &[("left", left), ("right", right)],
-                            format_args!("stage=join seed={seed} row={row} candidate={candidate} members={} total={} depth={} remaining={remaining}", members.len(), self.rows.len(), self.query_depth),
-                        );
                         return Err(
                             "the reached Id component exhausted the shared query allowance",
                         );
@@ -109,28 +135,15 @@ impl<'value> IdentitySubstitutions<'value> {
             .iter()
             .any(|&row| self.active[self.representatives[row]])
         {
-            judge.trace_le_case(
-                "component-preparation",
-                &[],
-                format_args!(
-                    "stage=suspension seed={seed} members={} total={} remaining={remaining}",
-                    members.len(),
-                    self.rows.len()
-                ),
-            );
             return Err("the reached Id component revisits a suspended representative");
         }
         let mut best = None;
         for &row in &members {
-            let cost = judge
-                .identity_normalization_cost(self.rows[row].1, self.query_depth, remaining)
-                .inspect_err(|reason| {
-                    judge.trace_le_case(
-                        "component-target-cost",
-                        &[("target", self.rows[row].1)],
-                        format_args!("seed={seed} row={row} members={} depth={} remaining={remaining} reason={reason}", members.len(), self.query_depth),
-                    );
-                })?;
+            let cost = judge.identity_normalization_cost(
+                self.rows[row].values[1],
+                self.query_depth,
+                remaining,
+            )?;
             let candidate = (cost, row);
             if best.is_none_or(|known| candidate < known) {
                 best = Some(candidate);
@@ -152,28 +165,28 @@ impl<'value> IdentitySubstitutions<'value> {
         depth: usize,
         remaining: &mut usize,
     ) -> Result<Option<usize>, &'static str> {
+        let value_head = judge.identity_representation_head(value, remaining)?;
         for index in 0..self.rows.len() {
-            spend_component_work(remaining).inspect_err(|reason| {
-                judge.trace_le_case(
-                    "component-lookup",
-                    &[("value", value)],
-                    format_args!(
-                        "row={index} total={} depth={depth} remaining={remaining} reason={reason}",
-                        self.rows.len()
-                    ),
-                );
-            })?;
+            spend_component_work(remaining)?;
             let component = self.representatives[index];
             if self.component_ready[index] {
                 let target = self.normalized[component]
                     .as_ref()
-                    .unwrap_or(self.rows[component].1);
+                    .unwrap_or(self.rows[component].values[1]);
                 if self.active[component] || value.same_resolution_payload(target) {
                     continue;
                 }
             }
-            let (left, right) = self.rows[index];
-            for endpoint in [left, right] {
+            for (endpoint, endpoint_head) in self.rows[index]
+                .values
+                .into_iter()
+                .zip(self.rows[index].heads)
+            {
+                // Different selected call heads cannot correspond in this
+                // non-solving mode. Keep the full matcher for every candidate.
+                if !value_head.may_correspond(endpoint_head) {
+                    continue;
+                }
                 let verdict = judge.identity_representation_correspondence(
                     value.clone(),
                     endpoint.clone(),
@@ -184,22 +197,13 @@ impl<'value> IdentitySubstitutions<'value> {
                     let component = self.prepare_component(index, judge, remaining)?;
                     let target = self.normalized[component]
                         .as_ref()
-                        .unwrap_or(self.rows[component].1);
+                        .unwrap_or(self.rows[component].values[1]);
                     if !self.active[component] && !value.same_resolution_payload(target) {
                         return Ok(Some(component));
                     }
                     break;
                 }
                 if *remaining == 0 {
-                    judge.trace_le_case(
-                        "component-lookup",
-                        &[("value", value), ("endpoint", endpoint)],
-                        format_args!(
-                            "row={index} total={} depth={depth} ready={} remaining={remaining}",
-                            self.rows.len(),
-                            self.component_ready[index]
-                        ),
-                    );
                     return Err("the Id component lookup exhausted the shared query allowance");
                 }
             }
@@ -217,6 +221,65 @@ fn spend_component_work(remaining: &mut usize) -> Result<(), &'static str> {
 }
 
 impl StructuralJudge<'_> {
+    /// Prepare only a conservative candidate key. Owned observations and
+    /// reference descriptors follow the same existing boundary as the full
+    /// representation matcher; canonical content stays opaque.
+    fn identity_representation_head(
+        &self,
+        mut value: &StructuralTerm,
+        remaining: &mut usize,
+    ) -> Result<RepresentationHead, &'static str> {
+        for _ in 0..32 {
+            spend_component_work(remaining)?;
+            if self.identity_content_type(value).is_some() {
+                return Ok(RepresentationHead::Other);
+            }
+            match value {
+                StructuralTerm::Application {
+                    target, arguments, ..
+                } => {
+                    return Ok(RepresentationHead::Application {
+                        target: *target,
+                        arguments: arguments.len(),
+                    });
+                }
+                StructuralTerm::Constructor { .. } => return Ok(RepresentationHead::Constructor),
+                StructuralTerm::ObservedValue {
+                    observed_type,
+                    value: inner,
+                    descriptor,
+                } => {
+                    if !observed_type.is_valid() {
+                        return Ok(RepresentationHead::Other);
+                    }
+                    if crate::reference_shell(self.program, *observed_type).is_some() {
+                        let Some(descriptor) = descriptor else {
+                            return Ok(RepresentationHead::Other);
+                        };
+                        value = descriptor;
+                    } else if super::super::structural_terms::owned_observation_type(
+                        self.program,
+                        value,
+                    )
+                    .is_some()
+                    {
+                        value = inner;
+                    } else {
+                        return Ok(RepresentationHead::Other);
+                    }
+                }
+                StructuralTerm::IntegerEmbedding {
+                    reference,
+                    value: inner,
+                } if reference.is_valid() => value = inner,
+                _ => return Ok(RepresentationHead::Other),
+            }
+        }
+        // A bounded classifier may decline to classify; it never refuses the
+        // full representation match on the strength of a partial observation.
+        Ok(RepresentationHead::Other)
+    }
+
     pub(super) fn normalize_identity_values(
         &self,
         values: [StructuralTerm; 2],
@@ -482,18 +545,9 @@ impl StructuralJudge<'_> {
         // with its component suspended, then retain that result for both
         // operands. Revisit cannot send it back through the same edge.
         substitutions.active[component] = true;
-        let target = substitutions.rows[component].1.clone();
+        let target = substitutions.rows[component].values[1].clone();
         let result = self.normalize_identity_context(target, depth + 1, remaining, substitutions);
         substitutions.active[component] = false;
-        if let Err(reason) = &result {
-            self.trace_le_case(
-                "representative-normalization",
-                &[("target", substitutions.rows[component].1)],
-                format_args!(
-                    "component={component} depth={depth} remaining={remaining} reason={reason}"
-                ),
-            );
-        }
         if let Ok(value) = &result {
             substitutions.normalized[component] = Some(value.clone());
         }
