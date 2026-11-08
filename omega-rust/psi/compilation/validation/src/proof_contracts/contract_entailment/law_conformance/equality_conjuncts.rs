@@ -175,12 +175,12 @@ pub(super) fn trace_law_source(
                         call.receiver
                     );
                     for (slot, application) in
-                        crate::references::StaticArgumentCall::Expression(expression, call)
+                        typed_trees::references::StaticArgumentCall::Expression(expression, call)
                             .applications()
                             .into_iter()
                             .enumerate()
                     {
-                        let bindings = program
+                        let bindings = crate::frozen_program::expression_table(program)
                             .static_machine_application_bindings(application)
                             .iter()
                             .take(4)
@@ -215,7 +215,7 @@ pub(super) fn trace_law_source(
                             .collect::<Vec<_>>();
                         eprintln!(
                             "IDLAW slot={slot} lifetime_owner={:?} bindings={bindings:?}",
-                            program
+                            crate::frozen_program::expression_table(program)
                                 .static_machine_application(application)
                                 .lifetime_binding_declaration
                         );
