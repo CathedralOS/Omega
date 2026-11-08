@@ -236,11 +236,10 @@
 5 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/control_flow_cleanup/machines.rs
 7 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/control_flow_cleanup/retention.rs
 13 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/copy_propagation/copies.rs
-4 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/dead_scalar_elimination/liveness.rs
 1 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/edge_arguments.rs
 4 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/global_value_numbering/equivalents.rs
 3 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/retained_identities.rs
-5 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/retained_identities/proof_values.rs
+4 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/retained_identities/proof_values.rs
 3 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/retained_identities/ranked_coverage.rs
 1 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/sparse_conditional_constant_propagation/folding.rs
 1 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/sparse_conditional_constant_propagation/mod.rs

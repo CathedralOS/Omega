@@ -35,16 +35,20 @@ enum LeafKey {
 
 pub(super) struct Reviewer<'a> {
     context: ReviewContext<'a>,
+    artifact: [u8; 32],
+    checked_handles: Option<super::windows_handle_replay::CheckedHandleCalls>,
     expanded: BTreeSet<BoundaryMachineId>,
     leaves: BTreeMap<LeafKey, TerminalAuthorityClosureLeaf>,
     identities: terminal_psi::TerminalIdentityTableBuilder,
 }
 
 impl<'a> Reviewer<'a> {
-    pub(super) fn new(context: ReviewContext<'a>) -> Self {
+    pub(super) fn new(context: ReviewContext<'a>, artifact: [u8; 32]) -> Self {
         Self {
             identities: context.input.plan().identities.clone().into_builder(),
             context,
+            artifact,
+            checked_handles: None,
             expanded: BTreeSet::new(),
             leaves: BTreeMap::new(),
         }
@@ -55,8 +59,13 @@ impl<'a> Reviewer<'a> {
     ) -> (
         Vec<TerminalAuthorityClosureLeaf>,
         terminal_psi::TerminalIdentityTable,
+        effects::TerminalAuthorityPolicyIdentity,
     ) {
-        (self.leaves.into_values().collect(), self.identities.build())
+        (
+            self.leaves.into_values().collect(),
+            self.identities.build(),
+            self.context.physical_policy.identity(),
+        )
     }
 
     pub(super) fn expand_boundary(&mut self, boundary: BoundaryMachineId) -> Result<(), String> {
@@ -93,7 +102,7 @@ impl<'a> Reviewer<'a> {
         };
         if let Some(intrinsic) = intrinsic {
             let expected = TerminalMechanismIdentity::CompilerIntrinsic(intrinsic);
-            if self.context.mechanisms.get(&boundary) != Some(&expected) {
+            if self.context.mechanism(boundary) != Some(&expected) {
                 return Err(format!(
                     "private lifecycle {boundary:?} has no exact admitted execution"
                 ));
@@ -123,7 +132,7 @@ impl<'a> Reviewer<'a> {
             let expected = TerminalMechanismIdentity::CompilerIntrinsic(
                 effects::CompilerIntrinsicExecutionIdentity::StaticInterrupt(operation),
             );
-            if self.context.mechanisms.get(&boundary) != Some(&expected) {
+            if self.context.mechanism(boundary) != Some(&expected) {
                 return Err(format!(
                     "static interrupt {boundary:?} has no exact admitted execution"
                 ));
@@ -166,12 +175,7 @@ impl<'a> Reviewer<'a> {
             .identities
             .text(declaration.identity)
             .unwrap_or_default();
-        let supplied_requirement = self
-            .context
-            .selected
-            .assumed_supplier_identity(requirement)?;
-        let (selected_plan, selected_row, specialization) =
-            self.context.selected_requirement(requirement)?;
+        let (selected_plan, selected_row, _) = self.context.selected_requirement(requirement)?;
         if let Some(authority) = self.context.component_authority(boundary)? {
             for leaf in authority.review().leaves() {
                 let effects::TerminalAuthorityClosureCustody::SelectedRequirement {
@@ -198,41 +202,10 @@ impl<'a> Reviewer<'a> {
             return Ok(());
         }
         match &selected_row.binding {
-            ProviderBinding::CheckedAdapter {
-                machine_identity,
-                machine_package_identity,
-            } => {
-                if selected_plan.provider_type.is_empty()
-                    || !machine_identity.is_valid()
-                    || *machine_package_identity != selected_plan.origin_package_identity
-                {
-                    return Err(format!(
-                        "selected checked adapter for `{requirement}` has incomplete or substituted provider custody"
-                    ));
-                }
-                let realization_identity = specialization
-                    .and_then(|row| {
-                        self.context
-                            .selected
-                            .identities()
-                            .text(row.machine_identity)
-                    })
-                    .unwrap_or(selected_plan.identity_text(*machine_identity));
-                let candidate = self
-                    .context
-                    .installed_candidates
-                    .iter()
-                    .find(|candidate| {
-                        self.context.input.plan().identities.text(candidate.requirement_identity) == Some(supplied_requirement)
-                            && self.context.input.plan().identities.text(candidate.provider_identity) == Some(selected_plan.provider_type.as_str())
-                            && self.context.input.plan().identities.text(candidate.candidate_identity) == Some(realization_identity)
-                    })
-                    .ok_or_else(|| {
-                        format!(
-                            "reachable requirement `{requirement}` has no admitted installation for selected provider `{}` adapter `{realization_identity}`",
-                            selected_plan.provider_type
-                        )
-                    })?;
+            ProviderBinding::CheckedAdapter { .. } => {
+                let candidate = self.context.checked_adapter(requirement)?.ok_or_else(|| {
+                    format!("checked adapter for `{requirement}` lost its selected role")
+                })?;
                 let schema = selected_plan.schema_identity_digest();
                 let provider_plan = selected_plan.identity_digest();
                 let nested = self
@@ -260,16 +233,49 @@ impl<'a> Reviewer<'a> {
                 let mechanism = self
                     .context
                     .exact_mechanism(boundary, &selected_row.binding)?;
+                if self.checked_handles.is_none()
+                    && let Some(checked) = super::windows_handle_replay::checked_calls(
+                        self.artifact,
+                        &self.context,
+                        boundary,
+                    )?
+                {
+                    let mut rows = self.context.physical_policy.explicit_rows().to_vec();
+                    rows.extend_from_slice(checked.physical_rows());
+                    self.context.physical_policy = std::borrow::Cow::Owned(
+                        crate::provider_admission::terminal_authority_policy_with_rows(rows)
+                            .map_err(|reason| {
+                                format!("checked handle physical policy conflicts: {reason:?}")
+                            })?,
+                    );
+                    self.checked_handles = Some(checked);
+                }
                 let schema = selected_plan.schema_identity_digest();
-                self.admit_leaf(
-                    schema,
-                    selected_plan
-                        .identities
-                        .text(selected_row.requirement_identity),
-                    selected_plan.identity_digest(),
-                    mechanism,
-                    TerminalAuthorityClosureLeafOrigin::SelectedBoundary,
-                )?;
+                let requirement = selected_plan
+                    .identities
+                    .text(selected_row.requirement_identity);
+                let provider_plan = selected_plan.identity_digest();
+                if let Some(checked) = self
+                    .checked_handles
+                    .as_ref()
+                    .and_then(|checked| checked.for_boundary(boundary))
+                {
+                    let leaves = checked
+                        .iter()
+                        .map(|leaf| (leaf.mechanism, leaf.origin))
+                        .collect::<Vec<_>>();
+                    for (mechanism, origin) in leaves {
+                        self.admit_leaf(schema, requirement, provider_plan, mechanism, origin)?;
+                    }
+                } else {
+                    self.admit_leaf(
+                        schema,
+                        requirement,
+                        provider_plan,
+                        mechanism,
+                        TerminalAuthorityClosureLeafOrigin::SelectedBoundary,
+                    )?;
+                }
             }
             ProviderBinding::VtableSlot { .. } => {
                 return Err(format!(

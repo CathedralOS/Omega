@@ -105,19 +105,3 @@ pub(crate) fn crash_continuations(kind: &O) -> &[CrashRouteBucket] {
         _ => &[],
     }
 }
-
-/// Entry proof payloads of every ordinary invocation share one inventory,
-/// including calls that leave their caller suspended at an edge.
-pub(crate) fn retain_invocation_inputs(
-    inputs: terminal_psi::ModuleInvocationInputs<'_>,
-    retained_values: &mut BTreeSet<ValueId>,
-) {
-    retain_erased_arguments(inputs.erased_arguments, retained_values);
-    for term in inputs.erased_proof_arguments {
-        term.visit_value_ids(|value| {
-            retained_values.insert(value);
-            true
-        });
-    }
-    retain_crash_routes(inputs.crash_continuations, retained_values);
-}
