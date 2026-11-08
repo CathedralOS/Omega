@@ -15,17 +15,19 @@ use crate::scalar_lowering::branch_states::prepared::{
     CaseDispatchArm, LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
 use crate::scalar_lowering::computations::parameters;
+use crate::scalar_lowering::computations::{NormalCompletionTarget, NormalResultTarget};
 use crate::unit::attached_unit::OperationEnvironment;
 use crate::unit::attached_unit::scalar_completion::control::returning_exits;
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
 
 /// Cleanup already selected by source ownership, before scalar arm expansion.
 /// Obligation identities belong to this exit, so all routes to that authored
-/// return share one completion edge rather than cloning its action identities.
+/// return consume its admitted result tree before their scalar join.
 pub(crate) struct ScalarReturnCleanup {
     pub(crate) exit: checked_trees::FlowClaimJoinExit,
     pub(crate) destination: CheckedScalarBranchDestination,
     pub(crate) actions: Vec<crate::unit::unit_cleanup::CleanupRegion>,
+    pub(crate) result: Option<crate::unit::attached_unit::completion_cleanup::NormalResultCleanup>,
     pub(crate) copied_payloads: Vec<checked_trees::CheckedSelectedPayloadCopy>,
 }
 
@@ -33,13 +35,13 @@ fn completion_target<'a>(
     destination: &CheckedScalarBranchDestination,
     completions: &'a [(
         CheckedScalarBranchDestination,
-        usize,
+        NormalCompletionTarget,
         checked_trees::FlowClaimJoinExit,
         &'a [checked_trees::CheckedSelectedPayloadCopy],
     )],
 ) -> Result<
     (
-        usize,
+        &'a NormalCompletionTarget,
         checked_trees::FlowClaimJoinExit,
         &'a [checked_trees::CheckedSelectedPayloadCopy],
     ),
@@ -54,7 +56,63 @@ fn completion_target<'a>(
     if selected.next().is_some() {
         return unsupported("scalar return repeats its cleanup completion");
     }
-    Ok((*target, *exit, *copies))
+    Ok((target, *exit, *copies))
+}
+
+fn cleanup_target(
+    expansion: &mut crate::scalar_lowering::computations::Expansion<'_>,
+    types: &[QualifiedScalarType],
+    actions: &[crate::unit::unit_cleanup::CleanupRegion],
+    proof_arguments: Vec<crate::scalar_lowering::contracts::LoweredProofTerm>,
+) -> usize {
+    expansion.push(LoweredScalarBranchState::continuing(
+        types.to_vec(),
+        LoweredScalarBranchTerminator::Jump {
+            cleanup_actions: actions
+                .iter()
+                .map(crate::unit::unit_cleanup::PreparedNormalCleanupAction::from)
+                .collect(),
+            structural_arguments: Vec::new(),
+            target: 0,
+            arguments: parameters(types),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: proof_arguments,
+        },
+    ))
+}
+
+fn result_targets(
+    expansion: &mut crate::scalar_lowering::computations::Expansion<'_>,
+    result: &crate::unit::attached_unit::completion_cleanup::NormalResultCleanup,
+    types: &[QualifiedScalarType],
+    proof_arguments: &[crate::scalar_lowering::contracts::LoweredProofTerm],
+) -> std::sync::Arc<NormalResultTarget> {
+    use crate::unit::attached_unit::completion_cleanup::NormalResultCleanup;
+    std::sync::Arc::new(match result {
+        NormalResultCleanup::NoNormal { computation } => NormalResultTarget::NoNormal {
+            computation: *computation,
+        },
+        NormalResultCleanup::Value {
+            computation,
+            actions,
+        } => NormalResultTarget::Value {
+            computation: *computation,
+            target: cleanup_target(expansion, types, actions, proof_arguments.to_vec()),
+        },
+        NormalResultCleanup::Dispatch { computation, arms } => NormalResultTarget::Dispatch {
+            computation: *computation,
+            arms: arms
+                .iter()
+                .map(|(arm, result)| {
+                    (
+                        arm.clone(),
+                        result_targets(expansion, result, types, proof_arguments),
+                    )
+                })
+                .collect::<Vec<_>>()
+                .into(),
+        },
+    })
 }
 
 /// Case selection is independent of the selected arm's expression. The edge
@@ -79,7 +137,7 @@ fn push_arm_target(
     destination: &CheckedScalarBranchDestination,
     completions: &[(
         CheckedScalarBranchDestination,
-        usize,
+        NormalCompletionTarget,
         checked_trees::FlowClaimJoinExit,
         &[checked_trees::CheckedSelectedPayloadCopy],
     )],
@@ -203,7 +261,7 @@ impl Evaluation {
         fallback: Option<&CheckedScalarBranchDestination>,
         completions: &[(
             CheckedScalarBranchDestination,
-            usize,
+            NormalCompletionTarget,
             checked_trees::FlowClaimJoinExit,
             &[checked_trees::CheckedSelectedPayloadCopy],
         )],
@@ -324,21 +382,21 @@ impl Evaluation {
         let completions = cleanups
             .iter()
             .map(|cleanup| {
-                let target = expansion.push(LoweredScalarBranchState::continuing(
-                    completion_types.clone(),
-                    LoweredScalarBranchTerminator::Jump {
-                        cleanup_actions: cleanup
-                            .actions
-                            .iter()
-                            .map(crate::unit::unit_cleanup::PreparedNormalCleanupAction::from)
-                            .collect(),
-                        structural_arguments: Vec::new(),
-                        target: 0,
-                        arguments: parameters(&completion_types),
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: self.proof_formal_forwarding(),
-                    },
-                ));
+                let target = if let Some(result) = &cleanup.result {
+                    NormalCompletionTarget::Selected(result_targets(
+                        &mut expansion,
+                        result,
+                        &completion_types,
+                        &self.proof_formal_forwarding(),
+                    ))
+                } else {
+                    NormalCompletionTarget::Ordinary(cleanup_target(
+                        &mut expansion,
+                        &completion_types,
+                        &cleanup.actions,
+                        self.proof_formal_forwarding(),
+                    ))
+                };
                 (
                     cleanup.destination.clone(),
                     target,

@@ -53,6 +53,7 @@ impl Expansion<'_> {
         input_types: &[QualifiedScalarType],
         target: usize,
         site: &Site<'_>,
+        normal_result: Option<&super::returns::NormalDispatchScope>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
         #[derive(Clone, Copy)]
@@ -86,24 +87,41 @@ impl Expansion<'_> {
                     .id,
             }
         };
-        let arms = value_facts(self.checked)
-            .scalar_computations
-            .dispatch_arms
-            .span(arms)
-            .filter(|arms| !arms.is_empty())
-            .ok_or(LoweringError::Unsupported(
-                "structural dispatch has no live arms",
-            ))?
-            .to_vec();
+        let arms = if let Some(normal) = normal_result {
+            normal
+                .arms
+                .iter()
+                .map(|(arm, result)| (arm.clone(), Some(result.clone())))
+                .collect::<Vec<_>>()
+        } else {
+            let arms = value_facts(self.checked)
+                .scalar_computations
+                .dispatch_arms
+                .span(arms)
+                .filter(|arms| !arms.is_empty())
+                .ok_or(LoweringError::Unsupported(
+                    "structural dispatch has no live arms",
+                ))?
+                .to_vec();
+            arms.into_iter().map(|arm| (arm, None)).collect::<Vec<_>>()
+        };
         // Predicates and the selected arm share this subject. Its private
         // snapshot ends only after the arm has captured its scalar result,
         // before the outer continuation can retire any borrowed backing.
+        let mut normal_result = normal_result.cloned();
         let target = if let SubjectRequest::Value(request) = request
             && !self.has_established_value(subject)
         {
             let mut completed_types = input_types.to_vec();
             completed_types.push(result_type);
-            request.complete_snapshot(self.checked, &completed_types, target, self)?
+            if let Some(normal) = &mut normal_result {
+                if let Some(effect) = request.snapshot_completion(self.checked)? {
+                    normal.before_completion(effect);
+                }
+                target
+            } else {
+                request.complete_snapshot(self.checked, &completed_types, target, self)?
+            }
         } else {
             target
         };
@@ -134,7 +152,17 @@ impl Expansion<'_> {
 
         let lowered = (|| {
             let mut continuation = None;
-            for (position, arm) in arms.iter().enumerate().rev() {
+            let destinations: std::sync::Arc<[_]> =
+                crate::emission::claim_bindings::selections::destinations(
+                    self.checked,
+                    self.machine,
+                    site.state,
+                    site.statement,
+                    expression,
+                    0,
+                )?
+                .into();
+            for (position, (arm, result)) in arms.iter().enumerate().rev() {
                 if self.argument_type(
                     identities,
                     &Argument::Computation(arm.value),
@@ -149,14 +177,25 @@ impl Expansion<'_> {
                 let route = dispatch_route(expression, position, arms.len());
                 let mut completed_types = input_types.to_vec();
                 completed_types.push(result_type);
-                let completion =
-                    self.claim_continuation(expression, route, &completed_types, target, site)?;
-                let selected = self.argument(
+                let arm_result =
+                    normal_result
+                        .as_ref()
+                        .zip(result.as_ref())
+                        .map(|(normal, result)| {
+                            normal.arm(result.clone(), destinations.clone(), route.clone())
+                        });
+                let completion = if arm_result.is_some() {
+                    target
+                } else {
+                    self.claim_continuation(expression, route, &completed_types, target, site)?
+                };
+                let selected = self.argument_with_normal_result(
                     identities,
                     &Argument::Computation(arm.value),
                     input_types,
                     completion,
                     site,
+                    arm_result.as_ref(),
                     active,
                 )?;
                 let entry = match arm.pattern {
@@ -244,6 +283,7 @@ impl Expansion<'_> {
         input_types: &[QualifiedScalarType],
         target: usize,
         site: &Site<'_>,
+        normal_result: Option<&super::returns::NormalDispatchScope>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
         let subject = match subject {
@@ -266,6 +306,7 @@ impl Expansion<'_> {
                     input_types,
                     target,
                     site,
+                    normal_result,
                     active,
                 );
             }
@@ -277,16 +318,25 @@ impl Expansion<'_> {
             input_types,
         )?;
         let plans = &self.checked.facts.values.scalar_computations;
-        let arms = plans
-            .dispatch_arms
-            .span(arms)
-            .ok_or(LoweringError::Unsupported(
-                "scalar dispatch has a stale arm span",
-            ))?
-            .to_vec();
+        let arms = if let Some(normal) = normal_result {
+            normal
+                .arms
+                .iter()
+                .map(|(arm, result)| (arm.clone(), Some(result.clone())))
+                .collect::<Vec<_>>()
+        } else {
+            let arms = plans
+                .dispatch_arms
+                .span(arms)
+                .ok_or(LoweringError::Unsupported(
+                    "scalar dispatch has a stale arm span",
+                ))?
+                .to_vec();
+            arms.into_iter().map(|arm| (arm, None)).collect::<Vec<_>>()
+        };
         let mut boolean_coverage = [false; 2];
         let mut covered = false;
-        for arm in &arms {
+        for (arm, _) in &arms {
             if covered
                 || self.argument_type(
                     identities,
@@ -336,20 +386,37 @@ impl Expansion<'_> {
         let mut tested_types = saved_types.clone();
         tested_types.push(subject_type);
         let mut continuation = None;
-        for (position, arm) in arms.iter().enumerate().rev() {
+        let destinations: std::sync::Arc<[_]> =
+            crate::emission::claim_bindings::selections::destinations(
+                self.checked,
+                self.machine,
+                site.state,
+                site.statement,
+                expression,
+                0,
+            )?
+            .into();
+        for (position, (arm, result)) in arms.iter().enumerate().rev() {
             let route = dispatch_route(expression, position, arms.len());
             let mut completed_types = input_types.to_vec();
             completed_types.push(result_type);
-            let completion =
-                self.claim_continuation(expression, route, &completed_types, target, site)?;
-            // Arm bodies receive the original prefix. The saved subject and
-            // last pattern value are no longer live once an arm is selected.
-            let selected = self.argument(
+            let arm_result = normal_result.zip(result.as_ref()).map(|(normal, result)| {
+                normal.arm(result.clone(), destinations.clone(), route.clone())
+            });
+            let completion = if arm_result.is_some() {
+                target
+            } else {
+                self.claim_continuation(expression, route, &completed_types, target, site)?
+            };
+            // Subjects and patterns remain ordinary operands; only selected
+            // result arms carry their source-owned normal completion.
+            let selected = self.argument_with_normal_result(
                 identities,
                 &Argument::Computation(arm.value),
                 input_types,
                 completion,
                 site,
+                arm_result.as_ref(),
                 active,
             )?;
             let entry = match arm.pattern {

@@ -69,6 +69,16 @@ pub(crate) fn selected_cleanup_leaves(
     facts: &CheckFacts,
     disposition: &ContextualCleanupDisposition,
 ) -> Option<Vec<CleanupLeaf>> {
+    let evidence = super::CleanupCaseEvidence::new(program, facts, disposition)?;
+    selected_cleanup_leaves_in(program, facts, disposition, &evidence)
+}
+
+pub(crate) fn selected_cleanup_leaves_in(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    disposition: &ContextualCleanupDisposition,
+    case_evidence: &super::CleanupCaseEvidence<'_>,
+) -> Option<Vec<CleanupLeaf>> {
     let dispositions = &facts.contextual_cleanup;
     let path = facts.flow.ownership.segments.span(disposition.path)?;
     let removed = dispositions
@@ -77,7 +87,6 @@ pub(crate) fn selected_cleanup_leaves(
         .iter()
         .map(|place| dispositions.segments.span(place.segments))
         .collect::<Option<Vec<_>>>()?;
-    let case_evidence = super::CleanupCaseEvidence::new(program, facts, disposition)?;
     if removed.iter().any(|removed| path.starts_with(removed)) {
         return Some(Vec::new());
     }

@@ -44,6 +44,7 @@ mod operand_scope;
 pub(crate) mod operand_types;
 pub(crate) mod produced_values;
 mod returns;
+pub(crate) use returns::{NormalCompletionTarget, NormalResultTarget};
 mod selection;
 mod structural_arguments;
 pub(crate) mod subslices;
@@ -638,6 +639,31 @@ impl<'a> Expansion<'a> {
         site: &Site<'_>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
+        self.argument_with_normal_result(
+            identities,
+            argument,
+            input_types,
+            target,
+            site,
+            None,
+            active,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn argument_with_normal_result(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        argument: &Argument,
+        input_types: &[QualifiedScalarType],
+        target: usize,
+        site: &Site<'_>,
+        normal_result: Option<&returns::NormalResultScope>,
+        active: &mut Vec<Computation>,
+    ) -> Result<usize, LoweringError> {
+        let normal_argument =
+            normal_result.map(|scope| Argument::Computation(scope.result.computation()));
+        let argument = normal_argument.as_ref().unwrap_or(argument);
         let Argument::Computation(handle) = argument else {
             let Argument::Value(expression) = argument else {
                 unreachable!()
@@ -654,6 +680,14 @@ impl<'a> Expansion<'a> {
             return unsupported("scalar computation contains a cycle");
         }
         let result_type = self.argument_type(identities, argument, site, input_types)?;
+        let (mut normal_dispatch, target) = if let Some(scope) = normal_result {
+            let mut types = input_types.to_vec();
+            types.push(result_type);
+            let (dispatch, selected) = self.normal_result_scope(scope, &types);
+            (dispatch, selected.unwrap_or(target))
+        } else {
+            (None, target)
+        };
         if let Some((_, position)) = self.completed.iter().find(|(node, _)| node == handle) {
             if input_types.get(*position) != Some(&result_type) {
                 return unsupported("completed computation disagrees with its carried value");
@@ -679,22 +713,34 @@ impl<'a> Expansion<'a> {
                 completion_expression,
             )
             .cloned();
-        let completion_state = completion.as_ref().map(|_| {
-            let mut completed_types = input_types.to_vec();
-            completed_types.push(result_type);
-            self.push(LoweredScalarBranchState::jumping(
-                target,
-                Vec::new(),
-                completed_types.clone(),
-                &completed_types,
-                vec![LoweredScalarEffect::CompleteValueObservation {
-                    machine: self.machine,
-                    state: site.state,
-                    statement: site.statement,
-                    expression: completion_expression,
-                }],
-            ))
-        });
+        let completion_state = if completion.is_some()
+            && let Some(normal) = &mut normal_dispatch
+        {
+            normal.after_result(LoweredScalarEffect::CompleteValueObservation {
+                machine: self.machine,
+                state: site.state,
+                statement: site.statement,
+                expression: completion_expression,
+            });
+            None
+        } else {
+            completion.as_ref().map(|_| {
+                let mut completed_types = input_types.to_vec();
+                completed_types.push(result_type);
+                self.push(LoweredScalarBranchState::jumping(
+                    target,
+                    Vec::new(),
+                    completed_types.clone(),
+                    &completed_types,
+                    vec![LoweredScalarEffect::CompleteValueObservation {
+                        machine: self.machine,
+                        state: site.state,
+                        statement: site.statement,
+                        expression: completion_expression,
+                    }],
+                ))
+            })
+        };
         let target = completion_state.unwrap_or(target);
         let entry = match node.kind {
             CheckedScalarComputationKind::StorageAddress { subject, .. } => {
@@ -887,6 +933,7 @@ impl<'a> Expansion<'a> {
                 input_types,
                 target,
                 site,
+                normal_dispatch.as_ref(),
                 active,
             )?,
             CheckedScalarComputationKind::RetainedConstant { expression } => {
