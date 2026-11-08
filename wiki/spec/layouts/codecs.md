@@ -144,8 +144,10 @@ an implicit wire default. Exact arrays contain exactly their declared count;
 bounded-live-length, growable owned, and borrowed sequences retain their own
 length, allocation, loan, and work obligations.
 
-Home-layout facts describe runtime discriminants and the meaning of zero
-storage; stable case identities do not select either. A representation-sensitive
+Home-layout facts describe case encodings and the meaning of zero storage;
+case identity need not occupy a separate discriminant under
+[home-layout realization](plans.md#home-layout-realization). Stable case identities
+do not select those encodings. A representation-sensitive
 API states the relationship it requires as an ordinary checked obligation.
 The `Optional<T>` home-representation obligation that zero denotes `None` is
 separate from the codec's omission rule. A layout that violates an authored

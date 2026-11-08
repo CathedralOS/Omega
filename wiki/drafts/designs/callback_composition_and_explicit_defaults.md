@@ -40,9 +40,10 @@ lets a generic retain suspension-permission obligations guarded by the call's
 callback dependency. Ordinary borrowing, window and outcome checks still apply;
 only the permission to cross a park receives this conditional treatment.
 
-Niche layouts, error-propagation shorthand, loop syntax, anonymous machines and
-captures receive no design change. The invalid-payload-niche prohibition stays
-in force. Existing some packages and machine values retain their contracts.
+This decision leaves error-propagation shorthand, loop syntax, anonymous machines
+and captures unchanged. Existing some packages and machine values retain their
+contracts. The later [home-layout optimization decision](home_layout_optimization.md)
+supersedes the blanket invalid-payload-niche prohibition.
 
 ## Implementation acceptance
 

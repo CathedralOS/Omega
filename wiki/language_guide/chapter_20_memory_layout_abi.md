@@ -34,7 +34,7 @@ exactly their declared number of inline elements, with no hidden live-length
 word. A collection with a live length is a different record: zeroing its length
 may make it empty, but does not change the array's capacity.
 
-Aggregates zero their fields recursively. A sum's zero tag selects its first
+Aggregates zero their fields recursively. A sum's zero representation selects its first
 declared case, including a zeroed payload. That payload need not be empty:
 the first case could be `Integer(0)`. Layout optimization must not repurpose
 zero into a different meaning or an invalid representation.
@@ -92,6 +92,27 @@ Do not infer a foreign record layout from declaration order, total size or a
 particular compiler's current offsets. Ordinary storage declarations use the
 default representation when no explicit family is selected. That default is a
 rule of the storage use, not a policy attached to the data declaration.
+
+The compiler can optimize this home layout: pack fields, remove a separate sum
+tag, or eliminate storage altogether when the program's behavior is preserved.
+For an optional nonzero integer, a possible compact encoding is:
+
+```text
+stored zero       -> None
+stored nonzero n  -> Some(n)
+```
+
+The compiler must also preserve legal repairs, borrows and cleanup. A predicate
+that permits temporary zero during repair needs more reasoning than the table
+alone supplies. The encoding is an opportunity, not a promised size for every
+optional type.
+
+A cast that shares storage constrains both layouts. The compiler can shrink both
+if reads and writes through either view still agree; otherwise it keeps a
+compatible layout. Two twelve-byte layouts need not be compatible. Explicit
+placements and exposed bytes or addresses also constrain optimization, and
+`size_of` and `align_of` describe the selected target layout. See
+[home-layout realization](../spec/layouts/plans.md#home-layout-realization).
 
 ## Dense owned collections
 
