@@ -48,6 +48,9 @@ must establish backing satisfying the exact plan. Ordinary calls acquire no
 new spill-exhaustion route. Remote execution provisions the equivalent in its
 execution domain; inline execution still has an accountable stack provision.
 Alternate lowered representations are not runtime-selectable modes of this plan.
+Omega accepts that per-activation capacity cost for one machine kind with ordinary
+call-chain suspension, stable addresses for loans and outstanding operations,
+and stack-capacity admission before execution.
 
 The provider must guarantee usable backing for the full stack plan throughout
 the activation, including while parked. Its contract states the reservation and

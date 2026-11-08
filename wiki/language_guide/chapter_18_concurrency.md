@@ -225,6 +225,10 @@ that guarantee. See [task storage](../spec/build/task_runtime.md#activation-desc
 
 ### Many waiting connections, bounded workers
 
+Every parked task retains its full stack-plan capacity guarantee, with physical
+residency governed by the provider; bounded workers limit the number of these
+plans while connection state waits in an arena.
+
 For 100,000 mostly idle connections, consider keeping connection records and
 buffers in an arena and using 32 worker tasks to process events. This gives
 32 worker stack plans, plus the connection data, I/O state and queues.
