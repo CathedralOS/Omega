@@ -198,8 +198,8 @@ mod tests {
         // 0 -> 1 <-> 2 -> 3, and 4 alone.
         let reads = vec![vec![1], vec![2], vec![1, 3], vec![], vec![4]];
         let components = MachineCallComponents::new(&reads);
-        assert_eq!(components.component_count(), 4);
-        assert_eq!(components.callee_first_wave_count(), 3);
+        assert_eq!(components.members.len(), 4);
+        assert_eq!(components.callee_first_waves.len(), 3);
         let mut order = vec![usize::MAX; 5];
         let counter = std::sync::atomic::AtomicUsize::new(0);
         let mut seen = vec![0usize; 5];

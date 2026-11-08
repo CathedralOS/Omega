@@ -3517,6 +3517,42 @@ pub(crate) mod resolved_procedure_linkage {
         }
     }
 
+    pub(crate) use linkage_fixups::{
+        ElfAppliedProcedureLinkageFixup, ElfAppliedProcedureLinkageKind,
+        ElfAppliedProcedureLinkageStorage, ElfAppliedProcedureLinkageTarget,
+        ElfProcedureLinkageApplicationError, ValidatedElfResolvedProcedureLinkage,
+    };
+
+    use crate::dynamic_executable::file_assembly::dynamic_file_envelope::ValidatedElfDynamicFileEnvelope;
+    use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::compatibility_fingerprint::non_authoritative_resolved_linkage_compatibility_fingerprint;
+    use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::candidates::{derive_contents, Candidate, validate_candidate};
+    use super::super::checked;
+
+    const X86_PLT_HEADER_SIZE: u64 = 16;
+
+    const AARCH64_PLT_HEADER_SIZE: u64 = 32;
+
+    const PROCEDURE_LINKAGE_ENTRY_SIZE: u64 = 16;
+
+    const X86_PLT_LAZY_TAIL_OFFSET: u64 = 6;
+
+    const GOT_PLT_HEADER_WORDS: u64 = 3;
+
+    const ELF64_GOT_WORD_SIZE: u64 = 8;
+
+    pub(crate) fn apply_elf_procedure_linkage_fixups(
+        envelope: ValidatedElfDynamicFileEnvelope,
+    ) -> Result<ValidatedElfResolvedProcedureLinkage, Box<ElfProcedureLinkageApplicationError>>
+    {
+        checked::plan_stage!(
+            plan: envelope,
+            derive: derive_contents,
+            contents: contents,
+            fingerprint: non_authoritative_resolved_linkage_compatibility_fingerprint,
+            error: ElfProcedureLinkageApplicationError,
+        )
+    }
+
     #[cfg(test)]
     mod tests {
         use super::{
@@ -3907,41 +3943,5 @@ pub(crate) mod resolved_procedure_linkage {
             overlapping.ordinal += 1;
             assert!(validate_nonoverlapping_applications(&[first, overlapping]).is_err());
         }
-    }
-
-    pub(crate) use linkage_fixups::{
-        ElfAppliedProcedureLinkageFixup, ElfAppliedProcedureLinkageKind,
-        ElfAppliedProcedureLinkageStorage, ElfAppliedProcedureLinkageTarget,
-        ElfProcedureLinkageApplicationError, ValidatedElfResolvedProcedureLinkage,
-    };
-
-    use crate::dynamic_executable::file_assembly::dynamic_file_envelope::ValidatedElfDynamicFileEnvelope;
-    use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::compatibility_fingerprint::non_authoritative_resolved_linkage_compatibility_fingerprint;
-    use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::candidates::{derive_contents, Candidate, validate_candidate};
-    use super::super::checked;
-
-    const X86_PLT_HEADER_SIZE: u64 = 16;
-
-    const AARCH64_PLT_HEADER_SIZE: u64 = 32;
-
-    const PROCEDURE_LINKAGE_ENTRY_SIZE: u64 = 16;
-
-    const X86_PLT_LAZY_TAIL_OFFSET: u64 = 6;
-
-    const GOT_PLT_HEADER_WORDS: u64 = 3;
-
-    const ELF64_GOT_WORD_SIZE: u64 = 8;
-
-    pub(crate) fn apply_elf_procedure_linkage_fixups(
-        envelope: ValidatedElfDynamicFileEnvelope,
-    ) -> Result<ValidatedElfResolvedProcedureLinkage, Box<ElfProcedureLinkageApplicationError>>
-    {
-        checked::plan_stage!(
-            plan: envelope,
-            derive: derive_contents,
-            contents: contents,
-            fingerprint: non_authoritative_resolved_linkage_compatibility_fingerprint,
-            error: ElfProcedureLinkageApplicationError,
-        )
     }
 }

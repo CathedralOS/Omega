@@ -270,6 +270,44 @@ mod symbols {
     }
 }
 
+pub use builder::{FinalImageInput, build_final_image};
+pub use final_image::{
+    FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegion, FinalExecutableRegionOrigin,
+    FinalExecutableTextDigest, FinalImage, FinalImageImport, FinalImageImportPlan,
+    FinalImageLayout, FinalImageMemory, FinalImageRelocation, FinalImageRelocationTable,
+    FinalImageSection, FinalImageSymbol, FinalImageSymbolDigest, FinalImageSymbolHandle,
+    FinalInitializedDataDigest, PlacedDataGapBytesDigest, PlacedDataRegionBytesDigest,
+    PlacedDataRegionInventory, PlacedDataRegionInventoryDigest, PlacedExecutableGapBytesDigest,
+    PlacedExecutableRegion, PlacedExecutableRegionBytesDigest, PlacedExecutableRegionInventory,
+    PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest, final_image_symbol_digest,
+    place_data_extent, place_data_regions, place_executable_extent, place_executable_regions,
+    validate_placed_data_region_inventory, validate_placed_executable_region_inventory,
+};
+pub use output::{
+    CompilerEntryFootprintBindingDigest, CompilerEntryRegionBindingDigest,
+    CompilerFunctionValidationDigest, CompilerFunctionValidationEvidence,
+    CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
+    CompilerTextValidationEvidence, EmittedImageOutput, EncodedCompilerTextDigest,
+    ExecutableImageOutput, FinalCompilerTextDigest, ImageOutputKind,
+    emitted_direct_executable_output,
+};
+pub use relocation_envelope::validate_final_text_relocation_envelope;
+pub use relocations::{apply_relocations, validate_relative_relocation_target};
+pub use symbols::{
+    final_image_entry_symbol, final_image_imports_symbol, final_image_symbol_address,
+    final_image_symbol_name,
+};
+
+pub fn align_to(value: usize, alignment: usize) -> usize {
+    let alignment = alignment.max(1);
+    value.div_ceil(alignment) * alignment
+}
+
+pub fn align_to_u64(value: u64, alignment: u64) -> u64 {
+    let alignment = alignment.max(1);
+    value.div_ceil(alignment) * alignment
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{FinalImageImportPlan, FinalImageInput, build_final_image};
@@ -429,42 +467,4 @@ mod tests {
         let empty = place_executable_extent(&[], Vec::new(), 0).unwrap();
         validate_placed_executable_region_inventory(&empty, &[]).unwrap();
     }
-}
-
-pub use builder::{FinalImageInput, build_final_image};
-pub use final_image::{
-    FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegion, FinalExecutableRegionOrigin,
-    FinalExecutableTextDigest, FinalImage, FinalImageImport, FinalImageImportPlan,
-    FinalImageLayout, FinalImageMemory, FinalImageRelocation, FinalImageRelocationTable,
-    FinalImageSection, FinalImageSymbol, FinalImageSymbolDigest, FinalImageSymbolHandle,
-    FinalInitializedDataDigest, PlacedDataGapBytesDigest, PlacedDataRegionBytesDigest,
-    PlacedDataRegionInventory, PlacedDataRegionInventoryDigest, PlacedExecutableGapBytesDigest,
-    PlacedExecutableRegion, PlacedExecutableRegionBytesDigest, PlacedExecutableRegionInventory,
-    PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest, final_image_symbol_digest,
-    place_data_extent, place_data_regions, place_executable_extent, place_executable_regions,
-    validate_placed_data_region_inventory, validate_placed_executable_region_inventory,
-};
-pub use output::{
-    CompilerEntryFootprintBindingDigest, CompilerEntryRegionBindingDigest,
-    CompilerFunctionValidationDigest, CompilerFunctionValidationEvidence,
-    CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
-    CompilerTextValidationEvidence, EmittedImageOutput, EncodedCompilerTextDigest,
-    ExecutableImageOutput, FinalCompilerTextDigest, ImageOutputKind,
-    emitted_direct_executable_output,
-};
-pub use relocation_envelope::validate_final_text_relocation_envelope;
-pub use relocations::{apply_relocations, validate_relative_relocation_target};
-pub use symbols::{
-    final_image_entry_symbol, final_image_imports_symbol, final_image_symbol_address,
-    final_image_symbol_name,
-};
-
-pub fn align_to(value: usize, alignment: usize) -> usize {
-    let alignment = alignment.max(1);
-    value.div_ceil(alignment) * alignment
-}
-
-pub fn align_to_u64(value: u64, alignment: u64) -> u64 {
-    let alignment = alignment.max(1);
-    value.div_ceil(alignment) * alignment
 }

@@ -2023,6 +2023,15 @@ pub(crate) mod runtime_spill {
             Err(RuntimeSpillAllocationError::Homes(failure))
         }
 
+        fn inadmissible(error: &RuntimeSpillError) -> bool {
+            matches!(
+                error,
+                RuntimeSpillError::UnsupportedValue
+                    | RuntimeSpillError::UnsupportedUse
+                    | RuntimeSpillError::UnsupportedControlFlow
+            )
+        }
+
         #[cfg(test)]
         pub(crate) mod candidate_tests {
             use super::{FailedDomain, candidate_position};
@@ -2339,15 +2348,6 @@ pub(crate) mod runtime_spill {
                     None
                 );
             }
-        }
-
-        fn inadmissible(error: &RuntimeSpillError) -> bool {
-            matches!(
-                error,
-                RuntimeSpillError::UnsupportedValue
-                    | RuntimeSpillError::UnsupportedUse
-                    | RuntimeSpillError::UnsupportedControlFlow
-            )
         }
     }
 

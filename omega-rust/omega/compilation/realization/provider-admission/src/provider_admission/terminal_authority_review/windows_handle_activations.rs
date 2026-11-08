@@ -9,7 +9,6 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use semantic_vocabulary::MachineId;
-use terminal_semantics::descriptor_lifetimes::DescriptorPosition;
 
 use super::windows_handle_calls::Caller;
 use super::windows_handle_origins::{HandleOrigins, OriginEdgeRole, ScalarSubject};
@@ -23,21 +22,13 @@ pub(super) struct ActivationFrame {
 #[derive(Clone, Debug)]
 pub(super) enum BalancedDerivation {
     Identity,
-    Local {
-        source_ordinal: usize,
-    },
-    Compose {
-        middle: usize,
-    },
-    Invocation {
-        frame: ActivationFrame,
-        returned_subject: usize,
-        formal_subject: usize,
-    },
+    Local,
+    Compose,
+    Invocation,
 }
 
 /// Analysis-owned equation coordinates, independent of Terminal identities.
-/// Each nontrivial pair retains a derivation over original equation edges.
+/// Each nontrivial pair records the rule that derived it.
 pub(super) struct ActivationPaths {
     pub subjects: Vec<ScalarSubject>,
     index: BTreeMap<ScalarSubject, usize>,
@@ -99,26 +90,20 @@ impl ActivationPaths {
         for (node, subject) in result.subjects.iter().enumerate() {
             pending.insert((node, node), BalancedDerivation::Identity)?;
             let equation = &origins.equations[subject];
-            for (ordinal, edge) in equation.sources.iter().enumerate() {
+            for edge in &equation.sources {
                 let source = *result
                     .index
                     .get(&edge.source)
                     .ok_or("activation equation omits a demanded original source")?;
                 match edge.role {
-                    OriginEdgeRole::Returned {
-                        caller,
-                        callee,
-                        position,
-                    } => {
+                    OriginEdgeRole::Returned { caller, callee } => {
                         returns[source]
                             .entry(ActivationFrame { caller, callee })
                             .or_default()
                             .push(node);
                         result.returned[node].push(InnerContext {
-                            call_result: node,
                             frame: ActivationFrame { caller, callee },
                             returned: source,
-                            return_position: position,
                         });
                     }
                     OriginEdgeRole::Actual { caller, callee } => {
@@ -129,12 +114,7 @@ impl ActivationPaths {
                             .push(source);
                     }
                     OriginEdgeRole::Operand | OriginEdgeRole::Stored | OriginEdgeRole::Arrival => {
-                        pending.insert(
-                            (node, source),
-                            BalancedDerivation::Local {
-                                source_ordinal: ordinal,
-                            },
-                        )?;
+                        pending.insert((node, source), BalancedDerivation::Local)?;
                     }
                 }
             }
@@ -143,27 +123,17 @@ impl ActivationPaths {
             // Prepare only associations touching this newly discovered pair.
             // Never rescan every graph node or every existing relation pair.
             for &previous in &incoming[left] {
-                pending.insert(
-                    (previous, right),
-                    BalancedDerivation::Compose { middle: left },
-                )?;
+                pending.insert((previous, right), BalancedDerivation::Compose)?;
             }
             for &following in &result.outgoing[right] {
-                pending.insert(
-                    (left, following),
-                    BalancedDerivation::Compose { middle: right },
-                )?;
+                pending.insert((left, following), BalancedDerivation::Compose)?;
             }
             for (&frame, caller_results) in &returns[left] {
                 for &actual_value in actual_index[right].get(&frame).into_iter().flatten() {
                     for &caller_result in caller_results {
                         pending.insert(
                             (caller_result, actual_value),
-                            BalancedDerivation::Invocation {
-                                frame,
-                                returned_subject: left,
-                                formal_subject: right,
-                            },
+                            BalancedDerivation::Invocation,
                         )?;
                     }
                 }
@@ -189,7 +159,7 @@ impl ActivationPaths {
     pub(super) fn outer_contexts(
         &self,
         root: usize,
-    ) -> Result<BTreeMap<usize, Vec<OuterContext>>, String> {
+    ) -> Result<BTreeMap<usize, Vec<ActivationFrame>>, String> {
         if root >= self.subjects.len() {
             return Err("activation root is outside its equation inventory".into());
         }
@@ -202,11 +172,7 @@ impl ActivationPaths {
             let mut exits = Vec::new();
             for &formal in &self.outgoing[start] {
                 for &(frame, actual) in &self.actuals[formal] {
-                    exits.push(OuterContext {
-                        formal,
-                        frame,
-                        actual,
-                    });
+                    exits.push(frame);
                     pending.push(actual);
                 }
             }
@@ -253,18 +219,9 @@ impl ActivationPaths {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(super) struct OuterContext {
-    pub formal: usize,
-    pub frame: ActivationFrame,
-    pub actual: usize,
-}
-
-#[derive(Clone, Copy, Debug)]
 pub(super) struct InnerContext {
-    pub call_result: usize,
     pub frame: ActivationFrame,
     pub returned: usize,
-    pub return_position: DescriptorPosition,
 }
 
 #[cfg(test)]
@@ -305,7 +262,6 @@ mod tests {
                 role: OriginEdgeRole::Returned {
                     caller: caller(1),
                     callee,
-                    position: (BlockId::new(2).unwrap(), 0),
                 },
                 source: formal.clone(),
             }],

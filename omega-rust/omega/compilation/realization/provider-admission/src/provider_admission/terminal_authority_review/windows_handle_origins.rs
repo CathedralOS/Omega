@@ -60,7 +60,6 @@ pub(super) enum OriginEdgeRole {
     Returned {
         caller: Caller,
         callee: MachineId,
-        position: DescriptorPosition,
     },
     Arrival,
 }
@@ -351,11 +350,7 @@ fn result_equation(
                 for returned in reader.returns(callee, projection)? {
                     sources.push(OriginEdge {
                         #[cfg(test)]
-                        role: OriginEdgeRole::Returned {
-                            caller,
-                            callee,
-                            position: returned.position,
-                        },
+                        role: OriginEdgeRole::Returned { caller, callee },
                         source: match returned.value {
                             ScalarReturnValue::Value(value) => ScalarSubject::Value {
                                 machine: callee,

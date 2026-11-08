@@ -608,6 +608,7 @@ fn build(root: PathBuf, product_directory: PathBuf) -> BuildReport {
         build_directory: Some(product_directory),
         targets: BuildTargets::Single(profile),
         product: ProjectProduct::Native {
+            installation_assumptions: Vec::new(),
             destination: NativeDestination::Retained,
             private_entry_ram: Vec::new(),
         },

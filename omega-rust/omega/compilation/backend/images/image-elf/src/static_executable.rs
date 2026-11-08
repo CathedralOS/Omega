@@ -158,58 +158,6 @@ mod sections {
     mod tests {}
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::emit_elf_executable;
-    use arena::Handle;
-    use image::{FinalImage, FinalImageSection, FinalImageSymbol};
-
-    #[test]
-    fn emits_entry_address_from_final_image_entry_symbol() {
-        let mut image = FinalImage::with_capacity(
-            target::NativeTarget::linux_arm64(),
-            image::FinalImageMemory {
-                text: vec![0; 16],
-                ..Default::default()
-            },
-            Handle::invalid(),
-            0,
-            0,
-            0,
-        );
-        let entry_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: "_start".into(),
-            section: FinalImageSection::Text,
-            offset: 4,
-            size: 4,
-            ..FinalImageSymbol::default()
-        });
-        image.symbol_table.entry_symbol = entry_symbol;
-
-        let output = emit_elf_executable(image).expect("ELF image should emit");
-        let entry_bytes: [u8; 8] = output.bytes[24..32].try_into().unwrap();
-
-        assert_eq!(u64::from_le_bytes(entry_bytes), 0x401004);
-        assert_eq!(output.format, "elf64-aarch64-executable");
-        assert_eq!(&output.bytes[18..20], &183u16.to_le_bytes(), "e_machine");
-        assert_eq!(output.executable_regions.text_address, 0x401000);
-        assert_eq!(output.executable_regions.text_byte_count, 16);
-        assert_eq!(output.executable_regions.unclassified_gaps.len(), 1);
-
-        assert!(
-            emit_elf_executable(FinalImage::with_capacity(
-                target::NativeTarget::macos_arm64(),
-                image::FinalImageMemory::default(),
-                Handle::invalid(),
-                0,
-                0,
-                0,
-            ))
-            .is_err()
-        );
-    }
-}
-
 use crate::entry_symbol::elf_entry_address;
 use crate::imports::{ElfImportLocator, canonical_referenced_imports};
 use headers::{write_data_program_header, write_elf_header, write_text_program_header};
@@ -317,4 +265,56 @@ fn hex_bytes(bytes: &[u8]) -> String {
         write!(&mut rendered, "{byte:02x}").expect("writing to String cannot fail");
     }
     rendered
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::emit_elf_executable;
+    use arena::Handle;
+    use image::{FinalImage, FinalImageSection, FinalImageSymbol};
+
+    #[test]
+    fn emits_entry_address_from_final_image_entry_symbol() {
+        let mut image = FinalImage::with_capacity(
+            target::NativeTarget::linux_arm64(),
+            image::FinalImageMemory {
+                text: vec![0; 16],
+                ..Default::default()
+            },
+            Handle::invalid(),
+            0,
+            0,
+            0,
+        );
+        let entry_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "_start".into(),
+            section: FinalImageSection::Text,
+            offset: 4,
+            size: 4,
+            ..FinalImageSymbol::default()
+        });
+        image.symbol_table.entry_symbol = entry_symbol;
+
+        let output = emit_elf_executable(image).expect("ELF image should emit");
+        let entry_bytes: [u8; 8] = output.bytes[24..32].try_into().unwrap();
+
+        assert_eq!(u64::from_le_bytes(entry_bytes), 0x401004);
+        assert_eq!(output.format, "elf64-aarch64-executable");
+        assert_eq!(&output.bytes[18..20], &183u16.to_le_bytes(), "e_machine");
+        assert_eq!(output.executable_regions.text_address, 0x401000);
+        assert_eq!(output.executable_regions.text_byte_count, 16);
+        assert_eq!(output.executable_regions.unclassified_gaps.len(), 1);
+
+        assert!(
+            emit_elf_executable(FinalImage::with_capacity(
+                target::NativeTarget::macos_arm64(),
+                image::FinalImageMemory::default(),
+                Handle::invalid(),
+                0,
+                0,
+                0,
+            ))
+            .is_err()
+        );
+    }
 }

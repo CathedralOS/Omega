@@ -745,6 +745,39 @@ fn encode_len<Sink: MachineIdentityBytes + ?Sized>(bytes: &mut Sink, value: usiz
     );
 }
 
+pub fn encode_machine_alternative_key_identity<Sink: MachineIdentityBytes + ?Sized>(
+    bytes: &mut Sink,
+    key: crate::MachineAlternativeKey,
+) {
+    bytes.identity_bytes(&alternative_family_tag(key.family).to_le_bytes());
+    if let Some(payload) = alternative_family_payload(key.family) {
+        bytes.identity_bytes(&[payload]);
+    }
+    bytes.identity_bytes(&key.variant.to_le_bytes());
+}
+
+pub const fn saturating_family_tag(
+    operation: SaturatingOperation,
+    carrier: SaturatingCarrier,
+) -> u8 {
+    match (operation, carrier) {
+        (SaturatingOperation::Subtract, SaturatingCarrier::U64) => 54,
+        (SaturatingOperation::Add, SaturatingCarrier::U64) => 55,
+        (SaturatingOperation::Add, SaturatingCarrier::I32) => 60,
+        (SaturatingOperation::Subtract, SaturatingCarrier::I32) => 61,
+        (SaturatingOperation::Divide, SaturatingCarrier::I32) => 62,
+        (SaturatingOperation::Add, carrier) => 63 + carrier.ordinal(),
+        (SaturatingOperation::Subtract, carrier) => 71 + carrier.ordinal(),
+        (SaturatingOperation::Divide, carrier) => 79 + carrier.ordinal(),
+        (SaturatingOperation::Remainder, carrier) => 95 + carrier.ordinal(),
+        (SaturatingOperation::Multiply, carrier) => 114 + carrier.ordinal(),
+    }
+}
+
+pub const fn trapping_family_tag(form: crate::TrappingForm) -> u8 {
+    122 + form.ordinal()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -2299,37 +2332,4 @@ mod tests {
             );
         }
     }
-}
-
-pub fn encode_machine_alternative_key_identity<Sink: MachineIdentityBytes + ?Sized>(
-    bytes: &mut Sink,
-    key: crate::MachineAlternativeKey,
-) {
-    bytes.identity_bytes(&alternative_family_tag(key.family).to_le_bytes());
-    if let Some(payload) = alternative_family_payload(key.family) {
-        bytes.identity_bytes(&[payload]);
-    }
-    bytes.identity_bytes(&key.variant.to_le_bytes());
-}
-
-pub const fn saturating_family_tag(
-    operation: SaturatingOperation,
-    carrier: SaturatingCarrier,
-) -> u8 {
-    match (operation, carrier) {
-        (SaturatingOperation::Subtract, SaturatingCarrier::U64) => 54,
-        (SaturatingOperation::Add, SaturatingCarrier::U64) => 55,
-        (SaturatingOperation::Add, SaturatingCarrier::I32) => 60,
-        (SaturatingOperation::Subtract, SaturatingCarrier::I32) => 61,
-        (SaturatingOperation::Divide, SaturatingCarrier::I32) => 62,
-        (SaturatingOperation::Add, carrier) => 63 + carrier.ordinal(),
-        (SaturatingOperation::Subtract, carrier) => 71 + carrier.ordinal(),
-        (SaturatingOperation::Divide, carrier) => 79 + carrier.ordinal(),
-        (SaturatingOperation::Remainder, carrier) => 95 + carrier.ordinal(),
-        (SaturatingOperation::Multiply, carrier) => 114 + carrier.ordinal(),
-    }
-}
-
-pub const fn trapping_family_tag(form: crate::TrappingForm) -> u8 {
-    122 + form.ordinal()
 }
