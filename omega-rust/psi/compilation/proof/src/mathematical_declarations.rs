@@ -1589,8 +1589,9 @@ mod mathematical_signature {
                     argument: ty,
                 });
                 for subject in application.subjects {
-                    let value = self.elaborate_expression(subject)?;
-                    self.retain_source_result(subject, ty, value, false)?;
+                    let actual = self.source_expression_input(subject)?;
+                    let value = actual.term;
+                    self.retain_source_result(ty, actual);
                     term = self.arena.insert(Term::Apply {
                         function: term,
                         argument: value,
@@ -4165,32 +4166,17 @@ mod mathematical_signature {
 
             pub(super) fn retain_source_result(
                 &mut self,
-                expression: ExpressionHandle,
                 expected: TermHandle,
-                term: TermHandle,
-                strict_result: bool,
-            ) -> Result<(), Vec<Diagnostic>> {
-                let domain = if strict_result {
-                    None
-                } else {
-                    self.source_expression_domain(expression)?
-                };
+                actual: SourceInput,
+            ) {
+                let expression = actual.expression;
                 self.source_invocations.push(SourceInvocation {
                     expression,
                     span: Some(self.program.expression_table.source_span(expression)),
-                    formation: SourceFormation::Result {
-                        expected,
-                        actual: SourceInput {
-                            expression,
-                            term,
-                            domain,
-                            identity_requirements: super::identity::IdentityRequirements::default(),
-                        },
-                    },
+                    formation: SourceFormation::Result { expected, actual },
                     domains: self.scope.iter().map(|entry| entry.domain).collect(),
                     level_arity: self.level_binders.len() as u32 + self.generalized_levels,
                 });
-                Ok(())
             }
 
             pub(super) fn source_type_alias(
@@ -11980,12 +11966,13 @@ mod mathematical_signature {
             let body = match &definition.body {
                 MathematicalBody::Assumption => None,
                 MathematicalBody::Definition(term) => {
-                    let mut body = self.elaborate_body(*term, strict_result)?;
-                    let mut requirements = std::mem::take(&mut self.result_identity_requirements);
+                    let actual = self.elaborate_body(*term, strict_result)?;
+                    let mut body = actual.term;
+                    let mut requirements = actual.identity_requirements.clone();
                     requirements.owner = definition.symbol;
                     self.identity_requirements_by_owner[definition.symbol.arena_index() as usize] =
                         requirements;
-                    self.retain_source_result(*term, result, body, strict_result)?;
+                    self.retain_source_result(result, actual);
                     for entry in self.scope.iter().rev() {
                         body = self.arena.insert(Term::Lambda {
                             domain: entry.domain,
@@ -12076,11 +12063,22 @@ mod mathematical_signature {
             &mut self,
             term: ExpressionHandle,
             strict_result: bool,
-        ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
-            if strict_result && let Some(proposition) = self.elaborate_proposition(term)? {
-                return Ok(self.arena.insert(Term::Squash { ty: proposition }));
+        ) -> Result<source_domains::SourceInput, Vec<diagnostics::Diagnostic>> {
+            // Boolean and logical source expressions can denote strict predicates.
+            // Mathematical terms retain their own sort; an expected Strict result
+            // cannot request a squash of an already Type-valued body.
+            if strict_result
+                && self.operand_carrier(term) == Some(ScalarCarrier::Boolean)
+                && let Some(proposition) = self.elaborate_proposition(term)?
+            {
+                return Ok(source_domains::SourceInput {
+                    expression: term,
+                    term: self.arena.insert(Term::Squash { ty: proposition }),
+                    domain: None,
+                    identity_requirements: std::mem::take(&mut self.result_identity_requirements),
+                });
             }
-            self.elaborate_expression(term)
+            self.source_expression_input(term)
         }
 
         fn elaborate_expression(

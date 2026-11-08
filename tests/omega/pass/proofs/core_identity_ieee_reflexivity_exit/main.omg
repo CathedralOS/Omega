@@ -20,7 +20,7 @@ let carry(statement: core::Type<0>): core::Type<0> = statement;
 let carried<A: core::Type<0>>(left: A, right: A): core::Type<0> = carry(core::Identity<A>(left, right));
 let neutral<A: core::Type>(value: A): A = value;
 let carried_neutral<A: core::Type<0>>(left: A, right: A): core::Type<0> = neutral<core::Type<0>>(carried<A>(left, right));
-let same_strict<A: core::Type<0>>(left: A, right: A): core::Strict<0> = core::Identity<A>(left, right);
+let same_typed<A: core::Type<0>>(left: A, right: A): core::Type<0> = core::Identity<A>(left, right);
 let partial<A: core::Type<0>>(left: A): A -> core::Type<0> = same<A>(left);
 let through_partial<A: core::Type<0>>(left: A, right: A): core::Type<0> = partial<A>(left, right);
 let both<A: core::Type<0>>(left: A, right: A): core::Strict<0> = core::Identity<A>(left, right) && core::Identity<A>(right, left);
@@ -33,8 +33,8 @@ requires core::Identity<f64>(left, right)
 machine keep_constructed(value: IdentityBox<u8>) reaches terminates
 ensures same_box_outer<u8>(value, value)
 { }
-machine keep_strict(value: f64) reaches terminates
-ensures same_strict<f64>(value, value)
+machine keep_typed(value: f64) reaches terminates
+ensures same_typed<f64>(value, value)
 { }
 machine keep(value: f64) reaches terminates
 ensures via_value<f64>(value, value)
@@ -51,7 +51,7 @@ machine main() crashes Trap {
     let boxed: FloatBox = FloatBox { value: nan };
     let narrow: IdentityBox<u8> = IdentityBox { value: 17u8 };
     keep_constructed(narrow);
-    keep_strict(nan);
+    keep_typed(nan);
     keep(nan);
     keep_box(boxed);
     require_same(nan, nan);
