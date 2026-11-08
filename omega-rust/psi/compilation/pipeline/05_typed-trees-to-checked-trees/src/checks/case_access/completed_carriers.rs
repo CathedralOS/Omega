@@ -152,98 +152,33 @@ fn reaches(
     if value == target && projection == target_projection {
         return true;
     }
-    if !control.operands.is_valid(value) {
-        return false;
-    }
     let key = (value, projection.to_vec());
     if active.contains(&key) {
         return false;
     }
     active.push(key);
-    let capture = control.operands.get(value);
-    // A retained owned address relates current homes, not historical contents.
-    // Follow its checked receiver before asking for this cut's tag evidence;
-    // copied values and reference descriptors keep the ordinary value law.
-    let owned_home = validation::reference_shell(program, capture.type_reference).is_none()
-        && program.type_multiplicity(capture.type_reference)
-            != language_semantics::Multiplicity::Unrestricted
-        && !matches!(
-            capture.completion,
-            checked_trees::FlowOperandCompletion::Copied { .. }
-        );
-    let answer = if owned_home
-        && let Some(checked_trees::FlowOperandAddressProjection::Place(path)) =
-            capture.address_projection
-    {
-        control.operands.is_valid(capture.backing)
-            && control.operand_child_paths.span(path).is_some_and(|path| {
-                if !path.iter().all(|segment| {
-                    matches!(
-                        segment,
-                        PlaceSegment::Field { .. }
-                            | PlaceSegment::Case { .. }
-                            | PlaceSegment::FixedIndex { .. }
-                    )
-                }) {
-                    return false;
-                }
-                let receiver = control.operands.get(capture.backing);
-                if receiver.state_symbol != capture.state_symbol
-                    || validation::reference_shell(program, receiver.type_reference).is_some()
-                    || program.type_multiplicity(receiver.type_reference)
-                        == language_semantics::Multiplicity::Unrestricted
-                {
-                    return false;
-                }
-                let Some(reference) = validation::owned_projection_type_reference(
-                    program,
-                    receiver.type_reference,
-                    path,
-                ) else {
-                    return false;
-                };
-                let projected = program.normalized_type_identity(reference);
-                if !projected.is_valid()
-                    || projected != program.normalized_type_identity(capture.type_reference)
-                {
-                    return false;
-                }
-                let mut selected = path.to_vec();
-                selected.extend_from_slice(projection);
+    let answer = validation::completed_storage::predecessors_in_control(
+        program,
+        control,
+        value,
+        projection,
+        validation::completed_storage::StoredObservation::Contents,
+        None,
+    )
+    .is_some_and(|rows| {
+        !rows.is_empty()
+            && rows.iter().all(|(value, projection)| {
                 reaches(
                     program,
                     control,
-                    capture.backing,
-                    &selected,
+                    *value,
+                    projection,
                     target,
                     target_projection,
                     active,
                 )
             })
-    } else {
-        validation::completed_storage::predecessors_in_control(
-            program,
-            control,
-            value,
-            projection,
-            validation::completed_storage::StoredObservation::Contents,
-            None,
-        )
-        .is_some_and(|rows| {
-            !rows.is_empty()
-                && rows.iter().all(|(value, projection)| {
-                    reaches(
-                        program,
-                        control,
-                        *value,
-                        projection,
-                        target,
-                        target_projection,
-                        active,
-                    )
-                })
-        })
-    };
+    });
     active.pop();
     answer
 }

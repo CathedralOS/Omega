@@ -213,6 +213,13 @@ impl StateGraphEmission<'_, '_> {
             )?,
             produced_values: self.produced_values.clone(),
             observations: prepare(checked, &self.owners, &mut self.catalogs.next_place)?,
+            call_views: crate::scalar_lowering::computations::call_views::prepare(
+                identities,
+                checked,
+                &self.owners,
+                &self.catalogs.structural_types,
+                &mut self.catalogs.next_place,
+            )?,
             subslices: crate::scalar_lowering::computations::subslices::prepare(
                 identities,
                 checked,

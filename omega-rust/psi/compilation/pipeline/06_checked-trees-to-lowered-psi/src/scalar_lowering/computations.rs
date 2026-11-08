@@ -32,6 +32,7 @@ use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 pub(crate) mod arrays;
 mod byte_comparisons;
 mod call_signature;
+pub(crate) mod call_views;
 mod calls;
 pub(crate) mod cases;
 pub(crate) mod comparisons;
@@ -114,6 +115,7 @@ pub(crate) struct Expansion<'a> {
     calls: Vec<SourceInvocation>,
     declaration_observation: Option<(semantic_vocabulary::BlockId, u64)>,
     produced_values: Vec<produced_values::Slot>,
+    call_views: Vec<call_views::Slot>,
     subslices: Vec<subslices::Slot>,
     observations: Vec<observations::Slot>,
     source_carriers: Vec<(
@@ -164,6 +166,7 @@ impl<'a> Expansion<'a> {
             calls: Vec::new(),
             declaration_observation: None,
             produced_values: Vec::new(),
+            call_views: Vec::new(),
             subslices: Vec::new(),
             observations: Vec::new(),
             source_carriers: Vec::new(),
@@ -253,6 +256,11 @@ impl<'a> Expansion<'a> {
 
     pub(crate) fn with_observations(mut self, observations: &[observations::Slot]) -> Self {
         self.observations = observations.to_vec();
+        self
+    }
+
+    pub(crate) fn with_call_views(mut self, call_views: &[call_views::Slot]) -> Self {
+        self.call_views = call_views.to_vec();
         self
     }
 

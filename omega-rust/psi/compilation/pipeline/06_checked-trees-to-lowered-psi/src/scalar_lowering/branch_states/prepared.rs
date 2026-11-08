@@ -40,7 +40,7 @@ pub(crate) enum LoweredScalarBranchTerminator {
     Capture {
         target: usize,
         arguments: Vec<LoweredDirectExpression>,
-        source: crate::emission::operation_emission::calls::StructuralValueSource,
+        source: semantic_vocabulary::PlaceId,
         path: Vec<crate::emission::operation_emission::expressions::LoweredElementPathSegment>,
         access: terminal_psi::StructuralAccess,
     },
