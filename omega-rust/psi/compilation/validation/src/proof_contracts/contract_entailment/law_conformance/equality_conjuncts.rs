@@ -637,7 +637,13 @@ impl SourceCorrespondence {
                     if !left.evidence_arguments.is_empty()
                         || !right.evidence_arguments.is_empty()
                         || left.static_machine_parameter != right.static_machine_parameter
-                        || left.static_requirement_dispatch != right.static_requirement_dispatch
+                        || !selected_dispatches_match(
+                            program,
+                            required_scope.0,
+                            left,
+                            provided_scope.0,
+                            right,
+                        )
                         || !type_matches(
                             left.requirement_application,
                             right.requirement_application,
@@ -761,6 +767,45 @@ impl SourceCorrespondence {
         }
         true
     }
+}
+
+/// Copied clauses keep separate occurrence records for the same selected map.
+/// Rejoin each record under its own owner before comparing the selected public
+/// contract. The storage coordinate stays distinct and supplies no equality.
+fn selected_dispatches_match(
+    program: &dyn crate::CheckingInput,
+    required_owner: SymbolHandle,
+    required: &typed_trees::expression::TableCallExpression,
+    provided_owner: SymbolHandle,
+    provided: &typed_trees::expression::TableCallExpression,
+) -> bool {
+    if required.static_requirement_dispatch == provided.static_requirement_dispatch {
+        return true;
+    }
+    let (Some(required_dispatch), Some(provided_dispatch)) = (
+        required.static_requirement_dispatch.as_ref(),
+        provided.static_requirement_dispatch.as_ref(),
+    ) else {
+        return false;
+    };
+    // Project only the occurrence coordinate locally. Derived equality still
+    // checks every other field, including evidence, commitment and public row.
+    let mut selected_contract = required_dispatch.clone();
+    selected_contract.selection_application = provided_dispatch.selection_application;
+    if selected_contract != *provided_dispatch {
+        return false;
+    }
+    crate::machine_calls::calls::closed_requirement_dispatch_is_valid(
+        program,
+        required_owner,
+        required.target_symbol,
+        required_dispatch,
+    ) && crate::machine_calls::calls::closed_requirement_dispatch_is_valid(
+        program,
+        provided_owner,
+        provided.target_symbol,
+        provided_dispatch,
+    )
 }
 
 fn neutral_call_payload(call: &typed_trees::expression::TableCallExpression) -> bool {
