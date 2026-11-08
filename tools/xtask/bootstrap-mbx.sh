@@ -14,8 +14,8 @@ mkdir -p "$install_dir"
 cd "$install_dir"
 if [[ "$target" == *windows* ]]; then archive="mbx-$target.zip"; else archive="mbx-$target.tar.gz"; fi
 release="https://github.com/jdx/mr-boxington/releases/download/v$version"
-curl -fsSLO "$release/$archive"
-curl -fsSLO "$release/SHA256SUMS"
+curl --retry 3 --retry-delay 2 --retry-max-time 120 -fsSLO "$release/$archive"
+curl --retry 3 --retry-delay 2 --retry-max-time 120 -fsSLO "$release/SHA256SUMS"
 if command -v sha256sum >/dev/null; then
   grep " $archive\$" SHA256SUMS | sha256sum --check --strict -
 else
