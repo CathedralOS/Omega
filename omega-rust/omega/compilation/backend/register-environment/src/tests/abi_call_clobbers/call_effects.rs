@@ -1,3 +1,10 @@
+/*
+We verify that the machine-effect catalog declares the exact ABI argument/result
+custody, caller-saved clobber sets, stack-pointer alignment, and control/memory
+effects for every selected unit, scalar, aggregate, foreign, and nonreturning
+call rule across all supported targets, and rejects per-fact corruptions.
+*/
+
 use super::{
     Architecture, BTreeSet, RegisterConstraintKey, assert_faulting_trap, assert_storage_free,
     baseline_target_register_environment, convention_for, declared_pairs, encoded_mut,
@@ -12,11 +19,6 @@ use selected_instructions::{
     MachineSemanticKind, MachineTrapBehavior,
 };
 
-/// Every selected register-call rule key with the semantic family the effect
-/// catalog must declare for it. A key appears once per semantic: the
-/// nonreturning-invocation roster aliases the ordinary Unit, scalar, and
-/// aggregate call rows under its own `InvokeNoNormal` declaration. The sweep is keyed off the validated
-/// environment's selection, never off the effect producer's own roster.
 fn selected_call_rules(
     environment: &crate::ValidatedTargetRegisterEnvironment,
 ) -> Vec<(RegisterConstraintKey, MachineSemanticKind)> {
@@ -40,7 +42,6 @@ fn selected_call_rules(
                 .iter()
                 .map(|key| (*key, MachineSemanticKind::NormalizedForeignCall)),
         )
-        // Nonreturning completion reuses the ordinary declared call rows.
         .chain(
             keys.invoke_no_normal
                 .iter()
@@ -49,8 +50,6 @@ fn selected_call_rules(
         .collect()
 }
 
-/// Every selected call rule on every declared target/ABI pair is bound to the
-/// preservation convention the physical model declares for that pair.
 #[test]
 fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
     for case in scalar_abi_cases() {
@@ -65,9 +64,6 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
             case.convention
         );
 
-        // Call authority is declared for exactly the selected call rules: no
-        // selected rule may lack a call declaration and no other declaration
-        // may claim call effects.
         let declared = declared_pairs(&catalog, |declaration| {
             declaration.call != MachineCallEffect::NoneV1
         });
@@ -85,10 +81,6 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
             let (row, declaration) = row_and_declaration(&environment, &catalog, *key, *semantic);
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::Call, "{key:?}");
-            // The call contract is bound to the declared preservation
-            // convention, not to the effect producer's own constant.
-            // Imports use that convention's alignment. Supervisor entries
-            // share argument transport but have no user-space call frame.
             let expected_call = if supervisor {
                 MachineCallEffect::SupervisorNormalReturnV1
             } else if *semantic == MachineSemanticKind::NormalizedForeignCall {
@@ -96,8 +88,6 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
                     pre_call_stack_alignment: convention.stack_alignment,
                 }
             } else if *semantic == MachineSemanticKind::InvokeNoNormal {
-                // The physical call enters the same ABI; only the normal
-                // return, its result and the caller's resumption are absent.
                 MachineCallEffect::InternalNoNormalV1 {
                     pre_call_stack_alignment: convention.stack_alignment,
                 }
@@ -115,9 +105,6 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
             assert_eq!(declaration.trap, MachineTrapBehavior::NeverV1, "{key:?}");
             assert_eq!(declaration.memory, MachineMemoryEffect::NoneV1, "{key:?}");
 
-            // ABI operand structure: dense operand numbers, leading Use
-            // arguments, trailing Def results, every placement pinned to a
-            // caller-saved view of the operand's class.
             let arity = row
                 .operands
                 .iter()
@@ -131,8 +118,6 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
                 MachineSemanticKind::CallScalar => {
                     assert_eq!(results.len(), 1, "{key:?}")
                 }
-                // A nonreturning invocation keeps every physical result
-                // definition of the Unit, scalar, or aggregate row it aliases.
                 MachineSemanticKind::CallAggregate | MachineSemanticKind::InvokeNoNormal => {
                     assert!(results.len() <= 2, "{key:?}")
                 }
@@ -159,9 +144,6 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
                 );
             }
 
-            // A call may only implicitly touch volatile or architecturally
-            // fixed state and must never clobber state the ABI preserves.
-            // Only a user-space call consumes the activation stack pointer.
             assert_eq!(
                 stack_pointer
                     .units
@@ -259,9 +241,6 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
     }
 }
 
-/// Every selected call rule replays its encoded clobber row: dropping one
-/// caller-saved unit from the encoded effects must reject for every rule on
-/// every declared target/ABI pair.
 #[test]
 fn every_selected_call_rule_rejects_encoded_clobber_loss_on_every_target() {
     for case in scalar_abi_cases() {

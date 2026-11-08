@@ -1,3 +1,9 @@
+/*
+We derive the validated optimized physical evidence scope and its surviving
+operator and boundary occurrence roster from an optimized abstract operation
+plan and Terminal boundary-application coverage.
+*/
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::{AbstractOperation, AbstractOperationPlan};
@@ -84,9 +90,6 @@ fn derive_optimized_scope(
         }
     }
 
-    // Terminal operation identities are globally unique. Requiring that
-    // invariant again on the final projection makes every retained D29 row an
-    // exact join and prevents one reference from selecting multiple survivors.
     let mut final_operations = BTreeMap::new();
     for function in &final_plan.functions {
         for (operation_ordinal, operation) in function.operations.iter().enumerate() {
@@ -125,9 +128,6 @@ fn derive_optimized_scope(
                     identity,
                 ));
             }
-            // Only boundary invocations carry D41 selection authority. Ordinary
-            // module calls, including InvokeNoNormal, are replayed through the
-            // complete selected/object call graph retained by publication.
             let invocation = match operation {
                 AbstractOperation::BoundaryCall {
                     boundary,
@@ -366,8 +366,6 @@ mod tests {
                 terminal: psi,
                 operation: operation(10),
             },
-            // This exact Terminal D29 occurrence was proven eliminated and
-            // therefore is absent from the final abstract plan.
             D29ReferenceCoordinate {
                 terminal: psi,
                 operation: operation(12),

@@ -1,4 +1,13 @@
-//! Domain-separated authority digests and report-only fingerprints.
+/*
+We define the domain-separated authority digests, non-zero normalized report
+identities, and compatibility fingerprints used across executable artifact
+admission, placement, and installation.
+
+Compact 64-bit report identities (`ArtifactId`, `InstalledCodeId`, etc.) serve
+as report keys and never replace the 32-byte SHA-256 authority commitments
+(`ImportedContractSetDigest`, `DeclaredFootprintDigest`, `MachineRegimeDigest`,
+`InstallationScopeDigest`).
+*/
 
 use crate::installation::InstallationDiagnostic;
 
@@ -90,10 +99,6 @@ canonical_authority_digest!(
     b"omega.artifact-installation-scope.sha256.v1\0"
 );
 
-/// Collision-resistant commitments to the exact authority-bearing values
-/// imported by an executable artifact. The compact normalized identities
-/// remain report coordinates and are included in each digest's domain-framed
-/// preimage; they are never sufficient on their own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ArtifactAuthorityCommitments {
     imported_contract_report_identity: u64,

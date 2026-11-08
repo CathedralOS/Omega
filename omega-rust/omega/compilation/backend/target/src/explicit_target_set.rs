@@ -1,12 +1,13 @@
+/*
+We normalize caller-supplied target profile sets (`ExplicitTargetSet`) at the
+request boundary. We reject empty requests, wildcard expansion spellings (`all`
+and `*`), and retired aliases while deduplicating and ordering valid profiles
+by our canonical `TargetProfile::ALL` catalog.
+*/
+
 use crate::TargetProfile;
 use diagnostics::Diagnostic;
 
-/// A nonempty canonical set of exact profiles supplied by one compiler caller.
-///
-/// This is D54's request boundary, not a support matrix or a request to expand
-/// the toolchain catalog. Construction retains only profiles the caller named,
-/// removes duplicates, and orders them by the trusted profile catalog. It does
-/// not yet perform compilation fan-out.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExplicitTargetSet {
     profiles: Box<[TargetProfile]>,
@@ -113,8 +114,6 @@ mod tests {
                 diagnostics[0].message
             );
         }
-        // An alias does not pair with its canonical spelling into a duplicate:
-        // the request fails before deduplication ever runs.
         let diagnostics =
             ExplicitTargetSet::from_caller_names(["linux_x64", "linux_x86_64"]).unwrap_err();
         assert_eq!(diagnostics.len(), 1);

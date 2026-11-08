@@ -1,28 +1,46 @@
-//! Normalized executable-artifact admission and installation.
-//!
-//! Start at `executable_installation.rs`: it owns the authority-consuming
-//! ladder — admit, materialize and freeze, install, seal an entry,
-//! retire — and the one-call drives that run a provider operation through the
-//! transition consuming its receipt. There is no final-certificate replay;
-//! installation tests construct producer output directly. Container decoding
-//! and materialization alone never establish execute authority.
-//!
-//! The domains beside it: `authority_digests` (domain-separated digests and
-//! report-only fingerprints), `artifacts` (artifacts, their container wire
-//! format and admission), `placement` (placement claims, materialization,
-//! frozen and validated placements), `installation` (install authorities,
-//! receipts, installed code and its registry), `entry_references` (the
-//! control-flow-integrity gate), `retirement` (retirement, uninstall,
-//! replacement and quarantine endings), `post_handoff_writer` (the installed
-//! entry writer protocol) and `owned_image_provider` (the resident-buffer
-//! provider that performs the operations and mints the receipts).
+/*
+We model normalized executable-artifact admission, placement, installation, and
+post-handoff writer context resolution through linear state carriers (`Artifact`,
+`ValidatedPlacement`, `InstalledCode`, and
+`ResolvedPostHandoffEntryWriterContext`).
+
+Decoding a container or materializing bytes at a destination never establishes
+execute authority on its own: each transition consumes linear evidence from the
+previous step and returns its inputs inside `InstallationError` or
+`DestinationClaimError` when a gate refuses.
+*/
+
+/*
+Why separate 64-bit report identities (`ArtifactId`, `InstalledCodeId`, etc.)
+from 32-byte SHA-256 authority commitments (`ImportedContractSetDigest`,
+`DeclaredFootprintDigest`, `MachineRegimeDigest`, `InstallationScopeDigest`)?
+Compact 64-bit values are convenient for diagnostic tables and compatibility
+reports, but relying on them for admission or installation would collapse the
+trust boundary to a 64-bit FNV/compatibility space. We therefore keep report
+identities strictly for indexing and diagnostics while requiring full
+domain-separated SHA-256 digests and exact placement geometry on every
+state-changing receipt.
+*/
+
+/*
+The crate is organized into five domain modules:
+- `authority_digests.rs`: domain-separated SHA-256 authority digests, non-zero
+  report IDs, and compatibility fingerprints.
+- `artifacts.rs`: decoded executable artifacts, entry stubs, normalized
+  relocations, and admitted artifact custody.
+- `placement.rs`: linear W+NX to R+NX placement states (`CodePlacement`,
+  `FrozenPlacement`, `ValidatedPlacement`) and materialized byte evidence.
+- `installation.rs`: installation authorities, provider receipts, W^X
+  enforcement status, and linear `InstalledCode`.
+- `post_handoff_writer.rs`: destination mapping validation and once-resolved
+  opaque writer contexts (`ResolvedPostHandoffEntryWriterContext`).
+*/
 
 mod artifacts;
 mod authority_digests;
 mod installation;
 mod placement;
 mod post_handoff_writer;
-mod retirement;
 
 pub use artifacts::Artifact;
 pub use authority_digests::{

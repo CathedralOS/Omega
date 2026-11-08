@@ -1,4 +1,10 @@
-//! Recover native argument order and callback binders from the canonical declaration.
+/*
+We recover native argument order and callback binder correspondence from the
+canonical Terminal declaration (`TerminalCallingTelescope`), checking that a
+proposed `BoundaryCallingApplication` matches the exact reached boundary
+declaration ABI, parameter order, foreign reference descriptor geometry, and
+retained callback bindings before native consumers use its placements.
+*/
 
 use super::{
     BoundaryCallbackBinding, BoundaryCallingApplication, BoundaryNativeParameterGeometry,
@@ -8,18 +14,12 @@ use crate::BoundaryNativeParameterOrigin;
 use crate::BoundaryValueClass;
 use terminal_psi::{BoundaryParameterKind, StructuralAccess, StructuralTypeShape, TerminalModule};
 
-/// Target-closed argument telescope. Value layouts still come from the calling
-/// application; declaration identity, native-only arguments and callback
-/// correspondence come exclusively from Terminal Psi.
 pub struct TerminalCallingTelescope {
     pub parameters: Vec<BoundaryNativeParameterGeometry>,
     pub binders: Vec<BoundaryCallbackBinding>,
 }
 
 impl TerminalCallingTelescope {
-    /// Rejoin every retained binder to its complete requirement identity,
-    /// including unused binders. Both policy input and proposal comparison use
-    /// this declaration projection rather than rebuilding source correspondence.
     pub fn callback_bindings(
         module: &TerminalModule,
         telescope: &terminal_psi::CallingSignatureTelescope,
@@ -44,16 +44,11 @@ impl TerminalCallingTelescope {
             .collect()
     }
 
-    /// Recover the declaration and check that the proposed ABI application is
-    /// for that exact telescope before native consumers use its placements.
     pub fn for_application(
         module: &TerminalModule,
         boundary: semantic_vocabulary::BoundaryMachineId,
         application: &BoundaryCallingApplication,
     ) -> Result<Self, String> {
-        // Several closed applications can share the same template requirement.
-        // The actual boundary occurrence, not an inverse template-name search,
-        // selects the retained declaration.
         let declaration = module
             .calling_signatures
             .iter()
@@ -240,8 +235,6 @@ mod tests {
         let mut sibling = first.clone();
         sibling.calling_owner_application = Some("package::Second<u8>".into());
 
-        // The ABI and all physical placements stay identical. Selection of
-        // another child still produces a different application commitment.
         assert_eq!(first.abi, sibling.abi);
         assert_eq!(first.plan, sibling.plan);
         assert_ne!(first.commitment, sibling.recomputed_commitment().unwrap());

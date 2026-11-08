@@ -1,9 +1,10 @@
-//! Canonical Terminal-to-object rejoin for mixed structural/scalar ABIs.
-//!
-//! Object, image, and installation owners can validate physical consistency,
-//! but they do not independently own the semantic declarations named by an
-//! ABI row. The native artifact does: it owns both canonical Terminal-Psi and
-//! the emitted object, so this is the first honest place to rejoin those IDs.
+/*
+We rejoin mixed structural/scalar function ABIs retained on an `ObjectArtifact`
+to their canonical `TerminalMachine` declarations. We verify that attachment,
+nominal cleanup subject, scalar parameter identifiers and types, scalar result
+declarations, and structural parameter places, types, multiplicities, access
+modes, and qualifications match one-for-one.
+*/
 
 use image_emission::ObjectArtifact;
 use terminal_psi::{TerminalMachine, TerminalModule};

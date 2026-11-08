@@ -1,4 +1,8 @@
-//! The SHA-256 encodings every identity in the derivation is built from.
+/*
+We provide the canonical SHA-256 domain-digest encodings for structural paths,
+sum layouts, port effects, boundary settlement records, ABI value placements,
+relocations, and evidence gaps across physical evidence derivation.
+*/
 
 pub(crate) use crate::NormalizedForeignCallbackRelocation;
 use machine_code::{BoundaryExecutionRecord, PortEffectRecord};
@@ -108,9 +112,6 @@ pub(crate) fn hash_port_effect_record(
     digest.raw(&canonical_usize(effect.byte_count));
 }
 
-/// Hash the complete retained settlement row so no realization, argument,
-/// completion, result, or coordinate field can be substituted underneath a
-/// parent identity.
 pub(crate) fn hash_boundary_settlement_record(
     digest: &mut crate::digest_encoder::DomainDigestEncoder,
     settlement: &machine_code::BoundarySettlementRecord,
@@ -235,7 +236,6 @@ const fn compiler_builtin_execution_tag(execution: CompilerBuiltinExecution) -> 
         CompilerBuiltinExecution::HostedExitProcessI32 => 1,
         CompilerBuiltinExecution::HostedReadByte => 2,
         CompilerBuiltinExecution::HostedWriteByteI32 => 3,
-        // Tags 4..=27: one per exact operation and format.
         CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format } => {
             4 + 2 * float_arithmetic_tag(operation) + float_format_tag(format)
         }
@@ -303,7 +303,6 @@ fn hash_boundary_realization(
             digest.byte(8);
             digest.byte(float_arithmetic_tag(realization.operation));
             digest.byte(float_format_tag(realization.format));
-            // Only an x86 FMA carries custody, so appending it stays injective.
             if let Some(provider) = realization.x86_scalar_fma {
                 digest.raw(&provider.identity());
             }
@@ -334,8 +333,6 @@ fn hash_boundary_result_record(
     Ok(())
 }
 
-/// The complete structural-result record body shared by the hosted read-byte
-/// parent identity and the installed-settlement record hash.
 pub(super) fn hash_boundary_structural_result(
     digest: &mut crate::digest_encoder::DomainDigestEncoder,
     result: &machine_code::BoundaryStructuralResultRecord,
@@ -556,9 +553,6 @@ pub(crate) fn hash_structural_argument(
     hash_structural_path(digest, &argument.path);
 }
 
-/// Hash one declared structural formal: its declared position, place,
-/// structural type, multiplicity, access, and exact qualification
-/// rows. No declared field can drift underneath a retained argument binding.
 pub(crate) fn hash_structural_parameter_declaration(
     digest: &mut crate::digest_encoder::DomainDigestEncoder,
     parameter: &terminal_psi::StructuralParameterDeclaration,
@@ -804,9 +798,6 @@ pub(crate) fn canonical_usize(value: usize) -> [u8; 8] {
         .to_le_bytes()
 }
 
-/// The canonical digest row of one call-site owner: the owner-family tag
-/// followed by the family's compact coordinates. Every identity that
-/// commits a call-site owner feeds this exact row.
 pub(crate) fn hash_call_site_owner(
     digest: &mut crate::digest_encoder::DomainDigestEncoder,
     owner: &CallSiteOwner,
@@ -846,10 +837,6 @@ pub(crate) fn hash_call_site_owner(
     }
 }
 
-/// Canonical identity of the one subject that stopped a scoped derivation.
-/// Occurrence subjects hash their exact occurrence identity (which already
-/// commits terminal, machine, operation, boundary, and ordinal); record and
-/// machine subjects hash their retained coordinates directly.
 pub(crate) fn physical_evidence_gap_identity(
     subject: &NativePhysicalEvidenceGapSubject,
 ) -> [u8; 32] {

@@ -1,34 +1,12 @@
-//! macOS `.app` package assembly and its self-verifying receipt.
-//!
-//! Complete selected macOS GUI output is a bundle, never a flat executable
-//! beside it (wiki/spec/build/macos_application.md). One validated authored
-//! `Build::application` name supplies the `.app` basename and the inner
-//! executable leaf; the retained `builder.identifier` supplies
-//! `CFBundleIdentifier` and must match the CodeDirectory identity already
-//! bound into the signed executable bytes.
-//!
-//! The v1 tree for `window-app` is exact:
-//!
-//! ```text
-//!   window-app.app/
-//!     Contents/
-//!       Info.plist
-//!       MacOS/window-app
-//! ```
-//!
-//! The plist uses package type `APPL` with fixed encoding, key order, and
-//! escaping — no timestamps or ambient facts — so repeated publication is
-//! byte-identical.
-//!
-//! Assembly stages the whole tree under `.{name}.app.{pid}.tmp` beside the
-//! destination, replays every staged byte, validates the exact shape, then
-//! replaces any previous package with one rename and replays the installed
-//! tree again. Missing, extra, substituted, or partial contents reject, and
-//! any failure removes the staged tree and the just-installed package so no
-//! partial output survives. The stored receipt independently re-compares the
-//! plist identifier, the retained realization identity, and the identifier
-//! encoded in the installed executable's CodeDirectory; matching producer
-//! assertions alone are insufficient.
+/*
+We stage, validate, install, and replay macOS `.app` application bundles
+(`publish_macos_application_package`) and issue self-verifying
+`NativePackagePublicationReceipt` records. We stage the complete bundle tree
+(`Contents/Info.plist` and `Contents/MacOS/<name>`) in a temporary sibling
+directory, verify that the signed Mach-O `CodeDirectory` identifier matches the
+retained `ApplicationIdentifier` and plist `CFBundleIdentifier`, atomically
+replace any prior bundle, and replay the installed tree shape and bytes.
+*/
 
 use std::path::{Path, PathBuf};
 
@@ -39,7 +17,6 @@ use crate::{NativePackageEvidenceDigest, PackageComponentDigest};
 use platform_custody::file_publication::make_executable;
 use std::process::id;
 
-/// Digest one installed package member's exact bytes under its own domain.
 fn package_component_digest(bytes: &[u8]) -> PackageComponentDigest {
     PackageComponentDigest::from_digest(DomainDigestEncoder::content(
         b"omega.published-package-component.sha256.v1\0",
@@ -47,11 +24,6 @@ fn package_component_digest(bytes: &[u8]) -> PackageComponentDigest {
     ))
 }
 
-/// The package-level commitment: package root, authored name, authored
-/// identifier, the inner executable's v1 container identity, and every
-/// installed member's package-relative path, byte count, and component digest
-/// in their fixed recorded order. Reordering or editing any member stops the
-/// receipt from replaying.
 fn native_package_evidence_digest(
     package_root: &Path,
     application_name: &str,
@@ -80,9 +52,6 @@ fn native_package_evidence_digest(
     NativePackageEvidenceDigest::from_digest(digest.finish())
 }
 
-/// One installed package member, recorded package-relative so the receipt is
-/// interpreted relative to the recorded root. The receipt's replayed evidence
-/// digest detects a changed component.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePublicationComponent {
     relative_path: PathBuf,
@@ -100,29 +69,13 @@ impl PackagePublicationComponent {
     }
 }
 
-/// Immutable custody for one compiler-published macOS application package.
-///
-/// The receipt covers the exact executable and plist bytes and the directory
-/// shape they were installed under. It is compiler artifact evidence only —
-/// package consistency is not a distribution signature, notarization, or
-/// authenticity claim. The replayed evidence digest and executable member
-/// joins detect changed fields.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePackagePublicationReceipt {
     package_root: PathBuf,
     application_name: String,
     application_identifier: target::ApplicationIdentifier,
-    /// The inner executable's ordinary v1 container commitment — the same
-    /// digest the flat publication receipt carries — so package and
-    /// executable custody are cross-bound rather than parallel claims.
     executable_container_digest: ExecutableContainerDigest,
-    /// Retained inner-executable byte count. It never enters the evidence
-    /// digest: its replay binding is the `Contents/MacOS/<name>` member's own
-    /// byte count plus the flat receipt's container byte count at the
-    /// report-level join.
     executable_byte_count: usize,
-    /// Ordered installed members: `Contents/Info.plist` first, then
-    /// `Contents/MacOS/<name>`.
     components: Vec<PackagePublicationComponent>,
     package_evidence_digest: NativePackageEvidenceDigest,
 }
@@ -182,8 +135,6 @@ impl NativePackagePublicationReceipt {
         self.package_evidence_digest
     }
 
-    /// The inner executable's recorded component: `Contents/MacOS/<name>`
-    /// must be present exactly once for the receipt to describe a package.
     pub(crate) fn executable_component(&self) -> Option<&PackagePublicationComponent> {
         let expected = Path::new("Contents")
             .join("MacOS")
@@ -196,13 +147,6 @@ impl NativePackagePublicationReceipt {
         matching.next().is_none().then_some(component)
     }
 
-    /// Replay this receipt's own commitments without trusting the fields that
-    /// produced them: the evidence digest recomputed from the recorded root,
-    /// name, identifier, executable container digest and ordered members; a
-    /// root named `<name>.app`; exactly the contract members in their fixed
-    /// order (`Contents/Info.plist`, then `Contents/MacOS/<name>`); and the
-    /// executable member's byte count equal to the retained executable byte
-    /// count. A changed identifier, member order, or root fails the replay.
     pub fn has_consistent_package_evidence(&self) -> bool {
         let contract_members = [
             Path::new("Contents").join("Info.plist"),
@@ -237,11 +181,6 @@ impl NativePackagePublicationReceipt {
                 )
     }
 
-    /// Whether this package receipt and the flat executable receipt describe
-    /// the same installed executable: this receipt replays on its own, and
-    /// its inner executable path, container digest and byte count equal the
-    /// executable receipt's. Two receipts that each replay alone but name
-    /// different executables are not one publication.
     pub fn binds_executable(&self, executable: &crate::ExecutablePublicationReceipt) -> bool {
         self.has_consistent_package_evidence()
             && self.inner_executable_path().as_deref() == Some(executable.output_path())
@@ -249,19 +188,12 @@ impl NativePackagePublicationReceipt {
             && self.executable_byte_count == executable.container_byte_count()
     }
 
-    /// The inner executable path implied by this receipt's own root and
-    /// component list; never trusted independently of the executable
-    /// receipt's `output_path`.
     pub fn inner_executable_path(&self) -> Option<PathBuf> {
         self.executable_component()
             .map(|component| self.package_root.join(component.relative_path()))
     }
 }
 
-/// The deterministic v1 `Contents/Info.plist` for one authored application.
-/// Key order is fixed (Executable, Identifier, Name, PackageType); both
-/// authored strings are pre-validated to charsets without XML metacharacters,
-/// so the spelling needs no escaping pass.
 fn info_plist_bytes(application_name: &str, identifier: &str) -> Vec<u8> {
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
@@ -282,11 +214,6 @@ fn info_plist_bytes(application_name: &str, identifier: &str) -> Vec<u8> {
     .into_bytes()
 }
 
-/// The `CFBundleIdentifier` value spelled by one installed plist, or `None`
-/// when the exact key/value spelling is absent. This is a deliberate
-/// substring read of the fixed layout, not a general plist parser: a plist
-/// that reorders or escapes its keys is a different byte string and fails
-/// the exact-content replay before this read ever matters.
 fn plist_identifier(plist: &[u8]) -> Option<&str> {
     let text = std::str::from_utf8(plist).ok()?;
     let value = text
@@ -295,10 +222,6 @@ fn plist_identifier(plist: &[u8]) -> Option<&str> {
     value.split_once("</string>").map(|(value, _)| value)
 }
 
-/// What one package entry is on disk. Directories are part of the recorded
-/// shape: an extra empty directory changes the tree as much as an extra file.
-/// Anything that is neither a directory nor a regular file (a symlink, a
-/// socket) is recorded as `Other` and therefore never matches the contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum PackageEntryKind {
     Directory,
@@ -306,9 +229,6 @@ enum PackageEntryKind {
     Other,
 }
 
-/// Enumerate every entry under `root`, package-relative and sorted, so shape
-/// comparison is order-free in the filesystem but fixed in the receipt.
-/// Symlinks are classified without being followed.
 fn package_tree_entries(root: &Path) -> Result<Vec<(PathBuf, PackageEntryKind)>, String> {
     let mut entries_found = Vec::new();
     let mut pending = vec![root.to_path_buf()];
@@ -341,8 +261,6 @@ fn package_tree_entries(root: &Path) -> Result<Vec<(PathBuf, PackageEntryKind)>,
     Ok(entries_found)
 }
 
-/// The exact contract tree for `members`: each member as a regular file and
-/// every directory between the package root and a member, nothing else.
 fn expected_package_tree(members: &[(PathBuf, Vec<u8>)]) -> Vec<(PathBuf, PackageEntryKind)> {
     let mut entries = Vec::new();
     for (relative, _) in members {
@@ -359,11 +277,6 @@ fn expected_package_tree(members: &[(PathBuf, Vec<u8>)]) -> Vec<(PathBuf, Packag
     entries
 }
 
-/// Stage, validate, install, and replay one complete `.app` package.
-///
-/// Every member is staged and replayed before the destination is touched; a
-/// post-install replay failure removes the just-installed package so nothing
-/// certified-looking survives.
 pub fn publish_macos_application_package(
     build_dir: &Path,
     application_name: &str,
@@ -381,9 +294,6 @@ pub fn publish_macos_application_package(
     )
 }
 
-/// Points between the publication steps where tests disturb the tree on
-/// disk, so the staged and installed shape comparisons are each observed
-/// rejecting a tree they did not write. Production passes no observers.
 struct PublicationObservers<'a> {
     after_staging: &'a dyn Fn(&Path),
     after_installation: &'a dyn Fn(&Path),
@@ -409,9 +319,6 @@ fn publish_package_with_observers(
             "macOS package executable bytes do not match the container commitment".to_owned(),
         );
     }
-    // This public byte-oriented boundary cannot rely on a frontend having
-    // admitted a local filename. These checks reject path/XML syntax; they do
-    // not sanitize or infer an application name.
     if application_name.is_empty()
         || !application_name
             .bytes()
@@ -419,8 +326,6 @@ fn publish_package_with_observers(
     {
         return Err("macOS package publication requires a local ASCII application name".to_owned());
     }
-    // The signed executable must already carry the authored identity before
-    // any package byte becomes visible; publication cannot re-sign it.
     let encoded_identifier =
         image_macho::code_signature_identifier(executable_bytes).ok_or_else(|| {
             "macOS package publication requires a signed executable CodeDirectory".to_owned()
@@ -479,10 +384,6 @@ fn publish_package_with_observers(
         let _ = std::fs::remove_dir_all(&app_root);
         return Err(error);
     }
-    // Installed replay: exact member bytes, exact shape, and the independent
-    // three-way identity join — plist identifier, retained realization
-    // identity, and the CodeDirectory identity inside the installed
-    // executable. Any disagreement removes the package.
     (observers.after_installation)(&app_root);
     let installed_result = (|| -> Result<(), String> {
         if package_tree_entries(&app_root)? != expected_shape {
@@ -542,4 +443,258 @@ fn publish_package_with_observers(
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+    use crate::publication::executable_container_digest;
+    use std::fs;
+    use std::fs::read;
+    use std::process::id;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+    struct PublicationDirectory(PathBuf);
+
+    impl PublicationDirectory {
+        fn new() -> Self {
+            let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            let path =
+                std::env::temp_dir().join(format!("omega-package-publication-{}-{sequence}", id()));
+            fs::create_dir(&path).expect("create package publication test directory");
+            Self(path)
+        }
+    }
+
+    impl Drop for PublicationDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn signed_executable(identifier: &str) -> Vec<u8> {
+        let mut image = image::FinalImage::with_capacity(
+            target::NativeTarget::macos_arm64(),
+            image::FinalImageMemory {
+                text: 0xd65f_03c0u32.to_le_bytes().to_vec(),
+                ..Default::default()
+            },
+            image::FinalImageSymbolHandle::invalid(),
+            1,
+            0,
+            0,
+        );
+        image.symbol_table.entry_symbol =
+            image.symbol_table.symbols.insert(image::FinalImageSymbol {
+                name: "entry".into(),
+                section: image::FinalImageSection::Text,
+                size: 4,
+                kind: object_file::SymbolKind::Function,
+                ..Default::default()
+            });
+        image_macho::emit_macho_executable_signed(image, identifier)
+            .expect("emit signed fixture")
+            .bytes
+    }
+
+    #[test]
+    fn package_publication_is_deterministic_and_binds_the_signed_identifier() {
+        let directory = PublicationDirectory::new();
+        let identifier = target::ApplicationIdentifier::new(b"org.omega.window-test").unwrap();
+        let executable = signed_executable(identifier.as_str());
+        let digest = executable_container_digest(&executable);
+        let publish = || {
+            publish_macos_application_package(
+                &directory.0,
+                "window_test",
+                &identifier,
+                &executable,
+                digest,
+            )
+            .unwrap()
+        };
+        let first = publish();
+        assert_eq!(
+            first.inner_executable_path().unwrap(),
+            directory
+                .0
+                .join("window_test.app/Contents/MacOS/window_test")
+        );
+        assert_eq!(
+            read(first.inner_executable_path().unwrap()).unwrap(),
+            executable
+        );
+        let plist_path = first.package_root().join("Contents/Info.plist");
+        let first_plist = read(&plist_path).unwrap();
+        assert_eq!(plist_identifier(&first_plist), Some(identifier.as_str()));
+        assert_eq!(first.components().len(), 2);
+        assert!(
+            !directory.0.join("window_test").exists(),
+            "no redundant flat output"
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(first.inner_executable_path().unwrap())
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o755
+            );
+        }
+        assert_eq!(publish(), first);
+        assert_eq!(read(plist_path).unwrap(), first_plist);
+        assert!(first.has_consistent_package_evidence());
+        let mut changed = first.clone();
+        changed.application_identifier = target::ApplicationIdentifier::new(b"org.other").unwrap();
+        assert!(
+            !changed.has_consistent_package_evidence(),
+            "a changed identifier must fail the receipt replay"
+        );
+        let mut changed = first.clone();
+        changed.components.reverse();
+        assert!(
+            !changed.has_consistent_package_evidence(),
+            "reordered members must fail the receipt replay"
+        );
+        let mut changed = first.clone();
+        changed.package_root = directory.0.join("different.app");
+        assert!(
+            !changed.has_consistent_package_evidence(),
+            "a changed package root must fail the receipt replay"
+        );
+        let mut changed = first;
+        changed.executable_byte_count += 1;
+        assert!(
+            !changed.has_consistent_package_evidence(),
+            "an executable byte count that disagrees with its member must fail the replay"
+        );
+    }
+
+    #[test]
+    fn invalid_identity_paths_and_staging_leave_the_previous_package_untouched() {
+        let directory = PublicationDirectory::new();
+        let identifier = target::ApplicationIdentifier::new(b"org.omega.window-test").unwrap();
+        let executable = signed_executable(identifier.as_str());
+        let digest = executable_container_digest(&executable);
+        let previous = directory.0.join("window_test.app");
+        fs::create_dir(&previous).unwrap();
+        fs::write(previous.join("previous"), b"retained").unwrap();
+        let wrong_identifier = target::ApplicationIdentifier::new(b"org.other").unwrap();
+        assert!(
+            publish_macos_application_package(
+                &directory.0,
+                "window_test",
+                &identifier,
+                &executable,
+                executable_container_digest(b"different bytes"),
+            )
+            .is_err()
+        );
+        assert!(
+            publish_macos_application_package(
+                &directory.0,
+                "window_test",
+                &wrong_identifier,
+                &executable,
+                digest,
+            )
+            .is_err()
+        );
+        for name in [
+            "",
+            "../window_test",
+            "/window_test",
+            "bad&name",
+            "bad\\name",
+        ] {
+            assert!(
+                publish_macos_application_package(
+                    &directory.0,
+                    name,
+                    &identifier,
+                    &executable,
+                    digest,
+                )
+                .is_err(),
+                "{name}"
+            );
+        }
+        assert_eq!(read(previous.join("previous")).unwrap(), b"retained");
+        assert_eq!(
+            fs::read_dir(&directory.0).unwrap().count(),
+            1,
+            "failed staging leaves no temporary package"
+        );
+    }
+
+    fn publication_rejects_disturbed_tree(stage: bool, disturb: &dyn Fn(&Path)) {
+        let directory = PublicationDirectory::new();
+        let identifier = target::ApplicationIdentifier::new(b"org.omega.window-test").unwrap();
+        let executable = signed_executable(identifier.as_str());
+        let digest = executable_container_digest(&executable);
+        let observers = if stage {
+            PublicationObservers {
+                after_staging: disturb,
+                after_installation: &|_| {},
+            }
+        } else {
+            PublicationObservers {
+                after_staging: &|_| {},
+                after_installation: disturb,
+            }
+        };
+        let result = publish_package_with_observers(
+            &directory.0,
+            "window_test",
+            &identifier,
+            &executable,
+            digest,
+            observers,
+        );
+        assert!(result.is_err(), "a disturbed package tree must reject");
+        assert_eq!(
+            fs::read_dir(&directory.0).unwrap().count(),
+            0,
+            "a refused package leaves no staged or installed tree"
+        );
+    }
+
+    #[test]
+    fn package_publication_rejects_an_extra_empty_directory_in_the_staged_tree() {
+        for extra in ["Contents/Resources", "Extra", "Contents/MacOS/Extra"] {
+            publication_rejects_disturbed_tree(true, &|root| {
+                fs::create_dir_all(root.join(extra)).unwrap();
+            });
+        }
+    }
+
+    #[test]
+    fn package_publication_rejects_an_extra_empty_directory_in_the_installed_tree() {
+        for extra in ["Contents/Resources", "Extra", "Contents/MacOS/Extra"] {
+            publication_rejects_disturbed_tree(false, &|root| {
+                fs::create_dir_all(root.join(extra)).unwrap();
+            });
+        }
+    }
+
+    #[test]
+    fn package_publication_rejects_an_extra_file_in_either_tree() {
+        for stage in [true, false] {
+            publication_rejects_disturbed_tree(stage, &|root| {
+                fs::write(root.join("Contents/PkgInfo"), b"APPL????").unwrap();
+            });
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn package_publication_rejects_an_extra_symlink_in_either_tree() {
+        for stage in [true, false] {
+            publication_rejects_disturbed_tree(stage, &|root| {
+                std::os::unix::fs::symlink("MacOS", root.join("Contents/Resources")).unwrap();
+            });
+        }
+    }
+}

@@ -1,4 +1,8 @@
-//! Derive admitted provider settlement evidence by replaying its retained custody.
+/*
+We derive physical children for admitted provider settlements realized in place
+by supported target mechanisms, replaying their structural argument, completion,
+and target-specific byte custody across machine, object, and final-image bytes.
+*/
 
 use crate::BoundaryTraitSettlementParts;
 use crate::BoundaryTraitSettlementRole;
@@ -27,13 +31,6 @@ use target::NativeTarget;
 use target_operations::BoundaryRealization;
 use terminal_psi::OperationKind;
 
-/// Derive the D41 physical child for one installed provider settlement
-/// realized in place by a supported target mechanism.
-///
-/// `Ok(None)` leaves realizations this lane does not cover without a claimed
-/// child; the artifact remains valid but retains no complete physical
-/// evidence. Custody drift that would contradict a validated object or its
-/// Terminal operation is an error, matching the hosted-builtin derivations.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn derive_admitted_provider_settlement_child(
     module: &terminal_psi::TerminalModule,
@@ -62,10 +59,6 @@ pub(crate) fn derive_admitted_provider_settlement_child(
     if !supported {
         return Ok(None);
     }
-    // The retained settlement must still rejoin exactly one Terminal boundary
-    // call on the occurrence's machine, and that call must carry the
-    // settlement's exact structural-argument and completion-receipt custody.
-    // None of the supported mechanisms retain a scalar argument.
     let operation = occurrence
         .operation()
         .and_then(|operation| sole_terminal_operation(module, occurrence.machine(), operation))
@@ -75,7 +68,6 @@ pub(crate) fn derive_admitted_provider_settlement_child(
         arguments,
         structural_arguments,
         completion_receipts,
-        // Proof lane: verified in Psi, no physical correspondence.
         requirement_obligations: _,
     } = &operation.kind
     else {

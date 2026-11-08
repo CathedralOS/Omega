@@ -1,3 +1,9 @@
+/*
+We verify structural validation of `RegisterConstraintCatalog` against a
+validated physical register model, including required key inventories, operand
+domains, ties, early clobbers, implicit unit sets, and binary-search lookup.
+*/
+
 use super::{
     assert_rejected, catalog_rejection, instruction_key, miniature_catalog, miniature_model,
     validated_miniature_model,
@@ -230,7 +236,6 @@ fn validated_lookup_preserves_full_keys_missing_rows_and_revalidated_snapshots()
             }
         }
     }
-    // Raw catalogs retain arbitrary order and exact first-match behavior.
     let mut duplicate = vec![template.clone(), template.clone()];
     duplicate[0].id = RegisterConstraintId(24);
     duplicate[1].id = RegisterConstraintId(25);
@@ -258,7 +263,6 @@ fn validated_lookup_preserves_full_keys_missing_rows_and_revalidated_snapshots()
             Err(Rejected::NonCanonicalConstraintKeys)
         );
     }
-    // Appending a raw row requires a new validation; it cannot stale a borrow.
     let appended_key = RegisterConstraintKey::call(2);
     let mut appended = template;
     appended.id = RegisterConstraintId(u16::try_from(raw.constraints.len()).unwrap());

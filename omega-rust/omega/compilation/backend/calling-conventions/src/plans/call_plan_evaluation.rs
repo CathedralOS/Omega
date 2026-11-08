@@ -1,6 +1,12 @@
-//! Evaluating a call plan from a policy and signature: the Microsoft x64,
-//! System V AMD64, AAPCS64 and Darwin variadic conventions, the Linux
-//! syscall forms, and the placement arithmetic they share.
+/*
+We evaluate deterministic `CallPlan`s from a `CallingPolicy` and `CallSignature`
+across Microsoft x64, System V AMD64, AAPCS64, and Linux x86-64/AArch64
+syscall conventions, and validate that any proposed `CallPlan` satisfies exact
+value coverage, register/stack disjointness, alignment, and architecture
+constraints. Zero-sized by-value parameters and results retain their signature
+entries with empty placement vectors while borrowed references always occupy
+one pointer slot without reserving a caller-owned copy.
+*/
 
 use crate::plans::{
     CallPlan, CallSignature, CallingPolicy, EntryControl, IndirectPointerLocation, MachineRegister,
@@ -85,8 +91,6 @@ fn validate_signature_shapes(
                 "call-signature values need power-of-two alignment".into(),
             ));
         }
-        // A borrowed shape measures its referent, not its runtime pointer.
-        // Only by-value empties are erased from the physical signature.
         if shape.byte_size == 0
             && !borrowed_class(shape.class)
             && (shape.class != ValueClass::Integer || shape.alignment != 1)
@@ -323,9 +327,6 @@ fn validate_value_placement(
             "borrowed value {value_index} must retain one direct pointer to its caller-owned carrier"
         )));
     }
-    // Validate the placement fragments, not every byte of a potentially large
-    // referent. Sorting these scratch intervals accepts any authored fragment
-    // order while checking exact coverage, gaps and overlap independently.
     let mut ranges = Vec::with_capacity(placement.locations.len());
     for location in &placement.locations {
         let (value_byte_offset, byte_size) = match *location {
@@ -493,9 +494,6 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
     }
     let stack_parameter_slots = (parameter_slot_base + parameters.len()).saturating_sub(4);
     let copy_stack_offset = 32 + (stack_parameter_slots * 8) as u32;
-    // Microsoft requires caller-owned temporaries for indirectly passed
-    // aggregates to be 16-byte aligned, even when the source type itself has
-    // a smaller natural alignment.
     reserve_indirect_copies(&mut parameters, copy_stack_offset, |_| 16, 16)?;
     Ok(CallPlan {
         policy: CallingPolicy::MicrosoftX64,
@@ -601,12 +599,6 @@ fn evaluate_aapcs64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnosti
     Ok(plan)
 }
 
-/// Evaluate Apple's arm64 C variadic rule for one fully shaped call. Fixed
-/// parameters use ordinary AAPCS64 placement; promoted anonymous scalar
-/// parameters use the outgoing stack area even while argument registers remain.
-///
-/// The first consumer is Darwin `open(path, flags, mode)`. Aggregate variadic
-/// values remain fail-closed until an actual native binding needs their Apple
 fn evaluate_split_bank_call(
     policy: CallingPolicy,
     signature: &CallSignature,
@@ -617,8 +609,6 @@ fn evaluate_split_bank_call(
     stack_alignment: u16,
     ordinary_clobbers: RegisterSet,
 ) -> Result<CallPlan, PlanDiagnostic> {
-    // SysV MEMORY-class results use the hidden first integer argument (`rdi`)
-    // as their caller-owned destination, shifting declared integer arguments.
     let mut integer_index = usize::from(
         policy == CallingPolicy::SystemVAMD64
             && signature.result.is_some_and(|shape| {
@@ -741,9 +731,6 @@ fn evaluate_split_bank_call(
                 spill_integer_fragments(shape, &mut stack_offset, &mut locations)?;
             }
         } else if float_members.is_none() && shape.byte_size > 8 {
-            // Integer-class aggregates up to two eightbytes stay whole: use
-            // consecutive integer registers only when the complete value
-            // fits, otherwise place every fragment on the stack.
             let register_count = shape.byte_size.div_ceil(8) as usize;
             if policy == CallingPolicy::Aapcs64 && shape.alignment >= 16 {
                 integer_index = integer_index.next_multiple_of(2);
@@ -754,9 +741,6 @@ fn evaluate_split_bank_call(
                 }));
                 integer_index += register_count;
             } else {
-                // AAPCS64 advances NGRN to eight after a register-exhausted
-                // aggregate. SysV rolls back the tentative assignment, so a
-                // later scalar may still consume the remaining register.
                 if policy == CallingPolicy::Aapcs64 {
                     integer_index = integer_registers.len();
                 }
@@ -792,9 +776,6 @@ fn evaluate_split_bank_call(
     })
 }
 
-/// Spread `shape` over consecutive registers of one bank as `fragment_bytes`
-/// sized fragments, each fragment's payload clipped to the value's remaining
-/// extent; `register` maps an absolute bank index to its machine register.
 fn register_fragments(
     shape: ValueShape,
     fragment_bytes: u32,
@@ -813,10 +794,6 @@ fn register_fragments(
         .collect()
 }
 
-/// Spread one value over the outgoing stack area as eightbyte fragments:
-/// align the area, emit the fragments, then advance past the padded extent.
-/// The extent is checked before any fragment offset is formed, so a cursor
-/// near the 32-bit ceiling fails instead of wrapping.
 fn spill_integer_fragments(
     shape: ValueShape,
     stack_offset: &mut u32,
@@ -837,8 +814,6 @@ fn spill_integer_fragments(
     Ok(())
 }
 
-/// Where one indirectly passed value's pointer travels: the next integer-bank
-/// register, or a stack word once that bank is exhausted.
 fn indirect_pointer(
     integer_registers: &[MachineRegister],
     integer_index: &mut usize,
@@ -857,14 +832,6 @@ fn indirect_pointer(
     Ok(pointer)
 }
 
-/// Reserve the caller-owned copy slot every indirectly passed parameter needs,
-/// in declaration order, once its register or stack placement is fixed.
-/// `copy_alignment` is the ABI's rule for where a copy may begin — Microsoft
-/// x64 rounds every temporary to sixteen bytes even when its source type is
-/// only eight-byte aligned, while SysV AMD64 and AAPCS64 use the value's own
-/// alignment clamped to the outgoing area's range — and `stack_alignment`
-/// bounds the over-alignment padding that follows the payload. A borrowed
-/// value keeps its caller-owned carrier, so it reserves no copy.
 fn reserve_indirect_copies(
     parameters: &mut [ValuePlacement],
     mut stack_offset: u32,
@@ -934,12 +901,6 @@ fn evaluate_syscall(
     result_register: MachineRegister,
     ordinary_clobbers: RegisterSet,
 ) -> Result<CallPlan, PlanDiagnostic> {
-    // Kernel registers count physical words, not semantic formals. An explicit
-    // policy may publish a multiword integer carrier (for example pointer/count)
-    // as one formal; later formals follow its final word. This does not classify
-    // bare views or authorize access: their selected policy owns that promise.
-    // Zero-sized by-value formals were erased by evaluate_call_plan and are
-    // reinserted there without consuming a physical word.
     let mut used_words = 0;
     let mut parameters = Vec::with_capacity(signature.parameters.len());
     for (parameter_position, shape) in signature.parameters.iter().copied().enumerate() {

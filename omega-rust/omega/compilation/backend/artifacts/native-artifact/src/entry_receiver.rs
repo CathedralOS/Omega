@@ -1,4 +1,11 @@
-//! Executable entry admission before physical construction.
+/*
+We admit the executable entry boundary (`admit_executable_entry`) before
+physical object construction begins. We verify that the source-selected entry
+deployment owns the target, that lowered attachment and structural parameter
+declarations match the canonical Terminal entry, and that any bound
+access-view establishments or private entry RAM recipes are accompanied by a
+hosted receiver or physical entry settlement.
+*/
 
 use diagnostics::Diagnostic;
 use terminal_installation::admit_target_machine_selections;
@@ -8,15 +15,6 @@ use terminal_psi_to_abstract_operations::{
     validate_native_program_entry_settlement,
 };
 
-/// Admit the entry boundary required by an executable image. The complete
-/// native input keeps the lowered entry, verified Terminal declaration, and
-/// access-view loans together; none can be supplied as an unrelated sidecar.
-///
-/// A source receiver erased from the executable still needs initialization
-/// and cleanup custody. A retained receiver also needs a supported target
-/// bridge. A semantic storage entry retains its physical bridge obligation
-/// even without a receiver. Success permits construction, not publication: the emitted object
-/// and image must independently replay the returned settlement.
 pub fn admit_executable_entry(
     input: &VerifiedNativeArtifactInput,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
@@ -68,20 +66,10 @@ pub fn admit_executable_entry(
         ));
     }
     let access_view_establishments = input.access_view_establishments();
-    // The provider establishments bound into the input are loans the emitted
-    // entry boundary must carry for the invocation's duration. Only the
-    // hosted receiver bridge is such a boundary: an admission that retains
-    // none cannot lend the referents and fails closed rather than publishing
-    // an entry that observes custody nobody supplied.
-    // Settlement retains the entry declaration, not an installed receiver.
-    // This admission serves executable images; callable lowering and
-    // explicit semantic wrappers retain their own boundaries.
     let lowered_entry = plan.function(plan.entry);
     let terminal_entry = terminal.machine(selected_entry);
     let lowered_attachment = lowered_entry.and_then(|function| function.attachment);
     let terminal_attachment = terminal_entry.and_then(|machine| machine.attachment);
-    // Preserve declarations verbatim; an ordinary context has no attachment
-    // authority. Checked settlement below identifies its exact retained place.
     let parameters_preserved = match (lowered_entry, terminal_entry) {
         (Some(function), Some(machine)) => {
             function.structural_parameters == machine.structural_parameters
@@ -94,9 +82,6 @@ pub fn admit_executable_entry(
             "lowered entry does not preserve the source-selected receiver identity",
         ));
     }
-    // Semantic root delivery is an entry obligation, not receiver storage.
-    // A free UEFI continuation still needs the physical-to-semantic bridge;
-    // dropping its settlement would expose Extent inputs to firmware's ABI.
     let requires_semantic_bridge = program_entry.source().target_slot().schema
         == target::ProgramEntrySchema::ProgramStorageApplication;
     let requires_installed_storage = !input.private_entry_ram().is_empty();
@@ -116,17 +101,6 @@ pub fn admit_executable_entry(
         native_target,
     )
     .map_err(|error| crate::native_artifact_error("ProgramEntry receiver custody", error))?;
-    // Callback occupancy is orthogonal to receiver provisioning: each
-    // materialization binds at its own registrar call site inside function
-    // fragments, and the emitted object plus final image replay join them to
-    // their private functions regardless of which entry boundary the program
-    // selected.
-    // This only permits physical construction to begin. The validated
-    // settlement is the demand the object binder must satisfy exactly — the
-    // bound access-view establishments ride on it so the emitted entry
-    // boundary is what must lend each referent — and the final image replay
-    // must still prove the disjoint backing, exact entry pointer, stack
-    // switch, and normal-return continuation before publication.
     Ok(Some(
         settled
             .with_access_view_establishments(access_view_establishments)
@@ -134,9 +108,6 @@ pub fn admit_executable_entry(
     ))
 }
 
-/// An admission that retains no hosted receiver boundary emits no shim that
-/// can lend a access-view referent; bound establishments reaching it reject
-/// rather than publishing an entry whose custody was never supplied.
 fn entry_boundary_without_receiver(
     access_view_establishments: &[TerminalAccessViewEstablishment],
 ) -> Result<Option<ValidatedNativeProgramEntrySettlement>, Vec<Diagnostic>> {

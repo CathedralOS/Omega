@@ -1,27 +1,29 @@
-//! Construct and replay the exact Terminal/object/image join for a native artifact.
-//!
-//! `NativeArtifact` owns direct-image custody. The distinct non-installable
-//! dynamic-ELF product is implemented in `dynamic_elf`; neither product confers
-//! receiving authority merely by passing structural validation.
-//! Both replay provider requirements through `provider_execution`, supplying
-//! the exact image or object rows admitted by their respective product.
+/*
+We construct, seal, and replay the Terminal/object/image join for direct native
+artifacts (`NativeArtifact`) and dispatch requested image emission across the
+authority-distinct Direct (`NativeArtifact`) and Dynamic-ELF
+(`DynamicElfNativeArtifact`) products (`RequestedNativeArtifact`). We also project
+source-free provider selections (`NativeSelectedProviderPlan`) and provider
+execution reports (`NativeProviderExecution`), validate D29 boundary-application
+coverage (`validate_boundary_application_coverage`), and seal domain-separated
+artifact identities (`NativeArtifactIdentity`).
+*/
 
 use ::boundary_applications::TerminalBoundaryApplicationCoverage;
 use abstract_operations::AbstractOperationPlan;
+use diagnostics::Diagnostic;
 use effects::{
-    SelectedProviderPlanFacts, TerminalAuthorityClosureReviewReceipt,
-    TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
+    SelectedExternalRequirementApplication, SelectedProviderPlanFacts,
+    TerminalAuthorityClosureReviewReceipt, TerminalAuthorityPermissionPolicyIdentity,
+    TerminalAuthorityPolicyIdentity,
 };
+use image_emission::{ExecutableImageEmissionRequest, RequestedExecutableImage};
 use installation_evidence::ProviderExecutionEvidence;
 use optimization_core::{OptimizationUnitIdentity, OptimizedAbstractPlanProjectionIdentity};
-use terminal_psi::TerminalPsiIdentity;
+use terminal_psi::{TerminalIdentityTable, TerminalModule, TerminalPsiIdentity};
+use terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeProviders;
 
-mod validation_error;
-pub use validation_error::NativeArtifactValidationError;
-
-mod boundary_applications;
 mod dynamic_elf;
-mod emission;
 mod identity;
 mod mixed_structural_scalar;
 mod provider_execution;
@@ -30,43 +32,223 @@ mod tests;
 
 use crate::physical::{
     self, NativePhysicalEvidence, NativePhysicalEvidenceDerivation, NativePhysicalEvidenceGap,
-    ValidatedOptimizedNativePhysicalEvidenceScope, derive_physical_evidence,
+    ValidatedOptimizedNativePhysicalEvidenceScope, canonical_usize, derive_physical_evidence,
 };
 use crate::publication::publication_digest;
-pub(super) use boundary_applications::boundary_application_coverage_identity;
-use boundary_applications::validate_boundary_application_coverage;
 pub use dynamic_elf::{DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity};
-use effects::SelectedExternalRequirementApplication;
-pub use emission::RequestedNativeArtifact;
 use identity::{
     NativeArtifactIdentityFields, compiler_identity_evidence, derive_native_artifact_identity,
     foreign_call_custody_digest,
 };
-use terminal_psi::TerminalIdentityTable;
-use terminal_psi::TerminalModule;
 
-/// Complete source-independent Terminal-Psi native realization. Independent
-/// target images may retain the same immutable Terminal artifact without copying
-/// its semantic arenas or encoded sections.
-///
-/// The artifact owns its publication row ([`NativeArtifactParts`]) plus the two
-/// things that row deliberately does not carry: the derived evidence gap and
-/// the identity sealed over the exact row.
+const CUSTODY_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.d29-custody.sha256.v3\0";
+
+#[derive(Debug)]
+pub enum NativeArtifactValidationError {
+    Invariant(&'static str),
+    ImageReplay(Diagnostic),
+}
+
+impl From<&'static str> for NativeArtifactValidationError {
+    fn from(reason: &'static str) -> Self {
+        Self::Invariant(reason)
+    }
+}
+
+impl std::fmt::Display for NativeArtifactValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Invariant(reason) => f.write_str(reason),
+            Self::ImageReplay(diagnostic) => {
+                write!(f, "native artifact image replay: {}", diagnostic.message)
+            }
+        }
+    }
+}
+
+impl std::error::Error for NativeArtifactValidationError {}
+
+impl From<NativeArtifactValidationError> for String {
+    fn from(error: NativeArtifactValidationError) -> Self {
+        error.to_string()
+    }
+}
+
+impl NativeArtifactValidationError {
+    pub fn into_diagnostic(self) -> Diagnostic {
+        match self {
+            Self::ImageReplay(diagnostic) => diagnostic,
+            Self::Invariant(reason) => Diagnostic::error(reason),
+        }
+    }
+}
+
+pub(super) fn validate_boundary_application_coverage(
+    module: &terminal_psi::TerminalModule,
+    terminal: terminal_psi::TerminalPsiIdentity,
+    coverage: Option<&TerminalBoundaryApplicationCoverage>,
+    physical_evidence_scope: &NativePhysicalEvidenceScope,
+) -> Result<(), &'static str> {
+    let Some(coverage) = coverage else {
+        if !module.boundary_application_demands.is_empty()
+            || physical_evidence_scope.requires_boundary_application_coverage()
+        {
+            return Err(
+                "native artifact claims an exact empty D29 scope without retained coverage",
+            );
+        }
+        return Ok(());
+    };
+    coverage.validate_for_terminal(terminal)?;
+    if coverage.demands().rows() != module.boundary_application_demands {
+        return Err("native boundary coverage does not match canonical Terminal demands");
+    }
+    for reference in coverage.references() {
+        let matching_operations = module
+            .operations()
+            .filter(|operation| operation.id == reference.terminal_operation())
+            .count();
+        if matching_operations != 1 {
+            return Err(
+                "native artifact boundary application does not rejoin one Terminal operation",
+            );
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn boundary_application_coverage_identity(
+    coverage: Option<&TerminalBoundaryApplicationCoverage>,
+) -> Option<[u8; 32]> {
+    let coverage = coverage?;
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(CUSTODY_IDENTITY_DOMAIN);
+    digest.raw(&canonical_usize(coverage.references().len()));
+    for reference in coverage.references() {
+        digest.raw(&reference.terminal().vocabulary_marker.get().to_le_bytes());
+        digest.raw(reference.terminal().program_fingerprint.as_bytes());
+        digest.raw(&reference.terminal_operation().get().to_le_bytes());
+        digest.raw(reference.coverage().as_bytes());
+    }
+    let applications = coverage.opaque_applications();
+    digest.raw(&canonical_usize(applications.rows().len()));
+    for application in applications.rows() {
+        digest.raw(&application.requirement_identity.0.to_le_bytes());
+        digest.string(&application.abi.requirement_identity);
+        digest.string(&application.abi.declaring_application);
+        digest.raw(&canonical_usize(application.abi.operands.len()));
+        for operand in &application.abi.operands {
+            digest.raw(&operand.ordinal.to_le_bytes());
+            digest.byte(operand.kind as u8);
+            digest.string(&operand.identity);
+        }
+        digest.raw(&application.shape_root.to_le_bytes());
+        digest.raw(&application.application_report_fingerprint.to_le_bytes());
+        digest.raw(&application.selected_application_commitment);
+    }
+    Some(digest.finish())
+}
+
+#[derive(Debug)]
+#[must_use = "requested native realization retains its authority-distinct image custody"]
+pub enum RequestedNativeArtifact {
+    Direct(NativeArtifact),
+    DynamicElf(DynamicElfNativeArtifact),
+}
+
+impl RequestedNativeArtifact {
+    pub fn emit_admitted(
+        target: target::NativeTarget,
+        terminal: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+        published: crate::PublishedFragmentObject,
+        image: ExecutableImageEmissionRequest,
+        selected: &effects::SelectedProviderPlanFacts,
+        providers: AdmittedNativeProviders<'_>,
+        boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let terminal_authority_closure_review =
+            providers.terminal_authority_closure_review().clone();
+        Self::emit(NativeArtifactEmissionParts {
+            target,
+            psi_artifact: terminal,
+            object: published.object,
+            image,
+            selected_provider_closure_report_identity: selected.compatibility_report_identity(),
+            selected_provider_closure_digest: NativeSelectedProviderClosureDigest::from_digest(
+                *selected.identity_digest().as_bytes(),
+            ),
+            selected_provider_plans: NativeSelectedProviderPlan::project_selection(selected),
+            provider_executions: providers
+                .executions
+                .into_iter()
+                .map(NativeProviderExecution::from_evidence)
+                .collect(),
+            terminal_authority_policy_identity: providers.terminal_authority_policy_identity,
+            terminal_authority_permission_policy_identity: providers
+                .terminal_authority_permission_policy_identity,
+            terminal_authority_closure_review,
+            boundary_application_coverage,
+            physical_evidence_scope: published.physical_evidence_scope,
+        })
+    }
+
+    pub fn emit(
+        parts: NativeArtifactEmissionParts<ExecutableImageEmissionRequest>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let image = image_emission::emit_executable_image(&parts.object, parts.image.clone())
+            .map_err(|error| vec![error.diagnostic().clone()])?;
+        match image {
+            RequestedExecutableImage::Direct(image) => {
+                NativeArtifact::from_emitted_parts(with_emitted_image(parts, image))
+                    .map(Self::Direct)
+                    .map_err(|error| {
+                        vec![Diagnostic::error(format!(
+                            "native artifact native artifact replay failed: {error}"
+                        ))]
+                    })
+            }
+            RequestedExecutableImage::DynamicElf(image) => {
+                DynamicElfNativeArtifact::from_emitted_parts(with_emitted_image(parts, image))
+                    .map(Self::DynamicElf)
+                    .map_err(|error| {
+                        vec![Diagnostic::error(format!(
+                            "native artifact dynamic ELF native artifact replay failed: {error}"
+                        ))]
+                    })
+            }
+        }
+    }
+}
+
+fn with_emitted_image<Image, EmittedImage>(
+    parts: NativeArtifactEmissionParts<Image>,
+    image: EmittedImage,
+) -> NativeArtifactEmissionParts<EmittedImage> {
+    NativeArtifactEmissionParts {
+        target: parts.target,
+        psi_artifact: parts.psi_artifact,
+        object: parts.object,
+        image,
+        selected_provider_closure_report_identity: parts.selected_provider_closure_report_identity,
+        selected_provider_closure_digest: parts.selected_provider_closure_digest,
+        selected_provider_plans: parts.selected_provider_plans,
+        provider_executions: parts.provider_executions,
+        terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
+        terminal_authority_permission_policy_identity: parts
+            .terminal_authority_permission_policy_identity,
+        terminal_authority_closure_review: parts.terminal_authority_closure_review,
+        boundary_application_coverage: parts.boundary_application_coverage,
+        physical_evidence_scope: parts.physical_evidence_scope,
+    }
+}
+
 #[derive(Debug)]
 #[must_use = "a native artifact owns the canonical semantic and target artifact join"]
 pub struct NativeArtifact {
     parts: NativeArtifactParts,
-    /// The exact subject that stopped the scoped derivation when
-    /// `parts.physical_evidence` is absent. Derived here, never retained as a
-    /// caller claim: `NativeArtifactParts` deliberately has no slot for it.
     physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
     identity: NativeArtifactIdentity,
 }
 
-/// The one publication row both native products carry: the canonical Terminal
-/// artifact join, its image carrier, and the exact selected-provider and
-/// authority custody this compile realized it under. `Image` is the product's
-/// own format carrier, so no product restates the row.
 #[derive(Debug)]
 pub struct NativeArtifactParts<Image = image_emission::ExecutableImage> {
     pub target: target::NativeTarget,
@@ -78,10 +260,6 @@ pub struct NativeArtifactParts<Image = image_emission::ExecutableImage> {
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
     pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
-    /// The exact receiving permission policy this artifact was realized under,
-    /// or `None` when production ran without a receiver-admission claim. `None`
-    /// never means an empty policy and cannot satisfy explicit admission
-    /// replay.
     pub terminal_authority_permission_policy_identity:
         Option<TerminalAuthorityPermissionPolicyIdentity>,
     pub terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
@@ -90,12 +268,6 @@ pub struct NativeArtifactParts<Image = image_emission::ExecutableImage> {
     pub physical_evidence: Option<NativePhysicalEvidence>,
 }
 
-/// Fresh machine/image emission inputs. Physical evidence is deliberately
-/// absent: this owner derives it from the exact Terminal, object, image, and
-/// selected-plan custody before constructing a replayable artifact.
-/// The image carrier is either a completed image or an explicit emission
-/// request consumed by [`RequestedNativeArtifact::emit`]. It does not change
-/// the evidence required by either image product.
 #[derive(Debug)]
 pub struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> {
     pub target: target::NativeTarget,
@@ -107,8 +279,6 @@ pub struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> 
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
     pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
-    /// The exact receiving permission policy this emission was realized under,
-    /// or `None` when production ran without a receiver-admission claim.
     pub terminal_authority_permission_policy_identity:
         Option<TerminalAuthorityPermissionPolicyIdentity>,
     pub terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
@@ -117,10 +287,6 @@ pub struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> 
 }
 
 impl<Image> NativeArtifactEmissionParts<Image> {
-    /// The publication row this compile just produced, with the physical
-    /// children its own image format derived over it. The caller keeps its
-    /// format's derivation (the digest source is the format difference); this
-    /// owner keeps the row and the gap translation.
     fn into_parts(
         self,
         derivation: NativePhysicalEvidenceDerivation,
@@ -158,11 +324,6 @@ impl<Image> NativeArtifactEmissionParts<Image> {
 }
 
 impl<Image> NativeArtifactParts<Image> {
-    /// The retained terminal-authority closure receipt names exactly this
-    /// row's realization inputs: its Terminal artifact identity, target,
-    /// selected-provider closure, physical policy and permission policy.
-    /// Either product refuses a receipt that drifted from them, in its own
-    /// refusal vocabulary.
     fn terminal_authority_closure_matches(&self) -> bool {
         self.terminal_authority_closure_review
             .terminal_artifact_identity()
@@ -179,13 +340,6 @@ impl<Image> NativeArtifactParts<Image> {
                 == self.terminal_authority_permission_policy_identity
     }
 
-    /// This row's complete identity preimage. Each product answers the
-    /// format's own digest facts — the direct image its final-image symbol
-    /// digest, its foreign-call roster and its writer subsystem; the dynamic
-    /// writer the admitted image inside its request and no subsystem fact.
-    /// `physical_evidence_gap` is derived state the row never retains. The
-    /// caller passes the row's own emitted image output, exactly as
-    /// `evidence_derivation` takes it.
     fn identity_fields<'a>(
         &'a self,
         output: &'a image::EmittedImageOutput,
@@ -260,10 +414,6 @@ impl<Image> NativeArtifactParts<Image> {
         }
     }
 
-    /// The derivation-owned gap a retained row replays: recomputed from the
-    /// replayed inputs, never retained as a caller claim, so a retained row
-    /// can never assert a blocking subject the derivation would not have
-    /// produced.
     fn replayed_gap(
         &self,
         output: &image::EmittedImageOutput,
@@ -278,7 +428,6 @@ impl<Image> NativeArtifactParts<Image> {
         )
     }
 
-    /// The physical children and gap an exact replay of this row expects.
     fn replayed_evidence(
         &self,
         output: &image::EmittedImageOutput,
@@ -299,11 +448,6 @@ impl<Image> NativeArtifactParts<Image> {
         )
     }
 
-    /// Derive this row's physical children over the exact Terminal, object,
-    /// image and selected-plan custody it carries. The caller passes the row's
-    /// own emitted image output and final-image symbol digest: the direct
-    /// image answers them directly, while the dynamic writer projects the
-    /// admitted image inside its request.
     fn evidence_derivation(
         &self,
         image_output: &image::EmittedImageOutput,
@@ -324,17 +468,7 @@ impl<Image> NativeArtifactParts<Image> {
 }
 
 impl NativeArtifact {
-    /// Complete fresh native emission by deriving the identity optimization
-    /// projection and every currently supported physical child. The artifact
-    /// is sealed over the parts this compile just produced; it is not
-    /// replayed (verification placement in `omega-rust/pipeline.md`).
-    /// [`Self::from_replayed_parts`] and [`Self::validate`] replay it for
-    /// retained-artifact readers.
     pub fn from_emitted_parts(parts: NativeArtifactEmissionParts) -> Result<Self, &'static str> {
-        // Fragment calls already belong to the object and its emitted image.
-        // Check the independent projection instead of appending calls after
-        // image emission, which would omit their admitted stack demand.
-        // Compare empty rosters too: an image cannot append an unowned call.
         if parts.image.foreign_calls() != parts.object.foreign_calls() {
             return Err("native artifact image differs from fragment foreign call custody");
         }
@@ -343,8 +477,6 @@ impl NativeArtifact {
         Ok(Self::seal(parts, physical_evidence_gap))
     }
 
-    /// The physical children of the completed direct image, over the exact
-    /// Terminal/object/image join this compile just produced.
     fn derivation_of(
         parts: &NativeArtifactEmissionParts,
     ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
@@ -361,7 +493,6 @@ impl NativeArtifact {
         )
     }
 
-    /// Replay every source-free identity and byte relation retained here.
     pub fn from_replayed_parts(
         parts: NativeArtifactParts,
     ) -> Result<Self, NativeArtifactValidationError> {
@@ -374,8 +505,6 @@ impl NativeArtifact {
         Ok(artifact)
     }
 
-    /// Assemble the artifact and its identity over `parts` and the derived
-    /// evidence gap.
     fn seal(
         parts: NativeArtifactParts,
         physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
@@ -484,9 +613,6 @@ impl NativeArtifact {
         &self.parts.image
     }
 
-    /// Inspect finalized native metadata under this artifact's exact semantic,
-    /// target and image custody. Linked coordinates remain distinct from any
-    /// separately launched process's eventual load slide.
     pub fn inspect_native_code_layouts(
         &self,
     ) -> Result<Vec<image_emission::LinkedNativeCodeLayout>, diagnostics::Diagnostic> {
@@ -495,8 +621,6 @@ impl NativeArtifact {
         image_emission::inspect_native_code_layouts(&self.parts.object, &self.parts.image)
     }
 
-    /// Non-authoritative compatibility/report identity of the selected
-    /// provider closure.
     pub const fn selected_provider_closure_report_identity(&self) -> u64 {
         self.parts.selected_provider_closure_report_identity
     }
@@ -517,15 +641,10 @@ impl NativeArtifact {
         &self.parts.provider_executions
     }
 
-    /// Exact receiving target-policy identity accepted while realizing this
-    /// artifact. This records classification policy only; it is not service
-    /// containment or provider-execution admission evidence.
     pub const fn terminal_authority_policy_identity(&self) -> TerminalAuthorityPolicyIdentity {
         self.parts.terminal_authority_policy_identity
     }
 
-    /// The receiving permission-policy identity this artifact was realized
-    /// under, or `None` when production made no receiver-admission claim.
     pub const fn terminal_authority_permission_policy_identity(
         &self,
     ) -> Option<TerminalAuthorityPermissionPolicyIdentity> {
@@ -538,9 +657,6 @@ impl NativeArtifact {
         &self.parts.terminal_authority_closure_review
     }
 
-    /// Exact D29 demand and realization custody. `None` means this artifact
-    /// was realized without a checked source-to-Terminal join; an exact empty
-    /// demand set is retained as `Some` with zero references.
     pub const fn boundary_application_coverage(
         &self,
     ) -> Option<&TerminalBoundaryApplicationCoverage> {
@@ -551,18 +667,10 @@ impl NativeArtifact {
         self.parts.physical_evidence_scope.clone()
     }
 
-    /// Complete D32 evidence for the currently supported physical lane.
-    /// `None` means the artifact contains a role this implementation does not
-    /// yet cover; it grants no final-realization claim for that role.
     pub const fn physical_evidence(&self) -> Option<&NativePhysicalEvidence> {
         self.parts.physical_evidence.as_ref()
     }
 
-    /// The exact subject that stopped this artifact's scoped D32 derivation
-    /// when [`Self::physical_evidence`] is absent. `None` means the evidence
-    /// is complete or the scope admits no derivation at all; a `Some` value
-    /// names the first occurrence or retained record the derivation could
-    /// not bind to a physical child.
     pub const fn physical_evidence_gap(&self) -> Option<&NativePhysicalEvidenceGap> {
         self.physical_evidence_gap.as_ref()
     }
@@ -572,13 +680,6 @@ impl NativeArtifact {
     }
 }
 
-/// Collision-resistant identity of one complete, validated native artifact.
-///
-/// The identity binds the canonical Terminal artifact, selected native target,
-/// pre-relocation object text, exact executable image, strong final-image
-/// evidence, and the complete source-selected provider realization retained by
-/// [`NativeArtifact`]. It is derived by this owner and cannot be supplied by a
-/// caller reconstructing an artifact from parts.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NativeArtifactIdentity([u8; 32]);
 
@@ -603,24 +704,9 @@ impl std::fmt::Display for NativeArtifactIdentity {
     }
 }
 
-// Collision-resistant commitment to the complete source-selected provider
-// closure carried by this source-free artifact projection.
-//
-// The digest is derived by the selected-closure owner and independently
-// replayed when the standalone component candidate rejoins source policy.
 publication_digest!(NativeSelectedProviderClosureDigest);
-
-// Strong source-free projection of one exact normalized provider-plan
-// digest. Unlike the compact report coordinate, these bytes bind every plan
-// field and can be carried into D41 physical-parent custody.
 publication_digest!(NativeSelectedProviderPlanDigest);
 
-/// Exact upstream scope under which this artifact may derive D32 evidence.
-///
-/// Evidence requires complete checked D29 coverage custody, either for an
-/// unoptimized Terminal handoff or an independently validated optimized
-/// projection. Unsupported boundary/provider mechanisms still produce no
-/// evidence during native replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativePhysicalEvidenceScope {
     Unavailable,
@@ -629,9 +715,6 @@ pub enum NativePhysicalEvidenceScope {
 }
 
 impl NativePhysicalEvidenceScope {
-    /// Admit the shared fragment/object route after replaying its exact current
-    /// program and object evidence. Empty and nonempty selections use the same
-    /// join; no selected-lowering completion is invented for another phase.
     #[expect(
         dead_code,
         reason = "unwired, not superseded: native-artifact physical/mod.rs and TASKS_OPTIMIZER.md PIPELINE-OWNER-CONSOLIDATION"
@@ -670,10 +753,6 @@ impl NativePhysicalEvidenceScope {
     }
 }
 
-/// One selected provider plan projected into source-free native-artifact
-/// reporting. Requirements are exact, canonical, strictly ordered, and
-/// complete for this selected plan; the compact plan coordinate is not
-/// authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeSelectedProviderPlan {
     report_identity: u64,
@@ -682,8 +761,6 @@ pub struct NativeSelectedProviderPlan {
     external_requirement_applications: Vec<SelectedExternalRequirementApplication>,
     family_realization_rows: Vec<effects::SelectedTargetFamilyRealization>,
     family_realization_identities: TerminalIdentityTable,
-    /// Closed requirement identity paired with the template-keyed row that
-    /// serves it, projected from the closure's specialization roster.
     closed_requirement_rows: Vec<(String, String)>,
     assumed_requirement_rows: Vec<(String, String)>,
     assumed_relationships: Vec<effects::AssumedBindingContractSelection>,
@@ -691,10 +768,6 @@ pub struct NativeSelectedProviderPlan {
 }
 
 impl NativeSelectedProviderPlan {
-    /// Retain each selected plan's exact Terminal-facing requirement roster.
-    /// Specialized rows supply closed identities instead of the authored
-    /// template identity, matching provider admission without selecting or
-    /// reconstructing providers from source. Artifact replay remains independent.
     pub(crate) fn project_selection(selection: &SelectedProviderPlanFacts) -> Vec<Self> {
         let mut plans = selection
             .plans()
@@ -912,18 +985,10 @@ impl NativeSelectedProviderPlan {
         Ok(())
     }
 
-    /// Identity table the stored family-realization row indices resolve
-    /// against, cloned from the selected facts that projected them.
     pub fn family_realization_identities(&self) -> &TerminalIdentityTable {
         &self.family_realization_identities
     }
 
-    /// Recover the authority requirement without rewriting the original
-    /// callable occurrence. These rows were projected from the exact selected
-    /// closure and remain committed by both closure and artifact identities.
-    /// A family alias resolves through its realization row; a closed
-    /// application of a requirement template resolves to the template row
-    /// that serves it; any other requirement is its own authority.
     pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> &'a str {
         if let Some((_, supplied)) = self
             .assumed_requirement_rows
@@ -959,13 +1024,6 @@ impl NativeSelectedProviderPlan {
     }
 }
 
-/// One source-free report projection of an exact admitted provider execution
-/// selected during native realization.
-///
-/// The exact requirement string and selected-plan requirement catalog are
-/// replayed here. Compact execution/root/contract coordinates remain reports;
-/// provider authority stays with the non-constructible evidence borrowed by
-/// lowering and the selected-closure digest retained by the artifact.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeProviderExecution {
     requirement_identity: String,
@@ -989,10 +1047,6 @@ impl NativeProviderExecution {
     }
 }
 
-/// The one access surface of a replayed provider execution. Every in-crate
-/// reader already reaches these coordinates through this trait; spelling them
-/// again as inherent methods shadowed it, so a change to one copy would not
-/// reach the other.
 impl ProviderExecutionEvidence for NativeProviderExecution {
     fn requirement_identity(&self) -> &str {
         &self.requirement_identity

@@ -1,9 +1,11 @@
-//! Owned independent-component publication and reference-execution companions.
-//!
-//! A product retains the actual separately emitted image and canonical provider
-//! artifact beside its exact receiver/export selection. This is neither an
-//! ExecutableImage nor InstalledCode: filesystem publication and process-lifetime
-//! loader/instance admission remain explicit consumers of these inputs.
+/*
+We retain separately emitted component shared images alongside their canonical
+Terminal provider artifact, admitted receiver/export selection, ABI calling
+application, stack demand, and content-addressed `NormalizedComponentLocator`.
+`NativeComponentProduct` and `NativeComponentPublicationReceipt` verify that
+published `.component` description files and adjacent shared images match the
+admitted compilation outputs without granting `InstalledCode` authority.
+*/
 
 use component_description::component_description::StackDemandFacts;
 use std::path::PathBuf;
@@ -110,16 +112,12 @@ impl NativeComponentProduct {
     pub const fn image(&self) -> &image_emission::ComponentSharedImage {
         &self.image
     }
-    /// Canonical descriptive bytes for this exact emitted entry and container.
-    /// These rows demand stack provision; they do not supply it or authorize entry.
     pub fn description(&self) -> &[u8] {
         &self.description
     }
     pub fn description_filename(&self) -> String {
         format!("{}.component", self.locator.image_filename())
     }
-    /// Publication binds metadata to the producing product, including facts a
-    /// Terminal-only consumer cannot reconstruct from semantic code alone.
     pub fn verify_description(&self, description: &[u8]) -> Result<(), &'static str> {
         if description != self.description {
             return Err("component description differs from its exact native publication product");
@@ -144,9 +142,6 @@ impl NativeComponentProduct {
     pub const fn authority(&self) -> &AdmittedNativeCallableAuthority {
         &self.authority
     }
-    /// Join a symbolic settlement to this sealed emitted image, including its
-    /// body and entry-bridge resource demand. A genuinely admitted smaller
-    /// contribution or another plan cannot borrow this product's authority.
     pub fn validate_same_stack(
         &self,
         contribution: &task_plans::AdmittedSameStackContribution,
@@ -176,10 +171,6 @@ impl NativeComponentProduct {
     }
 }
 
-/// Exact adjacent component files accepted for one process-lifetime graph.
-/// This receipt records publication only. The explicit process runtime still
-/// validates the complete root graph immediately before asking the OS loader
-/// to create its isolated process; this never grants InstalledCode authority.
 #[derive(Debug, Clone)]
 pub struct NativeComponentPublicationReceipt {
     product: Arc<NativeComponentProduct>,

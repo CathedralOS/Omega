@@ -1,10 +1,12 @@
-//! Native storage geometry for canonical Terminal declarations.
-//! Instruction lowering and task stack planning consume this same owner.
-//!
-//! `StructuralLayouts` computes every structural type's shape once per module,
-//! in dependency order, and answers each later question with a table lookup.
-//! A type whose geometry cannot be realized keeps its error in the table; the
-//! error surfaces only when a consumer asks for that type.
+/*
+We compute native storage geometry for canonical Terminal structural
+declarations (`StructuralLayouts`, `TerminalLayoutError`), resolving every
+structural type's `ValueShape` once per module into a dense `IdTable` consumed
+by both instruction lowering and task stack planning. Only realized shapes are
+shared across roots so a reference cycle or unclosed extent reports the first
+error reached from its queried root.
+*/
+
 use crate::ValueShape;
 use semantic_vocabulary::{
     IdSet, IdTable, IeeeFloatFormat, NonDenseIdentities, ScalarApplicationId, ScalarType,
@@ -25,10 +27,8 @@ pub enum TerminalLayoutError {
 }
 
 type Declarations<'a> = IdTable<StructuralTypeId, &'a StructuralTypeDeclaration>;
-/// Shapes already resolved during one walk; `None` is not yet known.
 type KnownShapes = IdTable<StructuralTypeId, Option<ValueShape>>;
 
-/// One module's structural declarations and the native shape of each.
 #[derive(Debug, Clone, Default)]
 pub struct StructuralLayouts<'a> {
     declarations: Declarations<'a>,
@@ -36,16 +36,12 @@ pub struct StructuralLayouts<'a> {
 }
 
 impl<'a> StructuralLayouts<'a> {
-    /// Declarations must arrive in identity order as one consecutive run.
     pub fn new(
         rows: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
     ) -> Result<Self, NonDenseIdentities> {
         let declarations = IdTable::from_rows(rows.into_iter().map(|row| (row.id, row)))?;
         let mut known = declarations.map(|_, _| None);
         let mut active = IdSet::new();
-        // Each root's result is the one a fresh walk from that root reports.
-        // Only realized shapes are shared between roots: an error inside a
-        // reference cycle names the first repeated type reached from its root.
         let shapes = declarations.map(|structural_type, _| {
             resolve_structural_shape(
                 structural_type,
@@ -109,16 +105,10 @@ impl<'a> StructuralLayouts<'a> {
         scalar_storage_type(structural_type, &self.declarations)
     }
 
-    /// Discover the scalar inputs required by these physical storage roots using
-    /// the same geometry walk as lowering. References and views store descriptors;
-    /// their referents are separate roots only when an access demands their layout.
-    /// Unknown extents do not invent sizes or prevent discovery in sibling fields.
     pub fn required_scalar_extents(
         &self,
         roots: impl IntoIterator<Item = StructuralTypeId>,
     ) -> Result<BTreeSet<ScalarApplicationId>, TerminalLayoutError> {
-        // A realized shape reached no extent application, so the discovery
-        // walk only needs to enter types whose shape is still open.
         let mut known = self.shapes.map(|_, shape| shape.ok());
         let mut active = IdSet::new();
         let mut required = BTreeSet::new();
@@ -138,7 +128,6 @@ impl<'a> StructuralLayouts<'a> {
     }
 }
 
-/// Consumers read declarations through the layouts that already realized them.
 impl<'a> std::ops::Deref for StructuralLayouts<'a> {
     type Target = Declarations<'a>;
 
@@ -178,10 +167,6 @@ fn resolve_structural_shape(
             .copied()
             .ok_or(TerminalLayoutError::UnknownStructuralType(structural_type))?;
         match &declaration.shape {
-            // All supported native ABIs use 64-bit addresses. The carrier
-            // stores the referent's address, never its contents; custody is
-            // checked separately. Nested reference leaves use the same layout
-            // as whole results, so enclosing record offsets remain coherent.
             StructuralTypeShape::Reference { referent, .. } => Ok(Some(ValueShape::integer(
                 if scalar_storage_type(*referent, declarations).is_some() {
                     runtime_abi::ScalarReferenceLayout::NATIVE.byte_size
@@ -195,8 +180,6 @@ fn resolve_structural_shape(
             StructuralTypeShape::ByteSequence(carrier) => {
                 byte_sequence_shape(*carrier, structural_type).map(Some)
             }
-            // A borrowed element view is a base+extent descriptor, the same
-            // two-word carrier as `ByteSequence::BorrowedView`.
             StructuralTypeShape::ElementView { .. } => Ok(Some(ValueShape::integer(16, 8))),
             StructuralTypeShape::Record { fields, storage } => {
                 if matches!(
@@ -222,8 +205,6 @@ fn resolve_structural_shape(
                 let mut alignment = 1_u16;
                 let mut complete = true;
                 for field in fields {
-                    // Authored relevance and physical carrier erasure are
-                    // independent: a Fused service remains semantically relevant.
                     if field.relevance.is_erased()
                         || matches!(field.field_type, StructuralFieldType::Erased { .. })
                     {
@@ -266,9 +247,6 @@ fn resolve_structural_shape(
                         extent(structural_type, *application)?
                     }
                 };
-                // The complete primitive-array chain is still checked below
-                // empty dimensions. Its canonical zero-byte ABI must not need
-                // an addressable element layout or overflow an unused extent.
                 if empty_primitive_array(structural_type, declarations) {
                     return Ok(Some(ValueShape::integer(0, 1)));
                 }
@@ -440,7 +418,6 @@ fn scalar_field_shape(
             byte_sequence_shape(*carrier, owner)
         }
         StructuralFieldType::Structural(_) | StructuralFieldType::Erased { .. } => {
-            // Callers filter erased fields before requesting runtime shape.
             Err(TerminalLayoutError::UnknownStructuralType(owner))
         }
     }
@@ -451,11 +428,7 @@ pub fn byte_sequence_shape(
     structural_type: StructuralTypeId,
 ) -> Result<ValueShape, TerminalLayoutError> {
     let byte_size = match carrier {
-        // Current native targets are 64-bit. The semantic carrier
-        // deliberately does not retain the physical descriptor fields.
         terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 16_u64,
-        // A bounded view's extent lives in the declaration, so the descriptor
-        // is the bare referent pointer.
         terminal_psi::ByteSequenceCarrier::BoundedView { .. } => 8_u64,
         terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => capacity
             .checked_add(8)
@@ -477,7 +450,6 @@ pub fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
     }
 }
 
-/// Storage geometry of one primitive scalar in the supported native ABI.
 pub fn scalar_shape(scalar: ScalarType) -> ValueShape {
     match scalar {
         ScalarType::Boolean => ValueShape::integer(1, 1),

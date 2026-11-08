@@ -1,26 +1,12 @@
-//! Independent, source-free verification of canonical component descriptions.
-//!
-//! `verify_component` is the verified-description consumer for independent
-//! component admission, replacement, and topology checks. It re-decodes the
-//! embedded canonical artifact, reconstructs the component subject itself,
-//! replays the subject-bound proof section decode, and runs the Terminal
-//! verifier on the decoded module under the caller's admission profile: the
-//! code-to-inventory claim is the verifier's, so a module that merely decodes
-//! and subject-matches is not a verified component. Every module-evident
-//! description row is then re-derived from the verified module rather than
-//! trusting producer claims. Execution admission remains purpose-specific and
-//! stays with the verifier's own distinct carriers; this consumer is
-//! deliberately neutral about which execution admission a caller will need.
-//!
-//! The result carrier is deliberately inert: it exposes checked evidence
-//! (subject, rosters, obligations, and the verified canonical artifact) but grants no
-//! callable authority, no installed custody, and no resource admission.
-//! Installation-dependent facts stay obligations on the description and must
-//! be discharged per occurrence under a fresh resource/profile admission.
-//! Keeping the original sealed artifact lets independent product consumers
-//! borrow its exact proof and semantic storage. Rebuilding an envelope from a
-//! decoded module would lose that custody, while interpreting the verdict as
-//! an installed entry would invent authority the verification never supplied.
+/*
+We implement independent, source-free verification of canonical component
+descriptions (`verify_component`). We re-decode the embedded `CanonicalTerminalArtifact`,
+reconstruct the component subject, check the caller's `ComponentVerificationRequest`
+admission profile, and replay every module-derived entry, export, outgoing
+authority, retained provider plan, service bound, custody constraint, import
+slot, and installation obligation before returning an inert `VerifiedComponent`
+that can join exported realizations to a `ProviderPlan`.
+*/
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -41,25 +27,14 @@ use crate::component_description::{
 const VERIFIED_COMPONENT_CLOSURE_DOMAIN: &[u8] = b"omega-verified-component-closure-v1";
 const VERIFICATION_PROFILE_DOMAIN: &[u8] = b"omega-component-verification-profile-v1";
 
-/// The caller's independent admission profile for a component description.
-///
-/// Everything here is supplied by the consumer and never read from the
-/// description itself: the component subject to admit, the description
-/// schemas this consumer understands and the assumption digests it accepts.
 #[derive(Debug, Clone)]
 pub struct ComponentVerificationRequest {
-    /// The exact component subject this admission expects.
     pub expected_subject: TerminalPsiIdentity,
-    /// Description schema versions this consumer admits.
     pub accepted_schemas: BTreeSet<u32>,
-    /// Assumption digests this consumer accepts for declared rows and
-    /// physical mechanisms. Any digest outside this set rejects.
     pub accepted_assumptions: BTreeSet<[u8; 32]>,
 }
 
 impl ComponentVerificationRequest {
-    /// Collision-resistant identity of this exact request, binding the
-    /// verification result to the profile that admitted it.
     pub fn profile_identity(&self) -> [u8; 32] {
         let mut digest =
             crate::digest_encoder::DomainDigestEncoder::new(VERIFICATION_PROFILE_DOMAIN);
@@ -77,77 +52,39 @@ impl ComponentVerificationRequest {
     }
 }
 
-/// Every way a component description can fail independent verification.
-///
-/// Rejections are deliberately categorical: a corrupt byte stream, an
-/// incompatible schema, the wrong component subject, an early frontier, an
-/// unaccepted assumption, a missing or forged module-derived row, an unsealed
-/// or smuggled provider, and a missing installation obligation are all
-/// distinct, so a caller cannot confuse "not yet complete" with "complete
-/// but dishonest".
 #[derive(Debug)]
 pub enum ComponentVerificationRejection {
-    /// The description bytes did not decode under the canonical codec.
     Corrupt(DescriptionDecodeRejection),
-    /// The description's schema is not admitted by the request.
-    IncompatibleSchema { schema: u32 },
-    /// The embedded artifact's reconstructed subject is not the admitted one.
+    IncompatibleSchema {
+        schema: u32,
+    },
     WrongSubject {
         reconstructed: Box<TerminalPsiIdentity>,
         expected: Box<TerminalPsiIdentity>,
     },
-    /// The embedded artifact is not a valid canonical Terminal artifact.
     ArtifactInvalid(String),
-    /// The embedded proof section could not be decoded for the exact subject.
     ProofSection(String),
-    /// The embedded module failed Terminal validation or proof discharge
-    /// under the request's admission profile.
     ModuleVerification(String),
-    /// The description names a frontier earlier than a closed artifact.
     EarlyFrontier(DescriptionFrontier),
-    /// The description carries an assumption the request does not accept.
     UnacceptedAssumption([u8; 32]),
-    /// A declared row binds an assumption digest absent from the roster.
     UnboundAssumptionReference([u8; 32]),
-    /// A module-derived entry is absent from the description.
     MissingComponentEntry(String),
-    /// A row claims module-derived evidence the artifact does not contain.
     UnexpectedDerivedEntry(String),
-    /// A module-derived export is absent from the description.
     MissingExport(String),
-    /// The description exports a surface the artifact does not contain.
     UnexpectedDerivedExport(String),
-    /// A module-derived outgoing authority row is absent.
     MissingOutgoingAuthority(String),
-    /// The description claims outgoing authority the artifact lacks.
     UnexpectedDerivedAuthority(String),
-    /// The evidence kind is not permitted for this row's class.
     InvalidAuthorityEvidence(String),
-    /// A `ProviderSealed` row names a plan digest outside the provider roster
-    /// or seals a requirement that provider does not claim.
     UnsealedProvider(String),
-    /// A retained provider claims neither a called requirement nor an exact checked export.
     SmuggledProviderRequirement(String),
-    /// A boundary requirement is neither provider-sealed nor import-bound.
     UnboundRequirement(String),
-    /// An import slot names a requirement with no unsealed outgoing row.
     SmuggledImport(String),
-    /// An import slot's contract identity is not the canonical requirement
-    /// contract identity.
     ImportContractMismatch(String),
-    /// A module-derived custody row is absent from the description.
     MissingCustodyConstraint(String),
-    /// A row claims module-derived custody the artifact does not contain.
     UnexpectedDerivedCustody(String),
-    /// A retained installation-bound reach row is absent from the
-    /// description's service-bound roster.
     MissingServiceBound(String),
-    /// The description publishes a service-bound row the artifact does not
-    /// retain.
     UnexpectedServiceBound(String),
-    /// A required installation obligation is absent from the description.
     MissingObligation(String),
-    /// The provider roster and closure digest are not internally consistent.
     InconsistentProviderClosure(&'static str),
 }
 
@@ -258,15 +195,6 @@ impl std::fmt::Display for ComponentVerificationRejection {
 
 impl std::error::Error for ComponentVerificationRejection {}
 
-/// A component description whose every checkable fact has been independently
-/// replayed and accepted under the caller's request.
-///
-/// This carrier is evidence, not authority: it proves the embedded artifact
-/// is canonical, subject-bound to its proof section, its module verified
-/// under the request's admission profile, and exactly covered by the
-/// description's entries, outgoing authority, custody, retained providers,
-/// and installation obligations. It cannot be executed, installed, or used
-/// to discharge any obligation it describes.
 #[derive(Debug, PartialEq, Eq)]
 pub struct VerifiedComponent {
     description: ComponentDescription,
@@ -276,41 +204,26 @@ pub struct VerifiedComponent {
 }
 
 impl VerifiedComponent {
-    /// The reconstructed component subject — always derived from the
-    /// embedded artifact, never from a description field.
     pub fn subject(&self) -> TerminalPsiIdentity {
         self.artifact.view().identity()
     }
 
-    /// Collision-resistant identity of the exact description bytes admitted.
     pub const fn description_identity(&self) -> &[u8; 32] {
         &self.description_identity
     }
 
-    /// The closure identity binding this admission to its exact request
-    /// profile. Replacement candidates must produce a closure comparable to
-    /// the frozen envelope the initial composition recorded.
     pub const fn closure(&self) -> &[u8; 32] {
         &self.closure
     }
 
-    /// The description frontier that verified. Always
-    /// [`DescriptionFrontier::TerminalArtifactClosure`] for a `VerifiedComponent`.
     pub const fn frontier(&self) -> DescriptionFrontier {
         self.description.frontier
     }
 
-    /// The decoded semantic module. Reading it grants no authority; proof
-    /// consumers that need a purpose-specific verified carrier re-run the
-    /// existing Terminal verifier under their own profile.
     pub fn module(&self) -> &TerminalModule {
         self.artifact.semantic_module()
     }
 
-    /// The exact canonical product whose proof and semantic inventories were
-    /// verified together. Independent production must retain this custody,
-    /// rather than reconstructing a proof envelope from the decoded module.
-    /// Possession still establishes neither installation nor callable authority.
     pub fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
         &self.artifact
     }
@@ -327,67 +240,38 @@ impl VerifiedComponent {
         &self.description.exports
     }
 
-    /// Every possible entry into the component.
     pub fn entries(&self) -> &[ComponentEntry] {
         &self.description.entries
     }
 
-    /// Every authority path leaving the component closure.
     pub fn outgoing(&self) -> &[OutgoingAuthority] {
         &self.description.outgoing
     }
 
-    /// Every custody constraint the component carries.
     pub fn custody(&self) -> &[CustodyConstraint] {
         &self.description.custody
     }
 
-    /// The retained selected-provider roster.
     pub fn providers(&self) -> &[RetainedProvider] {
         &self.description.providers
     }
 
-    /// Strong digest of the complete selected provider closure facts.
     pub const fn provider_closure_digest(&self) -> &[u8; 32] {
         &self.description.provider_closure_digest
     }
 
-    /// Installation-dependent demands. Each remains an obligation: the
-    /// description verified that they are demanded, not that they are met.
     pub fn obligations(&self) -> &[InstallationObligation] {
         &self.description.obligations
     }
 
-    /// The accepted inseparable assumptions bound to declared rows.
     pub fn assumptions(&self) -> &[[u8; 32]] {
         &self.description.assumptions
     }
 
-    /// Strong identity of the bound native realization, when present.
     pub const fn realization_identity(&self) -> Option<&[u8; 32]> {
         self.description.realization_identity.as_ref()
     }
 
-    /// Join one build-selected provider plan to this verified component's
-    /// exported checked realizations.
-    ///
-    /// This is the consumer-side half of an `Independent` selection: the
-    /// consumer selected `plan` (one provider type covering one boundary
-    /// slot) and this component claims to be that provider's deployable
-    /// closure. Every plan row must be a `CheckedAdapter` whose original
-    /// requirement and body join the exact selecting owner, receiver, package
-    /// and target in the *verified* module (never a description row). Each
-    /// resulting closed application must be exported. External, syscall, or
-    /// evaluated rows are not exported callable surfaces of a checked
-    /// closure and reject. A component whose module still retains
-    /// unresolved installation-bound reach rows also rejects: its declared
-    /// service bounds are obligations installation still owes, not the
-    /// resolved reach a callable component contract must carry.
-    ///
-    /// Success establishes only that the realization exists inside this
-    /// exact subject. It grants no callable authority and discharges none of
-    /// the component's installation obligations; the consumer's fence still
-    /// owns subject/profile policy and the provider-occurrence binding.
     pub fn realizes_selected_plan(
         &self,
         plan: &ProviderPlan,
@@ -397,10 +281,6 @@ impl VerifiedComponent {
             .map(|_| ())
     }
 
-    /// Join the complete plan and return positions in this component's immutable
-    /// provider candidate catalog. A caller must retain this component beside
-    /// those positions; they never name candidates in another artifact.
-    /// These are verified export descriptions, not installed entry capabilities.
     pub fn selected_plan_export_positions(
         &self,
         plan: &ProviderPlan,
@@ -411,10 +291,6 @@ impl VerifiedComponent {
                 plan: plan.name.clone(),
             });
         }
-        // Schema validation owns coverage and row/origin consistency (a
-        // checked adapter whose package drifts from the plan origin rejects
-        // there); the join only reads a plan that is already a valid
-        // selection.
         let coverage = plan.validate_against_schema();
         if plan.rows.is_empty() || !coverage.is_empty() {
             return Err(IndependentRealizationMismatch::InvalidPlan {
@@ -447,9 +323,6 @@ impl VerifiedComponent {
                         .to_owned(),
                 });
             }
-            // Verification already proved the export roster equals the
-            // module-derived roster; requiring the row here keeps the join
-            // honest if a later description schema ever narrows exports.
             for position in projected.candidate_positions {
                 let candidate = &self.module().provider_candidates[position];
                 let requirement = identity_text(self.module(), candidate.requirement_identity);
@@ -471,12 +344,6 @@ impl VerifiedComponent {
                 exports.push(position);
             }
         }
-        // Only after every row matched is the component's own closure in
-        // question: a realizer that still retains unresolved
-        // installation-bound reach rows is not a closed callable component.
-        // Its service bounds publish what installation still owes, so the
-        // join must not treat the retained bound as the resolved reach the
-        // selected row names.
         let unresolved: Vec<String> = self
             .module()
             .root_service_reach
@@ -495,41 +362,38 @@ impl VerifiedComponent {
     }
 }
 
-/// Every way a selected provider plan can fail to join a verified
-/// component's exported realizations. Categories are distinct so a consumer
-/// fence can report a substituted provider, a substituted machine, or an
-/// absent realization without conflating them with an unverified description.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndependentRealizationMismatch {
-    /// The plan names no provider type; a free external leaf cannot be an
-    /// independently deployed component.
-    EmptyProviderType { plan: String },
-    /// The plan is not a valid fully covering selection: no rows, an
-    /// uncovered schema method, or a row inconsistent with the plan origin.
-    InvalidPlan { plan: String, detail: String },
-    /// A row is not a checked adapter inside the component closure.
-    UncheckedRow { requirement_identity: String },
-    /// The verified module retains no candidate for this requirement.
-    MissingRealization { requirement_identity: String },
-    /// The requirement is realized, but not by the selected provider type.
+    EmptyProviderType {
+        plan: String,
+    },
+    InvalidPlan {
+        plan: String,
+        detail: String,
+    },
+    UncheckedRow {
+        requirement_identity: String,
+    },
+    MissingRealization {
+        requirement_identity: String,
+    },
     ProviderTypeMismatch {
         requirement_identity: String,
         selected_provider: String,
     },
-    /// The selected provider realizes the requirement with another machine.
     MachineMismatch {
         requirement_identity: String,
         selected_machine: String,
     },
-    /// More than one identical realization row exists.
-    DuplicateRealization { requirement_identity: String },
-    /// The description omits the export row the realization requires.
-    MissingExport { requirement_identity: String },
-    /// The realization matched, but the component still retains unresolved
-    /// installation-bound reach rows: its declared service bounds are
-    /// obligations installation still owes, not the resolved service reach
-    /// the selected row names.
-    UnresolvedInstallationRows { requirement_identities: Vec<String> },
+    DuplicateRealization {
+        requirement_identity: String,
+    },
+    MissingExport {
+        requirement_identity: String,
+    },
+    UnresolvedInstallationRows {
+        requirement_identities: Vec<String>,
+    },
 }
 
 impl std::fmt::Display for IndependentRealizationMismatch {
@@ -596,15 +460,6 @@ impl std::fmt::Display for IndependentRealizationMismatch {
 
 impl std::error::Error for IndependentRealizationMismatch {}
 
-/// Independently verify a canonical component description for admission.
-///
-/// The description is trusted for nothing: the codec enforces canonical
-/// bounds and ordering, the embedded artifact is re-decoded with its
-/// subject-bound proof section, the component subject is reconstructed
-/// rather than read, the module is verified under the request's admission
-/// profile, and every module-evident roster is re-derived from the verified
-/// module and compared row for row. Installation obligations are checked for
-/// presence and left undischarged.
 pub fn verify_component(
     description_bytes: &[u8],
     request: &ComponentVerificationRequest,
@@ -669,18 +524,10 @@ pub fn verify_component(
         description,
         description_identity,
         closure,
-        // Preserve the original sealed product, including its checked proof
-        // section. A decoded-module copy cannot carry that product to an
-        // independent execution consumer.
         artifact: std::sync::Arc::new(artifact),
     })
 }
 
-/// Entry rows must exactly cover the derived set: every derived entry is
-/// required, every `ModuleDerived` row must be derived, and every
-/// `AssumptionBound` row must name a roster assumption. Declared rows bound
-/// to accepted assumptions are how startup, callback, timer, cleanup, and
-/// retained-provider entries enter the roster.
 macro_rules! check_derived_roster {
     ($description:expr, $inventory:expr, $rows:ident, $evidence:ident, $unexpected:ident, $missing:ident) => {{
         let derived: BTreeSet<(u8, &str)> = $inventory
@@ -730,7 +577,6 @@ fn check_entries(
     )
 }
 
-/// The exported surface is exactly the module-derived export set.
 fn check_exports(
     description: &ComponentDescription,
     inventory: &crate::component_description::DerivedInventory,
@@ -762,9 +608,6 @@ fn check_exports(
     Ok(())
 }
 
-/// Outgoing authority rows must cover the derived set with evidence legal
-/// for their class. Returns the requirement→plan-digest seal map used by the
-/// provider-roster check.
 fn check_outgoing(
     description: &ComponentDescription,
     inventory: &crate::component_description::DerivedInventory,
@@ -929,11 +772,6 @@ fn check_outgoing(
     Ok(sealed)
 }
 
-/// The retained provider roster must be internally consistent: every sealed
-/// requirement resolves to a listed plan digest that claims it, no two
-/// providers claim the same requirement, no provider claims a requirement
-/// neither a real outgoing call nor an exact checked export, and a nonempty roster carries a nonzero
-/// closure digest.
 fn check_providers(
     description: &ComponentDescription,
     module: &terminal_psi::TerminalModule,
@@ -1017,11 +855,6 @@ fn check_providers(
     Ok(())
 }
 
-/// A selected-satisfied export is not an outgoing call. Its committed plan
-/// row must identify one exact canonical checked candidate, including source
-/// package custody. The verified candidate retains its selecting declaration,
-/// signature/refinement and actual body; a description's exported names never
-/// establish this association and this check installs nothing.
 fn is_checked_export(
     module: &terminal_psi::TerminalModule,
     plan: &effects::provider_plan::ProviderPlanInput<'_>,
@@ -1070,9 +903,6 @@ fn is_checked_export(
     candidates.next().is_some() && candidates.next().is_none()
 }
 
-/// Custody rows must cover the derived set under the same evidence rules as
-/// entries: derived rows required, `ModuleDerived` rows replayed, and
-/// `AssumptionBound` rows bound to the roster.
 fn check_custody(
     description: &ComponentDescription,
     inventory: &crate::component_description::DerivedInventory,
@@ -1087,11 +917,6 @@ fn check_custody(
     )
 }
 
-/// The service-bound roster must replay the module's retained
-/// installation-bound reach rows exactly: each requirement identity carries
-/// the same declared bound it does in the module. Bounds publish here and
-/// never inside the concrete reach's `ServiceCeiling` outgoing rows, so this
-/// roster is the only place a consumer reads what installation still owes.
 fn check_service_bounds(
     description: &ComponentDescription,
     inventory: &crate::component_description::DerivedInventory,
@@ -1111,8 +936,6 @@ fn check_service_bounds(
     Ok(())
 }
 
-/// Every import slot must name an unsealed boundary requirement with the
-/// canonical contract identity.
 fn check_imports(description: &ComponentDescription) -> Result<(), ComponentVerificationRejection> {
     let unsealed: BTreeSet<&str> = description
         .outgoing
@@ -1147,12 +970,6 @@ fn check_imports(description: &ComponentDescription) -> Result<(), ComponentVeri
     Ok(())
 }
 
-/// Obligations that must be present because the artifact demands them:
-/// an import binding per import slot, a provider occurrence per retained
-/// provider, and a resource admission per program-local root-introduction
-/// custody row. Stack and progress obligations are declared facts the
-/// description carries but the artifact alone cannot derive; they remain
-/// obligations either way.
 fn check_obligations(
     description: &ComponentDescription,
     inventory: &crate::component_description::DerivedInventory,

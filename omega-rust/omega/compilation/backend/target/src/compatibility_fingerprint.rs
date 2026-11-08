@@ -1,7 +1,10 @@
-//! Length-framed compatibility fingerprint primitive. Callers own their
-//! domains and field encoding; each new writer starts an independent digest.
-//! Unlike `semantic_vocabulary::Fnv1a`, `bytes` here is length-framed: changing
-//! that would move every persisted compatibility fingerprint.
+/*
+We provide the length-framed FNV-1a compatibility fingerprint primitive shared
+by target locators and observation applications. Callers own their domain tags
+and field ordering; unlike `semantic_vocabulary::Fnv1a`, our `bytes` method
+frames each slice with its 64-bit little-endian length so coordinate boundaries
+cannot alias.
+*/
 
 pub struct Fnv1a(u64);
 

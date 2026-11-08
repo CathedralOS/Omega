@@ -1,4 +1,12 @@
-//! Producer-independent referent shape reconstruction for structural ABI validation.
+/*
+We reconstruct referent storage shapes and policy-specific ABI classifications
+from canonical `StructuralTypeDeclaration` slices (`classified_boundary_shape`)
+independently of the calling-policy producer. We index declarations by
+`StructuralTypeId`, reject duplicate or recursive type graphs, and classify
+records and fixed arrays by their recursive scalar leaves under AAPCS64,
+System V AMD64, and Microsoft x64 while preserving scalar and descriptor
+carrier shapes.
+*/
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -11,7 +19,6 @@ use terminal_psi::{
 #[derive(Debug, PartialEq, Eq)]
 pub struct InvalidStructuralShape;
 
-/// Index declarations by id, rejecting a duplicate-id roster.
 fn index_declarations(
     declarations: &[StructuralTypeDeclaration],
 ) -> Result<BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>, InvalidStructuralShape> {
@@ -25,13 +32,6 @@ fn index_declarations(
     Ok(indexed)
 }
 
-/// The by-value boundary shape one structural type carries under the calling
-/// policy: the provider-side materialization classifies records and fixed
-/// arrays by their scalar leaves — homogeneous-float members under AAPCS and
-/// SysV, per-eightbyte integer/SSE classes under SysV, one integer view under
-/// Microsoft x64. Scalar and descriptor carriers keep their semantic shape;
-/// carriers with no by-value boundary encoding refuse, matching the upstream
-/// materialization that produced the plan being replayed.
 pub fn classified_boundary_shape(
     structural_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
@@ -75,11 +75,6 @@ pub fn classified_boundary_shape(
     })
 }
 
-/// Every scalar leaf one structural carrier contributes to aggregate
-/// classification: `(byte_offset, byte_size, is_float)` rows in declared
-/// storage order, matching the leaves the boundary materialization collects
-/// from the typed signature graph. Descriptor views and references are single
-/// integer leaves; inline byte storage contributes one leaf per byte.
 #[allow(clippy::too_many_arguments)]
 fn collect_scalar_leaves(
     structural_type: StructuralTypeId,
@@ -225,10 +220,6 @@ fn collect_field_leaves(
     Ok(())
 }
 
-/// The ABI class the collected scalar leaves determine under the calling
-/// policy: homogeneous-float aggregates, SysV per-eightbyte classes, or one
-/// integer view — identical to the classification the boundary
-/// materialization applied when it evaluated the plan under replay.
 fn classify_scalar_leaves(
     leaves: &[(u32, u32, bool)],
     referent: ValueShape,
@@ -237,8 +228,6 @@ fn classify_scalar_leaves(
     if policy == CallingPolicy::MicrosoftX64 {
         return Ok(ValueClass::Integer);
     }
-    // AAPCS64's four-member rule is not SysV's two-eightbyte limit. Larger
-    // SysV float aggregates take the memory-placement class below.
     if let Some(members) = homogeneous_float_leaves(leaves, referent) {
         if policy == CallingPolicy::Aapcs64
             || (policy == CallingPolicy::SystemVAMD64 && members > 1 && referent.byte_size <= 16)
@@ -295,8 +284,6 @@ fn classify_scalar_leaves(
     })
 }
 
-/// A homogeneous float aggregate is a dense run of one to four equal IEEE
-/// members starting at offset zero, covering the referent exactly.
 fn homogeneous_float_leaves(leaves: &[(u32, u32, bool)], referent: ValueShape) -> Option<u8> {
     let &(0, member_size, true) = leaves.first()? else {
         return None;
@@ -331,15 +318,11 @@ fn shape(
         .get(&structural_type)
         .ok_or(InvalidStructuralShape)?;
     let result = match &declaration.shape {
-        // Independently reconstruct the address payload, including nested
-        // record leaves. Pointer bits carry no ownership authority.
         StructuralTypeShape::Reference { referent, .. } => ValueShape::integer(
             if declarations.get(referent).is_some_and(|declaration| matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar) if runtime_abi::ScalarStorageCodec::from_scalar(scalar).is_some())) { runtime_abi::ScalarReferenceLayout::NATIVE.byte_size } else { 8 }, 8),
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
         | StructuralTypeShape::ElementView { .. } => ValueShape::integer(16, 8),
-        // The declaration supplies the fixed extent; only its backing pointer
-        // occupies descriptor storage. Reconstruct this without producer rows.
         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView { .. }) => {
             ValueShape::integer(8, 8)
         }
@@ -372,9 +355,6 @@ fn shape(
             ValueShape::integer(byte_size, alignment)
         }
         StructuralTypeShape::FixedArray { length: terminal_psi::ArrayExtent::Literal(0), .. } => {
-            // Zero-byte calling plans retain a canonical shape. Reconstruct
-            // the complete element declaration even though no element bytes
-            // are transported; unknown and recursive shells still reject.
             validate_empty_array_element(structural_type, declarations, cache, active)?;
             ValueShape::integer(0, 1)
         }
@@ -426,9 +406,6 @@ fn validate_empty_array_element(
                     _ => Err(InvalidStructuralShape),
                 };
             }
-            // The array chain's extents contribute no payload under the
-            // empty root. A nominal element still has its own independently
-            // reconstructible geometry and complete type graph.
             _ => return shape(current, declarations, cache, active).map(|_| ()),
         }
     }
@@ -522,8 +499,6 @@ fn field_shape(
             carrier: ByteSequenceCarrier::BorrowedView { .. },
             ..
         } => Ok(ValueShape::integer(16, 8)),
-        // The bound lives in the declaration; the stored descriptor is the
-        // bare referent pointer.
         StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedView { .. })
         | StructuralFieldType::PredicateByteSequence {
             carrier: ByteSequenceCarrier::BoundedView { .. },

@@ -1,4 +1,9 @@
-//! The provider plan digest encoder.
+/*
+We define the domain-separated SHA-256 encoder (`ProviderPlanDigestEncoder`)
+and the shared framed-feed combinator trait (`DigestFeed`) for `ProviderPlan`
+and `ServiceSchema` commitments. Interned identities always feed their
+canonical resolved text rather than process-local table ordinals.
+*/
 
 use crate::provider_evidence::providers::provider_plan::{
     ProviderBinding, ProviderIdentityTable, ServiceEntryAuthorityFlow, ServiceMethod,
@@ -7,9 +12,6 @@ use crate::provider_evidence::providers::provider_plan::{
 use sha2::Digest;
 use sha2::Sha256;
 
-/// Shared framed-feed combinators for the crate's domain-tagged SHA-256
-/// encoders: every feed reduces to one `raw` update, with the length-prefix
-/// and tag separators defined once here.
 pub(crate) trait DigestFeed {
     fn raw(&mut self, bytes: &[u8]);
 
@@ -33,7 +35,6 @@ pub(crate) trait DigestFeed {
         self.raw(&value.to_le_bytes());
     }
 
-    /// Length-framed byte feed: u64 little-endian length, then the payload.
     fn bytes(&mut self, bytes: &[u8]) {
         self.len(bytes.len());
         self.raw(bytes);
@@ -144,9 +145,6 @@ impl ProviderPlanDigestEncoder {
         });
     }
 
-    /// Encodes one method's canonical content. `identities` is the owning
-    /// schema's table: interned fields feed their canonical text, never the
-    /// process-local mint order.
     pub(crate) fn service_method(
         &mut self,
         method: &ServiceMethod,
@@ -262,8 +260,6 @@ impl ProviderPlanDigestEncoder {
         }
     }
 
-    /// Encodes one binding's canonical content. `identities` is the owning
-    /// plan's table, resolving interned identities to their text.
     pub(crate) fn provider_binding(
         &mut self,
         binding: &ProviderBinding,
@@ -306,9 +302,6 @@ impl ProviderPlanDigestEncoder {
                 }
                 self.bytes(&evaluated.receipt().identity_digest());
             }
-            // Tag byte 1 belonged to the retired string-backed import
-            // bootstrap. It stays unassigned so no later mechanism can
-            // collide with digests of plans that once carried it.
             ProviderBinding::Syscall { number } => {
                 self.byte(2);
                 self.i64(*number);

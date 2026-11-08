@@ -1,4 +1,10 @@
-//! Evaluated binding usages and receipts, foreign imports and syscalls.
+/*
+We retain evaluated foreign binding usage metrics (`EvaluatedBindingUsage`),
+durable evaluation receipts (`EvaluatedBindingReceipt`), and target-validated
+foreign imports and syscalls (`EvaluatedForeignImport`, `EvaluatedForeignSyscall`,
+`EvaluatedNativeBinding`). Each carrier verifies that its receipt commits to
+the exact normalized locator or syscall coordinate before construction.
+*/
 
 use crate::provider_evidence::providers::foreign_locator::{
     ForeignLocatorIdentityDigest, NormalizedForeignLocator,
@@ -30,9 +36,6 @@ evaluated_binding_digest!(EvaluatedBindingProducerClosureDigest);
 evaluated_binding_digest!(EvaluatedBindingEvaluationDigest);
 evaluated_binding_digest!(EvaluatedBindingMaterializationDigest);
 
-/// Complete deterministic evaluator usage retained by one successful foreign
-/// binding materialization. The evaluator owns these values; this carrier only
-/// preserves them in provider identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EvaluatedBindingUsage {
     usage_schema_version: u32,
@@ -123,14 +126,8 @@ impl EvaluatedBindingUsage {
     }
 }
 
-/// Exact source/evaluation identity of a native binding authored by Build.
-/// The source companion's semantic occurrence is bound separately from the
-/// portable code fingerprint because designated Product operands are private
-/// Build metadata, not executable runtime arguments.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildNativeBindingOrigin {
-    /// Index into the same evaluated via-binding identity table as the
-    /// receipt's producer callable.
     pub requirement_identity: terminal_psi::TerminalIdentityIndex,
     pub source_occurrence_digest: [u8; 32],
     pub terminal_code: terminal_psi::TerminalPsiIdentity,
@@ -140,9 +137,6 @@ pub struct BuildNativeBindingOrigin {
 }
 
 impl BuildNativeBindingOrigin {
-    /// Resolve the requirement text the receipt commitment covers. The
-    /// commitment hashes canonical text, never table ordinals, so moving a
-    /// receipt between identity tables keeps its digest.
     fn validate<'table>(
         &self,
         identities: &'table terminal_psi::TerminalIdentityTable,
@@ -178,17 +172,10 @@ impl BuildNativeBindingOrigin {
     }
 }
 
-/// Durable receipt for one exact source evaluation and binding
-/// materialization. Arena handles, source spans, and raw traces deliberately
-/// remain outside this identity carrier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvaluatedBindingReceipt {
-    /// Ordinary `via` evaluation has no Build origin. A reached Build bind
-    /// retains its own exact requirement and Terminal activation instead of
-    /// inventing a realization declaration.
     build_origin: Option<BuildNativeBindingOrigin>,
     producer_package: Option<semantic_vocabulary::PackageKeyIdentity>,
-    /// Index into the evaluated via-binding table's `identities` table.
     producer_callable_identity: terminal_psi::TerminalIdentityIndex,
     producer_closure_digest: EvaluatedBindingProducerClosureDigest,
     evaluator_semantics_marker: u32,
@@ -250,9 +237,6 @@ impl EvaluatedBindingReceipt {
         })
     }
 
-    /// Rejoin one completed source-issued Build evaluation. This does not
-    /// admit the foreign promise: provider and executable admission still own it.
-    /// `identities` is the table the origin's requirement index was interned in.
     pub fn with_build_origin(
         mut self,
         origin: BuildNativeBindingOrigin,
@@ -274,9 +258,6 @@ impl EvaluatedBindingReceipt {
         Ok(self)
     }
 
-    /// Move an inert receipt between retained identity tables without changing
-    /// its meaning. Canonical producer and Build requirement text participate
-    /// in the commitment; invocation-local table ordinals do not.
     pub fn reintern_producer(
         &self,
         source: &terminal_psi::TerminalIdentityTable,
@@ -338,14 +319,11 @@ impl EvaluatedBindingReceipt {
         self.locator_identity_digest
     }
 
-    /// Collision-resistant commitment to every retained receipt field.
     pub const fn identity_digest(&self) -> [u8; 32] {
         self.identity
     }
 }
 
-/// The canonical receipt commitment, computed once at construction where the
-/// producer callable's text is still in scope.
 #[allow(clippy::too_many_arguments)]
 fn receipt_identity_digest(
     producer_package: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -396,8 +374,6 @@ fn receipt_hash_bytes(
     digest.bytes(bytes);
 }
 
-/// Atomic normalized import plus the receipt that produced it. Construction
-/// rejects a receipt committed to any different locator.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvaluatedForeignImport {
     locator: NormalizedForeignLocator,
@@ -428,9 +404,6 @@ impl EvaluatedForeignImport {
     }
 }
 
-/// Atomic normalized syscall number plus the receipt that produced it.
-/// Construction rejects non-Linux targets, numbers outside the downstream
-/// syscall carrier, and receipts committed to any different target or number.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvaluatedForeignSyscall {
     target: TargetProfile,
@@ -494,9 +467,6 @@ pub fn evaluated_syscall_identity_digest(
     target::evaluated_syscall_identity_digest(target, number)
 }
 
-/// One exact normalized result of evaluating the compiler-owned `Binding`
-/// sum. The variant remains explicit so ordinary syscall evidence cannot be
-/// reinterpreted as a legacy syscall carrier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvaluatedNativeBinding {
     Import(EvaluatedForeignImport),

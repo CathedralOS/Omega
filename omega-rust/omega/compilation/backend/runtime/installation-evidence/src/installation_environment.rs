@@ -1,6 +1,10 @@
-//! Caller-supplied platform conditions for one exact installation.
-//! These records are assumptions, not hardware observations or resource grants.
-use crate::BootstrapEnvironmentAssumption;
+/*
+We represent caller-supplied platform environment assumptions for one exact
+installed execution scope (`BootstrapEnvironmentAssumption` and
+`X86InterruptDeliveryAssumption`). These records carry reviewed environment
+description digests and provenance strings; they are explicit caller premises
+rather than hardware observations, software-fault proofs, or resource grants.
+*/
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstallationEnvironmentAssumption {
@@ -8,8 +12,33 @@ pub enum InstallationEnvironmentAssumption {
     InterruptDelivery(X86InterruptDeliveryAssumption),
 }
 
-/// Delivery conditions while the exact installed Scope remains active.
-/// This neither excludes NMI/MCE nor establishes software-fault freedom.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BootstrapEnvironmentAssumption {
+    pub psi: terminal_psi::TerminalPsiIdentity,
+    pub profile: target::TargetProfile,
+    pub entry: semantic_vocabulary::MachineId,
+    pub installation: semantic_vocabulary::OperationId,
+    pub interval: BootstrapAssumptionInterval,
+    pub environment_description_sha256: [u8; 32], // Digest of the reviewed launch/environment description retained with the artifact.
+    pub source_provenance: String,
+    pub caller_provenance: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BootstrapAssumptionInterval {
+    EntryUntilInstallationPublished,
+}
+
+impl BootstrapEnvironmentAssumption {
+    pub fn validate_description(&self) -> Result<(), &'static str> {
+        validate_description(
+            &self.environment_description_sha256,
+            &self.source_provenance,
+            &self.caller_provenance,
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct X86InterruptDeliveryAssumption {
     pub psi: terminal_psi::TerminalPsiIdentity,
@@ -30,13 +59,7 @@ pub enum InterruptDeliveryInterval {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum X86InterruptDeliveryProfile {
-    /// One execution context owns the IDT/TSS/stack leases. Ordinary external
-    /// interrupts use vectors 32..255; vectors 2/18 use true NMI/MCE delivery.
-    /// Guest debug exception injection, tracing and active hardware breakpoints
-    /// are absent. A debugger pausing the host is not guest exception delivery.
-    /// Architectural NMI blocking and MCIP shutdown apply. The compiler must
-    /// separately preserve that state and prove the complete stack contexts.
-    ArchitecturalExceptionsAndExternalIrqs,
+    ArchitecturalExceptionsAndExternalIrqs, // Vectors 32..255 for external IRQs, 2/18 for true NMI/MCE; no guest debug injection or active hardware breakpoints.
 }
 
 impl X86InterruptDeliveryAssumption {
@@ -44,7 +67,7 @@ impl X86InterruptDeliveryAssumption {
         if self.profile.native_target().architecture != target::Architecture::X86_64 {
             return Err("interrupt delivery assumption requires an x86-64 target");
         }
-        crate::bootstrap_environment::validate_description(
+        validate_description(
             &self.environment_description_sha256,
             &self.source_provenance,
             &self.caller_provenance,
@@ -85,8 +108,6 @@ impl InstallationEnvironmentAssumption {
         }
     }
 
-    /// Stable condition tag: bootstrap and delivery may name the same Scope,
-    /// but duplicate rows of either kind must not be silently combined.
     pub const fn condition_tag(&self) -> u8 {
         match self {
             Self::Bootstrap(_) => 0,
@@ -142,4 +163,16 @@ impl InstallationEnvironmentAssumption {
             Self::InterruptDelivery(row) => &row.caller_provenance,
         }
     }
+}
+
+fn validate_description(digest: &[u8; 32], source: &str, caller: &str) -> Result<(), &'static str> {
+    if *digest == [0; 32] {
+        return Err("installation assumption has no environment description digest");
+    }
+    for value in [source, caller] {
+        if value.trim().is_empty() || value.len() > 4096 || value.chars().any(char::is_control) {
+            return Err("installation assumption requires bounded source and caller provenance");
+        }
+    }
+    Ok(())
 }

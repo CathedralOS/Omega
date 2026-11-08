@@ -1,18 +1,14 @@
-//! Native inet address value primitives for explicit trusted runtime supplies.
-//! This owner knows C's four-byte `in_addr` ABI, never guest type names, selected
-//! representations, source contracts or interpreter occurrence identities.
-//!
-//! Unix hosts call the platform `inet_makeaddr` and `inet_lnaof`. Windows has
-//! neither export, so the same classful definition those libraries implement
-//! (glibc `inet/inet_makeaddr.c` and `inet/inet_lnaof.c`) is the Windows
-//! provider. `windows_provider` emits that definition as `omega_host.dll` for
-//! the native loader; this module evaluates it for Terminal execution. The
-//! two must agree: a physical copy of the four-byte result is not a second
-//! semantic value, and the guest still cannot manufacture the representation.
+/*
+We evaluate native IPv4 classful internet-address operations (`inet_makeaddr`
+and `inet_lnaof`) over C's 4-byte `in_addr` representation
+(`HostInternetAddress`).
+
+Unix hosts call libc's `inet_makeaddr` and `inet_lnaof` directly; non-Unix
+hosts evaluate the identical class A/B/C bit-packing and network-order byte
+swap that `windows_provider.rs` emits into `omega_host.dll`.
+*/
 
 #[repr(C)]
-// This copies only C bits. Guest occurrence creation and Copy permission belong
-// to the checked calling application and interpreter, not this ABI primitive.
 #[derive(Clone, Copy)]
 pub struct HostInternetAddress {
     address: u32,
@@ -28,9 +24,6 @@ impl HostInternetAddress {
     pub fn make(network: u32, host: u32) -> Option<Self> {
         #[cfg(unix)]
         {
-            // SAFETY: the C arguments are exactly in_addr_t (unsigned 32-bit),
-            // and repr(C) retains the single 32-bit member of struct in_addr.
-            // Neither operation borrows or retains caller storage.
             Some(unsafe { inet_makeaddr(network, host) })
         }
         #[cfg(not(unix))]
@@ -44,8 +37,6 @@ impl HostInternetAddress {
     pub fn host_number(self) -> Option<u32> {
         #[cfg(unix)]
         {
-            // SAFETY: this is the actual owned struct returned by inet_makeaddr,
-            // passed by value under the same native C ABI, without guest pointers.
             Some(unsafe { inet_lnaof(self) })
         }
         #[cfg(not(unix))]
@@ -55,12 +46,6 @@ impl HostInternetAddress {
     }
 }
 
-/// Host-order classful address, then numeric byte swap into network order.
-///
-/// The thresholds are the historical class A/B/C cuts, not the witness
-/// constants. Class D and E fall through to `network | host`, matching glibc.
-///
-/// Unix hosts evaluate through libc, so only other hosts and tests call this.
 #[cfg(any(not(unix), test))]
 pub(super) fn classful_internet_address(network: u32, host: u32) -> u32 {
     let host_order = if network < 128 {
@@ -75,11 +60,6 @@ pub(super) fn classful_internet_address(network: u32, host: u32) -> u32 {
     host_order.swap_bytes()
 }
 
-/// Inverse of `classful_internet_address`: network-order word back to host
-/// order, then the class mask of that resulting address. The class is read
-/// from the address, not from the network argument that produced it.
-///
-/// Unix hosts evaluate through libc, so only other hosts and tests call this.
 #[cfg(any(not(unix), test))]
 pub(super) fn classful_local_address(stored: u32) -> u32 {
     let value = stored.swap_bytes();
