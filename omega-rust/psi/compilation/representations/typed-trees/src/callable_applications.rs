@@ -7102,19 +7102,14 @@ impl TypedTrees {
                 origin: CallableLifetimeOrigin::Rigid,
             })
             .collect();
-        let mut application = CallableApplication {
-            region_scope: declared.symbol,
-            trait_region_application: Some((environment.clone(), environment.frame_count())),
-            static_argument_owner: environment.argument_owner(),
-            types: environment
-                .scope(self)
-                .ok_or("refinement postcondition lost its supplying scope")?
-                .substitutions,
-            symbols,
-            source_binders,
-            lifetimes,
-            ..Default::default()
-        };
+        let mut application = self.materialize_trait_application(environment)?;
+        application.region_scope = declared.symbol;
+        application.trait_region_application =
+            Some((environment.clone(), environment.frame_count()));
+        application.static_argument_owner = environment.argument_owner();
+        application.symbols = symbols;
+        application.source_binders = source_binders;
+        application.lifetimes = lifetimes;
         let contracts = self.state_signature_contracts(receiving).to_vec();
         let additions = self.state_signature_contracts(declared).to_vec();
         receiving.contracts = Default::default();

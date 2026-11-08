@@ -83,6 +83,7 @@ mod contracts {
             data_definitions,
             type_aliases: &roots.type_aliases,
             conformances: &roots.conformances,
+            traits: &roots.traits,
             operand_owners: &tables.types.operand_lifetime_owners,
             data_members,
             data_type_parameters,
@@ -2335,6 +2336,7 @@ mod measures {
                 data_definitions: &program.roots.data_definitions,
                 type_aliases: &program.roots.type_aliases,
                 conformances: &program.roots.conformances,
+                traits: &program.roots.traits,
                 operand_owners: &program.tables.types.operand_lifetime_owners,
                 data_members: &declarations.data_members,
                 data_type_parameters: &declarations.data_type_parameters,
@@ -3696,6 +3698,8 @@ mod scope {
         pub(super) type_aliases: &'program OrderedRootArena<TypeAliasDefinition>,
         pub(super) conformances:
             &'program OrderedRootArena<symbol_resolved_trees::trait_definition::Conformance>,
+        pub(super) traits:
+            &'program OrderedRootArena<symbol_resolved_trees::trait_definition::TraitDefinition>,
         pub(super) operand_owners:
             &'program Arena<symbol_resolved_trees::types::OperandLifetimeOwner>,
         pub(super) data_members: &'program Arena<DataMember>,
@@ -3716,6 +3720,8 @@ mod scope {
         pub(super) type_aliases: &'program OrderedRootArena<TypeAliasDefinition>,
         pub(super) conformances:
             &'program OrderedRootArena<symbol_resolved_trees::trait_definition::Conformance>,
+        pub(super) traits:
+            &'program OrderedRootArena<symbol_resolved_trees::trait_definition::TraitDefinition>,
         pub(super) operand_owners:
             &'program Arena<symbol_resolved_trees::types::OperandLifetimeOwner>,
         pub(super) data_members: &'program Arena<DataMember>,
@@ -3747,6 +3753,7 @@ mod scope {
                 data_definitions: self.data_definitions,
                 type_aliases: self.type_aliases,
                 conformances: self.conformances,
+                traits: self.traits,
                 operand_owners: self.operand_owners,
                 data_members: self.data_members,
                 data_type_parameters: self.data_type_parameters,
@@ -3789,15 +3796,20 @@ mod scope {
             let mut declarations = self
                 .conformances
                 .iter()
-                .filter(|header| header.symbol == declaration);
-            let header = declarations.next()?;
+                .filter(|header| header.symbol == declaration)
+                .map(|header| header.type_parameters)
+                .chain(
+                    self.traits
+                        .iter()
+                        .filter(|header| header.symbol == declaration)
+                        .map(|header| header.type_parameters),
+                );
+            let type_parameters = declarations.next()?;
             if declarations.next().is_some() {
                 return None;
             }
-            let parameters = self
-                .data_type_parameters
-                .span_or_empty(header.type_parameters);
-            if parameters.len() != header.type_parameters.count() as usize {
+            let parameters = self.data_type_parameters.span_or_empty(type_parameters);
+            if parameters.len() != type_parameters.count() as usize {
                 return None;
             }
             Some(self.declaration_scope(declaration, parameters))
@@ -5198,7 +5210,7 @@ pub(crate) fn assign_symbols(
     generic_origin_frontier: usize,
     operand_bindings: &[(
         symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
-        usize,
+        crate::resolution::operand_owners::DeclarationInput,
     )],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut symbols = build_symbol_table(
@@ -5234,7 +5246,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
     generic_origin_frontier: usize,
     operand_bindings: &[(
         symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
-        usize,
+        crate::resolution::operand_owners::DeclarationInput,
     )],
 ) -> Result<(), Vec<Diagnostic>> {
     symbol_table::extend_symbol_table(
@@ -5286,6 +5298,7 @@ pub(crate) fn assign_constant_expression_symbols(
         data_definitions: &program.roots.data_definitions,
         type_aliases: &program.roots.type_aliases,
         conformances: &program.roots.conformances,
+        traits: &program.roots.traits,
         operand_owners: &program.tables.types.operand_lifetime_owners,
         data_members: &declarations.data_members,
         data_type_parameters: &declarations.data_type_parameters,

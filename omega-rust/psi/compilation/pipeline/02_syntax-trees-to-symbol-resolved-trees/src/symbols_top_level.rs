@@ -356,6 +356,7 @@ mod machines {
             data_definitions,
             type_aliases,
             conformances,
+            traits,
             machines,
             ..
         } = &mut program.roots;
@@ -456,6 +457,7 @@ trait_machine_identity_slots: &trait_machine_identity_slots,
             data_definitions,
             type_aliases,
             conformances,
+            traits,
             operand_owners: &tables.types.operand_lifetime_owners,
             data_members,
             data_type_parameters,
