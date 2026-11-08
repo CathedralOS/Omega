@@ -1,8 +1,10 @@
-//! Manual multi-rule optimizer-run measurement: allocation and wall-time cost of
-//! whole `run_psi_pipeline` executions, attributed against the per-revision
-//! canonical identity recompute (`recompute_psi_optimization_unit_identity`).
-//! Run: cargo run -p abstract-operations-to-abstract-operations --example psi_optimization_allocations
-//! Counts successful allocation/reallocation requests and requested bytes, not peak RSS.
+/*
+Manual multi-rule optimizer-run measurement (`psi_optimization_allocations`):
+measures allocation and wall-time cost of whole `run_psi_pipeline` executions,
+attributed against the per-revision canonical identity recompute
+(`recompute_psi_optimization_unit_identity`). Counts successful allocation and
+reallocation requests and requested bytes rather than peak RSS.
+*/
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use std::alloc::{GlobalAlloc, Layout, System};
@@ -32,8 +34,6 @@ fn record(pointer: *mut u8, bytes: usize) -> *mut u8 {
     pointer
 }
 
-// SAFETY: Requests and returned pointers are forwarded unchanged to System;
-// counters do not allocate and no pointer is retained or dereferenced here.
 unsafe impl GlobalAlloc for CountAllocations {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         record(unsafe { System.alloc(layout) }, layout.size())
@@ -52,8 +52,6 @@ unsafe impl GlobalAlloc for CountAllocations {
     }
 }
 
-/// Straight-line wrapping arithmetic over parameters: every node is live and
-/// non-constant, so the full selected suite evaluates and applies nothing.
 fn unchanged_source(operations: usize) -> String {
     let mut expression = String::from("input");
     for index in 0..operations {
@@ -70,8 +68,6 @@ fn unchanged_source(operations: usize) -> String {
     )
 }
 
-/// Straight-line exact arithmetic over literals: constant-folding rules commit
-/// repeatedly, so every revision re-encodes changed content.
 fn fold_source(operations: usize) -> String {
     let mut expression = String::from("1u64");
     for index in 0..operations {
@@ -181,10 +177,6 @@ fn measure(name: &str, source: String, selections: &OptimizationSelections) {
     allocation_calls.sort();
     allocated_bytes.sort();
     let usage = usage.expect("one measured run");
-    // Content-identity recompute happens once per bound revision (one per
-    // pass iteration) and once per validated candidate's produced unit —
-    // `AnalysisRevision` requests reuse the already-validated immutable
-    // borrow and do not re-encode.
     let identity_recomputes = usage.iterations + usage.validation_steps;
     let identity_total_bytes = identity_recomputes as usize * identity_bytes;
     println!(
@@ -202,8 +194,6 @@ fn measure(name: &str, source: String, selections: &OptimizationSelections) {
 }
 
 fn main() {
-    // Deep generated expressions recurse through the frontend; the compiler
-    // makes the same provision in `omega/src/main.rs`.
     std::thread::Builder::new()
         .stack_size(256 * 1024 * 1024)
         .spawn(measure_scenarios)
@@ -222,8 +212,6 @@ fn measure_scenarios() {
         Optimization::ProofCheckElision,
     ])
     .expect("multi-rule selection");
-    // PSI_ALLOC_SCENARIOS: comma-separated substrings matched against each
-    // scenario name; unset runs everything.
     let filter = std::env::var("PSI_ALLOC_SCENARIOS")
         .map(|value| {
             value
