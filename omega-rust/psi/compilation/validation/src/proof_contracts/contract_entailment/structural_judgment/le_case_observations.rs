@@ -18,8 +18,9 @@ impl StructuralJudge<'_> {
             .machine_by_symbol(self.machine_symbol)
             .or_else(|| self.program.machine_holding_state(self.machine_symbol))?;
         match machine.name.as_str() {
-            "mul_succ_right" => Some(0),
+            "mod" => Some(0),
             "rat_close_triangle_split" => Some(1),
+            "nat_gap_triangle" => Some(2),
             _ => None,
         }
     }
@@ -36,12 +37,14 @@ impl StructuralJudge<'_> {
     ) -> bool {
         static MAIN: [AtomicUsize; 34] = [const { AtomicUsize::new(0) }; 34];
         static STEP: [AtomicUsize; 34] = [const { AtomicUsize::new(0) }; 34];
+        static TRIANGLE: [AtomicUsize; 34] = [const { AtomicUsize::new(0) }; 34];
         let Some(owner) = self.le_case_trace_owner() else {
             return false;
         };
         let (name, counters) = match owner {
-            0 => ("mul_succ_right", &MAIN),
-            _ => ("rat_close_triangle_split", &STEP),
+            0 => ("mod", &MAIN),
+            1 => ("rat_close_triangle_split", &STEP),
+            _ => ("nat_gap_triangle", &TRIANGLE),
         };
         let (index, limit) = match stage {
             "query" => (0, 4),

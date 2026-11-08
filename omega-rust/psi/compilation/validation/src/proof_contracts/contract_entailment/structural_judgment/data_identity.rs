@@ -7,7 +7,7 @@ use super::{ExpressionHandle, StructuralJudge, StructuralJudgment, StructuralTer
 
 // One finite allowance covers normalization and search through established
 // identity views. Depth, admission and fail-closed checks remain independent.
-const IDENTITY_QUERY_WORK_LIMIT: usize = 4096;
+const IDENTITY_QUERY_WORK_LIMIT: usize = 8192;
 
 #[derive(Clone, Copy)]
 enum IdentityCorrespondence {
