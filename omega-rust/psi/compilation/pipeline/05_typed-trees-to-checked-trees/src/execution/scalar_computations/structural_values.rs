@@ -568,8 +568,8 @@ impl Builder<'_, '_> {
         expected: TypeReferenceHandle,
     ) -> Option<ValueHandle> {
         // Normalization can share an evaluated operand with a later projection.
-        // Preserve that occurrence's value identity, not another producer for
-        // the same source. Different authored handles never share this root.
+        // Preserve that occurrence's value identity. A saved subject below
+        // authenticates its separate lexical name against that same producer.
         if let Some(root) = self.structural_values.root_for_expression(
             self.state,
             u32::try_from(self.statement_index).ok()?,
@@ -579,6 +579,37 @@ impl Builder<'_, '_> {
                 && self.program.normalized_type_identity(root.type_reference)
                     == self.program.normalized_type_identity(expected))
             .then_some(root.root);
+        }
+        if let ExpressionNode::SavedSubject(saved) =
+            self.program.expression_table.expression(expression)
+            && self
+                .program
+                .expression_table
+                .contains_value_capture(saved.capture)
+            && !self.uses_captured_dispatch_value(expression)
+            && let Some(receiver) = self
+                .dispatch_receivers
+                .get(&{
+                    let anchor = self
+                        .program
+                        .expression_table
+                        .value_capture(saved.capture)
+                        .value_anchor;
+                    (anchor.arena_index(), anchor.generation())
+                })
+                .copied()
+            && receiver.value.is_valid()
+            && self
+                .program
+                .normalized_type_identity(receiver.type_reference)
+                == self.program.normalized_type_identity(expected)
+        {
+            self.saved_subject_anchor(saved, expected)?;
+            // This match already saved the value. Reuse its exact producer
+            // when a later borrow selects a field. The saved name creates
+            // neither another value home nor another cleanup obligation.
+            self.retained_argument_owner(receiver.value, expected)?;
+            return Some(receiver.value);
         }
         if let ExpressionNode::Call(call) = self.program.expression_table.expression(expression)
             && call.quotient_operation.is_some()

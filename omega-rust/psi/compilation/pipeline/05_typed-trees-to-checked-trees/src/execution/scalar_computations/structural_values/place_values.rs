@@ -395,6 +395,30 @@ impl Builder<'_, '_> {
         })
     }
 
+    /// Authenticate a saved subject's original carrier and capture identity.
+    /// This query supplies no executable source edge or permission to replay it.
+    pub(super) fn saved_subject_anchor(
+        &self,
+        saved: &typed_trees::expression::TableSavedSubject,
+        expected: TypeReferenceHandle,
+    ) -> Option<ExpressionHandle> {
+        let source = self.program.saved_value_source(saved)?;
+        let machine = self.program.machine_by_symbol(self.machine)?;
+        let state = self.program.state_in_machine(machine, self.state)?;
+        let actual = expression_result_type_reference(self.program, machine, state, source)?;
+        if self.program.normalized_type_identity(actual)
+            != self.program.normalized_type_identity(expected)
+        {
+            return None;
+        }
+        Some(
+            self.program
+                .expression_table
+                .value_capture(saved.capture)
+                .value_anchor,
+        )
+    }
+
     pub(super) fn owned_structural_place(
         &self,
         expression: ExpressionHandle,
@@ -403,20 +427,7 @@ impl Builder<'_, '_> {
         if let ExpressionNode::SavedSubject(saved) =
             self.program.expression_table.expression(expression)
         {
-            let source = self.program.saved_value_source(saved)?;
-            let machine = self.program.machine_by_symbol(self.machine)?;
-            let state = self.program.state_in_machine(machine, self.state)?;
-            let actual = expression_result_type_reference(self.program, machine, state, source)?;
-            if self.program.normalized_type_identity(actual)
-                != self.program.normalized_type_identity(expected)
-            {
-                return None;
-            }
-            let anchor = self
-                .program
-                .expression_table
-                .value_capture(saved.capture)
-                .value_anchor;
+            let anchor = self.saved_subject_anchor(saved, expected)?;
             return Some(ArgumentPlan {
                 source: SourcePlan::StructuralExpression {
                     value_dependency: None,
