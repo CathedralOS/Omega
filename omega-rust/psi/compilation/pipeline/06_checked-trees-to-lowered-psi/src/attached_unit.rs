@@ -16066,24 +16066,33 @@ pub(crate) mod inner {
                 declarations: &[terminal_psi::StructuralTypeDeclaration],
             ) -> Result<(ViewRangeSource, Option<CollectionView>), LoweringError> {
                 let (_, authored) = crate::shared::declarations::state_declaration(checked, state)?;
-                let argument = &self.source;
-                let source = bindings
-                    .borrowed_structural_home(argument, checked.state_parameters(authored))?;
-                let root = bindings.structural_argument_type(&source).ok_or(
-                    LoweringError::Unsupported("range source lost its published storage type"),
+                let resolved = bindings.resolve_borrowed_argument(
+                    checked,
+                    &self.source,
+                    checked.state_parameters(authored),
                 )?;
+                let argument = &resolved.argument;
+                let source = &resolved.source;
+                let root =
+                    bindings
+                        .structural_argument_type(source)
+                        .ok_or(LoweringError::Unsupported(
+                            "range source lost its published storage type",
+                        ))?;
                 let mut prepared = prepare_projection_path(
                     identities,
                     checked,
                     &argument.path,
                     crate::expression_preparation::bindings::structural_paths::ProjectionRoot::Borrowed {
                         published: root,
-                        logical: argument.subslice_root_type_identity().ok_or(
+                        logical: resolved.root_type_identity
+                            .or_else(|| self.source.subslice_root_type_identity())
+                            .ok_or(
                             LoweringError::Unsupported("range source lost its logical root"),
                         )?,
                         spelled_reference_hops: 0,
                     },
-                    argument
+                    self.source
                         .subslice_storage_type_identity()
                         .ok_or(LoweringError::Unsupported(
                             "range source lost its collection declaration",
@@ -16097,9 +16106,11 @@ pub(crate) mod inner {
                     &checked.facts.values.scalar_computations.operands,
                     &mut prepared,
                 )?;
+                resolved.retain_captured_coordinates(&mut prepared)?;
                 let path = source
                     .path
-                    .into_iter()
+                    .iter()
+                    .cloned()
                     .map(LoweredElementPathSegment::Static)
                     .chain(collection_path(
                         identities,
@@ -16153,7 +16164,21 @@ pub(crate) mod inner {
             let mut runtime_indices = 0;
             let mut dynamic_extent = false;
             path.into_iter()
-                .map(|segment| match segment {
+                .map(|segment| {
+                    if matches!(
+                        &segment,
+                        PreparedStructuralPathSegment::RuntimeIndex(_)
+                            | PreparedStructuralPathSegment::CapturedIndex(_)
+                    ) {
+                        dynamic_extent = false;
+                        runtime_indices += 1;
+                        if runtime_indices > TERMINAL_NESTED_SELECTOR_LIMIT {
+                            return unsupported(
+                                "collection view exceeds the runtime selector namespace",
+                            );
+                        }
+                    }
+                    match segment {
                     PreparedStructuralPathSegment::Static(segment) => {
                         if dynamic_extent
                             && let terminal_psi::StructuralPathSegment::FixedIndex(index) = segment
@@ -16185,18 +16210,24 @@ pub(crate) mod inner {
                         Ok(LoweredElementPathSegment::ViewExtent { source, bytes })
                     }
                     PreparedStructuralPathSegment::ComputedIndex(_)
-                    | PreparedStructuralPathSegment::EvaluatedFixedIndex { .. }
-                    | PreparedStructuralPathSegment::CapturedIndex(_) => {
+                    | PreparedStructuralPathSegment::EvaluatedFixedIndex { .. } => {
                         unsupported("computed view selector requires its owning operand evaluation")
                     }
+                    PreparedStructuralPathSegment::CapturedIndex(place) => {
+                        Ok(LoweredElementPathSegment::RuntimeIndex {
+                            selector: LoweredDirectExpression::PrimitiveRead {
+                                qualifications: Default::default(),
+                                source: crate::emission::operation_emission::expressions::PrimitiveReadSource::Place(place),
+                                path: Vec::new(),
+                                scalar_type: terminal_scalar_type(
+                                    checked_trees::types::PrimitiveType::U64,
+                                )?,
+                            },
+                            extent: None,
+                            bound_decided: false,
+                        })
+                    }
                     PreparedStructuralPathSegment::RuntimeIndex(index) => {
-                        dynamic_extent = false;
-                        runtime_indices += 1;
-                        if runtime_indices > TERMINAL_NESTED_SELECTOR_LIMIT {
-                            return unsupported(
-                                "collection view exceeds the runtime selector namespace",
-                            );
-                        }
                         let selector = match index {
                             checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => {
                                 bindings.runtime_index_storage(symbol)?
@@ -16221,6 +16252,7 @@ pub(crate) mod inner {
                             extent: None,
                             bound_decided: false,
                         })
+                    }
                     }
                 })
                 .collect()
