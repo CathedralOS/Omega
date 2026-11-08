@@ -50622,6 +50622,23 @@ pub(crate) mod structural_judgment {
                     );
                     return;
                 }
+                let logical_premise = match (&left, &right) {
+                    (StructuralTerm::LogicalNot { .. }, truth)
+                        if truth.boolean_value().is_some() =>
+                    {
+                        Some((left.clone(), right.clone()))
+                    }
+                    (truth, StructuralTerm::LogicalNot { .. })
+                        if truth.boolean_value().is_some() =>
+                    {
+                        Some((right.clone(), left.clone()))
+                    }
+                    _ => None,
+                };
+                if let Some(premise) = logical_premise {
+                    Arc::make_mut(&mut self.rewrites).push_logical_predicate(premise);
+                    return;
+                }
                 if let Some((operand, truth)) = self
                     .boolean_equality_operand(&left, &right)
                     .or_else(|| self.boolean_equality_operand(&right, &left))
@@ -50682,7 +50699,6 @@ pub(crate) mod structural_judgment {
                         | StructuralTerm::BoundProjection { .. }
                         | StructuralTerm::IndexedValue { .. }
                         | StructuralTerm::MathematicalBinary { .. }
-                        | StructuralTerm::LogicalNot { .. }
                         | StructuralTerm::IntegerEmbedding { .. }
                         | StructuralTerm::ScalarRepresentation { .. }
                         | StructuralTerm::ScalarBinary { .. },
@@ -50701,7 +50717,6 @@ pub(crate) mod structural_judgment {
                         | StructuralTerm::BoundProjection { .. }
                         | StructuralTerm::IndexedValue { .. }
                         | StructuralTerm::MathematicalBinary { .. }
-                        | StructuralTerm::LogicalNot { .. }
                         | StructuralTerm::IntegerEmbedding { .. }
                         | StructuralTerm::ScalarRepresentation { .. }
                         | StructuralTerm::ScalarBinary { .. },
@@ -66306,6 +66321,12 @@ pub(crate) mod structural_judgment {
                 };
                 assert_eq!(predicate(1), predicate(2));
                 assert!(!predicate(1).same_resolution_payload(&predicate(2)));
+                let mut premises = super::super::rewrite_table::RewriteTable::default();
+                premises.push_logical_predicate((predicate(1), StructuralTerm::boolean(true)));
+                assert!(premises.find(&predicate(1)).is_some());
+                assert!(premises.find(&predicate(2)).is_none());
+                assert_eq!(premises.iter().count(), 0);
+                assert_eq!(premises.value_identities().count(), 0);
                 let changed = StructuralJudge::substitute_term(
                     &predicate(1),
                     &[(
@@ -76680,6 +76701,7 @@ pub(crate) mod structural_judgment {
         enum RewriteMeaning {
             ScalarEquation,
             ValueIdentity,
+            LogicalPredicate,
         }
 
         #[derive(Clone, Debug, Default)]
@@ -76793,6 +76815,15 @@ pub(crate) mod structural_judgment {
                 self.register(entry, RewriteMeaning::ValueIdentity);
             }
 
+            /// A logical premise retains exact observation authority. Its truth
+            /// is neither a scalar equation nor a value identity for substitution.
+            pub(crate) fn push_logical_predicate(
+                &mut self,
+                entry: (StructuralTerm, StructuralTerm),
+            ) {
+                self.register(entry, RewriteMeaning::LogicalPredicate);
+            }
+
             fn register(
                 &mut self,
                 entry: (StructuralTerm, StructuralTerm),
@@ -76862,7 +76893,9 @@ pub(crate) mod structural_judgment {
                     let entry = &self.entries[index as usize];
                     let matches = match self.meanings[index as usize] {
                         RewriteMeaning::ScalarEquation => entry.0 == *term,
-                        RewriteMeaning::ValueIdentity => entry.0.same_resolution_payload(term),
+                        RewriteMeaning::ValueIdentity | RewriteMeaning::LogicalPredicate => {
+                            entry.0.same_resolution_payload(term)
+                        }
                     };
                     if matches {
                         return Some(entry);
