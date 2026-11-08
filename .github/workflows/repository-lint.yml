@@ -1,10 +1,17 @@
 name: Repository lint
 
 # RC-REPOSITORY's full lint command covers every workspace crate, test and
-# example. It is too slow for the required admission check, which lints only
-# the `omega` crate graph, so it runs after merge and nightly to catch lint
-# debt in test and example targets. A red run is main's regression to repair.
+# example; `compiler-check` lints only the `omega` crate graph. This job runs
+# only after merge, so on 2026-11-07 main went red for a day: about 40
+# errors in tests, examples and sample drivers landed behind it. It now also
+# runs on pull requests and in the merge queue, so `workspace-clippy` can be a
+# required check. A warm run takes about 5 minutes.
 on:
+  pull_request:
+    branches: [main]
+  merge_group:
+    branches: [main]
+    types: [checks_requested]
   push:
     branches: [main]
   schedule:
@@ -15,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: repository-lint-${{ github.ref }}
+  group: repository-lint-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
