@@ -163,21 +163,6 @@ pub(crate) fn check_law_conformance(
         application,
         requirement,
     );
-    equality_conjuncts::trace_law_source(
-        program,
-        machine.symbol,
-        "setup",
-        &[],
-        format_args!(
-            "correspondence={} requirement={:?} parameters={} proven_conjuncts={} laws={} substitutions={}",
-            correspondence.is_some(),
-            requirement.symbol,
-            requirement_parameters.len(),
-            proven_conjuncts.len(),
-            law_conjuncts.len(),
-            application.substitutions.len()
-        ),
-    );
     let positional_bindings = requirement_parameters
         .iter()
         .zip(&satisfier_parameters)

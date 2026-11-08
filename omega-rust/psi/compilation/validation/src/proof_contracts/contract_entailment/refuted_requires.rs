@@ -479,15 +479,6 @@ fn fresh_instantiated_fact_judgment(
         .call_node(fact)
         .is_some_and(|call| crate::mathematical_applications::is_mathematical_call(program, call))
     {
-        if judge.le_case_trace_enabled() {
-            let types = type_map.iter().take(8).collect::<Vec<_>>();
-            let machines = machine_map
-                .iter()
-                .take(8)
-                .map(|(formal, result, actual)| (*formal, *result, actual.symbol))
-                .collect::<Vec<_>>();
-            judge.trace_le_case("call-bindings", &[], format_args!("callee={callee_owner:?} fact={fact:?} value_bindings={} types={types:?} machines={machines:?}", map.len()));
-        }
         return judge.instantiated_mathematical_predicate(
             callee_owner,
             callee_parameters,

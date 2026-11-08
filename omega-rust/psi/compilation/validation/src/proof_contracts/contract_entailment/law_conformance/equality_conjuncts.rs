@@ -114,155 +114,6 @@ struct SourceVisit {
 
 const MAX_SOURCE_MATCH_WORK: usize = 4096;
 
-pub(super) fn trace_law_source(
-    program: &dyn crate::CheckingInput,
-    provider: SymbolHandle,
-    stage: &str,
-    expressions: &[ExpressionHandle],
-    detail: std::fmt::Arguments<'_>,
-) {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    static EVENTS: [AtomicUsize; 4] = [const { AtomicUsize::new(0) }; 4];
-    if std::env::var_os("OMEGA_LE_CASE_TRACE").is_none() {
-        return;
-    }
-    let Some(machine) = program.machine_by_symbol(provider) else {
-        return;
-    };
-    if !machine.name.as_str().starts_with("FirstAgreement::")
-        && !machine.name.as_str().starts_with("SecondAgreement::")
-    {
-        return;
-    }
-    let index = match stage {
-        "setup" => 0,
-        "carrier" => 1,
-        "values" => 2,
-        _ => 3,
-    };
-    let event = EVENTS[index].fetch_add(1, Ordering::Relaxed);
-    if event >= 16 {
-        return;
-    }
-    eprintln!(
-        "IDLAW owner={} stage={stage} event={event} {detail}",
-        machine.name
-    );
-    for expression in expressions.iter().take(2) {
-        let mut pending = vec![(*expression, 0usize)];
-        let mut count = 0;
-        while let Some((expression, depth)) = pending.pop() {
-            if count >= 8 || depth >= 3 || !program.expression_table.expression_is_valid(expression)
-            {
-                continue;
-            }
-            count += 1;
-            match program.expression_table.expression(expression) {
-                typed_trees::expression::ExpressionNode::Call(call) => {
-                    let static_arguments = call
-                        .machine_arguments
-                        .iter()
-                        .take(4)
-                        .map(|a| (a.symbol, a.type_reference, a.application.is_some()))
-                        .collect::<Vec<_>>();
-                    eprintln!(
-                        "IDLAW node={expression:?} depth={depth} call target={:?} parameter={:?} dispatch={:?} requirement={:?} coercion={:?} receiver={:?} static={static_arguments:?}",
-                        call.target_symbol,
-                        call.static_machine_parameter,
-                        call.static_requirement_dispatch,
-                        call.requirement_application,
-                        call.exact_coercion_target,
-                        call.receiver
-                    );
-                    for (slot, application) in
-                        typed_trees::references::StaticArgumentCall::Expression(expression, call)
-                            .applications()
-                            .enumerate()
-                    {
-                        let bindings = crate::frozen_program::expression_table(program)
-                            .static_machine_application_bindings(application)
-                            .iter()
-                            .take(4)
-                            .map(|binding| {
-                                use typed_trees::static_applications::StaticMachineBindingValue;
-                                let value = match &binding.value {
-                                    StaticMachineBindingValue::Type(reference) => {
-                                        (0, SymbolHandle::invalid(), *reference, false)
-                                    }
-                                    StaticMachineBindingValue::Const(reference) => {
-                                        (1, SymbolHandle::invalid(), *reference, false)
-                                    }
-                                    StaticMachineBindingValue::RuntimeValue {
-                                        type_reference,
-                                        ..
-                                    } => (2, SymbolHandle::invalid(), *type_reference, false),
-                                    StaticMachineBindingValue::Machine(argument) => (
-                                        3,
-                                        argument.symbol,
-                                        argument.type_reference,
-                                        argument.application.is_some(),
-                                    ),
-                                    StaticMachineBindingValue::Conformance(argument) => (
-                                        4,
-                                        argument.symbol,
-                                        argument.type_reference,
-                                        argument.application.is_some(),
-                                    ),
-                                };
-                                (binding.parameter, value)
-                            })
-                            .collect::<Vec<_>>();
-                        eprintln!(
-                            "IDLAW slot={slot} lifetime_owner={:?} bindings={bindings:?}",
-                            crate::frozen_program::expression_table(program)
-                                .static_machine_application(application)
-                                .lifetime_binding_declaration
-                        );
-                    }
-                    pending.extend(
-                        program
-                            .expression_table
-                            .expression_handles(call.arguments)
-                            .iter()
-                            .take(2)
-                            .rev()
-                            .map(|argument| (*argument, depth + 1)),
-                    );
-                }
-                typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
-                    let fields = program.expression_table.struct_fields(literal.fields);
-                    eprintln!(
-                        "IDLAW node={expression:?} depth={depth} constructor type={:?} application={:?} case={:?} fields={:?}",
-                        literal.type_symbol,
-                        literal.application_type,
-                        literal.case_symbol,
-                        fields
-                            .iter()
-                            .take(4)
-                            .map(|field| (field.field_symbol, field.value))
-                            .collect::<Vec<_>>()
-                    );
-                    pending.extend(
-                        fields
-                            .iter()
-                            .take(2)
-                            .rev()
-                            .map(|field| (field.value, depth + 1)),
-                    );
-                }
-                typed_trees::expression::ExpressionNode::Name(path) => eprintln!(
-                    "IDLAW node={expression:?} depth={depth} name symbol={:?} head={:?}",
-                    path.symbol, path.head_symbol
-                ),
-                node => eprintln!(
-                    "IDLAW node={expression:?} depth={depth} kind={:?}",
-                    std::mem::discriminant(node)
-                ),
-            }
-        }
-    }
-}
-
 impl SourceCorrespondence {
     /// Match statements under complete positional binders. Identity may reverse
     /// endpoints; a selected comparison remains that exact Boolean expression.
@@ -287,16 +138,9 @@ impl SourceCorrespondence {
                         ..TypeIdentityRequest::ordinary(reference)
                     })
                 };
-                let required_carrier = carrier(required_identity.carrier, required_binders);
-                let provided_carrier = carrier(provided_identity.carrier, provided_binders);
-                if required_carrier != provided_carrier {
-                    trace_law_source(
-                        program,
-                        provided.owner,
-                        "carrier",
-                        &[required.expression, provided.expression],
-                        format_args!("required={required_carrier:?} provided={provided_carrier:?}"),
-                    );
+                if carrier(required_identity.carrier, required_binders)
+                    != carrier(provided_identity.carrier, provided_binders)
+                {
                     return false;
                 }
                 (self.matching_values(
@@ -467,7 +311,7 @@ impl SourceCorrespondence {
             self.canonical_source_value(program, required, required_expression, required_binders);
         let provided_key =
             self.canonical_source_value(program, provided, provided_expression, provided_binders);
-        let payloads_match = self.matching_operation_payloads(
+        if !self.matching_operation_payloads(
             program,
             required,
             required_expression,
@@ -475,40 +319,11 @@ impl SourceCorrespondence {
             provided,
             provided_expression,
             provided_binders,
-        );
-        if !payloads_match {
-            trace_law_source(
-                program,
-                provided.0,
-                "payload",
-                &[required_expression, provided_expression],
-                format_args!(
-                    "required_key={:?} provided_key={:?}",
-                    required_key
-                        .as_ref()
-                        .map(|key| key.chars().take(1024).collect::<String>()),
-                    provided_key
-                        .as_ref()
-                        .map(|key| key.chars().take(1024).collect::<String>())
-                ),
-            );
+        ) {
             return false;
         }
-        if let (Some(required_key), Some(provided_key)) = (required_key, provided_key) {
-            if required_key != provided_key {
-                trace_law_source(
-                    program,
-                    provided.0,
-                    "values",
-                    &[required_expression, provided_expression],
-                    format_args!(
-                        "required_key={:?} provided_key={:?}",
-                        required_key.chars().take(1024).collect::<String>(),
-                        provided_key.chars().take(1024).collect::<String>()
-                    ),
-                );
-            }
-            return required_key == provided_key;
+        if let (Some(required), Some(provided)) = (required_key, provided_key) {
+            return required == provided;
         }
         let term = |statement: (SymbolHandle, &[StateParameter]), expression| {
             super::super::structural_term(

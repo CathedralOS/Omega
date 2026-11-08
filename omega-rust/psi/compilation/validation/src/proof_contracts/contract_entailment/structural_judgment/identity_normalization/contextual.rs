@@ -26,19 +26,12 @@ impl StructuralJudge<'_> {
             return Ok(value);
         }
         loop {
-            substitutions.work.context_passes += 1;
             let Some((path, next)) =
                 self.identity_context_change(&value, depth, remaining, substitutions)?
             else {
                 return Ok(value);
             };
-            let next = Self::replace_identity_context(
-                value.clone(),
-                &path,
-                next,
-                remaining,
-                substitutions,
-            )?;
+            let next = Self::replace_identity_context(value.clone(), &path, next, remaining)?;
             if next.same_resolution_payload(&value) {
                 return Ok(value);
             }
@@ -55,19 +48,8 @@ impl StructuralJudge<'_> {
         remaining: &mut usize,
         substitutions: &mut IdentitySubstitutions<'_>,
     ) -> Result<Option<(Vec<usize>, StructuralTerm)>, &'static str> {
-        let step = self
-            .identity_context_step(value, depth, remaining, substitutions)
-            .inspect_err(|reason| {
-                self.trace_le_case(
-                    "context-refusal",
-                    &[("value", value)],
-                    format_args!("path=[] depth={depth} remaining={remaining} reason={reason}"),
-                );
-            })?;
+        let step = self.identity_context_step(value, depth, remaining, substitutions)?;
         if let Some(next) = step.changed {
-            substitutions
-                .work
-                .retain_change(self, &[], value, &next, depth, *remaining);
             return Ok(Some((Vec::new(), next)));
         }
         let mut pending = VecDeque::new();
@@ -77,25 +59,14 @@ impl StructuralJudge<'_> {
         // Queue parents rather than every unvisited child. A wide value does
         // not allocate a queue beyond the nodes actually admitted for descent.
         while let Some((parent, path, parent_depth)) = pending.pop_front() {
-            substitutions.work.max_queued_parents =
-                substitutions.work.max_queued_parents.max(pending.len() + 1);
             let mut index = 0;
             while let Some(child) = Self::identity_context_child(parent, index) {
-                let step = self.identity_context_step(child, parent_depth + 1, remaining, substitutions).inspect_err(|reason| {
-                    self.trace_le_case("context-refusal", &[("value", child)], format_args!("parent_path={path:?} child={index} depth={} remaining={remaining} reason={reason}", parent_depth + 1));
-                })?;
+                let step =
+                    self.identity_context_step(child, parent_depth + 1, remaining, substitutions)?;
                 if step.changed.is_some() || step.descend {
                     let mut child_path = path.clone();
                     child_path.push(index);
                     if let Some(next) = step.changed {
-                        substitutions.work.retain_change(
-                            self,
-                            &child_path,
-                            child,
-                            &next,
-                            parent_depth + 1,
-                            *remaining,
-                        );
                         return Ok(Some((child_path, next)));
                     }
                     pending.push_back((child, child_path, parent_depth + 1));
@@ -113,16 +84,12 @@ impl StructuralJudge<'_> {
         remaining: &mut usize,
         substitutions: &mut IdentitySubstitutions<'_>,
     ) -> Result<ContextStep, &'static str> {
-        substitutions.work.context_visits += 1;
-        substitutions.work.max_node_depth = substitutions.work.max_node_depth.max(depth);
-        substitutions.work.last_stage = "context node";
         if depth >= 32 {
             return Err("the contextual Id substitution exceeds the query depth bound");
         }
         spend_component_work(remaining)?;
         if let Some(observed) = self.identity_content_observation(value) {
             let changed = !observed.same_resolution_payload(value);
-            substitutions.work.observation_changes += usize::from(changed);
             return Ok(ContextStep {
                 changed: changed.then_some(observed),
                 descend: false,
@@ -141,28 +108,20 @@ impl StructuralJudge<'_> {
                 .unwrap_or(substitutions.rows[component].values[1]);
             // Preserve an equivalent owned view rather than alternating it
             // with the raw endpoint retained by the evidence producer.
-            substitutions.work.view_matches += 1;
-            substitutions.work.last_stage = "owned view correspondence";
-            let before = *remaining;
-            let verdict = self.identity_representation_correspondence(
-                value.clone(),
-                target.clone(),
-                depth + 1,
-                remaining,
-            );
-            let spent = before - *remaining;
-            substitutions.work.view_work += spent;
-            if *remaining == 0 {
-                self.trace_le_case("context-refusal", &[("value", value), ("target", target)], format_args!("depth={depth} spent={spent} remaining={remaining} verdict={verdict:?} stage=owned-view"));
-            }
-            if !matches!(verdict, StructuralJudgment::Proven) {
-                substitutions.work.raw_changes += 1;
+            if !matches!(
+                self.identity_representation_correspondence(
+                    value.clone(),
+                    target.clone(),
+                    depth + 1,
+                    remaining,
+                ),
+                StructuralJudgment::Proven
+            ) {
                 return Ok(ContextStep {
                     changed: Some(target.clone()),
                     descend: false,
                 });
             }
-            substitutions.work.preserved_views += 1;
         }
         let prepared = match value {
             StructuralTerm::Application { .. } => {
@@ -216,7 +175,6 @@ impl StructuralJudge<'_> {
             }
         };
         let changed = !prepared.same_resolution_payload(value);
-        substitutions.work.observation_changes += usize::from(changed);
         Ok(ContextStep {
             changed: changed.then_some(prepared),
             descend: !changed,
@@ -237,13 +195,10 @@ impl StructuralJudge<'_> {
         path: &[usize],
         replacement: StructuralTerm,
         remaining: &mut usize,
-        substitutions: &mut IdentitySubstitutions<'_>,
     ) -> Result<StructuralTerm, &'static str> {
         let Some((&selected, rest)) = path.split_first() else {
             return Ok(replacement);
         };
-        substitutions.work.rebuild_visits += 1;
-        substitutions.work.last_stage = "context rebuild";
         spend_component_work(remaining)?;
         let mut replacement = Some(replacement);
         let mut index = 0;
@@ -256,8 +211,7 @@ impl StructuralJudge<'_> {
             let next = replacement
                 .take()
                 .ok_or("the contextual Id path repeats a selected child")?;
-            Self::replace_identity_context(child.clone(), rest, next, remaining, substitutions)
-                .map(Some)
+            Self::replace_identity_context(child.clone(), rest, next, remaining).map(Some)
         })?;
         if replacement.is_some() {
             return Err("the contextual Id path no longer names its observed child");

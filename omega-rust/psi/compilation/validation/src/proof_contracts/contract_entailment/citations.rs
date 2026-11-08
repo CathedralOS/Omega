@@ -746,18 +746,6 @@ pub(crate) fn instantiate_citation(
     if let Some(judge) = judge {
         for fact in &requires_facts {
             if !instantiated_fact_established(program, judge, scope, parameters, *fact, &map) {
-                if judge.le_case_trace_enabled() {
-                    let labels = ["argument-0", "argument-1", "argument-2"];
-                    let actuals = labels
-                        .into_iter()
-                        .zip(argument_terms.iter())
-                        .collect::<Vec<_>>();
-                    judge.trace_le_case(
-                        "citation-failure",
-                        &actuals,
-                        format_args!("callee={callee_name} target={:?} fact={fact:?} scope={scope:?} allow_self_induction={allow_self_induction}", target.symbol),
-                    );
-                }
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` cites `{}`, but the callee's requires fact \
                      `{}` is not established at this citation site under the \
@@ -859,24 +847,10 @@ pub(crate) fn instantiated_fact_established(
     let Some(predicate) = super::structural_terms::structural_predicate_for_parameters(
         program, scope, parameters, fact,
     ) else {
-        judge.trace_le_case(
-            "predicate-formation",
-            &[],
-            format_args!("scope={scope:?} fact={fact:?}"),
-        );
         return false;
     };
-    let instantiated = StructuralJudge::substitute_term(&predicate, map);
-    let diagnostic = judge.le_case_trace_enabled().then(|| instantiated.clone());
-    let verdict = judge.judge_observed_predicate(instantiated, 0);
-    if !matches!(verdict, StructuralJudgment::Proven)
-        && let Some(predicate) = diagnostic
-    {
-        judge.trace_le_case(
-            "instantiated-fact",
-            &[("predicate", &predicate)],
-            format_args!("scope={scope:?} fact={fact:?} verdict={verdict:?}"),
-        );
-    }
-    matches!(verdict, StructuralJudgment::Proven)
+    matches!(
+        judge.judge_observed_predicate(StructuralJudge::substitute_term(&predicate, map), 0),
+        StructuralJudgment::Proven
+    )
 }
