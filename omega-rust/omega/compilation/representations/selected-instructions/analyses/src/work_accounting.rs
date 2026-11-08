@@ -1,24 +1,16 @@
-//! Optimizer module role: shared bounded-work accounting.
-//!
-//! Every bounded pass in this stage charges its visitors into one logical
-//! [`OptimizationWorkUsage`] receipt and admits the exact total against the
-//! selected budget. The checked arithmetic, the exact refusal and the budget
-//! admission live here once; a pass only names the axis and amount each
-//! visitor charges, started from its own explicit initial receipt.
-//!
-//! Overflow and budget exhaustion are deterministic refusals, never permission
-//! to publish a partial candidate. Admission happens where the total becomes
-//! known — the pass that accumulated it — so a receiving seal of freshly
-//! produced output does not replay the same condition.
+/*
+  Bounded optimization work-usage accounting (`WorkDefect`, `charge_step`,
+  `admit_budget`) shared across selected-instruction analyses and rewrites.
+
+  Accumulates visitor step counts into an `OptimizationWorkUsage` receipt and
+  enforces deterministic refusal on arithmetic overflow or budget exhaustion.
+*/
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-/// Why bounded work accounting refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorkDefect {
-    /// A logical counter overflowed `u64`; the receipt can no longer stay exact.
     Overflow,
-    /// The exact total work exceeded the selected budget.
     BudgetExceeded {
         required: OptimizationWorkUsage,
         budget: OptimizationWorkBudget,
@@ -27,14 +19,10 @@ pub enum WorkDefect {
 
 failed_display!(WorkDefect, "bounded work accounting refused");
 
-/// Convert one `usize` visit count into its exact chargeable amount.
 pub(crate) fn count(value: usize) -> Result<u64, WorkDefect> {
     u64::try_from(value).map_err(|_| WorkDefect::Overflow)
 }
 
-/// Sum two exact receipts axis by axis. The checked addition and its overflow
-/// refusal live here, so a custody family that combines a carried receipt with
-/// a fresh one names only its own error kind at the call site.
 pub fn combine(
     left: OptimizationWorkUsage,
     right: OptimizationWorkUsage,
@@ -48,15 +36,10 @@ pub fn combine(
     })
 }
 
-/// Sum one axis pair exactly; the overflow refusal stays the owner's.
 fn checked(left: u64, right: u64) -> Result<u64, WorkDefect> {
     left.checked_add(right).ok_or(WorkDefect::Overflow)
 }
 
-/// Admit an already-accumulated receipt against the pass's budget: `refused`
-/// names the family's own over-budget refusal, which receives the exact
-/// requirement and budget the comparison rejected. A pass that names its
-/// refusal here does not restate the comparison or the payload it carries.
 pub fn admit<E>(
     usage: OptimizationWorkUsage,
     budget: OptimizationWorkBudget,
@@ -69,15 +52,11 @@ pub fn admit<E>(
     }
 }
 
-/// One bounded pass's receipt under construction.
 pub(crate) struct Work {
     usage: OptimizationWorkUsage,
 }
 
 impl Work {
-    /// Start from the pass's exact initial receipt. Every pass names its own
-    /// starting totals rather than inheriting a default, so an initial charge
-    /// is never implicit.
     pub const fn new(initial: OptimizationWorkUsage) -> Self {
         Self { usage: initial }
     }
@@ -102,7 +81,6 @@ impl Work {
         add(&mut self.usage.iterations, amount)
     }
 
-    /// Admit the exact accumulated receipt against the pass's budget.
     pub(crate) fn finish(
         self,
         budget: OptimizationWorkBudget,
