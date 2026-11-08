@@ -294,11 +294,30 @@ pub(crate) fn capture_source(
         // The value owner must establish this producer before lending it.
         // Its captured path and storage interpretation are otherwise the same
         // as a named home's; source spelling does not select another planner.
-        facts::PlaceRoot::Expression(expression) => SourcePlan::StructuralExpression {
-            value_dependency: None,
-            expression,
-            logical_root_type_identity: None,
-        },
+        facts::PlaceRoot::Expression(expression) => {
+            // An alias can name existing storage without publishing a value.
+            // Retain its checked root type with the projection. Root reference
+            // shells keep their separate stored-descriptor namespace.
+            let logical_root_type_identity = validation::canonical_place_type_reference(
+                program,
+                state.symbol,
+                statement_index,
+                &validation::CanonicalPlace {
+                    root: place.root,
+                    segments: Vec::new(),
+                },
+            )
+            .filter(|reference| validation::reference_shell(program, *reference).is_none())
+            .map(|reference| {
+                validation::stored_structural_type_identity(program, reference, &[], &[])
+            })
+            .filter(|identity| identity.is_valid());
+            SourcePlan::StructuralExpression {
+                value_dependency: None,
+                expression,
+                logical_root_type_identity,
+            }
+        }
         facts::PlaceRoot::Symbol(root) => {
             if let Some(parameter) = program.state_parameter_by_symbol(state, root) {
                 if parameter.is_const || parameter.relevance.is_erased() {
