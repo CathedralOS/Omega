@@ -105,7 +105,54 @@ impl StructuralJudge<'_> {
         right: StructuralTerm,
         depth: usize,
     ) -> StructuralJudgment {
-        self.judge_identity_with_budget(left, right, depth, &mut 1024)
+        let diagnostic = self
+            .le_case_trace_enabled()
+            .then(|| (left.clone(), right.clone()));
+        let mut remaining = 1024;
+        let result = self.judge_identity_with_budget(left, right, depth, &mut remaining);
+        if matches!(result, StructuralJudgment::Unknown)
+            && let Some((left, right)) = diagnostic
+            && self.trace_le_case(
+                "query",
+                &[("left", &left), ("right", &right)],
+                format_args!("depth={depth} remaining={remaining} verdict={result:?}"),
+            )
+        {
+            let typed_count = self
+                .captured_result_equations
+                .iter()
+                .filter(|row| row.is_data_identity())
+                .count();
+            for (index, row) in self
+                .captured_result_equations
+                .iter()
+                .filter(|row| row.is_data_identity())
+                .enumerate()
+                .take(48)
+            {
+                self.trace_le_case(
+                    "typed-row",
+                    &[("left", &row.left), ("right", &row.right)],
+                    format_args!("row={index} total={typed_count}"),
+                );
+            }
+            let directed_count = self.rewrites.value_identities().count();
+            for (index, (left, right)) in self.rewrites.value_identities().enumerate().take(48) {
+                self.trace_le_case(
+                    "directed-row",
+                    &[("left", left), ("right", right)],
+                    format_args!("row={index} total={directed_count}"),
+                );
+            }
+        }
+        if matches!(result, StructuralJudgment::Unknown) {
+            self.trace_le_case(
+                "result",
+                &[],
+                format_args!("depth={depth} remaining={remaining} verdict={result:?}"),
+            );
+        }
+        result
     }
 
     fn judge_identity_with_budget(
@@ -125,7 +172,20 @@ impl StructuralJudge<'_> {
         }
         let left = self.resolve_at(left, depth + 1);
         let right = self.resolve_at(right, depth + 1);
-        if !self.identity_value_is_available(&left) || !self.identity_value_is_available(&right) {
+        if !self.identity_value_is_available(&left) {
+            self.trace_le_case(
+                "admission-error",
+                &[("left", &left)],
+                format_args!("depth={depth} remaining={remaining}"),
+            );
+            return StructuralJudgment::Unknown;
+        }
+        if !self.identity_value_is_available(&right) {
+            self.trace_le_case(
+                "admission-error",
+                &[("right", &right)],
+                format_args!("depth={depth} remaining={remaining}"),
+            );
             return StructuralJudgment::Unknown;
         }
         // Independently checked representations can already settle this Id,
@@ -142,10 +202,23 @@ impl StructuralJudge<'_> {
         ) {
             return StructuralJudgment::Proven;
         }
-        let Ok([left, right]) = self.normalize_identity_values([left, right], depth + 1, remaining)
-        else {
-            return StructuralJudgment::Unknown;
-        };
+        let [left, right] =
+            match self.normalize_identity_values([left, right], depth + 1, remaining) {
+                Ok(values) => values,
+                Err(reason) => {
+                    self.trace_le_case(
+                        "normalization-error",
+                        &[],
+                        format_args!("depth={depth} remaining={remaining} reason={reason}"),
+                    );
+                    return StructuralJudgment::Unknown;
+                }
+            };
+        self.trace_le_case(
+            "normalized-goal",
+            &[("left", &left), ("right", &right)],
+            format_args!("depth={depth} remaining={remaining}"),
+        );
         let direct =
             self.exact_identity_congruence(left.clone(), right.clone(), depth + 1, remaining);
         if !matches!(direct, StructuralJudgment::Unknown) {
