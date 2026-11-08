@@ -336,15 +336,18 @@ impl<'program> StructuralJudge<'program> {
             return false;
         }
         // A local's own initializer establishes it; only a later store or an
-        // unknown write invalidates what was observed of it.
-        let initializer = place
-            .root
-            .as_symbol()
-            .and_then(|symbol| self.local_initializer(at.state, symbol));
+        // unknown write invalidates what was observed of it. Only a reaching
+        // value consults the initializer, so look it up only then.
+        let initializer = std::cell::OnceCell::new();
         let invalidates = |reaching: &crate::completed_storage::StoredOperand| match reaching {
             crate::completed_storage::StoredOperand::Incoming(_) => false,
             crate::completed_storage::StoredOperand::Value { capture, .. } => {
-                initializer != Some(graph.operands.get(*capture).expression)
+                *initializer.get_or_init(|| {
+                    place
+                        .root
+                        .as_symbol()
+                        .and_then(|symbol| self.local_initializer(at.state, symbol))
+                }) != Some(graph.operands.get(*capture).expression)
             }
             _ => true,
         };
