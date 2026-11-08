@@ -229,13 +229,14 @@ mod captured_boolean {
     pub(super) fn judgment(
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
-        state: &FlowStateFact,
+        guarantees: &mut crate::checks::contracts::prover::call_guarantees::StateGuarantees<'_, '_>,
         call: &FlowCallFact,
         contexts: &[facts::FactContextHandle],
         requirement: &Fact,
         frames: Option<&validation::CallFrameResolver<'_>>,
         whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
     ) -> Option<bool> {
+        let state = guarantees.caller();
         let FactPayload::ContractBooleanExpression { expression, .. } = requirement.payload else {
             return None;
         };
@@ -266,7 +267,7 @@ mod captured_boolean {
                 if !captured_contract_proven(
                     program,
                     facts,
-                    state,
+                    guarantees,
                     call,
                     contexts,
                     contract,
@@ -369,7 +370,7 @@ mod captured_boolean {
     fn captured_contract_proven(
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
-        state: &FlowStateFact,
+        guarantees: &mut crate::checks::contracts::prover::call_guarantees::StateGuarantees<'_, '_>,
         call: &FlowCallFact,
         contexts: &[facts::FactContextHandle],
         contract: &checked_trees::ContractProofFact,
@@ -379,6 +380,7 @@ mod captured_boolean {
         frames: Option<&validation::CallFrameResolver<'_>>,
         whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
     ) -> bool {
+        let state = guarantees.caller();
         if let typed_trees::domain::ProofFact::Expression(required) =
             program.proof_facts.get(contract.fact)
         {
@@ -389,7 +391,7 @@ mod captured_boolean {
                 cached
             } else {
                 let result = super::super::prover::call_guarantees::proves(
-                    program, facts, state, call, contexts, *required, frames,
+                    program, facts, guarantees, call, contexts, *required, frames,
                 ) || super::super::current_values::proves_call(
                     program, state, call, *required, frames,
                 ) || super::super::entailment::structural_call_requirement(
@@ -2878,7 +2880,7 @@ struct WholeContractCache {
 pub(super) fn check_call_requires(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    state_flow: &FlowStateFact,
+    guarantees: &mut crate::checks::contracts::prover::call_guarantees::StateGuarantees<'_, '_>,
     call_flow: &FlowCallFact,
     nominal_requirements: &super::nominal_inputs::DeclaredFieldRequirements,
     incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
@@ -2888,6 +2890,7 @@ pub(super) fn check_call_requires(
     value_qualifications: &mut arena::Arena<checked_trees::CheckedValueQualification>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let state_flow = guarantees.caller();
     let entry_contexts: Vec<_> = facts
         .flow
         .state_call_entry_semantic_contexts(
@@ -2948,7 +2951,7 @@ pub(super) fn check_call_requires(
                 let captured_judgment = captured_boolean::judgment(
                     program,
                     facts,
-                    state_flow,
+                    guarantees,
                     call_flow,
                     requirement_contexts,
                     fact,
