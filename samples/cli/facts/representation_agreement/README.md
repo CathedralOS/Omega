@@ -74,35 +74,48 @@ The nine positive programs and nine decoder-only controls are mirrored under
 
 ## Validation
 
-Fresh acceptance requires all nine positive programs to produce their authored
-result in native and Terminal Psi execution on all four hosted targets. All nine
-decoder-only controls must reject for their intended diagnostic. That acceptance
-is still open.
+Linux x86_64 coverage is complete for this fixed-owned agreement row. All nine
+positive places have native and Psi exit 0 observations, and each decoder-only
+twin retains its intended rejection. The evidence combines the new four-place
+batch with applicable retained observations of the unchanged programs:
 
-The canonical-source baseline,
-[run 42327869574](https://github.com/CathedralOS/Omega/actions/runs/42327869574),
-checked the selected-implementation fixture from `f1933b40cf0662fed4051ee75cce33112fb372e7`
-with the optimized producer `9295e6aaf822a8c1afac7aaca1f594937d08a370`. It
-rejected the explicit identity calls during source checking, before either
-engine executed.
+| Places | Native/Psi observation | Actual producer source |
+| --- | --- | --- |
+| Local | [42468771575](https://github.com/CathedralOS/Omega/actions/runs/42468771575) | `089c0a150e63` |
+| Field | [42507062255](https://github.com/CathedralOS/Omega/actions/runs/42507062255) | `6c7cdf842b2d` |
+| Call result, match join, selected implementation | [42475689833](https://github.com/CathedralOS/Omega/actions/runs/42475689833) | `26c39d0e6335` |
+| Parameter, constant, nested machine, other machine | [42510516060](https://github.com/CathedralOS/Omega/actions/runs/42510516060) | `18b2e57640ba` |
 
-Earlier Windows and Linux ARM64 baselines used the legacy source: runs
-42302120700 and 42303719206 rejected all nine valid callers after losing facts
-across citations, while their decoder controls retained the intended rejection.
-Older execution results also belong to their recorded programs and producers.
-They do not validate the explicit identity source or the stronger runtime checks.
-Legacy macOS execution records remain in
-`/Users/zcanann/Omega-build/representation-agreement-20261101/`.
+The last batch also checks its four corrupted-decoder projects. Each rejects at
+`FirstAgreement::round_trip`, naming `ReadFirst.try_from(frame)`. The other five
+twins retain their intended checking observations from
+[42468758795](https://github.com/CathedralOS/Omega/actions/runs/42468758795),
+source `089c0a150e63`, and
+[42475689833](https://github.com/CathedralOS/Omega/actions/runs/42475689833),
+source `26c39d0e6335`. Historical observations keep those original revisions;
+they are not recorded as fresh executions on the latest producer.
+
+The frozen programs and oracles are unchanged. Optimized producer profiles,
+exact source snapshots and original artifacts are retained for each run. The
+README records a Linux milestone of the repair landed in
+[PR #2045](https://github.com/CathedralOS/Omega/pull/2045).
+
+Matching-host execution on Windows x86_64, macOS ARM64 and Linux ARM64 remains
+open for this explicit-identity row. The broader parent acceptance, including
+resource-backed conversions and reflection-specialized adapters, also remains
+open. Earlier legacy-source executions do not close those requirements.
 
 Current original reports, executable profiles, source bundles, exact input hashes
 and complete compressed observations are retained in
 `/Users/zcanann/Omega-build/representation-buffered-agreement-20261102/`, with
 summaries and requests in `selected-agreement-20261106/`.
+The later field and four-place records are in `field-continuation-20261108/`
+and `linux-remainder-20261108/` under that same evidence directory.
 
 The related controls cover missing premises, distinct selected maps, weak public
 contracts, mutable and linear custody, non-repeatable results, quotient fences
 and private-package access. An existing corruption counterfactual removes the
-agreement claim and must produce native/Terminal Trap for a broken decoder.
+agreement claim and must produce native/Psi Trap for a broken decoder.
 
 Canonical rules: [representation conversions](../../../../wiki/spec/layouts/codecs.md#representation-conversions),
 [proof contracts](../../../../wiki/spec/proofs/contracts.md#data-identity-in-facts),
