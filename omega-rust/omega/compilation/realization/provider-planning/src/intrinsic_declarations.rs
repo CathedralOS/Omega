@@ -1,8 +1,17 @@
-//! Prepare intrinsic declaration facts while source is available.
-//!
-//! Target settlement consumes these immutable facts without reopening source.
-//! Catalog eligibility and accepted public-plan authority remain independent;
-//! deferred shape failures are demanded only after the original ownership gate.
+/*
+We prepare intrinsic declaration facts while source is available so target
+settlement can consume immutable declaration records without reopening source.
+Catalog eligibility and accepted public-plan authority remain independent, and
+deferred shape failures are demanded only after the original ownership gate
+matches.
+
+We classify sealed scalar accessors (`IntrinsicDeclarationKind::Access`),
+UEFI fixed-image intrinsics (`ProgramStorageEntry` and `ProgramImage`), and
+hosted console/process-exit rows (`HOSTED_INTRINSIC_ROWS`). Hosted byte-input
+(`read_byte`) requires `blocks;` plus a single unconditional `crashes Trap`
+contract on both requirement and realization, whereas byte-output and
+process-exit retain nonblocking, crash-free envelopes.
+*/
 
 use crate::provider_planning::is_unit_type;
 use crate::provider_planning::type_reference_node;
@@ -16,9 +25,6 @@ use semantic_vocabulary::PackageKeyIdentity;
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 use target::HostedIntrinsicBundle;
 
-/// An offered consumer binding, optionally pinned to the declaration it
-/// resolved and an independently accepted public plan. Neither is a projection
-/// of the direct callable's plan.
 #[derive(Clone, Copy)]
 pub struct AcceptedIntrinsicBinding<'a> {
     pub accepted: &'a package_compilation::AcceptedSemanticBinding,
@@ -26,7 +32,6 @@ pub struct AcceptedIntrinsicBinding<'a> {
     pub public_plan: Option<&'a ProviderPlan>,
 }
 
-/// Source-derived declaration facts, never host execution permission.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IntrinsicDeclaration {
     target: String,
@@ -108,8 +113,6 @@ impl HostedSubject {
 }
 
 impl IntrinsicDeclaration {
-    /// Preserve the original row's declaration facts. Unsupported candidates
-    /// and failures remain data; unselected declarations acquire no new obligation.
     pub fn prepare(
         typed: &TypedTrees,
         plan: &ProviderPlan,
@@ -245,7 +248,6 @@ impl IntrinsicDeclaration {
                     realization,
                     bundle,
                 ),
-                // Keep the error until the same ownership gate actually demands this shape.
                 shape: boundary_row_shape(
                     typed,
                     plan,
@@ -269,8 +271,6 @@ impl IntrinsicDeclaration {
         }
     }
 
-    /// Join target and accepted public-plan custody; no source symbols, trees,
-    /// schema reconstruction or source-location recognition enter this operation.
     pub fn settle(
         &self,
         plan: &ProviderPlan,
@@ -340,7 +340,6 @@ pub enum HostedService {
 }
 
 impl HostedService {
-    /// This service's exit-process row in [`HOSTED_INTRINSIC_ROWS`].
     fn exit_process_row(self) -> &'static HostedIntrinsicRow {
         match self {
             Self::Console => &HOSTED_INTRINSIC_ROWS[0],
@@ -355,8 +354,6 @@ impl HostedService {
         }
     }
 
-    /// Whether the bundled toolchain sources own the trait, requirement and
-    /// the selected bundle's realization.
     fn bundled_binding(
         self,
         typed: &checked_trees::typed_trees::TypedTrees,
@@ -403,9 +400,6 @@ pub(crate) enum BoundaryIntrinsicShape {
     ProgramStorageToUnit,
 }
 
-/// One hosted row the compiler realizes itself: the service requirement and
-/// realization it binds, their exact signature shape, and the execution
-/// identity it closes as.
 struct HostedIntrinsicRow {
     service: HostedService,
     requirement: &'static str,
@@ -414,9 +408,6 @@ struct HostedIntrinsicRow {
     identity: CompilerIntrinsicExecutionIdentity,
 }
 
-/// Hosted rows in recognition order; the first row a selected row matches
-/// decides its identity. Only a selected target that names an admitted
-/// [`HostedIntrinsicBundle`] earns any of them.
 const HOSTED_INTRINSIC_ROWS: [HostedIntrinsicRow; 4] = [
     HostedIntrinsicRow {
         service: HostedService::Console,
@@ -487,9 +478,6 @@ macro_rules! bundled_intrinsic_source {
     };
 }
 
-// Compile-time copy of one admitted bundle's console provider closure. The
-// path each constant reads is the bundle's `console_source()`; the test
-// module holds the two in agreement with the checked-in file.
 bundled_intrinsic_source!(
     bundled_console_source,
     LinuxArm64 => "linux_arm64/console_impl.omg",
@@ -498,8 +486,6 @@ bundled_intrinsic_source!(
     MacosX64 => "macos_x86_64/console_impl.omg",
 );
 
-// Compile-time copy of one admitted bundle's process-exit provider closure,
-// paired with `process_exit_source()` the same way as the console copy.
 bundled_intrinsic_source!(
     bundled_process_exit_source,
     LinuxArm64 => "linux_arm64/process_exit_impl.omg",
@@ -526,11 +512,6 @@ fn exact_bundled_standalone_source(
         })
 }
 
-/// Rejoin one service's exit-process semantic role to one exact package-owned
-/// selected row. For Console this recognizes Process authority; the
-/// toolchain-owned ProcessExit trait carries no package identity and the
-/// bound package owns the provider nominal. Neither claims that the selected
-/// target has a closed compiler lowering, so inferred supply is not required.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExitProcessDeclaration {
     subject: HostedSubject,
@@ -596,9 +577,6 @@ impl ExitProcessDeclaration {
         }
     }
 
-    /// The exact public plan gates deferred source-shape refusals. A checked
-    /// adapter additionally needs its selected completion evidence; recognizing
-    /// the requirement alone does not grant a completion or intrinsic identity.
     pub fn matches(
         &self,
         service: HostedService,
@@ -715,18 +693,11 @@ fn boundary_row_shape(
     let Some(realization_identity) = typed.machine_callable_identity_text(realization) else {
         return Ok(false);
     };
-    // A hosted console leaf is either compiler-known (the intrinsic names the
-    // realization's own identity) or, on a target whose kernel entry is DLL
-    // linkage, an evaluated import the realization reaches through `via`.
     let intrinsic_machine = match &row.binding {
         ProviderBinding::CompilerIntrinsic { machine } => Some(machine),
         ProviderBinding::Import { .. } => None,
         _ => return Ok(false),
     };
-    // The realization's published envelope must spell the same honest shape
-    // as its requirement: the hosted byte-input leaf may occupy the worker
-    // while it waits and traps on a failed read; byte output and process
-    // exit keep their nonblocking, crash-free ceiling on this leg.
     let expect_blocking_trap = matches!(shape, BoundaryIntrinsicShape::UnitToByteRead);
     if realization.suspends
         || realization.blocks != expect_blocking_trap
@@ -833,18 +804,11 @@ fn exact_boundary_signature(
                 && exact_address_type(typed, signature.return_type)
         }
         BoundaryIntrinsicShape::I32ToUnit => {
-            // Hosted byte output and process exit still publish a nonblocking,
-            // non-crashing ceiling; this leg does not widen their envelope.
             !signature.blocks
                 && exact_i32_parameter(typed, typed.state_signature_parameters(signature))
                 && is_unit_type(typed, signature.return_type)
         }
         BoundaryIntrinsicShape::UnitToByteRead => {
-            // Hosted input may occupy the worker while it waits for a byte and
-            // traps on a failed host read: the exact `read_byte` identity is the
-            // requirement that publishes `blocks;` plus one unconditional
-            // `crashes Trap` route. Omitting either still closes nothing here;
-            // callers keep acknowledging `block` and covering `Trap` honestly.
             signature.blocks
                 && exact_unconditional_trap_crash_contract(typed, signature)
                 && typed.state_signature_parameters(signature).is_empty()
@@ -853,9 +817,6 @@ fn exact_boundary_signature(
     }
 }
 
-/// The realization publishes the same envelope as its requirement: exactly
-/// one unconditional `crashes Trap` contract on the hosted byte-input leaf and
-/// no contracts at all on the nonblocking output/exit leaves.
 fn exact_realization_contracts(
     typed: &checked_trees::typed_trees::TypedTrees,
     realization: &checked_trees::typed_trees::machine::Machine,
@@ -868,9 +829,6 @@ fn exact_realization_contracts(
     sole_unconditional_trap(contracts)
 }
 
-/// The hosted byte-input failure contract is exactly one `crashes Trap` clause
-/// whose route list is empty (the published `true` route), and no other
-/// requires/ensures/crash contract on the signature.
 fn exact_unconditional_trap_crash_contract(
     typed: &checked_trees::typed_trees::TypedTrees,
     signature: &checked_trees::typed_trees::signature::StateSignature,
@@ -906,12 +864,6 @@ fn exact_boundary_state(
     }
 }
 
-/// Only used after the exact bundled owner and declaration roles have joined.
-/// Their source bytes fix both `Extent in Granted` types; ordinary checked
-/// conformance fixes the realization's same requirement application.
-/// Each qualification lowers to a parameter-rooted membership precondition,
-/// on the trait signature or realization entry state respectively. Match that
-/// exact roster rather than treating qualified parameters as contract-free.
 fn canonical_storage_parameters(
     typed: &checked_trees::typed_trees::TypedTrees,
     parameters: &[checked_trees::typed_trees::signature::StateParameter],
@@ -1018,8 +970,6 @@ fn exact_i32_parameter(
     typed.symbols.builtin_type_atom(*symbol) == Some(BuiltinTypeAtom::I32) && name.as_str() == "i32"
 }
 
-/// Whether `contracts` is exactly one unconditional `crashes Trap` clause:
-/// a single contract, Trap cause, no facts, no binding.
 fn sole_unconditional_trap(
     contracts: &[checked_trees::typed_trees::signature::SignatureContract],
 ) -> bool {

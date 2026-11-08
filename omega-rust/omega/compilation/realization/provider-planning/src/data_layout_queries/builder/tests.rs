@@ -1,4 +1,7 @@
-//! Layout builder tests.
+// We test `LayoutBuilder`, verifying target-closed private callback geometry,
+// erased payload exclusion in pure sums, checked overflow rejection on full-width
+// generic and literal capacities, and quotient layout realization over both
+// proof-only and runtime carriers.
 
 use super::build_layout_plan;
 use crate::data_layout_queries::{DataLayout, DataShape, FieldLayout, LayoutPlan};
@@ -97,7 +100,6 @@ fn private_callback_fields() -> [FieldLayout; 1] {
     }]
 }
 
-/// The named declaration's catalog layout; a missing one is a fixture bug.
 fn data_layout<'a>(plan: &'a LayoutPlan, name: &str) -> &'a DataLayout {
     plan.data_layouts
         .iter()
@@ -106,8 +108,6 @@ fn data_layout<'a>(plan: &'a LayoutPlan, name: &str) -> &'a DataLayout {
         .unwrap_or_else(|| panic!("{name} should be laid out"))
 }
 
-/// A placement that runs past the addressable size, pinned to the step that
-/// overflowed so a rejection cannot pass on an unrelated message.
 fn assert_overflow(error: &diagnostics::Diagnostic, step: &str) {
     assert!(
         error.message.contains("overflows the addressable size") && error.message.contains(step),
@@ -183,9 +183,6 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
     assert_ne!(closed.slot, moved[0].slot);
     assert_eq!(closed.slot_application, moved[0].slot_application);
 
-    // Geometry/report coordinates do not replace exact retained selection.
-    // This fixture changes only custody to pin the compatibility report's
-    // deliberately unchanged inputs, not to claim application validation.
     let mut changed_application = valid.clone();
     fixture_geometry_mut(&mut changed_application).private_callback_demands[0]
         .slot_application
@@ -332,9 +329,6 @@ fn pure_sum_layout_excludes_erased_payloads_without_changing_variants() {
 
 #[test]
 fn full_width_generic_capacity_rejects_placement_instead_of_panicking() {
-    // The witnessed defect: `Capacity` bound to `u64::MAX` gives `storage` a
-    // full-width extent, so aligning the following `length` field wraps. The
-    // layout must reject the placement through its diagnostic vocabulary.
     let typed = typed_fixture(
         r#"
         data TinyBytes<Length, const Capacity: u64> {
@@ -354,8 +348,6 @@ fn full_width_generic_capacity_rejects_placement_instead_of_panicking() {
 
 #[test]
 fn full_width_case_payload_rejects_placement_instead_of_panicking() {
-    // The payload overlay starts after the 4-byte tag, so a full-width array
-    // payload ends past the addressable size.
     let typed = typed_fixture(
         r#"
         data Slab<const Capacity: u64> {
@@ -375,9 +367,6 @@ fn full_width_case_payload_rejects_placement_instead_of_panicking() {
 
 #[test]
 fn literal_array_extent_that_wraps_the_record_end_is_rejected() {
-    // `2^61 - 1` eight-byte elements occupy `usize::MAX - 7` bytes; the
-    // trailing byte then ends at `usize::MAX - 6`, and rounding the record
-    // extent up to its 8-byte alignment wraps.
     let typed = typed_fixture(
         r#"
         data Wide {

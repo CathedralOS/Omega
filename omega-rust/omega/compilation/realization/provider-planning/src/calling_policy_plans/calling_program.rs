@@ -1,9 +1,8 @@
-//! Shared calling declarations, executable policies and original review coordinates.
-//!
-//! This catalog borrows the same artifact as the final Product. Publication is
-//! owned by the compiler's ordinary Psi production request. Canonical admission
-//! precedes each activation; retaining code
-//! grants neither invocation nor provider authority.
+// We define `CallingProgram`: the shared calling declarations, executable
+// policies, and original review coordinates published by the compiler's ordinary
+// Psi production request. Canonical admission precedes each activation, and
+// pure compiler-run policies execute under a finite 100,000-unit semantic work
+// allowance with independent logical storage metering and no host imports.
 
 use super::{CallingPolicyEvaluator, CanonicalCallingSignature, TerminalCallingPolicyInvocation};
 use calling_conventions::ValidatedBoundaryEntryPlan;
@@ -27,16 +26,11 @@ enum CallingStorageScope<'account> {
 
 #[derive(Debug)]
 pub struct CallingProgram {
-    /// Association only: this never keeps source alive or enters the interpreter.
-    pub source_owner: std::sync::Weak<checked_trees::CheckedTrees>,
+    pub source_owner: std::sync::Weak<checked_trees::CheckedTrees>, // association only; never keeps source alive
     pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
     pub source_records: std::sync::Arc<[checked_trees::typed_trees::SourceRecordCorrespondence]>,
-    /// Owned original review addresses and inert helper candidates. No Source
-    /// trees or service catalog are retained by this preparation.
     pub source_preparation: std::sync::Arc<super::CallingSourcePreparation>,
-    /// Build evaluation's Terminal executor. Function identity is not part of
-    /// the catalog's equality.
-    pub evaluator: CallingPolicyEvaluator,
+    pub evaluator: CallingPolicyEvaluator, // Build evaluation's Terminal executor; omitted from catalog equality
 }
 
 impl PartialEq for CallingProgram {
@@ -86,10 +80,6 @@ impl CallingProgram {
             work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         };
-        // Pure compiler-run policies had a finite 100,000-step allowance.
-        // Terminal uses its own semantic work units, never relabelled tree
-        // charges. Logical storage/results are independently metered. No host
-        // import is installed, regardless of the account's nonzero I/O limits.
         let limits = BuildEvaluationSponsorLimits::new(
             CALLING_EVALUATION_WORK,
             1,
@@ -143,8 +133,7 @@ impl CallingProgram {
         })?;
         Ok((canonical, plan))
     }
-    /// Describe default ABI storage without invoking the boundary or borrowing
-    /// a policy's unrelated proof scope.
+
     pub(crate) fn materialize_default(
         &self,
         declaration: &semantic_vocabulary::CallingAbiIdentity,
@@ -186,8 +175,6 @@ impl CallingProgram {
         })
     }
 
-    /// Describe an actual borrowed formal's storage without invoking the
-    /// boundary. This uses the same scoped scalar completion as ABI geometry.
     pub(crate) fn describe_borrowed_storage<Output>(
         &self,
         declaration: &semantic_vocabulary::CallingAbiIdentity,

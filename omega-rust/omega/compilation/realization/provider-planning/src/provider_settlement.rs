@@ -1,45 +1,52 @@
-//! Choose which implementation each API uses for the target, and record why
-//! each choice was made. Implementations built as separate components
-//! (`Independent`) must match verified components attached to this build.
-//!
-//! `settle_checked_providers` coordinates the work. `independent_components`
-//! verifies attached component descriptions before matching them to choices.
-//! Candidates are validated when constructed; do not repeat those checks here.
-//! The source checker ensures adapters satisfy the API's requirements.
-//!
-//! Recognizing an API as a filesystem or other service must not invent code
-//! that implements it. Use the implementations declared by the program and
-//! selected by its build settings. Explicit links between APIs and verification
-//! of independently compiled components still follow their usual checks.
+/*
+We settle which provider implementation each boundary API uses for the target,
+record the authority that selected it, and verify attached component
+descriptions for `Independent` provider selections.
+
+`settle_checked_providers` attaches the evaluated `BoundaryCallingPlanRealization`
+rows to the prepared product providers, independently verifies attached
+component descriptions under the build's admission profile (`COMPONENT_DESCRIPTION_SCHEMA_V3`
+and accepted assumption digests), runs whole-map provider selection against the
+canonical Terminal artifact, validates synchronous invocation cycles, extracts
+normalized external binding rows, and validates assumed bindings and semantic
+completion roles.
+*/
+
+/*
+Recognizing an API as a filesystem or console service never invents an
+implementation: we use only the implementations declared by the program and
+selected by its build settings. While `settle_checked_providers` proves each
+`CompositionMode::Independent` selection is joined to a verified component
+description during checking, `verify_selected_compositions_are_realized`
+rejects artifact emission for any settled `Independent` edge until the product
+defines a symbolic import/export and installation carrier, rather than silently
+falling back to a fused image.
+*/
 
 pub(crate) mod assumed_bindings;
 pub(crate) mod completion;
-mod composition_modes;
-mod independent_components;
 pub(crate) mod semantic_roles;
 
-pub use composition_modes::verify_selected_compositions_are_realized;
+use std::collections::BTreeSet;
 
-use crate::ProviderSelection;
-use crate::SelectedProviderReviewProvenance;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
+use crate::{CompositionMode, ProviderSelection, SelectedProviderReviewProvenance};
+use component_description::{
+    COMPONENT_DESCRIPTION_SCHEMA_V3, ComponentVerificationRequest, VerifiedComponent,
+    verify_component,
+};
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::ProviderPlan;
-use package_compilation::PackageCompilationInputs;
+use package_compilation::{IndependentComponentDescription, PackageCompilationInputs};
+use semantic_vocabulary::PackageKeyIdentity;
 
-/// Target defaults and declaration origins prepared before provider planning.
-/// Build admission resolves its retained declarations to these exact typed
-/// identities; settlement consumes them without depending on source filtering.
 pub struct SettledTargetMachineDeclarations {
     pub provider_defaults: Vec<ProviderSelection>,
     pub origins: Vec<crate::SelectedTargetMachineOrigin>,
 }
 
-/// Final typed provider choices and their evidence. The selected plan facts
-/// and review provenance move into checking and selected execution; the
-/// settlement stays provider-planning custody beside the checked program.
 pub struct CheckedProviderSelection {
     pub settlement: ProviderSettlement<crate::DeferredProviderRows>,
     pub selected_provider_plan_facts: SelectedProviderPlanFacts,
@@ -50,62 +57,28 @@ pub struct CheckedProviderSelection {
         Result<std::sync::Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
 }
 
-/// Provider-planning results a checked compilation retains for package review,
-/// trust replay and native realization. Candidate plans stay separate from the
-/// selected plan facts that selected execution owns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
-    /// Shared Product artifact and exact calling declarations. Retention grants
-    /// neither Source formation nor provider execution authority.
     pub calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
     pub selected_provider_publication:
         std::sync::Arc<provider_selection::SelectedTargetProviderPublication>,
     pub boundary_provider_demands: Vec<ProviderPlan>,
-    /// Every selected implementation, including external operations. Callback
-    /// generation and native emission use this same complete list.
     pub provider_declarations: std::sync::Arc<[backend_plan::TerminalTargetProviderPlan]>,
-    /// Source-closed authored choices, separate from the actual selected
-    /// native-augmented receipt. Publication borrows no Source context.
     pub provider_publication: crate::target_machines::ProviderPublicationCatalog,
-    /// Exact target used to derive candidate plans, including semantic-only
-    /// checking's supported host profile. This grants no deployment entry.
     pub planning_target_profile: Option<target::TargetProfile>,
-    /// Validated boundary calling-plan realizations, computed while typed
-    /// declarations and selected opaque representations coexist and closed
-    /// over outbound callbacks by checking. Presence publishes no package ABI.
     pub boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
-    /// Complete applications for explicitly Independent checked boundaries.
-    /// These are neither foreign binding rows nor fused internal-call ABIs.
     pub component_calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
-    /// Every possible implementation. Package review checks that each selected
-    /// implementation matches exactly one entry in this list.
     pub provider_candidates: Vec<crate::ProviderPlanCandidate<Rows>>,
-    /// Complete authored native candidates, including private/unselected rows.
-    /// Package output and audit use this inventory, never runtime demand as an
-    /// excuse to discard a declared foreign promise.
     pub native_build_plans: Vec<crate::DerivedProviderPlan>,
-    /// Complete ordinary-`via` evaluation population, including leaves not
-    /// selected for this executable. Backend lowering reads only the imports
-    /// installed in provider plans.
     pub evaluated_via_bindings: EvaluatedViaBindingTable,
-    /// Selected normalized-import bindings and their evaluated calling plans,
-    /// the only normalized foreign-locator custody in native realization.
     pub external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
-    /// The attached component descriptions this settlement verified, in
-    /// package-identity order, so a replay re-verifies the same admission
-    /// instead of rediscovering unattached inputs.
     pub independent_component_descriptions:
         Vec<package_compilation::IndependentComponentDescription>,
-    /// Original consumer verdicts, in the same package order as descriptions.
-    /// Native composition borrows the verified artifact and export handles;
-    /// it must not rebuild a proof envelope or infer installation authority.
     pub verified_independent_components:
         Vec<std::sync::Arc<component_description::VerifiedComponent>>,
 }
 
 impl ProviderSettlement<crate::DeferredProviderRows> {
-    /// Report saved declaration errors after program-entry checks and before
-    /// completing direct calls. Preserve error order without reading source.
     pub fn finish_row_declarations(self) -> Result<ProviderSettlement, Vec<Diagnostic>> {
         let Self {
             calling_program,
@@ -151,11 +124,6 @@ impl ProviderSettlement<crate::DeferredProviderRows> {
 }
 
 impl<Intrinsic> ProviderSettlement<Intrinsic> {
-    /// Publish the complete calling catalog from its producing owners. Explicit
-    /// policy rows can also own an external import; retain that same application
-    /// once. Default native policies retain their materialized geometry here too.
-    /// Export applications arrive from component preparation; merging them
-    /// requires no source lookup or policy execution.
     pub fn calling_applications(
         &self,
         exported: &[calling_conventions::BoundaryCallingApplication],
@@ -176,9 +144,6 @@ impl<Intrinsic> ProviderSettlement<Intrinsic> {
             .iter()
             .flat_map(|row| &row.calling_applications)
         {
-            // A declaration ABI can have several authored policy realizations.
-            // Retain each complete value; actual consumers join the selected
-            // schema's application commitment as well as its full ABI key.
             if !applications.contains(application) {
                 applications.push(application.clone());
             }
@@ -192,8 +157,6 @@ impl<Intrinsic> ProviderSettlement<Intrinsic> {
     }
 }
 
-/// Derive every candidate, selecting whole maps only for demanded or authored
-/// slots. Unselected exported implementations remain checked review content.
 pub fn settle_checked_providers(
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
@@ -202,16 +165,11 @@ pub fn settle_checked_providers(
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
-    // Every Product body has already been checked. This target chooses only
-    // realization rows; it never narrows the source program.
     let planning_target = selected_target_profile.or_else(target::TargetProfile::host_if_supported);
     let target_name = planning_target.map(target::TargetProfile::target_name);
     let provider_selection_target = planning_target
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
-    // PRV4 provider selection mirrors the native pipeline: candidates remain
-    // separate by provider type and only the uniquely covering candidate may
-    // rewrite adapter calls in the interpreter program.
     let prepared = prepared_providers?.attach_calling(
         &calling_program,
         planning_target,
@@ -225,13 +183,11 @@ pub fn settle_checked_providers(
         .collect();
     let provider_publication = prepared.publication;
     let completion_roles = prepared.completion_roles;
-    let independent_components = independent_components::verify_independent_components(
-        package_inputs,
-        accepted_component_assumptions,
-    )?
-    .into_iter()
-    .map(std::sync::Arc::new)
-    .collect::<Vec<_>>();
+    let independent_components =
+        verify_independent_components(package_inputs, accepted_component_assumptions)?
+            .into_iter()
+            .map(std::sync::Arc::new)
+            .collect::<Vec<_>>();
     let prepared_assumptions = prepared.assumptions;
     let assumptions = prepared_assumptions.coordinates?;
     let profile = planning_target.unwrap_or_else(target::TargetProfile::host);
@@ -267,7 +223,6 @@ pub fn settle_checked_providers(
                 .attach_physical_rows(candidate.source, &direct_context)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    // Check every declared closed instance, including uncalled candidates.
     backend_plan::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
         &provider_declarations,
         artifact.module(),
@@ -282,8 +237,6 @@ pub fn settle_checked_providers(
         &boundary_calling_plan_realizations,
         &calling_program,
     )?;
-    // Only a selected implementation must keep its promise to exit. Report
-    // its saved result here, after the same binding and cycle checks as before.
     let mut selected_declarations = Vec::with_capacity(selected_provider_plans.len());
     let mut selected_families = Vec::with_capacity(selected_provider_plans.len());
     let completed_providers = selected_provider_plans
@@ -403,4 +356,79 @@ pub fn settle_checked_providers(
         selected_declarations,
         native_provider_sources,
     })
+}
+
+pub fn verify_selected_compositions_are_realized(
+    provenance: &[SelectedProviderReviewProvenance],
+) -> Result<(), Vec<Diagnostic>> {
+    let diagnostics = provenance
+        .iter()
+        .filter_map(|row| match row.selected_by.composition_mode() {
+            Ok(CompositionMode::Fused) => None,
+            Ok(CompositionMode::Independent) => Some(Diagnostic::error(format!(
+                "selected provider plan `{}` settled with an independent composition edge to provider `{}`, but the product defines no symbolic import/export, entry/leave, or installation/replacement carrier for it; refusing to emit a fused artifact",
+                row.plan.name, row.plan.provider_type,
+            ))),
+            Err(reason) => Some(Diagnostic::error(format!(
+                "selected provider plan `{}` retained no coherent composition mode ({reason}); refusing to emit a fused artifact",
+                row.plan.name,
+            ))),
+        })
+        .collect::<Vec<_>>();
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn verification_request(
+    description: &IndependentComponentDescription,
+    accepted_assumptions: &BTreeSet<[u8; 32]>,
+) -> ComponentVerificationRequest {
+    ComponentVerificationRequest {
+        expected_subject: description.expected_subject(),
+        accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V3]),
+        accepted_assumptions: accepted_assumptions.clone(),
+    }
+}
+
+pub(crate) fn verify_independent_component_descriptions<'a>(
+    descriptions: impl IntoIterator<Item = &'a IndependentComponentDescription>,
+    accepted_assumptions: &BTreeSet<[u8; 32]>,
+    package_name: impl Fn(PackageKeyIdentity) -> Option<&'a str>,
+) -> Result<Vec<VerifiedComponent>, Vec<Diagnostic>> {
+    let mut components = Vec::new();
+    let mut diagnostics = Vec::new();
+    for description in descriptions {
+        let request = verification_request(description, accepted_assumptions);
+        match verify_component(description.description(), &request) {
+            Ok(component) => components.push(component),
+            Err(rejection) => {
+                let package = package_name(description.package()).unwrap_or("<unnamed>");
+                diagnostics.push(Diagnostic::error(format!(
+                    "component description attached for dependency package `{package}` failed independent verification: {rejection}; the build cannot deploy that package as an independent component",
+                )));
+            }
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(components)
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn verify_independent_components(
+    package_inputs: Option<&PackageCompilationInputs>,
+    accepted_assumptions: &BTreeSet<[u8; 32]>,
+) -> Result<Vec<VerifiedComponent>, Vec<Diagnostic>> {
+    let Some(package_inputs) = package_inputs else {
+        return Ok(Vec::new());
+    };
+    verify_independent_component_descriptions(
+        package_inputs.independent_component_descriptions(),
+        accepted_assumptions,
+        |package| package_inputs.package_name(package),
+    )
 }

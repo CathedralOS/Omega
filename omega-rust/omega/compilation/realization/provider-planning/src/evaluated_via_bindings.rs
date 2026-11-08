@@ -1,24 +1,23 @@
-//! Exact evaluation and retention of ordinary source `via` bindings.
-//!
-//! The table is the sole bridge between a typed source expression and provider
-//! derivation. It retains arena coordinates only for exact replay inside the
-//! same compilation; the installed import owns stable locator and receipt
-//! identity and contains no arena handles.
-//!
-//! This file owns the evaluated via-binding rows and table and evaluates
-//! the bindings. `binding_evaluation.rs` evaluates one binding and validates
-//! its shape, `binding_values.rs` decodes binding values and fields,
-//! `binding_digests.rs` derives the producer, source, evaluation and
-//! materialization digests and `tests.rs` holds the binding tests.
+/*
+We evaluate and retain ordinary source `via` bindings as the bridge between
+typed source expressions and provider derivation. We retain arena coordinates
+only for exact replay inside the same compilation; our installed import owns
+stable locator and receipt identity without arena handles.
+
+We evaluate every ordinary `via` leaf once and retain its atomic normalized
+import alongside its durable evaluation receipt (`binding_evaluation.rs` and
+`binding_digests.rs`). Evaluation discloses all authored members under their
+own targets, leaving execution narrowing to selected provider derivation.
+*/
 
 mod binding_digests;
 mod binding_evaluation;
-mod binding_values;
 
 use crate::ProviderPlanningContext;
 use crate::evaluated_via_bindings::binding_evaluation::{evaluate_one, exact_binding_vocabulary};
-use build_time_evaluation::BuildTimeAdmissionPlan;
+use build_time_evaluation::{BuildTimeAdmissionPlan, EvaluationUsage};
 use diagnostics::Diagnostic;
+use effects::provider_plan::EvaluatedBindingUsage;
 use package_compilation::PackageCompilationInputs;
 use source::SourceSpan;
 use std::sync::Arc;
@@ -28,8 +27,24 @@ use target::TargetProfile;
 const MATERIALIZER_SCHEMA_VERSION: u32 = 1;
 
 pub use effects::provider_plan::EvaluatedNativeBinding;
+pub(crate) use language_semantics::native_bindings::decode_binding_value;
+pub(crate) type DecodedBindingValue = semantic_vocabulary::NativeBindingLocator;
 
-/// Exact typed-program join for one ordinary `via` expression.
+pub(crate) fn retained_usage(usage: EvaluationUsage) -> Result<EvaluatedBindingUsage, String> {
+    EvaluatedBindingUsage::from_evaluator(
+        usage.schema().schema_version(),
+        usage.schedule().marker(),
+        usage.work_units(),
+        usage.work_budget(),
+        usage.build_log_bytes(),
+        usage.filesystem_operation_attempts(),
+        usage.peak_live_cells(),
+        usage.peak_live_text_bytes(),
+        usage.result_cells(),
+        usage.result_text_bytes(),
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvaluatedViaBindingRow {
     realization_machine: SymbolHandle,
@@ -69,14 +84,11 @@ impl EvaluatedViaBindingRow {
     }
 }
 
-/// Complete evaluated ordinary-`via` population for one typed compilation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvaluatedViaBindingTable {
     scope: source::DependencyScope,
     target: Option<TargetProfile>,
-    /// Identity table every receipt-carried `TerminalIdentityIndex` on the
-    /// rows resolves against.
-    identities: terminal_psi::TerminalIdentityTable,
+    identities: terminal_psi::TerminalIdentityTable, // Resolves receipt-carried `TerminalIdentityIndex` values.
     rows: Vec<EvaluatedViaBindingRow>,
 }
 
@@ -84,7 +96,6 @@ impl EvaluatedViaBindingTable {
     pub const fn scope(&self) -> source::DependencyScope {
         self.scope
     }
-    /// The table the binding receipts' `TerminalIdentityIndex` values index.
     pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
         &self.identities
     }
@@ -126,10 +137,6 @@ struct BindingVocabulary {
     source_digest: [u8; 32],
 }
 
-/// Evaluate every ordinary `via` leaf exactly once and retain the resulting
-/// atomic normalized import plus its durable evaluation receipt.
-/// Evaluation discloses all authored members under their own targets. The
-/// selected provider derivation, not this population, narrows execution.
 pub fn evaluate_via_bindings(
     context: ProviderPlanningContext<'_>,
     selected_target: Option<TargetProfile>,

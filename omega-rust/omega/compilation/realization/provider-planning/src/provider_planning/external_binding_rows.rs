@@ -1,15 +1,17 @@
+// We extract normalized external binding rows (`Import`, `Syscall`,
+// `VtableField`, `TableFunction`) and their evaluated Calling applications for
+// compiler-to-native custody. Imports, kernel entries, and table fields rejoin
+// the exact selected provider row; table field byte offsets are resolved
+// through `field_offset` against the artifact's canonical storage namespace and
+// foreign record layout rather than field spelling or equal shape.
+
+use crate::calling_policy_plans::CallingProgram;
 use crate::provider_planning::trait_name_text;
 use diagnostics::Diagnostic;
+use effects::provider_plan::TableFieldStorage;
+use semantic_vocabulary::CallingAbiIdentity;
+use terminal_psi::StructuralTypeShape;
 
-mod table_dispatch;
-
-/// Retain selected external mechanisms for compiler-to-native custody.
-/// Imports, kernel entries and table fields rejoin the same selected row;
-/// table offsets additionally come from that declaration's authoritative layout.
-/// These rows grant no terminal authority or execution permission: the receiving
-/// policy and provider settlements remain independently required.
-/// Other selected provider mechanisms retain their existing specialized
-/// lowering and must not be forced through host-ABI compatibility planning.
 pub fn extract_native_external_binding_rows(
     selected_target: Option<&str>,
     native_target: target::NativeTarget,
@@ -26,9 +28,6 @@ pub fn extract_native_external_binding_rows(
         calling_program,
     };
     let mut rows = Vec::new();
-    // Each complete plan retains its original row coordinates.
-    // A direct-call projection borrows this same operation before changing
-    // its demand identity; no loose plan rediscovers its source owner.
     for plan in plans {
         for row_index in 0..plan.rows.len() {
             if let Some(row) = context.row(plan, row_index)? {
@@ -39,8 +38,6 @@ pub fn extract_native_external_binding_rows(
     Ok(rows)
 }
 
-/// Shared canonical inputs for preparing physical rows. Preparation retains
-/// either the complete ABI result or its refusal; it grants no execution.
 pub(crate) struct ExternalBindingContext<'a> {
     pub selected_target: Option<&'a str>,
     pub native_target: target::NativeTarget,
@@ -50,9 +47,6 @@ pub(crate) struct ExternalBindingContext<'a> {
 }
 
 impl ExternalBindingContext<'_> {
-    /// Portable plans inherit the selected scope; scoped plans must name it.
-    /// Preparing an outside-scope candidate retains this refusal as review
-    /// content, while selected row extraction requires a successful binding.
     fn target_profile(
         &self,
         plan: &effects::provider_plan::ProviderPlan,
@@ -123,14 +117,9 @@ impl ExternalBindingContext<'_> {
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         let binding = match &row.binding {
-            ProviderBinding::Import { evaluated } => {
-                ExternalBindingKind::Import {
-                    // The selected plan already commits the atomic evaluation
-                    // receipt; this ABI-facing row owns only physical locator
-                    // coordinates.
-                    locator: evaluated.locator().clone(),
-                }
-            }
+            ProviderBinding::Import { evaluated } => ExternalBindingKind::Import {
+                locator: evaluated.locator().clone(),
+            },
             ProviderBinding::Syscall { number } => ExternalBindingKind::Syscall { number: *number },
             ProviderBinding::VtableField { field, storage, .. }
             | ProviderBinding::TableFunction { field, storage, .. } => {
@@ -148,18 +137,15 @@ impl ExternalBindingContext<'_> {
                         .map(|application| &application.abi)
                         .collect()
                 };
-                let byte_offset = table_dispatch::field_offset(
-                    calling_program,
-                    target_profile,
-                    &applications,
-                    storage,
-                )
-                .map_err(|reason| {
-                    vec![Diagnostic::error(format!(
-                        "cannot realize table field `{field}` for `{}`: {reason}",
-                        row.method
-                    ))]
-                })?;
+                let byte_offset =
+                    field_offset(calling_program, target_profile, &applications, storage).map_err(
+                        |reason| {
+                            vec![Diagnostic::error(format!(
+                                "cannot realize table field `{field}` for `{}`: {reason}",
+                                row.method
+                            ))]
+                        },
+                    )?;
 
                 match row.binding {
                     ProviderBinding::VtableField { .. } => ExternalBindingKind::VtableField {
@@ -220,4 +206,109 @@ impl ExternalBindingContext<'_> {
             binding,
         }))
     }
+}
+
+fn field_offset(
+    program: &CallingProgram,
+    target: target::TargetProfile,
+    applications: &[&CallingAbiIdentity],
+    storage: &Result<TableFieldStorage, String>,
+) -> Result<u32, String> {
+    let storage = storage.as_ref().map_err(Clone::clone)?;
+    let module = program.artifact.semantic_module();
+    let mut records = module.structural_types.iter().filter(|record| {
+        module.identities.text(record.identity) == Some(storage.table_application.as_str())
+    });
+    let record = records
+        .next()
+        .ok_or("dispatch table has no canonical storage application")?;
+    if records.next().is_some() {
+        return Err("dispatch table has competing canonical storage applications".into());
+    }
+    let StructuralTypeShape::Record { fields, .. } = &record.shape else {
+        return Err("dispatch table does not have record storage".into());
+    };
+    let native = module
+        .native_layouts
+        .record(record.id)
+        .ok_or("dispatch table lost its nominal field correspondence")?;
+    let mut candidates = module
+        .native_layouts
+        .fields(native)?
+        .iter()
+        .filter(|field| {
+            module.identities.text(field.declaration_identity)
+                == Some(storage.field_declaration.as_str())
+        });
+    let field = candidates
+        .next()
+        .ok_or("dispatch field has no canonical declaration correspondence")?;
+    if candidates.next().is_some() {
+        return Err("dispatch field has competing canonical declaration correspondences".into());
+    }
+    let declaration = fields
+        .iter()
+        .find(|candidate| candidate.id == field.field && !candidate.relevance.is_erased())
+        .ok_or("dispatch field is not a live field of the exact table")?;
+    if declaration.field_type.atomic_scalar_type().is_some()
+        || !matches!(declaration.field_type.scalar_type(),
+        Some(semantic_vocabulary::ScalarType::Integer(integer)) if integer.is_address())
+    {
+        return Err("table dispatch field must have type addr".into());
+    }
+    let mut selected_offset = None;
+    for application in applications {
+        let signature = module
+            .calling_abi_signature(application.id())
+            .ok_or("table dispatch has no original semantic ABI")?;
+        if signature.identity(&module.identities)? != **application {
+            return Err("table dispatch differs from its full selected ABI key".into());
+        }
+        let parameter = signature
+            .storage
+            .as_ref()
+            .map_err(Clone::clone)?
+            .parameters
+            .first()
+            .ok_or("table dispatch has no first semantic formal")?;
+        if parameter.structural_type != record.id
+            || !matches!(
+                parameter.access,
+                terminal_psi::reading_borrow_pair_pattern!()
+            )
+        {
+            return Err(
+                "table dispatch requires the exact readable table borrow as semantic formal zero"
+                    .into(),
+            );
+        }
+        let offset = program.describe_borrowed_storage(application, target, 0, |extents| {
+            let mut recipes =
+                layout::TerminalBoundaryRecipes::new(module, target.target_name(), extents);
+            let (recipe, ordinal) = recipes.record_field(record.id, field.field)?;
+            let mut layout =
+                layout::BoundaryValueLayout::new(layout::LayoutTarget::for_profile(target)?);
+            let (_, root) = layout.value_type(recipes.recipes(), recipe)?;
+            let (shapes, fields, _) = layout.into_parts();
+            let calling_conventions::BoundaryValueClass::Record {
+                first_field,
+                field_count,
+            } = shapes[usize::from(root)].class
+            else {
+                return Err("dispatch table does not have a foreign record layout".into());
+            };
+            if ordinal >= usize::from(field_count) {
+                return Err("dispatch field is absent from the foreign record layout".into());
+            }
+            fields
+                .get(usize::from(first_field) + ordinal)
+                .map(|field| u32::from(field.byte_offset))
+                .ok_or_else(|| "dispatch field lost its physical layout coordinate".into())
+        })?;
+        if selected_offset.is_some_and(|prior| prior != offset) {
+            return Err("selected table ABIs disagree on their dispatch field offset".into());
+        }
+        selected_offset = Some(offset);
+    }
+    selected_offset.ok_or_else(|| "table dispatch has no selected semantic ABI application".into())
 }
