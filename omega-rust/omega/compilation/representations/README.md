@@ -15,7 +15,7 @@ tokens or replay evidence that a stage retains alongside it.
 | Family | Current program root | Producing and consuming operations |
 | --- | --- | --- |
 | `abstract-operations/` | [`AbstractOperationPlan`](abstract-operations/src/lib.rs) | [Omega 00](../pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission.rs) admits Terminal Psi and lowers it; [Omega 01](../pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs) optimizes the abstract program without changing its public form; Omega 02 consumes it. |
-| `target-operations/` | [`TargetOperationPlan`](target-operations/src/lib.rs) | [Omega 02](../pipeline/02_abstract-operations-to-target-operations/src/lowering/optimized.rs) lowers abstract operations with target and provider settlements; Omega 03 consumes the resulting target program. |
+| `target-operations/` | [`TargetOperationPlan`](target-operations/src/lib.rs) | [Omega 02](../pipeline/02_abstract-operations-to-target-operations/src/lib.rs) lowers abstract operations with target and provider settlements; Omega 03 consumes the resulting target program. |
 | `selected-instructions/` | [`SelectedInstructionPlan`](selected-instructions/src/lib.rs) | [Omega 03](../pipeline/03_target-operations-to-selected-instructions/src/optimized.rs) legalizes target operations and selects instructions; [Omega 04](../pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs) rewrites that same program form; Omega 05 assigns register homes. |
 | `register-homes/` | [`AllocatedProgram`](register-homes/src/lib.rs), including [`RegisterHomePlan`](register-homes/src/lib.rs) | [Omega 05](../pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs) consumes the selected program and publishes its current allocation; Omega 06 consumes the replayed allocation. |
 | `post-allocation-machine/` | [`PostAllocationMachinePlan`](post-allocation-machine/src/lib.rs) | [Omega 06](../pipeline/06_register-homes-to-post-allocation-machine/src/lib.rs) derives physical machine instructions from the allocation; Omega 07 encodes them. The Cargo package is still named `physical-instructions`. |
@@ -26,7 +26,7 @@ Two additional representation packages belong beneath their program families:
 - [`abstract-operations/optimization-unit/`](abstract-operations/optimization-unit/src/lib.rs)
   owns `PsiOptimizationUnit`, the reconstructible control-flow, value, ownership,
   and fact representation used for abstract-program rewrites and replay.
-  [Omega 00 builds it](../pipeline/00_terminal-psi-to-abstract-operations/src/optimization/mod.rs);
+  [Omega 00 builds it](../pipeline/00_terminal-psi-to-abstract-operations/src/optimization.rs);
   [Omega 01 publishes an `AbstractOperationPlan`](../pipeline/01_abstract-operations-to-abstract-operations/src/publication.rs)
   and retains the unit for replay. It is a derived form, not another numbered
   boundary after abstract operations. Its
