@@ -27,6 +27,20 @@ pub struct DescriptorSourceObservation {
 }
 
 impl<'a> DescriptorAnalysis<'a> {
+    /// Query-local cache identity, not semantic or published evidence. Equal
+    /// coordinates in another graph do not identify these immutable inputs.
+    pub(crate) fn uses_source_graph(
+        &self,
+        types: &[StructuralTypeDeclaration],
+        machines: &[DescriptorMachine],
+    ) -> bool {
+        std::ptr::eq(self.replay.types, types) && std::ptr::eq(self.replay.machines, machines)
+    }
+
+    pub(crate) fn slot_kind(&self) -> DescriptorSlotKind {
+        self.replay.slot_kind
+    }
+
     /// Retain only descriptor slots intersecting this operation's source uses.
     /// Edge demands still observe the pre-operation frontier; a newly produced
     /// edge value must use its producer, not an entry-type reconstruction.
@@ -466,7 +480,62 @@ impl<'a> DescriptorAnalysis<'a> {
         } else {
             call.callee()?
         })?;
-        let exported = match origin {
+        let exported = self.export_source_origin(callee, origin)?;
+        let state = self
+            .replay
+            .snapshots
+            .get(&identity)?
+            .as_ref()?
+            .get(&position)?;
+        self.replay.symbolic(
+            machine,
+            self.replay.substitute(machine, state, call, &exported)?,
+        )
+    }
+    /// Substitute entry actuals at a caller-authenticated pre-transfer snapshot.
+    /// This reads current coordinates only. The caller must join the real source
+    /// invocation, callee and argument ABI; no normal-return promise is implied.
+    pub fn substitute_input_source(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        callee: MachineId,
+        actuals: DescriptorActualInputs<'_>,
+        origin: &DescriptorSourceOrigin,
+    ) -> Option<Vec<DescriptorSourceOrigin>> {
+        self.replay.prepare_states(identity)?;
+        let machine = self.replay.machine(identity)?;
+        let callee = self.replay.machine(callee)?;
+        let parameter_count = callee
+            .places
+            .iter()
+            .filter(|row| matches!(row.definition, DescriptorDefinition::Parameter { .. }))
+            .count();
+        if actuals.arguments.len() != parameter_count
+            || actuals.argument_contents.len() != parameter_count
+        {
+            return None;
+        }
+        let exported = self.export_source_origin(callee, origin)?;
+        let state = self
+            .replay
+            .snapshots
+            .get(&identity)?
+            .as_ref()?
+            .get(&position)?;
+        self.replay.symbolic(
+            machine,
+            self.replay
+                .substitute_actuals(machine, state, actuals, &exported)?,
+        )
+    }
+
+    fn export_source_origin(
+        &self,
+        callee: &DescriptorMachine,
+        origin: &DescriptorSourceOrigin,
+    ) -> Option<DescriptorStoredOrigin> {
+        Some(match origin {
             DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Invocation {
                 carrier_type,
                 projection,
@@ -533,18 +602,9 @@ impl<'a> DescriptorAnalysis<'a> {
                     place: *place,
                 }
             }
-        };
-        let state = self
-            .replay
-            .snapshots
-            .get(&identity)?
-            .as_ref()?
-            .get(&position)?;
-        self.replay.symbolic(
-            machine,
-            self.replay.substitute(machine, state, call, &exported)?,
-        )
+        })
     }
+
     /// Substitute a demanded storage address without loading descriptor contents
     /// from the addressed slot. Only exact static ingress addresses are usable.
     pub fn substitute_call_storage(

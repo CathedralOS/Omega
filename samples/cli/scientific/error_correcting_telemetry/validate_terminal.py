@@ -46,7 +46,7 @@ fn validate() -> Result<(), String> {
             artifact, target: Some("linux_x86_64"), provisions: report.runtime_provisions(),
             provider_proposal: None,
             // Finite exhaustive replay: fixed 2000-record cap, 25 candidates per frame.
-            fuel_allowance: 100_000_000,
+            work_budget: 100_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(Cursor::new(input))), clock: None,
         }).map_err(|e| format!("{name}: {e}"))?;

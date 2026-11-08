@@ -1,3 +1,22 @@
+// Denotational contract expression, static argument, evidence lane, and
+// operator overload vocabulary for package review.
+//
+// `PackageReviewCallableSupply` classifies callable supply on the callable
+// envelope while projecting external binding identity separately as an
+// executable-supply trust row. `PackageReviewContractStaticArgument` preserves
+// exact static arguments across generic type/const/machine binders, structured
+// const values, concrete machines, and lifetime-free closed conformance
+// applications. `PackageReviewContractCallTarget` distinguishes nominal
+// callables, root builtin-function slots, byte-sequence predicates, and
+// compiler-owned opaque `ProofView` atoms. `PackageReviewOperatorCoordinate`
+// identifies ordinary operator overloads by nominal path plus canonical
+// parameter and result dispatch identities. `PackageReviewContractExpression`
+// represents authenticated semantic contract expressions (layout queries,
+// static type equality, exact IEEE float bits, array/constructor/indexed/range
+// forms, raw byte sequences, built-in type members, case membership,
+// denotational references, atomic loads, zero values, collection
+// length/capacity, casts, calls, and first-match value dispatch).
+
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewTypeIdentity;
 use crate::record::accessors::field_projection_accessors;
@@ -11,9 +30,6 @@ pub(crate) enum PackageReviewCallableRole {
     Build,
 }
 
-/// Source-handle-free supply classification retained on the callable envelope.
-/// Exact external binding identity is projected separately as an executable-
-/// supply trust row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewCallableSupply {
     CheckedBody,
@@ -94,45 +110,22 @@ pub enum PackageReviewLayoutQueryKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractStaticArgument {
-    /// One exact concrete type identity.
     Type(PackageReviewTypeIdentity),
-    /// One type parameter from the containing declaration's canonical static
-    /// telescope. The ordinal spans every static parameter category.
     GenericTypeBinder(u32),
-    /// One exact generic data-family application whose base declaration and
-    /// recursively categorized static arguments rejoin the checked data
-    /// telescope. Lifetime arguments are caller-binder ordinals.
     GenericType {
         base: PackageReviewTypeIdentity,
         lifetime_arguments: Vec<u32>,
         arguments: Vec<PackageReviewContractStaticArgument>,
     },
-    /// One parser-canonical integer literal in an exact const-parameter slot.
     ConstInteger(String),
-    /// One canonical Boolean value in an exact const-parameter slot.
     ConstBoolean(bool),
-    /// One compiler-canonical structured value whose encoded names have been
-    /// replayed against this exact resolved carrier. Diagnostic display is
-    /// absent from both fields.
     ConstStructured {
         declared_type: PackageReviewTypeIdentity,
         canonical_value_encoding: String,
     },
-    /// One const parameter from the containing declaration's canonical static
-    /// telescope. The ordinal spans every static parameter category.
     GenericConstBinder(u32),
-    /// One machine parameter from the containing declaration's canonical
-    /// static telescope. The ordinal spans every static parameter category.
     GenericMachineBinder(u32),
-    /// The exact selected concrete machine entry, including package or
-    /// compiler/toolchain ownership.
     ConcreteMachine(PackageReviewNominalIdentity),
-    /// One exact lifetime-free closed conformance application used as a
-    /// proof-expression call's static argument. Its declaration telescope is
-    /// limited to exact types plus literal, caller-binder, or canonical named
-    /// const values; its target-trait telescope remains type-only. The checked
-    /// occurrence row independently rejoins the complete closed application;
-    /// this portable form replaces private symbols and occurrence handles.
     ConformanceApplication {
         declaration: PackageReviewNominalIdentity,
         arguments: Vec<PackageReviewContractStaticArgument>,
@@ -152,24 +145,11 @@ pub enum PackageReviewByteSequencePredicate {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractCallTarget {
     Nominal(PackageReviewNominalIdentity),
-    /// One exact compiler-installed root builtin-function slot. The spelling
-    /// is diagnostic only; package declarations with the same name remain
-    /// ordinary nominals.
     BuiltinFunction(BuiltinFunction),
     ByteSequencePredicate(PackageReviewByteSequencePredicate),
-    /// One compiler-owned opaque proof-view atom admitted inside a contract
-    /// fact: a bare receiverless callee whose spelling selects no package
-    /// declaration. The retained name is the atom's whole identity — the
-    /// compiler assigns no machine realization, numeric interpretation, or
-    /// equality semantics.
-    ProofView {
-        name: String,
-    },
+    ProofView { name: String },
 }
 
-/// Stable identity of one named evidence term participating in a public
-/// proof-expression call. Local aliases are excluded; declaration ownership,
-/// contract lane kind, and ordinal are semantic identity.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewContractEvidenceTerm {
     pub(crate) owner: PackageReviewNominalIdentity,
@@ -182,7 +162,6 @@ impl PackageReviewContractEvidenceTerm {
     field_projection_accessors!(copied kind: PackageReviewContractKind, lane_position: u32);
 }
 
-/// One exact source-to-parameter binding in an erased evidence call lane.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewContractEvidenceArgument {
     pub(crate) lane_position: u32,
@@ -196,11 +175,6 @@ impl PackageReviewContractEvidenceArgument {
     field_projection_accessors!(borrowed parameter: &PackageReviewContractEvidenceTerm);
 }
 
-/// Stable identity of one ordinary operator overload. The nominal path names
-/// the declaration family; the compiler's canonical parameter and
-/// result-dispatch identities distinguish overloads by the same rules used by
-/// checked selection. Source names, arena handles, and return refinements that
-/// do not participate in dispatch are not coordinates.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewOperatorCoordinate {
     pub(crate) identity: PackageReviewNominalIdentity,
@@ -215,11 +189,6 @@ impl PackageReviewOperatorCoordinate {
     }
 }
 
-/// One exact operator requirement realized by a reviewed callable.
-///
-/// The coordinate identifies the selected overload. The alias preserves the
-/// authored local conformance name used by the checked body; it is not part of
-/// the operator declaration coordinate.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewOperatorRealization {
     pub(crate) coordinate: PackageReviewOperatorCoordinate,
@@ -244,14 +213,10 @@ impl PackageReviewContractCallTarget {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractExpression {
-    /// An authenticated semantic observation, not an ordinary callable or a
-    /// chosen target's already-folded byte count.
     LayoutQuery {
         kind: PackageReviewLayoutQueryKind,
         operand: PackageReviewTypeIdentity,
     },
-    /// Static equality over complete normalized types in the signature's
-    /// generic telescope. This is neither RTTI nor a scalar comparison.
     TypeEquality {
         left: PackageReviewTypeIdentity,
         right: PackageReviewTypeIdentity,
@@ -259,74 +224,46 @@ pub enum PackageReviewContractExpression {
     },
     Boolean(bool),
     Integer(String),
-    /// One width-landed IEEE literal. Exact checked bits, including signed
-    /// zero, are semantic identity; decimal source spelling is not.
     Float(PackageReviewFloatLiteral),
-    /// Ordered structural elements of one checked array literal.
     Array(Vec<PackageReviewContractExpression>),
     Constructor {
         data: PackageReviewNominalIdentity,
         case: Option<PackageReviewNominalIdentity>,
         fields: Vec<PackageReviewConstructorField>,
     },
-    /// One checked indexing or slicing operator application. The selected
-    /// operator meaning remains distinct from its structural operands.
     Indexed {
         meaning: PackageReviewContractOperatorMeaning,
         collection: Box<PackageReviewContractExpression>,
         index: Box<PackageReviewContractExpression>,
     },
-    /// Structural range operand used by an indexed contract expression.
-    /// Missing endpoints are explicit; inclusive and exclusive ends remain
-    /// distinct checked forms.
     Range {
         start: Option<Box<PackageReviewContractExpression>>,
         end: Option<Box<PackageReviewContractExpression>>,
         end_inclusive: bool,
     },
-    /// Exact decoded octets of an Omega quoted literal. No text encoding is
-    /// implied by this row.
     ByteSequence(Vec<u8>),
-    /// The implicit carrier being classified by a domain predicate.
     DomainSubject,
     Parameter(u32),
     Result,
     GenericBinder(u32),
-    /// Compiler-owned carrier member, authenticated by its resolved symbol.
-    /// Its symbolic meaning survives review without an authored nominal owner
-    /// or a target-width substitution.
     BuiltinTypeMember(symbols::BuiltinTypeMember),
     Nominal(PackageReviewNominalIdentity),
-    /// Exact nominal tag observation. The case is a classifier, not a
-    /// constructed value or a selected equality overload.
     CaseMembership {
         subject: Box<PackageReviewContractExpression>,
         case: PackageReviewNominalIdentity,
     },
-    /// One explicit denotational reference formation. Runtime loan identity
-    /// and source lifetime spelling are not package contract identity.
     Reference {
         access: PackageReviewReferenceAccess,
         target: Box<PackageReviewContractExpression>,
     },
-    /// One denotational atomic load retained with its exact checked ordering.
-    /// Mutation-bearing atomic operations remain outside contract identity.
     AtomicLoad {
         value: Box<PackageReviewContractExpression>,
         ordering: PackageReviewAtomicLoadOrdering,
     },
-    /// Proof-only observation of one exact type's normalized all-zero home
-    /// representation. The checker rejects quotient targets before review.
     ZeroValue(PackageReviewTypeIdentity),
-    /// Compiler-owned `len` projection on a fixed array or slice. The exact
-    /// checked authored-selection occurrence must identify this intrinsic;
-    /// same-spelled package fields remain ordinary nominal members.
     CollectionLength {
         collection: Box<PackageReviewContractExpression>,
     },
-    /// Compiler-owned `capacity` projection on a fixed array or slice. The
-    /// exact checked authored-selection occurrence must identify this
-    /// intrinsic; same-spelled package fields remain ordinary nominal members.
     CollectionCapacity {
         collection: Box<PackageReviewContractExpression>,
     },
@@ -343,10 +280,6 @@ pub enum PackageReviewContractExpression {
         semantic_domain_arguments: Vec<PackageReviewTypeIdentity>,
         form: PackageReviewCastForm,
     },
-    /// One checked, denotational call edge in a public proposition. The
-    /// package source-consumption commitment separately pins the selected
-    /// callable's implementation; this row does not pretend that a callable
-    /// signature identifies its body.
     Call {
         receiver: Option<Box<PackageReviewContractExpression>>,
         target: PackageReviewContractCallTarget,
@@ -364,11 +297,6 @@ pub enum PackageReviewContractExpression {
         operator: PackageReviewContractUnaryOperator,
         operand: Box<PackageReviewContractExpression>,
     },
-    /// One checked value dispatch. The subject is evaluated once; arms keep
-    /// authored first-match order and only the selected arm's value is the
-    /// contract identity. Pattern structure stays expression-level: each
-    /// tested alternative is an exact projected value, `None` is the
-    /// wildcard.
     Match {
         subject: Box<PackageReviewContractExpression>,
         arms: Vec<PackageReviewMatchArm>,
@@ -377,8 +305,7 @@ pub enum PackageReviewContractExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewMatchArm {
-    /// `None` is the wildcard arm.
-    pub(crate) pattern: Option<PackageReviewContractExpression>,
+    pub(crate) pattern: Option<PackageReviewContractExpression>, // `None` is the wildcard arm.
     pub(crate) value: PackageReviewContractExpression,
 }
 

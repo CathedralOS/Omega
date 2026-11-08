@@ -1,45 +1,20 @@
-//! Persistent, content-verified cache of compiled package reviews.
-//!
-//! An unchanged application or dependency can reuse its completed review
-//! without compiling it again. This module retains one review record per
-//! package occurrence — keyed by SHA-256 over package identity, purpose, the checked
-//! context (target plus admitted build profile), the compiler input identity
-//! the lock records, the live-inputs digest and the build-snapshot digest —
-//! beneath the same resolver lane that already carries the checked-source
-//! index.
-//!
-//! A record never replays a checked verdict by name. The SHA-256 trailer
-//! rejects corruption and truncation, and the policy baseline decodes once
-//! from its stored canonical bytes, whose digest is the policy commitment. A
-//! local writer able to forge a record could equally edit the lock, so a hit
-//! does not re-encode the decoded policy to compare it. The carried
-//! source-consumption commitment is re-derived over the stored consumed units
-//! plus the live inputs before the occurrence counts, because those inputs
-//! are live. Stale and foreign records are misses — the worst outcome is a
-//! fresh compile.
-//!
-//! The live compiler source owner is deliberately not persisted: its sealed
-//! program storage is not serializable. The cache stores the facts a
-//! carried occurrence's `checked` field is actually consumed for — the
-//! source-consumption commitment inputs, the
-//! target-entry candidate and, when a consumer demanded one, the published
-//! independent-component description. Publication lowers the dependency to
-//! Terminal Psi, so a record does not publish one speculatively: a consumer
-//! that later demands a description a record lacks recompiles that
-//! dependency, whose replacement record then carries it.
-//! Entry candidates remain proposals, not admission authority. Application
-//! reviews carry the same checked facts; executable production still uses its
-//! own compilation route and never treats a review record as native code.
-//!
-//! The key binds the build-produced compiler identity and the exact injected
-//! toolchain library content, including developer builds. If either identity
-//! cannot be established, no record is loaded or stored. Canonical record
-//! decoding checks structure independently; it is not proof that a different
-//! compiler would issue the same review.
-//!
-//! `key` derives the record key and the provenance digests a record
-//! stores; `record_codec` owns the record byte layout. This module owns the
-//! record type, its capture from a fresh review, and the directory store.
+/*
+    We maintain a persistent, content-verified cache of compiled package reviews
+    (`CompiledReviewCache`) so an unchanged application or dependency occurrence
+    can reuse its completed review without recompiling. Each record is keyed by
+    SHA-256 over package identity, purpose, checked context (target plus
+    admitted build profile), checked entry path, locked compiler input identity,
+    complete compilation inputs digest, and build-snapshot digest.
+
+    A record never replays a checked verdict by name: a SHA-256 trailer rejects
+    corruption and truncation, stored lineage and resolution digests must match
+    the live lookup, and the carried source-consumption commitment is re-derived
+    over stored consumed units plus live inputs before the occurrence counts.
+    Because sealed compiler program storage is not serializable, `CachedOccurrenceFacts`
+    stores only the facts a carried occurrence needs (consumed units,
+    source-consumption commitment, target-entry candidate, and any demanded
+    `IndependentComponentDescription`).
+*/
 
 use std::process::id;
 mod key;
@@ -68,8 +43,6 @@ const RECORD_EXTENSION: &str = "rec";
 const DEFAULT_MAX_RECORDS: usize = 256;
 const DEFAULT_MAX_RECORD_BYTES: u64 = 512 * 1024 * 1024;
 
-/// The substitution payload replacing a persisted occurrence's
-/// live compiler source: the facts needed by carried review occurrences.
 #[derive(Debug, Clone)]
 pub(crate) struct CachedOccurrenceFacts {
     pub consumed_units: Vec<ConsumedSourceUnit>,
@@ -78,10 +51,6 @@ pub(crate) struct CachedOccurrenceFacts {
     pub target_entry_candidate: Option<SemanticBindingReviewCandidate>,
 }
 
-/// The decoded contents of one cache record. `key` and `resolution` are not
-/// stored as data — the lookup's live package key and custody resolution are
-/// the record's values; the stored digests are compared and the record is a
-/// miss on any difference.
 #[derive(Debug)]
 pub(crate) struct CachedCompiledReview {
     package_identity: PackageKeyIdentity,
@@ -103,8 +72,6 @@ pub(crate) struct CachedCompiledReview {
     policy_canonical_bytes: u64,
 }
 
-/// An optional cache write admitted after review policy has accepted the
-/// occurrence. Build supplies a demanded component; cache failures remain misses.
 pub struct PackageReviewCacheWrite {
     pub(crate) cache: CompiledReviewCache,
     pub(crate) key: [u8; 32],
@@ -125,11 +92,6 @@ impl PackageReviewCacheWrite {
 }
 
 impl CachedCompiledReview {
-    /// Rebuild the review the compiler issued plus the carried-compile facts
-    /// the cache substitutes for live compiler custody. Live `key` and
-    /// `resolution` supply the provenance fields; the record's stored
-    /// digests must match them — a mismatch means the record was filed under
-    /// the wrong identity and is dropped as a miss.
     pub(crate) fn into_review_and_facts(
         self,
         key: &PackageKey,
@@ -171,21 +133,12 @@ impl CachedCompiledReview {
     }
 }
 
-/// One cache directory: a flat sequence of `<key-hex>.rec` records whose
-/// names are the record keys. Records are immutable, content-named and
-/// self-verifying. A full cache evicts its least recently written records:
-/// keys bind the compiler identity and the toolchain library content, so
-/// every compiler rebuild or library edit strands the records it supersedes,
-/// and a cache that declined when full stopped storing for good once those
-/// accumulated. Losing a record costs one fresh compile, never a verdict.
 pub(crate) struct CompiledReviewCache {
     directory: PathBuf,
     limits: CheckedSourceCacheLimits,
 }
 
 impl CompiledReviewCache {
-    /// Open an existing lane directory. A path that cannot be listed or is
-    /// not a directory yields `None`, and the caller compiles fresh.
     pub(crate) fn open(directory: &Path) -> Option<Self> {
         let metadata = std::fs::metadata(directory).ok()?;
         metadata.is_dir().then_some(Self {
@@ -202,8 +155,6 @@ impl CompiledReviewCache {
         self.directory.join(format!("{name}.{RECORD_EXTENSION}"))
     }
 
-    /// Decode the record filed under `key`. Any decode or self-verification
-    /// failure removes the record and reports a miss.
     pub(crate) fn lookup(&self, key: &[u8; 32]) -> Option<CachedCompiledReview> {
         let path = self.record_path(key);
         let bytes = std::fs::read(&path).ok()?;
@@ -226,15 +177,9 @@ impl CompiledReviewCache {
         }
     }
 
-    /// Persist one compiled review record under `key`. Storing is
-    /// best-effort: an oversize record declines silently, and a full
-    /// directory first evicts its oldest records. `replace` overwrites an
-    /// existing record under the same key: a recompile forced by a demanded
-    /// component description replaces the record that lacked it.
     pub(crate) fn store(&self, key: &[u8; 32], review: &CachedCompiledReview, replace: bool) {
         let mut payload = Vec::new();
         if encode_record(review, &mut payload).is_err() {
-            // Cache storage is best-effort; malformed evidence is never saved.
             return;
         }
         crate::review::timings::note(|| {
@@ -281,10 +226,6 @@ impl CompiledReviewCache {
         }
     }
 
-    /// Leave room for one more record, removing the least recently written
-    /// records when the directory is at capacity. Returns whether a record
-    /// may be added. A concurrent writer can race this count; the bound is a
-    /// size budget, and a removed record is only a later miss.
     fn make_room(&self) -> bool {
         let Ok(entries) = std::fs::read_dir(&self.directory) else {
             return false;
@@ -316,7 +257,6 @@ impl CompiledReviewCache {
     }
 }
 
-/// Capture a completed review and its source-free carry facts into a record.
 pub(crate) fn record_compiled_review(
     review: &CompilerIssuedPackageReview,
     facts: CachedOccurrenceFacts,

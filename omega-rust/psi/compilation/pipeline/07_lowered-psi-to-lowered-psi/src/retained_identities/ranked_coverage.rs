@@ -8,7 +8,7 @@
 
 use semantic_vocabulary::{BlockId, ValueId};
 use std::collections::BTreeSet;
-use terminal_psi::{TerminalMachine, TerminalRankedScc};
+use terminal_psi::TerminalMachine;
 
 /// The block-local coordinates a machine's `ranked_scc` evidence covers.
 #[derive(Debug, Default)]
@@ -31,36 +31,9 @@ pub(crate) struct RankedCoverage {
 /// authority. Artifact validation reports the malformed ranking itself.
 pub(crate) fn ranked_coverage(machine: &TerminalMachine) -> Option<RankedCoverage> {
     let mut coverage = RankedCoverage::default();
-    let Some(ranking) = &machine.ranked_scc else {
-        return Some(coverage);
-    };
-    let TerminalRankedScc::Natural(components) = ranking;
-    if components.is_empty() {
-        return None;
-    }
-    for component in components {
-        if component.ranks.is_empty() {
-            return None;
-        }
-        for rank in &component.ranks {
-            coverage.blocks.insert(rank.block);
-            coverage.values.extend(
-                component
-                    .rank_values(rank.values)?
-                    .iter()
-                    .map(|value| value.value),
-            );
-        }
-        for edge in &component.edges {
-            coverage.blocks.extend([edge.source, edge.target]);
-            coverage.values.extend(
-                component
-                    .rank_values(edge.successor_ranks)?
-                    .iter()
-                    .map(|value| value.value),
-            );
-        }
-    }
+    let (blocks, values) = terminal_semantics::scalar_demand::ranked_coordinates(machine)?;
+    coverage.blocks.extend(blocks);
+    coverage.values.extend(values);
     // The read-side of `map_scalar_uses` is a mutating traversal: walk clones
     // and keep every visited identity.
     for block in &machine.blocks {

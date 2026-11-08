@@ -1,19 +1,32 @@
-//! Select exact provider members from Psi's retained declaration inventory.
-//!
-//! Psi owns product-family formation and retains every authored target.
-//! Only Build source selects an execution target before resolution. Neither
-//! route carries a parallel inventory joined back by names or source spans.
-//! Product provider selection remains immutable here; moving the remaining
-//! provider settlement behind Terminal Psi is separate work.
+/*
+We select exact provider and target-machine members from Psi's retained
+declaration inventory without mutating the shared source program.
 
-use crate::SettledTargetMachineDeclarations;
+Psi owns product-family formation and retains every authored target body. Only
+`Build` source selects an execution target before resolution; neither route
+carries a parallel inventory joined back by names or source spans.
+`AuthoredTargetProviders` closes the target/default/candidate relationship
+before portable publication so `PreparedProductProviders` and
+`TargetProviderPreparationRequest` can attach Calling realizations later.
+*/
+
+/*
+A family implemented only by other targets keeps its declaration as an inert
+sibling with its callers so the call resolves and Psi checking accepts every
+body whether or not a realization reaches it (`wiki/spec/language/machines.md`,
+target-scoped families). `reject_reached_inert_sibling_calls` refuses calls the
+realized product actually reaches starting from the selected `ProgramEntry`
+root across explicit calls, named transitions, and selected provider rows.
+It never treats a portable family head as an executable body and never enters
+an inert body, so callers scoped to a sibling's own target go inert with it.
+*/
+
+use crate::{DerivedProviderPlan, ProviderSelection, SettledTargetMachineDeclarations};
 use diagnostics::Diagnostic;
 use language_semantics::direct_calls::DirectCallDeclarations;
 use symbols::SymbolHandle;
 use target::TargetProfile;
 
-mod authored_providers;
-pub(crate) use authored_providers::AuthoredTargetProviders;
 mod prepared_providers;
 pub use prepared_providers::{
     PreparedProductProviders, ProductProviderPreparation, ProviderPublicationCatalog,
@@ -22,54 +35,75 @@ mod provider_publication;
 pub(crate) use provider_publication::TargetProviderPreparationRequest;
 pub use provider_publication::{PreparedTargetProviderPublication, provider_selection_roots};
 
-/// Project retained declarations onto one realization using their exact handles.
-pub fn settle_provider_defaults(
-    origins: &[crate::SelectedTargetMachineOrigin],
-    retained: &[crate::TargetProviderDefaults],
-    target: TargetProfile,
-) -> SettledTargetMachineDeclarations {
-    let matches_target = |name: &str| {
-        TargetProfile::from_canonical_target_name(name).is_ok_and(|resolved| resolved == target)
-    };
-    let provider_defaults = retained
-        .iter()
-        .filter(|row| row.target.as_ref().is_none_or(|name| matches_target(name)))
-        .flat_map(|row| row.selections.iter().cloned())
-        .collect();
-    let origins = origins
-        .iter()
-        .filter(|origin| matches_target(&origin.target))
-        .cloned()
-        .collect();
-    SettledTargetMachineDeclarations {
-        provider_defaults,
-        origins,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct AuthoredTargetProviders {
+    target: Option<target::TargetProfile>,
+    defaults: Vec<ProviderSelection>,
+    candidates: Vec<DerivedProviderPlan>,
+}
+
+impl AuthoredTargetProviders {
+    pub(crate) fn unevaluated(
+        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+        body_declarations: &DirectCallDeclarations<SymbolHandle>,
+        defaults: &[ProviderSelection],
+        target: target::TargetProfile,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let candidates =
+            crate::derive_satisfies_plans(crate::ProviderPlanDerivation::unevaluated(
+                services,
+                body_declarations,
+                &[],
+                Some(target.target_name()),
+            ))?;
+        Ok(Self {
+            target: Some(target),
+            defaults: defaults.to_vec(),
+            candidates,
+        })
+    }
+
+    pub(crate) fn target(&self) -> Option<target::TargetProfile> {
+        self.target
+    }
+
+    pub(crate) fn derive(
+        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+        body_declarations: &DirectCallDeclarations<SymbolHandle>,
+        bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
+        target: Option<target::TargetProfile>,
+        declarations: crate::SettledTargetMachineDeclarations,
+        native_bindings: &[crate::DerivedProviderPlan],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let candidates = crate::derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
+            services,
+            body_declarations,
+            &[],
+            target.map(target::TargetProfile::target_name),
+            bindings,
+            &declarations.origins,
+            native_bindings,
+        ))?;
+        Ok(Self {
+            target,
+            defaults: declarations.provider_defaults,
+            candidates,
+        })
+    }
+
+    pub(crate) fn defaults(&self) -> &[ProviderSelection] {
+        &self.defaults
+    }
+
+    pub(crate) fn candidates(&self) -> &[DerivedProviderPlan] {
+        &self.candidates
+    }
+
+    pub(crate) fn into_candidates(self) -> Vec<DerivedProviderPlan> {
+        self.candidates
     }
 }
 
-/// Refuse the realized product's calls into bodies its target does not have.
-///
-/// A family implemented only by other targets keeps its declaration as an
-/// inert sibling with its callers, so the call still resolves and checking
-/// accepts it. Psi checks every body whether or not a realization reaches it,
-/// so a missing body is a realization question, never a checking error for
-/// the program (wiki/spec/language/machines.md, target-scoped families):
-/// only a call the realized product reaches demands an implementation.
-///
-/// Reach starts at the selected program entry, the root every executable
-/// product requires. It follows explicit calls and named transitions, and a
-/// call to a requirement continues into the realization each selected
-/// provider row binds for it, as the native execution scope does. It does not
-/// treat a portable family head as an executable body: exact target membership
-/// selects the body whose calls must be visited. A missing member keeps the
-/// authored family at the diagnostic boundary rather than importing a sibling.
-/// It never enters an inert body, so a caller scoped to the sibling's own target
-/// goes inert with it and is never reported. A compilation without a selected
-/// entry realizes nothing: a dependency package's candidate check and a
-/// targetless check refuse no portable code, such as std's hosted console and
-/// filesystem adapters checked for `uefi_x86_64`. Machine-valued arguments are
-/// not explicit callees; a missing body reached only through one is refused
-/// when the native execution scope reaches the absent member.
 pub fn reject_reached_inert_sibling_calls(
     declarations: &DirectCallDeclarations<SymbolHandle>,
     target: TargetProfile,
@@ -96,8 +130,6 @@ pub fn reject_reached_inert_sibling_calls(
     )
 }
 
-/// The same exact family selection supplies closed source evaluation. These
-/// rows name checked bodies; they supply no invocation or access permission.
 pub fn selected_constant_target_bodies(
     context: crate::ProviderPlanningContext<'_>,
     target: TargetProfile,
@@ -116,9 +148,6 @@ pub fn selected_constant_target_bodies(
         else {
             continue;
         };
-        // This roster transports ordinary checked bodies only. An imported
-        // intrinsic or foreign family keeps its own execution owner; merely
-        // being realized for this target cannot turn it into checked source.
         if !member.supplies_checked_body()
             || !realizes_machine(context, member, Some(target.target_name()))
         {
@@ -137,15 +166,6 @@ pub fn selected_constant_target_bodies(
     Ok(selected)
 }
 
-/// The machine a provider row realizes on the selected target. A row names
-/// the machine resolution bound its authored path to: a portable body, an
-/// exact target member, or a target family's head when the authored name is
-/// a family (`public macos_arm64 machine sleep` in a library). The head is the
-/// family's declaration, not a body, so the row realizes the member the
-/// catalog retains for the selected target; a family without a body for that
-/// target leaves the row, and its map, inert on that target exactly like a
-/// member authored for another target. A Build-scope context realizes only
-/// portable bodies, as `realizes_machine` states.
 pub(crate) fn realized_row_machine<'program>(
     context: crate::ProviderPlanningContext<'program>,
     named: symbols::SymbolHandle,
@@ -164,18 +184,11 @@ pub(crate) fn realized_row_machine<'program>(
     realizes_machine(context, realization, selected_target).then_some(realization)
 }
 
-/// Select declaration candidates without changing the shared source program.
-/// Build has its own admitted execution scope; its selected declaration marker
-/// is resolved during Build preparation, not from the product target.
 pub(crate) fn realizes_machine(
     context: crate::ProviderPlanningContext<'_>,
     machine: &checked_trees::typed_trees::machine::Machine,
     target: Option<&str>,
 ) -> bool {
-    // A portable family interface has no implementation or satisfies edges.
-    // Sharing the members' callable signature does not make it a second
-    // checked adapter. Entry/family dispatch selects a retained member through
-    // the explicit family catalog instead of this provider-candidate query.
     if machine.target_family_interface || !context.contains(machine.symbol) {
         return false;
     }
@@ -189,4 +202,28 @@ pub(crate) fn realizes_machine(
         .typed
         .source_target_context(machine)
         .is_none_or(|authored| authored == target)
+}
+
+pub fn settle_provider_defaults(
+    origins: &[crate::SelectedTargetMachineOrigin],
+    retained: &[crate::TargetProviderDefaults],
+    target: TargetProfile,
+) -> SettledTargetMachineDeclarations {
+    let matches_target = |name: &str| {
+        TargetProfile::from_canonical_target_name(name).is_ok_and(|resolved| resolved == target)
+    };
+    let provider_defaults = retained
+        .iter()
+        .filter(|row| row.target.as_ref().is_none_or(|name| matches_target(name)))
+        .flat_map(|row| row.selections.iter().cloned())
+        .collect();
+    let origins = origins
+        .iter()
+        .filter(|origin| matches_target(&origin.target))
+        .cloned()
+        .collect();
+    SettledTargetMachineDeclarations {
+        provider_defaults,
+        origins,
+    }
 }

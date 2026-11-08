@@ -1,8 +1,11 @@
+// Closed validation strength (`OptimizationSafetyClass`), machine-readable
+// decision reason (`OptimizationReasonCode`), and 2-byte candidate disposition
+// (`OptimizationCandidateVerdict`).
+
 use super::CoreContractDecodeError;
 
 crate::tagged_vocabulary! {
     5;
-    /// Independent validation strength required before a candidate may commit.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum OptimizationSafetyClass {
         StructuralIdentity = 1,
@@ -36,7 +39,6 @@ impl OptimizationSafetyClass {
 
 crate::tagged_vocabulary! {
     12;
-    /// Stable, machine-readable explanation for a deterministic pass decision.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum OptimizationReasonCode {
         Inapplicable = 1 => "inapplicable",
@@ -59,7 +61,6 @@ crate::tag_from_all!(
     CoreContractDecodeError => CoreContractDecodeError::UnknownReasonCode
 );
 
-/// Final independent disposition of one proposed rewrite candidate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OptimizationCandidateVerdict {
     Applied,
@@ -68,9 +69,6 @@ pub enum OptimizationCandidateVerdict {
 }
 
 impl OptimizationCandidateVerdict {
-    /// Bytes one verdict occupies in every record that carries it. The encoder
-    /// and the record-width arithmetic below both read this, so the two cannot
-    /// disagree about how wide a verdict is.
     pub const ENCODED_WIDTH: usize = 2;
 
     pub const fn encode(self) -> [u8; Self::ENCODED_WIDTH] {

@@ -1,3 +1,5 @@
+// Bounded recovery for data members, variants, and fields in public declarations.
+
 use super::super::{Error, identity::type_identity, reader::Reader};
 use crate::record::{PackageReviewDataField, PackageReviewDataMember};
 

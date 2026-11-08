@@ -57,6 +57,12 @@ and its proof cache, not caller/requirement identity or contract-driven dependen
 compilation. Explicit complexity/resource promises belong to their own public
 contracts, not hidden ranking data.
 
+This privacy concerns the source interface. Published Psi retains the progress
+relationships and dependencies of its termination judgments. Reuse follows
+[producer trust](../terminal-psi/product.md#publication-and-separate-consumption),
+without receiver search for a measure or proof. Interpreter work limits apply
+independently of a guest's termination claim.
+
 Declared measures are package-private; `public measure` rejects, and other packages
 cannot name them directly. An exported machine may use its package's private
 measure because callers depend on the promise, not the witness. Cross-package
@@ -122,7 +128,7 @@ cases explicitly rather than accept frame-growing replacements for old loops.
 A productive terminal-transfer cycle without a termination promise may run
 forever and owes no rank; productivity
 alone proves no fairness or eventual response. When termination of an algorithm
-cannot be proved, a bounded API takes explicit fuel and returns exhaustion as an
+cannot be proved, a bounded API takes explicit work and returns exhaustion as an
 ordinary case. That algorithm-visible budget is distinct from
 [logical-work accounting](../resources/logical_work.md) and creates no native
 runtime meter.

@@ -27,6 +27,14 @@ impl<'a> LayoutCheckingContext<'a> {
 }
 
 impl CheckingInput for LayoutCheckingContext<'_> {
+    fn has_active_recast_formation(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+        depth: usize,
+    ) -> bool {
+        self.input.has_active_recast_formation(expression, depth)
+    }
+
     fn external_invocation_roots(&self) -> Option<&[symbols::SymbolHandle]> {
         self.input.external_invocation_roots()
     }
@@ -66,6 +74,14 @@ impl CheckingInput for LayoutCheckingContext<'_> {
     // Memos were prepared without this guard. Reusing them could mix distinct
     // representation judgments even though the semantic source is unchanged.
     fn checking_memos(&self) -> Option<&CheckingMemos> {
+        None
+    }
+
+    fn cut_reads(&self) -> u64 {
+        self.input.cut_reads()
+    }
+
+    fn shared_memos(&self) -> Option<&CheckingMemos> {
         None
     }
     fn proof_only_classification(&self) -> Arc<ProofOnlyClassification> {

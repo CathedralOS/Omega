@@ -1,4 +1,4 @@
-//! Shared complete service-schema validation for inert policy components.
+// Shared complete service-schema validation for inert provider policy components.
 
 use super::PackagePolicyServiceMethod;
 use crate::record::PackageReviewNominalIdentity;

@@ -36,6 +36,11 @@ allocation-independent source estimate. Bind the composed demand to the exact
 physical realization. A separate provisioning judgment establishes usable backing.
 Runtime tail recursion lowers to iteration with no accumulated frames.
 
+For task activations, the [provider's backing contract](../build/task_runtime.md#activation-description-and-stack)
+guarantees the full plan throughout execution and parking. Reservation and
+physical commitment are provider policies beneath that guarantee; deferred
+commitment cannot introduce an otherwise unaccounted stack-exhaustion outcome.
+
 Source machine nesting is a visibility relationship, not a storage-allocation
 tree. One machine need not become one physical frame, and one nested helper
 need not share its caller's frame. Frame reuse, inlining and fusion preserve

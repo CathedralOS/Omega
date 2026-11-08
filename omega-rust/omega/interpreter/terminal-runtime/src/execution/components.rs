@@ -1,6 +1,7 @@
-//! Create real producing instances from the native product's exact companions.
-//! This host root supplies the same invocation capabilities to both artifacts;
-//! the interpreter owns child entry, suspension, completion and token custody.
+// Prepare real producing component instances (`TerminalComponentBinding`) from
+// a native product's exact runtime companions. The host root supplies the same
+// invocation capabilities to both artifacts while the interpreter owns child
+// entry, suspension, completion, and token custody.
 
 use super::{TerminalRuntimeError, host_imports};
 use terminal_interpreter::{

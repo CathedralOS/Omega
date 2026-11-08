@@ -137,6 +137,11 @@ fn resolve_snapshot(
     else {
         return Some(Resolution::Unavailable);
     };
+    // Straight-line history needs no annotations: most queries end here.
+    if let Some(result) = resolve_chain(program, control, snapshot, source, observation, &boundary)
+    {
+        return result;
+    }
     let mut annotations = BTreeMap::new();
     let mut pending = vec![(snapshot, false)];
     while let Some((current, complete)) = pending.pop() {
@@ -223,75 +228,15 @@ fn resolve_snapshot(
             Some(Annotation::Active) => return Some(Resolution::Unavailable),
             None => {}
         }
-        let terminal = match event.operation {
-            FlowStorageOperation::Unknown => Some(Resolution::Unavailable),
-            FlowStorageOperation::Store { destination, .. }
-                if matches!(boundary, SourceBoundary::ReadCuts(_)) =>
-            {
-                let path = control
-                    .operand_referent_segments
-                    .span(destination.segments)?;
-                (destination.root == source.root
-                    && crate::storage_path_relations::contents_overlap(program, source, path))
-                .then_some(Resolution::Unavailable)
-            }
-            FlowStorageOperation::Store {
-                destination, value, ..
-            } => match matches_store(program, control, source, destination) {
-                None => Some(Resolution::Unavailable),
-                Some(false) => None,
-                Some(true) if control.operands.is_valid(value) => Some(Resolution::Sources {
-                    incoming: false,
-                    stores: vec![current],
-                }),
-                Some(true) => Some(Resolution::Unavailable),
-            },
-            FlowStorageOperation::Writes {
-                bindings,
-                contents,
-                bindings_complete,
-                contents_complete,
-            } => {
-                let (writes, complete) = match observation {
-                    StoredObservation::Binding | StoredObservation::InlineContents => {
-                        (bindings, bindings_complete)
-                    }
-                    StoredObservation::Contents => (contents, contents_complete),
-                };
-                let stable = complete
-                    && control
-                        .operand_origin_writes
-                        .span(writes)
-                        .is_some_and(|writes| {
-                            writes.iter().all(|write| {
-                                write.root != source.root
-                                    || control
-                                        .operand_referent_segments
-                                        .span(write.segments)
-                                        .is_some_and(|segments| !match observation {
-                                            StoredObservation::Binding => {
-                                                crate::storage_path_relations::binding_overwrite(
-                                                    program, source, segments,
-                                                )
-                                            }
-                                            StoredObservation::InlineContents
-                                            | StoredObservation::Contents => {
-                                                crate::storage_path_relations::contents_overlap(
-                                                    program, source, segments,
-                                                )
-                                            }
-                                        })
-                            })
-                        });
-                (!stable).then_some(Resolution::Unavailable)
-            }
-            FlowStorageOperation::PreserveBinding { destination, .. } => {
-                preserved_binding_matches(program, control, source, destination, observation)
-                    .is_none()
-                    .then_some(Resolution::Unavailable)
-            }
-            FlowStorageOperation::Join { .. } => None,
-        };
+        let terminal = terminal_resolution(
+            program,
+            control,
+            current,
+            &event.operation,
+            source,
+            observation,
+            &boundary,
+        )?;
         if let Some(result) = terminal {
             if matches!(result, Resolution::Unavailable) {
                 trace_query_refusal(control, current, source, observation);
@@ -319,6 +264,154 @@ fn resolve_snapshot(
         }
     }
     Some(resolved(&annotations, snapshot))
+}
+
+/// What one storage event decides for `source` by itself: a terminal
+/// resolution, or `None` when the answer lies before the event. The outer
+/// `None` is a malformed row, which fails the whole query.
+fn terminal_resolution(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    current: Snapshot,
+    operation: &FlowStorageOperation,
+    source: &CanonicalPlace,
+    observation: StoredObservation,
+    boundary: &SourceBoundary<'_>,
+) -> Option<Option<Resolution>> {
+    Some(match *operation {
+        FlowStorageOperation::Unknown => Some(Resolution::Unavailable),
+        FlowStorageOperation::Store { destination, .. }
+            if matches!(boundary, SourceBoundary::ReadCuts(_)) =>
+        {
+            let path = control
+                .operand_referent_segments
+                .span(destination.segments)?;
+            (destination.root == source.root
+                && crate::storage_path_relations::contents_overlap(program, source, path))
+            .then_some(Resolution::Unavailable)
+        }
+        FlowStorageOperation::Store {
+            destination, value, ..
+        } => match matches_store(program, control, source, destination) {
+            None => Some(Resolution::Unavailable),
+            Some(false) => None,
+            Some(true) if control.operands.is_valid(value) => Some(Resolution::Sources {
+                incoming: false,
+                stores: vec![current],
+            }),
+            Some(true) => Some(Resolution::Unavailable),
+        },
+        FlowStorageOperation::Writes {
+            bindings,
+            contents,
+            bindings_complete,
+            contents_complete,
+        } => {
+            let (writes, complete) = match observation {
+                StoredObservation::Binding | StoredObservation::InlineContents => {
+                    (bindings, bindings_complete)
+                }
+                StoredObservation::Contents => (contents, contents_complete),
+            };
+            let stable = complete
+                && control
+                    .operand_origin_writes
+                    .span(writes)
+                    .is_some_and(|writes| {
+                        writes.iter().all(|write| {
+                            write.root != source.root
+                                || control
+                                    .operand_referent_segments
+                                    .span(write.segments)
+                                    .is_some_and(|segments| !match observation {
+                                        StoredObservation::Binding => {
+                                            crate::storage_path_relations::binding_overwrite(
+                                                program, source, segments,
+                                            )
+                                        }
+                                        StoredObservation::InlineContents
+                                        | StoredObservation::Contents => {
+                                            crate::storage_path_relations::contents_overlap(
+                                                program, source, segments,
+                                            )
+                                        }
+                                    })
+                        })
+                    });
+            (!stable).then_some(Resolution::Unavailable)
+        }
+        FlowStorageOperation::PreserveBinding { destination, .. } => {
+            preserved_binding_matches(program, control, source, destination, observation)
+                .is_none()
+                .then_some(Resolution::Unavailable)
+        }
+        FlowStorageOperation::Join { .. } => None,
+    })
+}
+
+/// `resolve_snapshot` along a chain of single predecessors, the shape of
+/// straight-line code: walk back from `snapshot` to the first event that
+/// decides `source`. Each step takes the same decision the general walk takes
+/// at that event, and on a chain the general walk's answer is exactly that
+/// first decision, so the results agree. `None` (outer) means the chain
+/// reached a join, or ran longer than the graph has snapshots (a cycle); the
+/// caller then runs the general walk, which handles both.
+fn resolve_chain(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    snapshot: Snapshot,
+    source: &CanonicalPlace,
+    observation: StoredObservation,
+    boundary: &SourceBoundary<'_>,
+) -> Option<Option<Resolution>> {
+    let mut current = snapshot;
+    for _ in 0..=control.storage_snapshots.len() {
+        if !current.is_valid() {
+            return Some(Some(Resolution::Incoming));
+        }
+        if !control.storage_snapshots.is_valid(current) {
+            return Some(Some(Resolution::Unavailable));
+        }
+        if let SourceBoundary::ReadCuts(cuts) = boundary
+            && cuts.contains(&identity(current))
+        {
+            return Some(Some(Resolution::Sources {
+                incoming: false,
+                stores: vec![current],
+            }));
+        }
+        let event = control.storage_snapshots.get(current);
+        let Some(terminal) = terminal_resolution(
+            program,
+            control,
+            current,
+            &event.operation,
+            source,
+            observation,
+            boundary,
+        ) else {
+            return Some(None);
+        };
+        if let Some(result) = terminal {
+            if matches!(result, Resolution::Unavailable) {
+                trace_query_refusal(control, current, source, observation);
+            }
+            return Some(Some(result));
+        }
+        current = match event.operation {
+            FlowStorageOperation::Join { .. } => return None,
+            FlowStorageOperation::PreserveBinding {
+                destination,
+                source: entry,
+            } if preserved_binding_matches(program, control, source, destination, observation)
+                == Some(true) =>
+            {
+                entry
+            }
+            _ => event.previous,
+        };
+    }
+    None
 }
 
 pub fn at_snapshot(

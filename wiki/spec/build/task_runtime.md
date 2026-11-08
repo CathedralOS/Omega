@@ -48,6 +48,16 @@ must establish backing satisfying the exact plan. Ordinary calls acquire no
 new spill-exhaustion route. Remote execution provisions the equivalent in its
 execution domain; inline execution still has an accountable stack provision.
 Alternate lowered representations are not runtime-selectable modes of this plan.
+Omega accepts that per-activation capacity cost for one machine kind with ordinary
+call-chain suspension, stable addresses for loans and outstanding operations,
+and stack-capacity admission before execution.
+
+The provider must guarantee usable backing for the full stack plan throughout
+the activation, including while parked. Its contract states the reservation and
+physical-commitment policy; deferred commitment must preserve that guarantee.
+Reserving an address range alone does not establish sufficient backing.
+Nonmoving frames preserve addresses relied on by live loans and outstanding
+operations across suspension.
 
 Target/provider selection and physical plans remain in the
 [build-owned companion](../terminal-psi/product.md#build-owned-companion), not

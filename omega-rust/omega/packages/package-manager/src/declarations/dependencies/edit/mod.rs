@@ -1,4 +1,14 @@
-//! Digest-bound, conservative edit plans for dependency declarations.
+/*
+Digest-bound, conservative edit plans for `build.omg` dependency declarations.
+
+`BuildDependencyEditPlan` distinguishes unchanged sources, automatic
+digest-bound replacements (`BuildFileReplacement`), and manual patch guidance
+(`BuildDependencyManualPatch`) when `build.omg` uses noncanonical signatures,
+inline body layouts, comments inside dependency rows, or ambiguous rows.
+Every proposed statement escapes caller-controlled strings as Omega literals,
+and executed Build discovery plus Product review validate the resulting meaning
+before publication.
+*/
 
 mod layout;
 mod planning;
@@ -15,16 +25,10 @@ use std::path::{Path, PathBuf};
 const BUILD_MACHINE_NAME: &str = "build";
 const BUILDER_PARAMETER_NAME: &str = "builder";
 
-/// A conservative, non-mutating plan for changing one `build.omg` dependency.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BuildDependencyEditPlan {
-    /// The exact requested row is already present.
     Unchanged,
-    /// The source has a canonical edit point and may be replaced atomically
-    /// after checking `expected_sha256` again.
     Automatic(BuildFileReplacement),
-    /// The source is valid Omega but its layout or intent requires a person or
-    /// reviewing agent to place the generated row.
     Manual(BuildDependencyManualPatch),
 }
 
@@ -36,12 +40,6 @@ pub(crate) struct BuildFileReplacement {
 }
 
 impl BuildFileReplacement {
-    /// Construct a replacement from command-owned source, including unchanged
-    /// source or a saved proposal resumed by the command.
-    ///
-    /// The expected digest covers the exact `before` bytes. This is only an edit
-    /// proposal: executed Build discovery and Product review validate its meaning
-    /// before publication. Dynamic declarations need no static projection.
     pub(crate) fn from_sources(build_path: PathBuf, before: &str, proposed: String) -> Self {
         Self::new(build_path, source_digest(before), proposed)
     }
@@ -97,8 +95,6 @@ impl BuildDependencyManualPatch {
         self.reason
     }
 
-    /// Canonical, compiler-generated text for the requested row. Every
-    /// caller-controlled string is escaped as an Omega literal.
     pub(crate) fn proposed_statement(&self) -> &str {
         &self.proposed_statement
     }

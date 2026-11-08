@@ -168,6 +168,7 @@ pub fn normalize_terminal_transition_calls(
                 machine_arguments: captured_arguments(path.symbol).into_boxed_slice(),
                 quotient_operation: None,
                 private_layout_operation: None,
+                installed_interrupt_operation: None,
                 layout_query: None,
                 native_code_layout: None,
                 build_selection: Default::default(),

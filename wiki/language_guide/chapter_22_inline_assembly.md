@@ -1,9 +1,8 @@
-# Chapter 22: Inline Assembly
+# Chapter 22: Inline assembly
 
-Assembly is a checked low-level operation surface, not an escape from Omega's
-ownership, authority, effects or control flow. The [assembly specification](../spec/language/assembly.md)
-defines the contract; the [instruction catalog note](../../omega-rust/psi/foundation/language-core/inline_assembly.md)
-records current source and target coverage.
+Use inline assembly for operations that need a particular instruction or
+machine-state transition. Each supported instruction has a contract that the
+compiler checks alongside your code.
 
 `asm machine` gives an ordinary machine an assembly body. It can implement the
 same requirements as an ordinary machine. Nested assembly-bodied declarations
@@ -44,7 +43,7 @@ An authored clobber set must be exact: both omitted and invented changes reject.
 An outgoing jump checks the source block's `ensures` before entering its
 successor. A nonreturning environment exit does not invent an ordinary return.
 
-## Separate regions do not share hidden registers
+## Pass values between assembly blocks
 
 Separate assembly regions cannot communicate through whatever a previous region left in
 a general register or scratch flag. Inputs and outputs use ordinary typed places:
@@ -54,15 +53,11 @@ asm { mov saved, input }
 asm { mov output, saved }
 ```
 
-Here `saved` carries the value, not incidental register preservation. Each
-block accounts for its own scratch dataflow and clobbers. An explicit catalog
-operation may observe architectural state, but it cannot invent a guarantee
-about surrounding compiler scratch.
+`saved` carries the value between blocks. Scratch registers and flags are local
+to each block; use typed inputs and outputs for communication.
 
-This does not isolate side effects: memory writes, device commands and changes
-to interrupt state persist. For example, interrupt masking can cover ordinary
-Omega code between assembly blocks; restoring the saved state remains an
-explicit obligation. A block is not an atomic transaction or rollback scope.
+Memory writes and device effects persist across blocks. If a block masks
+interrupts, restore the saved state after the protected work.
 
 ## Label contracts and loops
 
@@ -98,13 +93,10 @@ registers ecx = count
 }
 ```
 
-Every predecessor, including a loop backedge, proves the destination's
-`requires`. The checker applies each instruction's catalog semantics and proves
-the source label's `ensures` on every exit. Registers, flags, modeled memory,
-ordinary places and values, authority, domains and live ownership obligations
-are all part of that symbolic state. Separate `asm` statements still share no
-hidden scratch registers. Nested blocks within one region do share the exact
-modeled incoming register and flag state through their explicit edges.
+The zero test establishes `ecx == 0` on the edge to `done`. The other edge
+establishes `ecx > 0`, permitting the subtraction in `step`. Every backedge
+must prove its destination's requirements again. A termination promise also
+needs a decreasing measure for the loop.
 
 A conditional jump is the final native instruction of its block. The following
 `transition` names its not-taken successor and must place that successor
@@ -113,22 +105,13 @@ terminator; another instruction after `jz` would need another block. An actual
 `jmp` handles a nonadjacent target or backedge. Impossible adjacency rejects,
 rather than quietly inserting a jump. Declarations do not execute by themselves.
 
-A proposition over modeled memory performs no load and grants no access. For
-example, `[eax] == 1` at a label asks the proof system about the memory state
-identified by `eax`; an actual load or store separately owes its instruction
-contract. Ambiguous width, address space or backing makes the proposition
-unprovable. Loops use these label invariants and, when termination is required,
-the ordinary ranked-decrease rules rather than an asm-only termination system.
+The `registers` header initializes working registers once; a backedge skips
+that setup. It may emit instructions. A nested `clobbers` clause describes the
+block's own writes, including temporary writes later restored. Preserving a
+caller's register value is a separate obligation.
 
-The `registers` header initializes working registers once. It may emit code;
-it is not a declaration of where the caller supplied arguments. Initializers
-refer to the incoming input values, even when their physical locations overlap.
-The initial transition emits no trampoline, and a backedge skips initialization.
-
-A nested clobber list describes that block's own instructions, not every
-successor it can reach. Instruction effects are inferred when the list is
-omitted. A temporary write followed by restoration still contributes to the
-write footprint; ABI preservation of the original value is checked separately.
+For contracts over memory and exact instruction footprints, see the
+[assembly reference](../spec/language/assembly.md).
 
 ## Calling conventions and results
 
@@ -160,7 +143,7 @@ Their live bounds and loans still govern assembly accesses. A foreign calling
 policy instead needs an explicitly admitted descriptor shape or a pointer/length
 adapter; rejecting an unspecified foreign slice ABI does not prohibit slices.
 
-## No quiet spelling
+## Declare hardware authority
 
 Direct assembly cannot hide a mechanism's service reach or authority by avoiding
 a wrapper. A helper containing `wrmsr` still owes machine-control authority.
@@ -177,19 +160,14 @@ owns the guard's opaque representation, routed qualification and exact restore.
 Unknown instructions and raw bytes reject. Admitted prebuilt code uses the
 ordinary foreign-provider path.
 
-## Control flow remains Omega control flow
+## Jumps and entry protocols
 
-Internal jumps target declared assembly machines; a jump leaving the body targets
-a visible Omega machine. Both are checked transfers whose target contracts, arguments,
-invariants and live obligations remain visible. Control transfer is the final
-instruction in its block, except for the zero-instruction transition completing
-a conditional terminator. Undeclared targets, uncontracted returns and unwinds
-remain rejected. A local jump neither creates a frame nor repeats register setup.
+Jumps target declared machines and prove their contracts. A local jump keeps
+the frame and skips entry register setup. Indirect calls require a checked
+entry identity.
 
-Some catalog operations are user-checked; entry/exit operations such as
-return-from-interrupt are deriver-only. A handler cannot use them to bypass its
-entry protocol. Indirect calls require sealed entry identity, not an integer
-that happens to resemble a code address.
+Interrupt returns and similar entry/exit operations belong to the generated
+entry protocol. A handler supplies its checked body inside that protocol.
 
 ## Machine-state regimes
 
@@ -221,12 +199,7 @@ For example, a checked table writer does not acquire publication authority merel
 by producing valid bytes. The consumer establishes the table's semantic validity
 and the installer separately publishes it. See [hardware materialization](../spec/build/hardware_materialization.md).
 
-## Required catalogs
 
-Target support grows by adding complete instruction contracts and their checked
-realization, not by granting arbitrary mnemonic access. A catalog entry, parser
-test or emitted byte sequence alone is not evidence of complete native execution.
-Current families and rejected forms are listed beside the catalog.
 
 ## Running assembly under interpretation
 
@@ -240,38 +213,18 @@ environment:
 | Move a value | Read/write the same authorized typed places. |
 | Write a device port | Perform the exact port operation through the supplied environment. |
 | Change interrupt state | Update persistent modeled state that governs subsequent event delivery. |
-| Halt | Follow the processor model's halt and external-control contract, not report successful return or fuel exhaustion. |
+| Halt | Follow the processor model's halt and external-control contract, not report successful return or work-budget exhaustion. |
 
-The root and receiving host select/admit that environment. A simulated processor
-does not confer control of the real host processor. Device providers supply
-mechanisms; Cathedral still executes its own drivers, scheduler and boot logic.
-No alternate body or `Binding` wrapper is required around every assembly block,
-and no full-host emulator is required simply to interpret value operations.
+The host supplies the target environment. Missing instruction semantics or
+environment support prevents execution. A work-budget pause retains state so
+resuming does not repeat an already performed port write.
 
-Fuel pauses preserve the activation's scratch, persistent state and progress.
-Resumption does not repeat an already performed port write. Interrupt timing,
-ordering and legal external-entry points follow the target model; an interpreter
-step is not automatically a native instruction. Address IDs alone do not supply
-a physical memory map.
+See [interpreted execution](../spec/language/assembly.md#interpreted-execution)
+and [embedding](chapter_24_embedding.md#native-and-interpreted-cathedral) for
+processor state, interrupts, and external entries.
 
-Missing instruction semantics, authority or environment support rejects before
-execution. There is no implicit native/JIT fallback. A no-op is valid only for
-effects the catalog actually permits to be elided. Interpretation does not by
-itself admit an operation into constants or build-time code. See the
-[complete execution contract](../spec/language/assembly.md#interpreted-execution)
-and [embedding](chapter_24_embedding.md#native-and-interpreted-cathedral).
+## Further reference
 
-## Working rules
-
-When offering a boundary API, describe the semantic operation in its contract
-and keep instruction details in the selected implementation. Direct checked
-assembly is also legitimate; a wrapper is not required for interpretation.
-Preserve exact effects, authority, control exits and state restoration. If those
-obligations cannot be discharged, the assembly rejects; a helper or admission
-receipt cannot leave them open.
-
-A checked implementation of a consuming boundary-trait member may discharge a
-linear argument through assembly only when the instruction semantics and label
-contracts prove the required effect on every normal exit. Merely naming the
-member, reaching the right service or writing an `ensures` clause proves
-nothing by itself.
+The [instruction catalog](../../omega-rust/psi/foundation/language-core/inline_assembly.md)
+lists supported operations. The [assembly specification](../spec/language/assembly.md)
+defines their checking, control flow, and target requirements.

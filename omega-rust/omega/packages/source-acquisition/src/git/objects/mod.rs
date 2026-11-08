@@ -1,4 +1,6 @@
-//! Git object parsing, authentication, and selective bounded transfer.
+// In-process Git object-graph parsing, SHA-1/SHA-256 cryptographic
+// authentication, selective member projection, and bounded `cat-file --batch`
+// transfer.
 
 pub(crate) mod authentication;
 pub(crate) mod batch;

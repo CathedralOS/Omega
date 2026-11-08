@@ -1,4 +1,15 @@
-//! Filesystem custody shared by local snapshots and Git cache entries.
+/*
+Host-specific cache ownership, permission-mode, file-identity, and macOS
+extended ACL custody checks.
+
+Unix cache nodes must be owned by the effective user and never writable by group
+or others. Non-Unix targets enforce portable kind, handle identity, and bounded
+topology checks without promoting host ACLs into resolver isolation evidence. On
+macOS, `verify_macos_cache_ancestor_acl_custody` steps down the ancestry walk by
+opening each directory from its verified parent handle, reconciling identity
+with its classification, and checking extended ACL allow entries through that
+same handle.
+*/
 
 #[cfg(any(target_os = "macos", windows))]
 use super::lock::same_std_and_capability_file_identity;
@@ -105,9 +116,6 @@ pub(super) fn verify_cache_node_owner_and_mode(
     _path: &Path,
     _metadata: &std::fs::Metadata,
 ) -> Result<(), SourceResolveError> {
-    // Non-Unix targets retain the portable kind, identity, and bounded-topology
-    // checks. Ordinary host ACLs are not promoted into resolver isolation
-    // evidence.
     Ok(())
 }
 
@@ -295,7 +303,6 @@ pub(crate) fn verify_macos_open_cache_extended_acl_custody(
     Ok(())
 }
 
-/// Verify one already-classified cache root through the ancestry walk's step.
 #[cfg(target_os = "macos")]
 pub(crate) fn verify_macos_open_cache_directory_acl_custody(
     kind: CacheCustodyKind,
@@ -314,11 +321,6 @@ pub(crate) fn verify_macos_open_cache_directory_acl_custody(
     Ok(())
 }
 
-/// One step of the no-follow ancestry walk. Open `path` from `parent`, the
-/// handle of its already verified parent (`None` opens the filesystem root),
-/// require the opened directory to be the one just classified, and read its
-/// ACL facts through that handle. The handle continues the walk, so each
-/// ancestor is opened once and is provably the parent of the next.
 #[cfg(target_os = "macos")]
 pub(crate) fn verify_macos_cache_ancestor_acl_custody(
     kind: CacheCustodyKind,
@@ -367,8 +369,6 @@ pub(crate) fn verify_macos_cache_ancestor_acl_custody(
     Ok(None)
 }
 
-/// Read a directory's ACL facts through a handle the caller already opened
-/// no-follow and reconciled with its classification.
 #[cfg(target_os = "macos")]
 pub(crate) fn verify_macos_opened_cache_directory_acl_custody(
     kind: CacheCustodyKind,

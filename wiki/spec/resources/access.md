@@ -250,7 +250,8 @@ capacity, and cannot be inferred from the absence of an active view.
 
 [Dense owned runs](typed_runs.md) provide the explicit runtime-count counterpart:
 `Run<P, T>` under `Live<P, T>` owns ordered established cells with their custody.
-Its checked typed-cell split/merge is not ordinary splitting of a `Resident`.
+Its sealed core split/merge primitives transfer that ordered cell custody;
+ordinary extent splitting remains restricted to the extent's admitted content.
 Singleton conversion must preserve the resident's field-view, footprint and
 non-runtime custody semantics before the two can share an implementation.
 

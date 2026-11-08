@@ -1,5 +1,6 @@
-//! Every rejection raised while constructing a package graph or attaching
-//! target inputs to it, with the diagnostic text each one renders.
+// Structured errors (`PackageCompilationInputError`) raised when constructing
+// `PackageCompilationInputs` or attaching build handoffs, semantic bindings,
+// dependency acquisitions, and independent component descriptions.
 
 use super::display_identity;
 use crate::{AcceptedSemanticBindingRole, BuildDeclarationKind};

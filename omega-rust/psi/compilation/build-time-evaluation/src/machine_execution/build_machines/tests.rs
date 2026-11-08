@@ -151,18 +151,18 @@ fn checked_constant_admits_the_retained_recursive_component() {
     on_compilation_stack(|| {
         let program = checked(
             "data Node { step: u64; count: u64 }
-             machine descend(node: Node, index: u64, fuel: u64) -> u64
-             reaches terminates by fuel
-             requires fuel >= 1 && index <= 8 && node.count <= 8
+             machine descend(node: Node, index: u64, work: u64) -> u64
+             reaches terminates by work
+             requires work >= 1 && index <= 8 && node.count <= 8
              {
-                 transition index < node.count && fuel > 1 {
-                     true -> through(node, index, fuel - 1)
-                     _ -> fuel
+                 transition index < node.count && work > 1 {
+                     true -> through(node, index, work - 1)
+                     _ -> work
                  }
-                 machine through(node: Node, index: u64, fuel: u64) -> u64
-                 requires fuel >= 1 && index <= 7
+                 machine through(node: Node, index: u64, work: u64) -> u64
+                 requires work >= 1 && index <= 7
                  {
-                     descend(node, index + 1, fuel)
+                     descend(node, index + 1, work)
                  }
              }
              machine answer() -> u64 {
@@ -196,19 +196,19 @@ fn checked_constant_admits_mutating_recursive_component() {
     on_compilation_stack(|| {
         let program = checked(
             "data Node { step: u64; count: u64 }
-             machine descend(node: Node, index: u64, fuel: u64) -> u64
-             reaches terminates by fuel
-             requires fuel >= 1 && index <= 8 && node.count <= 8
+             machine descend(node: Node, index: u64, work: u64) -> u64
+             reaches terminates by work
+             requires work >= 1 && index <= 8 && node.count <= 8
              {
-                 transition index < node.count && fuel > 1 {
-                     true -> through(node, index, fuel - 1)
-                     _ -> fuel
+                 transition index < node.count && work > 1 {
+                     true -> through(node, index, work - 1)
+                     _ -> work
                  }
-                 machine through(mut node: Node, index: u64, fuel: u64) -> u64
-                 requires fuel >= 1 && index <= 7 && node.count <= 8
+                 machine through(mut node: Node, index: u64, work: u64) -> u64
+                 requires work >= 1 && index <= 7 && node.count <= 8
                  {
                      node.step = node.step;
-                     descend(node, index + 1, fuel)
+                     descend(node, index + 1, work)
                  }
              }
              machine answer() -> u64 {
@@ -242,18 +242,18 @@ fn checked_constant_refuses_a_cycle_without_descent() {
     on_compilation_stack(|| {
         let (typed, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
             typed(
-                "machine descend(fuel: u64) -> u64
-                 reaches terminates by fuel
-                 requires fuel >= 1
+                "machine descend(work: u64) -> u64
+                 reaches terminates by work
+                 requires work >= 1
                  {
-                     transition fuel > 1 {
-                         true -> through(fuel)
-                         _ -> fuel
+                     transition work > 1 {
+                         true -> through(work)
+                         _ -> work
                      }
-                     machine through(fuel: u64) -> u64
-                     requires fuel >= 1
+                     machine through(work: u64) -> u64
+                     requires work >= 1
                      {
-                         descend(fuel)
+                         descend(work)
                      }
                  }",
             ),

@@ -10,6 +10,9 @@
 //! more to publish complete output. If the incoming values do not settle, it
 //! rebuilds every state once with all incoming values unknown. `reach` then
 //! attaches service-reach, suspension, and blocking summaries.
+//! `normal_returns` intersects completed exits over exact invocation storage;
+//! these handle-free rows participate in the same fixed point through reverse
+//! caller dependencies and are discarded with a nonconvergent attempt.
 //!
 //! `state::build_state_flow_fact` runs one state in this order: declaration and
 //! state-entry contexts (with incoming values from `state_values`) rebased by
@@ -32,6 +35,7 @@ pub(crate) mod atomic_effects;
 mod builder;
 pub(crate) mod completed_values;
 mod context;
+mod normal_returns;
 mod reach;
 mod state_values;
 pub(crate) mod stored_values;
@@ -102,8 +106,8 @@ mod domain;
 mod mutation;
 
 // What a call reads through its receiver: the borrow checks compare it with the
-// same call's exclusive argument loans beside whole `&mut` receivers. A jump's
-// argument loans cover less of its successor's run than a call's (`jump_loans`).
+// same call's exclusive argument loans beside whole `&mut` receivers. Terminal
+// carrier transport retains each child's own held footprint (`jump_loans`).
 mod jump_loans;
 mod receiver_reads;
 
@@ -269,3 +273,5 @@ pub(crate) use value_origins::value_origin_matches_call_return;
 
 mod local_jump;
 pub(crate) use local_jump::{LocalJump, local_jump};
+mod terminal_invocation;
+pub(crate) use terminal_invocation::terminal_invocation;

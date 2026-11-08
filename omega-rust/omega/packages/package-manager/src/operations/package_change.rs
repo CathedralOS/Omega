@@ -1,4 +1,13 @@
-//! Candidate checking, project review, and a proposed source lock section.
+/*
+Candidate checking, project policy comparison, and proposed target lock section construction.
+
+`review_package_change_reusing` checks a resolved source closure for one target profile
+using the shared `PackageBuildSession` and compares its compiler-issued policy baselines
+against the accepted target section in `omega.lock`. `PackageChangeReview::propose_lock_target`
+verifies that all required policy changes were accepted, re-verifies transitive source
+custody and compiler input identity, and assembles the proposed `PackageLockTarget`
+without writing `build.omg` or `omega.lock`.
+*/
 
 use crate::build_session::PackageBuildSession;
 
@@ -20,9 +29,6 @@ use crate::review::{
 };
 use target::TargetProfile;
 
-/// One checked candidate and its comparison. This holds the source snapshot
-/// needed for review and lock construction, not a package certificate or file
-/// publication permission. No accepted project file is changed by this type.
 #[derive(Debug)]
 pub struct PackageChangeReview {
     source_closure: ResolvedPackageSourceClosure,
@@ -41,8 +47,6 @@ impl PackageChangeReview {
         &self.reviews
     }
 
-    /// Feed this report to the ordinary review document renderer and recovery
-    /// functions. An absent baseline means fresh review, not silent acceptance.
     pub const fn changes(&self) -> &PackagePolicyChangeSet {
         &self.changes
     }
@@ -51,13 +55,6 @@ impl PackageChangeReview {
         self.target
     }
 
-    /// Construct the proposed target section after complete accepting choices.
-    /// Recheck retained source snapshots and selections before using their pins.
-    ///
-    /// The caller still owns file-transaction locking, concurrent project edits,
-    /// immediate pre-publication source/build checks, and other selected targets.
-    /// This function writes neither `build.omg` nor `omega.lock`, and emits no
-    /// native artifact. A rejection leaves this review available for inspection.
     pub fn propose_lock_target(
         &self,
         resolution: &PackagePolicyResolution,
@@ -112,12 +109,6 @@ impl PackageChangeReview {
     }
 }
 
-/// Review a candidate using the closure's resolved source bindings. The same
-/// session owns compiler reuse, staging and sponsors across targets and review
-/// rounds; each occurrence still admits its own authority.
-/// A caller-selected snapshot applies only to the root and is rechecked in
-/// both discovery and final review. The command owner retains that selection
-/// across pending review; this operation grants no output publication authority.
 pub fn review_package_change_reusing(
     source_closure: ResolvedPackageSourceClosure,
     target: TargetProfile,

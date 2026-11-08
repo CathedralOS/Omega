@@ -191,7 +191,7 @@ pub(super) fn disposition_actions_at(
         }
         _ => disposition.exit.statement_index,
     };
-    let case_evidence = crate::flow::CleanupCaseEvidence::new(program, facts, disposition)
+    let case_evidence = crate::flow::CleanupCaseEvidence::new(program, facts.view(), disposition)
         .ok_or("cleanup has invalid occurrence case evidence")?;
     let case_evidence = if let Some(completed) = completed_result {
         case_evidence

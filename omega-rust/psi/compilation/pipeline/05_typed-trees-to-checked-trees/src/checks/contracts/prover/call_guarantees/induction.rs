@@ -3,11 +3,11 @@
 //! premise checking and post-return preservation remain separate obligations.
 
 use super::Invocation;
-use checked_trees::{CheckFacts, FlowStateFact};
+use checked_trees::FlowStateFact;
 
 pub(super) fn strict_recursive_call(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     caller: &FlowStateFact,
     invocation: &Invocation<'_>,
 ) -> bool {

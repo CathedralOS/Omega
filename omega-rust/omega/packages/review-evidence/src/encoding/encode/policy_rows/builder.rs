@@ -1,3 +1,5 @@
+// Bounded row builder and canonical acceptance row framing (`frame_row`) for package policy rows.
+
 use crate::encoding::PACKAGE_POLICY_BASELINE_VERSION;
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::policy_rows::Encoder;
@@ -191,10 +193,6 @@ impl Builder {
     }
 }
 
-/// One row's acceptance frame: the versioning envelope, the occurrence's
-/// package identity and target, the row kind, its decision flags, and the
-/// carried value. Shared by whole-baseline projection and single-request
-/// rendering so both produce identical canonical text.
 pub(super) fn frame_row(
     encoder: &mut Encoder,
     package: PackageKeyIdentity,

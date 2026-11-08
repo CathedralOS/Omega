@@ -32,6 +32,53 @@ component realizations share requirement and lifecycle contracts, not necessaril
 container formats, physical representations, or provider implementations. A native
 plugin product still needs its selected ABI/container; a Psi artifact is not a DLL.
 
+## Loading and preparation
+
+The [Psi admission contract](../terminal-psi/product.md#publication-and-separate-consumption)
+separates inspecting bytes from authorizing execution:
+
+1. Inspection checks canonical form and structural validity under shared loading
+   limits. It requires no execution trust and performs no execution-only
+   descriptor or entailment analysis.
+2. Execution admission requires the host's authorization for the exact artifact
+   and producer. Preparation resolves required execution metadata and installation
+   relationships before creating an executable instance. Untrusted execution is
+   unavailable until the interpreter, adapters and teardown meet the containment
+   acceptance in the [implementation plan](../../drafts/designs/psi_claim_admission.md).
+
+This is a separation of codec and preparation responsibilities, not an option to
+skip structural checks. Public byte-loading and module-start APIs enforce it as
+well as CLI entry points. Trusted immutable stage outputs may carry their existing
+authorization. A decoded object or an artifact-supplied producer name cannot
+manufacture that authorization. Native realization requires trusted input.
+
+Shared external loaders enforce the 64 MiB input cap, bounded counts before
+allocation, nesting and string limits, and an overall work budget. The work
+budget covers decoding, canonical re-encoding, validation and preparation,
+including descriptor analysis and bounded entailment. Per-query limits do not
+replace the total budget. Exhaustion reports resource refusal separately from
+malformed input or a failed semantic check. Receiving limits do not require
+rediscovering the producer's source proofs.
+
+Preparation retains declaration-dependent restrictions, descriptor plans and
+indexed lookups with the immutable program. Reuse results already computed during
+loading when their exact inputs match. Bind plans to the artifact, operation,
+type, path, domains and qualifications, plus any selected layout or installation
+context they depend on. Changed context requires rebuilding affected plans.
+
+Repeated operation dispatch performs no proof search and no linear scans over
+whole declaration tables. The retained plan states what to check, not that a
+future value passes. Closed checks against an actual stored value remain on their
+defined paths, preserving the interpreter's independent execution oracle. Actual
+bounds, liveness, permissions and supported value predicates are evaluated under
+accounted resource limits. Unsupported or exhausted checks refuse or fault under
+their defined outcome; they never trigger broader proof search. Ordinary work
+over runtime data is unaffected by the declaration-lookup rule.
+
+One interpreter applies these operation checks to every admitted execution.
+Producer trust changes admission and permission to optimize or lower; it does
+not select a dispatch mode that skips concrete safety checks.
+
 ## Target environments and execution engines
 
 Target environment and execution engine are separate selections. Windows,
@@ -72,7 +119,7 @@ admits a different lifecycle: reserve the exact static component slot before
 entry, retain the activation at its checked readiness crossing, install the
 independently admitted component, then resume that same activation. Reservation
 is not supply or a host-adapter permission. Calling the pending slot rejects;
-ordinary fuel exhaustion does not authorize installation, and installation
+ordinary work-budget exhaustion does not authorize installation, and installation
 cannot replace an existing binding. The component's whole callable closure is
 admitted before it executes. This is explicit scheduling, never speculation
 that an unbound branch will not run.
@@ -210,10 +257,10 @@ drives that same mechanism. Outcomes distinguish:
 
 Execution runs on the caller's thread unless the host supplies an appropriate
 executor. No automatic worker, global engine, event loop, JIT, or async runtime
-is required. Interpreter fuel cannot preempt a synchronous native call or bound
+is required. Interpreter work cannot preempt a synchronous native call or bound
 its wall time. Decoding, checking, and storage provision require their own bounds.
 
-A fuel pause is an interpreter-safe stop, not source `suspends`, a call return,
+A work-budget pause is an interpreter-safe stop, not source `suspends`, a call return,
 cancellation, or an invariant-restoring observation point. Live loans, facts,
 partially moved storage, invariant windows, and component pins remain attached to
 the activation. An external operation cannot inspect or mutate affected live
@@ -280,6 +327,21 @@ typed calls do not require a universal object header or registry of all types.
 
 ## Closing and failure
 
+Discarding a faulted or stopped guest follows this sequence:
+
+1. Prevent guest resumption and new guest-originated host calls.
+2. Request cancellation of outstanding provider operations under their contracts.
+3. Reclaim interpreter-owned storage whose loans and cleanup obligations permit it.
+4. Retain provider-held storage and obligations until completion or confirmed
+   cancellation settles them. Consume late completions for settlement and cleanup,
+   while withholding resumption of the discarded guest.
+
+A cancellation request alone releases nothing. An uncooperative provider may
+keep storage pinned and charged to the responsible host context; it cannot justify
+freeing memory it still holds. Settlement uses the applicable existing completion,
+task and custody protocols. Completed effects remain completed; no rollback or
+immediate reclamation is promised. The containment audit covers this entire path.
+
 Closing an instance prevents new entry and accounts for activations, returned
 handles, callbacks, child work, loans, claims, and required cleanup. Rejection or
 Busy preserves custody. Shutdown releases host state only after its outstanding
@@ -317,10 +379,10 @@ main invocation. Continuity-free publication may precede old-version drain;
 stronger state continuity requires the selected coordination/migration contract.
 
 Editing source and recompiling is the ordinary code-change route. Direct Psi
-transformation is another producer whose new artifact must be admitted with
-evidence for its changed contents. Neither invalid old certificates nor an
-unvalidated byte patch can preserve an admitted Program's identity. This does not
-require physically copying every unchanged byte. Automatic migration of active
+transformation is another producing step whose exact output needs host trust
+before execution or native lowering. Authorization for the old bytes does not
+cover the replacement. Preparation binds to the new artifact and context. This
+does not require physically copying every unchanged byte. Automatic migration of active
 continuations into edited code and retroactive discovery of safe replacement cuts
 are not supplied by reflection or recompilation.
 
@@ -361,7 +423,7 @@ providers and OS policy in the interpreted application, not the compiler.
 
 Instruction coverage and environment compatibility are checked before execution
 and at component installation. Unknown/unsupported effects reject without native
-fallback. Halt and external entry obey the target model, not fuel-pause behavior;
+fallback. Halt and external entry obey the target model, not work-budget-pause behavior;
 the existing invocation/resource lifecycle retains pending effects and prevents
 re-execution on resume. The full [assembly contract](../language/assembly.md#interpreted-execution)
 also governs ordering, state observations, faults and realization evidence.
@@ -384,7 +446,7 @@ not native timing or actual hardware correctness.
 
 Assembly-bearing startup additionally exercises a device-interaction sequence
 and a processor idle/external-entry sequence against the selected environment,
-with authority, persistent state and once-only effects preserved across fuel
+with authority, persistent state and once-only effects preserved across work
 pauses.
 Do not replace the exercised OS sequence with a host routine, demand assembly
 removal, or report support for unimplemented instructions. Generic embedding and

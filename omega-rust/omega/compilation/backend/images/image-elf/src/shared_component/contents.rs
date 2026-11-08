@@ -33,7 +33,7 @@ struct Section {
 pub(super) fn emit(
     image: &FinalImage,
     exports: &[ElfComponentExport],
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<(Vec<u8>, Vec<u8>), Diagnostic> {
     let machine = if image.target == NativeTarget::linux_x64() {
         62
     } else if image.target == NativeTarget::linux_arm64() {
@@ -440,7 +440,7 @@ pub(super) fn emit(
             return Err(invalid("component export escaped its executable load"));
         }
     }
-    Ok(output)
+    Ok((output, relocated.memory.text))
 }
 
 fn invalid(reason: &str) -> Diagnostic {

@@ -34,6 +34,22 @@ The compiler-known [address queries](../language/counts_and_addresses.md#address
 They expose a storage or executable-entry address without establishing a new
 view, calling contract, or inverse conversion from `addr`.
 
+## Layout optimization and recasts
+
+A same-storage recast constrains [home-layout realization](plans.md#home-layout-realization).
+The compiler may optimize both representations together when every permitted
+read, write and alias retains its meaning. Reducing two layouts from sixteen
+bytes to twelve does not by itself establish compatibility: field placement,
+encoding, alignment, validity, authority and custody must still satisfy the
+recast judgment. Exposed bytes and addresses retain their observation contracts.
+
+An admitted recast may limit a transformation or require a compatible layout to
+be retained. An optional optimization cannot invalidate it. A requested recast
+whose selected representations are incompatible still rejects. A separate
+[representation conversion](codecs.md#representation-conversions) may rearrange
+values into new storage; a recast preserves the same backing and cannot silently
+become such a conversion.
+
 ## Shared and mutable views
 
 With compatible geometry, let `S` and `T` denote the source and target sets of

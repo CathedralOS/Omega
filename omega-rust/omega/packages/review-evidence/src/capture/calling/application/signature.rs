@@ -1,4 +1,8 @@
-//! Exact source-side application of one published calling requirement.
+// Exact source-side semantic application of a published calling requirement. Equal
+// inheritance diamonds may reach the same declaration application repeatedly, so
+// diamond agreement compares structural semantic arguments rather than arena
+// allocation positions, and method lifetime names shadow trait lifetime names in
+// the method's own signature.
 
 mod arguments;
 mod declaration;
@@ -72,7 +76,6 @@ pub(super) fn project(
     Ok(projected)
 }
 
-/// Project the semantic application without requiring any physical realization.
 pub(crate) fn project_application(
     projection: &mut SignatureProjection<'_>,
     boundary_trait: symbols::SymbolHandle,
@@ -145,8 +148,6 @@ fn project_with_binders(
             "calling requirement is not inherited by its selected boundary trait",
         ));
     }
-    // Equal diamonds may reach the same declaration application repeatedly.
-    // Compare structural semantic arguments, never arena allocation positions.
     let identities = inherited
         .iter()
         .map(|application| {
@@ -217,7 +218,6 @@ fn project_with_binders(
         lifetime_binders.push(normalized.clone());
         lifetimes.push((name.clone(), normalized));
     }
-    // Method lifetime names shadow trait names in the method's own signature.
     lifetimes.extend(
         application
             .owner

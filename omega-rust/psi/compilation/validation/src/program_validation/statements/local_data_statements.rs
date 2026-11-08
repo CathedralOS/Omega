@@ -516,6 +516,19 @@ pub(super) fn validate(
                 Some(local_name_owned),
                 copied_float,
             );
+            // The statement checker and arrival observer consume the same
+            // established record. A copied reference admits no new referent.
+            if crate::reference_shell(program, local_data.type_reference).is_none() {
+                arithmetic_domains::record_admitted_integer_fields(
+                    program,
+                    value_environment,
+                    &arithmetic_domains::ScalarOperand::Place {
+                        root: local_data.symbol,
+                        path: local_data.name.as_str().to_owned(),
+                    },
+                    local_data.type_reference,
+                );
+            }
             arithmetic_domains::record_declared_float_fields(
                 program,
                 value_environment,

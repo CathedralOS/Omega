@@ -131,8 +131,8 @@ pub(super) fn validate(
                 .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
             let mut combined_sources = predecessor_edge.provenance.clone();
             combined_sources.extend_from_slice(&empty_edge.provenance);
-            let mut combined_fuel = predecessor_edge.fuel.clone();
-            combined_fuel.extend_from_slice(&empty_edge.fuel);
+            let mut combined_work = predecessor_edge.work.clone();
+            combined_work.extend_from_slice(&empty_edge.work);
             output_predecessor.operation = O::Jump {
                 structural_bindings: Vec::new(),
                 psi_edge: patch.incoming_edge,
@@ -152,10 +152,10 @@ pub(super) fn validate(
             );
             output_predecessor.successors = expected_edges(&output_predecessor.operation);
             output_predecessor.successors[0].provenance = combined_sources;
-            output_predecessor.successors[0].fuel = combined_fuel;
+            output_predecessor.successors[0].work = combined_work;
             output_predecessor.ownership = expected_ownership(&output_predecessor.operation);
             output_predecessor.provenance.clear();
-            output_predecessor.fuel.clear();
+            output_predecessor.work.clear();
             output_function
                 .blocks
                 .retain(|block| block.id != patch.empty.block);

@@ -59,17 +59,17 @@ pub use storage::reference_origins::ReferenceOriginExtent;
 
 pub use byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
 pub use fnv1a::Fnv1a;
-pub use id_table::{IdSet, IdTable, NonDenseIdentities};
+pub use id_table::{IdSet, IdTable, IdTableBuildError, NonDenseIdentities};
 pub use identity::{
     AdmissionSiteId, BlockId, BoundaryCompletion, BoundaryMachineId, BoundaryRequirementKind,
     CallingAbiIdentity, CallingDeclarationOwner, CallingGenericFormal, CallingOperandKind,
     CallingSignatureId, CallingStaticOperand, ClaimId, ContentDomainId, ContractId,
     CycleComponentId, DomainSemanticId, EdgeId, EvidenceIdentity, EvidenceTermId,
-    ExternalCompletionKind, FuelScheduleIdentity, InvocationSite, MachineId, ObligationId,
-    OperationId, PackageKeyIdentity, PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId,
+    ExternalCompletionKind, InvocationSite, MachineId, ObligationId, OperationId,
+    PackageKeyIdentity, PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId,
     RankingRelationId, RecursiveComponentId, ScalarApplicationId, ScalarDomainId,
     ScalarQualificationSetId, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
-    StructuralTypeId, SuspensionCrossingId, ValueId,
+    StructuralTypeId, SuspensionCrossingId, ValueId, WorkScheduleIdentity,
 };
 pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,

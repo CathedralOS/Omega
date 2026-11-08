@@ -1,3 +1,5 @@
+// Canonical encoding for boundary value placements, register/stack/indirect locations, and System V classes.
+
 use super::encode_machine_register;
 use crate::encoding::{PackageReviewEncodingError, encode::encoder::Encoder};
 use crate::record::{

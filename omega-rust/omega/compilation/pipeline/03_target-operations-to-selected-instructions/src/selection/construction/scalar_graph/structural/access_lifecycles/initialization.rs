@@ -83,7 +83,10 @@ pub(super) fn emit(
     }
     let result_pointer = record::initialize_storage(row, builder, result.place, layout.shape)?;
     let result_home = ImageHome {
-        storage: fragmented_scalar::StorageAccess::Place(&[]),
+        storage: fragmented_scalar::StorageAccess::Place {
+            indices: &[],
+            byte_offset: 0,
+        },
         place: result.place,
         pointer: result_pointer,
         byte_offset: 0,
@@ -115,7 +118,10 @@ pub(super) fn emit(
     let available = owner_word(types, row, builder, plan, owner_home, plan.storage.length)?;
     let projected = leaf_copy::project_operand(source, row, builder, profile, profile_indices)?;
     let profile_home = ImageHome {
-        storage: fragmented_scalar::StorageAccess::Place(projected.indices),
+        storage: fragmented_scalar::StorageAccess::Place {
+            indices: projected.indices,
+            byte_offset: 0,
+        },
         place: profile.place,
         pointer: projected
             .pointer

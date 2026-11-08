@@ -1,7 +1,8 @@
-//! Exact checked adapters of selected provider rows, the schema rows they
-//! realize and the boundary bindings they synchronously invoke. Every
-//! declaration join uses the caller's explicit planning context; portable
-//! identity cannot select a scope.
+// We resolve the exact checked adapter realizing a selected provider row
+// (`exact_checked_adapter`, `selected_requirement_checked_adapter`) within the
+// caller's explicit `ProviderPlanningContext`. Every declaration join verifies
+// callable identity, package identity, provider ownership, satisfies-edge scope,
+// and the requirement lifetime partition (`validate_exact_requirement_lifetime_partition`).
 
 use crate::ProviderPlanningContext;
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, trait_name_text};
@@ -9,12 +10,6 @@ use checked_trees::typed_trees::service_declarations::{ProviderSchemaDeclaration
 
 pub(crate) use backend_plan::synchronous_invocations::exact_row_for_schema_method;
 
-/// Join one selected requirement to its exact
-/// checked adapter. Absence means the declaration has no boundary schema or
-/// the selected realization is not a checked body; malformed authority rejects.
-/// A retained requirement outside the supplied context rejects rather than
-/// appearing to have no schema.
-/// Execution admissibility and source operands remain the interpreter's work.
 pub fn selected_requirement_checked_adapter<'typed>(
     services: ServiceCatalog<'typed>,
     plan: &ProviderPlan,
@@ -34,8 +29,6 @@ pub fn selected_requirement_checked_adapter<'typed>(
             requirement, plan.name, context.scope,
         )));
     }
-    // Actual machines own their schemas, including token-spelled requirements.
-    // A signature view must not supply a fallback schema for an invalid machine.
     let trait_method = typed.trait_machine_signature(requirement);
     let schema = if let Some(machine) = typed.machine(requirement) {
         services.declaration(ProviderSchemaDeclaration::BoundaryRequirement(
@@ -85,8 +78,6 @@ pub fn selected_requirement_checked_adapter<'typed>(
             schema.identity_text(*overload_identity),
         )));
     }
-    // A trait owns one plan for all its methods. Select the demanded exact
-    // coordinate without requiring the whole trait to be a singleton slot.
     for method in &schema.declaration.methods {
         exact_row_for_schema_method(plan, method)?;
     }
@@ -113,8 +104,6 @@ pub fn selected_requirement_checked_adapter<'typed>(
     Ok(Some((adapter, declaration)))
 }
 
-/// Rejoin one active adapter within the caller's declaration context, retaining
-/// exact callable, package, provider and satisfies-edge custody.
 pub fn exact_checked_adapter<'typed>(
     context: ProviderPlanningContext<'typed>,
     plan: &ProviderPlan,
@@ -261,9 +250,6 @@ fn validate_exact_requirement_lifetime_partition(
     realization: &checked_trees::typed_trees::machine::Machine,
 ) -> Result<(), diagnostics::Diagnostic> {
     let typed = context.typed;
-    // A map's own requirement uses its captured trait application. An
-    // independent exact member satisfaction keeps the separate authored
-    // application below; the primary map cannot replace its region slots.
     let own_map_row =
         crate::provider_identity::named_provider_row(context, plan, row).filter(|entry| {
             typed

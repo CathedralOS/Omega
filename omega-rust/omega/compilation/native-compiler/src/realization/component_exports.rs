@@ -1,20 +1,17 @@
-//! Separately emitted checked component entries and their ordinary body closure.
-//!
-//! Every export uses its producing component's own proposal and package
-//! acceptance. Its object never enters the consumer's private-body linker.
-//! Container publication and installed entry/resource/era admission remain later
-//! consuming operations; emitted bytes alone are not an installed component.
+// Separately emitted checked component entries and their ordinary body closure.
+// Every export uses its producing component's own proposal and package
+// acceptance, verifies its formal parameter lanes against the boundary calling
+// application, and emits a shared component image keyed by the component
+// version and calling application commitment (`component_export_slot`).
 
 use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};
 use diagnostics::Diagnostic;
-use terminal_psi_to_abstract_operations::provider_admission::{
-    SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
-    realization_error,
-};
-
 use terminal_psi_to_abstract_operations::ComponentNativeInputs;
 use terminal_psi_to_abstract_operations::admit_prepared_native_realization;
-use terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeCallableAuthority;
+use terminal_psi_to_abstract_operations::provider_admission::{
+    AdmittedNativeCallableAuthority, SourceEvaluatedImportSettlement,
+    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, realization_error,
+};
 
 pub struct ComponentExportRequest<'input> {
     pub accepted_package_permissions: &'input TerminalAuthorityPermissionPolicy,
@@ -23,21 +20,17 @@ pub struct ComponentExportRequest<'input> {
     pub imports: &'input [SourceEvaluatedImportSettlement<'input>],
 }
 
-/// A symbolic export and its exact separately emitted closure. This is not a
-/// callback identity, loader mapping, installed address or runtime era.
 pub struct ComponentNativeExport<'input> {
     component: &'input component_description::VerifiedComponent,
     selected_provider_plans: &'input effects::SelectedProviderPlanFacts,
     candidate: &'input terminal_psi::ProviderCandidateConformance,
     calling_application: &'input BoundaryCallingApplication,
     body: image_emission::ObjectArtifact,
-    entry_bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
+    entry_bridge: image_emission::CallableEntryTransport,
     runtime: native_artifact::TerminalCallableRuntimeProvisions,
     authority: AdmittedNativeCallableAuthority,
 }
 
-/// Complete semantic/native export relationship after shared-container emission.
-/// Still not a loaded occurrence or installed entry capability.
 pub struct ComponentExportImage<'input> {
     component: &'input component_description::VerifiedComponent,
     selected_provider_plans: &'input effects::SelectedProviderPlanFacts,
@@ -71,15 +64,19 @@ impl<'input> ComponentExportImage<'input> {
     pub const fn component(&self) -> &'input component_description::VerifiedComponent {
         self.component
     }
+
     pub const fn candidate(&self) -> &'input terminal_psi::ProviderCandidateConformance {
         self.candidate
     }
+
     pub const fn calling_application(&self) -> &'input BoundaryCallingApplication {
         self.calling_application
     }
+
     pub const fn image(&self) -> &image_emission::ComponentSharedImage {
         &self.image
     }
+
     pub const fn authority(&self) -> &AdmittedNativeCallableAuthority {
         &self.authority
     }
@@ -117,10 +114,6 @@ impl<'input> ComponentNativeExport<'input> {
     }
 }
 
-/// Physical linkage identifies one component version as well as its complete
-/// calling application. Equal ABI contracts from another historical component
-/// must not become interchangeable ELF symbols under loader interposition.
-/// This digest names linkage only; selection and installation remain separate.
 pub fn component_export_slot(
     component: terminal_psi::TerminalPsiIdentity,
     application: &[u8; 32],
@@ -169,6 +162,7 @@ pub fn emit_component_exports<'input>(
             &settlements,
             request.terminal_authority_policy,
             request.receiving_permissions,
+            &[],
         );
         admission.entry = entry;
         let admitted = admit_prepared_native_realization(input, artifact, &admission)?;

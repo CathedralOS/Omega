@@ -511,6 +511,12 @@ pub(super) fn incoming_environments(
             let mut external = ValueEnvironment::new();
             entry_seeds.apply(program, machine, entry, &mut external);
             for parameter in program.state_parameters(entry) {
+                super::super::record_admitted_integer_fields(
+                    program,
+                    &mut external,
+                    &super::ordered_values::Operand::parameter(parameter),
+                    parameter.type_reference,
+                );
                 super::super::record_declared_float_fields(
                     program,
                     &mut external,
@@ -1282,6 +1288,19 @@ impl ArrivalWalk<'_, '_> {
                         copied_float,
                     );
                     if local.initial_value.is_valid() {
+                        // The initializer has completed. A copied reference is
+                        // only a descriptor, not new admission of its referent.
+                        if crate::reference_shell(self.program, local.type_reference).is_none() {
+                            super::super::record_admitted_integer_fields(
+                                self.program,
+                                environment,
+                                &super::ordered_values::Operand::Place {
+                                    root: local.symbol,
+                                    path: path.clone(),
+                                },
+                                local.type_reference,
+                            );
+                        }
                         super::super::record_declared_float_fields(
                             self.program,
                             environment,
@@ -1455,6 +1474,24 @@ impl ArrivalWalk<'_, '_> {
                             copied_float,
                         );
                         if let (Some(path), Some(reference)) = (path.as_deref(), reference) {
+                            if crate::reference_shell(self.program, reference).is_none()
+                                && let Some(destination) = super::ordered_values::operand(
+                                    self.program,
+                                    self.machine,
+                                    source,
+                                    assignment.target,
+                                    None,
+                                )
+                            {
+                                // Only the assigned value's exact destination
+                                // is established; never republish its ancestors.
+                                super::super::record_admitted_integer_fields(
+                                    self.program,
+                                    environment,
+                                    &destination,
+                                    reference,
+                                );
+                            }
                             super::super::record_declared_float_fields(
                                 self.program,
                                 environment,

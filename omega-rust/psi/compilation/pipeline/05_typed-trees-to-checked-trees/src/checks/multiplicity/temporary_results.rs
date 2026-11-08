@@ -33,7 +33,7 @@ pub(super) use projected::{ProjectedConsumer, retire_owner};
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_continuation_cleanup(
     program: &dyn validation::CheckingInput,
-    facts: &mut CheckFacts,
+    facts: &mut checked_trees::CheckFactsWalk<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
     consumer: language_semantics::PermissionEventSource,

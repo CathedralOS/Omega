@@ -163,16 +163,25 @@ fn admit_machine_rankings_with_topology(
     demanded: Option<&[usize]>,
 ) -> checked_trees::CheckedRankArrivalPlan {
     let mut admitted = checked_trees::CheckedRankArrivalPlan::default();
+    // Each joint component's search reads only the program, the topology and
+    // the call frames, never another component's choice, so the components
+    // are searched on the checking pool. Collecting keeps their order.
     let mut components = topology
         .as_ref()
         .map(|topology| {
-            topology
+            use rayon::prelude::*;
+            let joint = topology
                 .joint_components(program)
                 .filter(|component| demanded.is_none_or(|demanded| *component == demanded))
-                .map(|component| {
-                    component_selection::select(program, topology, component, call_frames)
-                })
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>();
+            validation::checking_thread_pool().install(|| {
+                joint
+                    .par_iter()
+                    .map(|component| {
+                        component_selection::select(program, topology, component, call_frames)
+                    })
+                    .collect::<Vec<_>>()
+            })
         })
         .unwrap_or_default();
     for (position, machine) in program.machines().iter().enumerate() {

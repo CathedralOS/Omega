@@ -15,8 +15,8 @@ use optimization_core::{
     OptimizationSafetyClass,
 };
 use optimization_unit::{
-    FuelSettlement, NodeLocation, OptimizationBlock, OptimizationNode, ProvenanceDisposition,
-    ProvenanceRewrite, PsiOptimizationFunction, PsiProvenance, PsiRealizationSite,
+    NodeLocation, OptimizationBlock, OptimizationNode, ProvenanceDisposition, ProvenanceRewrite,
+    PsiOptimizationFunction, PsiProvenance, PsiRealizationSite, WorkSettlement,
 };
 use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 use std::collections::BTreeSet;
@@ -100,39 +100,39 @@ fn call_graph_control_flow_cleanup_rule_contract(
 }
 
 /// One realized-at rewrite shared by every cleanup rule's site stamp: the
-/// disposition lands at `realized_at` while provenance and fuel move over from
+/// disposition lands at `realized_at` while provenance and work move over from
 /// the stamped source.
 pub(super) fn provenance_realized_at(
     input: PsiRealizationSite,
     realized_at: PsiRealizationSite,
     sources: &[PsiProvenance],
-    fuel: &[FuelSettlement],
+    work: &[WorkSettlement],
 ) -> ProvenanceRewrite {
     ProvenanceRewrite {
         input,
         disposition: ProvenanceDisposition::RealizedAt(realized_at),
         sources: sources.to_vec(),
-        fuel: fuel.to_vec(),
+        work: work.to_vec(),
     }
 }
 
 /// The unreachable-site twin of `provenance_realized_at`: the disposition lands
-/// at `unreachable_at` while provenance and fuel move over from the source.
+/// at `unreachable_at` while provenance and work move over from the source.
 pub(super) fn provenance_proven_unreachable_at(
     input: PsiRealizationSite,
     unreachable_at: PsiRealizationSite,
     sources: &[PsiProvenance],
-    fuel: &[FuelSettlement],
+    work: &[WorkSettlement],
 ) -> ProvenanceRewrite {
     ProvenanceRewrite {
         input,
         disposition: ProvenanceDisposition::ProvenUnreachableAt(unreachable_at),
         sources: sources.to_vec(),
-        fuel: fuel.to_vec(),
+        work: work.to_vec(),
     }
 }
 
-/// One node's provenance and fuel realized in place at its own site. Both of
+/// One node's provenance and work realized in place at its own site. Both of
 /// the row's realization sites name the node's location, so a rule that leaves
 /// a node in place and merely restamps it names only that location.
 pub(super) fn node_realized_provenance(
@@ -140,7 +140,7 @@ pub(super) fn node_realized_provenance(
     node: &OptimizationNode,
 ) -> ProvenanceRewrite {
     let site = PsiRealizationSite::Node(location);
-    provenance_realized_at(site, site, &node.provenance, &node.fuel)
+    provenance_realized_at(site, site, &node.provenance, &node.work)
 }
 
 /// Record the in-place site row of every provenance-bearing node `nodes`
@@ -209,7 +209,7 @@ pub(super) fn record_merged_node_positions(
             input,
             output,
             &node.provenance,
-            &node.fuel,
+            &node.work,
         ));
     }
     Some(())

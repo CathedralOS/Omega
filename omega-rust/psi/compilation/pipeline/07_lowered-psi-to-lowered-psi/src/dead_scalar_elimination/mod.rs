@@ -19,6 +19,11 @@ use crate::retained_identities::{boundary_application_results, record_named_rows
 use lowered_psi::LoweredPsi;
 
 pub(super) fn eliminate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
+    let Some(protected) =
+        terminal_semantics::scalar_demand::qualification_parameter_blocks(&before.semantic_module)
+    else {
+        return Ok(before);
+    };
     let mut after = before.clone();
     // These are semantic uses even when no executable operand reads the
     // value: proof projections, retained suspension frontiers, boundary
@@ -34,8 +39,29 @@ pub(super) fn eliminate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
             retained_values.insert(value);
         });
     }
+    for occurrence in &before.source_call_occurrences {
+        occurrence.frontier_before_call.visit_value_ids(|value| {
+            retained_values.insert(value);
+        });
+    }
+    let Some(retained) = terminal_semantics::scalar_demand::retained_values_by_machine(
+        &before.semantic_module,
+        retained_values,
+    ) else {
+        return Ok(before);
+    };
     for machine in &mut after.semantic_module.machines {
-        liveness::eliminate(machine, &before.source_call_occurrences, &retained_values);
+        let first = protected.partition_point(|(owner, _)| *owner < machine.id);
+        let last = protected.partition_point(|(owner, _)| *owner <= machine.id);
+        let values = retained
+            .binary_search_by_key(&machine.id, |(owner, _)| *owner)
+            .ok()
+            .map_or(&[][..], |position| retained[position].1.as_slice());
+        liveness::eliminate(
+            machine,
+            values,
+            protected[first..last].iter().map(|(_, block)| *block),
+        );
     }
     crate::retained_identities::prune_debug_map(&before, &mut after)?;
     Ok(after)

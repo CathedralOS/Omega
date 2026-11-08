@@ -1,3 +1,12 @@
+// Companion `build.omg` / `main.omg` project root discovery (`project_roots`, `ProjectSourceSelection`).
+//
+// Given a directory or a file path, `project_roots` discovers the project's entry
+// sources (`build.omg` and `main.omg` for a directory, or the requested file plus
+// its companion `build.omg` / `main.omg` in the same parent directory).
+// `ProjectSourceSelection` canonicalizes `build_path` in `SourceFileSystem`, assigns
+// `DependencyScope::Build` to the companion `build.omg` and `DependencyScope::Product`
+// to all other roots, and rejoins the loaded `build` `SourceId` after frontier loading.
+
 use super::SourceStorage;
 use diagnostics::Diagnostic;
 
@@ -41,10 +50,6 @@ pub fn project_roots(
     }
 }
 
-/// A directory names its declared project sources directly: the directory
-/// itself is not a source file, so seeding it would load a directory as
-/// source text. A directory holding neither root still names itself — the
-/// loader's directory diagnostic stays honest rather than silently skipping.
 fn directory_project_roots(
     directory: &std::path::Path,
     filesystem: &source::SourceFileSystem,
@@ -77,9 +82,6 @@ fn companion_root_names(root_name: Option<&str>) -> &'static [&'static str] {
     }
 }
 
-/// Exact project-root scopes and the selected canonical Build source.
-/// Loading and parsing consume the scoped paths; only this selection rejoins
-/// the resulting source id, so a Product instance cannot impersonate Build.
 pub(crate) struct ProjectSourceSelection {
     sources: Vec<(std::path::PathBuf, source::DependencyScope)>,
     build_path: Option<std::path::PathBuf>,

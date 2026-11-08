@@ -53,7 +53,8 @@ pub(super) fn at_call(
     let Some(_) = program.state_by_symbol(state.state_symbol) else {
         return CapturedOrigins::Unavailable;
     };
-    let Some((operands, _)) = flow::captured_call_operands(program, flow, state, call) else {
+    let Some((operands, _)) = flow::captured_call_operands(program, flow.view(), state, call)
+    else {
         return CapturedOrigins::Unavailable;
     };
     let Some(epoch) = operands.last() else {
@@ -193,7 +194,7 @@ fn resolve_captures(
         // Select it before requiring an authored expression: its exact supplier
         // association, rather than an invented source spelling, owns lineage.
         if live {
-            let (operands, _) = flow::captured_call_operands(program, flow, state, call)?;
+            let (operands, _) = flow::captured_call_operands(program, flow.view(), state, call)?;
             if let Some(stored) = reference_captures_at_path(
                 program,
                 &flow.control,
@@ -271,7 +272,7 @@ fn resolve_captures(
         if !direct
             && let Some(predecessors) = flow::completed_values::predecessors_in_flow(
                 program,
-                flow,
+                flow.view(),
                 semantic,
                 handle,
                 &projection,
@@ -344,7 +345,7 @@ fn resolve_leaf(
         };
     let mut subjects = Vec::new();
     for source in sources {
-        if !flow::operand_entry_origin_is_stable(program, flow, capture, &source) {
+        if !flow::operand_entry_origin_is_stable(program, flow.view(), capture, &source) {
             return None;
         }
         if live {
@@ -391,7 +392,7 @@ fn resolve_leaf(
                 source,
                 frames,
                 flow::ValueObservation::Contents,
-                Some(flow),
+                Some(flow.view()),
                 resolve,
                 |state, bound, place| {
                     reference_boundary_before_statement(
@@ -443,7 +444,7 @@ fn bindings_preserved(
             return false;
         }
     }
-    flow::captured_call_operands(program, flow, state, call)
+    flow::captured_call_operands(program, flow.view(), state, call)
         .and_then(|(operands, _)| operands.last())
         .is_some_and(|epoch| {
             flow::operand_entry_binding_origin_is_stable(program, flow, epoch, source)

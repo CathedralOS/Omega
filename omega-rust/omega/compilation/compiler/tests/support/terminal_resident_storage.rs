@@ -11,8 +11,8 @@ use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
     TerminalStorageScheduleIdentity,
 };
+use psi_work::WorkMeter;
 use semantic_vocabulary::IntegerValue;
-use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstanceCloseError,
     TerminalInstantiation, TerminalProgram, TerminalProviderStorageInput, TerminalScalarValue,
@@ -105,7 +105,7 @@ fn exercise(
     let (values, scalars) =
         terminal_provision::storage_inputs(program, plan, allocation_length as u64);
     let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
     };
     let sponsor = BuildEvaluationSponsor::new_with_measurement(
@@ -172,7 +172,7 @@ fn exercise(
             bytes,
         })
         .unwrap();
-    let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
+    let mut meter = WorkMeter::with_invocation(account.clone(), Some(0)).unwrap();
     let mut competing_payload = None;
     let result = loop {
         match instance.invoke(&mut meter) {
@@ -217,7 +217,7 @@ fn exercise(
         let diagnostic = format!("{refusal:?}");
         let expected = if ceiling < peak || payload_ceiling < payload_peak || constrain_after_image
         {
-            "AllowanceExhausted(LiveStorage)"
+            "BudgetExhausted(LiveStorage)"
         } else {
             "extraction profile differs from the original admitted allocation supply"
         };

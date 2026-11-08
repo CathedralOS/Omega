@@ -1,3 +1,6 @@
+// Proposition binder argument and witness evidence-projection resolution for
+// contract propositions.
+
 use crate::capture::SourceDeclarationInput;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;

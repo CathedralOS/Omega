@@ -1,5 +1,20 @@
-//! Prepare one admitted Terminal Build and settle its exact normal-return output.
-//! The caller owns execution stepping and dependency work between those operations.
+/*
+Prepare an `AdmittedBuildProgram` for Terminal execution and settle its
+normal-return `ComputedBuildConfig` (`PreparedBuildExecution`).
+
+`PreparedBuildExecution::prepare` lowers the checked `Build` program into an
+invocation-scoped Terminal Psi artifact (`TerminalPublication::Invocation`),
+admits its `BuildProviderPlans` against the produced artifact view, and opens a
+`100,000`-work `EvaluationInvocationAccount` under the caller's
+`BuildEvaluationSponsor` (or a standalone per-invocation sponsor with Terminal
+measurement identity if none was supplied).
+
+`host` issues a single `TerminalBuildHost` (`host_issued` guard) so a dropped or
+failed activation cannot be restarted, and `complete` verifies that `ReturnedBuild`
+carries this exact invocation's `custody_identity`, confirms that any issued
+dependency requests were joined by the coordinator (`source_join`), settles
+filesystem observations and build logs, and assembles `ComputedBuildConfig`.
+*/
 
 use crate::{AdmittedBuildProgram, BuildConfig, ComputedBuildConfig, ReturnedBuild};
 use build_declarations::BuildRequest;
@@ -7,8 +22,6 @@ use diagnostics::Diagnostic;
 use evaluation_accounting::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
 use std::sync::Arc;
 
-/// An independently owned invocation. Preparing dependencies may use the compiler
-/// again while this code, sponsor account and admitted host scope remain alive.
 pub struct PreparedBuildExecution {
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<psi_compiler::ProducedTerminalProgram>,
@@ -56,17 +69,13 @@ impl PreparedBuildExecution {
             .map_err(|error| error.diagnostics())?;
         let providers = providers.admit(produced.view())?;
 
-        // These are Terminal units. An existing tree-measured sponsor is never
-        // relabeled or silently replaced by a fresh account.
         let measurement = crate::activation::measurement();
-        const INVOCATION_FUEL: u64 = 100_000;
+        const INVOCATION_WORK: u64 = 100_000;
         let sponsor = match evaluation_sponsor {
             Some(sponsor) => sponsor,
             None => {
-                // Standalone compilation previously had only a per-invocation work
-                // ceiling. Its private account adds measurement, not filesystem grants.
                 let limits = BuildEvaluationSponsorLimits::new(
-                    INVOCATION_FUEL,
+                    INVOCATION_WORK,
                     u64::MAX,
                     u64::MAX,
                     u64::MAX,
@@ -81,7 +90,7 @@ impl PreparedBuildExecution {
             }
         };
         let account = sponsor
-            .begin_invocation(measurement, INVOCATION_FUEL)
+            .begin_invocation(measurement, INVOCATION_WORK)
             .map_err(|error| refuse(error.to_string()))?;
         Ok(Self {
             execution_purpose,
@@ -97,8 +106,6 @@ impl PreparedBuildExecution {
         })
     }
 
-    /// Issue this invocation's host once. It cannot be replaced to restart effects
-    /// after the caller drops a paused or failed activation.
     pub fn host(&mut self) -> Result<Arc<crate::TerminalBuildHost>, Vec<Diagnostic>> {
         if self.host_issued {
             return Err(self.refuse("Build invocation already issued its execution host"));
@@ -131,8 +138,6 @@ impl PreparedBuildExecution {
     ) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
         self.validate_return(&completed)?;
         let declaration = &completed.declaration;
-        // A graph is not settlement by itself. The retained return must carry
-        // the exact join of its issued requests and acquired selections.
         if completed.source_join.is_none()
             && completed
                 .requests

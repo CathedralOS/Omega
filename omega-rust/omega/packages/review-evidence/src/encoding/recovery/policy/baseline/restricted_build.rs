@@ -1,4 +1,5 @@
-//! Restricted build-host request recovery under the shared reader budget.
+// Restricted build-host request recovery under the shared reader budget.
+// Minimum-encoded-byte constants bound sequence reservation before element decoding: `REQUEST_MINIMUM_BYTES` (operation tag + two grant sequence counts + bounds + two profile option tags), `GRANT_MINIMUM_BYTES` (root tag + narrowed flag + captured flag), and `REQUIRED_OUTPUT_MINIMUM_BYTES` (length-prefixed byte string length).
 
 use super::super::selected_providers::target;
 use super::Error;
@@ -11,14 +12,8 @@ use crate::record::PackagePolicyRestrictedBuildGrantRoot;
 use crate::record::PackagePolicyRestrictedBuildOperation;
 use crate::record::PackagePolicyRestrictedBuildRequest;
 
-/// operation tag + two grant sequence counts + bounds (two option tags, one
-/// output sequence count, artifact flag) + two profile option tags.
 const REQUEST_MINIMUM_BYTES: usize = 1 + 8 + 8 + 11 + 1 + 1;
-
-/// root tag + narrowed flag + captured flag (`other` adds its own u32).
 const GRANT_MINIMUM_BYTES: usize = 3;
-
-/// length-prefixed byte string contributes its usize length alone.
 const REQUIRED_OUTPUT_MINIMUM_BYTES: usize = 8;
 
 pub(in crate::encoding::recovery) fn request(
@@ -64,7 +59,7 @@ pub(in crate::encoding::recovery) fn bounds(
         })?,
         evaluation_sponsor_limits: reader.option(|reader| {
             Ok(PackagePolicyEvaluationSponsorLimits {
-                maximum_fuel_units: reader.u64()?,
+                work_budget: reader.u64()?,
                 maximum_build_log_bytes: reader.u64()?,
                 maximum_filesystem_operation_attempts: reader.u64()?,
                 maximum_live_filesystem_handles: reader.u64()?,

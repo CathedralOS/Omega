@@ -70,7 +70,7 @@ warning: `register-model` (lib) generated 1 warning
    Compiling function-identity v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/foundation/function-identity)
    Compiling runtime-abi v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/compilation/backend/runtime/runtime-abi)
    Compiling typed-trees v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/typed-trees)
-   Compiling terminal-fuel v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/terminal-psi/fuel)
+   Compiling psi-work v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/terminal-psi/work)
    Compiling installation-evidence v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/compilation/backend/runtime/installation-evidence)
    Compiling facts v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/checked-trees/facts)
    Compiling terminal-semantics v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/terminal-psi/semantics)

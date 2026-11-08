@@ -1,8 +1,22 @@
-//! Schedule admitted package Builds, then complete ready products together.
-//!
-//! The application owns dependency order, generated-source joins and which
-//! components must finish before a consumer can proceed. The compiler retains
-//! opaque source continuations and owns checking, settlement and production.
+/*
+
+Compile admitted package plans across targets (`compile_packages`, `prepare_package`).
+
+We own the dependency-first frontier scheduling (`prepare_packages`),
+generated-source handoffs, and independent-component barriers across all
+requested targets, while `CompilationSession` owns source checking, settlement,
+and Terminal Psi production:
+- `compile_packages` advances every target's `PackagePlan` in lockstep on a
+  single compiler worker thread (`run_on_compile_thread`), batch-completes the
+  prepared root products (`compiler.complete_package_products`), and finishes any
+  native artifacts through `native_completion::complete_products`. Settled
+  occurrences must already exist in `completed`; a missing entry fails closed
+  rather than re-executing `build.omg`.
+- `prepare_package` runs the dependency-first source preparation for a single
+  package plan without checking its final Product, returning the opaque
+  `PackageBuild` custody.
+
+*/
 
 use crate::compile::build_execution::{PackagePlan, PreparedPackageRoot, prepare_packages};
 use compiler::{
@@ -11,11 +25,6 @@ use compiler::{
 };
 use diagnostics::Diagnostic;
 
-/// Prepare dependency-ordered fresh or settled sources and finish each product.
-/// Settled occurrences require matching custody in `completed`; absence never
-/// falls back to executing Build again.
-/// The whole invocation uses one compiler-stack worker; compiler operations
-/// reuse that worker rather than spawning one per dependency occurrence.
 pub fn compile_packages(
     compiler: &mut CompilationSession,
     requests: Vec<PackageCompilationRequest>,
@@ -88,9 +97,6 @@ pub fn compile_packages(
     })
 }
 
-/// Prepare a package's dependency and root sources from fresh execution requests
-/// or settled Builds, without checking its Product. The result is opaque custody, not
-/// an application-accessible source representation or permission to publish.
 pub fn prepare_package(
     compiler: &mut CompilationSession,
     occurrences: Vec<PackageSourceRequest>,

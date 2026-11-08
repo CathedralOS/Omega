@@ -7,6 +7,7 @@
 
 mod carriers;
 mod errors;
+pub(crate) mod installed_stack;
 mod normalized_foreign_calls;
 pub(crate) mod replay;
 pub(crate) mod stack_demand;
@@ -14,9 +15,9 @@ pub(crate) mod stack_demand;
 pub(crate) mod test_support;
 
 pub use carriers::{
-    ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution, ObjectForeignCall,
-    ObjectFunction, ObjectPrivateFunctionEntry, ObjectScalarCallStack, ObjectUnitCallStack,
-    PrivateFunctionObject, PrivateObjectSymbolBinding,
+    NativeInstructionSourceRows, ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution,
+    ObjectForeignCall, ObjectFunction, ObjectPrivateFunctionEntry, ObjectScalarCallStack,
+    ObjectUnitCallStack, PrivateFunctionObject, PrivateObjectSymbolBinding,
 };
 pub(crate) use carriers::{
     ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectCompilerPrivateFunction,

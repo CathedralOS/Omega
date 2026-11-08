@@ -137,7 +137,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         let proves_in = |contexts: &[facts::FactContextHandle], subject: &CanonicalPlace| {
             if exact_scalar_membership(
                 program,
-                facts,
+                facts.view(),
                 contexts,
                 subject,
                 domain_symbol,
@@ -235,7 +235,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 .and_then(|capture| {
                     crate::flow::captured_operand_values(
                         program,
-                        &facts.flow,
+                        facts.flow.view(),
                         &facts.semantic,
                         state_flow,
                         capture,
@@ -297,7 +297,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 };
                 crate::flow::captured_operand_values(
                     program,
-                    &facts.flow,
+                    facts.flow.view(),
                     &facts.semantic,
                     state_flow,
                     capture,
@@ -318,7 +318,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                                 captured.type_reference,
                                 captured.producer_invocation(exit.entry_constraints),
                             );
-                            crate::flow::captured_value_places(program, &facts.flow, captured)
+                            crate::flow::captured_value_places(program, facts.flow.view(), captured)
                                 .is_some_and(|places| {
                                     !places.is_empty()
                                         && places.iter().all(|place| {

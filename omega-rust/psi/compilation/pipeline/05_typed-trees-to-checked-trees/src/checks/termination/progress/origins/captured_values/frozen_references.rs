@@ -75,8 +75,8 @@ pub(super) fn entry_subject(
             return None;
         }
     }
-    let (operands, _) = flow::captured_call_operands(program, flow, state, call)?;
-    if !flow::operand_entry_origin_is_stable(program, flow, operands.last()?, source) {
+    let (operands, _) = flow::captured_call_operands(program, flow.view(), state, call)?;
+    if !flow::operand_entry_origin_is_stable(program, flow.view(), operands.last()?, source) {
         return None;
     }
     // All load evidence came from the completed source resolution. This

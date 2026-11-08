@@ -14,6 +14,15 @@ impl StructuralJudge<'_> {
         if !declared.is_valid() || crate::reference_shell(self.program, declared).is_some() {
             return None;
         }
+        // Passing a value must keep its recorded type. An equivalent declaration
+        // loaded elsewhere has different field identifiers; replacing the type
+        // loses the facts attached to those fields. The call still checks the
+        // exact selected type arguments.
+        if super::super::super::structural_terms::owned_observation_type(self.program, value)
+            .is_some()
+        {
+            return Some(value.clone());
+        }
         if self
             .frame_resolver()
             .is_some_and(|frames| frames.proof_value_is_caller_isolated(declared))

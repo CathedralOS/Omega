@@ -69,7 +69,7 @@ pub(crate) fn selected_cleanup_leaves(
     facts: &CheckFacts,
     disposition: &ContextualCleanupDisposition,
 ) -> Option<Vec<CleanupLeaf>> {
-    let evidence = super::CleanupCaseEvidence::new(program, facts, disposition)?;
+    let evidence = super::CleanupCaseEvidence::new(program, facts.view(), disposition)?;
     selected_cleanup_leaves_in(program, facts, disposition, &evidence)
 }
 
@@ -109,7 +109,7 @@ pub(crate) fn selected_cleanup_leaves_in(
             && crate::checks::storage_path_compatibility(
                 program,
                 crate::checks::StorageSelectorFacts {
-                    flow: &facts.flow,
+                    flow: facts.flow.view(),
                     semantic: &facts.semantic,
                 },
                 path,
@@ -120,7 +120,12 @@ pub(crate) fn selected_cleanup_leaves_in(
                 .zip(case_evidence.contexts().as_ref())
                 .is_some_and(|(state, contexts)| {
                     crate::checks::captured_storage_paths_are_disjoint(
-                        program, facts, state, contexts, path, excluded,
+                        program,
+                        facts.view(),
+                        state,
+                        contexts,
+                        path,
+                        excluded,
                     )
                 })
         {

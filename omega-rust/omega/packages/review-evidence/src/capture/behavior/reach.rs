@@ -1,3 +1,6 @@
+// Service-reach row and installation-bound reach requirement projection
+// (`project_installation_reaches` and `project_service_row`).
+
 use super::super::semantics::declarations::{
     nominal_identity, nominal_owner, trait_requirement_identity,
 };

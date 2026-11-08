@@ -1,42 +1,44 @@
-//! Trusted descriptor implementations over finite input and private streams.
-//! Exact normalized locators, declarations and target ABI authenticate
-//! compatibility, not semantic authority inferred from export names. Scalar
-//! leaves expose original backing through one capture/writeback protocol. Native
-//! lowering retains record/array placement; the adapter never guesses offsets
-//! or manufactures padding. Views supply their exact live range
-//! and retained pointer/length ABI. Mutable views stage fixed-extent writes into
-//! the original backing. Neither protocol grants allocation tails or resizing.
-//! The host explicitly assumes equivalence of these offered implementations;
-//! checked library wrappers remain guest code. Standard streams perform no real
-//! host I/O. Explicit matching-host filesystem delegation separately supplies
-//! kernel reads and writes over the same captured bytes and an owned guest
-//! descriptor namespace. Descriptor 0 stays the finite replay stream. Its
-//! actual syscall status preserves errors and partial transfers. The same
-//! transfer serves retained or discarded counts. Finite replay errors cannot
-//! manufacture Linux kernel statuses or touch arbitrary OS descriptors.
-//! Versioned Linux libc uses the same finite descriptor-zero input, private
-//! output and captured backing, with its own size_t/ssize_t ABI. Unsupported
-//! descriptors decline before I/O. Linux input errors refuse without a fabricated
-//! libc result or TLS errno update; successful and EOF reads leave that state alone.
+/*
+We provide trusted descriptor reads and writes over finite input and private
+output streams, with optional Linux filesystem descriptor delegation.
+
+Exact normalized locators, declarations and target ABI establish compatibility.
+Scalar leaves and byte views expose their original backing through one capture
+and writeback protocol. Native lowering retains record and array placement.
+Views retain their exact live range and pointer/length ABI; mutable views allow
+fixed-extent writes without granting allocation tails or resizing.
+
+Descriptor 0 reads the finite replay stream. Descriptors 1 and 2 append to
+private output buffers. Matching-host filesystem delegation uses an owned guest
+descriptor namespace and preserves kernel errors and partial transfers, with
+Linux VFS transfers capped at 0x7fff0000 bytes. Versioned Linux libc uses the
+same finite input, private output and captured backing with its size_t/ssize_t
+ABI. Unsupported descriptors refuse before I/O. Input errors refuse without a
+fabricated libc result or TLS errno update; successful and EOF reads leave that
+state alone. The host explicitly assumes these implementations are equivalent;
+checked library wrappers remain guest code.
+*/
 
 use std::io::Read;
 use std::sync::{Arc, Mutex};
 
+use calling_conventions::{CallSignature, ValueShape};
 use runtime_abi::{DescriptorAbi, DescriptorOperation, NativeBorrowedStorageLayout};
-use semantic_vocabulary::{IntegerValue, ScalarType};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalBoundaryStorageBuffer, TerminalEffect,
     TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult, TerminalImportAdapter,
     TerminalImportSignature, TerminalProgram, TerminalScalarValue,
 };
-use terminal_psi::{BoundaryMachineDeclaration, StructuralAccess};
+use terminal_psi::{
+    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, ByteSequenceCarrier,
+    StructuralAccess, StructuralMultiplicity, StructuralTypeShape,
+};
 
 use super::TerminalRuntimeError;
-use super::borrowed_storage::{CapturedStorage, StorageTransfer};
+use super::borrowed_storage::{self, CapturedStorage, StorageTransfer};
 use super::buffered_output::BufferedStreams;
-
-mod admission;
 
 enum DescriptorBuffer {
     Scalar(ScalarType),
@@ -44,16 +46,24 @@ enum DescriptorBuffer {
     Bytes,
 }
 
+struct DescriptorContract {
+    signature: TerminalImportSignature,
+    operation: DescriptorOperation,
+    abi: DescriptorAbi,
+    buffer: DescriptorBuffer,
+    descriptor_type: IntegerType,
+    count_type: IntegerType,
+    result_type: IntegerType,
+}
+
 pub(super) struct DescriptorIoImport<'input> {
-    contract: admission::DescriptorContract,
+    contract: DescriptorContract,
     input: Option<Arc<Mutex<Box<dyn Read + Send + 'input>>>>,
     output: BufferedStreams,
     linux_filesystem: Option<super::filesystem::LinuxFilesystemWrite>,
 }
 
 impl<'input> DescriptorIoImport<'input> {
-    /// Absence is an unoffered binding, not an incompatible offered contract.
-    /// Missing finite input rejects during preflight, before any guest effects.
     pub(super) fn admit(
         program: &TerminalProgram,
         declaration: &BoundaryMachineDeclaration,
@@ -97,9 +107,6 @@ impl<'input> DescriptorIoImport<'input> {
         Ok(adapter)
     }
 
-    /// File descriptors need no stdin capability. The shared native route
-    /// still dispatches descriptor zero through this finite-stream adapter,
-    /// whose ordinary invocation check rejects absent input before reading.
     pub(super) fn for_filesystem(
         program: &TerminalProgram,
         declaration: &BoundaryMachineDeclaration,
@@ -108,8 +115,7 @@ impl<'input> DescriptorIoImport<'input> {
         input: Option<Arc<Mutex<Box<dyn Read + Send + 'input>>>>,
         output: BufferedStreams,
     ) -> Result<Option<Self>, TerminalRuntimeError> {
-        let Some(contract) = admission::admit(program, declaration, binding, storage_layouts)?
-        else {
+        let Some(contract) = admit_contract(program, declaration, binding, storage_layouts)? else {
             return Ok(None);
         };
         Ok(Some(Self {
@@ -134,9 +140,6 @@ impl<'input> DescriptorIoImport<'input> {
         }))
     }
 
-    /// Reuse the descriptor owner's captured-byte authorization before a native
-    /// transfer. This is a bounds/codec observation; the C call still receives
-    /// its original home, with no substitute pointee or later copyback.
     pub(super) fn validate_native_transfer(
         &self,
         arguments: &[TerminalScalarValue],
@@ -145,8 +148,6 @@ impl<'input> DescriptorIoImport<'input> {
         let layout = match &self.contract.buffer {
             DescriptorBuffer::Scalar(_) => None,
             DescriptorBuffer::Aggregate(layout) => Some(layout),
-            // The paired ABI carries the sealed view length itself. Its
-            // original-home join validates that exact range before dispatch.
             DescriptorBuffer::Bytes => return Ok(()),
         };
         let [
@@ -181,13 +182,144 @@ impl<'input> DescriptorIoImport<'input> {
         Ok(())
     }
 }
+
+fn select_binding(
+    binding: &NormalizedForeignCallBinding,
+) -> Result<Option<(DescriptorAbi, DescriptorOperation)>, TerminalRuntimeError> {
+    Ok(if let Some(system_call) = binding.system_call() {
+        runtime_abi::descriptor_system_call(system_call.target, system_call.number)
+    } else {
+        binding
+            .import()
+            .and_then(|(locator, _)| runtime_abi::descriptor_import(locator))
+    })
+}
+
+fn admit_contract(
+    program: &TerminalProgram,
+    declaration: &BoundaryMachineDeclaration,
+    binding: &NormalizedForeignCallBinding,
+    storage_layouts: &[NativeBorrowedStorageLayout],
+) -> Result<Option<DescriptorContract>, TerminalRuntimeError> {
+    let Some((abi, operation)) = select_binding(binding)? else {
+        return Ok(None);
+    };
+    let invalid = super::unprovisioned(
+        "foreign descriptor adapter differs from its exact admitted declaration/ABI",
+    );
+    let descriptor_type = IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
+    let width: u16 = match abi {
+        DescriptorAbi::WindowsCrt => 32,
+        DescriptorAbi::DarwinLibSystem | DescriptorAbi::LinuxLibc | DescriptorAbi::LinuxKernel => {
+            64
+        }
+    };
+    let count_type = IntegerType::new(IntegerSign::Unsigned, width).map_err(|_| invalid())?;
+    let result_type = IntegerType::new(IntegerSign::Signed, width).map_err(|_| invalid())?;
+    let signature = TerminalImportSignature::from(declaration);
+    let [formal] = signature.structural_parameters.as_slice() else {
+        return Err(invalid());
+    };
+    let buffer = match program
+        .structural_type(formal.structural_type)
+        .map(|row| &row.shape)
+    {
+        Some(StructuralTypeShape::PrimitiveScalar(scalar))
+            if borrowed_storage::scalar_extent(*scalar).is_ok() =>
+        {
+            DescriptorBuffer::Scalar(*scalar)
+        }
+        Some(StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }))
+            if matches!(
+                abi,
+                DescriptorAbi::DarwinLibSystem
+                    | DescriptorAbi::LinuxLibc
+                    | DescriptorAbi::LinuxKernel
+            ) && access.is_none_or(|access| access == formal.access) =>
+        {
+            DescriptorBuffer::Bytes
+        }
+        Some(
+            terminal_psi::record_or_fixed_array_shape_pattern!()
+            | terminal_psi::sum_or_mixed_shape_pattern!(),
+        ) => {
+            let layout = storage_layouts
+                .iter()
+                .find(|layout| layout.structural_type == formal.structural_type)
+                .ok_or_else(invalid)?;
+            DescriptorBuffer::Aggregate(layout.clone())
+        }
+        _ => return Err(invalid()),
+    };
+    let access_supported = match operation {
+        DescriptorOperation::Read => formal.access == StructuralAccess::MutableBorrow,
+        DescriptorOperation::Write => {
+            matches!(formal.access, terminal_psi::reading_borrow_pair_pattern!())
+        }
+    };
+    let (scalar_parameters, parameter_order, native_parameters) = match &buffer {
+        DescriptorBuffer::Scalar(_) | DescriptorBuffer::Aggregate(_) => (
+            vec![
+                ScalarType::Integer(descriptor_type),
+                ScalarType::Integer(count_type),
+            ],
+            vec![
+                BoundaryParameterKind::Scalar,
+                BoundaryParameterKind::Structural,
+                BoundaryParameterKind::Scalar,
+            ],
+            vec![
+                ValueShape::integer(4, 4),
+                ValueShape::integer(8, 8),
+                ValueShape::integer(u32::from(width / 8), width / 8),
+            ],
+        ),
+        DescriptorBuffer::Bytes => (
+            vec![ScalarType::Integer(descriptor_type)],
+            vec![
+                BoundaryParameterKind::Scalar,
+                BoundaryParameterKind::Structural,
+            ],
+            vec![ValueShape::integer(4, 4), ValueShape::integer(16, 8)],
+        ),
+    };
+    let native_signature = CallSignature {
+        parameters: native_parameters,
+        result: if signature.result.is_unit() {
+            None
+        } else {
+            Some(ValueShape::integer(u32::from(width / 8), width / 8))
+        },
+    };
+    if signature.scalar_parameters != scalar_parameters
+        || (!signature.result.is_unit()
+            && signature.result
+                != BoundaryMachineResult::Scalar(ScalarType::Integer(result_type).into()))
+        || declaration.parameter_order != parameter_order
+        || !access_supported
+        || formal.multiplicity != StructuralMultiplicity::Unrestricted
+        || !formal.qualifications.is_empty()
+        || !formal.projected_qualifications.is_empty()
+    {
+        return Err(invalid());
+    }
+    super::admit_exact_foreign_call(&signature, declaration, binding, &native_signature)?;
+
+    Ok(Some(DescriptorContract {
+        signature,
+        operation,
+        abi,
+        buffer,
+        descriptor_type,
+        count_type,
+        result_type,
+    }))
+}
+
 fn validate_transfer_count(
     abi: DescriptorAbi,
     count: usize,
 ) -> Result<(), TerminalEffectRejection> {
-    // Linux VFS caps transfers at INT_MAX & PAGE_MASK, whether entered
-    // through libc or a raw syscall. Without a selected page-size model,
-    // stay below the common 4K/16K/64K limit before capture or output.
     if matches!(abi, DescriptorAbi::LinuxKernel | DescriptorAbi::LinuxLibc) && count > 0x7fff0000 {
         return Err(TerminalEffectRejection::new(
             "transfer count requires the selected kernel page-size limit",
@@ -199,11 +331,13 @@ fn validate_transfer_count(
 fn invalid_operands() -> TerminalEffectRejection {
     TerminalEffectRejection::new("descriptor I/O operands differ from the installed contract")
 }
+
 impl TerminalImportAdapter for DescriptorIoImport<'_> {
     fn implemented_signature(&self) -> TerminalImportSignature {
         self.contract.signature.clone()
     }
 }
+
 impl TerminalEffectHandler for DescriptorIoImport<'_> {
     fn storage_requirements(
         &self,
@@ -218,7 +352,9 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
             },
         }
     }
+
     handle_effect_requires_dispatch!("descriptor I/O requires authenticated buffer dispatch");
+
     fn handle_effect_with_buffers(
         &mut self,
         effect: &TerminalEffect,
@@ -322,17 +458,12 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                     },
                 )?);
                 let storage = captured.as_ref().ok_or_else(invalid_operands)?;
-                // A logical integer formal can observe a narrower captured
-                // codec. Only its authenticated physical bytes are offered;
-                // the formal's width grants neither padding nor adjacent data.
                 (storage.bytes.as_slice(), count)
             }
         };
         let result = self.result(i128::try_from(count).map_err(|_| invalid_operands())?)?;
         match self.contract.operation {
             DescriptorOperation::Write => {
-                // Count/result validation precedes append; even mutable scalar
-                // inputs are read without replacing their captured payload.
                 if !matches!(*descriptor, 1 | 2)
                     && matches!(self.contract.abi, DescriptorAbi::WindowsCrt)
                 {

@@ -293,13 +293,274 @@ pub struct ContentPartitionPlaceSubstitution {
     pub target: language_semantics::content::ContentStructuralPlace,
 }
 
+/// The content rows the permission walk rebuilds from empty on every pass:
+/// body conservations, their claim bindings and available inputs, body
+/// transformations and derivations, boundary requirements with their plans,
+/// backing addresses, and claim transformations.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContentWalkRows {
+    pub body_conservations: arena::Arena<ContentBodyConservationFact>,
+    pub body_claim_bindings: arena::Arena<ContentBodyClaimBinding>,
+    pub body_available_inputs: arena::Arena<ContentBodyAvailableInput>,
+    pub body_transformations: arena::Arena<ContentBodyTransformation>,
+    pub body_derivations: arena::Arena<ContentBodyDerivation>,
+    pub boundary_requirement_plans: Vec<ContentConservationPlan>,
+    pub boundary_body_requirements: arena::Arena<ContentBoundaryBodyRequirement>,
+    pub backing_addresses: arena::Arena<ContentBackingAddressTransport>,
+    pub claim_transformations: arena::Arena<ContentClaimTransformation>,
+}
+
 impl ContentProjectionFacts {
+    /// See [`ContentProjectionFactsRef::descendant_frontier`].
+    pub fn descendant_frontier(
+        &self,
+        entries: HandleSpan<ContentBodyClaimBinding>,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement: usize,
+        evaluation: crate::FlowPermissionEvaluation,
+        before: arena::Handle<ContentBodyConservationFact>,
+    ) -> Result<ContentClaimFrontier, &'static str> {
+        self.view()
+            .descendant_frontier(entries, machine, state, statement, evaluation, before)
+    }
+
+    /// Move out the rows the permission walk rebuilds, leaving them empty.
+    pub fn take_walk_rows(&mut self) -> ContentWalkRows {
+        ContentWalkRows {
+            body_conservations: std::mem::take(&mut self.body_conservations),
+            body_claim_bindings: std::mem::take(&mut self.body_claim_bindings),
+            body_available_inputs: std::mem::take(&mut self.body_available_inputs),
+            body_transformations: std::mem::take(&mut self.body_transformations),
+            body_derivations: std::mem::take(&mut self.body_derivations),
+            boundary_requirement_plans: std::mem::take(&mut self.boundary_requirement_plans),
+            boundary_body_requirements: std::mem::take(&mut self.boundary_body_requirements),
+            backing_addresses: std::mem::take(&mut self.backing_addresses),
+            claim_transformations: std::mem::take(&mut self.claim_transformations),
+        }
+    }
+
+    /// Append walk rows another producer built from empty after the rows
+    /// already here, as if it had appended them here. Handles and spans into
+    /// these nine tables, and boundary requirements' positions in
+    /// `boundary_requirement_plans`, move by what is already here. Plan
+    /// positions into `conservation_plans`, place segments (flow ownership's)
+    /// and flow handles stay as they are. Returns `false`, changing nothing,
+    /// when an arena cannot be shifted exactly (`shifted_rows::shiftable`).
+    pub fn append_walk_rows(&mut self, rows: ContentWalkRows) -> bool {
+        use crate::checked_trees::shifted_rows::{append_rows, shift, shift_span, shiftable};
+        let ContentWalkRows {
+            body_conservations,
+            body_claim_bindings,
+            body_available_inputs,
+            body_transformations,
+            body_derivations,
+            boundary_requirement_plans,
+            boundary_body_requirements,
+            backing_addresses,
+            claim_transformations,
+        } = rows;
+        let (
+            Some(conservation_rows),
+            Some(binding_rows),
+            Some(input_rows),
+            Some(_),
+            Some(derivation_rows),
+            Some(requirement_rows),
+            Some(address_rows),
+            Some(_),
+        ) = (
+            shiftable(&self.body_conservations, &body_conservations),
+            shiftable(&self.body_claim_bindings, &body_claim_bindings),
+            shiftable(&self.body_available_inputs, &body_available_inputs),
+            shiftable(&self.body_transformations, &body_transformations),
+            shiftable(&self.body_derivations, &body_derivations),
+            shiftable(
+                &self.boundary_body_requirements,
+                &boundary_body_requirements,
+            ),
+            shiftable(&self.backing_addresses, &backing_addresses),
+            shiftable(&self.claim_transformations, &claim_transformations),
+        )
+        else {
+            return false;
+        };
+        let plan_rows = self.boundary_requirement_plans.len();
+        append_rows(&mut self.body_conservations, body_conservations, |row| {
+            let ContentBodyConservationFact {
+                machine_symbol,
+                state_symbol,
+                returned_at,
+                completed_value,
+                evaluation,
+                plan_index,
+                inputs,
+                outputs,
+                available_inputs,
+            } = row;
+            ContentBodyConservationFact {
+                machine_symbol,
+                state_symbol,
+                returned_at,
+                completed_value,
+                evaluation,
+                plan_index,
+                inputs: shift_span(inputs, binding_rows),
+                outputs: shift_span(outputs, binding_rows),
+                available_inputs: shift_span(available_inputs, input_rows),
+            }
+        });
+        append_rows(&mut self.body_claim_bindings, body_claim_bindings, |row| {
+            row
+        });
+        append_rows(
+            &mut self.body_available_inputs,
+            body_available_inputs,
+            |row| {
+                let ContentBodyAvailableInput {
+                    binding,
+                    entry_bindings,
+                    root,
+                    segments,
+                    provenance,
+                } = row;
+                ContentBodyAvailableInput {
+                    binding: shift(binding, binding_rows),
+                    entry_bindings: shift_span(entry_bindings, binding_rows),
+                    root,
+                    segments,
+                    provenance,
+                }
+            },
+        );
+        append_rows(
+            &mut self.body_transformations,
+            body_transformations,
+            |row| {
+                let ContentBodyTransformation {
+                    machine_symbol,
+                    state_symbol,
+                    completed_value,
+                    evaluation,
+                    derivations,
+                } = row;
+                ContentBodyTransformation {
+                    machine_symbol,
+                    state_symbol,
+                    completed_value,
+                    evaluation,
+                    derivations: shift_span(derivations, derivation_rows),
+                }
+            },
+        );
+        append_rows(&mut self.body_derivations, body_derivations, |row| {
+            let ContentBodyDerivation {
+                conservation,
+                lineage_roots,
+                custody,
+            } = row;
+            ContentBodyDerivation {
+                conservation: shift(conservation, conservation_rows),
+                lineage_roots: shift_span(lineage_roots, binding_rows),
+                custody: match custody {
+                    ContentBodyCustody::Derived => ContentBodyCustody::Derived,
+                    ContentBodyCustody::Boundary {
+                        requirements,
+                        addresses,
+                    } => ContentBodyCustody::Boundary {
+                        requirements: shift_span(requirements, requirement_rows),
+                        addresses: shift_span(addresses, address_rows),
+                    },
+                },
+            }
+        });
+        self.boundary_requirement_plans
+            .extend(boundary_requirement_plans);
+        append_rows(
+            &mut self.boundary_body_requirements,
+            boundary_body_requirements,
+            |row| {
+                let ContentBoundaryBodyRequirement {
+                    declaring_trait,
+                    requirement,
+                    realization_state,
+                    conservation_plan_index,
+                } = row;
+                ContentBoundaryBodyRequirement {
+                    declaring_trait,
+                    requirement,
+                    realization_state,
+                    conservation_plan_index: conservation_plan_index + plan_rows,
+                }
+            },
+        );
+        append_rows(&mut self.backing_addresses, backing_addresses, |row| {
+            let ContentBackingAddressTransport {
+                input,
+                output,
+                input_segments,
+                output_segments,
+            } = row;
+            ContentBackingAddressTransport {
+                input: shift(input, input_rows),
+                output: shift(output, binding_rows),
+                input_segments,
+                output_segments,
+            }
+        });
+        append_rows(
+            &mut self.claim_transformations,
+            claim_transformations,
+            |row| {
+                let ContentClaimTransformation {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                    expression,
+                    evaluation,
+                    source,
+                    inputs,
+                    outputs,
+                } = row;
+                ContentClaimTransformation {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                    expression,
+                    evaluation,
+                    source: match source {
+                        ContentClaimTransformationSource::Unknown => {
+                            ContentClaimTransformationSource::Unknown
+                        }
+                        ContentClaimTransformationSource::Call {
+                            call_ordinal,
+                            plan_index,
+                        } => ContentClaimTransformationSource::Call {
+                            call_ordinal,
+                            plan_index,
+                        },
+                        ContentClaimTransformationSource::Body { conservation } => {
+                            ContentClaimTransformationSource::Body {
+                                conservation: shift(conservation, conservation_rows),
+                            }
+                        }
+                    },
+                    inputs: shift_span(inputs, binding_rows),
+                    outputs: shift_span(outputs, binding_rows),
+                }
+            },
+        );
+        true
+    }
+}
+
+impl<'f> crate::ContentProjectionFactsRef<'f> {
     /// Replay complete replacements of the equation's joint input frontier.
     /// Every replacement parent must already belong to that exact roster;
     /// unrelated roots cannot be pulled in by equal content. Empty-content
     /// claims remain nominal owners and stay in the roster too.
     pub fn descendant_frontier(
-        &self,
+        self,
         entries: HandleSpan<ContentBodyClaimBinding>,
         machine: SymbolHandle,
         state: SymbolHandle,
@@ -397,7 +658,9 @@ impl ContentProjectionFacts {
             replacements,
         })
     }
+}
 
+impl ContentProjectionFacts {
     /// Whether one exact construction occurrence receives this membership from
     /// its enclosing completed transaction. Follow only constructing child edges:
     /// retained children of a later alias must not backdate the judgment.

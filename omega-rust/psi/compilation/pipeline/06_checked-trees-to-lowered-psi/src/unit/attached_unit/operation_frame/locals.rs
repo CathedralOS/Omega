@@ -899,6 +899,7 @@ impl OperationFrame<'_, '_> {
                 // would partially move an affine parent before its next use.
                 let place = place_id(allocate_dense(self.next_place)?);
                 let producer = self.operations.allocate();
+                let first_operand_operation = self.operations.operations.len();
                 self.operations.push(Operation::unsuspended(
                     producer,
                     OperationResult::Structural(terminal_psi::StructuralOperationResult {
@@ -916,6 +917,12 @@ impl OperationFrame<'_, '_> {
                         path,
                     },
                 ));
+                // The store consumes this copy before the enclosing effect
+                // publishes its results. Retain this actual producer's
+                // namespace now, including its established empty claim roster.
+                self.evaluation
+                    .current_claims
+                    .publish_operations(&self.operations.operations[first_operand_operation..])?;
                 self.private_places
                     .push(operation_result_place(place, producer, selected));
                 repair.place = place;

@@ -1,8 +1,8 @@
-//! Realize one exact callable while retaining its original Terminal namespace.
-//!
-//! Callback and component export entries use the same source-free admission and
-//! native pipeline. Their identity, installation and publication contracts stay
-//! with the callers; this operation emits a body and grants no entry authority.
+// Realize one exact callable while retaining its original Terminal namespace.
+// Callback and component export entries use the same source-free admission and
+// native pipeline (`pipeline::lower_to_target` and `pipeline::emit_target`)
+// while leaving their identity, installation, and publication contracts with
+// the caller.
 
 use crate::pipeline::{self, BodyEmissionError, TargetLoweringError};
 use diagnostics::Diagnostic;
@@ -15,13 +15,21 @@ pub(super) struct CallableObjectProduct {
         terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeCallableAuthority,
 }
 
-pub(super) fn emit_callable_object(
+pub(super) struct CallableTargetProduct {
+    pub target: abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+    pub runtime: native_artifact::TerminalCallableRuntimeProvisions,
+    pub authority:
+        terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeCallableAuthority,
+    pub observation: crate::observations::NativePipelineObservation,
+}
+
+pub(super) fn prepare_callable_object(
     mut admitted: terminal_psi_to_abstract_operations::AdmittedNativeRealization<'_>,
     admission: terminal_psi_to_abstract_operations::NativeAdmissionRequest<'_, '_>,
     selections: &optimization_core::PostTerminalOptimizationSelections,
     budget: optimization_core::OptimizationWorkBudget,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
+) -> Result<CallableTargetProduct, Vec<Diagnostic>> {
     let observation = crate::observations::NativePipelineObservation::new(
         admission.providers.profile,
         crate::observations::NativePipelineUnit::Callable,
@@ -75,6 +83,23 @@ pub(super) fn emit_callable_object(
     })?;
     let runtime =
         runtime.with_borrowed_storage_layouts(optimized_target.borrowed_storage_layouts().to_vec());
+    Ok(CallableTargetProduct {
+        target: optimized_target,
+        runtime,
+        authority,
+        observation,
+    })
+}
+
+pub(super) fn emit_prepared_callable_object(
+    prepared: CallableTargetProduct,
+) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
+    let CallableTargetProduct {
+        target: optimized_target,
+        runtime,
+        authority,
+        observation,
+    } = prepared;
     let projection =
         pipeline::emit_target(optimized_target, &observation).map_err(|error| match error {
             BodyEmissionError::Physical(error) => {
@@ -88,4 +113,16 @@ pub(super) fn emit_callable_object(
         runtime,
         authority,
     })
+}
+
+pub(super) fn emit_callable_object(
+    admitted: terminal_psi_to_abstract_operations::AdmittedNativeRealization<'_>,
+    admission: terminal_psi_to_abstract_operations::NativeAdmissionRequest<'_, '_>,
+    selections: &optimization_core::PostTerminalOptimizationSelections,
+    budget: optimization_core::OptimizationWorkBudget,
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
+    emit_prepared_callable_object(prepare_callable_object(
+        admitted, admission, selections, budget, artifact,
+    )?)
 }

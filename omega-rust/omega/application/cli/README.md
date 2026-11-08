@@ -5,12 +5,6 @@
 [commands/](src/commands/mod.rs) owns console rendering and shell exit codes.
 It calls complete operations, not individual compiler stages.
 
-For separate allocation attribution, the optional `allocation-observation`
-feature wraps the normal MiMalloc allocator and marks `--version`. Successful
-invocations write a requested-byte/count report to `OMEGA_ALLOCATION_PROFILE`
-when set. Use an uninstrumented retained producer for timing comparisons; see
-the [performance tooling guide](../../../../tools/benchmark/comparison.md).
-
 Project Build is owned by the [compiler's Build coordinator](../../build-system/orchestration/README.md).
 The CLI package also houses the execution and inspection operations:
 
@@ -37,14 +31,14 @@ running the image. Terminal engine selection retains the target but executes
 through its admitted host adapters. Host execution returns raw stdout/stderr bytes and process status;
 unsupported interpretation is a decline, not an agreement.
 
-Host comparisons accept `--both --terminal-fuel-allowance <positive-u64>`.
-The allowance supplies each Terminal invocation independently, including each
-input case and stdin replay; it defaults to 10,000,000 logical fuel units.
+Host comparisons accept `--both --psi-work-budget <positive-u64>`.
+The budget supplies each Terminal invocation independently, including each
+input case and stdin replay; it defaults to 10,000,000 logical work units.
 It requires `--both` without `--target`, or `--engine terminal`. Exhaustion remains
 a declined comparison and stops a Terminal-only run with status 200.
-Native execution receives no fuel counter. Kept single-run artifacts and case
-outputs include `terminal.fuel.tsv` (case-prefixed in batch mode), recording the
-supplied allowance, actual charged units and schedule identity.
+Native execution receives no work counter. Kept single-run artifacts and case
+outputs include `psi.work.tsv` (case-prefixed in batch mode), recording the
+supplied budget, actual charged units and schedule identity.
 
 `run --keep` retains the published native image, its exact `program.oterm`,
 `native.identity.txt`, and comparison streams when requested. It does not
@@ -102,7 +96,7 @@ indefinite waits, CPU clocks and other missing imports decline explicitly;
 there is no tree fallback. The CLI compares host-presented termination only, not
 stdout/stderr or full semantic traces. Typed `Trap` compares against the executing
 host's architectural trap presentation, never against arbitrary signal death or
-a numeric exit fallback. Other unmapped crashes and sponsor-fuel exhaustion
+a numeric exit fallback. Other unmapped crashes and sponsor-work-budget exhaustion
 decline explicitly. Windows exception status can share its bits with an authored
 exit code; presentation agreement does not prove the underlying cause.
 
@@ -153,7 +147,7 @@ omega [--check] [--offline] [--timings]
       [--report-file <path>]
       [--build-input <path>]... [--optional-build-input <path>]...
       [--build-dir <dir>] [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>
-omega run [--engine <native|terminal> | --both] [--terminal-fuel-allowance <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
+omega run [--engine <native|terminal> | --both] [--psi-work-budget <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
 omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>
 omega audit source --kind <local|git> <locator> [--rev <rev>]
 omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...
@@ -202,7 +196,7 @@ buffered output is lost), or execution that stops without a process result.
 The Terminal engine requests the ordinary native product, which passes the same
 Build, package, trust, provider and entry admission and then stops before any
 object or image is emitted; `--keep` retains `program.oterm` and the Terminal
-streams, fuel and effect receipts, never a native image. Case runs
+streams, work and effect receipts, never a native image. Case runs
 (`--inputs`/`--input`) do not yet accept `--engine terminal`. A program that
 binds independently produced components is refused during compilation on this
 engine (`terminal compile FAILED`, status 200), since those components execute
@@ -223,12 +217,6 @@ the packager), and Rust host target. Release bundles carry their matching librar
 beside the executable; ordinary Cargo development builds retain a checkout
 fallback. See [release packaging](../../../../tools/release/README.md#build-a-relocatable-bundle)
 for installation layout, explicit library selection, and relocation tests.
-
-`omega --build-profile` prints the loaded compiler's build-time optimization
-profile as JSON without loading a project or its library. Validation tools use
-this observation with the binary digest; runtime Cargo environment variables
-cannot change it. Normal dev/test builds use opt-level 1, and the compiler build
-refuses opt-level 0. Debug information can be enabled while retaining optimization.
 
 `omega inspect-terminal --artifact <file>` reads an existing portable Terminal
 artifact envelope (up to 64 MiB), applies canonical decoding and semantic

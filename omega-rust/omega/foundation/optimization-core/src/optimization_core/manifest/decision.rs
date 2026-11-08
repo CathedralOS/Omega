@@ -1,4 +1,9 @@
-//! Decision-v5 construction, canonical identity, and wire codec.
+// `OptimizationDecisionRecord`: canonical decision-v5 record (`OMGDEC\0\0` v5).
+//
+// An `Applied` verdict requires `Some(validator)` and strictly ascending
+// `consumed_facts`. `write_decision_row` writes the authoritative row bytes
+// once for both the wire codec (`CountFrame::Wire`, `u32` fact count) and the
+// canonical decision digest (`CountFrame::Canonical`, `u64` fact count).
 
 use crate::cursor::Cursor;
 use crate::optimization_core::CountFrame;
@@ -14,22 +19,18 @@ use super::{
     OptimizationManifestDecodeError,
 };
 
-/// Domain prefix of the decision row's canonical identity encoding. It is
-/// content, not the identity's own domain: the digest is taken over this
-/// spelling followed by the row.
 const DECISION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-manifest-decision.v5\0";
 
-/// Canonical machine record for one policy/validation decision.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OptimizationDecisionRecord {
-    identity: OptimizationDecisionIdentity,
-    input: OptimizationUnitIdentity,
-    candidate: OptimizationCandidateIdentity,
-    rule: OptimizationRuleIdentity,
-    verdict: OptimizationCandidateVerdict,
-    consumed_analyses: AnalysisSet,
-    consumed_facts: Vec<OptimizationFactReference>,
-    validator: Option<OptimizationValidatorIdentity>,
+    identity: OptimizationDecisionIdentity, // Canonical digest of the decision row.
+    input: OptimizationUnitIdentity,        // Optimization unit identity before the candidate.
+    candidate: OptimizationCandidateIdentity, // Candidate rewrite identity.
+    rule: OptimizationRuleIdentity,         // Scheduled rule identity that proposed the candidate.
+    verdict: OptimizationCandidateVerdict,  // Applied, Skipped(reason), or Rejected(reason).
+    consumed_analyses: AnalysisSet,         // Analyses consulted by the rule/validator.
+    consumed_facts: Vec<OptimizationFactReference>, // Strictly ascending consumed fact references.
+    validator: Option<OptimizationValidatorIdentity>, // Required independent validator when `verdict == Applied`.
 }
 
 crate::record_views! {
@@ -85,9 +86,6 @@ impl OptimizationDecisionRecord {
         })
     }
 
-    /// The authoritative row, written once for both encodings. The wire record
-    /// frames the consumed-fact count as u32 and the canonical identity row as
-    /// u64; every other byte and the field order are stated here alone.
     fn write_row(&self, encoded: &mut Vec<u8>, frame: CountFrame) {
         write_decision_row(
             self.input,
@@ -103,9 +101,6 @@ impl OptimizationDecisionRecord {
     }
 }
 
-/// The authoritative row, written once for both encodings. The identity is a
-/// function of these parts, never an input, so a record is never observed with
-/// a provisional identity.
 fn write_decision_row(
     input: OptimizationUnitIdentity,
     candidate: OptimizationCandidateIdentity,

@@ -76,12 +76,21 @@ Derive these obligations from canonical liveness and existing loan/claim evidenc
 not a separate service-name rule or an author-supplied assertion that all borrows
 are safe. Report the exact missing lifetime, access, carry or runtime-preservation
 obligation. A valid retained loan must not reject merely because it is borrowed;
-a suspension-forbidden live resource still rejects. A generic callback body
-establishes these obligations under its requirement's upper-bound envelope;
-a [non-suspending specialization](../language/effects.md#static-callback-operational-dependencies)
-does not rescue a body that fails this check. Ordinary loans remain admissible
-when preservation is established. Preservation establishes safety, not deadlock
-freedom or eventual resumption. Terminal arm calls use this same check rather than an empty frontier inferred from tail position.
+a suspension-forbidden live resource rejects a call that may suspend in the
+selected application. Under [conditional suspension carry](../language/effects.md#conditional-suspension-carry),
+the generic retains the suspension-permission obligation with the call site's
+callback-dependent condition. Substitution of selected published contracts may
+discharge it; inspecting a selected body or observing a call complete immediately
+cannot. Independent suspension contributions require permission unconditionally.
+
+Retain exact live subjects, claim provenance and acquisition evidence when
+forwarding the condition. `Carry::AcrossSuspend` must be established through
+ordinary carry rules; it cannot override a type's explicit suspension prohibition
+or be asserted by a caller for a helper's private acquisition. All ordinary call,
+loan, invariant-window and outcome obligations still apply. CPU, thread and
+address preservation retain their existing rules. Preservation establishes
+safety, not deadlock freedom or eventual resumption. Terminal arm calls use this
+same check rather than an empty frontier inferred from tail position.
 
 ## Runtime admission
 

@@ -46,33 +46,13 @@ fn dynamic_call_follows_the_invoked_slot_or_complete_finite_roster_only() {
     });
     module.identities = identities.build();
     let calls = SynchronousCallGraph::new(&module, None, None).unwrap();
-    let mut pending = Vec::new();
-    calls
-        .append_dynamic_calls(0, 0, false, &mut pending)
-        .unwrap();
+    let pending = calls.dynamic_callees(0, 0, false).unwrap();
+    assert_eq!(pending, vec![MachineId::new(1).unwrap()]);
+    let pending = calls.dynamic_callees(0, 0, true).unwrap();
     assert_eq!(
         pending,
-        vec![TargetMachineCallable::Machine(MachineId::new(1).unwrap())]
+        vec![MachineId::new(1).unwrap(), MachineId::new(2).unwrap(),]
     );
-    pending.clear();
-    calls
-        .append_dynamic_calls(0, 0, true, &mut pending)
-        .unwrap();
-    assert_eq!(
-        pending,
-        vec![
-            TargetMachineCallable::Machine(MachineId::new(1).unwrap()),
-            TargetMachineCallable::Machine(MachineId::new(2).unwrap()),
-        ]
-    );
-    assert!(
-        calls
-            .append_dynamic_calls(0, 3, false, &mut pending)
-            .is_err()
-    );
-    assert!(
-        calls
-            .append_dynamic_calls(1, 0, false, &mut pending)
-            .is_err()
-    );
+    assert!(calls.dynamic_callees(0, 3, false).is_err());
+    assert!(calls.dynamic_callees(1, 0, false).is_err());
 }

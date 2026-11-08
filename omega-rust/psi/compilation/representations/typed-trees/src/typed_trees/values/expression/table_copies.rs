@@ -892,6 +892,7 @@ impl ExpressionTable {
                     machine_arguments: call.machine_arguments,
                     quotient_operation: call.quotient_operation,
                     private_layout_operation: call.private_layout_operation,
+                    installed_interrupt_operation: call.installed_interrupt_operation,
                     layout_query: call.layout_query,
                     native_code_layout: call.native_code_layout,
                     build_selection,

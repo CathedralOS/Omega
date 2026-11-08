@@ -155,13 +155,13 @@ pub(super) fn linear_thread_accounting(
             output_site,
             output_site,
             &predecessor_edge.provenance,
-            &predecessor_edge.fuel,
+            &predecessor_edge.work,
         ),
         provenance_realized_at(
             empty_site,
             output_site,
             &empty_edge.provenance,
-            &empty_edge.fuel,
+            &empty_edge.work,
         ),
     ];
     thread_accounting_tail(function, empty.block, Some(predecessor), affected, realized)

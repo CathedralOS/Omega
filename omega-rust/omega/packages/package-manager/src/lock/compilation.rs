@@ -1,11 +1,9 @@
-//! Exact inputs retained by acceptance, not a serialized package review.
+// Accepted compiler identity and explicit semantic bindings retained per package occurrence.
+// Source, purpose, and target are supplied by the containing occurrence; ordinary compilation verifies those coordinates before using this data.
 
 use super::PackageLockError;
 use package_compilation::AcceptedSemanticBinding;
 
-/// The compiler and explicit semantic bindings accepted for one occurrence.
-/// Source, purpose, and target are supplied by the containing occurrence;
-/// ordinary compilation must verify those coordinates before using this data.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AcceptedPackageCompilation {
     compiler_identity: [u8; 32],

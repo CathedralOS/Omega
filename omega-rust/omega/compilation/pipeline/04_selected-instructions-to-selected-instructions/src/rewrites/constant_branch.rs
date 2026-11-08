@@ -38,7 +38,7 @@
 //! The `Jump` terminator's carried instruction keeps the branch's
 //! identity and provenance under the target's own `jump` row, and the
 //! decided `SelectedSuccessor` moves across unchanged — bindings,
-//! structural payloads, case custody, and fuel included. The dropped edge
+//! structural payloads, case custody, and work included. The dropped edge
 //! never executes, so nothing it carried needs preserving, and every
 //! surviving path executes the same instruction and edge prefix it did
 //! before, so no boundary settlement observes a changed prefix and no
@@ -90,7 +90,7 @@ use selected_instructions::{
     ConstantBranchIdentity, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::FuelScheduleIdentity;
+use semantic_vocabulary::WorkScheduleIdentity;
 
 pub(crate) use rewrite::fold_selected_constant_branch;
 pub(crate) use validation::{measured_steps, surface_sizes};

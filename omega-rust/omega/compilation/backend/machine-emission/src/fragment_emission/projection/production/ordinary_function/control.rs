@@ -29,21 +29,36 @@ pub(super) fn provenance(
             instruction.kind,
             SelectedInstructionKind::InvokeNoNormal { .. }
         ) {
-            let SelectedTerminator::InvokeNoNormal {
-                instruction: terminal,
-                psi_edge,
-            } = &block.terminator
-            else {
-                return Err(ResolvedFragmentEmissionError::ArtifactMismatch);
+            let (terminal, owner) = match &block.terminator {
+                SelectedTerminator::InvokeNoNormal {
+                    instruction,
+                    psi_edge,
+                } => (
+                    instruction,
+                    target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge),
+                ),
+                SelectedTerminator::OperationInvokeNoNormal {
+                    instruction,
+                    operation,
+                } => (
+                    instruction,
+                    target_operations::CallSiteOwner::Installation {
+                        operation: *operation,
+                        role: target_operations::InstallationCallRole::Work,
+                    },
+                ),
+                _ => return Err(ResolvedFragmentEmissionError::ArtifactMismatch),
             };
-            if terminal.id != instruction.id
-                || row.owner != target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge)
-            {
+            if terminal.id != instruction.id || row.owner != owner {
                 return Err(ResolvedFragmentEmissionError::ArtifactMismatch);
             }
         } else if matches!(
             row.owner,
             target_operations::CallSiteOwner::InvokeNoNormal(_)
+                | target_operations::CallSiteOwner::Installation {
+                    role: target_operations::InstallationCallRole::Work,
+                    ..
+                }
         ) {
             return Err(ResolvedFragmentEmissionError::ArtifactMismatch);
         }
@@ -144,6 +159,6 @@ fn successor_provenance(
             .iter()
             .map(|binding| binding.semantic)
             .collect(),
-        fuel: successor.fuel.clone(),
+        work: successor.work.clone(),
     }
 }

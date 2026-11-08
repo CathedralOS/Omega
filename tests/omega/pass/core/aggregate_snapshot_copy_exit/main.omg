@@ -16,3 +16,11 @@ machine main() crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
+
+// Public descriptor queries observe the incoming owned copies before this
+// write and at the later no-normal invocation, independently of numeric IDs.
+machine inspect_forward(mut first: Reading, second: Reading) crashes Trap ensures false {
+    first.value = second.value;
+    inspect_stop(first, second);
+}
+machine inspect_stop(first: Reading, second: Reading) crashes Trap ensures false { crash Trap; }

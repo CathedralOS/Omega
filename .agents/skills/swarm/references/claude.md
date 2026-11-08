@@ -2,7 +2,7 @@
 
 This reference defines the `claude-code-remote` container transport for running a wave of Claude Code cloud sessions.
 - **Worker workflow:** Every session follows [advance](../../advance/SKILL.md) (`/advance`) and [AGENTS.md](../../../../AGENTS.md#law-of-completion) for capability selection, the 9-place sample loop, validation, and board updates. Point sessions to `.agents/skills/advance/SKILL.md` rather than duplicating `/advance` instructions.
-- **Coordinator review & landing:** Sessions push a **draft** PR (`gh pr create --draft`) and stop (`candidate_ready`). The coordinator audits every diff using [coordinator-review](../../coordinator-review/SKILL.md) before running `python3 tools/landing.py land <pr> --expected-head <sha>`.
+- **Coordinator review & landing:** Sessions push a **draft** PR (`gh pr create --draft`) and stop (`candidate_ready`). The coordinator audits every diff using [coordinator-review](../../coordinator-review/SKILL.md) before running `cargo xtask land land <pr> --expected-head <sha>`.
 
 ## 1. Claude Cloud Session Tools
 
@@ -24,7 +24,7 @@ Never schedule periodic timers, `schedule` calls, `send_later` check-ins, or sle
 
 1. **Start sessions warm:**
    - Set the environment's setup script to `if [ -d Omega ]; then bash Omega/tools/agent_setup.sh; fi`; [agent_setup.sh](../../../../tools/agent_setup.sh) installs the pinned Rust toolchain, `zstd`, `mbx`, prebuilt `cargo-nextest` and the crates.
-   - Instruct each session to run `python3 tools/warm_build.py wait` first and work inside `.agents/worktree/warm` at the commit it was built from (building with plain `cargo build -p omega` so sample and corpus gates reuse `target/`).
-   - Instruct sessions to run long builds/gates in the background and wait on completion notifications rather than `sleep` or `pgrep` loops, and pass `--base <commit>` to `tools/check_rules.py`.
+   - Instruct each session to acquire a pool slot via `cargo xtask worktree acquire <lane>-<topic>` and build with `mbx build -p omega` so sample and corpus gates reuse `target/` (direct `cargo build` / `cargo test` fallback is forbidden).
+   - Instruct sessions to run long builds/gates in the background and wait on completion notifications rather than `sleep` or `pgrep` loops, and pass `--base <commit>` to `cargo xtask check-rules`.
 2. **Record & dispatch:** Fetch `origin/main`, reserve outcomes via [dispatch.md](../../../../tools/swarm/dispatch.md), record the wave ledger under `build/swarm/<wave>/`, and pass each session its `TASKS.md` capability, witness path, and instruction to follow [advance](../../advance/SKILL.md) (`/advance`), stop at a draft PR (`gh pr create --draft`), and print a final JSON verdict block (`candidate_ready`).
-3. **Review, land & reuse:** When a session finishes, run the 5-point diff audit in [coordinator-review](../../coordinator-review/SKILL.md), land via `tools/landing.py land`, and `send_message` the next requirement of the parent capability to the same warm session.
+3. **Review, land & reuse:** When a session finishes, run the 5-point diff audit in [coordinator-review](../../coordinator-review/SKILL.md), land via `cargo xtask land land`, and `send_message` the next requirement of the parent capability to the same warm session.

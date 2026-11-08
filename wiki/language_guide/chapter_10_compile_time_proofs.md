@@ -1,87 +1,86 @@
-# Chapter 10: Compile-Time Proofs
+# Chapter 10: Compile-time proofs
 
-Compile-time proofs use ordinary machines and contracts. The basic judgment is:
-
-```text
-requires + body facts -> ensures
-```
-
-The checker checks a body under its declared assumptions. A caller must establish
-those assumptions for the actual arguments before using its conclusions. An
-unproved conclusion rejects unless it is an explicitly accepted boundary claim.
-Failure to prove a statement is not proof of its negation.
-
-This chapter teaches the intended model. The [foundation](../spec/proofs/foundation.md)
-selects dependent mathematics, proof-relevant identity and strict logical proofs;
-its [mathematical source forms](../spec/proofs/mathematical_bindings.md) are selected.
-The current [source automation](../../omega-rust/psi/compilation/validation/README.md#source-proof-automation)
-implements a bounded fragment. Schematic examples below do not claim complete
-compiler support or supply omitted proofs.
-
-## Contracts and evidence bundles
-
-A contract states a formula; a checked proof establishes it. A mathematical
-condition need not have an executable decision procedure. For a decidable
-condition, write its Boolean truth explicitly, such as `sorted(items) == true`.
-Checking a contract is not a hidden runtime validator call.
-
-Ordinary traits group operations, witnesses, and their laws. A named conformance
-supplies the complete bundle; its name or shape proves nothing by itself. For
-example, a convergence bundle can group a modulus with a theorem about sequence
-values after that modulus. Composing two such bundles must prove the composed
-modulus's law, not just construct another value called `ConvergenceEvidence`.
-
-General quantification must also support arbitrary mathematical functions and
-predicates, not only executable declarations. A machine returning a logical
-result is not a prerequisite.
-
-A dedicated `proposition` declaration is accepted source syntax and ships in
-the standard library. It names a proof family without proving any instance:
+A proof machine states what it assumes with `requires` and what follows with
+`ensures`. The checker verifies that implication for every permitted argument:
 
 ```omega
-proposition int_pair_equivalent(left: IntPair, right: IntPair) =
-    core::Identity<Nat>(add(left.pos, right.neg), add(right.pos, left.neg));
+machine distinct_indices(i: u64, j: u64)
+requires i < j
+ensures i != j
+{
+}
 ```
 
-This is the explicit-identity migration of the relation in
-`source/library/core/int.omg`; the bundled source changes with compiler support.
-Three bodies are accepted: `;` for a
-primitive proposition, `evidence Interface;`, and `= fact;` as above. Its
-binders are proof-static and cannot declare lifetime parameters. Quotient
-formation requires one.
+The body is empty because the ordering fact already proves the conclusion.
+Changing the conclusion to `i == j` would reject. An empty body is useful only
+when the checker can establish the promise.
 
-The [proof contract](../spec/proofs/contracts.md#machines-and-bundles) owns these
-rules and their foundational requirements.
+## Use a helper theorem
 
-## Mathematical existence is not an algorithm
+Break a larger argument into small facts. This helper establishes that a valid
+index has a representable successor at or below the length:
 
-You can reason about arbitrary types, functions and predicates, not only
-functions with executable machine bodies. This is necessary for mathematics:
-"every predicate over this type" cannot mean "every function we compiled."
-General source binder syntax is still being settled; it does not require a new
-`proposition` declaration or anonymous machine.
+```omega
+machine successor_bound(index: u64, length: u64)
+requires index < length
+ensures index + 1 <= length
+{
+}
 
-Two kinds of mathematical evidence matter:
+machine next_index(index: u64, length: u64) -> u64
+requires index < length
+ensures result <= length
+{
+    successor_bound(index, length);
+    index + 1
+}
+```
 
-| Evidence | What you get |
-| --- | --- |
-| A strict proof that some member exists | The fact of existence, not a member you can extract by ordinary computation. |
-| A witness bundle containing a member and its law | That particular member, with the law about it. Different bundles may choose different members. |
+The caller proves the helper's precondition and receives its conclusion.
+A fact-only citation has no runtime work. For more involved proofs, helpers
+provide intermediate lemmas that automation cannot find on its own.
 
-An accepted choice axiom can select a mathematical member without supplying an
-algorithm. For example, you may reason about a chosen member of a nonempty subset
-of `u32`. You cannot automatically print it, embed its bits in an executable, or
-branch at runtime on it. A checked computation or realization must supply those
-bits. An erased proof mentioning it needs no runtime value, but still records
-the choice assumption.
+A proof applies to its stated subjects and their current revisions. If a write
+changes a field the fact depended on, establish a new fact before using it.
+Failure to prove a statement is not proof that it is false.
 
-Strict proofs of the same statement are interchangeable for logical checking.
-That does not make different witness values equal, erase resource identity, or
-make every mathematical identity proof interchangeable. `[erased]` is a separate
-decision about runtime storage and use, not a synonym for logical irrelevance.
+## Choose arithmetic for the statement
 
-Value `==` selects the same comparison in contracts and executable code. An
-admitted pure comparison on unchanged arguments has the same Boolean answer:
+Operand types select the operations in a contract just as they do in a body.
+`3nat * 3nat` uses unbounded natural arithmetic; `3i32 * 3i32` uses the
+selected machine arithmetic and its representability obligations.
+
+Use `embed` when a condition needs unbounded mathematics about an integer:
+
+```omega
+requires
+    embed(left) + embed(right) <= embed(integer::max<i32>())
+```
+
+This contract fragment assumes integer parameters `left` and `right`.
+Embedding projects their mathematical values. Embed the operands before adding
+if that is the sum you intend: embedding an already wrapped sum preserves the
+wrapped answer.
+
+All terms in a contract must be defined. Natural subtraction still needs a bound:
+
+```omega
+machine remaining(total: Nat, used: Nat) -> Nat
+requires used <= total
+{
+    total - used
+}
+```
+
+For clamping, use `Nat::saturating_sub(total, used)` explicitly. A recursive
+theorem also has to prove its callee's preconditions; a smaller argument alone
+does not supply them. See [total arithmetic](../spec/proofs/contracts.md#total-arithmetic).
+
+## Distinguish equality from identity
+
+`==` selects the same comparison in a contract and an executable expression.
+The first example below assumes `Thing` has a pure comparison permitted in
+proof terms. The second is a law requirement inside an algebra trait:
 
 ```omega
 machine same(a: Thing, b: Thing) -> bool
@@ -90,60 +89,81 @@ requires a == b {
 }
 ```
 
-Here `Thing` stands for a type with a selected comparison admitted in proof
-terms. The precondition proves the result true without granting identity.
-
-When a law needs mathematical identity, write it explicitly. For example, this
-requirement inside an algebra trait does not require an equality algorithm:
-
 ```omega
 machine add_comm(a: T, b: T)
 ensures core::Identity<T>(add(a, b), add(b, a));
 ```
 
-`core::Identity` is a proof relation over the existing `Id`, not a runtime
-Boolean function or proof of its own statement. Its evidence permits the
-foundation's identity substitution. A comparison gets that power only through
-a checked law saying its true result implies identity. The reverse law,
-identity implies a true comparison, is separate. Additional evidence traits
-can supply either or both for the exact selected comparison; `Equatable` does
-not require both. Synthesis proves only the directions justified by the fields.
+`same` returns true under its precondition. The algebra law instead states
+mathematical identity without requiring an executable comparison algorithm.
+`core::Identity` is a proof relation whose evidence permits substitution.
 
-For raw floats, `==` is IEEE comparison, while `core::Identity<f64>` preserves
-all 64 bits. `+0.0 == -0.0` is true despite different identities. A NaN is
-identical to itself despite IEEE comparison returning false. Identity of
-`F64::meaning` projections is a third relation: it forgets NaN payloads and
-still distinguishes signed zeros. See the [float table](../spec/terminal-psi/mathematical_values.md#float-equality-and-source-identity).
+A comparison licenses that substitution only through a checked law that a true
+comparison implies identity. The reverse law, identity implies a true comparison,
+is separate. Evidence traits can supply either or both for the selected operation.
 
-This replaces contextual data `==` in the ratified specification. Compiler,
-core algebra and source migration remain tracked under **PROOF-KERNEL-CORE**
-and the [explicit-identity plan](../drafts/designs/explicit_identity.md).
+Floats show why the distinction matters:
 
-These distinctions live beneath ordinary machines, contracts and named bundles.
-The goal is that an LLM can supply an ambitious proof and an independent checker
-can reject a wrong derivation without trusting the LLM. You still review that
-the statement says what you intended and that its assumptions are acceptable.
+| Relation | Signed zeros | A NaN compared with itself |
+| --- | --- | --- |
+| IEEE `==` | Compare equal. | Compares false. |
+| `core::Identity<f64>` | Distinct bit patterns. | Identical to itself. |
+| Identity of `Float::meaning64` projections | Still distinct. | Same NaN meaning; payload is forgotten. |
 
-## Evidence identity and validity
+Use the relation the law actually needs. See [float equality](../spec/terminal-psi/mathematical_values.md#float-equality-and-source-identity)
+for the full table.
 
-Keep the statement, selected witnesses, and derivation provenance distinct.
-Two proofs of the same statement do not make different witness functions equal.
-Repeated projection of one bundle retains its witness; forwarding and call
-substitution must preserve that relationship.
+## Refer to the entry value
 
-A conclusion applies only on the paths and result cases for which it was proved.
-Facts about borrowed or revisioned data expire with their relevant scope or an
-invalidating write. Bundling does not make a conditional fact unconditional or
-hide its transitive assumptions. Logical facts cannot mint or consume authority;
-authority remains in independently tracked Type occurrences.
+`old(place)` names a structural place's value on entry to the machine. It lets
+a postcondition relate an update to the original contents:
 
-[Identity and availability](../spec/proofs/contracts.md#identity-availability-and-erasure)
-defines the exact substitution, scope, publication, and replay obligations.
+```omega
+machine increment(value: &mut u32)
+requires value < 1000
+ensures value == old(value) + 1
+{
+    value = value + 1;
+}
+```
 
-## Explicit relevance
+The example uses the referent through its mutable parameter. `old` is a
+fact-position view; it does not copy the owned value into runtime storage.
+For a separately obtained snapshot, pass an explicit `before` parameter.
 
-Runtime relevance belongs to a binding occurrence, independently of its type's
-multiplicity and its validity scope. An erased field uses a binding property:
+Library proof views can describe a collection's sequence or bag of elements.
+A sorting proof can then show both ordered output and preserved multiplicities.
+Those views and their supporting theorems must be defined by the library.
+
+## Prove termination of a cycle
+
+A recursive proof needs a well-founded ranking. Every recursive edge proves
+that the ranking decreases before it can use the recursive contract.
+For a simple descending cycle:
+
+```omega
+machine countdown(n: u32) -> u32
+terminates by n
+ensures result == 0
+{
+    transition n {
+        0 -> 0
+        _ -> countdown(n - 1)
+    }
+}
+```
+
+The nonzero arm proves subtraction safe and decreases `n`. The recursive
+result then supplies the postcondition. Citing the same theorem with unchanged
+arguments would not establish a proof.
+
+Proof computation may use ranked non-tail recursion. Runtime recursion is
+tail-only and lowers to constant-stack iteration. [Termination](../spec/language/termination.md)
+covers increasing-to-a-limit, subtree and lexicographic rankings.
+
+## Keep evidence without runtime storage
+
+An erased field carries a checked term without occupying runtime bytes:
 
 ```omega
 data Certified<T> {
@@ -152,179 +172,60 @@ data Certified<T> {
 }
 ```
 
-Here `Valid<T>` stands for the evidence type supplied by the example's author.
-The checker retains `proof`, but lowering gives it no field offset, address,
-runtime read, or runtime cleanup. It may supply proof computation or statically
-checked authorization; it may not determine runtime data or control. This rule
-applies through calls and projections, not just direct field access.
+Here `Valid<T>` stands for the library's evidence type. Constructing the record
+must supply that evidence. It may support proofs but cannot determine runtime
+data or control flow.
 
-Erasure does not discharge ownership. An erased Type witness can still be
-affine, linear, loan-scoped, or provenance-bearing. Its obligations remain live
-until discharged; a containing value cannot leave scope with an outstanding
-erased linear obligation. No runtime destructor may depend on erased storage.
-Logical proof facts, in contrast, are proof-only and copyable.
+Erasure and ownership are separate. An erased linear witness still has a
+disposition obligation; erasing its storage does not settle it. Strict logical
+proofs, by contrast, are proof-only and copyable. See [erased bindings](../spec/proofs/contracts.md#explicit-erased-bindings).
 
-A zero-layout Type value is not automatically erased. Conversely, `[erased]`
-is not permission to delete the representation of an ordinary runtime value.
-Construction normally supplies the erased term. Omission is allowed only when
-an accessible visible nullary constructor determines it structurally, not by
-general inhabitance search, defaults, or inferred zero values.
+## Advanced mathematical definitions
 
-Runtime layout, ABI, codecs, and placement skip erased fields; semantic identity
-retains them. Placement must establish any required erased facts through its
-checked or admitted plan rather than invent a physical offset. See
-[explicit erased bindings](../spec/proofs/contracts.md#explicit-erased-bindings)
-and [layout plans](../spec/layouts/plans.md).
-
-## Machines As Proofs
-
-This machine proves an ordering fact:
+Most program contracts use the preceding forms. Mathematical libraries also
+need predicates and functions that have no executable decision procedure.
+A named mathematical definition can be partially applied:
 
 ```omega
-machine distinct_indices(i: u64, j: u64)
-requires
-    i < j
-ensures
-    i != j
-{
-}
+let greater_than(limit: i32, value: i32): core::Strict<0> =
+    value > limit;
 ```
 
-Its empty body is valid only because the conclusion follows from the assumption
-and the checked order rules. An empty body does not waive a proof obligation.
-
-A closed arithmetic example is:
-
-```omega
-machine pythagorean_3_4_5()
-ensures
-    3nat * 3nat + 4nat * 4nat == 5nat * 5nat
-{
-}
+```text
+expression           type of that expression
+greater_than         i32 -> i32 -> core::Strict<0>
+greater_than(10)      i32 -> core::Strict<0>
+greater_than(10,20)   core::Strict<0>
 ```
 
-The checker reduces both sides to the same natural value and closes equality
-by reflexivity. A theorem-only machine has no Type result: parameters state its
-subjects, `requires` its hypotheses, and `ensures` its conclusions. Return a
-value only when the machine genuinely computes one as well as proving its
-contract; law slots do not need dummy returned witnesses.
+`greater_than(10, 20)` denotes the proposition that 20 exceeds 10. Forming that
+proposition does not prove it. `greater_than(10)` is a predicate suitable for
+another mathematical definition. Ordinary machine calls still require all
+their runtime arguments.
 
-## Typed Facts
+`core::Strict<0>` names a logical universe; `core::Type<u>` names a relevant
+universe. The level is part of the mathematical type. Definitions are closed:
+pass their inputs explicitly. [Mathematical bindings](../spec/proofs/mathematical_bindings.md)
+covers levels, logical hypotheses and quantified claims.
 
-The operand types choose the mathematics. `3nat * 3nat` is unbounded natural
-arithmetic; `3i32 * 3i32` carries the selected machine-arithmetic obligations.
-The operator spelling alone does not select proof rules.
+### Existence and witnesses
 
-Eligible calls and projections in fact position are denotational terms.
-For example, `add_int(a, b).pos` denotes a field of a pure total call result;
-it creates no runtime temporary, move, or loan. Its validity nevertheless
-depends on every referenced occurrence and revision. A fact depending on an
-existing loan still expires with that loan.
+A record containing `value: A` and a proof of `P(value)` gives you a particular
+witness. Squashing that witness type gives only the logical fact that one
+exists. You can use the fact in a strict conclusion, but cannot extract a
+runtime value from it.
 
-A proposition can mention a linear value without acquiring its custody or
-making that value copyable. Exact operation identity and proof eligibility
-remain checked even when no runtime call is emitted.
+An accepted choice assumption may supply a mathematical witness. Producing
+executable bits still needs checked computation or a realization. Review both
+the theorem and the assumptions used to obtain it.
 
-## Total Specification Arithmetic
+### Quotients
 
-Contract terms, domain predicates, and guarded crash conditions must be total.
-Exact arithmetic first proves representability. Wrapping and Saturating still
-prove primitive definedness, such as a nonzero divisor. An operation that can
-transfer runtime control does not become a proof term merely by appearing in a
-contract. Comparisons on a Trapping-qualified value are a different operation
-from trapping arithmetic.
+A quotient treats equivalent representatives as one mathematical value.
+Fractions `(1, 2)` and `(2, 4)` are the usual example: addition respects their
+equivalence, while returning the raw numerator does not.
 
-Use an explicit proof view when a condition needs unbounded mathematics:
-
-The endpoint queries below use the ratified ordinary core
-[integer API](../spec/language/numeric_values.md#core-integer-and-float-apis).
-Its implementation remains `CORE-INTEGER-FLOAT-APIS` work; primitive-member
-`Maximum`/`MAX` spellings are not an alternate lookup rule.
-
-```omega
-requires
-    embed(left) + embed(right) <= embed(integer::max<i32>())
-```
-
-Integer and address carriers embed into proof `Int`, retaining their exact
-carrier bounds. The projection does not change qualification or produce runtime
-data. Embedding an already wrapped sum preserves that sum's selected meaning;
-it does not retroactively perform unbounded addition.
-
-Removing a policy with `as` instead selects Exact carrier arithmetic:
-
-```omega
-requires
-    embed(right) >= 0
-    embed(left) <= embed(integer::max<i32>()) - embed(right)
-ensures
-    result == (left as i32) + (right as i32)
-```
-
-This contract fragment assumes `left`, `right`, and `result` have the appropriate
-integer types. Earlier facts establish the result's representability. An
-operation cannot use its own containing proposition to justify its formation.
-
-Ordinary `Nat - Nat` likewise requires the right operand to be no greater than
-the left. Clamping is explicit `Nat::saturating_sub(left, right)`. Conversion
-from `Int` to `Nat` requires nonnegativity.
-
-The machine contract is the same whether you execute it or use it in a proof:
-
-```omega
-machine remaining(total: Nat, used: Nat) -> Nat
-requires used <= total
-{
-    transition { _ -> (total - used) }
-}
-```
-
-The premise permits exact subtraction. Replacing the body expression with
-`Nat::subtract(total, used)` has exactly the same obligation; removing the
-premise without supplying other evidence rejects either spelling. Being a `Nat`
-means nonnegative, not that one operand is at least the other. `Nat` includes
-zero, so exact `n - 1` requires `n >= 1`. If clamping is intended, name
-`Nat::saturating_sub`: it returns zero on underflow in every admitted use.
-
-For a recursive theorem call, prove both that its arguments satisfy `requires`
-and that its ranking decreases. A smaller argument is not automatically an
-argument satisfying the theorem's hypotheses. Evidence can come from the current
-premises, a guard, or checked lemmas; inability to find it does not prove the
-claim false and does not allow the call.
-
-Floats use `Float::meaning32` or `Float::meaning64`, not integer embedding.
-`FloatMeaning` preserves finite rational value, signed zero, infinity, and NaN.
-Its structural proof equality is not IEEE equality: its NaN case is reflexive,
-and its two zeros are distinct. See [total arithmetic](../spec/proofs/contracts.md#total-arithmetic),
-[numeric values](../spec/language/numeric_values.md), and
-[mathematical values](../spec/terminal-psi/mathematical_values.md).
-
-## Proof-Only Data
-
-Recursive mathematical data can express values without a finite runtime layout:
-
-```omega
-data Nat {
-    case Zero;
-    case Succ(n: Nat);
-}
-```
-
-This illustrates the structural natural numbers; it is not an instruction to
-redeclare core's type. Such values participate in proof computation, not
-runtime-relevant storage. Explicit relevance and ordinary Type multiplicity
-still apply; an all-fieldless sum such as `bool` does not become erased simply
-because none of its cases has a payload.
-
-Exact arithmetic over `Nat`, `Int`, and `Rat` can compute mathematical values.
-Reasoning over an axiomatized carrier instead uses its selected laws and retains
-their assumptions. A pure total machine over runtime types may also be used in
-facts; ordinary arithmetic proofs do not all require unbounded data.
-
-A quotient groups representatives related by a proved equivalence. Its logical
-equality means the representatives belong to the same equivalence class, not
-that their representations are equal. The intended Real construction provides
-a schematic example:
+For a Real construction, a schematic declaration is:
 
 ```omega
 data Real = CauchySeq % ConvergesTogether
@@ -334,392 +235,43 @@ requires
         as CauchyEquivalence;
 ```
 
-The relation name here abbreviates a mathematical term definition under the
-[binding rules](../spec/proofs/mathematical_bindings.md); its full definition is
-not supplied by this sketch. `CauchyEquivalence` names an explicitly
-selected conformance, not an ambient search for similarly named laws. The
-conformance licenses formation; operations need their own selected congruence
-proofs. Different sequence generators can be related within the same family
-when the declared relation supports their different indices.
+The library supplies the sequence type, relation and selected equivalence proof.
+Operations additionally prove that their result respects the relation. A
+runtime implementation can retain a representative without reducing it to a
+canonical form; its checked laws connect that computation to the quotient.
 
-Construction may retain the supplied representative unchanged. It does not
-license extraction, structural matching, hashing, serialization, or an executable
-`==`. A lifted observer must establish its actual law: equality, for example,
-must decide the equivalence relation, not merely return the same answer for
-equivalent representatives. Public canonical bytes need additional evidence;
-ordinary opaque constant materialization does not require canonicalization.
+Hashing, equality, serialization and other observers need their own appropriate
+laws. The [quotient reference](../spec/proofs/quotients.md) covers those laws
+and the assumptions of the selected mathematical foundation.
 
-The [quotient specification](../spec/proofs/quotients.md) owns formation,
-`Quotient::define` versus `Quotient::lift`, exact theorem roles, constructor
-relations, observer laws, and current publication limits. Initially, effectful
-operations and custody-bearing carriers are outside that gate: result congruence
-alone cannot preserve effects or make distinct authority occurrences interchangeable.
+## When a proof fails
 
-Core's Rat and Cauchy proofs and its temporary axiomatic Real are described in
-the headers of [rat](../../source/library/core/rat.omg),
-[cauchy](../../source/library/core/cauchy.omg) and
-[real](../../source/library/core/real.omg).
-They do not establish that the full intended quotient or foundations are implemented.
+First check that the statement is true, that the required premises are in scope,
+and that no mutation invalidated them. Then isolate a smaller helper theorem.
+Automation handles common arithmetic and branch facts, but a search limit
+does not decide the truth of an unresolved statement.
 
-## Proof Views
-
-A proof view lets a contract describe runtime data mathematically without
-allocating a runtime model. For a sorting specification, useful schematic views
-are `Seq(items)` for order and `Bag(items)` for element multiplicity. These are
-library proof concepts, not an invitation to add compiler-known sorting forms.
-
-By contrast, `embed` and `old(place)` are compiler-owned fact-position term
-formers; packages cannot override them. `old(place)` selects a structural place's
-callable-entry revision. It does not copy an owned value or take a snapshot of an
-arbitrary computed expression. The pre-state and current place retain their
-ordinary revision and custody identities.
-
-An explicit `before` parameter remains useful when the caller wants to supply
-a separately obtained mathematical snapshot. `old` serves the narrower case
-where the contract refers to the entry revision of an existing structural place.
-See [source conservation contracts](../spec/resources/content_custody.md#source-conservation-contracts).
-
-## Helper Machines
-
-Break large proofs into helpers with small contracts. This schematic sorting
-helper assumes the sequence/bag vocabulary and its supporting laws are in scope:
-
-```omega
-machine Sort::compare_swap(
-    before: &[Nat],
-    items: &mut [Nat],
-    index: u64
-)
-requires
-    index + 1 < items.len
-    Bag(items) == Bag(before)
-ensures
-    items[index] <= items[index + 1]
-    Bag(items) == Bag(before)
-{
-    ... // implementation and proof omitted
-}
-```
-
-This is proof-side schematic data, not a runtime slice-layout claim for `Nat`.
-The caller supplies `before` explicitly. A complete sorting proof then composes
-adjacent ordering, bag preservation, the pass invariant, and the final sorted
-sequence property. Each helper must prove its guarantee; the contract alone
-does not establish it.
-
-## Quantified Facts
-
-The parameters of a theorem express an outer universal claim: its body is checked
-for arbitrary admitted arguments. General mathematics also needs nested universal
-and existential claims and quantification over arbitrary functions and predicates.
-Use machine-shaped logical hypotheses and witness bundles plus squash, not
-`forall` or `exists` keywords. A logical hypothesis can accept proof evidence
-derived from another theorem, not merely a named machine selection. It proves
-facts about bound subjects; it cannot perform a reset, move a resource or supply
-an executable callback. Empty reach and no result alone do not establish that split.
-
-### Mathematical functions without runtime closures
-
-Most systems code continues to use machines, traits and ordinary contracts.
-The following machinery serves general mathematical libraries; it is not another
-way to accidentally leave a systems call unfinished.
-
-```omega
-let greater_than(limit: i32, value: i32): core::Strict<0> =
-    value > limit;
-```
-
-This is a named mathematical definition, not a Boolean decider or a proof. Its
-parameter list elaborates to nested function types:
-
-```text
-expression           type of that expression
-greater_than         i32 -> i32 -> core::Strict<0>
-greater_than(10)      i32 -> core::Strict<0>
-greater_than(10,20)   core::Strict<0>
-```
-
-Each supplied argument consumes one arrow. The final expression denotes the
-proposition "20 > 10"; forming a proposition does not prove it. A partial
-application is already a complete function term, with no pending work, implicit
-runtime closure or obligation to supply the rest. It fits a predicate parameter,
-not a parameter expecting a fully applied proposition or an executable Boolean.
-Ordinary machine calls still reject missing arguments.
-
-`core::Type<u>` and `core::Strict<v>` expose the relevant and strict universe
-levels. The `0` is a level, not a predicate identifier. Routine levels may be
-inferred; explicit `u: core::Level` binders serve universe-polymorphic proofs.
-Checked published signatures retain the full levels and constraints. These core
-names are not new reserved keywords or per-binding erasure modifiers.
-
-Definitions are top-level and closed; an enclosing proof's `limit` is supplied
-as `greater_than(limit)`, not implicitly captured. Mathematical assumptions use
-`boundary let`, with explicit trust and no provider search. Neither a function's
-type nor its result's runtime layout promises an executable implementation.
-
-### Existence without extraction
-
-An ordinary record with `value: A` and a default-domain condition `P(value)` is
-a qualifying witness. Constructing it owes that condition; zero storage cannot
-invent the proof. Squashing that witness type establishes existence without
-permission to extract the value. Proofs may eliminate squash into a strict
-conclusion without choice. An admitted choice assumption yields a mathematical
-witness, not automatically executable bits. General relevant witness/evidence
-pairs remain available when the evidence itself contains information.
-
-The [binding specification](../spec/proofs/mathematical_bindings.md) owns exact
-types, scope, logical-hypothesis matching and implementation acceptance.
-
-For a decidable property, an ordinary measured machine can compute a Boolean.
-For example, a sequence-sortedness predicate recursively compares adjacent values.
-A domain can require `sorted(self) == true`;
-a checked runtime validator must
-establish that fact before qualification. This executable approach is useful
-but does not replace general mathematical predicates or nonconstructive existence.
-
-An extraction theorem can connect such a definition to arbitrary elements:
-
-```omega
-machine sorted_extracts(items: &[i32], i: u64, j: u64)
-requires sorted(items) == true && i < j && j < items.len
-ensures items[i] <= items[j]
-terminates by i -> Nat::IncreasingTo(j)
-{
-    ... // induction and supporting definition omitted
-}
-```
-
-After establishing the theorem, callers cite its contract at their exact indices.
-The current prover contains narrow first-order sequence shapes, not unrestricted
-quantifier search. A missing instance or exhausted automation yields an unproved
-obligation, not a counterexample. Current automation belongs beside
-[validation](../../omega-rust/psi/compilation/validation/README.md).
-
-## Induction Is Ranked Recursion
-
-The mathematical checker uses a fixed well-founded-tree foundation (W-types),
-with indexed families derived by checked constructions. This supports targets
-such as vectors indexed by length and derivations indexed by their assumptions
-and conclusion. Authors still use ordinary data and proof machines, not W-type
-syntax. The [inductive profile](../spec/proofs/inductive_profile.md) specifies
-the selected rules; checked encodings and full implementation coverage remain
-required. These are mathematical trees, not a required heap layout: vectors can
-still use contiguous storage and loops can still lower to back-edges.
-
-The checker identifies a mathematical function `f` with its trivial forwarding
-wrapper `x ↦ f(x)` at the same function type. This is *typed function eta*;
-it prevents the encoding's split-and-rebuild operations from leaving a spurious
-distinction when reasoning about an arbitrary function. It does not identify
-arbitrary functions from proofs that their outputs agree, and introduces no
-source syntax or runtime rewrite requirement.
-
-A proof machine recurses under the ordinary `terminates by` rule. Transition
-cases provide case analysis; the smaller recursive call provides the induction
-hypothesis. Machine arrival contracts must hold at every incoming edge.
-
-The recursive contract becomes available only after that exact direct or mutual
-cycle edge proves strict decrease under a well-founded ranking. This applies
-to statement citations, discarded results, and calls nested in expressions.
-An unmeasured theorem cannot cite itself at unchanged arguments and then use
-its own conclusion to close the goal.
-
-Earlier citations may establish a later citation's assumptions, never the
-reverse. A guarded finite unsigned predecessor may connect arithmetic descent
-with a theorem about structural mathematical data, but it is not an implicit
-conversion between an integer carrier and `Nat`.
-
-## Quotients and representative-independent mathematics
-
-A quotient treats equivalent representations as one mathematical value. Rational
-pairs `(1,2)` and `(2,4)` can represent the same number. Addition must respect
-that equivalence; returning the original numerator does not.
-
-The [quotient interface](../spec/proofs/quotients.md#set-quotient-foundation)
-provides set quotients through explicit mathematical assumptions, not new kernel
-computation rules. Its effectivity law says that equal quotient images satisfy
-the selected relation. If that relation is squashed existence, the law gives
-existence evidence, not an extractable original witness.
-
-Representative operations and congruence proofs remain independently usable.
-A receiver may accept that mathematics while refusing quotient assumptions.
-Replacing an assumed law with a proof retains the proof's actual dependencies;
-fewer axiom names do not automatically mean less trust. Kernel checking still
-does not decide whether those assumptions are consistent.
-
-Quotients can have runtime representations. Their mathematical laws do not
-supply an algorithm: evaluation or runtime operations need checked computation
-or a corresponding realization. Proof-only computation also remains computation.
-For example, doubling a stored fraction `(n,d)` can execute ordinary arithmetic
-to produce `(2*n,d)`. A checked congruence theorem shows that equivalent inputs
-produce equivalent outputs; that theorem is not run with each call. The result
-need not be reduced to a canonical fraction. The actual implementation must
-still meet its ordinary arithmetic and precondition obligations.
-
-[Executable quotient operations](../spec/proofs/quotients.md#execution-through-ordinary-checked-bodies)
-elaborate into ordinary checked calls and adaptations, with their proof
-connection retained. Inlining is optional. Merely using quotient mathematics in
-proofs does not require a runtime implementation or prevent unrelated code from
-running. The selected interface is not a claim that all these routes are implemented.
-
-## Termination Proofs
-
-Termination concerns cycles, not an `ensures` proposition checked after return
-or a member of service reach. A ranking chooses subjects and a well-founded view:
-
-```omega
-machine walk(items: &[Nat])
-terminates by items -> Slice::Length
-{
-    ... // traversal omitted
-}
-```
-
-The ranking view supplies direction. Descending naturals, increasing-to-a-limit
-views, proper subtrees, and lexicographic views all require checked decrease
-at cyclic edges. A custom `measure` supplies a named view.
-
-Proof/compile-time recursion may be non-tail when its ranking is proved.
-Runtime recursion is tail-only and lowers to constant-stack iteration. The
-public termination guarantee is distinct from the private ranking witness;
-changing that witness does not rename the caller's requirement.
-[Termination](../spec/language/termination.md) and
-[citation and induction](../spec/proofs/contracts.md#citation-and-induction)
-own the complete rules.
-
-## Citing Proofs
-
-An ordinary statement call carries a theorem to a use site. In this schematic
-ring-buffer fragment, `buffer` is an ordinary `&mut RingBuffer` parameter.
-The named theorem's contract establishes the required index bound under the
-caller's facts:
-
-```omega
-mask_is_mod(buffer.head, buffer.cap);
-buffer.slots[buffer.head & (buffer.cap - 1)] = value;
-```
-
-The fact-only call erases at runtime. Its assumptions still need proof, and
-its exact instantiated conclusions enter the flow facts. It does not enable
-an ambient rewrite rule or evade recursive-edge checking.
-
-A contract can also state refinement: a runtime operation equals a pure
-mathematical operation under explicit bounds. Supply any needed pre-state
-subject through an explicit parameter or the established `old(place)` form,
-not an undeclared snapshot name.
-
-## Evidence And Trust
-
-Keep four ways of handling an obligation separate:
+Keep these routes distinct:
 
 | Route | What it establishes |
 | --- | --- |
-| Checked proof | A derivation under its exact premises and assumptions. |
-| Evaluation | A result from eligible terminating target-semantic computation. |
-| Deferral | A site-pinned waiver of one obligation, not a reusable fact. |
-| Admission | An explicitly trusted boundary claim, not a checked theorem. |
+| Checked proof | A derivation under its premises. |
+| Evaluation | A result of permitted terminating computation. |
+| Deferral | A site-specific waiver, with a warning and no reusable fact; prohibited at package release. |
+| Boundary admission | A claim the consumer explicitly trusts. |
 
-Evaluation is metered under root policy; long or unlimited evaluation can remain
-legal when that policy permits it. Cached results and usage records are distinct.
-A deferral warns on every build, is invalidated by relevant edits, and cannot
-cross package release. See [evaluation](../spec/language/evaluation.md),
-[logical work](../spec/resources/logical_work.md), and
-[axioms and receiving policy](../spec/proofs/contracts.md#axioms-and-receiving-policy).
+An admission is not a proof or an automatic runtime validation. To test an
+external guarantee, observe the raw result under an honest weaker contract,
+then check it. Comparing against a guarantee already assumed by that same test
+can let the optimizer remove the comparison.
 
-Trust the narrowest needed claim. This schematic boundary declaration admits
-one certificate-checking result, assuming its exact checker and data are in scope:
+**Ordinary programs should reject assumed bindings.** Do not use them to work
+around a failed proof, borrow error or compiler limitation. Correct the program,
+contract or prover. [Boundary trust](chapter_19_capabilities_effects_boundaries.md#root-assumed-binding-contracts)
+explains the exceptional use and loss of assurance.
 
-```omega
-boundary machine collatz_cert_checked()
-ensures check_collatz_cert(cert_blob_b41c) == true;
-```
-
-An ordinary soundness theorem can lift that exact execution claim to the
-mathematical result. A build that actually checks the certificate need not admit
-the execution claim. Certificate data needs no special source construct.
-
-Grants come from the consuming root, not the dependency making the request.
-Acceptance binds the exact selected claim or provider plan and its source pins;
-an unselected candidate cannot borrow a selected plan's receipt. A lock entry,
-signature, reviewer label, or checked certificate does not prove that the entire
-package was competently audited. Reports retain each dependent conclusion's
-assumptions, including private claims and exact routed authority provenance.
-See [package review](../spec/packages/review.md) and
-[provider selection](../spec/build/provider_selection.md).
-
-There is no inline `assume`. Own-package boundary machines are active in
-development builds with a standing warning until granted; dependency boundary
-machines are inert until granted. A package cannot grant its own claims on
-behalf of its consumers. Development use is not consumer or release acceptance.
-
-A boundary statement the checker can refute against established bounds, domains,
-or another accepted statement rejects despite an ordinary grant. An explicitly
-accepted [root-assumed runtime binding](chapter_19_capabilities_effects_boundaries.md#root-assumed-binding-contracts)
-may assume a refutable connection between two separately checked contracts;
-the contradiction remains audit-visible and every dependent guarantee remains
-conditional. This exception supplies neither an ordinary checked conformance
-nor an assumption usable for build-time computation. It does not relax
-mathematical axiom admission. None of these checks guarantees that the complete
-assumption set is consistent. These rules belong to
-[receiving policy](../spec/proofs/contracts.md#axioms-and-receiving-policy).
-
-Do not reach for that runtime escape hatch when an ordinary proof fails.
-Establish the missing facts, correct the program or contract, or fix the prover.
-Ordinary applications should reject assumed bindings, and libraries must not
-ask consumers to approve one merely to compensate for missing proof support.
-
-Admission means trusting the claim, not trusting it only after a runtime check.
-There is no mandatory automatic or author-written checking requirement, and no
-required proof-build mode. Runtime checkability does not determine whether a
-claim may be admitted. Tests can expose violations; passing them neither grants
-admission nor proves all executions correct.
-
-To test a particular guarantee, do not assume it through the boundary contract
-used by the test. An ordinary comparison against an already admitted guarantee
-may be proved true and optimized away. Expose the raw result with independently
-justified calling and observation guarantees, then validate it explicitly.
-Successful validation establishes the property for that result. It does not
-prove the provider always complies or repair effects already performed.
-The [admission and diagnostics rules](../spec/proofs/contracts.md#admission-and-runtime-diagnostics)
-remain independent of
-[build-level behavior exclusions](../spec/build/behavior_exclusions.md).
-Those let the same library source retain broad crash allowances while a selected
-no-op assertion composition proves it cannot Trap. The property belongs to the
-selected product, not a rewritten API or a successful test execution. See
-[the build example](chapter_15_modules_imports_visibility.md#build-level-behavior-exclusions)
-for eager arguments, logging, and the difference between allowances and exclusions.
-
-Admitting a false statement can invalidate downstream safety proofs. It does
-not waive the independently checked reach ceiling or establish runtime authority
-merely by asserting a fact. `boundary data` separately admits representation;
-the word `boundary` does not encode inbound versus outbound traffic. See
-[capabilities and boundaries](chapter_19_capabilities_effects_boundaries.md).
-
-Classical principles are selectable assumptions, not compulsory truths imported
-with a library. Consumers need the complete transitive assumption closure.
-This includes dependencies in theorem statements and referenced types, not just
-axiom names left in the final proof. Unfolding, simplification and erasure cannot
-silently remove them.
-Absence of one named axiom alone does not certify constructivity: the calculus
-and all other assumptions matter too. A checked quotient theorem can depend on
-admitted premises without becoming an assumption-free guarantee.
-
-## Automation And Boundary
-
-Source normally shows proof strategy rather than every inference. Elaboration
-must account for implicit computation, constructor rules, branch facts,
-contract applications, and licensed normalization in independently checkable
-evidence. A review synopsis is derived from that certificate and its attribution
-metadata, not a second guess at the source's proof.
-
-Normalization names the selected conformance and exact laws it consumes.
-Inherited assumptions remain visible. A specified total procedure may be
-replayed, but totality alone is not soundness. Partial or heuristic search
-must supply checkable evidence rather than demand that a checker trust its
-answer or repeat the search.
-
-Automation should handle common arithmetic, reflexivity, ranges, branch facts,
-and simple generic facts. When it cannot, authors supply explicit helper proofs
-or a reviewed boundary claim. The distinction between intended certified
-elaboration and current trusted source automation remains important; see
-[certified elaboration](../spec/proofs/contracts.md#certified-elaboration-and-review)
-and the [implementation note](../../omega-rust/psi/compilation/validation/README.md#source-proof-automation).
+The [proof reference](../spec/proofs/contracts.md) describes proof admission,
+recorded assumptions and certified elaboration. The
+[foundation](../spec/proofs/foundation.md) states the calculus behind those
+judgments. A checked derivation still needs to prove the statement your
+application actually requires.

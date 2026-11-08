@@ -44,7 +44,6 @@
 1 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars.rs
 3 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/mod.rs
 1 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/multiplicity/linear_validation/loan_completions.rs
-1 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/multiplicity/permission_events.rs
 1 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/ranges.rs
 1 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/ranges/state_arguments.rs
 5 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/loan_backing/record_selections.rs
@@ -83,8 +82,6 @@
 2 omega-rust/psi/compilation/validation/src/machine_calls/calls/write_frames/boundary_calls.rs
 4 omega-rust/psi/compilation/validation/src/machine_calls/calls/write_frames/isolation.rs
 3 omega-rust/psi/compilation/validation/src/proof_contracts/arithmetic_domains/ordered_values/congruence.rs
-1 omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/completed_values.rs
-1 omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/operand_fits.rs
 2 omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment.rs
 2 omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs
 2 omega-rust/psi/compilation/validation/src/value_custody/completed_storage/reference_captures.rs

@@ -1,4 +1,13 @@
-//! Public producer declarations are available choices, not active selections.
+/*
+We project public opaque-representation producer declarations as available
+choices rather than active selections.
+
+We reuse the independent public-surface eligibility owner so a private
+conformance or carrier never becomes public availability merely because the
+selected-application projector permits private choices. For
+`OpaqueRepresentation<Opaque, Representation>`, both data types are ordinary
+trait arguments of a subjectless named implementation.
+*/
 
 use super::rejected;
 use crate::capture::PackageReviewInput;
@@ -13,9 +22,6 @@ pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<PackagePolicyRepresentationAvailability>, Vec<Diagnostic>> {
-    // Reuse the independent public-surface eligibility owner. In particular,
-    // do not turn a private conformance/carrier into public availability merely
-    // because the selected-application projector permits private choices.
     let public = project_public_conformances(compilation, package)?;
     let mut rows = Vec::new();
     for declaration in compilation.conformances().iter().filter(|declaration| {
@@ -40,8 +46,6 @@ pub(super) fn project(
         let arguments = compilation
             .type_reference_table
             .type_reference_handles(declaration.arguments);
-        // `OpaqueRepresentation<Opaque, Representation>`: both data types are
-        // ordinary trait arguments of a subjectless named implementation.
         let [opaque_argument, carrier_argument] = arguments else {
             return Err(rejected(
                 "producer has no exact opaque and representation trait arguments",

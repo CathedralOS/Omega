@@ -1,3 +1,5 @@
+// Bounded recovery for selected-provider service authority and progress premises.
+
 use super::{Error, Reader, nominal};
 use crate::encoding::recovery::policy::behavior::synchronous_invocation;
 use crate::record::{

@@ -1,5 +1,23 @@
-//! Package commands schedule review work here; package management owns the
-//! admitted requests, editable decisions and accepted-file transaction.
+/*
+
+Drive `omega install` and `omega update` review and publication transactions.
+
+`execute_package_command` coordinates between `package_manager` (which owns the
+transaction, lockfile proposal, and editable review documents) and the compiler:
+1. `PackageCommand::DiscardReview` immediately discards any staged review state.
+2. Otherwise, `PackageCommandTransaction::open` and `transaction.prepare` stage
+   the candidate source and target roster.
+3. `resolve_command_sources` executes the staged `build.omg` graph once on the
+   host and settles the resulting `CompletedBuild`s so multi-target reviews
+   reuse that single discovery pass.
+4. Each target's `request.review` runs dependency-first through
+   `package_review::execute_pass`.
+5. `prepared.complete` either publishes `omega.lock` or writes pending review
+   files. The caller's `BuildSession` stays alive across pending reviews so
+   `--resume` and `--dangerously-accept-all` continue under the same resource
+   grant.
+
+*/
 
 use crate::BuildSession;
 use package_manager::{
@@ -7,9 +25,6 @@ use package_manager::{
     PackageCommandTransaction, discard_package_review,
 };
 
-/// Run all target reviews before returning findings to package publication.
-/// The caller lends one sponsored session across automatic resume rounds;
-/// pending decisions neither dispose it nor replenish its resource grant.
 pub fn execute_package_command(
     command: PackageCommand,
     options: PackageCommandOptions,
@@ -41,8 +56,6 @@ pub fn execute_package_command(
     prepared.complete(reviews, &mut session.packages)
 }
 
-/// Execute the staged candidate once before review selects target/purpose
-/// contexts. Source graphs and proposal checks stay with package management.
 fn resolve_command_sources<'workspace, 'storage>(
     preparation: package_manager::PackageCommandPreparation<'workspace, 'storage>,
     session: &mut BuildSession,
@@ -161,10 +174,9 @@ mod tests {
             std::fs::read(project.path().join("omega.lock")).unwrap(),
             lock_before
         );
-        let first_fuel = sponsor.consumed_fuel_units();
-        assert!(first_fuel > 0);
+        let first_work = sponsor.consumed_work_units();
+        assert!(first_work > 0);
 
-        // A resume reads the saved target/input roster, not a fresh grant.
         let mut resume_options = options(project.path());
         resume_options.targets.clear();
         let resumed = execute_package_command(
@@ -176,7 +188,7 @@ mod tests {
         )
         .expect("pending review resumes under the same compiler and sponsors");
         assert_eq!(resumed.status, PackageCommandStatus::ReviewRequired);
-        assert!(sponsor.consumed_fuel_units() > first_fuel);
+        assert!(sponsor.consumed_work_units() > first_work);
         for path in &resumed.review_paths {
             let document = std::fs::read_to_string(path).expect("review document");
             let mut accepted = String::with_capacity(document.len());

@@ -37,7 +37,7 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('--producer-release',required=True,type=Path)
     parser.add_argument('--producer-commit',required=True)
     parser.add_argument('--producer-receipt',required=True,type=Path)
-    parser.add_argument('--fuel',type=int,default=100_000_000)
+    parser.add_argument('--work',type=int,default=100_000_000)
     parser.add_argument('--timeout',type=int,default=900)
     parser.add_argument('--output',type=Path,default=ROOT/'build'/'terminal-validation')
     parser.add_argument('--case',action='append',dest='cases')
@@ -45,7 +45,7 @@ def main():
     oracle=load_oracle();refusals=json.loads((ROOT/'validation'/'refusals.json').read_text())
     names=options.cases or [*oracle['cases'],*refusals]
     assert all(name in oracle['cases'] or name in refusals for name in names)
-    assert options.fuel>0 and options.timeout>0
+    assert options.work>0 and options.timeout>0
     release=options.producer_release.resolve()
     version=subprocess.check_output([str(release/'omega'),'--version'],text=True).strip()
     assert options.producer_commit in version,('producer revision mismatch',version,options.producer_commit)
@@ -53,7 +53,7 @@ def main():
     assert receipt['commit']==options.producer_commit
     assert receipt['binary_sha256']==digest(release/'omega')
     executable,build=build_observer(release,output,receipt)
-    command=[str(executable),str(ROOT),str(output),str(options.fuel),str(options.timeout),*names]
+    command=[str(executable),str(ROOT),str(output),str(options.work),str(options.timeout),*names]
     # The helper compiles once and executes the exact retained artifact for each
     # finite input. Every API call has an explicit sponsor allowance; the outer
     # process additionally has a wall-clock bound. A decline cannot become pass.
@@ -73,7 +73,7 @@ def main():
         results.append({'case':name,'input_sha256':digest(ROOT/'data'/(name+'.txt')),'exit':code,'stdout_sha256':hashlib.sha256(stdout).hexdigest(),'numerical_or_refusal_oracle':'matched'})
     record={'accepted':True,'engine':'genuine Terminal runtime','source_head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=REPOSITORY,text=True).strip(),
             'producer_commit':options.producer_commit,'producer_version':version,'producer_binary_sha256':digest(release/'omega'),'source_hashes':{str(path.relative_to(ROOT)):digest(path) for path in ROOT.rglob('*.omg') if 'build' not in path.relative_to(ROOT).parts},
-            'producer_receipt_sha256':digest(options.producer_receipt),'refusals_sha256':digest(ROOT/'validation'/'refusals.json'),'oracle_sha256':ORACLE_SHA256,'supplemental_oracle_sha256':SUPPLEMENTAL_SHA256,'target':'linux_x86_64','fuel_per_case':options.fuel,'elapsed_seconds':time.monotonic()-started,
+            'producer_receipt_sha256':digest(options.producer_receipt),'refusals_sha256':digest(ROOT/'validation'/'refusals.json'),'oracle_sha256':ORACLE_SHA256,'supplemental_oracle_sha256':SUPPLEMENTAL_SHA256,'target':'linux_x86_64','work_per_case':options.work,'elapsed_seconds':time.monotonic()-started,
             'observer_build':build,'command':command,'exit':result.returncode,'cases':results}
     (output/'results.json').write_text(json.dumps(record,indent=2)+'\n')
     print('Terminal: '+str(len(results))+' actual numerical/refusal outputs matched frozen expectations')

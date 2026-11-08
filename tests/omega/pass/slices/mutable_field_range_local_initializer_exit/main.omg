@@ -17,11 +17,14 @@ machine stamp(values: &mut [i32]) -> u64 {
 
 machine main() crashes Trap {
     let mut context: WindowBuffer;
+    context.items[0] = 13;
+    context.items[3] = 17;
+    context.marker = 19;
     let window: &mut [i32] = &mut context.items[1..3];
     let matched: bool = stamp(window) == 2;
-    transition matched && context.items[0] == 0 && context.items[1] == 7
-        && context.items[2] == 9 && context.items[3] == 0
-        && context.marker == 0 {
+    transition matched && context.items[0] == 13 && context.items[1] == 7
+        && context.items[2] == 9 && context.items[3] == 17
+        && context.marker == 19 {
         true -> passed()
         false -> failed()
     }

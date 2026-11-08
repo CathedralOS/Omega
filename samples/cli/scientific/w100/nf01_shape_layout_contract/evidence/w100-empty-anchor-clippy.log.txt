@@ -1,6 +1,6 @@
     Checking optimization-core v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/foundation/optimization-core)
     Checking post-handoff-writer-plan v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/compilation/backend/plans/post-handoff-writer-plan)
-    Checking terminal-fuel v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/terminal-psi/fuel)
+    Checking psi-work v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/terminal-psi/work)
     Checking terminal-semantics v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/terminal-psi/semantics)
 warning: method `is_consistent` is never used
   --> omega-rust/omega/foundation/optimization-core/src/optimization_core/rollback/receipt.rs:55:19

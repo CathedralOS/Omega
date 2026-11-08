@@ -1,4 +1,4 @@
-//! Canonical public meaning and explicit binder scopes, never compiler proof.
+// Canonical public API structure and explicit binder scope validation, plus the shared strict canonical-order predicate (`ordered_by`).
 
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyPublicApi, PackagePolicyTypeParameter,
@@ -85,11 +85,6 @@ fn root(identity: &PackageReviewNominalIdentity, package: PackageKeyIdentity) ->
     Ok(())
 }
 
-/// The shared strict canonical-order predicate: every policy family that
-/// keeps a sorted set consumes this one statement of the rule instead of
-/// restating it, and the recovery readers agree with the policy writer on it.
-/// A set whose canonical key is a projection of the row supplies that key's
-/// comparison instead of deriving a sortable shadow type.
 pub(in crate::record) fn ordered_by<T>(
     values: &[T],
     compare: impl Fn(&T, &T) -> std::cmp::Ordering,

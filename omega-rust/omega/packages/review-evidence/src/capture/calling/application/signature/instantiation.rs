@@ -1,4 +1,8 @@
-//! Scope-aware projection-only instantiation of checked signature types.
+// Scope-aware projection-only instantiation of checked signature types. Declaration-local
+// names are instantiated after their telescope is fixed, while supplied operands are
+// normalized by their original declaration and ordinal against the original input.
+// Closed nominal views retain their original complete application tuple rather than
+// synthesizing a `Policy<Schema>` carrier from diagnostic declaration symbols.
 
 use crate::capture::calling::rejected;
 use diagnostics::Diagnostic;
@@ -8,7 +12,6 @@ use typed_trees::name::Identifier;
 use typed_trees::type_identity::lifetime_parameter_identity;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
-/// Instantiate declaration-local names after their telescope has been fixed.
 pub(super) fn instantiate(
     compilation: &mut TypedTrees,
     reference: TypeReferenceHandle,
@@ -25,10 +28,6 @@ pub(super) fn instantiate(
     )
 }
 
-/// Normalize supplied operands by their original declaration and ordinal before
-/// they enter the receiving trait's telescope. Authenticate the owner against
-/// the original input; reduced scratch declarations provide type vocabulary,
-/// not the source's execution custody.
 pub(super) fn instantiate_application(
     compilation: &mut TypedTrees,
     source: &TypedTrees,
@@ -117,9 +116,6 @@ fn project(
             {
                 return Ok(*actual);
             }
-            // A closed nominal view retains its original complete application.
-            // Project that ordinary tuple; never synthesize a Policy<Schema>
-            // carrier from a plan's diagnostic declaration symbols.
             if let Some(application) = compilation
                 .data_definition_by_symbol(symbol)
                 .and_then(|data| data.generic_instance)

@@ -60,6 +60,7 @@ fn complete_census_retains_exact_evidence_and_excludes_fresh_specialized_instanc
         .push(MachineContractPlan {
             machine: SymbolHandle::from_arena_index(1),
             closed_scalar_values: Default::default(),
+            restored_declaration_predicates: Vec::new(),
             crash: Default::default(),
             report_fingerprint: 37,
             commitment: MachineContractCommitment::from_digest([7; 32]),
@@ -102,6 +103,7 @@ fn duplicate_classifications_and_contracts_are_deferred_without_selecting_the_fi
     let contract = MachineContractPlan {
         machine: SymbolHandle::from_arena_index(1),
         closed_scalar_values: Default::default(),
+        restored_declaration_predicates: Vec::new(),
         crash: Default::default(),
         report_fingerprint: 37,
         commitment: MachineContractCommitment::from_digest([7; 32]),

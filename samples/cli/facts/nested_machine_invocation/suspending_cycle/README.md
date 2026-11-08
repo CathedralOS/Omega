@@ -99,7 +99,7 @@ Terminal-interpreter test
 runs the unchanged local place with `Scheduler::advance` bound to a host
 scheduler that reports "not ready" twice for every call before answering three
 times its argument. The activation parks 200,000 times (twice per round), a
-re-poll charges no fuel, arguments arrive as 100,000 down to 1, and the
+re-poll charges no work, arguments arrive as 100,000 down to 1, and the
 program's own oracle completes with Unit, as with the inline scheduler.
 
 At base `11bdd2fe41f` the first park failed with ``host readiness cannot

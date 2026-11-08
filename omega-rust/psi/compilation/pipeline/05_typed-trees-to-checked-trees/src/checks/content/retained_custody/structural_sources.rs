@@ -295,7 +295,7 @@ fn append_sources(
     };
     // Finite Wrapper<Wrapper<T>> consumes type-argument structure. Recursive
     // Node<Wrapper<T>> does not. This is a termination measure over the type
-    // tree, not a resource capacity or an arbitrary recursion/fuel limit.
+    // tree, not a resource capacity or an arbitrary recursion/work limit.
     let size = type_size(program, reference, applications);
     if visiting
         .iter()

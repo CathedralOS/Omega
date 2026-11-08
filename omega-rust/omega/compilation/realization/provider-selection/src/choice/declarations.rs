@@ -1,4 +1,7 @@
-//! Exact correspondence is separate from candidate lookup and diagnostic spelling.
+// Exact correspondence is separate from candidate lookup and diagnostic spelling.
+// ProviderSubject retains the same exact schema/application/family choice for
+// both demand and publication without applying a target fence earlier than
+// whole-plan selection.
 
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderPlan;
@@ -6,8 +9,7 @@ use language_semantics::declaration_selection::{CompositionMode, ProductTarget};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderIdentity<Declaration> {
-    /// Missing portable ownership is a deferred refusal, never an identity.
-    pub declaration: Result<Declaration, String>,
+    pub declaration: Result<Declaration, String>, // missing portable ownership is a deferred refusal, never an identity
     pub application_identity: Option<String>,
     pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub canonical_path: String,
@@ -25,11 +27,8 @@ pub struct ProviderFamily<Declaration> {
     pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub canonical_path: String,
     pub authored_path: String,
-    /// The complete authored family, never the subset reached by an artifact.
-    pub coordinates: Vec<ProviderFamilyCoordinate<Declaration>>,
-    /// Source preparation checks this exact family against its declaration owner.
-    /// An unused family's refusal remains inert until a selection demands it.
-    pub preparation_errors: Vec<Diagnostic>,
+    pub coordinates: Vec<ProviderFamilyCoordinate<Declaration>>, // complete authored family, never the subset reached by an artifact
+    pub preparation_errors: Vec<Diagnostic>, // unused family's refusal remains inert until a selection demands it
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,8 +46,6 @@ pub(crate) fn same_declaration<Declaration: PartialEq>(
 }
 
 impl<Declaration: PartialEq> ProviderSubject<Declaration> {
-    /// Demand and publication retain the same exact schema/application/family
-    /// choice, without applying a target fence earlier than whole-plan selection.
     pub fn selects_plan(&self, schema: &Result<Declaration, String>, plan: &ProviderPlan) -> bool {
         plan.rows.iter().any(|row| {
             self.selects_schema(
@@ -128,8 +125,7 @@ pub struct ProviderDeclaration<Declaration, Origin = ()> {
     pub subject: ProviderSubject<Declaration>,
     pub provider_type: ProviderIdentity<Declaration>,
     pub composition_mode: CompositionMode,
-    /// Returned unchanged to the producing adapter, never used to choose a row.
-    pub origin: Origin,
+    pub origin: Origin, // returned unchanged to the producing adapter, never used to choose a row
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -185,9 +181,7 @@ impl<Declaration, Origin> SelectionProvenance<Declaration, Origin> {
 pub struct CandidateDeclarations<Declaration> {
     pub schema: Result<Declaration, String>,
     pub provider: Option<Result<Declaration, String>>,
-    /// Portable selecting owner prepared by the declaration producer. A refusal
-    /// stays dormant until independent composition needs its canonical join.
-    pub selecting_declaration: Result<Option<String>, Vec<Diagnostic>>,
+    pub selecting_declaration: Result<Option<String>, Vec<Diagnostic>>, // refusal stays dormant until independent composition needs its canonical join
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -195,8 +189,7 @@ pub struct ProviderCandidate<Declaration, Owner = ()> {
     pub plan: ProviderPlan,
     pub declarations: CandidateDeclarations<Declaration>,
     pub native_build: bool,
-    /// Exact derivation or canonical closure travels with its plan.
-    pub owner: Owner,
+    pub owner: Owner, // exact derivation or canonical closure travels with its plan
 }
 
 #[derive(Debug, Clone)]

@@ -1114,9 +1114,24 @@ impl BorrowedWindowLedger {
                 .evaluation
                 .current_claims
                 .source(&argument)?
-                .ok_or(LoweringError::Unsupported(
-                    "stored operand has no completed custody namespace",
-                ))?;
+                .ok_or_else(|| {
+                    unpinned(
+                        &format!(
+                            "{} at statement {}: stored operand {:?} of type {:?}, destination {:?}/{:?}, last operation {:?}",
+                            place.spelling,
+                            evaluation.statement_index,
+                            argument,
+                            value.structural_type,
+                            source,
+                            selected_path,
+                            operations
+                                .operations
+                                .last()
+                                .map(|operation| (operation.id, &operation.kind, &operation.result)),
+                        ),
+                        "stored operand has no completed custody namespace",
+                    )
+                })?;
             evaluation
                 .evaluation
                 .current_claims

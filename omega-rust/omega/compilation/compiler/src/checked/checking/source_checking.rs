@@ -1,7 +1,8 @@
-//! Complete one portable Product judgment before target realization starts.
-//!
-//! Build supplies source admission and representation choices. Native provider
-//! selections are not checking inputs and cannot change this program afterward.
+// We complete one portable Product judgment (`check_product_source`, Psi 05)
+// before target realization starts. Build supplies source admission, layout
+// target scopes (`layout_target_scopes`), and representation choices; native
+// provider selections are not checking inputs and cannot alter this checked
+// program afterward.
 
 use artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES;
 use compilation_products::{CheckedProductSource, PreparedProductSource, SettledCheckReuse};
@@ -105,9 +106,6 @@ pub(crate) fn check_product_source(
             }
             diagnostics
         })?;
-    // Product pruning is a Psi operation over all declared roots, not a
-    // per-target copy of the checked program. Native reachability chooses the
-    // selected entry later, without changing this portable judgment.
     let roots = build.checked_tree_product_roots(rollback);
     let psi_compiler::SelectedCheckedSource {
         program,
@@ -115,9 +113,6 @@ pub(crate) fn check_product_source(
         retained,
         selection: product_selection,
     } = selections.select(outcome, roots)?;
-    // One default inventory feeds initial settlement, Terminal demand roots
-    // and every target proposal. Package handoffs have the same default tier
-    // on all three routes; only the root Build supplies overrides.
     let mut provider_defaults = provider_defaults.to_vec();
     for selection in &build.default_provider_selections {
         provider_defaults.push(
@@ -172,16 +167,10 @@ pub(crate) fn check_product_source(
     })
 }
 
-/// Source geometry checks every declared body under its explicit target scope.
-/// Build contributes checking profiles, without pruning implementation bodies;
-/// reusable source receives the explicit target catalog, never the build host.
 fn layout_target_scopes(
     typed: &typed_trees::TypedTrees,
     build: &compilation_products::BuildConfig,
 ) -> Result<Vec<build_time_evaluation::FixedLayoutTargetScope>, Vec<Diagnostic>> {
-    // Whole-value initialization can need target geometry without any
-    // FixedLayout type in source. Supply the checking context independently
-    // of which representation operation will consume it after specialization.
     let choices = build
         .provider_selections
         .iter()
@@ -218,8 +207,6 @@ fn layout_target_scopes(
                 .filter(|profile| profile.layout_target_facts().is_some()),
         );
     }
-    // A body is checked even when no Build root or selected provider invokes
-    // it. Preserve its authored target context independently of deployment.
     for machine in typed.machines() {
         for target in [
             typed.machine_authored_target(machine),
@@ -249,8 +236,6 @@ fn layout_target_scopes(
                 entries.push(binding.implementation_symbol);
             }
         }
-        // Every supplied declaration is a checking candidate. Root/package
-        // precedence and eventual invocation belong to provider settlement.
         let providers = choices
             .iter()
             .filter(|choice| {

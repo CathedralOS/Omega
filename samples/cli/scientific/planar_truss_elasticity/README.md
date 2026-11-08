@@ -97,7 +97,7 @@ provisions in a fresh isolated runtime per bounded stdin fixture. It captures
 both streams and completion before publishing the same native product. It never
 accepts packages or supplies expected-result callbacks. The application remains
 Omega; exit parity alone does not establish numerical agreement. Its 100-million
-fuel limit bounds interpretation; exhaustion is a validation failure.
+work limit bounds interpretation; exhaustion is a validation failure.
 
 `controls/invalid_displacement` is a separate intended source-invalid project:
 reading `displacement[16]` from `[f64;16]` must reject specifically with

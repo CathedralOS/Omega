@@ -18,6 +18,12 @@ pub struct CheckedStructuralValuePlans {
     pub record_fields: Arena<CheckedStructuralRecordField>,
     pub content_inputs: Arena<crate::CheckedUnitStructuralArgumentPlan>,
     call_schedules: Arena<StructuralCallSchedule>,
+    /// The schedules of `call_schedules`, bucketed by the arena slot of the value
+    /// they schedule, in insertion order. Lowering asks for one value's schedule
+    /// many times; scanning every schedule per question was a linear walk on the
+    /// critical path. Rows are only ever added through `retain_calls_for_root`,
+    /// which fills this bucket in the same step, so it is never stale.
+    schedules_by_value_slot: Vec<Vec<Handle<StructuralCallSchedule>>>,
     calls: Arena<crate::CheckedStructuralValueCall>,
     roots_by_state: KeyedRows<SymbolHandle, CheckedStructuralValueRoot>,
     roots_by_machine: KeyedRows<SymbolHandle, CheckedStructuralValueRoot>,
@@ -501,10 +507,14 @@ impl CheckedStructuralValuePlans {
         &self,
         value: CheckedStructuralValueHandle,
     ) -> Option<(u32, &[crate::CheckedStructuralValueCall])> {
+        // Only rows in this slot's bucket can hold `value`; the bucket keeps
+        // insertion order, so this is the scan restricted to its candidates.
         let mut schedules = self
-            .call_schedules
-            .iter()
-            .map(|(_, row)| row)
+            .schedules_by_value_slot
+            .get(value.arena_index() as usize)
+            .into_iter()
+            .flatten()
+            .map(|handle| self.call_schedules.get(*handle))
             .filter(|row| row.value == value);
         let schedule = schedules.next()?;
         if schedules.next().is_some() || !self.nodes.is_valid(value) {
@@ -523,18 +533,24 @@ impl CheckedStructuralValuePlans {
         calls: Vec<crate::CheckedStructuralValueCall>,
     ) {
         assert!(self.nodes.is_valid(value));
+        let slot = value.arena_index() as usize;
+        if self.schedules_by_value_slot.len() <= slot {
+            self.schedules_by_value_slot.resize_with(slot + 1, Vec::new);
+        }
         assert!(
-            !self
+            !self.schedules_by_value_slot[slot].iter().any(|handle| self
                 .call_schedules
-                .iter()
-                .any(|(_, row)| row.value == value)
+                .get(*handle)
+                .value
+                == value)
         );
         let calls = self.calls.insert_many(calls);
-        self.call_schedules.insert(StructuralCallSchedule {
+        let schedule = self.call_schedules.insert(StructuralCallSchedule {
             value,
             preceding_bindings,
             calls,
         });
+        self.schedules_by_value_slot[slot].push(schedule);
     }
 
     /// Retained invocation occurrences, including their normal-return schedules.

@@ -28,7 +28,7 @@ use super::overlap::{StatedOrderingPremise, captured_place_compatibility};
 /// its loans captured; `None` when that backing cannot be established.
 pub(super) fn place_backings(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
@@ -200,7 +200,7 @@ pub(super) fn argument_backings(
         }
         return place_backings(
             program,
-            facts,
+            facts.view(),
             loan_occurrences,
             state,
             call.statement_index,

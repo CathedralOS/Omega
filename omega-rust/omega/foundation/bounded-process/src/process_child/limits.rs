@@ -1,3 +1,8 @@
+// Configures Unix `setrlimit` ceilings (`Core = 0`, `Cpu`, `As` on Linux,
+// `Fsize`, `Nofile`) inside `pre_exec`, intersecting each requested ceiling
+// with the parent's inherited soft/hard `Rlimit` so a child never loosens an
+// already-stricter host limit.
+
 use std::io;
 use std::process::Command;
 

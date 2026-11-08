@@ -1,7 +1,7 @@
-//! Retained consent, not a serialized compiler analysis.
-//!
-//! Exact readable risk rows are opaque historical intent here. Only fresh compiler
-//! output interprets their meaning; equality never turns them into checked facts.
+// Retained occurrence consent and acceptance rows in `omega.lock`.
+// Exact readable risk rows are opaque historical intent here; only fresh compiler output interprets their meaning, and equality never turns them into checked facts.
+// `PackagePolicyOccurrence` retains independent consent for one exact checked package occurrence (with execution profile recorded as context rather than inferred from the host, and `compilation` absent on historical schema versions so fresh review must supply compilation inputs before compilation or publication).
+// `PackageAcceptanceRow` commits to an exact semantic coordinate digest plus its complete readable acceptance meaning.
 
 use super::PackageLockError;
 use crate::declarations::DependencyPurpose;
@@ -13,14 +13,11 @@ use package_evidence::record::{
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
-/// Independently retained consent for one exact checked package occurrence.
-/// The execution profile is recorded context, never inferred from this host.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePolicyOccurrence {
     pub(super) acceptance: PackagePolicyAcceptance,
     pub(super) context: super::PackageCheckedContext,
-    // Version 3 records remain usable as review baselines, not compile inputs.
-    pub(super) compilation: Option<super::AcceptedPackageCompilation>,
+    pub(super) compilation: Option<super::AcceptedPackageCompilation>, // Absent on version 3 records, which remain usable as review baselines but not compile inputs.
 }
 
 impl PackagePolicyOccurrence {
@@ -49,8 +46,6 @@ impl PackagePolicyOccurrence {
         self.context
     }
 
-    /// Absent for historical lock or consent schemas. Fresh review must
-    /// supply these inputs before compilation or publication can use the record.
     pub const fn compilation(&self) -> Option<&super::AcceptedPackageCompilation> {
         if self.acceptance.schema_version == PACKAGE_POLICY_ROW_VERSION {
             self.compilation.as_ref()
@@ -117,8 +112,6 @@ impl PackagePolicyAcceptance {
         &self.rows
     }
 
-    /// Pass the selected occurrence's consent into compilation. The compiler
-    /// compares it with fresh checked service declarations before production.
     pub(crate) fn terminal_permissions(&self) -> TerminalPermissionAcceptance {
         TerminalPermissionAcceptance {
             schema_version: self.schema_version,
@@ -147,9 +140,6 @@ impl PackagePolicyAcceptance {
     }
 }
 
-/// A commitment to an exact semantic coordinate plus its complete readable
-/// acceptance meaning. The digest shortens repeated signature-shaped keys; it
-/// does not replace the meaning or authorize a different reconstructed row.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageAcceptanceRow {
     pub(super) kind: PackagePolicyRowKind,

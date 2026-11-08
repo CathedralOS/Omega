@@ -1,3 +1,10 @@
+// Pre-evaluation classification of the `Build.optimizations` field vocabulary.
+//
+// `BuildTimeValue` carries no nominal symbol after evaluation, so we verify before
+// constructing the interpreter argument that any `Build.optimizations` field is
+// bound to the exact toolchain prelude `Optimizations` data declaration on the
+// toolchain `Build` struct.
+
 use build_time_evaluation::is_exact_toolchain_build_prelude_data;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -8,9 +15,6 @@ pub(super) enum OptimizationBuildVocabulary {
     Canonical,
 }
 
-/// Classify the selected Build declaration before constructing its interpreter
-/// argument. BuildTimeValue intentionally carries no nominal symbol, so doing
-/// this after evaluation would let an authored lookalike cross the boundary.
 pub(super) fn classify(typed: &TypedTrees) -> Result<OptimizationBuildVocabulary, Vec<Diagnostic>> {
     let named_builds = typed
         .data_definitions()

@@ -39,6 +39,7 @@ use facts::{PlaceHandle, QualificationCorrespondence, QualificationPayloadIdenti
 use symbols::SymbolHandle;
 
 mod byte_sequences;
+pub(super) use byte_sequences::carrier_proves_predicate;
 mod constructed;
 mod context_transport;
 mod declared_domains;

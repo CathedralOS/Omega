@@ -1,3 +1,6 @@
+// `IdentityDecodeError`: length mismatch error when decoding a 32-byte
+// domain-separated identity.
+
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

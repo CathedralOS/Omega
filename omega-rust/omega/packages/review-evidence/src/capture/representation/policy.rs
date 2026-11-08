@@ -1,4 +1,10 @@
-//! Receipt-free representation declarations, availability, selections, and uses.
+/*
+We project receipt-free representation declarations, availability, selections,
+and uses for one package in the checked activation.
+
+The package owns declarations and producer availability independently of use,
+while the selecting package owns activation selections and actual demands.
+*/
 
 mod availability;
 mod selections;
@@ -14,9 +20,6 @@ use crate::record::{PackagePolicyRepresentation, PackagePolicyRepresentationDema
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
-/// Project one package's representation policy in the checked activation.
-/// The package owns declarations/producer availability independently of use;
-/// the selecting package owns activation selections and actual demands.
 pub(crate) fn project_checked_representation_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     package: PackageKeyIdentity,

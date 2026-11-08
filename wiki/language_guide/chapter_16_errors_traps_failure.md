@@ -1,174 +1,165 @@
-# Chapter 16: Errors, Traps, And Failure
+# Chapter 16: Errors, traps, and failure
 
-Recoverable failure is data. A crash is an explicit no-successor outcome.
-An unproved obligation is a compile error—not an implicit exception, error
-result or permission to abort. [Operational contracts](../spec/language/effects.md)
-keep failure, crashes, service reach, suspension and blocking separate.
+Return a sum when the caller can handle failure. Its cases describe what
+happened and carry the information needed to continue.
 
-## Recoverable Failure Is A Sum, Handled At A Transition Boundary
+## Handle a failed operation
 
-Use a sum whose cases name the actual outcomes:
+This parser accepts one ASCII digit:
 
 ```omega
 data ParseResult {
-    case Parsed(value: i32);
-    case BadDigit(at: u32);
-    case Empty;
+    case Parsed(value: u32);
+    case BadDigit(byte: u8);
 }
 
-machine App::run(app: &mut App, input: &[u8]) {
-    let outcome: ParseResult = Parser::parse(&mut app.parser, input);
-    transition outcome {
-        ParseResult::Parsed { value } -> App::use_value(app, value)
-        ParseResult::BadDigit { at } -> App::report(app, at)
-        ParseResult::Empty -> App::report_empty(app)
+machine parse_digit(byte: u8) -> ParseResult {
+    transition byte >= 48 && byte <= 57 {
+        true -> ParseResult::Parsed { value: (byte - 48) as u32 }
+        false -> ParseResult::BadDigit { byte: byte }
+    }
+}
+
+machine digit_or_zero(byte: u8) -> u32 {
+    transition parse_digit(byte) {
+        ParseResult::Parsed { value } -> value
+        ParseResult::BadDigit { byte } -> 0
     }
 }
 ```
 
-The transition covers every possible case. `value` exists only in the success
-arm. A library `Result<T, E>` uses these same rules; it has no privileged error
-behavior.
+The true arm proves subtraction is valid. The caller covers both outcomes,
+and `value` is available only in the `Parsed` arm. Larger parsers can add
+cases such as `Empty` or carry the failing offset.
 
-A non-Unit call result cannot be silently ignored. `_ = call();` acknowledges
-intentional discard, but still owes the result's legal ownership disposition.
-It cannot discard a live linear protocol obligation. See
-[strict result use](../spec/language/effects.md#recoverable-outcomes-and-strict-use).
+Use `_ = call();` when intentionally discarding a result that may legally be
+disposed of. A linear result still needs its required consumer; discarding its
+name cannot dispose of an unfinished task or transaction.
 
-## Success Cases Carry Proven Facts (The Fact Catalog)
+## Return an error
 
-Facts can travel with the successful payload. For example, a table with sixteen
-entries can return a bounded index:
+A wrapper can translate a failure into its own result type. Here an invalid
+digit becomes an invalid setting:
+
+```omega
+data SettingResult {
+    case Level(value: u32);
+    case Invalid;
+}
+
+machine parse_level(byte: u8) -> SettingResult {
+    transition parse_digit(byte) {
+        ParseResult::Parsed { value } -> SettingResult::Level { value: value }
+        ParseResult::BadDigit { byte } -> SettingResult::Invalid
+    }
+}
+```
+
+The transition makes the choice explicit. Each outgoing path must transfer or
+clean up its owned values and restore borrowed storage. A library
+`Result<T, E>` follows these same sum and ownership rules.
+
+## Use facts from a result
+
+A successful payload can carry a useful bound:
 
 ```omega
 domain u32::TableIndex requires self < 16;
 
 data Slot {
-    case Found(index: u32::TableIndex);
+    case Found(index: u32 in TableIndex);
     case Full;
 }
 ```
 
-Constructing `Found` must establish its index range. A `Found { index }` arm
-then has that bound available for a sixteen-entry collection, subject to the
-ordinary selected-index and borrow obligations. No unbound `Found.index`
-expression is needed in a surrounding contract.
+Constructing `Found` proves the range. In a `Found { index }` arm, the caller
+can use that bound when indexing a sixteen-entry collection. Ordinary borrow
+and indexing requirements still apply.
 
-Guards and case partitions refine live facts. Across calls, the caller proves
-`requires` and receives the callee's established `ensures`; writes invalidate
-facts about changed storage. Private analysis may derive evidence, but cannot
-invent caller-facing preconditions. See [invocation contracts](../spec/language/state_contracts.md).
+Across a call, `requires` states what the caller proves and `ensures` states
+what completion establishes. An error outcome must fulfill the guarantees
+attached to that outcome too. See [contracts](chapter_9_proof_obligations.md).
 
-## Propagation Is An Explicit Edge — There Is No `?`
+## Distinguish proof errors from runtime failure
 
-Propagation is an arm returning or constructing the caller's failure outcome:
+An unproved Exact division or array index is a compile error. To accept
+untrusted input, branch first and return an error for the invalid case:
 
 ```omega
-machine App::run2(app: &mut App, input: &[u8]) -> ParseResult {
-    transition Parser::parse(&mut app.parser, input) {
-        ParseResult::Parsed { value } -> done(value)
-        ParseResult::BadDigit { at } -> bubble_bad(at)
-        ParseResult::Empty -> bubble_empty()
-    }
-    machine done(value: i32) -> ParseResult {
-        ParseResult::Parsed { value }
-    }
-    machine bubble_bad(at: u32) -> ParseResult {
-        ParseResult::BadDigit { at }
-    }
-    machine bubble_empty() -> ParseResult {
-        ParseResult::Empty
+data Division {
+    case Quotient(value: u32);
+    case ZeroDivisor;
+}
+
+machine try_divide(numerator: u32, denominator: u32) -> Division {
+    transition denominator {
+        0 -> Division::ZeroDivisor
+        _ -> Division::Quotient { value: numerator / denominator }
     }
 }
 ```
 
-There is no `?` propagation operator or `fails` clause. The checked graph keeps
-failure propagation and the required ownership transfers visible.
+The nonzero arm proves the division safe. No handler or runtime check is
+inserted merely because the checker could not prove an obligation.
 
-## There Is No "Trap" Category For Logic
+## Declare possible crashes
 
-A failed Exact arithmetic proof or contract obligation rejects. Prover
-incompleteness does not produce a runtime handler automatically. An author may
-choose a separately contracted failure-returning operation or explicit Trapping
-arithmetic, then discharge that operation's obligations.
-
-Trapping arithmetic is one runtime crash source, not the only possible platform
-or operation fault. Proving a failure case impossible removes the need for an
-executable handler; it does not insert an `expect` or `unwrap` check.
-
-## Crashes Are Explicit, Guarded Control Ceilings
-
-`crashes Trap` permits operation/platform faults under its stated routes;
-`crashes Abort` permits deliberate execution-domain termination. For example,
-these are alternative routes in a division contract:
+A crash ends the activation without a normal successor or cleanup.
+`crashes Trap` permits specified operation or platform faults;
+`crashes Abort` permits deliberate termination of the execution domain.
+Declare Abort when a machine can deliberately end execution:
 
 ```omega
-crashes Trap
-    denominator == 0
-    numerator == integer::min<i32>() && denominator == -1
+machine require_ready(ready: bool)
+crashes Abort
+{
+    transition ready {
+        true -> {}
+        false -> abort()
+    }
+
+    machine abort() crashes Abort {
+        crash Abort;
+    }
+}
 ```
 
-The endpoint is the ratified ordinary core
-[integer query](../spec/language/numeric_values.md#core-integer-and-float-apis),
-not a primitive-member `Minimum` alias; `CORE-INTEGER-FLOAT-APIS` tracks its
-remaining implementation.
+This declaration permits Abort for the machine. A guarded crash clause can
+narrow that permission to particular input conditions; a caller that rules out
+those conditions can rule out the crash. Omitting a cause forbids it.
 
-Any one route permits that cause. An empty route list is unconditional;
-omitting the cause forbids it. The executable operation must still have the
-selected behavior—writing a crash clause does not make Exact division trap.
-`crash Trap;` and `crash Abort;` are explicit terminals.
+A clause describes permitted behavior. To get trapping arithmetic, select the
+Trapping operation; adding a crash clause to Exact arithmetic does not change
+its meaning. See [guarded crashes](../spec/language/effects.md#guarded-crashes).
 
-Every derived crash site must be covered by the same-cause published routes.
-At a call, actual arguments and live facts can disprove routes; only disproving
-every route removes that cause. Route expressions must themselves be total,
-so trapping arithmetic cannot execute inside a route to justify its own failure.
-See [guarded crashes](../spec/language/effects.md#guarded-crashes).
+## Plan recovery separately
 
-Process-exit service reach is separate from an Abort outcome. Graceful shutdown
-does ordinary cleanup before its selected exit operation.
+Returning an error takes an ordinary cleanup path. Crashing abandons the live
+state: a device may be half-programmed or a peer may have observed half a
+protocol. A supervisor needs isolation, an owner-death protocol, or a reset
+guarantee before continuing with affected resources.
 
-## Compiler-owned stack storage and spill accesses
+Restarting creates a fresh activation. It does not resume the abandoned
+computation or establish that its buffers are safe to reuse. See
+[recovery contracts](../spec/language/effects.md#recovery-and-execution-domains).
 
-Register allocation may increase the artifact's stack demand, but does not add
-`crashes Trap` to a source machine. Spill accesses use the activation's provisioned
-frame storage:
+Likewise, process exit abandons outstanding obligations. For graceful shutdown,
+finish tasks, release resources and return from the entry operation. Automatic
+cleanup must itself return normally.
 
-1. Derive final physical frame demand, including spills and calling storage.
-2. Compose it through call chains and external-entry contexts.
-3. Establish sufficient aligned, accessible backing for the activation's lifetime.
+## Provision stack storage before execution
 
-A byte-count comparison is not a backing proof. Failed provisioning follows
-admission, installation or activation failure, not a new source stack-overflow
-outcome. Validated accesses are non-faulting under that established contract;
-a wrong compiler-generated address remains a defect.
+Omega accounts for stack demand, including compiler spills, before execution.
+The activation needs sufficient aligned, accessible backing for its lifetime.
+A provisioning failure belongs to startup or admission; source code does not
+gain a stack-overflow branch because register allocation used more space.
 
-The [stack specification](../spec/resources/storage.md#compiler-owned-stack-accesses)
-owns exact realization identity, slot reuse, probing, suspension lifetime and
-external-root composition. Tail backedges add no recursive frames; termination
-alone does not size a stack.
+The [stack reference](../spec/resources/storage.md#compiler-owned-stack-accesses)
+covers call chains, tail cycles and physical backing.
 
-## A Crash Contract Does Not Prove Recovery
+## Handle host errors and cancellation
 
-A crash frontier reports locally known live obligations, not all damaged state.
-A device may be half-programmed or a peer may have observed part of a protocol.
-Unlisted resources are not thereby safe survivors.
-
-An uncontained crash terminates the execution domain. Continuing elsewhere needs
-independent isolation, an explicit resource owner-death/recovery protocol, or an
-external reset/reconciliation guarantee. Restart establishes a fresh activation;
-it does not resume abandoned computation. See [recovery contracts](../spec/language/effects.md#recovery-and-execution-domains).
-
-## Crash Terminals Do Not Unwind
-
-Recoverable outcomes follow ordinary cleanup-bearing edges. Crashes have no
-successor and do no cleanup; their explicit abandonment record is not an absent
-cleanup list. A supervisor cannot turn that record into permission to resume
-the abandoned activation. [Psi outcomes](../spec/terminal-psi/calls_and_outcomes.md#crash)
-retain this distinction through verification and execution.
-
-## Host Failure
-
-Host operations use the same outcome model:
+A host API can use the same sum pattern:
 
 ```omega
 data ReadOutcome {
@@ -178,15 +169,9 @@ data ReadOutcome {
 }
 ```
 
-A host read requirement returns `ReadOutcome` and states which resources remain
-valid for each case. Recoverable data, possible blocking and declared crashes
-are independent contract choices. The selected provider/calling plan handles
-any ABI out-parameters; they do not introduce a second source result mechanism.
-[Foreign bindings](../spec/build/foreign_bindings.md) explains explicit supply.
+Its contract also states which buffers and handles remain valid after each
+outcome. Whether the read blocks or suspends is a separate declaration.
 
-## Cancellation
-
-Cancellation is delivered through ordinary task protocol data and handled at a
-checked safe point. It does not unwind or silently discharge the external task
-claim. The task follows its own cleanup-and-exit states; callers complete its
-ordinary lifecycle. See [tasks](../spec/build/task_runtime.md#suspension-and-cancellation).
+Cancellation is similarly delivered through task protocol data at a declared
+wait or safe point. Requesting it leaves the task's completion obligation live.
+[Concurrency](chapter_18_concurrency.md#cancel-a-task) shows the full lifecycle.

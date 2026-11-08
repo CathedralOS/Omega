@@ -1,4 +1,4 @@
-//! Compare real component custody with uninterrupted and fuel-paused execution.
+//! Compare real component custody with uninterrupted and work-budget-paused execution.
 //! Both consume the same retained product. Only fresh instance namespaces are
 //! relabeled for observation equality; provider identities and all effects stay.
 use std::{collections::BTreeSet, num::NonZeroU64, path::Path};
@@ -14,7 +14,7 @@ pub(super) fn observe(
     provisions: Option<&compilation_products::TerminalRuntimeProvisions>,
     target: Option<&str>,
     ordinary: &TerminalRuntimeObservation,
-    fuel_allowance: u64,
+    work_budget: u64,
 ) -> Result<(), String> {
     let oracle = fixture.join("expected_component_resume_calls.txt");
     let expected = match std::fs::read_to_string(&oracle) {
@@ -27,7 +27,7 @@ pub(super) fn observe(
     };
     if expected == 0
         || ordinary.status != TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-        || ordinary.fuel_usage.total_units() < 2
+        || ordinary.work_usage.total_units() < 2
     {
         return Err(
             "component resume oracle requires nonzero calls and normal unit completion".into(),
@@ -52,7 +52,7 @@ pub(super) fn observe(
                     .transpose()
                     .map_err(|error| format!("component resume flags: {error}"))?
                     .flatten(),
-                fuel_allowance: allowance,
+                work_budget: allowance,
                 domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
                 standard_input: None,
                 clock: None,
@@ -62,30 +62,30 @@ pub(super) fn observe(
         .map_err(|error| format!("component resume execution: {error}"))
     };
     let quantum = NonZeroU64::new(1).ok_or("component resume quantum is zero")?;
-    let resumed = execute(fuel_allowance, quantum)?;
+    let resumed = execute(work_budget, quantum)?;
     if resumed.status != ordinary.status
         || resumed.stdout != ordinary.stdout
         || resumed.stderr != ordinary.stderr
         || resumed.private_entry_ram != ordinary.private_entry_ram
-        || resumed.fuel_usage != ordinary.fuel_usage
-        || resumed.fuel_suspensions == 0
+        || resumed.work_usage != ordinary.work_usage
+        || resumed.work_suspensions == 0
         || resumed.component_suspensions == 0
         || normalized_calls(&resumed.effects, expected)? != expected_effects
     {
         return Err(
-            "resumed component calls differ in custody effects, output or exact fuel attribution"
+            "resumed component calls differ in custody effects, output or exact work attribution"
                 .into(),
         );
     }
     // A fresh isolated invocation with one unit less must remain exhausted;
     // resuming a pending child cannot replenish its original total allowance.
-    let short = ordinary.fuel_usage.total_units() - 1;
+    let short = ordinary.work_usage.total_units() - 1;
     for quantum in [NonZeroU64::MAX, quantum] {
         let stopped = execute(short, quantum)?;
         if !matches!(stopped.status, TerminalExecutionStatus::SponsorExhausted(_))
-            || stopped.fuel_usage.total_units() > short
+            || stopped.work_usage.total_units() > short
         {
-            return Err("component continuation escaped the sponsor's original total fuel".into());
+            return Err("component continuation escaped the sponsor's original total work".into());
         }
     }
     Ok(())

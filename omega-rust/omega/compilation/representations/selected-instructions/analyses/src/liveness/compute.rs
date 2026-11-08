@@ -25,7 +25,7 @@ pub(crate) fn compute_terminal_liveness(
     Ok(LivenessPlan {
         selected: selected.selected_identity(),
         optimization_unit: selected.optimization_unit_identity(),
-        fuel_schedule: selected.fuel_schedule_identity(),
+        work_schedule: selected.work_schedule_identity(),
         target: plan.target,
         functions,
     })
@@ -41,10 +41,10 @@ pub(crate) fn compute_terminal_liveness_reusing(
     let mut carried = vec![false; plan.functions.len()];
     let compatible = prior.selected == previous.selected_identity()
         && prior.optimization_unit == previous.optimization_unit_identity()
-        && prior.fuel_schedule == previous.fuel_schedule_identity()
+        && prior.work_schedule == previous.work_schedule_identity()
         && prior.target == previous.selected_plan().target
         && prior.optimization_unit == selected.optimization_unit_identity()
-        && prior.fuel_schedule == selected.fuel_schedule_identity()
+        && prior.work_schedule == selected.work_schedule_identity()
         && prior.target == plan.target
         && prior.functions.len() == previous.selected_plan().functions.len();
     let functions = plan
@@ -72,7 +72,7 @@ pub(crate) fn compute_terminal_liveness_reusing(
         LivenessPlan {
             selected: selected.selected_identity(),
             optimization_unit: selected.optimization_unit_identity(),
-            fuel_schedule: selected.fuel_schedule_identity(),
+            work_schedule: selected.work_schedule_identity(),
             target: plan.target,
             functions,
         },

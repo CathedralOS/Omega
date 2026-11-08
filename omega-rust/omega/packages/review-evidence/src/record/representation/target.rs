@@ -1,4 +1,4 @@
-//! Stable target identity retained by representation demand evidence.
+// Stable target identity and backend profile mapping retained by representation demand evidence.
 
 use crate::record::accessors::field_projection_accessors;
 mod validation;
@@ -16,10 +16,6 @@ pub enum PackageReviewRepresentationTargetProfile {
 }
 
 impl PackageReviewRepresentationTargetProfile {
-    /// The backend target profile this review profile names. One table serves
-    /// every consumer: representation validation checks the recorded geometry
-    /// against it, the baseline checks that its components agree on one
-    /// target, and provider selection checks a calling application's target.
     pub(crate) fn backend_profile(self) -> target::TargetProfile {
         match self {
             Self::LinuxArm64 => target::TargetProfile::LinuxArm64,

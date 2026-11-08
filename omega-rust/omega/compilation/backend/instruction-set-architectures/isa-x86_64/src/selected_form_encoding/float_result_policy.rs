@@ -30,9 +30,9 @@ use selected_instructions::{FloatResultPolicyKind, MachineEncodedControlEffect};
 
 pub(crate) fn clobbers(form: FloatResultPolicyForm) -> Vec<RegisterUnitId> {
     units_of(if form.can_trap() {
-        &["xmm3", "rflags"]
+        &["xmm3", "condition_flags"]
     } else {
-        &["xmm3", "xmm4", "rflags"]
+        &["xmm3", "xmm4", "condition_flags"]
     })
 }
 

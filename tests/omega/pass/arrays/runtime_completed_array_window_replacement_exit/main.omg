@@ -1,7 +1,8 @@
-// Expected exit: 0. Expected stdout: "[CB]EDA\n".
+// Expected exit: 0. Expected stdout: "[CB]\nEDA".
 // Window replacement snapshots one complete RHS before cleanup or writes,
 // independently of its producer and destination selectors. The trace observes
-// displaced slots in reverse order (CB), then the surviving array (EDA).
+// displaced slots in reverse order (CB), then done() writes the newline before
+// Main::main completes and disposes the surviving array in reverse order (EDA).
 
 // As in the nominal-cleanup fixtures, this test explicitly assumes finite,
 // normal byte writes. It does not strengthen the standard Console contract.

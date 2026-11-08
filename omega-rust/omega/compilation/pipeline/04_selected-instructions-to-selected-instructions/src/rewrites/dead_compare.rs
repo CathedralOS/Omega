@@ -83,7 +83,7 @@ use selected_instructions::{
     DeadCompareIdentity, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::FuelScheduleIdentity;
+use semantic_vocabulary::WorkScheduleIdentity;
 
 pub(crate) use equivalent::{EquivalentCompareError, ValidatedEquivalentCompare};
 pub(crate) use equivalent::{

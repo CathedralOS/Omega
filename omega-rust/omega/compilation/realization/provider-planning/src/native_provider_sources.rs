@@ -1,13 +1,13 @@
-//! Keep each target-specific implementation tied to its declared function.
-//! Save source identities before Terminal publication, then attach the final
-//! plan identities after calling conventions determine argument placement.
+// Source-family correspondence for target-specific provider implementations.
+// Captures the exact source family head (`normalized_hermetic_symbol_identity`
+// and `machine_callable_identity_text`) before Terminal publication, then
+// attaches final plan digests after calling conventions determine argument
+// placement.
 
 use crate::{ProviderPlanningContext, SelectedProviderReviewProvenance};
 use backend_plan::{NativeProviderSources, TerminalTargetProviderPlan};
 use diagnostics::Diagnostic;
 
-/// Saved source identities for one candidate's target-family members.
-/// Final plan digests are attached only after calling plans are complete.
 #[derive(Debug, Clone)]
 pub(crate) struct PreparedFamilyRealization {
     row_index: usize,
@@ -53,8 +53,6 @@ pub(crate) fn attach_native_provider_sources(
     })
 }
 
-/// Record the exact source family that supplied each checked provider row.
-/// Artifact-local member IDs are deliberately unavailable at this phase.
 pub(crate) fn capture_family_realizations(
     context: ProviderPlanningContext<'_>,
     plan: &effects::provider_plan::ProviderPlan,
@@ -93,9 +91,6 @@ pub(crate) fn capture_family_realizations(
                     "selected family realization has substituted target custody",
                 )]);
             }
-            // Join the exact checked declaration retained by Psi. Export
-            // spellings and normalized requirement callable identities
-            // occupy different namespaces and cannot identify this head.
             let head_declaration_identity = typed
                 .normalized_hermetic_symbol_identity(family.canonical)
                 .map_err(|message| {

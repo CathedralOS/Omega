@@ -1,4 +1,4 @@
-//! Recovery of contract meaning and proposition interfaces, not discharges.
+// Recovery of contract meaning and proposition interfaces without discharges.
 
 use super::Error;
 use super::expressions::expression;

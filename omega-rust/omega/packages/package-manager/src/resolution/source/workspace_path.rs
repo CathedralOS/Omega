@@ -1,9 +1,10 @@
-//! Convert between authored workspace paths and syntax-neutral source paths.
+// We convert between authored workspace member paths and syntax-neutral
+// source-relative paths, resolving relative components inside the registered
+// workspace and rejecting paths that escape the workspace root.
 
 use build_declarations::WorkspaceMemberPath;
 use package_source::SourceRelativePath;
 
-/// Resolve an authored Path inside its registered workspace, never the host.
 pub(crate) fn normalize_member_path(
     requester_member: Option<&str>,
     location: &str,

@@ -1,6 +1,6 @@
-/// Aggregate ceilings for the complete lock, never reset for a target or child.
-/// Input remains borrowed; owned storage counts requested recovery allocations
-/// and verification scratch, not allocator overhead or already owned input.
+// Aggregate resource ceilings for complete package lock recovery, never reset per target or child section.
+// Input remains borrowed while owned storage counts requested recovery allocations and verification scratch; `maximum_identity_nodes` scales with the byte ceiling at two productions per byte because a 17-package application exceeded a fixed 1,048,576 node limit.
+
 use crate::resolution::graph::CanonicalSourceClosureSubjectLimits;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PackageLockRecoveryLimits {
@@ -23,10 +23,6 @@ impl Default for PackageLockRecoveryLimits {
             maximum_packages: 16 * 1024,
             maximum_dependency_requests: 256 * 1024,
             maximum_policy_elements: 1024 * 1024,
-            // Every identity node consumes lock text, at most two productions
-            // per byte (a nominal name opens one scope for its atom and one for
-            // its owner), so the node ceiling follows the byte ceiling. A
-            // 17-package application's membership exceeded a fixed 1,048,576.
             maximum_identity_nodes: 2 * 128 * 1024 * 1024,
             maximum_decisions: 65_536,
         }

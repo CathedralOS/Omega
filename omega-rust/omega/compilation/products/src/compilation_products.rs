@@ -1,25 +1,77 @@
-//! The compile report: which product a compilation produced,
-//! the payload each product kind owns, and checked publication receipts.
-//! Filesystem orchestration belongs to `publication`, not this model.
-//!
-//! `CompileReport` is a common shell — root, source count, build-output
-//! companions and timings — around
-//! one `CompileProduct`. Payload-owning variants carry the evidence only that
-//! product can hold, so custody checks are joins over present fields rather
-//! than negative-space assertions that unrelated `Option`s stayed `None`.
+/*
+The compile report, pending native work carrier, and checked publication receipts.
 
-use target::NativeApplicationMetadata;
+`CompileReport` wraps a common shell (root path, source file count, build-output
+companions, and timings) around one `CompileProduct`. Payload-owning variants
+carry the evidence only that product kind can hold, so custody checks are joins
+over present fields rather than negative-space assertions that unrelated
+`Option`s stayed `None`. Dynamically linked ELF outputs share the
+retained/published native output kind with direct images while keeping separate
+variants so no direct-image custody check can accept dynamic bytes.
+*/
+
+/*
+`PendingNativeProduct` carries the source-free work remaining after source
+admission and Terminal preparation for application-sponsored native completion.
+`RetainedNativeProgram` and `RetainedNativeProgramIdentity` provide read-only
+replay views over retained native products before publication consumes them.
+*/
 
 use crate::{
-    OptimizationRollbackReceipt, RetainedNativeArtifact, RetainedNativeProgram,
-    RetainedNativeProgramIdentity, RetainedTerminalArtifact,
+    CompileReportSettlement, NativeProductRequest, OptimizationRollbackReceipt,
+    RetainedNativeArtifact, RetainedTerminalArtifact, SelectedIndependentComponent,
 };
 use artifacts::compile_timings::PhaseTiming;
 use native_artifact::{
-    DynamicElfNativeArtifact, DynamicElfPublicationReceipt, ExecutablePublicationReceipt,
-    NativePackagePublicationReceipt,
+    DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity, DynamicElfPublicationReceipt,
+    ExecutablePublicationReceipt, NativeArtifactIdentity, NativePackagePublicationReceipt,
 };
+use optimization_core::OptimizationRollbackSettlement;
 use std::path::PathBuf;
+use target::NativeApplicationMetadata;
+use terminal_codec::CanonicalTerminalArtifact;
+use terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy;
+
+pub struct PendingNativeProduct {
+    pub terminal: RetainedTerminalArtifact,
+    pub retained_native_inputs: Option<Vec<u8>>, // optional bytes from checked producer, not a saved native admission
+    pub components: Result<Vec<SelectedIndependentComponent>, String>,
+    pub accepted_package_permissions: TerminalAuthorityPermissionPolicy,
+    pub request: NativeProductRequest,
+    pub rollback: OptimizationRollbackSettlement,
+    pub subsystem: u16,
+    pub settlement: CompileReportSettlement,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RetainedNativeProgramIdentity {
+    Direct(NativeArtifactIdentity),
+    DynamicElf(DynamicElfNativeArtifactIdentity),
+}
+
+impl std::fmt::Display for RetainedNativeProgramIdentity {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Direct(identity) => std::fmt::Display::fmt(identity, formatter),
+            Self::DynamicElf(identity) => std::fmt::Display::fmt(identity, formatter),
+        }
+    }
+}
+
+pub struct RetainedNativeProgram<'artifact> {
+    pub(crate) artifact: &'artifact CanonicalTerminalArtifact,
+    pub(crate) identity: RetainedNativeProgramIdentity,
+}
+
+impl<'artifact> RetainedNativeProgram<'artifact> {
+    pub fn psi_artifact(&self) -> &'artifact CanonicalTerminalArtifact {
+        self.artifact
+    }
+
+    pub fn identity(&self) -> RetainedNativeProgramIdentity {
+        self.identity
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompileOutputKind {
@@ -31,70 +83,38 @@ pub enum CompileOutputKind {
     BuildArtifacts,
 }
 
-impl CompileOutputKind {}
-
-/// The retained Terminal product and the subtractive build overlay whose
-/// effective selection the artifact and its native proposal must carry.
 #[derive(Debug)]
 struct TerminalProduct {
-    /// Canonical source-free Psi artifact retained at the exact Psi/Omega
-    /// ownership seam. It carries no target or deployment authority.
     artifact: RetainedTerminalArtifact,
-    /// Exact subtractive release overlay applied after build selection.
     optimization_rollback: Option<OptimizationRollbackReceipt>,
-    /// Present only when a native request stopped after runtime admission for
-    /// Terminal-only execution: the provisions an image of that same request
-    /// would have carried. An ordinary Terminal product grants no host reach.
-    runtime_provisions: Option<crate::TerminalRuntimeProvisions>,
+    runtime_provisions: Option<crate::TerminalRuntimeProvisions>, // present only when a native request stopped after runtime admission
 }
 
-/// A validated native payload retained before any output or runtime
-/// installation, with the authored application metadata its publication may
-/// consume.
 #[derive(Debug)]
 struct NativeProduct {
     artifact: RetainedNativeArtifact,
     runtime_provisions: Option<crate::TerminalRuntimeProvisions>,
-    /// Exact subtractive release overlay applied after build selection and
-    /// before native realization. Ordinary requests retain `None`.
     optimization_rollback: Option<OptimizationRollbackReceipt>,
     application: NativeApplicationMetadata,
 }
 
-/// The installed-executable receipts remaining after publication consumes
-/// the retained native artifact. The retained application metadata carries
-/// over so the package/executable cross-binding can be replayed.
 #[derive(Debug)]
 struct PublishedNativeProduct {
     runtime_provisions: Option<crate::TerminalRuntimeProvisions>,
-    /// Exact checked publication receipt for a native executable image.
     executable: ExecutablePublicationReceipt,
-    /// Exact checked receipt for a macOS application package publication;
-    /// flat publications retain `None`.
-    package: Option<NativePackagePublicationReceipt>,
-    /// Exact subtractive release overlay applied after build selection and
-    /// before native realization. Ordinary requests retain `None`.
+    package: Option<NativePackagePublicationReceipt>, // macOS .app package receipt; flat publications retain None
     optimization_rollback: Option<OptimizationRollbackReceipt>,
     application: NativeApplicationMetadata,
 }
 
-/// A validated dynamically linked ELF payload retained before output: an
-/// import-bearing Linux object emitted under the build's effective loader.
-/// It is the authority-distinct dynamic product, never direct-image,
-/// component or installation custody
-/// (wiki/spec/build/component_publication.md#products-and-authority).
 #[derive(Debug)]
 struct DynamicElfProduct {
     artifact: DynamicElfNativeArtifact,
     runtime_provisions: Option<crate::TerminalRuntimeProvisions>,
-    /// Exact subtractive release overlay applied after build selection and
-    /// before native realization. Ordinary requests retain `None`.
     optimization_rollback: Option<OptimizationRollbackReceipt>,
     application: NativeApplicationMetadata,
 }
 
-/// The flat-file receipt remaining after publication consumes a retained
-/// dynamic ELF payload. It grants no loader or execution authority.
 #[derive(Debug)]
 struct PublishedDynamicElfProduct {
     runtime_provisions: Option<crate::TerminalRuntimeProvisions>,
@@ -103,33 +123,15 @@ struct PublishedDynamicElfProduct {
     application: NativeApplicationMetadata,
 }
 
-/// The product a compilation produced. Payload kinds carry their evidence
-/// directly; `NativeExecutable` is reachable only through
-/// `record_native_publication` consuming a `RetainedNativeArtifact`.
-///
-/// A dynamically linked ELF output shares the retained/published native
-/// kinds with direct images, because the product role is the same, while its
-/// payload and receipt stay separate variants so no direct-image custody
-/// check can accept dynamic bytes.
 #[derive(Debug)]
 enum CompileProduct {
-    /// A completed check; no product files exist.
     CheckOnly,
-    /// The build's completed files are the product, retained in the
-    /// report's `build_outputs` companion slot.
     BuildArtifacts,
-    /// The retained canonical Terminal artifact, published or not.
     TerminalArtifact(TerminalProduct),
-    /// A validated native payload retained pre-publication.
     RetainedNativeArtifact(NativeProduct),
-    /// A native executable installed against an exact checked receipt.
     NativeExecutable(PublishedNativeProduct),
-    /// A validated dynamically linked ELF payload retained pre-publication.
     RetainedDynamicElfArtifact(DynamicElfProduct),
-    /// A dynamically linked ELF file installed against its exact receipt.
     DynamicElfExecutable(PublishedDynamicElfProduct),
-    /// A non-executable object container written to output. Kept for the
-    /// `checked` constructor's kind contract; no current route builds one.
     ObjectContainer,
 }
 
@@ -171,39 +173,19 @@ impl CompileProduct {
     }
 }
 
-impl TerminalProduct {}
-
-impl NativeProduct {}
-
-impl DynamicElfProduct {}
-
-impl PublishedDynamicElfProduct {}
-
-impl PublishedNativeProduct {}
-
 #[derive(Debug)]
 pub struct CompileReport {
     source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
-    /// What the compilation produced and the evidence that kind owns.
     product: CompileProduct,
-    /// Completed files only, bound to the same build observation as the
-    /// primary product. Scratch and generated-source files are not products.
     build_outputs: Option<crate::RetainedBuildOutputs>,
-    /// Expected build identity retained independently of the file attachment,
-    /// including standalone compilations without a package manifest.
     build_observation: Option<package_compilation::BuildObservationIdentity>,
     root_path: PathBuf,
     pub source_file_count: usize,
     wrote_output: bool,
-    /// Canonical package-source/build/target/artifact authority for a
-    /// package-aware production. Standalone probes carry no such manifest.
-    /// Per-stage measurements the checked record accumulated during this
-    /// compilation; empty unless the request asked for timing collection.
     timings: Vec<PhaseTiming>,
 }
 
 impl CompileReport {
-    /// Shared shell fields every product kind starts from.
     fn shell(root_path: PathBuf, source_file_count: usize, product: CompileProduct) -> Self {
         Self {
             source_completion_accounting: Default::default(),
@@ -225,8 +207,6 @@ impl CompileReport {
         self
     }
 
-    /// Actual authored-completion logical charges on cold or reused source.
-    /// These are distinct from fresh Build activation and publication custody.
     pub fn source_completion_accounting(
         &self,
     ) -> &build_time_evaluation::SourceCompletionAccounting {
@@ -245,7 +225,6 @@ impl CompileReport {
         Ok(report)
     }
 
-    /// Attach companions only after the requested primary product checked.
     pub(crate) fn with_build_outputs(
         mut self,
         outputs: Option<crate::RetainedBuildOutputs>,
@@ -273,7 +252,6 @@ impl CompileReport {
         self.build_observation
     }
 
-    /// Record companions after their package owner has published them.
     pub(crate) fn record_build_output_publication(mut self) -> Result<Self, String> {
         if !matches!(self.product, CompileProduct::BuildArtifacts) && !self.wrote_output {
             return Err(
@@ -293,7 +271,6 @@ impl CompileReport {
         Ok(self)
     }
 
-    /// Advance custody only after native installation supplies its exact receipts.
     pub(crate) fn record_native_publication(
         mut self,
         receipt: ExecutablePublicationReceipt,
@@ -316,8 +293,6 @@ impl CompileReport {
         Ok(self)
     }
 
-    /// Advance dynamic ELF custody only after its flat file installs against
-    /// the exact receipt.
     pub(crate) fn record_dynamic_elf_publication(
         mut self,
         receipt: DynamicElfPublicationReceipt,
@@ -342,7 +317,6 @@ impl CompileReport {
         Ok(self)
     }
 
-    /// Terminal publication retains the portable payload.
     pub(crate) fn record_terminal_publication(mut self) -> Result<Self, String> {
         if !matches!(self.product, CompileProduct::TerminalArtifact(_)) || self.wrote_output {
             return Err(
@@ -360,7 +334,6 @@ impl CompileReport {
         }
     }
 
-    /// A completed check with no retained artifact or executable publication.
     pub fn check_only(root_path: PathBuf, source_file_count: usize) -> Result<Self, &'static str> {
         Self::checked(
             root_path,
@@ -396,8 +369,6 @@ impl CompileReport {
                     return Err("a native executable report requires its publication receipt");
                 }
             },
-            // Payload kinds cannot be constructed without their retained
-            // product; the custody replay refused them as `None` fields too.
             CompileOutputKind::TerminalArtifact
             | CompileOutputKind::RetainedNativeArtifact
             | CompileOutputKind::BuildArtifacts => {
@@ -429,9 +400,6 @@ impl CompileReport {
         ))
     }
 
-    /// Retain one dynamically linked ELF payload. Like
-    /// [`Self::from_retained_native_artifact`], publication later installs it
-    /// as a flat file.
     pub(crate) fn from_retained_dynamic_elf_artifact(
         root_path: PathBuf,
         source_file_count: usize,
@@ -450,8 +418,6 @@ impl CompileReport {
         ))
     }
 
-    /// Retain whichever image class native realization produced. The direct
-    /// and dynamic ELF payloads keep their separate report variants.
     pub(crate) fn from_requested_native_artifact(
         root_path: PathBuf,
         source_file_count: usize,
@@ -497,8 +463,6 @@ impl CompileReport {
         }
     }
 
-    /// The exact portable program and native identity shared by executable
-    /// replay consumers. Published and non-native products have no such view.
     pub fn retained_native_program(&self) -> Option<RetainedNativeProgram<'_>> {
         match &self.product {
             CompileProduct::RetainedNativeArtifact(product) => Some(RetainedNativeProgram {
@@ -513,7 +477,6 @@ impl CompileReport {
         }
     }
 
-    /// The retained dynamically linked ELF payload, before publication.
     pub const fn retained_dynamic_elf_artifact(&self) -> Option<&DynamicElfNativeArtifact> {
         match &self.product {
             CompileProduct::RetainedDynamicElfArtifact(product) => Some(&product.artifact),
@@ -525,9 +488,6 @@ impl CompileReport {
         self.product.optimization_rollback()
     }
 
-    /// Attach the provisions captured by this native production before image
-    /// emission consumed the entry and provider records. The runtime consumer
-    /// joins their identity to its admitted program before creating an instance.
     pub fn with_runtime_provisions(
         mut self,
         provisions: Option<crate::TerminalRuntimeProvisions>,
@@ -569,8 +529,6 @@ impl CompileReport {
             .map_err(str::to_owned)
     }
 
-    /// Required typed component imports cannot publish or execute without
-    /// their complete image/resource roster, including alternate product paths.
     pub fn validate_component_product_inputs(&self) -> Result<(), String> {
         let object = self
             .retained_native_artifact()
@@ -632,19 +590,10 @@ impl CompileReport {
         self
     }
 
-    /// The stage ladder this compilation recorded; empty when the request
-    /// did not collect timings.
     pub fn timings(&self) -> &[PhaseTiming] {
         &self.timings
     }
 
-    /// Retain the authored application name, hosted intent, and identifier
-    /// with a retained native artifact. Publication uses the name for the
-    /// `.app` basename and inner executable leaf, the intent to select
-    /// whole-package versus flat output, and the identifier for
-    /// `CFBundleIdentifier` — checked against the CodeDirectory identity
-    /// already bound into the signed bytes. Only a retained-native report
-    /// can carry them.
     pub(crate) fn with_application_metadata(
         mut self,
         application: NativeApplicationMetadata,
@@ -661,27 +610,22 @@ impl CompileReport {
         Ok(self)
     }
 
-    /// Complete publication metadata of the retained or published native product.
     pub fn application_metadata(&self) -> Option<&NativeApplicationMetadata> {
         self.product.application()
     }
 
-    /// The retained authored `Build::application` name, when the build
-    /// declared an application role.
     pub fn application_name(&self) -> Option<&str> {
         self.product
             .application()
             .and_then(|application| application.name.as_deref())
     }
 
-    /// The retained authored hosted intent.
     pub fn application_intent(&self) -> Option<target::HostedApplicationIntent> {
         self.product
             .application()
             .and_then(|application| application.intent)
     }
 
-    /// The retained authored application identifier.
     pub fn application_identifier(&self) -> Option<&target::ApplicationIdentifier> {
         self.product
             .application()
@@ -716,9 +660,6 @@ impl CompileReport {
         }
     }
 
-    /// Attach the provisions admitted for this exact artifact by a native
-    /// request that stopped before image emission (Terminal-only execution).
-    /// The runtime rejoins their program identity before instantiation.
     pub(crate) fn with_terminal_runtime_provisions(
         mut self,
         provisions: Option<crate::TerminalRuntimeProvisions>,
@@ -730,8 +671,6 @@ impl CompileReport {
         Ok(self)
     }
 
-    /// Attach the subtractive build overlay only when the published Psi and
-    /// pending native proposal carry its exact effective selection.
     pub(crate) fn with_terminal_optimization_rollback(
         mut self,
         rollback: Option<OptimizationRollbackReceipt>,
@@ -743,8 +682,6 @@ impl CompileReport {
         Ok(self)
     }
 
-    /// Transfer the complete Terminal product without dropping its callback
-    /// sidecar. There is deliberately no consuming artifact-only projection.
     pub fn into_retained_terminal_artifact(self) -> Option<RetainedTerminalArtifact> {
         match self.product {
             CompileProduct::TerminalArtifact(product) => Some(product.artifact),
@@ -752,11 +689,6 @@ impl CompileReport {
         }
     }
 
-    /// Returns the exact installed flat executable only after independently
-    /// replaying the complete report custody checks. For a published macOS
-    /// package this is the inner `Contents/MacOS/<name>` path — the checked
-    /// package root is [`Self::checked_native_package_path`]. Object/check-only
-    /// reports and any internally drifted receipt graph fail closed.
     pub fn checked_native_executable_path(&self) -> Option<&std::path::Path> {
         match &self.product {
             CompileProduct::NativeExecutable(product) => Some(product.executable.output_path()),
@@ -765,17 +697,6 @@ impl CompileReport {
         }
     }
 
-    /// Returns the installed `.app` package root only after independently
-    /// replaying the complete report custody checks, including the
-    /// package/executable cross-binding. Flat publications, non-executable
-    /// reports, and any drifted receipt graph expose no path at all.
-    ///
-    /// The package receipt must replay on its own and name the same installed
-    /// executable as the flat executable receipt, and its application name
-    /// and identifier must equal the identity this report retained from
-    /// realization. The identifier signed into the executable was compared at
-    /// publication; this join keeps a receipt that agrees only with itself
-    /// from surfacing as the report's package.
     pub fn checked_native_package_path(&self) -> Option<&std::path::Path> {
         let CompileProduct::NativeExecutable(product) = &self.product else {
             return None;
@@ -788,8 +709,6 @@ impl CompileReport {
             .then(|| package.package_root())
     }
 
-    /// The checked package receipt for a published `.app`, when this report
-    /// installed one.
     pub fn package_publication(&self) -> Option<&NativePackagePublicationReceipt> {
         match &self.product {
             CompileProduct::NativeExecutable(product) => product.package.as_ref(),
