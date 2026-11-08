@@ -800,7 +800,7 @@ fn service_surface_projection_is_psi_owned_and_calling_is_an_omega_attachment() 
     assert!(!surface.contains("BoundaryCallingPlanCommitment"));
     assert!(!surface.contains("calling_plan_report_fingerprint"));
     let projection = include_str!(
-        "../../../../psi/compilation/representations/typed-trees/src/service_declarations/projection.rs"
+        "../../../../psi/compilation/representations/typed-trees/src/service_declarations.rs"
     );
     assert!(projection.contains("requirements.push(ServiceRequirementSource"));
     assert!(projection.contains("scope.type_identity("));
