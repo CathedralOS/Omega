@@ -130,8 +130,12 @@ The ordinary case-bearing zero representation selects the first declared case
 and recursively zeroed common fields/payload. That is accessible only after the
 active value's default-domain obligations hold; inactive payloads need no
 establishment. Zero does not imply semantic emptiness or authority. A payload-free
-first case is not required. Layout optimization cannot use invalid payload niches
-to remove the tag or alter zero's meaning. Stable external placement uses
+first case is not required. [Home-layout realization](../layouts/plans.md#home-layout-realization)
+may encode case identity in the payload representation and omit a separate tag
+when it preserves the language's semantics, including zero's meaning and legal
+mutation, observation and custody. A repairable payload predicate alone does not
+establish that its excluded patterns remain unavailable throughout those uses.
+Stable external placement uses
 [layout policies](../layouts/plans.md), not inferred native offsets.
 
 Value equality and domain membership are distinct. For executable structural
