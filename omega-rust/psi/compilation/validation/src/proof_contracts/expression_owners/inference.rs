@@ -284,10 +284,16 @@ pub(super) fn infer_expression_type(
                 },
             )
         }
-        ExpressionNode::StructLiteral(literal) => literal
-            .type_symbol
-            .is_valid()
-            .then_some(InferredType::Nominal(literal.type_symbol)),
+        ExpressionNode::StructLiteral(literal) => {
+            if literal.application_type.is_valid() {
+                Some(InferredType::TypeReference(literal.application_type))
+            } else {
+                literal
+                    .type_symbol
+                    .is_valid()
+                    .then_some(InferredType::Nominal(literal.type_symbol))
+            }
+        }
         ExpressionNode::String(_) => Some(InferredType::CompilerString),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::UndeterminedNaN(_)
