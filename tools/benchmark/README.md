@@ -5,6 +5,41 @@ runtime experiments, suite runs, regression checks, compatible history
 comparisons, and allocation, WPR, or Linux `perf` profiles. Build it with
 `cargo build -p omega-bench`.
 
+## Scaling check
+
+Most slowdowns found so far were a check that walks the whole program per
+question, which makes each machine cost more in a bigger program.
+`omega-bench scaling` checks the one-line program plus N uncalled machines for
+each N in `--sizes` (default `0,1000,2000`) and fails when the cost per added
+machine in the last interval exceeds the first by more than `--max-ratio`
+(default 1.3). A linear compiler stays near 1.
+
+```text
+target/debug/omega-bench scaling --omega target/release/omega
+target/debug/omega-bench scaling --omega target/release/omega --shape citations --sizes 0,100,200,400
+```
+
+`--shape machines` (the default) adds uncalled machines and catches checks
+that scan the whole program per machine. `--shape citations` puts N calls of
+one local lemma in a single state and catches checks that replay a state from
+its first statement per call. On main `06af8fee3fe` (omega-linux, release):
+
+| Shape | Cost per added unit, first → last interval | Ratio |
+| --- | --- | ---: |
+| machines, 0/1000/2000 | 14.3 M → 15.6 M instructions | 1.09 |
+| citations, 0/100/200/400 | 49 M → 174 M → 454 M instructions | 9.24 (fails) |
+
+Cost is `instructions:u` from `perf stat` on Linux and CPU time elsewhere, so
+run it on `omega-linux`. A change that removes a whole-program walk shows its
+ratio before and after; a change that adds one fails here.
+
+To find which walk is responsible, sample the largest size with samply on
+Linux and read the heaviest frames under the checking workers:
+
+```text
+samply record --save-only -o scaling.json.gz -- target/release/omega --check <dir>/main.omg < /dev/null
+```
+
 ## Progress records
 
 `omega-bench progress` records how fast one commit's release compiler is on
