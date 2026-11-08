@@ -2889,6 +2889,7 @@ pub(crate) mod computations {
             #[allow(clippy::too_many_arguments)]
             pub(crate) fn structural_field(
                 &mut self,
+                identities: &mut terminal_psi::TerminalIdentityTableBuilder,
                 computation: checked_trees::CheckedScalarComputationHandle,
                 receiver_expression: typed_trees::expression::ExpressionHandle,
                 receiver: checked_trees::CheckedStructuralValueHandle,
@@ -7439,6 +7440,7 @@ pub(crate) mod computations {
                     field,
                     ..
                 } => self.structural_field(
+                    identities,
                     *handle,
                     receiver_expression,
                     receiver_value,
