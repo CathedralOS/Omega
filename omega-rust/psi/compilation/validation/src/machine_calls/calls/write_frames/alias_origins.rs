@@ -574,7 +574,7 @@ fn projected_indexed_origins(
 
 /// A member projection keeps an exact origin's path and re-projects its
 /// source; a coarse origin carries the new source only.
-fn projected_member_origins(
+pub(super) fn projected_member_origins(
     program: &dyn crate::CheckingInput,
     origins: Vec<FramePlaceOrigin>,
     expression: ExpressionHandle,
