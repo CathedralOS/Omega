@@ -42775,6 +42775,7 @@ pub(crate) mod strict_arithmetic {
     }
 }
 pub(crate) mod structural_case_arms {
+
     pub(crate) mod arrivals {
         use super::{CitationFacts, PendingStructuralCitation, StructuralTerm};
         use crate::proof_contracts::contract_entailment::structural_judgment::StructuralTraversalInputs;
@@ -42890,11 +42891,15 @@ pub(crate) mod structural_case_arms {
         }
     }
     pub(crate) mod call_entries {
+
         use super::*;
         use crate::proof_contracts::contract_entailment::specification_calls::{
             SelectedCallContract, selected_call_site_contract,
         };
-        use crate::proof_contracts::contract_entailment::structural_judgment::normal_returns::OperationOperandDemand;
+        use crate::proof_contracts::contract_entailment::structural_judgment::normal_returns::{
+            NormalOperationEntry, OperationOperandDemand,
+        };
+        use std::collections::{BTreeMap, BTreeSet};
 
         pub(crate) fn exclude_target_calls(
             program: &dyn crate::CheckingInput,
@@ -42907,25 +42912,16 @@ pub(crate) mod structural_case_arms {
             if !target.is_valid() {
                 return;
             }
-            for (ordinal, site) in crate::machine_calls::calls::collect_call_sites_in_statement(
+            for occurrence in crate::machine_calls::calls::collect_statement_call_occurrences(
                 program,
                 invocation,
                 state,
                 statement_index,
-            )
-            .into_iter()
-            .enumerate()
-            {
-                if crate::transition_call_target(
-                    program,
-                    invocation,
-                    state,
-                    statement_index,
-                    ordinal,
-                ) != Some(target)
-                {
+            ) {
+                if occurrence.transition_target != target {
                     continue;
                 }
+                let site = occurrence.site;
                 let Some(SelectedCallContract::Concrete(_, entry)) =
                     selected_call_site_contract(program, invocation.symbol, site)
                 else {
@@ -42947,8 +42943,16 @@ pub(crate) mod structural_case_arms {
             }
         }
 
+        /// A selected target starts after its completed guard. Exact source lane
+        /// association keeps guard and sibling operands out of this entry inventory.
+        #[derive(Clone, Copy)]
+        pub(super) enum CallEntryScope {
+            Statement,
+            SelectedTarget(typed_trees::statement::TransitionTargetHandle),
+        }
+
         #[allow(clippy::too_many_arguments)]
-        pub(crate) fn observe_statement<'program>(
+        pub(super) fn observe_calls<'program>(
             program: &'program dyn crate::CheckingInput,
             theorem: &Machine,
             invocation: &Machine,
@@ -42958,6 +42962,7 @@ pub(crate) mod structural_case_arms {
             states: &[typed_trees::state::State],
             state: &typed_trees::state::State,
             statement_index: usize,
+            scope: CallEntryScope,
             parameter_names: &[String],
             environment: &[(String, StructuralTerm)],
             hypotheses: &[(String, StructuralTerm)],
@@ -42970,6 +42975,21 @@ pub(crate) mod structural_case_arms {
             visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
             guarantees: &CitationFacts,
         ) -> Option<()> {
+            if let CallEntryScope::SelectedTarget(target) = scope {
+                let transition = program
+                    .statement_table
+                    .statement_at(state, statement_index)?
+                    .as_transition()?;
+                if !target.is_valid()
+                    || !program.statement_table.transition_target_is_valid(target)
+                    || !transition.targets().any(|candidate| candidate == target)
+                {
+                    return None;
+                }
+            }
+            // Only members observing inside another body ride a call entry. A site
+            // in this state or on the current path is already (or can only still be)
+            // served by this frame's own statements.
             let mut active: Vec<&mut (dyn StructuralPrefixVisitor + '_)> = visitors
                 .iter_mut()
                 .filter_map(|member| {
@@ -42980,28 +43000,33 @@ pub(crate) mod structural_case_arms {
             if active.is_empty() {
                 return Some(());
             }
-            for (ordinal, site) in crate::machine_calls::calls::collect_call_sites_in_statement(
+            let mut pending = Vec::new();
+            let mut operations = Vec::new();
+            for occurrence in crate::machine_calls::calls::collect_statement_call_occurrences(
                 program,
                 invocation,
                 state,
                 statement_index,
-            )
-            .into_iter()
-            .enumerate()
-            {
+            ) {
+                if let CallEntryScope::SelectedTarget(target) = scope
+                    && occurrence.transition_target != target
+                {
+                    continue;
+                }
                 let Some(SelectedCallContract::Concrete(callee, entry)) =
-                    selected_call_site_contract(program, invocation.symbol, site)
+                    selected_call_site_contract(program, invocation.symbol, occurrence.site)
                 else {
                     continue;
                 };
-                let mut eligible: Vec<&mut (dyn StructuralPrefixVisitor + '_)> = active
-                    .iter_mut()
-                    .filter_map(|member| {
+                let eligible = active
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(position, member)| {
                         (!path.contains(&entry.symbol)
                             && prefix_site_is_reachable(program, entry, &**member))
-                        .then_some(&mut **member)
+                        .then_some(position)
                     })
-                    .collect();
+                    .collect::<Vec<_>>();
                 if eligible.is_empty() {
                     continue;
                 }
@@ -43013,19 +43038,56 @@ pub(crate) mod structural_case_arms {
                 ) {
                     return None;
                 }
+                if let crate::CallSite::Expression { expression, .. } = occurrence.site {
+                    operations.push(expression);
+                }
+                pending.push((occurrence, entry, eligible));
+            }
+            // One ordered prefix captures every requested pre-call frame. A missing
+            // frame means unreachable only after that complete prefix succeeded.
+            let mut observed = expression_entries(
+                program,
+                invocation,
+                judge,
+                state,
+                statement_index,
+                scope,
+                environment,
+                &operations,
+            )?;
+            for (occurrence, entry, eligible_indices) in pending {
+                let site = occurrence.site;
+                let mut eligible = active
+                    .iter_mut()
+                    .enumerate()
+                    .filter_map(|(position, member)| {
+                        eligible_indices
+                            .binary_search(&position)
+                            .is_ok()
+                            .then_some(&mut **member)
+                    })
+                    .collect::<Vec<_>>();
                 let parameters = program.state_parameters(entry);
                 let expression = match site {
                     crate::CallSite::Expression { expression, .. } => Some(expression),
                     _ => None,
                 };
                 let frames = if let Some(expression) = expression {
-                    judge.normal_operation_entries(
-                        statement_index,
-                        expression,
-                        OperationOperandDemand::All,
-                        environment,
-                        (invocation, state, state.return_type),
-                    )?
+                    match observed.remove(&(expression.arena_index(), expression.generation())) {
+                        Some(entries) => entries,
+                        None => {
+                            for member in eligible.iter_mut() {
+                                member.excluded_body(
+                                    state.symbol,
+                                    statement_index,
+                                    Some(expression),
+                                    occurrence.transition_target,
+                                    entry.symbol,
+                                );
+                            }
+                            continue;
+                        }
+                    }
                 } else {
                     judge.normal_argument_entries(
                         crate::call_site_argument_expressions(program, &site),
@@ -43066,14 +43128,7 @@ pub(crate) mod structural_case_arms {
                             state.symbol,
                             statement_index,
                             expression,
-                            crate::transition_call_target(
-                                program,
-                                invocation,
-                                state,
-                                statement_index,
-                                ordinal,
-                            )
-                            .unwrap_or_default(),
+                            occurrence.transition_target,
                             entry.symbol,
                         );
                     }
@@ -43103,6 +43158,86 @@ pub(crate) mod structural_case_arms {
             Some(())
         }
 
+        /// Metadata chooses one authenticated schedule; the normal observation owner
+        /// alone evaluates it. Inventories of other targets are never execution order.
+        #[allow(clippy::too_many_arguments)]
+        fn expression_entries<'program>(
+            program: &'program dyn crate::CheckingInput,
+            invocation: &Machine,
+            judge: &StructuralJudge<'program>,
+            state: &typed_trees::state::State,
+            statement_index: usize,
+            scope: CallEntryScope,
+            environment: &[(String, StructuralTerm)],
+            operations: &[ExpressionHandle],
+        ) -> Option<BTreeMap<(u32, u32), Vec<NormalOperationEntry<'program>>>> {
+            let mut entries = BTreeMap::<_, Vec<_>>::new();
+            if operations.is_empty() {
+                return Some(entries);
+            }
+            let statement = program
+                .statement_table
+                .statement_at(state, statement_index)?;
+            let anchor = match scope {
+                CallEntryScope::Statement => {
+                    // Ordinary statement roots are ordered operands. This includes
+                    // assignment target capture before RHS and call actuals before
+                    // the outer invocation; the last root owns the complete prefix.
+                    if matches!(
+                        statement,
+                        typed_trees::statement::StatementNode::Transition(_)
+                    ) {
+                        return None;
+                    }
+                    program
+                        .tables
+                        .expression_roots(statement)
+                        .into_iter()
+                        .map(|(_, root)| root)
+                        .rfind(|root| root.is_valid())?
+                }
+                CallEntryScope::SelectedTarget(target) => {
+                    let typed_trees::statement::TransitionTargetNode::Value(expression) =
+                        program.statement_table.transition_target(target)
+                    else {
+                        return None;
+                    };
+                    *expression
+                }
+            };
+            let observed = judge.completed_observations(
+                statement_index,
+                anchor,
+                environment,
+                (invocation, state, state.return_type),
+                &[],
+                operations,
+            )?;
+            // A partial prefix cannot prove absence, and earlier snapshots from only
+            // some paths cannot stand in for all arrivals. Keep refusal distinct from
+            // a completely explored branch which does not invoke a requested call.
+            if !observed.roots_unavailable.is_empty() {
+                return None;
+            }
+            let requested = operations
+                .iter()
+                .map(|expression| (expression.arena_index(), expression.generation()))
+                .collect::<BTreeSet<_>>();
+            for frame in observed.operations {
+                let key = (
+                    frame.expression.arena_index(),
+                    frame.expression.generation(),
+                );
+                if requested.contains(&key) {
+                    entries.entry(key).or_default().push(frame);
+                }
+            }
+            Some(entries)
+        }
+
+        /// Observing an executed prefix or normal completion does not treat the callee
+        /// as a repeatable mathematical function. Runtime observation retains ordered
+        /// storage effects; theorem and case-only traversal keep their existing policy.
         pub(crate) fn body_can_be_observed(
             program: &dyn crate::CheckingInput,
             machine: &Machine,
@@ -44500,7 +44635,10 @@ pub(crate) mod structural_case_arms {
                     return Some(StateLeafStep::Complete(Vec::new()));
                 }
                 if !matches!(statement, StatementNode::Transition(_)) && !visitors.is_empty() {
-                    call_entries::observe_statement(
+                    // This observes callee entry before the statement completes or
+                    // imports its guarantees. Hoisted calls and authored locals own
+                    // the same ordered operation entries as terminal calls.
+                    call_entries::observe_calls(
                         program,
                         machine,
                         invocation,
@@ -44510,6 +44648,7 @@ pub(crate) mod structural_case_arms {
                         states,
                         state,
                         statement_index,
+                        call_entries::CallEntryScope::Statement,
                         parameter_names,
                         &environment,
                         &case_hypotheses,
@@ -45275,6 +45414,34 @@ pub(crate) mod structural_case_arms {
                     } else {
                         if !visitors.is_empty() && matches!(target, TransitionTargetNode::Value(_))
                         {
+                            // Selected value targets can contain ordinary calls,
+                            // including calls below a Match. Observe their actual
+                            // entries before importing any completion guarantees.
+                            call_entries::observe_calls(
+                                program,
+                                machine,
+                                invocation,
+                                judge,
+                                classification,
+                                diagnostics,
+                                states,
+                                state,
+                                statement_index,
+                                call_entries::CallEntryScope::SelectedTarget(
+                                    transition.source_target?,
+                                ),
+                                parameter_names,
+                                &branch_environment,
+                                &branch_hypotheses,
+                                &branch_equations,
+                                &pending_citations,
+                                path,
+                                arrivals,
+                                frame_id,
+                                fresh,
+                                visitors,
+                                &established_guarantees,
+                            )?;
                             continue;
                         }
                         let mut branch_judge = structural_arm_judge(
@@ -57009,6 +57176,7 @@ pub(crate) mod structural_judgment {
         }
     }
     pub(crate) mod normal_returns {
+
         #[cfg(test)]
         pub(crate) mod arithmetic_alias_tests {
             use super::{
@@ -61469,6 +61637,147 @@ pub(crate) mod structural_judgment {
                 })
             }
         }
+        mod operation_requests {
+            //! Sparse membership for one ordered observation pass. This index selects
+            //! outputs and blocks folding over them; it supplies no execution or proof fact.
+
+            use super::*;
+            use std::collections::{BTreeMap, BTreeSet};
+
+            type ExpressionKey = (u32, u32);
+
+            #[derive(Default)]
+            pub(super) struct OperationRequests {
+                requested: BTreeSet<ExpressionKey>,
+                containing: BTreeSet<ExpressionKey>,
+            }
+
+            fn key(expression: ExpressionHandle) -> ExpressionKey {
+                (expression.arena_index(), expression.generation())
+            }
+
+            impl OperationRequests {
+                pub(super) fn prepare(
+                    program: &dyn crate::CheckingInput,
+                    roots: &[ExpressionHandle],
+                    operations: &[ExpressionHandle],
+                ) -> Self {
+                    let requested = operations.iter().copied().map(key).collect::<BTreeSet<_>>();
+                    if requested.is_empty() {
+                        return Self::default();
+                    }
+                    // The same VALUES edges own expression_contains. Saved subjects stay
+                    // leaves, and full generation coordinates keep unrelated slots apart.
+                    let mut parents = BTreeMap::<ExpressionKey, Vec<ExpressionKey>>::new();
+                    let mut visited = BTreeSet::new();
+                    let mut pending = roots.to_vec();
+                    while let Some(expression) = pending.pop() {
+                        if !expression.is_valid() || !visited.insert(key(expression)) {
+                            continue;
+                        }
+                        program.subtree_children(
+                            program.expression_table.expression(expression),
+                            typed_trees::SubtreeEdges::VALUES,
+                            |child| {
+                                if child.is_valid() {
+                                    parents.entry(key(child)).or_default().push(key(expression));
+                                    pending.push(child);
+                                }
+                                false
+                            },
+                        );
+                    }
+                    let mut containing = BTreeSet::new();
+                    let mut pending = requested.iter().copied().collect::<Vec<_>>();
+                    while let Some(expression) = pending.pop() {
+                        if containing.insert(expression)
+                            && let Some(owners) = parents.get(&expression)
+                        {
+                            pending.extend(owners);
+                        }
+                    }
+                    Self {
+                        requested,
+                        containing,
+                    }
+                }
+
+                pub(super) fn contains(&self, expression: ExpressionHandle) -> bool {
+                    self.requested.contains(&key(expression))
+                }
+
+                pub(super) fn contains_in_subtree(&self, expression: ExpressionHandle) -> bool {
+                    self.containing.contains(&key(expression))
+                }
+            }
+
+            #[cfg(test)]
+            mod tests {
+
+                use super::*;
+                use typed_trees::expression::{
+                    BinaryOperator, TableBinaryExpression, TableSavedSubject,
+                };
+
+                #[test]
+                fn operation_request_index_matches_value_containment() {
+                    let mut program = typed_trees::TypedTrees::default();
+                    let left = program
+                        .expression_table
+                        .insert(ExpressionNode::Boolean(true));
+                    let right = program
+                        .expression_table
+                        .insert(ExpressionNode::Boolean(false));
+                    let capture = program.expression_table.insert_match_subject(left);
+                    let saved = program
+                        .expression_table
+                        .insert(ExpressionNode::SavedSubject(TableSavedSubject {
+                            capture,
+                            component: Default::default(),
+                            pattern_head: ExpressionHandle::invalid(),
+                        }));
+                    let joined = program.expression_table.insert(ExpressionNode::Binary(
+                        TableBinaryExpression {
+                            left,
+                            operator: BinaryOperator::And,
+                            right,
+                        },
+                    ));
+                    let repeated = program.expression_table.insert(ExpressionNode::Binary(
+                        TableBinaryExpression {
+                            left: joined,
+                            operator: BinaryOperator::Or,
+                            right: joined,
+                        },
+                    ));
+                    let roots = [repeated, saved];
+                    let nodes = [left, right, saved, joined, repeated];
+                    for requested in [
+                        &[][..],
+                        &[left][..],
+                        &[saved, right][..],
+                        &[joined, joined][..],
+                    ] {
+                        let index = OperationRequests::prepare(&program, &roots, requested);
+                        for expression in nodes {
+                            assert_eq!(index.contains(expression), requested.contains(&expression));
+                            assert_eq!(
+                                index.contains_in_subtree(expression),
+                                requested.iter().any(|target| {
+                                    crate::expression_owners::expression_contains(
+                                        &program, expression, *target,
+                                    )
+                                })
+                            );
+                        }
+                        let other_generation =
+                            ExpressionHandle::from_parts(left.arena_index(), left.generation() + 1);
+                        assert!(!index.contains(other_generation));
+                        assert!(!index.contains_in_subtree(other_generation));
+                    }
+                }
+            }
+        }
         pub(crate) mod owned_arguments {
             use super::{StructuralJudge, StructuralTerm, TypeReferenceHandle};
             use language_semantics::content::ContentPlaceVersion;
@@ -61893,6 +62202,7 @@ pub(crate) mod structural_judgment {
         pub(crate) struct OperationObservations<'query> {
             stop: ObservationStop,
             expressions: &'query [ExpressionHandle],
+            operation_index: Option<&'query operation_requests::OperationRequests>,
             operands: OperationOperandDemand<'query>,
             values: &'query [ExpressionHandle],
             roots: &'query [ExpressionHandle],
@@ -61907,6 +62217,7 @@ pub(crate) mod structural_judgment {
                 OperationObservations {
                     stop: ObservationStop::None,
                     expressions,
+                    operation_index: None,
                     operands: OperationOperandDemand::All,
                     values,
                     roots: &[],
@@ -61918,6 +62229,21 @@ pub(crate) mod structural_judgment {
                 }
             }
 
+            fn with_operation_index(
+                mut self,
+                index: &'query operation_requests::OperationRequests,
+            ) -> Self {
+                self.operation_index = Some(index);
+                self
+            }
+
+            fn observes_operation(self, expression: ExpressionHandle) -> bool {
+                self.operation_index.map_or_else(
+                    || self.expressions.contains(&expression),
+                    |index| index.contains(expression),
+                )
+            }
+
             fn with_roots(mut self, roots: &'query [ExpressionHandle]) -> Self {
                 self.roots = roots;
                 self
@@ -61927,6 +62253,7 @@ pub(crate) mod structural_judgment {
                 Self {
                     stop: ObservationStop::None,
                     expressions: &[],
+                    operation_index: None,
                     operands: OperationOperandDemand::All,
                     values: &[],
                     roots: &[],
@@ -62015,9 +62342,9 @@ pub(crate) mod structural_judgment {
                         ) == Some(primitive) =>
                         {
                             let policy =
-                                super::super::arithmetic_judgment::Engine::integer_operation_policy(
-                                    *operator, *meaning,
-                                )?;
+                            super::super::arithmetic_judgment::Engine::integer_operation_policy(
+                                *operator, *meaning,
+                            )?;
                             return self
                                 .normal_results
                                 .iter()
@@ -62329,6 +62656,7 @@ pub(crate) mod structural_judgment {
                         OperationObservations {
                             stop: ObservationStop::BeforeOperation(call),
                             expressions: &[],
+                            operation_index: None,
                             operands: operand_demand,
                             values: &[],
                             roots: &[],
@@ -62371,6 +62699,7 @@ pub(crate) mod structural_judgment {
                     OperationObservations {
                         stop: ObservationStop::BeforeExpression(expression),
                         expressions: &[],
+                        operation_index: None,
                         operands: OperationOperandDemand::Selected(&[]),
                         values: &[],
                         roots: &[],
@@ -62404,6 +62733,7 @@ pub(crate) mod structural_judgment {
                     OperationObservations {
                         stop: ObservationStop::AfterValue(expression),
                         expressions: &[],
+                        operation_index: None,
                         operands: OperationOperandDemand::All,
                         values: &[],
                         roots: &[],
@@ -62438,6 +62768,7 @@ pub(crate) mod structural_judgment {
                     OperationObservations {
                         stop: ObservationStop::AfterValue(expression),
                         expressions: &[],
+                        operation_index: None,
                         operands: OperationOperandDemand::All,
                         values: &[],
                         roots: &[],
@@ -62478,13 +62809,20 @@ pub(crate) mod structural_judgment {
                     .iter()
                     .map(|operand| operand.expression)
                     .collect::<Vec<_>>();
+                let operation_index = operation_requests::OperationRequests::prepare(
+                    self.program,
+                    &roots,
+                    operations,
+                );
                 let mut entries = NormalObservationEntries::default();
                 let completed = self.clone().evaluate_normal_operands(
                     &operands,
                     environment,
                     scope,
                     0,
-                    OperationObservations::completion(observations, operations).with_roots(&roots),
+                    OperationObservations::completion(observations, operations)
+                        .with_operation_index(&operation_index)
+                        .with_roots(&roots),
                     &mut entries,
                     None,
                 );
@@ -63213,7 +63551,7 @@ pub(crate) mod structural_judgment {
                     NormalValueDemand::Observe(observations)
                         if !before_operation
                             && (observations.contains(&expression)
-                                || requested_operations.expressions.contains(&expression)
+                                || requested_operations.observes_operation(expression)
                                 || !discarded_value_has_no_own_effects(
                                     program, scope, expression,
                                 )) =>
@@ -63250,10 +63588,18 @@ pub(crate) mod structural_judgment {
                     crate::expression_owners::expression_contains(program, expression, observed)
                 };
                 let observes_inner_operation = || {
-                    requested_operations
-                        .expressions
+                    requested_operations.operation_index.map_or_else(
+                        || {
+                            requested_operations
+                                .expressions
+                                .iter()
+                                .copied()
+                                .any(contains_observation)
+                        },
+                        |index| index.contains_in_subtree(expression),
+                    ) || requested_operations
+                        .values
                         .iter()
-                        .chain(requested_operations.values)
                         .copied()
                         .any(contains_observation)
                         || match requested_operations.stop {
@@ -63460,7 +63806,7 @@ pub(crate) mod structural_judgment {
                     .map(|(position, (child, child_reference))| {
                         let entry_values_requested = before_operation
                             || matches!(demand, NormalValueDemand::ObserveOnly(_))
-                                && requested_operations.expressions.contains(&expression);
+                                && requested_operations.observes_operation(expression);
                         let operand_demand = if entry_values_requested {
                             match requested_operations.operands {
                                 OperationOperandDemand::All => NormalValueDemand::Value,
@@ -63583,7 +63929,7 @@ pub(crate) mod structural_judgment {
                                 None
                             };
                         if requested_operations.stop == ObservationStop::BeforeOperation(expression)
-                            || requested_operations.expressions.contains(&expression)
+                            || requested_operations.observes_operation(expression)
                             || matches!(demand, NormalValueDemand::ObserveOnly(_))
                         {
                             entries.operations.push(NormalOperationEntry {
@@ -63863,9 +64209,9 @@ pub(crate) mod structural_judgment {
                     .or_else(|| {
                         let literal = expression_table(program).struct_literal_node(expression)?;
                         let definition =
-                            crate::value_custody::struct_literals::selected_construction_definition(
-                                program, expression, literal,
-                            )?;
+                        crate::value_custody::struct_literals::selected_construction_definition(
+                            program, expression, literal,
+                        )?;
                         if literal.case_symbol.is_some() {
                             crate::value_custody::struct_literals::selected_construction_case(
                                 program, expression, literal, definition,
@@ -64150,19 +64496,19 @@ pub(crate) mod structural_judgment {
                             .is_some()
                         {
                             StructuralTerm::ObservedValue {
-                                observed_type: subject.type_reference,
-                                descriptor: None,
-                                value: Box::new(match &scalar {
-                                    Some(scalar) if !scalar.preserves_scalar_value => {
-                                        super::super::structural_terms::normalize_scalar_representation(
-                                            scalar.source_primitive,
-                                            scalar.view_primitive,
-                                            value,
-                                        )
-                                    }
-                                    _ => value,
-                                }),
-                            }
+                            observed_type: subject.type_reference,
+                            descriptor: None,
+                            value: Box::new(match &scalar {
+                                Some(scalar) if !scalar.preserves_scalar_value => {
+                                    super::super::structural_terms::normalize_scalar_representation(
+                                        scalar.source_primitive,
+                                        scalar.view_primitive,
+                                        value,
+                                    )
+                                }
+                                _ => value,
+                            }),
+                        }
                         } else {
                             value
                         },
@@ -64371,14 +64717,14 @@ pub(crate) mod structural_judgment {
                         return false;
                     };
                     if crate::value_custody::places::collection_operations::collection_measure_member(
-                        program,
-                        member,
-                        MeasureReceiver::Declared(reference),
-                    )
-                    .is_some()
-                    {
-                        return true;
-                    }
+                    program,
+                    member,
+                    MeasureReceiver::Declared(reference),
+                )
+                .is_some()
+                {
+                    return true;
+                }
                     crate::value_custody::places::data_definition_for_type(program, reference)
                         .and_then(|data| {
                             crate::value_custody::places::exact_data_member_field(

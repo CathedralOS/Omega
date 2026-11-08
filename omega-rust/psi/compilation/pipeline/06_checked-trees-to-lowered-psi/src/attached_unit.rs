@@ -7,6 +7,7 @@ emission, and scalar/structural completions.
 pub(crate) use crate::unit::*;
 
 pub(crate) mod inner {
+
     pub(crate) use super::{
         Block, BoundaryMachineDeclaration, BoundaryMachineResult,
         BoundaryStructuralResultDeclaration, CheckedBoundaryMachinePlan,
@@ -2021,6 +2022,7 @@ pub(crate) mod inner {
             }
         }
         pub(crate) mod place_types {
+
             use super::*;
             use crate::expression_preparation::computation_graph::reachable_nodes;
             use crate::expression_preparation::computation_graph::reachable_structural_values;
@@ -2096,13 +2098,21 @@ pub(crate) mod inner {
                     };
                     if let Terminator::Guarded { return_values, .. } = &control.terminator {
                         for operation in return_values {
-                            collector
-                                .operations(std::iter::once(operation), &mut namespace.clone())?;
+                            collector.operations(
+                                std::iter::once(&operation.operation),
+                                &mut namespace.clone(),
+                            )?;
+                        }
+                    }
+                    if let Terminator::CompleteExpression { completion } = &control.terminator {
+                        for operations in completion.expression.invocation_scopes() {
+                            collector.operations(operations.iter(), &mut namespace.clone())?;
                         }
                     }
                     for arm in control.terminator.return_arms() {
-                        collector
-                            .operations(arm.operation_dependencies(), &mut namespace.clone())?;
+                        for scope in arm.operation_scopes() {
+                            collector.operations(scope.into_iter(), &mut namespace.clone())?;
+                        }
                     }
                     for successor in control.successors() {
                         for transfer in &successor.transfers {
@@ -2312,12 +2322,12 @@ pub(crate) mod inner {
                                 checked_trees::CheckedStoreValue::Bytes(value) => {
                                     for (_, node) in value.nodes.iter() {
                                         if let checked_trees::CheckedByteSequenceValue::Descriptor {
-                                            source,
-                                            ..
-                                        } = node
-                                        {
-                                            self.argument(Some(store.statement_index), source, namespace)?;
-                                        }
+                                    source,
+                                    ..
+                                } = node
+                                {
+                                    self.argument(Some(store.statement_index), source, namespace)?;
+                                }
                                     }
                                 }
                                 _ => {}
@@ -2464,7 +2474,28 @@ pub(crate) mod inner {
                                 .map(|result| result.type_identity)
                         })
                     }
-                    Source::StructuralExpression { expression } => statement
+                    Source::StructuralExpression {
+                        expression,
+                        value_dependency: Some(value),
+                        ..
+                    } => value_facts(checked)
+                        .structural_values
+                        .root_for_value_home(value, expression)
+                        .filter(|root| {
+                            root.state == state && statement == Some(root.statement_ordinal)
+                        })
+                        .map(|root| stored_structural_identity(checked, root.type_reference)),
+                    Source::StructuralExpression {
+                        value_dependency: None,
+                        logical_root_type_identity: Some(identity),
+                        ..
+                    } => Some(identity),
+                    Source::StructuralExpression {
+                        expression,
+                        value_dependency: None,
+                        logical_root_type_identity: None,
+                        ..
+                    } => statement
                         .and_then(|statement| {
                             value_facts(checked)
                                 .structural_values
@@ -2507,17 +2538,18 @@ pub(crate) mod inner {
             ) -> Result<(), LoweringError> {
                 let mut payload = None;
                 for (position, segment) in path.iter().enumerate() {
-                    let declaration = selected_declaration(plans, identity).map_err(|error| match error {
-                        LoweringError::MissingUnitStructuralType(_) => {
-                            LoweringError::MissingUnitStructuralType(format!(
-                                "{identity:?} ({}) at storage path segment {position}: {path:?}",
-                                checked
-                                    .type_identity_text(identity)
-                                    .unwrap_or_else(|| "unresolved identity".to_owned())
-                            ))
-                        }
-                        error => error,
-                    })?;
+                    let declaration =
+                selected_declaration(plans, identity).map_err(|error| match error {
+                    LoweringError::MissingUnitStructuralType(_) => {
+                        LoweringError::MissingUnitStructuralType(format!(
+                            "{identity:?} ({}) at storage path segment {position}: {path:?}",
+                            checked
+                                .type_identity_text(identity)
+                                .unwrap_or_else(|| "unresolved identity".to_owned())
+                        ))
+                    }
+                    error => error,
+                })?;
                     match segment {
                         Segment::RepresentationView { type_identity, .. } => {
                             identity = *type_identity;
@@ -5248,12 +5280,12 @@ pub(crate) mod inner {
         }
     }
     pub(crate) mod completion_cleanup {
+
         use super::{CheckedTrees, LoweringError};
         use crate::emission::operation_emission::buffer::OperationBuffer;
         use crate::unit::attached_unit::argument_evaluation::{
             Evaluation, ScalarReturnCleanup, StructuralValueStorage,
         };
-        use crate::unit::attached_unit::scalar_completion::control::returning_destinations;
         use crate::unit::unit_cleanup::CleanupRegion;
         use crate::unit::unit_cleanup::bind_consumed_claims;
         pub(crate) mod owner_order {
@@ -5662,6 +5694,24 @@ pub(crate) mod inner {
             coordinate(source, *statement_ordinal as usize, *is_continuation)
         }
 
+        /// Keep each authored scalar return's cleanup before its private result join.
+        /// Preparing action identities does not discharge their prerequisites; complete
+        /// graph proof production observes the selected path and outgoing call effects.
+        /// Working state for the exact source-published normal result tree.
+        pub(crate) enum NormalResultCleanup {
+            NoNormal {
+                computation: checked_trees::CheckedScalarComputationHandle,
+            },
+            Value {
+                computation: checked_trees::CheckedScalarComputationHandle,
+                actions: Vec<CleanupRegion>,
+            },
+            Dispatch {
+                computation: checked_trees::CheckedScalarComputationHandle,
+                arms: Vec<(checked_trees::CheckedScalarDispatchArm, NormalResultCleanup)>,
+            },
+        }
+
         pub(crate) fn scalar_returns(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             claims: &[(
@@ -5681,26 +5731,66 @@ pub(crate) mod inner {
                     "scalar return has no source cleanup coordinates",
                 ));
             }
-            let destinations = returning_destinations(checked, control)?;
-            destinations
-                .into_iter()
-                .map(|destination| {
+            // Source admission retains all authored exits. Only the checked control
+            // plan selects runtime returns; preparing dead cleanup rows would allocate
+            // orphan completion blocks and their obligations. Every selected return
+            // still requires its unique, exact source-owned cleanup coordinate.
+            control
+                .selected_copies
+                .iter()
+                .map(|row| {
+                    let destination = CheckedScalarBranchDestination::Return {
+                        statement_ordinal: row.statement_ordinal,
+                        is_continuation: row.is_continuation,
+                    };
                     let exit = self::destination(source, &destination)?;
-                    let mut actions = for_exit_regions(
-                        identities, claims, checked, source, exit, catalog, parameters, evaluation,
-                        operations,
-                    )?;
-                    selection(
-                        exit.state_symbol,
-                        source.operations,
-                        evaluation,
-                        operations,
-                        &mut actions,
-                    )?;
+                    let plan = plan_for_exit(source, exit)?;
+                    let (actions, result) = if plan.result_completion.is_valid() {
+                        (
+                            Vec::new(),
+                            Some(normal_result_cleanup(
+                                identities,
+                                claims,
+                                checked,
+                                source,
+                                exit,
+                                plan,
+                                plan.result_completion,
+                                catalog,
+                                parameters,
+                                evaluation,
+                                operations,
+                            )?),
+                        )
+                    } else {
+                        let mut actions = for_planned_actions(
+                            identities,
+                            claims,
+                            checked,
+                            source,
+                            exit,
+                            plan,
+                            catalog.control.actions.span_or_empty(plan.actions),
+                            catalog,
+                            parameters,
+                            evaluation,
+                            operations,
+                        )?;
+                        selection(
+                            exit.state_symbol,
+                            source.operations,
+                            evaluation,
+                            operations,
+                            &mut actions,
+                        )?;
+                        (actions, None)
+                    };
                     Ok(ScalarReturnCleanup {
                         exit,
                         destination,
                         actions,
+                        result,
+                        copied_payloads: row.copied_payloads.clone(),
                     })
                 })
                 .collect()
@@ -5750,6 +5840,22 @@ pub(crate) mod inner {
         }
 
         #[allow(clippy::too_many_arguments)]
+        fn plan_for_exit<'a>(
+            source: NormalExitSource<'a>,
+            exit: FlowClaimJoinExit,
+        ) -> Result<&'a checked_trees::CheckedNormalExitCleanupPlan, LoweringError> {
+            let mut selected = source.cleanups.iter().filter(|plan| plan.exit == exit);
+            let selected_exit = selected.next().ok_or(LoweringError::Unsupported(
+                "normal return is missing its exact cleanup plan",
+            ))?;
+            if selected.next().is_some() {
+                return Err(LoweringError::Unsupported(
+                    "normal cleanup repeats its selected exit",
+                ));
+            }
+            Ok(selected_exit)
+        }
+
         pub(crate) fn for_exit_regions(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             claims: &[(
@@ -5764,18 +5870,42 @@ pub(crate) mod inner {
             evaluation: &Evaluation,
             operations: &OperationBuffer,
         ) -> Result<Vec<CleanupRegion>, LoweringError> {
-            let mut selected = source.cleanups.iter().filter(|plan| plan.exit == exit);
-            let selected_exit = selected.next().ok_or(LoweringError::Unsupported(
-                "normal return is missing its exact cleanup plan",
-            ))?;
-            if selected.next().is_some() {
-                return Err(LoweringError::Unsupported(
-                    "normal cleanup repeats its selected exit",
-                ));
-            }
+            let plan = plan_for_exit(source, exit)?;
+            for_planned_actions(
+                identities,
+                claims,
+                checked,
+                source,
+                exit,
+                plan,
+                catalog.control.actions.span_or_empty(plan.actions),
+                catalog,
+                parameters,
+                evaluation,
+                operations,
+            )
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn for_planned_actions(
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            claims: &[(
+                language_semantics::PermissionClaimIdentity,
+                semantic_vocabulary::ClaimId,
+            )],
+            checked: &CheckedTrees,
+            source: NormalExitSource<'_>,
+            exit: FlowClaimJoinExit,
+            selected_exit: &checked_trees::CheckedNormalExitCleanupPlan,
+            selected_actions: &[checked_trees::CheckedNormalCleanupAction],
+            catalog: &mut CompletionCleanupCatalog<'_, '_, '_>,
+            parameters: &[StructuralParameterDeclaration],
+            evaluation: &Evaluation,
+            operations: &OperationBuffer,
+        ) -> Result<Vec<CleanupRegion>, LoweringError> {
             let cleanup_control = catalog.control;
             let planned = crate::unit::unit_cleanup::outstanding_actions(
-                cleanup_control.actions.span_or_empty(selected_exit.actions),
+                selected_actions,
                 source.operations,
                 source.parameters,
                 cleanup_control,
@@ -5851,6 +5981,85 @@ pub(crate) mod inner {
                 )
             }));
             Ok(regions)
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn normal_result_cleanup(
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            claims: &[(
+                language_semantics::PermissionClaimIdentity,
+                semantic_vocabulary::ClaimId,
+            )],
+            checked: &CheckedTrees,
+            source: NormalExitSource<'_>,
+            exit: FlowClaimJoinExit,
+            plan: &checked_trees::CheckedNormalExitCleanupPlan,
+            result: arena::Handle<checked_trees::CheckedNormalResultCompletion>,
+            catalog: &mut CompletionCleanupCatalog<'_, '_, '_>,
+            parameters: &[StructuralParameterDeclaration],
+            evaluation: &Evaluation,
+            operations: &OperationBuffer,
+        ) -> Result<NormalResultCleanup, LoweringError> {
+            let control = catalog.control;
+            Ok(match control.normal_result_completions.get(result) {
+                checked_trees::CheckedNormalResultCompletion::NoNormal { computation } => {
+                    NormalResultCleanup::NoNormal {
+                        computation: *computation,
+                    }
+                }
+                checked_trees::CheckedNormalResultCompletion::Value {
+                    computation,
+                    actions,
+                } => {
+                    let mut actions = for_planned_actions(
+                        identities,
+                        claims,
+                        checked,
+                        source,
+                        exit,
+                        plan,
+                        control.actions.span_or_empty(*actions),
+                        catalog,
+                        parameters,
+                        evaluation,
+                        operations,
+                    )?;
+                    selection(
+                        exit.state_symbol,
+                        source.operations,
+                        evaluation,
+                        operations,
+                        &mut actions,
+                    )?;
+                    NormalResultCleanup::Value {
+                        computation: *computation,
+                        actions,
+                    }
+                }
+                checked_trees::CheckedNormalResultCompletion::Dispatch { computation, arms } => {
+                    let mut results = Vec::new();
+                    for arm in control.normal_result_arms.span_or_empty(*arms) {
+                        let child = normal_result_cleanup(
+                            identities, claims, checked, source, exit, plan, arm.result, catalog,
+                            parameters, evaluation, operations,
+                        )?;
+                        results.push((
+                            checked
+                                .facts
+                                .values
+                                .scalar_computations
+                                .dispatch_arms
+                                .get(arm.arm)
+                                .clone(),
+                            child,
+                        ));
+                    }
+                    NormalResultCleanup::Dispatch {
+                        computation: *computation,
+                        arms: results,
+                    }
+                }
+            })
         }
 
         fn result_storage(
@@ -9467,6 +9676,7 @@ pub(crate) mod inner {
     }
 
     pub(crate) mod bodies {
+
         use super::{
             CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
             SemanticDomainId, ServiceReachSummary, unsupported,
@@ -9784,7 +9994,7 @@ pub(crate) mod inner {
                                 | Source::StructuralLocalBorrow { symbol, .. } => {
                                     Some(facts::PlaceRoot::Symbol(symbol))
                                 }
-                                Source::StructuralExpression { expression } => {
+                                Source::StructuralExpression { expression, .. } => {
                                     Some(facts::PlaceRoot::Expression(expression))
                                 }
                                 Source::ScalarParameter { parameter_index } => scalar_parameters
@@ -10372,13 +10582,6 @@ pub(crate) mod inner {
             evaluation.observations = crate::scalar_lowering::computations::observations::prepare(
                 checked,
                 &[plan.machine],
-                &mut next_place,
-            )?;
-            evaluation.call_views = crate::scalar_lowering::computations::call_views::prepare(
-                identities,
-                checked,
-                &[plan.machine],
-                structural_types,
                 &mut next_place,
             )?;
             evaluation.subslices = crate::scalar_lowering::computations::subslices::prepare(
@@ -12627,6 +12830,7 @@ pub(crate) mod inner {
         }
     }
     pub(crate) mod ordinary_calls {
+
         use super::super::{
             BTreeMap, MachineId, ObligationId, Proposition, ScalarTerm, StructuralArgument,
             StructuralParameterDeclaration, StructuralTypeDeclaration,
@@ -13121,7 +13325,6 @@ pub(crate) mod inner {
             claim_bindings: &mut crate::emission::claim_bindings::ClaimBindings<'_>,
             register_binding: bool,
             frontier_before_call: &lowered_psi::LoweredSourceFrontierBindings,
-            reserved_place: Option<PlaceId>,
             next_place: &mut u64,
             operations: &mut OperationBuffer,
         ) -> Result<StructuralPlaceDeclaration, LoweringError> {
@@ -13133,10 +13336,7 @@ pub(crate) mod inner {
                 return unsupported("structural call emission requires an owned result call");
             };
             let coordinate = &call.coordinate;
-            let place = match reserved_place {
-                Some(place) => place,
-                None => place_id(allocate_dense(next_place)?),
-            };
+            let place = place_id(allocate_dense(next_place)?);
             let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
             let returned = super::call_results::prepare(
                 identities,
@@ -16358,6 +16558,7 @@ pub(crate) mod inner {
         use super::{CheckedTrees, LoweringError};
 
         pub(crate) mod control {
+
             use super::{CheckedTrees, LoweringError};
             use crate::shared::checked_facts::flow_facts;
             use checked_trees::CheckedScalarBranchDestination;
@@ -16372,24 +16573,6 @@ pub(crate) mod inner {
                     .guarded_exits
                     .returning_exits(arms, fallback)
                     .map_err(LoweringError::Unsupported)
-            }
-
-            pub(crate) fn returning_destinations(
-                checked: &CheckedTrees,
-                control: &checked_trees::CheckedUnitScalarControlPlan,
-            ) -> Result<Vec<CheckedScalarBranchDestination>, LoweringError> {
-                let paths = control
-                    .terminator
-                    .returning_paths(&flow_facts(checked).guarded_exits)
-                    .map_err(LoweringError::Unsupported)?;
-                let mut selected = Vec::new();
-                for path in paths {
-                    let destination = path.destination;
-                    if !selected.contains(&destination) {
-                        selected.push(destination);
-                    }
-                }
-                Ok(selected)
             }
         }
     }
@@ -16750,6 +16933,12 @@ pub(crate) mod inner {
                     reason,
                     gap: None,
                 },
+                LoweringError::InvalidArgumentProjection(mut failure) => {
+                    failure
+                        .machine
+                        .get_or_insert_with(|| checked.symbols.display_path(plan.machine, "::"));
+                    LoweringError::InvalidArgumentProjection(failure)
+                }
                 error => error,
             };
             let parameters = &signature.parameters;

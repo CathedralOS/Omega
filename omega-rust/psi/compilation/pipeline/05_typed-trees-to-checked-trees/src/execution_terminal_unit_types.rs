@@ -1182,6 +1182,7 @@ mod boundary_domains {
     }
 }
 mod identities {
+
     /*
         Type identities, structural access, and the type-shape predicates the Unit
         plans key on.
@@ -1285,7 +1286,7 @@ mod identities {
             && base_type_identity(program, source, &[], &[]) == Some(borrowed)
     }
 
-    pub(in crate::execution::terminal_unit) fn is_unit(
+    pub(crate) fn is_unit(
         program: &dyn ::validation::CheckingInput,
         mut type_reference: TypeReferenceHandle,
     ) -> bool {
@@ -1885,6 +1886,7 @@ mod shape_collector {
     */
     use super::*;
     mod forks {
+
         /*
             Planning checked bodies on several cores without changing what they plan.
 
@@ -2405,6 +2407,8 @@ mod shape_collector {
                 control.conditions.len()
                     + control.paths.len()
                     + control.normal_exit_rows.len()
+                    + control.normal_result_completions.len()
+                    + control.normal_result_arms.len()
                     + control.value_completions.len()
                     + control.actions.len()
                     + control.normal_exit_regions.len()

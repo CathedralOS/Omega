@@ -1702,6 +1702,7 @@ pub(crate) use projection_evaluations::{
     authored_projection_selectors, authored_projection_selectors_below,
 };
 pub(crate) mod reference_sources {
+
     /*
         Reference formation publishes a storage producer, not an erased alias.
 
@@ -1869,6 +1870,37 @@ pub(crate) mod reference_sources {
                 }
             }
         };
+        let expression_root_type = if matches!(place.root, facts::PlaceRoot::Expression(_)) {
+            validation::canonical_place_type_reference(
+                program,
+                state.symbol,
+                statement_index,
+                &validation::CanonicalPlace {
+                    root: place.root,
+                    segments: Vec::new(),
+                },
+            )
+        } else {
+            None
+        };
+        if matches!(place.root, facts::PlaceRoot::Expression(_)) && !place.segments.is_empty() {
+            // A completed expression stores its reference descriptor. Projection
+            // begins by crossing that exact carrier, before any case or field.
+            // A whole reference slot keeps the endpoint loop below instead, so
+            // borrowing a descriptor never becomes borrowing its referent.
+            let root_reference = expression_root_type?;
+            let mut prefix = calls::stored_reference_prefix(program, root_reference, |supplied| {
+                access_can_supply(supplied.into(), access)
+            })?;
+            prefix.append(&mut path);
+            path = prefix;
+        }
+        // An exclusive reference cannot erase a field's receiving restriction,
+        // and an atomic cell cannot become ordinary scalar storage. Shared scalar
+        // loans can attenuate to the declared carrier while retaining their exact
+        // captured source; every write still belongs to the owning record. Keep
+        // their selectors in this ordinary value producer rather than replaying
+        // mutable selector storage through a silent place alias.
         if let Some(facts::PlaceSegment::Field { symbol }) = place.segments.last()
             && field_requires_place_observation(program, *symbol, backing_type, access)
         {
@@ -1950,7 +1982,20 @@ pub(crate) mod reference_sources {
 
         let source = match place.root {
             facts::PlaceRoot::Expression(expression) => {
-                SourcePlan::StructuralExpression { expression }
+                // An alias can name existing storage without publishing a value.
+                // Retain its checked root type with the projection. Root reference
+                // shells keep their separate stored-descriptor namespace.
+                let logical_root_type_identity = expression_root_type
+                    .filter(|reference| validation::reference_shell(program, *reference).is_none())
+                    .map(|reference| {
+                        validation::stored_structural_type_identity(program, reference, &[], &[])
+                    })
+                    .filter(|identity| identity.is_valid());
+                SourcePlan::StructuralExpression {
+                    value_dependency: None,
+                    expression,
+                    logical_root_type_identity,
+                }
             }
             facts::PlaceRoot::Symbol(root) => {
                 if let Some(parameter) = program.state_parameter_by_symbol(state, root) {

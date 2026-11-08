@@ -4,6 +4,7 @@ Expression result types, reference correspondence, and match dispatch
 (`field_domains`).
 */
 pub mod expression_types {
+
     use crate::frozen_program::expression_table;
     use checked_trees::CheckedByteSequenceCarrier;
     use diagnostics::Diagnostic;
@@ -548,6 +549,7 @@ pub mod expression_types {
         use typed_trees::types::PrimitiveType;
 
         pub(crate) mod structural_patterns {
+
             use crate::frozen_program::expression_table;
             use diagnostics::Diagnostic;
             use symbols::{SymbolHandle, SymbolKind};
@@ -603,6 +605,7 @@ pub mod expression_types {
                 subject: typed_trees::expression::ExpressionHandle,
                 pattern: MatchPattern,
             ) -> Option<SymbolHandle> {
+                program.pattern_component(subject)?;
                 let reference =
                     structural_match_subject_type_for_subject(program, machine, state, subject)?;
                 let data =
@@ -628,11 +631,16 @@ pub mod expression_types {
                             .map(|variant| variant.symbol);
                     }
                     if matches!(pattern, MatchPattern::Destructure(_))
-                        && name.symbol == data.symbol
-                        && !program
-                            .data_members(data)
-                            .iter()
-                            .any(|member| matches!(member, DataMember::Variant(_)))
+                        && program
+                            .data_constructor_definition(
+                                program
+                                    .type_reference_table
+                                    .peeled_type_reference(reference),
+                                name.symbol,
+                            )
+                            .is_some_and(|selected| selected.symbol == data.symbol)
+                        && program.pattern_component(subject)
+                            == Some(language_core::PatternComponent::Fields)
                     {
                         return Some(SymbolHandle::invalid());
                     }
@@ -814,22 +822,30 @@ pub mod expression_types {
                 }
                 let data =
                     crate::value_custody::places::data_definition_for_type(program, reference)?;
-                let mut declared = program
-                    .data_members(data)
-                    .iter()
-                    .filter_map(|member| match member {
-                        DataMember::Field(field) => Some(field),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
-                if case.is_valid() {
+                let declared = if case.is_valid() {
                     let variant = program
                         .data_members(data)
                         .iter()
                         .filter_map(DataMember::as_variant)
                         .find(|variant| variant.symbol == case)?;
-                    declared.extend(program.data_payload_fields(variant));
-                }
+                    program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .collect::<Vec<_>>()
+                } else {
+                    program
+                        .data_members(data)
+                        .iter()
+                        .filter_map(|member| match member {
+                            DataMember::Field(field) => Some(field),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>()
+                };
+                let has_cases = program
+                    .data_members(data)
+                    .iter()
+                    .any(|member| member.as_variant().is_some());
                 let fields = expression_table(program).match_fields(pattern.fields);
                 let total =
                     structural_match_pattern_is_total(program, MatchPattern::Destructure(pattern));
@@ -841,10 +857,30 @@ pub mod expression_types {
                         return Some(field_symbol);
                     }
                     program
-                        .data_constructor_field(reference, data.symbol, field_symbol)
+                        .data_constructor_field(
+                            program
+                                .type_reference_table
+                                .peeled_type_reference(reference),
+                            data.symbol,
+                            field_symbol,
+                        )
                         .map(|selected| selected.symbol)
                 };
                 for (ordinal, field) in fields.iter().enumerate() {
+                    if field.component == language_core::PatternComponent::Case {
+                        if case.is_valid()
+                            || !has_cases
+                            || program.pattern_component(subject)
+                                != Some(language_core::PatternComponent::Fields)
+                            || fields[..ordinal].iter().any(|prior| {
+                                prior.component == language_core::PatternComponent::Case
+                            })
+                            || matches!(field.action, MatchFieldAction::Equal(_))
+                        {
+                            diagnostics.push(Diagnostic::error("case component is missing, duplicated, or selected outside its outer data pattern").with_source_span(source_span));
+                        }
+                        continue;
+                    }
                     let selected = selected_field_symbol(field.field_symbol);
                     let exact = selected.and_then(|selected| {
                         declared.iter().find(|declared| {
@@ -853,11 +889,16 @@ pub mod expression_types {
                         })
                     });
                     if exact.is_none()
-                        || fields[..ordinal].iter().any(|prior| {
-                            selected_field_symbol(prior.field_symbol)
-                                .zip(selected)
-                                .is_some_and(|(prior, selected)| prior == selected)
-                        })
+                        || fields[..ordinal]
+                            .iter()
+                            .filter(|prior| {
+                                prior.component == language_core::PatternComponent::Fields
+                            })
+                            .any(|prior| {
+                                selected_field_symbol(prior.field_symbol)
+                                    .zip(selected)
+                                    .is_some_and(|(prior, selected)| prior == selected)
+                            })
                     {
                         diagnostics.push(
                 Diagnostic::error(format!(
@@ -884,20 +925,26 @@ pub mod expression_types {
                             diagnostics.push(Diagnostic::error(format!("match equality operand for field `{}` is incompatible with the field's declared carrier", field.member)).with_source_span(source_span));
                         }
                         crate::proof_contracts::arithmetic_domains::validate_anonymous_integer_range(
-                program,
-                carrier,
-                value,
-                "match field equality",
-                diagnostics,
-            );
+                    program,
+                    carrier,
+                    value,
+                    "match field equality",
+                    diagnostics,
+                );
                     }
                 }
                 if !pattern.has_rest
-                    && declared.iter().any(|declared| {
+                    && (declared.iter().any(|declared| {
                         !fields.iter().any(|field| {
-                            selected_field_symbol(field.field_symbol) == Some(declared.symbol)
+                            field.component == language_core::PatternComponent::Fields
+                                && selected_field_symbol(field.field_symbol)
+                                    == Some(declared.symbol)
                         })
-                    })
+                    }) || (!case.is_valid()
+                        && has_cases
+                        && !fields
+                            .iter()
+                            .any(|field| field.component == language_core::PatternComponent::Case)))
                 {
                     diagnostics.push(
             Diagnostic::error(
@@ -943,6 +990,9 @@ pub mod expression_types {
                 else {
                     return false;
                 };
+                if cases.contains(&SymbolHandle::invalid()) {
+                    return true;
+                }
                 let mut variants = program
                     .data_members(data)
                     .iter()
@@ -2705,6 +2755,7 @@ pub mod expression_types {
     }
 
     pub(crate) mod call_carriers {
+
         use super::*;
 
         pub(crate) fn argument_matches_call_carrier(
@@ -2714,6 +2765,12 @@ pub mod expression_types {
             required: TypeReferenceHandle,
             required_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         ) -> bool {
+            if argument.is_valid()
+                && program.pattern_component(argument)
+                    != Some(language_core::PatternComponent::Fields)
+            {
+                return false;
+            }
             if argument_matches_carrier(program, scope, argument, required, required_substitutions)
             {
                 return true;
@@ -2863,6 +2920,7 @@ pub mod expression_types {
         }
     }
     pub(crate) mod delivered_types {
+
         use super::{
             ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypeReferenceNode,
             named_value_type_reference, reference_values,
@@ -3289,6 +3347,36 @@ pub mod expression_types {
             owner: &str,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
+            report_delivered_type_mismatch_with_component(
+                program,
+                scope,
+                value,
+                destination,
+                Some(language_core::PatternComponent::Fields),
+                owner,
+                diagnostics,
+            );
+        }
+
+        pub(crate) fn report_delivered_type_mismatch_with_component(
+            program: &dyn crate::CheckingInput,
+            scope: SymbolHandle,
+            value: ExpressionHandle,
+            destination: TypeReferenceHandle,
+            component: Option<language_core::PatternComponent>,
+            owner: &str,
+            diagnostics: &mut Vec<Diagnostic>,
+        ) {
+            if crate::value_custody::pattern_components::report_delivery(
+                program,
+                value,
+                destination,
+                component,
+                owner,
+                diagnostics,
+            ) {
+                return;
+            }
             if let Some(delivered) = delivered_type_conflict(program, scope, value, destination) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} expects `{}`, but the value is delivered as `{}`",
@@ -6465,6 +6553,7 @@ pub mod expression_types {
     pub(crate) use crate::value_custody::places::declared_reference_access;
     pub(crate) use crate::value_custody::type_references::substituted_identity;
     pub(crate) use delivered_types::report_delivered_type_mismatch;
+    pub(crate) use delivered_types::report_delivered_type_mismatch_with_component;
     pub use reference_values::borrow_selects_reference_storage;
     pub(crate) use reference_values::{
         StorageWriteAccess, owned_rvalue_exclusive_reference_access,
@@ -6626,6 +6715,14 @@ pub mod expression_types {
         correspondence: reference_values::ReferenceCorrespondence,
         required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
     ) -> bool {
+        if argument.is_valid()
+            && program.pattern_component(argument) != Some(language_core::PatternComponent::Fields)
+        {
+            return false;
+        }
+        // A static equality applies to the complete delivered type, including
+        // reference shells. Comparing only an outer named carrier loses `T == U`
+        // at `&T` calls; the equality never supplies a loan or changes access.
         if let Some(actual) = delivered_types::delivered_value_type(program, argument)
             && program.type_identities_match_in_static_context(
                 argument,

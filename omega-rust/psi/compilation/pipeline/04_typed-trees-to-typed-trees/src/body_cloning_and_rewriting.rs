@@ -2317,6 +2317,7 @@ pub(crate) mod body_cloning {
 }
 
 pub(crate) mod body_rewriting {
+
     use crate::tables::{expressions_of, expressions_of_mut};
     use typed_trees::static_applications::StaticMachineBindingValue;
     use validation::collect_statement_expression_trees;
@@ -5280,6 +5281,7 @@ pub(crate) mod body_rewriting {
                     expressions_of_mut(program).insert_call_operand_capture(source, owner);
                 let receiver = expressions_of_mut(program).insert(ExpressionNode::SavedSubject(
                     TableSavedSubject {
+                        component: Default::default(),
                         capture,
                         pattern_head: ExpressionHandle::invalid(),
                     },

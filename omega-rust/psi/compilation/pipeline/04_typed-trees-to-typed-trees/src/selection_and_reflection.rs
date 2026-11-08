@@ -3092,6 +3092,7 @@ pub(crate) mod result_locals {
     use validation::expression_result_type_reference;
 
     pub(crate) mod dispatch_subjects {
+
         use crate::tables::{expressions_of, expressions_of_mut};
         use arena::HandleSpan;
         use language_core::{LocalBindingRole, Multiplicity, ReferenceAccess};
@@ -3154,8 +3155,14 @@ pub(crate) mod result_locals {
                             local.initial_value,
                         )
                         .is_some_and(|place| place.root.as_symbol().is_some());
+                        let case_storage = program.pattern_component(local.initial_value)
+                            == Some(language_core::PatternComponent::Case)
+                            && validation::reference_shell(program, actual).is_none();
+                        // A case view observes the same home even when the containing
+                        // data is copyable. An existing reference keeps its descriptor.
                         let noncopy_storage = storage
-                            && program.type_multiplicity(actual) != Multiplicity::Unrestricted;
+                            && (program.type_multiplicity(actual) != Multiplicity::Unrestricted
+                                || case_storage);
                         let (mathematical, logical_machine) = if noncopy_storage {
                             let classification = proof_only
                                 .get_or_insert_with(|| typed_trees::proof_only::classify(program));
@@ -3412,6 +3419,14 @@ pub(crate) mod result_locals {
             path: TableNamePath,
             source: ExpressionHandle,
         ) {
+            // The place substitution preserves this occurrence's component, including
+            // a reference-local alias whose declaration already retained a case view.
+            let Some(component) = program.pattern_component(expression) else {
+                return;
+            };
+            // Reuse the ordinary graph copier, then compose projections on that exact
+            // captured source. Index operands remain typed occurrences; no index is
+            // encoded in a generated name or evaluated again while adding the suffix.
             let mut source = if path.members.count() > 1 {
                 expressions_of_mut(program).insert_copy(source)
             } else {
@@ -3439,6 +3454,7 @@ pub(crate) mod result_locals {
             }
             expressions_of_mut(program).attach_authored_selection_occurrences(source, occurrences);
             expressions_of_mut(program).replace_with_existing(expression, source);
+            expressions_of_mut(program).set_pattern_component(expression, component);
         }
 
         pub(crate) fn require_complete(
@@ -3453,13 +3469,15 @@ pub(crate) mod result_locals {
                         };
                         if local.role == LocalBindingRole::DispatchSubject {
                             errors.push(
-                        diagnostics::Diagnostic::error(format!(
-                            "cannot determine the dispatch subject storage type in `{}::{}`",
-                            machine.name.as_str(),
-                            state.name.as_str(),
-                        ))
-                        .with_source_span(expressions_of(program).source_span(local.initial_value)),
-                    );
+                            diagnostics::Diagnostic::error(format!(
+                                "cannot determine the dispatch subject storage type in `{}::{}`",
+                                machine.name.as_str(),
+                                state.name.as_str(),
+                            ))
+                            .with_source_span(
+                                expressions_of(program).source_span(local.initial_value),
+                            ),
+                        );
                         }
                     }
                 }

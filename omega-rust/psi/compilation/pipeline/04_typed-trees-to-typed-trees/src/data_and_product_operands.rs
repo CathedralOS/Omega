@@ -1507,6 +1507,7 @@ pub(crate) mod product_operands {
         }
     }
     pub(crate) mod expressions {
+
         use super::*;
         use crate::tables::expressions_of_mut;
         use expr::MatchPattern;
@@ -1915,9 +1916,11 @@ pub(crate) mod product_operands {
                 })
             }
             ProductExpressionKind::SavedSubject {
+                component,
                 capture,
                 pattern_head,
             } => Node::SavedSubject(expr::TableSavedSubject {
+                component,
                 capture: self.source_subject(capture)?,
                 pattern_head: self.expression_optional(pattern_head)?,
             }),
@@ -1990,6 +1993,7 @@ pub(crate) mod product_operands {
                             .iter()
                             .map(|field| {
                                 Ok(expr::TableMatchField {
+                                    component: field.component,
                                     member: self.identifier(field.member),
                                     field_symbol: SymbolHandle::invalid(),
                                     action: match field.action {

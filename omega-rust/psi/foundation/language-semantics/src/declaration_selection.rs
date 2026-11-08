@@ -1212,6 +1212,7 @@ mod product {
 }
 pub use build_selection_origin::BuildSelectionOrigin;
 pub mod product_operands {
+
     use arena::{Arena, Handle, HandleSpan};
     use source::SourceSpan;
 
@@ -1347,6 +1348,7 @@ pub mod product_operands {
             arms: HandleSpan<ProductMatchArm>,
         },
         SavedSubject {
+            component: language_core::PatternComponent,
             capture: Handle<ProductMatchSubject>,
             pattern_head: Handle<ProductOperandExpression>,
         },
@@ -1476,6 +1478,7 @@ pub mod product_operands {
     }
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct ProductMatchField {
+        pub component: language_core::PatternComponent,
         pub member: Handle<ProductOperandName>,
         pub action: ProductMatchFieldAction,
     }

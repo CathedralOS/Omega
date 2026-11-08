@@ -111,6 +111,7 @@ pub(crate) mod citation_erasure {
     }
 }
 pub(crate) mod content_consumption {
+
     /*
         Retain completed content transactions as ordinary owned value operands.
 
@@ -210,7 +211,9 @@ pub(crate) mod content_consumption {
                         }
                         facts::PlaceRoot::Expression(expression) => {
                             CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                                value_dependency: None,
                                 expression,
+                                logical_root_type_identity: None,
                             }
                         }
                         _ => return Err(error("parent has no executable owned source")),
@@ -1381,9 +1384,8 @@ pub(crate) mod terminal_scalar {
     };
 
     pub(crate) mod constructions {
-        /*
-            Structural values retain a type namespace without inventing source parameters.
-        */
+        //! Structural values retain a type namespace without inventing source parameters.
+
         use super::super::terminal_unit::reference_backing_shapes;
         use super::super::terminal_unit::scalar_case_value_shapes;
         use super::super::terminal_unit::scalar_operand_shapes;
@@ -1394,7 +1396,7 @@ pub(crate) mod terminal_scalar {
         use symbols::SymbolHandle;
         use typed_trees::types::TypeReferenceHandle;
 
-        /* Retain a Case subject's value shapes and enqueue its field values. */
+        /// Retain a Case subject's value shapes and enqueue its field values.
         fn retain_case_subject_fields(
             shapes: &mut Vec<TypePlan>,
             plans: &CheckedScalarComputationPlans,
@@ -1452,89 +1454,109 @@ pub(crate) mod terminal_scalar {
                             .map_err(|reason| format!("{}: {reason}", $context))
                     }};
                 }
+                // A stored reference publishes only its pointer shape. Forming one also
+                // demands actual backing storage, whether named or computed. Follow the
+                // retained formation/value edges, never transitive pointee types or
+                // speculative arena nodes; recursive pointer catalogs stay finite.
                 let mut retained_values = Vec::new();
                 for root in structural_values.roots_for_state(state) {
+                    // Erased argument roots retain proof/custody identity, but own no
+                    // executable constructor storage. Live dependencies still follow
+                    // their complete retained value graph below.
                     if !is_executable(root.statement_ordinal) {
                         continue;
                     }
                     for value in structural_values
-                        .value_dependencies(root.root)
-                        .ok_or_else(|| {
-                            format!(
-                                "structural root {:?} at statement {} has an invalid dependency graph",
-                                root.root, root.statement_ordinal
-                            )
-                        })?
+                    .value_dependencies(root.root)
+                    .ok_or_else(|| {
+                        format!(
+                            "structural root {:?} at statement {} has an invalid dependency graph",
+                            root.root, root.statement_ordinal
+                        )
+                    })?
+                {
+                    if retained_values.contains(&value) {
+                        continue;
+                    }
+                    retained_values.push(value);
+                    if let checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+                    | checked_trees::CheckedStructuralValueKind::StructuralCase {
+                        fields,
+                        ..
+                    } = &structural_values.nodes.get(value).kind
                     {
-                        if retained_values.contains(&value) {
-                            continue;
-                        }
-                        retained_values.push(value);
-                        if let checked_trees::CheckedStructuralValueKind::Record { fields, .. }
-                        | checked_trees::CheckedStructuralValueKind::StructuralCase {
-                            fields, ..
-                        } = &structural_values.nodes.get(value).kind
-                        {
-                            for field in structural_values
+                        for field in
+                            structural_values
                                 .record_fields
                                 .span(*fields)
                                 .ok_or_else(|| {
                                     format!("constructor {value:?} has no retained field span")
                                 })?
-                            {
-                                let (_, declaration) =
-                                    program.any_field_owner(field.field).ok_or_else(|| {
-                                        format!(
-                                            "constructor {value:?} field {:?} has no declaration owner",
-                                            field.field
-                                        )
-                                    })?;
-                                if declaration.relevance.is_erased()
-                                    || !matches!(
-                                        field.value,
-                                        checked_trees::CheckedStructuralRecordFieldValue::Structural(_)
-                                    )
-                                {
-                                    continue;
-                                }
-                                retain_operand!(
-                                    field.type_reference,
-                                    format_args!("constructor {value:?} field {:?}", field.field)
-                                )?;
-                            }
-                        }
-                        if let checked_trees::CheckedStructuralValueKind::Reference {
-                            source,
-                            source_value,
-                            backing_type,
-                            ..
-                        } = &structural_values.nodes.get(value).kind
                         {
-                            retain_operand!(
-                                structural_values.nodes.get(value).type_reference,
-                                format_args!("reference formation {value:?} descriptor")
-                            )?;
-                            retain_declarations(
-                                program,
-                                shapes,
-                                reference_backing_shapes(program, *backing_type, source.type_identity)
-                                    .ok_or_else(|| {
-                                        format!(
-                                            "reference formation {value:?}: cannot collect backing {} for identity {:?}",
-                                            type_description(program, *backing_type),
-                                            source.type_identity
-                                        )
-                                    })?,
-                            )
-                            .map_err(|reason| format!("reference formation {value:?} backing: {reason}"))?;
-                            if source_value.is_valid() {
-                                retain_operand!(
-                                    structural_values.nodes.get(*source_value).type_reference,
-                                    format_args!("reference formation {value:?} source {source_value:?}")
-                                )?;
+                            let (_, declaration) =
+                                program.any_field_owner(field.field).ok_or_else(|| {
+                                    format!(
+                                        "constructor {value:?} field {:?} has no declaration owner",
+                                        field.field
+                                    )
+                                })?;
+                            if declaration.relevance.is_erased()
+                                || !matches!(
+                                    field.value,
+                                    checked_trees::CheckedStructuralRecordFieldValue::Structural(_)
+                                )
+                            {
+                                continue;
                             }
+                            // Constructor operands complete in their own storage before
+                            // joining the field. Inline field geometry (including byte
+                            // views) cannot replace that operand's exact descriptor.
+                            retain_operand!(
+                                field.type_reference,
+                                format_args!("constructor {value:?} field {:?}", field.field)
+                            )?;
                         }
                     }
+                    if let checked_trees::CheckedStructuralValueKind::Reference {
+                        source,
+                        source_value,
+                        backing_type,
+                        ..
+                    } = &structural_values.nodes.get(value).kind
+                    {
+                        // Formation materializes its own permission carrier before a
+                        // consumer crosses Referent. A nested producer's descriptor
+                        // need not occur in the outer call's signature; its backing
+                        // declaration alone cannot supply that stored pointer type.
+                        retain_operand!(
+                            structural_values.nodes.get(value).type_reference,
+                            format_args!("reference formation {value:?} descriptor")
+                        )?;
+                        retain_declarations(
+                        program,
+                        shapes,
+                        reference_backing_shapes(program, *backing_type, source.type_identity)
+                            .ok_or_else(|| {
+                                format!(
+                                    "reference formation {value:?}: cannot collect backing {} for identity {:?}",
+                                    type_description(program, *backing_type),
+                                    source.type_identity
+                                )
+                            })?,
+                    )
+                    .map_err(|reason| format!("reference formation {value:?} backing: {reason}"))?;
+                        if source_value.is_valid() {
+                            // A projected computed source also owns its complete
+                            // containing storage, independently of the borrowed leaf.
+                            retain_operand!(
+                                structural_values.nodes.get(*source_value).type_reference,
+                                format_args!(
+                                    "reference formation {value:?} source {source_value:?}"
+                                )
+                            )?;
+                        }
+                    }
+                }
                 }
                 let mut pending: Vec<_> = plans
                     .root_records_for_state(state)
@@ -1600,10 +1622,10 @@ pub(crate) mod terminal_scalar {
                                         .then_some(root)
                                 });
                             let root = roots.next().ok_or_else(|| {
-                                format!(
-                                    "scalar computation {handle:?} receiver {receiver_value:?} has no root in this state"
-                                )
-                            })?;
+                        format!(
+                            "scalar computation {handle:?} receiver {receiver_value:?} has no root in this state"
+                        )
+                    })?;
                             if roots.next().is_some() {
                                 return Err(format!(
                                     "scalar computation {handle:?} receiver {receiver_value:?} has multiple roots in this state"
@@ -1618,6 +1640,9 @@ pub(crate) mod terminal_scalar {
                                     root.expression
                                 ));
                             }
+                            // The evaluated dependency owns the whole receiver type. The
+                            // ordinary shape collector retains its transitive fields;
+                            // neither the observed leaf nor a source local supplies it.
                             retain_operand!(
                                 root.type_reference,
                                 format_args!(
@@ -1631,6 +1656,7 @@ pub(crate) mod terminal_scalar {
                             if let checked_trees::CheckedDispatchSubject::Structural {
                                 value, ..
                             } = subject
+                                && value.is_valid()
                             {
                                 retain_operand!(
                                     structural_values.nodes.get(*value).type_reference,
@@ -1664,89 +1690,111 @@ pub(crate) mod terminal_scalar {
                             })? {
                                 if let Some(place) = argument.as_place() {
                                     pending.extend(place.computation_operands(&plans.operands));
+                                    // A borrowed view does not define its scalar ingress's
+                                    // storage carrier. Retain the actual authored formal
+                                    // so lowering can establish that original home.
                                     if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
-                                        parameter_index,
-                                    } = place.source
-                                    {
-                                        let authored = program.state_by_symbol(state).ok_or_else(|| {
-                                            format!("call {handle:?} scalar ingress has no authored state")
-                                        })?;
-                                        let parameter = program
-                                            .state_parameters(authored)
-                                            .iter()
-                                            .filter(|parameter| {
-                                                !parameter.is_const
-                                                    && !parameter.relevance.is_erased()
-                                                    && program
-                                                        .primitive_type_reference(parameter.type_reference)
-                                                        .is_some()
-                                            })
-                                            .nth(parameter_index as usize)
-                                            .ok_or_else(|| {
-                                                format!(
-                                                    "call {handle:?} scalar ingress parameter {parameter_index} is absent"
-                                                )
-                                            })?;
-                                        retain_operand!(
-                                            parameter.type_reference,
-                                            format_args!("call {handle:?} scalar ingress parameter {parameter_index}")
-                                        )?;
-                                    }
+                                parameter_index,
+                            } = place.source
+                            {
+                                let authored = program.state_by_symbol(state).ok_or_else(|| {
+                                    format!("call {handle:?} scalar ingress has no authored state")
+                                })?;
+                                let parameter = program
+                                    .state_parameters(authored)
+                                    .iter()
+                                    .filter(|parameter| {
+                                        !parameter.is_const
+                                            && !parameter.relevance.is_erased()
+                                            && program
+                                                .primitive_type_reference(parameter.type_reference)
+                                                .is_some()
+                                    })
+                                    .nth(parameter_index as usize)
+                                    .ok_or_else(|| {
+                                        format!(
+                                            "call {handle:?} scalar ingress parameter {parameter_index} is absent"
+                                        )
+                                    })?;
+                                retain_operand!(
+                                    parameter.type_reference,
+                                    format_args!("call {handle:?} scalar ingress parameter {parameter_index}")
+                                )?;
+                            }
                                 }
                                 if let checked_trees::CheckedScalarComputationStructuralArgument::Place(
-                                    argument,
-                                ) = argument
-                                    && let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                                        expression,
-                                    } = argument.source
-                                {
-                                    let root = structural_values.completed_expression_dependency(
-                                        &program.expression_table, state, None, expression,
-                                    ).ok_or_else(|| {
-                                        format!("call {handle:?} expression {expression:?} has no completed structural dependency")
-                                    })?;
-                                    if argument.path.is_empty() {
-                                        let producer_identity = validation::structural_type_identity(
-                                            program, root.type_reference, &[], &[],
-                                        );
-                                        if producer_identity != argument.type_identity {
-                                            return Err(format!(
-                                                "call {handle:?} expression {expression:?} producer {} differs from argument identity `{}` ({:?})",
-                                                type_description(program, root.type_reference),
-                                                program.type_identity_text(argument.type_identity).as_deref().unwrap_or("<unretained>"),
-                                                argument.type_identity
-                                            ));
-                                        }
-                                    }
-                                    if !matches!(argument.access,
-                                            checked_trees::CheckedStructuralAccess::Owned
-                                                | checked_trees::CheckedStructuralAccess::SharedBorrow
-                                                | checked_trees::CheckedStructuralAccess::MutableBorrow
-                                                | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow)
-                                    {
-                                        return Err(format!(
-                                            "call {handle:?} expression {expression:?} has unsupported structural access {:?}",
-                                            argument.access
-                                        ));
-                                    }
-                                    retain_operand!(
-                                        root.type_reference,
-                                        format_args!("call {handle:?} expression {expression:?} completed producer")
-                                    )?;
+                            argument,
+                        ) = argument
+                            && let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                                expression, value_dependency: Some(value), .. } = argument.source
+                        {
+                            // Checking retains the actual producer independently
+                            // of the home used to read it. A selected copy may
+                            // depend on a captured-copy root rather than the
+                            // older subject behind its saved expression.
+                            let root = structural_values.root_for_value_home(value, expression).ok_or_else(|| {
+                                format!("call {handle:?} expression {expression:?} value {value:?} has no completed structural dependency")
+                            })?;
+                            if root.state != state
+                                || !structural_values.nodes.is_valid(value)
+                                || structural_values.nodes.get(value).expression != expression
+                            {
+                                return Err(format!("call {handle:?} expression {expression:?} has a different retained producer {value:?}"));
+                            }
+                            if argument.path.is_empty() {
+                                let producer_identity = validation::structural_type_identity(
+                                    program, root.type_reference, &[], &[],
+                                );
+                                if producer_identity != argument.type_identity {
+                                    return Err(format!(
+                                        "call {handle:?} expression {expression:?} producer {} differs from argument identity `{}` ({:?})",
+                                        type_description(program, root.type_reference),
+                                        program.type_identity_text(argument.type_identity).as_deref().unwrap_or("<unretained>"),
+                                        argument.type_identity
+                                    ));
                                 }
+                            }
+                            if !matches!(argument.access,
+                                    checked_trees::CheckedStructuralAccess::Owned
+                                        | checked_trees::CheckedStructuralAccess::SharedBorrow
+                                        | checked_trees::CheckedStructuralAccess::MutableBorrow
+                                        | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow)
+                            {
+                                return Err(format!(
+                                    "call {handle:?} expression {expression:?} has unsupported structural access {:?}",
+                                    argument.access
+                                ));
+                            }
+                            // The produced value owns its complete declaration,
+                            // including when the invocation only borrows it. The
+                            // formal's reference type does not replace this owner;
+                            // a projected argument likewise retains its exact path
+                            // and transfer without replacing the owner's catalog.
+                            // A view root owns descriptor storage, not its
+                            // referent: retain its admitted carrier without
+                            // reapplying an owned-result admission fence.
+                            // its scalar children have their own retained roots in
+                            // this same state's computation inventory.
+                            retain_operand!(
+                                root.type_reference,
+                                format_args!("call {handle:?} expression {expression:?} completed producer")
+                            )?;
+                        }
                                 if let checked_trees::CheckedScalarComputationStructuralArgument::Case(
+                                subject,
+                            ) = argument
+                            {
+                                retain_case_subject_fields(
+                                    shapes,
+                                    plans,
+                                    program,
                                     subject,
-                                ) = argument
-                                {
-                                    retain_case_subject_fields(
-                                        shapes,
-                                        plans,
-                                        program,
-                                        subject,
-                                        &mut pending,
-                                    )
-                                    .map_err(|reason| format!("call {handle:?} case argument: {reason}"))?;
-                                }
+                                    &mut pending,
+                                )
+                                .map_err(|reason| {
+                                    format!("call {handle:?} case argument: {reason}")
+                                })?;
+                            }
                             }
                         }
                         ComputationKind::Select {
@@ -1760,29 +1808,31 @@ pub(crate) mod terminal_scalar {
                         } => {
                             pending.push(*operand);
                             for dependency in
-                                plans.evaluation_operands.span(*operands).ok_or_else(|| {
-                                    format!(
-                                        "computation {handle:?} has no retained evaluation operand span"
-                                    )
-                                })?
-                            {
-                                match dependency {
-                                    checked_trees::CheckedScalarEvaluationOperand::Scalar(value) => {
-                                        pending.push(*value)
-                                    }
-                                    checked_trees::CheckedScalarEvaluationOperand::Structural(value) => {
-                                        let root = structural_values.root_for_value(*value).ok_or_else(|| {
-                                            format!("computation {handle:?} structural evaluation operand {value:?} has no retained root")
-                                        })?;
-                                        retain_operand!(
-                                            root.type_reference,
-                                            format_args!(
-                                                "computation {handle:?} structural evaluation operand {value:?}"
-                                            )
-                                        )?;
-                                    }
+                            plans.evaluation_operands.span(*operands).ok_or_else(|| {
+                                format!(
+                                    "computation {handle:?} has no retained evaluation operand span"
+                                )
+                            })?
+                        {
+                            match dependency {
+                                checked_trees::CheckedScalarEvaluationOperand::Scalar(value) => {
+                                    pending.push(*value)
+                                }
+                                checked_trees::CheckedScalarEvaluationOperand::Structural(
+                                    value,
+                                ) => {
+                                    let root = structural_values.root_for_value(*value).ok_or_else(|| {
+                                    format!("computation {handle:?} structural evaluation operand {value:?} has no retained root")
+                                })?;
+                                    retain_operand!(
+                                        root.type_reference,
+                                        format_args!(
+                                            "computation {handle:?} structural evaluation operand {value:?}"
+                                        )
+                                    )?;
                                 }
                             }
+                        }
                         }
                         ComputationKind::Apply { operands, .. }
                         | ComputationKind::StorageObservation { operands, .. } => {
@@ -1825,16 +1875,16 @@ pub(crate) mod terminal_scalar {
 
         fn differing_plan_fields(existing: &TypePlan, incoming: &TypePlan) -> String {
             macro_rules! differences {
-                ($($field:ident),+ $(,)?) => {
-                    [$(
-                        (existing.$field != incoming.$field).then_some(stringify!($field)),
-                    )+]
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>()
-                    .join(", ")
-                };
-            }
+        ($($field:ident),+ $(,)?) => {
+            [$(
+                (existing.$field != incoming.$field).then_some(stringify!($field)),
+            )+]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(", ")
+        };
+    }
             differences!(
                 identity,
                 native_identity,

@@ -62,8 +62,10 @@ terminates
     transition { _ -> next(second) }
     machine next(known: Tree) -> Tree {
         transition known {
-            Tree::Empty -> (empty_only(known))
-            Tree::Node { marked as _, child } -> child
+            Tree { marked as _, case as operation } -> match operation {
+                Tree::Empty -> (empty_only(known))
+                Tree::Node { child } -> child
+            }
         }
     }
 }

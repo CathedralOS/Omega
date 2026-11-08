@@ -97,6 +97,18 @@ pub mod receiver_binding {
     }
 }
 
+/// A decomposition reads either ordinary fields or the case-only component
+/// of the same value. Selecting cases creates no storage or access authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
+pub enum PatternComponent {
+    #[default]
+    Fields,
+    Case,
+}
+
+/// The parser's purpose for a local, independent of its diagnostic name and
+/// relevance. Pattern markers retain coverage metadata but do not capture an
+/// owned runtime value; their per-field bindings are ordinary values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum LocalBindingRole {
     #[default]

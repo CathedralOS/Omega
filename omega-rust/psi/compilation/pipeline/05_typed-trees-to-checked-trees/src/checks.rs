@@ -223,6 +223,7 @@ mod case_access {
         qualification, or whether the accessed payload is copied or borrowed.
     */
     mod completed_carriers {
+
         /*
             Current tag evidence follows an exact completed owned subtree.
             Historical descriptor provenance keeps its original owner and source access;
@@ -379,33 +380,99 @@ mod case_access {
             if value == target && projection == target_projection {
                 return true;
             }
+            if !control.operands.is_valid(value) {
+                return false;
+            }
             let key = (value, projection.to_vec());
             if active.contains(&key) {
                 return false;
             }
             active.push(key);
-            let answer = validation::completed_storage::predecessors_in_control(
-                program,
-                control,
-                value,
-                projection,
-                validation::completed_storage::StoredObservation::Contents,
-                None,
-            )
-            .is_some_and(|rows| {
-                !rows.is_empty()
-                    && rows.iter().all(|(value, projection)| {
+            let capture = control.operands.get(value);
+            // A retained owned address relates current homes, not historical contents.
+            // Follow its checked receiver before asking for this cut's tag evidence;
+            // copied values and reference descriptors keep the ordinary value law.
+            let owned_home = validation::reference_shell(program, capture.type_reference).is_none()
+                && program.type_multiplicity(capture.type_reference)
+                    != language_semantics::Multiplicity::Unrestricted
+                && !matches!(
+                    capture.completion,
+                    checked_trees::FlowOperandCompletion::Copied { .. }
+                );
+            let answer = if owned_home
+                && let Some(checked_trees::FlowOperandAddressProjection::Place(path)) =
+                    capture.address_projection
+            {
+                control.operands.is_valid(capture.backing)
+                    && control.operand_child_paths.span(path).is_some_and(|path| {
+                        if !path.iter().all(|segment| {
+                            matches!(
+                                segment,
+                                PlaceSegment::Field { .. }
+                                    | PlaceSegment::Case { .. }
+                                    | PlaceSegment::FixedIndex { .. }
+                            )
+                        }) {
+                            return false;
+                        }
+                        let receiver = control.operands.get(capture.backing);
+                        if receiver.state_symbol != capture.state_symbol
+                            || validation::reference_shell(program, receiver.type_reference)
+                                .is_some()
+                            || program.type_multiplicity(receiver.type_reference)
+                                == language_semantics::Multiplicity::Unrestricted
+                        {
+                            return false;
+                        }
+                        let Some(reference) = validation::owned_projection_type_reference(
+                            program,
+                            receiver.type_reference,
+                            path,
+                        ) else {
+                            return false;
+                        };
+                        let projected = program.normalized_type_identity(reference);
+                        if !projected.is_valid()
+                            || projected != program.normalized_type_identity(capture.type_reference)
+                        {
+                            return false;
+                        }
+                        let mut selected = path.to_vec();
+                        selected.extend_from_slice(projection);
                         reaches(
                             program,
                             control,
-                            *value,
-                            projection,
+                            capture.backing,
+                            &selected,
                             target,
                             target_projection,
                             active,
                         )
                     })
-            });
+            } else {
+                validation::completed_storage::predecessors_in_control(
+                    program,
+                    control,
+                    value,
+                    projection,
+                    validation::completed_storage::StoredObservation::Contents,
+                    None,
+                )
+                .is_some_and(|rows| {
+                    !rows.is_empty()
+                        && rows.iter().all(|(value, projection)| {
+                            reaches(
+                                program,
+                                control,
+                                *value,
+                                projection,
+                                target,
+                                target_projection,
+                                active,
+                            )
+                        })
+                })
+            };
             active.pop();
             answer
         }
@@ -7911,11 +7978,13 @@ mod content;
 #[path = "checks_multiplicity.rs"]
 mod multiplicity;
 pub(crate) mod ownership_occurrences {
+
     /*
         One source evaluation order for ownership windows and loan exclusions.
         This inventory orders existing move candidates; it does not classify them.
     */
     mod selected_evaluation {
+
         /*
             Query-owned selection scratch. One entry and one completed sibling per
             pending decision; each join runs once, without Cartesian path expansion.
@@ -7946,6 +8015,17 @@ pub(crate) mod ownership_occurrences {
                 &mut self,
                 route: &[EvaluationBranch],
                 current: &mut Custody,
+                leave: impl FnMut(EvaluationBranch, &mut Custody) -> Result<(), Diagnostic>,
+                join: impl FnMut(EvaluationBranch, &mut Custody, &Custody) -> Result<(), Diagnostic>,
+            ) -> Result<(), Diagnostic> {
+                self.enter_with(route, current, |_, _| Ok(()), leave, join)
+            }
+
+            pub(in crate::checks) fn enter_with(
+                &mut self,
+                route: &[EvaluationBranch],
+                current: &mut Custody,
+                mut begin: impl FnMut(EvaluationBranch, &mut Custody) -> Result<(), Diagnostic>,
                 mut leave: impl FnMut(EvaluationBranch, &mut Custody) -> Result<(), Diagnostic>,
                 mut join: impl FnMut(EvaluationBranch, &mut Custody, &Custody) -> Result<(), Diagnostic>,
             ) -> Result<(), Diagnostic> {
@@ -7966,11 +8046,16 @@ pub(crate) mod ownership_occurrences {
                         leave(decision.branch, current)?;
                     }
                     if let Some(decision) = self.decisions.pop() {
-                        join(
-                            decision.branch,
-                            current,
-                            decision.sibling.as_ref().unwrap_or(&decision.entry),
-                        )?;
+                        if let Some(sibling) = decision.sibling {
+                            join(decision.branch, current, &sibling)?;
+                        } else {
+                            // A scalar fallback can have no permission events. Its
+                            // remaining storage still enters the opposite decision
+                            // before meeting the branch that moved a payload.
+                            let mut sibling = decision.entry;
+                            begin(decision.branch.opposite(), &mut sibling)?;
+                            join(decision.branch, current, &sibling)?;
+                        }
                         self.completed.push(decision.branch);
                     }
                 }
@@ -7984,6 +8069,7 @@ pub(crate) mod ownership_occurrences {
                     leave(decision.branch, current)?;
                     decision.sibling = Some(std::mem::replace(current, decision.entry.clone()));
                     decision.branch = route[common];
+                    begin(decision.branch, current)?;
                 }
                 for branch in &route[retained..] {
                     if self
@@ -7995,9 +8081,11 @@ pub(crate) mod ownership_occurrences {
                             "permission occurrence follows the join of its expression branch",
                         ));
                     }
+                    let entry = current.clone();
+                    begin(*branch, current)?;
                     self.decisions.push(Decision {
                         branch: *branch,
-                        entry: current.clone(),
+                        entry,
                         sibling: None,
                     });
                 }
@@ -8038,6 +8126,7 @@ pub(crate) mod ownership_occurrences {
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub(super) struct EvaluationBranch {
         expression: ExpressionHandle,
+        source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
         decision: usize,
         selected: bool,
     }
@@ -8046,6 +8135,7 @@ pub(crate) mod ownership_occurrences {
         pub(super) fn new(expression: ExpressionHandle, decision: usize, selected: bool) -> Self {
             Self {
                 expression,
+                source_arm: arena::Handle::invalid(),
                 decision,
                 selected,
             }
@@ -8063,7 +8153,20 @@ pub(crate) mod ownership_occurrences {
             self.selected
         }
 
+        pub(super) fn source_arm(self) -> arena::Handle<typed_trees::expression::TableMatchArm> {
+            self.source_arm
+        }
+
+        pub(super) fn opposite(self) -> Self {
+            Self {
+                selected: !self.selected,
+                ..self
+            }
+        }
+
         pub(super) fn same_decision(self, other: Self) -> bool {
+            // Claim joins already name decisions by expression and position.
+            // The arm handle supplies the separate checked case association.
             self.expression == other.expression && self.decision == other.decision
         }
     }
@@ -8298,6 +8401,7 @@ pub(crate) mod ownership_occurrences {
                     if conditional {
                         order.route.push(EvaluationBranch {
                             expression: ExpressionHandle::invalid(),
+                            source_arm: arena::Handle::invalid(),
                             decision: 0,
                             selected: alternative == 0,
                         });
@@ -8595,7 +8699,7 @@ pub(crate) mod ownership_occurrences {
                         }
                         let prefix = self.route.len();
                         let arms = super::multiplicity::reachable_arms(self.program, dispatch.arms);
-                        for (decision, (_, arm)) in arms.iter().enumerate() {
+                        for (decision, &(source_arm, arm)) in arms.iter().enumerate() {
                             for pattern in self
                                 .program
                                 .expression_table
@@ -8606,6 +8710,7 @@ pub(crate) mod ownership_occurrences {
                             if decision + 1 < arms.len() {
                                 self.route.push(EvaluationBranch {
                                     expression,
+                                    source_arm,
                                     decision,
                                     selected: true,
                                 });
@@ -8613,6 +8718,7 @@ pub(crate) mod ownership_occurrences {
                                 self.route.pop();
                                 self.route.push(EvaluationBranch {
                                     expression,
+                                    source_arm,
                                     decision,
                                     selected: false,
                                 });
@@ -8636,6 +8742,7 @@ pub(crate) mod ownership_occurrences {
                                 if left.is_none() {
                                     self.route.push(EvaluationBranch {
                                         expression,
+                                        source_arm: arena::Handle::invalid(),
                                         decision: 0,
                                         selected: evaluate_when,
                                     });

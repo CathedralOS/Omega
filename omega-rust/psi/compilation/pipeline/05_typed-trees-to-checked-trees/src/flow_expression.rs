@@ -724,6 +724,7 @@ mod call_storage {
     }
 }
 mod dispatch {
+
     /*
         Match effects fork after each comparison and meet at the result join.
         A saved subject is not a promise about its storage after a pattern writes it;
@@ -741,6 +742,222 @@ mod dispatch {
         This publication transports authorized provenance, never establishes it.
     */
     use crate::flow::expression::Execution;
+    mod owned_cases {
+        //! A nested case decision may constrain only its actual unchanged owned home.
+
+        use super::Execution;
+        use arena::{Handle, HandleSpan};
+        use checked_trees::{FlowOperandAddressProjection, FlowOperandCompletion, FlowOperandFact};
+        use std::collections::BTreeSet;
+        use typed_trees::expression::{ExpressionHandle, TableMatchArm};
+        use validation::completed_storage::{StoredObservation, contents_preserved_from};
+
+        pub(super) struct OwnedCaseSubject {
+            place: validation::CanonicalPlace,
+            captured_storage: Handle<checked_trees::FlowStorageSnapshot>,
+            checked_storage: Handle<checked_trees::FlowStorageSnapshot>,
+            source_current: bool,
+            path: Option<HandleSpan<facts::PlaceSegment>>,
+        }
+
+        impl Execution<'_, '_, '_> {
+            pub(super) fn owned_case_subject(
+                &self,
+                subject: &FlowOperandFact,
+            ) -> Option<OwnedCaseSubject> {
+                if subject.state_symbol != self.state.symbol
+                    || subject.statement_index != self.statement_index
+                    || subject.evaluation != self.evaluation
+                    || subject.evaluation == checked_trees::FlowPermissionEvaluation::Unknown
+                {
+                    return None;
+                }
+                let mut current = *subject;
+                let mut projections = Vec::new();
+                let mut visited = BTreeSet::new();
+                loop {
+                    if current.state_symbol != self.state.symbol
+                        || !current.type_reference.is_valid()
+                        || validation::reference_shell(self.program, current.type_reference)
+                            .is_some()
+                        || self.program.type_multiplicity(current.type_reference)
+                            == language_semantics::Multiplicity::Unrestricted
+                        || matches!(current.completion, FlowOperandCompletion::Copied { .. })
+                    {
+                        return None;
+                    }
+                    let Some(projection) = current.address_projection else {
+                        if current.backing.is_valid() {
+                            return None;
+                        }
+                        break;
+                    };
+                    let FlowOperandAddressProjection::Place(path) = projection else {
+                        return None;
+                    };
+                    let backing = current.backing;
+                    if !self.context.control.operands.is_valid(backing)
+                        || !visited.insert((backing.arena_index(), backing.generation()))
+                    {
+                        return None;
+                    }
+                    let segments = self.context.control.operand_child_paths.span(path)?;
+                    let receiver = self.context.control.operands.get(backing);
+                    let projected = validation::owned_projection_type_reference(
+                        self.program,
+                        receiver.type_reference,
+                        segments,
+                    )?;
+                    if self.program.normalized_type_identity(projected)
+                        != self
+                            .program
+                            .normalized_type_identity(current.type_reference)
+                    {
+                        return None;
+                    }
+                    projections.push(path);
+                    current = *self.context.control.operands.get(backing);
+                }
+                let mut place = validation::canonical_place_from_expression_in_state(
+                    self.program,
+                    self.state.symbol,
+                    current.statement_index,
+                    current.expression,
+                )?;
+                // An expression namespace needs its own completed value formation.
+                // In particular, a missing saved supplier is not a new owner.
+                if place.root.as_expression().is_some()
+                    && !matches!(
+                        current.completion,
+                        FlowOperandCompletion::Constructed(_)
+                            | FlowOperandCompletion::InvocationResult { .. }
+                    )
+                {
+                    return None;
+                }
+                for path in projections.into_iter().rev() {
+                    place
+                        .segments
+                        .extend_from_slice(self.context.control.operand_child_paths.span(path)?);
+                }
+                if !place.segments.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        facts::PlaceSegment::Field { .. }
+                            | facts::PlaceSegment::Case { .. }
+                            | facts::PlaceSegment::FixedIndex { .. }
+                    )
+                }) {
+                    // A live selector is not the saved index value. Without a fixed
+                    // captured coordinate it cannot select an owner's cleanup path.
+                    return None;
+                }
+                let reference = validation::canonical_place_type_reference(
+                    self.program,
+                    self.state.symbol,
+                    self.statement_index,
+                    &place,
+                )?;
+                if self.program.normalized_type_identity(reference)
+                    != self
+                        .program
+                        .normalized_type_identity(subject.type_reference)
+                    || !self
+                        .context
+                        .control
+                        .storage_snapshots
+                        .is_valid(current.storage_snapshot)
+                    || !self
+                        .context
+                        .control
+                        .storage_snapshots
+                        .is_valid(self.storage_snapshot)
+                    || !contents_preserved_from(
+                        self.program,
+                        &self.context.control,
+                        self.storage_snapshot,
+                        &place,
+                        &[current.storage_snapshot],
+                        StoredObservation::InlineContents,
+                    )
+                {
+                    return None;
+                }
+                Some(OwnedCaseSubject {
+                    place,
+                    captured_storage: current.storage_snapshot,
+                    checked_storage: self.storage_snapshot,
+                    source_current: true,
+                    path: None,
+                })
+            }
+
+            pub(super) fn retain_owned_case_selection(
+                &mut self,
+                expression: ExpressionHandle,
+                source_arm: Handle<TableMatchArm>,
+                subject: &FlowOperandFact,
+                owner: &mut OwnedCaseSubject,
+                variant: symbols::SymbolHandle,
+                miss_excludes_case: bool,
+            ) {
+                if !owner.source_current {
+                    return;
+                }
+                if owner.checked_storage != self.storage_snapshot {
+                    owner.source_current = self
+                        .context
+                        .control
+                        .storage_snapshots
+                        .is_valid(self.storage_snapshot)
+                        && contents_preserved_from(
+                            self.program,
+                            &self.context.control,
+                            self.storage_snapshot,
+                            &owner.place,
+                            &[owner.checked_storage],
+                            StoredObservation::InlineContents,
+                        );
+                    if !owner.source_current {
+                        return;
+                    }
+                    owner.checked_storage = self.storage_snapshot;
+                }
+                let subject = self.context.control.operands.insert(*subject);
+                let path = *owner.path.get_or_insert_with(|| {
+                    self.context
+                        .control
+                        .operand_referent_segments
+                        .insert_many(owner.place.segments.iter().copied())
+                });
+                let rows = &mut self
+                    .context
+                    .control
+                    .statements
+                    .get_mut(self.statement_fact)
+                    .owned_case_selections;
+                self.context.control.owned_case_selections.append_to_span(
+                    rows,
+                    checked_trees::FlowOwnedCaseSelection {
+                        machine_symbol: self.machine.symbol,
+                        state_symbol: self.state.symbol,
+                        statement_index: self.statement_index,
+                        statement: self.statement_fact,
+                        expression,
+                        source_arm,
+                        evaluation: self.evaluation,
+                        subject,
+                        root: owner.place.root,
+                        path,
+                        variant,
+                        miss_excludes_case,
+                        captured_storage: owner.captured_storage,
+                        selected_storage: self.storage_snapshot,
+                    },
+                );
+            }
+        }
+    }
     use crate::flow::expression::value_observations::OwnedValueObservation;
     use crate::flow::state_values::qualifications::CarriedPredicate;
     use arena::HandleSpan;
@@ -785,11 +1002,10 @@ mod dispatch {
                 self.state,
                 dispatch.subject,
             );
-            let subject_operand = if structural.is_some()
+            let mut subject = if structural.is_some()
                 && subject_type.is_some_and(|reference| self.is_view_type(reference))
             {
                 self.evaluated_place(dispatch.subject, contexts, constraints)
-                    .capture
             } else {
                 self.evaluated_operand_as(
                     dispatch.subject,
@@ -797,13 +1013,23 @@ mod dispatch {
                     contexts,
                     constraints,
                 )
-                .capture
             };
             let outer_captures = self.match_subjects.len();
             if dispatch.capture.is_valid() {
+                let anchor = self
+                    .program
+                    .expression_table
+                    .value_capture(dispatch.capture)
+                    .value_anchor;
+                // Patterns and their effects have not run. This exact saved value
+                // retains its producer's complete owned fact roster, including
+                // conditional field qualifications, before later source writes.
+                self.publish_owned_capture(anchor, &mut subject, contexts, constraints);
                 self.match_subjects
-                    .push((dispatch.capture, subject_operand));
+                    .push((dispatch.capture, subject.capture));
             }
+            let subject_operand = subject.capture;
+            let mut owned_subject = self.owned_case_subject(&subject_operand);
             let subject_writes = self.operand_writes.len();
             let mut joined = None;
             let mut completed_writes = Vec::new();
@@ -830,14 +1056,17 @@ mod dispatch {
                     evaluation_inputs.push(subject_operand);
                 }
                 let mut covered = matches!(arm.pattern, MatchPattern::Wildcard);
-                if let Some(reference) = structural
-                    && let Some(case) = structural_match_pattern_case(
+                let selected_case = structural.and_then(|_| {
+                    structural_match_pattern_case(
                         self.program,
                         self.machine,
                         self.state,
                         &dispatch,
                         arm.pattern,
                     )
+                });
+                if let Some(reference) = structural
+                    && let Some(case) = selected_case
                     && structural_match_pattern_is_total(self.program, arm.pattern)
                 {
                     crate::shared::collections::push_unique(&mut case_coverage, case);
@@ -905,10 +1134,9 @@ mod dispatch {
                     }
                 }
                 let branch_prefix = self.write_prefix();
-                if !matches!(arm.pattern, MatchPattern::Destructure(_))
-                    && self
-                        .changed_operand_sources(&[(dispatch.subject, subject_writes)])
-                        .is_empty()
+                if self
+                    .changed_operand_sources(&[(dispatch.subject, subject_writes)])
+                    .is_empty()
                     && let Ok(ordinal) = u32::try_from(ordinal)
                 {
                     let source_arm = dispatch.arms.handle_at(ordinal);
@@ -940,6 +1168,19 @@ mod dispatch {
                             branch_constraints,
                         );
                     }
+                }
+                if let Some(owned_subject) = &mut owned_subject
+                    && let Some(case) = selected_case
+                    && let Ok(ordinal) = u32::try_from(ordinal)
+                {
+                    self.retain_owned_case_selection(
+                        expression,
+                        dispatch.arms.handle_at(ordinal),
+                        &subject_operand,
+                        owned_subject,
+                        case,
+                        structural_match_pattern_is_total(self.program, arm.pattern),
+                    );
                 }
                 let completed = self.evaluated_operand_as(
                     arm.value,
@@ -1236,6 +1477,7 @@ mod dispatch {
     }
 }
 mod dispatch_copies {
+
     /*
         Complete selected payload copies before target operands. Saved receiver
         observations authenticate the source address; source expressions identify
@@ -1438,6 +1680,7 @@ mod dispatch_copies {
                     expression: payload,
                     state_symbol: self.state.symbol,
                     statement_index: self.statement_index,
+                    evaluation: self.evaluation,
                     type_reference: reference,
                     storage_snapshot: self.storage_snapshot,
                     entry_origin_writes: self.entry_origin_writes,
@@ -4935,6 +5178,7 @@ mod transitions {
     }
 }
 mod value_observations {
+
     /*
         Completed owned values publish observations at their evaluation cut.
         Construction rebases the same observations onto each installed child, while
@@ -5010,21 +5254,50 @@ mod value_observations {
             {
                 return;
             }
+            self.publish_owned_capture(expression, evaluated, contexts, constraints);
+        }
+
+        /// One completed producer supplies every saved namespace. Memberships do
+        /// not depend on whether the value also has a scalar or tag observation.
+        pub(super) fn publish_owned_capture(
+            &mut self,
+            parent: ExpressionHandle,
+            evaluated: &mut EvaluatedOperand,
+            contexts: &mut HandleSpan<FlowSemanticContextRef>,
+            constraints: &mut HandleSpan<FlowConstraintRef>,
+        ) {
+            if evaluated.capture.state_symbol != self.state.symbol
+                || evaluated.capture.statement_index != self.statement_index
+                || !self.program.expression_table.expression_is_valid(parent)
+                || !evaluated.capture.type_reference.is_valid()
+                || validation::reference_shell(self.program, evaluated.capture.type_reference)
+                    .is_some()
+            {
+                return;
+            }
             let values = self.captured_owned_value_observations(
                 &[],
                 evaluated.capture.type_reference,
                 evaluated,
             );
-            if values.is_empty() {
-                return;
-            }
             let previous = self
                 .context
                 .contexts
                 .constraint_refs
                 .span_or_empty(*constraints)
                 .len();
-            self.publish_owned_value_observations(expression, values, contexts, constraints);
+            self.publish_owned_value_observations(parent, values, contexts, constraints);
+            self.append_completed_qualifications(
+                parent,
+                &[],
+                evaluated.capture.type_reference,
+                evaluated,
+                contexts,
+                constraints,
+            );
+            // capture_operand may already have withdrawn source facts invalidated
+            // by child effects. Extend that filtered snapshot only with the newly
+            // published value facts, never restore the ambient unfiltered prefix.
             let published = *constraints;
             for handle in published.handles().skip(previous) {
                 let kind = self.context.contexts.constraint_refs.get(handle).kind;
@@ -5217,12 +5490,25 @@ mod value_observations {
                 state_symbol: self.state.symbol,
                 statement_index: self.statement_index,
             };
+            // A retained operand can outlive source writes in a later sibling or
+            // pattern. Its immutable completed constraint roster owns this copy;
+            // the caller's current ambient contexts are only the output frontier.
+            let captured_contexts = self
+                .context
+                .contexts
+                .constraint_refs
+                .span_or_empty(evaluated.capture.constraints)
+                .iter()
+                .filter_map(|reference| match reference.kind {
+                    FlowConstraintKind::SemanticContext { context } => Some(context),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
             let mut references = HandleSpan::empty();
             crate::flow::transfers::append_owned_qualification_transfer(
                 self.program,
                 self.semantic,
-                self.context,
-                *contexts,
+                &captured_contexts,
                 evaluated.capture.expression,
                 source,
                 destination,
@@ -10517,6 +10803,20 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     *completion = captured.completion;
                     let source = self.context.control.operands.insert(captured);
                     *backing = source;
+                    if !self.is_view_type(captured.type_reference)
+                        && validation::reference_shell(self.program, captured.type_reference)
+                            .is_none()
+                        && self.program.type_multiplicity(captured.type_reference)
+                            != language_semantics::Multiplicity::Unrestricted
+                    {
+                        // This noncopy saved subject observes the same owned
+                        // home as its actual captured supplier. The empty
+                        // projection carries that role, not a fresh snapshot
+                        // or permission to follow a stored reference.
+                        *address_projection = Some(
+                            checked_trees::FlowOperandAddressProjection::Place(HandleSpan::empty()),
+                        );
+                    }
                     if self.is_view_type(captured.type_reference)
                         || self.program.type_multiplicity(captured.type_reference)
                             == language_semantics::Multiplicity::Unrestricted

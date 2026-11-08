@@ -523,6 +523,7 @@ mod boundary_calls {
     }
 }
 mod byte_comparisons {
+
     /*
         Content comparison observes a completed structural operand. Pure places
         and computed descriptors share the same query; descriptor establishment
@@ -656,28 +657,26 @@ mod byte_comparisons {
             if observe_referent {
                 return None;
             }
-            self.call_result_byte_subject(operand, target)
+            self.completed_byte_subject(operand, target)
         }
 
-        /*
-            A call's byte result is not a place and not an erased view. Root the
-            call so it executes, then observe the completed descriptor.
-        */
-        fn call_result_byte_subject(
+        /// Observe the exact completed byte value produced by the shared value
+        /// owner. Copies, saved projections, constructions and call results retain
+        /// that owner's capture, evaluation order and cleanup; none is a new read
+        /// of storage at the source expression's spelling.
+        fn completed_byte_subject(
             &mut self,
             operand: ExpressionHandle,
             target: typed_trees::types::TypeReferenceHandle,
         ) -> Option<CheckedUnitStructuralArgumentPlan> {
-            let call = self.program.expression_table.call_node(operand)?;
-            let call_target = validation::call_target_symbol(self.program, call);
-            self.call_ordinal(operand, call_target)?;
             let value = self.structural_value(operand, target)?;
-            let ordinal = u32::try_from(self.statement_index).ok()?;
-            self.retain_structural_root(ordinal, operand, target, value);
+            self.retain_structural_value_root(value, target)?;
             Some(CheckedUnitStructuralArgumentPlan {
                 source:
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        value_dependency: Some(value),
                         expression: operand,
+                        logical_root_type_identity: None,
                     },
                 path: Vec::new(),
                 projection_evaluations: Default::default(),
@@ -688,6 +687,7 @@ mod byte_comparisons {
     }
 }
 mod call_arguments {
+
     mod declarations {
         /*
             Declaration calls consume initialized whole entry homes. This joins their
@@ -1144,7 +1144,7 @@ mod call_arguments {
                     self.plans.nodes.get_mut(root).authored_root = *argument;
                     computed_arguments.push(root);
                 } else {
-                    let argument_plan = if let CallOperandCustody::Declaration {
+                    let mut argument_plan = if let CallOperandCustody::Declaration {
                         application,
                         call,
                     } = custody
@@ -1230,6 +1230,8 @@ mod call_arguments {
                         ?
                         }
                     };
+
+                    self.retain_dispatch_argument_dependency(&mut argument_plan)?;
                     structural_actuals.push(*argument);
                     structural_arguments.push(
                         checked_trees::CheckedScalarComputationStructuralArgument::Place(
@@ -1275,6 +1277,54 @@ mod call_arguments {
                 temporary_cleanups,
                 claim_transfers,
             })
+        }
+
+        /// A borrowed place can refer to a subject produced earlier in this match.
+        /// Carry that exact producer so call preparation waits for it. The loan,
+        /// path and selectors remain the already checked existing-place argument.
+        fn retain_dispatch_argument_dependency(
+            &mut self,
+            argument: &mut checked_trees::CheckedUnitStructuralArgumentPlan,
+        ) -> Option<()> {
+            if argument.access == checked_trees::CheckedStructuralAccess::Owned {
+                return Some(());
+            }
+            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression,
+                value_dependency,
+                ..
+            } = &mut argument.source
+            else {
+                return Some(());
+            };
+            if value_dependency.is_some() {
+                return Some(());
+            }
+            let anchor = *expression;
+            let Some(receiver) = self
+                .dispatch_receivers
+                .get(&(anchor.arena_index(), anchor.generation()))
+                .copied()
+            else {
+                return Some(());
+            };
+            if !receiver.value.is_valid() {
+                return Some(());
+            }
+            if !self.structural_values.nodes.is_valid(receiver.value)
+                || self
+                    .structural_values
+                    .root_for_value(receiver.value)
+                    .is_none()
+            {
+                return None;
+            }
+            self.retain_structural_value_root(receiver.value, receiver.type_reference)?;
+            // Keep the saved name attached to the existing value. This does not
+            // allocate storage or add cleanup.
+            *expression = self.structural_values.nodes.get(receiver.value).expression;
+            *value_dependency = Some(receiver.value);
+            Some(())
         }
 
         /*
@@ -1337,7 +1387,7 @@ mod call_arguments {
                     ),
                 }
             };
-            let (expression, owner_type, mut path, projection_evaluations) =
+            let (source, owner_type, mut path, projection_evaluations) =
                 self.retained_argument_owner(value, producer_type)?;
             if descriptor.is_none() && stored.is_none() {
                 validation::structural_result_contract(self.program, referent).ok()?;
@@ -1376,10 +1426,7 @@ mod call_arguments {
             }
             let argument_plan = checked_trees::CheckedUnitStructuralArgumentPlan {
                 projection_evaluations,
-                source:
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                        expression,
-                    },
+                source,
                 path,
                 type_identity: selected_identity,
                 access,
@@ -1393,7 +1440,7 @@ mod call_arguments {
                         self.machine,
                         self.state,
                         self.flow.control.calls.get(source_call),
-                        expression,
+                        argument_plan.source.structural_expression()?,
                         owner_type,
                     )?;
                 }
@@ -1404,16 +1451,22 @@ mod call_arguments {
                     language_semantics::Multiplicity::Affine
                     | language_semantics::Multiplicity::Linear => {
                         discards = Some(vec![
-                            checked_trees::CheckedNormalCleanupAction::RetireHome {
-                                source: argument_plan.source.clone(),
-                                type_identity: validation::stored_structural_type_identity(
-                                    self.program,
-                                    owner_type,
-                                    &[],
-                                    &[],
-                                ),
+                        checked_trees::CheckedNormalCleanupAction::RetireHome {
+                            // Retirement names the whole completed owner. Its
+                            // borrowed projection is only the call's presentation.
+                            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                                value_dependency: argument_plan.source.structural_value_dependency(),
+                                expression: argument_plan.source.structural_expression()?,
+                                logical_root_type_identity: None,
                             },
-                        ]);
+                            type_identity: validation::stored_structural_type_identity(
+                                self.program,
+                                owner_type,
+                                &[],
+                                &[],
+                            ),
+                        },
+                    ]);
                     }
                     language_semantics::Multiplicity::Unrestricted => {}
                 }
@@ -1554,6 +1607,7 @@ mod call_result_types {
     }
 }
 mod cases {
+
     /*
         Constructor payloads use the ordinary operand graph before tag observation.
         The same dynamic field computations retain their calls, traps and selected
@@ -1585,22 +1639,7 @@ mod cases {
             if let Some((_, subject)) =
                 self.readable_case_subject(binary.left, self.statement_index)
             {
-                let receiver_value = if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression: anchor } = subject.source {
-                    let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
-                        self.program.expression_table.expression(anchor)
-                    else {
-                        return None;
-                    };
-                    let source = self.program.saved_value_source(saved)?;
-                    let reference = validation::expression_result_type_reference(
-                        self.program, machine, state, source,
-                    )?;
-                    let value = self.structural_value(source, reference)?;
-                    self.retain_structural_value_root(value, reference)?;
-                    value
-                } else {
-                    checked_trees::CheckedStructuralValueHandle::invalid()
-                };
+                let receiver_value = self.case_subject_receiver(&subject)?;
                 return Some(self.publish_case_membership(
                     expression,
                     expression,
@@ -1637,7 +1676,9 @@ mod cases {
                 };
                 self.program.saved_value_source(saved)?;
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                    value_dependency: None,
                     expression,
+                    logical_root_type_identity: None,
                 }
             } else {
                 let root = place.root.as_symbol()?;
@@ -1702,13 +1743,54 @@ mod cases {
             ))
         }
 
-        /*
-            A runtime selector naming an immutable integer scalar local of this
-            state: the temp symbol resolution hoists a computed subject index
-            (`self.grid[self.r * 6 + self.c]`) into. It selects at the local's
-            dense `Local` position, the coordinate every scalar read of that local
-            in this computation uses.
-        */
+        /// A tag test retains its saved receiver and exact relative path. The
+        /// dispatch owns its birth; this association never replays the subject.
+        pub(super) fn case_subject_receiver(
+            &mut self,
+            subject: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        ) -> Option<checked_trees::CheckedStructuralValueHandle> {
+            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression: anchor,
+                ..
+            } = subject.source
+            else {
+                return Some(checked_trees::CheckedStructuralValueHandle::invalid());
+            };
+            let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
+                self.program.expression_table.expression(anchor)
+            else {
+                return None;
+            };
+            if let Some(value) = self
+                .dispatch_receivers
+                .get(&(anchor.arena_index(), anchor.generation()))
+            {
+                return Some(value.value);
+            }
+            let capture = self.program.expression_table.value_capture(saved.capture);
+            if matches!(
+                capture.owner,
+                typed_trees::expression::ValueCaptureOwner::Match
+            ) {
+                // Match production must publish the exact value/place association
+                // before its patterns. Replaying its initializer cannot supply it.
+                return None;
+            }
+            let source = self.program.saved_value_source(saved)?;
+            let machine = self.program.machine_by_symbol(self.machine)?;
+            let state = self.program.state_in_machine(machine, self.state)?;
+            let reference =
+                validation::expression_result_type_reference(self.program, machine, state, source)?;
+            let value = self.structural_value(source, reference)?;
+            self.retain_structural_value_root(value, reference)?;
+            Some(value)
+        }
+
+        /// A runtime selector naming an immutable integer scalar local of this
+        /// state: the temp symbol resolution hoists a computed subject index
+        /// (`self.grid[self.r * 6 + self.c]`) into. It selects at the local's
+        /// dense `Local` position, the coordinate every scalar read of that local
+        /// in this computation uses.
         pub(super) fn local_selector(
             &self,
             selector: ExpressionHandle,
@@ -1778,6 +1860,140 @@ mod cases {
                 case: constructor.case,
                 fields,
             })
+        }
+    }
+}
+mod completions {
+    //! Selected Unit completions use ordinary evaluated dispatch operands and exact
+    //! call occurrences. They create no value carrier or dummy result storage.
+
+    use super::{Builder, ExpressionHandle, ExpressionNode};
+    use checked_trees::{
+        CheckedCompletionArm, CheckedCompletionExpression, CheckedCompletionExpressionHandle,
+        CheckedCompletionExpressionKind as Kind, CheckedCompletionPlans, CheckedCompletionRefusal,
+        CheckedCompletionRefusalReason as Refusal, CheckedCompletionRoot,
+    };
+    use std::collections::BTreeMap;
+
+    impl Builder<'_, '_> {
+        pub(super) fn record_completion(
+            &mut self,
+            expression: ExpressionHandle,
+            plans: &mut CheckedCompletionPlans,
+        ) -> Option<()> {
+            if !matches!(
+                self.program.expression_table.expression(expression),
+                ExpressionNode::Match(_)
+            ) {
+                return None;
+            }
+            let (root, refusal) =
+                match self.completion_node(expression, plans, &mut BTreeMap::new()) {
+                    Ok(root) => (root, None),
+                    Err(refusal) => (CheckedCompletionExpressionHandle::invalid(), Some(refusal)),
+                };
+            plans.roots.push(CheckedCompletionRoot {
+                machine: self.machine,
+                state: self.state,
+                statement_ordinal: u32::try_from(self.statement_index).ok()?,
+                expression,
+                root,
+                refusal,
+            });
+            refusal.is_none().then_some(())
+        }
+
+        fn completion_node(
+            &mut self,
+            expression: ExpressionHandle,
+            plans: &mut CheckedCompletionPlans,
+            visited: &mut BTreeMap<(u32, u32), Option<CheckedCompletionExpressionHandle>>,
+        ) -> Result<CheckedCompletionExpressionHandle, CheckedCompletionRefusal> {
+            let declined = |reason| CheckedCompletionRefusal { expression, reason };
+            let coordinate = (expression.arena_index(), expression.generation());
+            if let Some(previous) = visited.get(&coordinate) {
+                return previous.ok_or_else(|| declined(Refusal::Cycle));
+            }
+            visited.insert(coordinate, None);
+            let kind = match self.program.expression_table.expression(expression).clone() {
+                ExpressionNode::Call(call) => {
+                    let machine = self
+                        .program
+                        .machine_by_symbol(self.machine)
+                        .ok_or_else(|| declined(Refusal::CallResult))?;
+                    if !validation::call_returns_unit(self.program, machine, expression) {
+                        return Err(declined(Refusal::CallResult));
+                    }
+                    let target = validation::call_target_symbol(self.program, &call);
+                    let (source_call, _) = self
+                        .call_ordinal(expression, target)
+                        .ok_or_else(|| declined(Refusal::CallOccurrence))?;
+                    Kind::Invocation { source_call }
+                }
+                ExpressionNode::Match(dispatch) => {
+                    let (subject, prepared) = self
+                        .prepare_dispatch(expression, &dispatch)
+                        .ok_or_else(|| declined(Refusal::DispatchOperands))?;
+                    let mut arms = Vec::with_capacity(prepared.len());
+                    for arm in prepared {
+                        let comparison = match (&subject, &arm.pattern) {
+                            (
+                                checked_trees::CheckedDispatchSubject::Scalar(subject),
+                                checked_trees::CheckedScalarDispatchPattern::Value(_),
+                            ) => {
+                                let primitive = self.plans.nodes.get(*subject).primitive_type;
+                                if primitive == super::PrimitiveType::Bool {
+                                    checked_trees::CheckedCompletionComparison::Boolean
+                                } else if primitive.is_fixed_integer()
+                                    || primitive == super::PrimitiveType::Addr
+                                {
+                                    checked_trees::CheckedCompletionComparison::Integer
+                                } else {
+                                    return Err(declined(Refusal::Comparison));
+                                }
+                            }
+                            (
+                                _,
+                                checked_trees::CheckedScalarDispatchPattern::Wildcard
+                                | checked_trees::CheckedScalarDispatchPattern::Predicate(_),
+                            ) => checked_trees::CheckedCompletionComparison::Predicate,
+                            _ => return Err(declined(Refusal::Comparison)),
+                        };
+                        arms.push(CheckedCompletionArm {
+                            source_arm: arm.source_arm,
+                            equality_use: arm.equality_use,
+                            comparison,
+                            pattern: arm.pattern,
+                            completion: self.completion_node(arm.value, plans, visited)?,
+                        });
+                    }
+                    Kind::Dispatch {
+                        subject,
+                        arms: plans.arms.insert_many(arms),
+                    }
+                }
+                _ => return Err(declined(Refusal::ExpressionKind)),
+            };
+            let normal_continuation = match &kind {
+                Kind::Invocation { .. } => {
+                    validation::expression_normal_completion_possible(self.program, expression)
+                        .ok_or_else(|| declined(Refusal::NormalCompletion))?
+                }
+                Kind::Dispatch { arms, .. } => plans
+                    .arms
+                    .span(*arms)
+                    .ok_or_else(|| declined(Refusal::DispatchOperands))?
+                    .iter()
+                    .any(|arm| plans.nodes.get(arm.completion).normal_continuation),
+                Kind::Missing => return Err(declined(Refusal::ExpressionKind)),
+            };
+            let value = plans.nodes.append(CheckedCompletionExpression {
+                expression,
+                kind,
+                normal_continuation,
+            });
+            visited.insert(coordinate, Some(value));
+            Ok(value)
         }
     }
 }
@@ -2184,12 +2400,13 @@ mod declaration_inputs {
     }
 }
 mod dispatch {
+
     /*
         A dispatch retains one subject computation and its covered authored prefix.
     */
     use super::{
-        Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
-        ExpressionNode, PrimitiveType,
+        Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind,
+        CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType,
     };
     use crate::flow::expressions;
     use crate::values::operator_is_builtin;
@@ -2487,9 +2704,6 @@ mod dispatch {
             if let Some(reference) =
                 validation::structural_match_subject_type(self.program, machine, state, dispatch)
             {
-                let value = self.structural_value(dispatch.subject, reference)?;
-                self.retained_argument_owner(value, reference)?;
-                self.retain_structural_value_root(value, reference)?;
                 let alias = if dispatch.capture.is_valid() {
                     expressions(self.program)
                         .value_capture(dispatch.capture)
@@ -2497,17 +2711,99 @@ mod dispatch {
                 } else {
                     ExpressionHandle::invalid()
                 };
+                // Retaining a noncopy owner uses the existing operand path: it
+                // keeps that exact home and access until an arm consumes it.
+                // A borrowed subject still captures only its admitted view.
+                let retains_owned_place = self.program.type_multiplicity(reference)
+                    != language_semantics::Multiplicity::Unrestricted
+                    && super::structural_values::names_owned_structural_value(
+                        self.program,
+                        reference,
+                    )
+                    && validation::ownership_place_from_expression_in_state(
+                        self.program,
+                        self.state,
+                        self.statement_index,
+                        dispatch.subject,
+                    )
+                    .and_then(|place| {
+                        validation::canonical_owned_place_type_reference(
+                            self.program,
+                            self.state,
+                            self.statement_index,
+                            &place,
+                        )
+                    })
+                    .is_some_and(|owned| {
+                        validation::declared_carriers_match(self.program, owned, reference)
+                    });
+                // A source-checked place is observed under its existing custody.
+                // Copy captures and stored descriptors keep their independent value
+                // producer; neither path can turn an affine referent into an owner.
+                if !retains_owned_place
+                    && !self.uses_captured_dispatch_value(dispatch.subject)
+                    && validation::reference_shell(self.program, reference).is_none()
+                    && let Some(place) = self.canonical_place(dispatch.subject)
+                {
+                    let place = if place.root.as_symbol().is_some() {
+                        Some(
+                            self.borrowed_leaf_argument(
+                                dispatch.subject,
+                                reference,
+                                dispatch.subject,
+                            )?
+                            .0,
+                        )
+                    } else {
+                        self.readable_case_subject(dispatch.subject, self.statement_index)
+                            .map(|(_, place)| place)
+                    };
+                    if let Some(place) = place {
+                        // Even a tag-only selection captures its endpoint once.
+                        // With no lexical binding the exact subject occurrence is
+                        // its private completed-expression name.
+                        let alias = if alias.is_valid() {
+                            alias
+                        } else {
+                            dispatch.subject
+                        };
+                        self.retain_dispatch_receiver(
+                            alias,
+                            checked_trees::CheckedStructuralValueHandle::invalid(),
+                            reference,
+                            place.access,
+                        )?;
+                        return Some(checked_trees::CheckedDispatchSubject::Structural {
+                            expression: dispatch.subject,
+                            value: checked_trees::CheckedStructuralValueHandle::invalid(),
+                            alias,
+                            place,
+                        });
+                    }
+                }
+                let value = self.structural_value(dispatch.subject, reference)?;
+                self.retained_argument_owner(value, reference)?;
+                self.retain_structural_value_root(value, reference)?;
+                self.retain_dispatch_receiver(
+                    alias,
+                    value,
+                    reference,
+                    CheckedStructuralAccess::Owned,
+                )?;
                 return Some(checked_trees::CheckedDispatchSubject::Structural {
+                    expression: dispatch.subject,
                     value,
                     alias,
                     place: CheckedUnitStructuralArgumentPlan {
                         projection_evaluations: Default::default(),
                         source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                            value_dependency: None,
                             expression: if alias.is_valid() {
                                 alias
                             } else {
                                 dispatch.subject
                             },
+                            logical_root_type_identity: None,
                         },
                         path: Vec::new(),
                         type_identity: validation::stored_structural_type_identity(
@@ -2538,6 +2834,35 @@ mod dispatch {
                 self.expression(dispatch.subject, PrimitiveType::Bool)?
             };
             Some(checked_trees::CheckedDispatchSubject::Scalar(subject))
+        }
+
+        fn retain_dispatch_receiver(
+            &mut self,
+            alias: ExpressionHandle,
+            value: checked_trees::CheckedStructuralValueHandle,
+            type_reference: typed_trees::types::TypeReferenceHandle,
+            access: CheckedStructuralAccess,
+        ) -> Option<()> {
+            let receiver = super::builder::DispatchReceiver {
+                value,
+                type_reference,
+                access,
+            };
+            if !alias.is_valid() {
+                return Some(());
+            }
+            match self
+                .dispatch_receivers
+                .entry((alias.arena_index(), alias.generation()))
+            {
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(receiver);
+                    Some(())
+                }
+                std::collections::btree_map::Entry::Occupied(entry) => {
+                    (*entry.get() == receiver).then_some(())
+                }
+            }
         }
 
         fn structural_subject_dispatch(
@@ -2681,6 +3006,7 @@ mod dispatch {
             let checked_trees::CheckedDispatchSubject::Structural {
                 place,
                 value: receiver,
+                alias,
                 ..
             } = subject
             else {
@@ -2709,13 +3035,137 @@ mod dispatch {
                         expression,
                         ExpressionHandle::invalid(),
                         *receiver,
-                        CheckedScalarComputationStructuralArgument::Place(place.clone()),
+                        CheckedScalarComputationStructuralArgument::Place(if receiver.is_valid() {
+                            place.clone()
+                        } else {
+                            CheckedUnitStructuralArgumentPlan {
+                                source:
+                                    CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                                        value_dependency: None,
+                                        expression: *alias,
+                                        logical_root_type_identity: None,
+                                    },
+                                path: Vec::new(),
+                                projection_evaluations: Default::default(),
+                                type_identity: place.type_identity,
+                                access: place.access,
+                            }
+                        }),
                         case,
                     )
                 }
                 MatchPattern::Wildcard => return None,
             };
             Some(CheckedScalarDispatchPattern::Predicate(selected))
+        }
+    }
+
+    /// The comparison schedule is independent of the selected result's carrier.
+    pub(super) struct PreparedDispatchArm {
+        pub(super) source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
+        pub(super) equality_use: arena::Handle<checked_trees::CheckedOperatorUseFact>,
+        pub(super) pattern: CheckedScalarDispatchPattern,
+        pub(super) value: ExpressionHandle,
+    }
+
+    impl Builder<'_, '_> {
+        pub(super) fn prepare_dispatch(
+            &mut self,
+            expression: ExpressionHandle,
+            dispatch: &TableMatchExpression,
+        ) -> Option<(
+            checked_trees::CheckedDispatchSubject,
+            Vec<PreparedDispatchArm>,
+        )> {
+            let subject = self.dispatch_subject(dispatch)?;
+            let subject_type = match subject {
+                checked_trees::CheckedDispatchSubject::Scalar(value) => {
+                    self.push_scalar_root(
+                        CheckedScalarExpressionRole::StructuralValueSubject { expression },
+                        value,
+                    )?;
+                    Some(self.plans.nodes.get(value).primitive_type)
+                }
+                checked_trees::CheckedDispatchSubject::Structural { .. } => None,
+            };
+            let authored = self
+                .program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .to_vec();
+            let mut arms = Vec::new();
+            let mut covered = false;
+            let mut boolean_coverage = [false; 2];
+            for (ordinal, arm) in authored.iter().enumerate() {
+                if subject_type.is_none()
+                    && self.structural_dispatch_arm_is_impossible(dispatch, arm)
+                {
+                    continue;
+                }
+                let source_arm = dispatch.arms.handle_at(u32::try_from(ordinal).ok()?);
+                let mut equality_use = arena::Handle::invalid();
+                let pattern = if let Some(subject_type) = subject_type {
+                    match arm.pattern {
+                        MatchPattern::Wildcard => {
+                            covered = true;
+                            checked_trees::CheckedScalarDispatchPattern::Wildcard
+                        }
+                        MatchPattern::Value(pattern) => {
+                            if subject_type == PrimitiveType::Bool
+                                && let Some(value) =
+                                    self.program.expression_table.boolean_node(pattern)
+                            {
+                                if boolean_coverage[usize::from(*value)] {
+                                    continue;
+                                }
+                                boolean_coverage[usize::from(*value)] = true;
+                                covered = boolean_coverage == [true, true];
+                            }
+                            if matches!(subject_type, PrimitiveType::F32 | PrimitiveType::F64) {
+                                equality_use = self.comparison_use(
+                                    expression,
+                                    checked_trees::CheckedOperatorOccurrence::MatchEquality {
+                                        source_arm,
+                                    },
+                                )?;
+                            }
+                            let computation = self.expression(pattern, subject_type)?;
+                            self.plans.nodes.get_mut(computation).authored_root = pattern;
+                            self.push_scalar_root(
+                                CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
+                                computation,
+                            )?;
+                            checked_trees::CheckedScalarDispatchPattern::Value(computation)
+                        }
+                        MatchPattern::Destructure(_) => return None,
+                    }
+                } else {
+                    self.structural_dispatch_pattern(expression, dispatch, &subject, arm.pattern)?
+                };
+                if let Some(computation) = pattern.computation()
+                    && subject_type.is_none()
+                {
+                    self.push_scalar_root(
+                        CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
+                        computation,
+                    )?;
+                }
+                arms.push(PreparedDispatchArm {
+                    source_arm,
+                    equality_use,
+                    pattern,
+                    value: arm.value,
+                });
+                if matches!(arm.pattern, MatchPattern::Wildcard) || covered {
+                    break;
+                }
+            }
+            // Structural coverage was established by the common pattern
+            // checker, including case completeness and guarded-arm limits.
+            if (!covered && subject_type.is_some()) || arms.is_empty() {
+                return None;
+            }
+            Some((subject, arms))
         }
     }
 }
@@ -3259,6 +3709,7 @@ mod dynamic_calls {
     }
 }
 mod enum_equality {
+
     /*
         Intrinsic enum equality completes each operand once, left before right.
 
@@ -3341,6 +3792,14 @@ mod enum_equality {
                 _ => None,
             };
             if let Some((subject, receiver_value, case)) = known_case {
+                let receiver_value = match &subject {
+                    CheckedScalarComputationStructuralArgument::Place(place)
+                        if !receiver_value.is_valid() =>
+                    {
+                        self.case_subject_receiver(place)?
+                    }
+                    _ => receiver_value,
+                };
                 let membership = self.publish_case_membership(
                     expression,
                     if unequal {
@@ -3455,22 +3914,24 @@ mod enum_equality {
             let value = self.retain_copied_place_value(expression, reference)?;
             *receiver = value;
             *subject = CheckedScalarComputationStructuralArgument::Place(
-                checked_trees::CheckedUnitStructuralArgumentPlan {
-                    projection_evaluations: Default::default(),
-                    source:
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                            expression,
-                        },
-                    path: Vec::new(),
-                    type_identity: validation::stored_structural_type_identity(
-                        self.program,
-                        reference,
-                        &[],
-                        &[],
-                    ),
-                    access: checked_trees::CheckedStructuralAccess::SharedBorrow,
-                },
-            );
+            checked_trees::CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
+                source:
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        value_dependency: Some(value),
+                        expression,
+                        logical_root_type_identity: None,
+                    },
+                path: Vec::new(),
+                type_identity: validation::stored_structural_type_identity(
+                    self.program,
+                    reference,
+                    &[],
+                    &[],
+                ),
+                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+            },
+        );
             Some(())
         }
 
@@ -3539,14 +4000,14 @@ mod enum_equality {
             let reference = self.expression_type(expression)?;
             let receiver = self.retain_structural_argument(expression, reference)?;
             Some((reference, CheckedScalarComputationStructuralArgument::Place(
-                checked_trees::CheckedUnitStructuralArgumentPlan {
-                    projection_evaluations: Default::default(),
-                    source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
-                    path: Vec::new(),
-                    type_identity: validation::stored_structural_type_identity(self.program, reference, &[], &[]),
-                    access: checked_trees::CheckedStructuralAccess::SharedBorrow,
-                }
-            ), receiver))
+            checked_trees::CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { value_dependency: Some(receiver), expression, logical_root_type_identity: None },
+                path: Vec::new(),
+                type_identity: validation::stored_structural_type_identity(self.program, reference, &[], &[]),
+                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+            }
+        ), receiver))
         }
 
         fn enum_operand(
@@ -4434,6 +4895,7 @@ mod normal_return {
     }
 }
 mod quotient_calls {
+
     /*
         Explicit checked expression graph for sealed quotient requests. This does
         not admit a request: final publication consumes its separately checked row.
@@ -4474,17 +4936,17 @@ mod quotient_calls {
                 receiver_value,
             );
             Some(self.insert(expected, checked_trees::CheckedScalarComputationKind::StructuralField {
-                atomic_ordering: None,
-                result_type,
-                source_expression: expression, receiver_expression: expression, source_type: result_type, receiver_value,
-                subject: checked_trees::CheckedUnitStructuralArgumentPlan {
-                projection_evaluations: Default::default(),
-                    source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
-                    path: Vec::new(), type_identity: validation::stored_structural_type_identity(self.program, result_type, &[], &[]),
-                    access: checked_trees::CheckedStructuralAccess::SharedBorrow,
-                },
-                field: symbols::SymbolHandle::invalid(), field_identity: Default::default(),
-            }))
+            atomic_ordering: None,
+            result_type,
+            source_expression: expression, receiver_expression: expression, source_type: result_type, receiver_value,
+            subject: checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { value_dependency: Some(receiver_value), expression, logical_root_type_identity: None },
+                path: Vec::new(), type_identity: validation::stored_structural_type_identity(self.program, result_type, &[], &[]),
+                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+            },
+            field: symbols::SymbolHandle::invalid(), field_identity: Default::default(),
+        }))
         }
 
         pub(super) fn quotient_call_value(
@@ -4598,6 +5060,7 @@ mod quotient_calls {
     }
 }
 mod rank_observations {
+
     /*
         Arrival ranks are ordinary checked scalar computations. The source ranking
         owner selects the view, proves formation and every cyclic edge, and retains
@@ -5061,6 +5524,7 @@ mod rank_observations {
                     structural_values,
                     statement_nodes_start,
                     root_scope: super::builder::RootScope::RankObservation,
+                    dispatch_receivers: Default::default(),
                     scalar_occurrences: Vec::new(),
                     integer_occurrences: Vec::new(),
                 };
@@ -6008,6 +6472,7 @@ mod slice_view {
     }
 }
 mod structural_fields {
+
     /*
         Field observation consumes either established storage or a complete evaluated
         receiver. Both keep the same declared projection; a fresh receiver is an
@@ -6106,7 +6571,11 @@ mod structural_fields {
                     receiver_value,
                     subject: CheckedUnitStructuralArgumentPlan {
                         projection_evaluations: Default::default(),
-                        source: SourcePlan::StructuralExpression { expression },
+                        source: SourcePlan::StructuralExpression {
+                            value_dependency: None,
+                            expression,
+                            logical_root_type_identity: None,
+                        },
                         path: observation.path,
                         type_identity: validation::stored_structural_type_identity(
                             self.program,
@@ -6247,7 +6716,9 @@ mod structural_fields {
                 return arena::HandleSpan::empty();
             }
             let source = SourcePlan::StructuralExpression {
+                value_dependency: None,
                 expression: receiver.expression,
+                logical_root_type_identity: None,
             };
             let Some(actions) = crate::execution::terminal_unit::cleanup::descriptor_retirement(
                 self.program,
@@ -6493,7 +6964,31 @@ mod structural_fields {
                 && field.root == facts::PlaceRoot::Expression(captured.expression)
             {
                 captured.root
+            } else if let Some(receiver) = field.root.as_expression().and_then(|anchor| {
+                self.dispatch_receivers
+                    .get(&(anchor.arena_index(), anchor.generation()))
+            }) {
+                // The dispatch has already chosen a completed value or an existing
+                // place. A field read consumes that exact role, not its supplying
+                // expression, which could move an affine field or replay a call.
+                if !validation::declared_carriers_match(
+                    self.program,
+                    receiver.type_reference,
+                    field.type_reference,
+                ) {
+                    return None;
+                }
+                receiver.value
             } else if field.receiver_value.is_valid() {
+                if field.root.as_expression().is_some_and(|anchor| {
+                matches!(self.program.expression_table.expression(anchor), ExpressionNode::SavedSubject(saved)
+                    if matches!(self.program.expression_table.value_capture(saved.capture).owner,
+                        typed_trees::expression::ValueCaptureOwner::Match))
+            }) {
+                // An unproduced Match alias cannot recover a receiver by
+                // evaluating the original subject at this later observation.
+                return None;
+            }
                 let value = self.structural_value(field.receiver_value, field.type_reference)?;
                 self.retain_structural_value_root(value, field.type_reference)?;
                 value
@@ -6502,9 +6997,11 @@ mod structural_fields {
             };
             let source = match field.root {
                 facts::PlaceRoot::Symbol(symbol) => self.structural_source(symbol),
-                facts::PlaceRoot::Expression(expression) => {
-                    SourcePlan::StructuralExpression { expression }
-                }
+                facts::PlaceRoot::Expression(expression) => SourcePlan::StructuralExpression {
+                    value_dependency: None,
+                    expression,
+                    logical_root_type_identity: None,
+                },
                 _ => return None,
             };
             Some(self.insert(
@@ -6632,6 +7129,7 @@ mod structural_fields {
     }
 }
 mod structural_values {
+
     /*
         Fresh structural establishment shares the scalar operand evaluation owner.
         Reference leaves are classified before referent-oriented normalization:
@@ -6648,8 +7146,8 @@ mod structural_values {
         Exact source/path replay and ordinary liveness remain downstream checks.
     */
     use super::{
-        Builder, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType,
-        SymbolHandle, TypeReferenceNode,
+        Builder, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, SymbolHandle,
+        TypeReferenceNode,
     };
     use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
     use crate::execution::terminal_unit::calls::byte_sequence_literal_argument;
@@ -6666,7 +7164,6 @@ mod structural_values {
         CheckedScalarComputationHandle, CheckedStructuralDispatchArm, CheckedStructuralValue,
         CheckedStructuralValueHandle as ValueHandle, CheckedStructuralValueKind as ValueKind,
     };
-    use typed_trees::expression::MatchPattern;
     use typed_trees::types::TypeReferenceHandle;
     use value_predicates::argument_needs_establishment;
 
@@ -7055,6 +7552,7 @@ mod structural_values {
         }
     }
     mod place_types {
+
         /*
             Place-rooted leaf types and copy/borrow custody for structural
             establishment. A canonical place's borrowability and the leaf type a
@@ -7087,46 +7585,23 @@ mod structural_values {
                 })
         }
 
-        /*
-            `canonical_place_is_borrowable` widened with a runtime `Index` segment
-            for the copied-leaf lane: `self.pointer_scan_nodes[position]` has no
-            static ordinal, but the argument-path mint records the selector as a
-            `RuntimeIndex` coordinate the terminal verifier re-proves against the
-            enclosing array's extent. The `&place` borrow and scalar-case lanes keep
-            the static shape — a loan or a case read replays the place, not a runtime
-            element.
-        */
+        /// A copy reads named storage or an authenticated saved receiver. Its path
+        /// can select a case payload or an evaluated array element; ordinary checking
+        /// still proves the case, bounds, copy permission and access. This list of
+        /// storage coordinates establishes none of those facts.
         pub(super) fn canonical_place_is_copyable(place: &validation::CanonicalPlace) -> bool {
-            matches!(place.root, facts::PlaceRoot::Symbol(_))
-                && place.segments.iter().all(|segment| {
-                    matches!(
-                        segment,
-                        facts::PlaceSegment::Field { .. }
-                            | facts::PlaceSegment::FixedIndex { .. }
-                            | facts::PlaceSegment::Index { .. }
-                    )
-                })
-        }
-
-        pub(super) fn symbol_declared_type(
-            program: &dyn ::validation::CheckingInput,
-            symbol: SymbolHandle,
-        ) -> Option<TypeReferenceHandle> {
-            for machine in program.machines() {
-                for state in program.machine_states(machine) {
-                    if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
-                        return Some(parameter.type_reference);
-                    }
-                    for statement in program.statement_table.statements(state.statement_nodes) {
-                        if let Some(local) = statement.as_local_data()
-                            && local.symbol == symbol
-                        {
-                            return Some(local.type_reference);
-                        }
-                    }
-                }
-            }
-            None
+            matches!(
+                place.root,
+                facts::PlaceRoot::Symbol(_) | facts::PlaceRoot::Expression(_)
+            ) && place.segments.iter().all(|segment| {
+                matches!(
+                    segment,
+                    facts::PlaceSegment::Field { .. }
+                        | facts::PlaceSegment::Case { .. }
+                        | facts::PlaceSegment::FixedIndex { .. }
+                        | facts::PlaceSegment::Index { .. }
+                )
+            })
         }
 
         /*
@@ -7180,8 +7655,8 @@ mod structural_values {
                 });
             }
             let state = program.state_by_symbol(state)?;
-            let symbol = place.root.as_symbol()?;
             if place.segments.is_empty()
+                && let Some(symbol) = place.root.as_symbol()
                 && program.state_parameter_by_symbol(state, symbol).is_some()
             {
                 let shell = validation::reference_shell(program, reference)?;
@@ -7224,6 +7699,7 @@ mod structural_values {
             statement_index: usize,
             expression: ExpressionHandle,
             expected: TypeReferenceHandle,
+            existing_capture: impl FnOnce(ExpressionHandle) -> bool,
         ) -> bool {
             if !copied_place_type(program, expected) {
                 return false;
@@ -7234,10 +7710,21 @@ mod structural_values {
             if !canonical_place_is_copyable(&place) {
                 return false;
             }
-            let Some(symbol) = place.root.as_symbol() else {
-                return false;
-            };
-            let Some(root) = symbol_declared_type(program, symbol) else {
+            if let Some(anchor) = place.root.as_expression() {
+                // The saved receiver was captured before its patterns. If its field
+                // needs a copy, failure to prepare that copy cannot donate ownership
+                // of the borrowed receiver to the ordinary owned-value route.
+                return existing_capture(anchor);
+            }
+            let Some(root) = validation::canonical_place_type_reference(
+                program,
+                state,
+                statement_index,
+                &validation::CanonicalPlace {
+                    root: place.root,
+                    segments: Vec::new(),
+                },
+            ) else {
                 return false;
             };
             if !place.segments.is_empty()
@@ -7271,6 +7758,7 @@ mod structural_values {
         }
     }
     mod place_values {
+
         /*
             Place-rooted structural value production: each root's custody (borrowed,
             copied, projected, owned) selects its own establishment path.
@@ -7408,6 +7896,9 @@ mod structural_values {
                 expression: ExpressionHandle,
                 expected: TypeReferenceHandle,
             ) -> Option<ValueKind> {
+                if !super::place_types::copied_place_type(self.program, expected) {
+                    return None;
+                }
                 if let Some(kind) = self.copied_dispatch_place(expression, expected) {
                     return Some(kind);
                 }
@@ -7428,13 +7919,57 @@ mod structural_values {
                 Some(ValueKind::CopiedStructuralPlace { source, leaf })
             }
 
-            /*
-                The `SharedBorrow` argument plan a borrowed leaf read produces: the
-                named root as a parameter/local/`self` source plus the canonical
-                member path, with `type_identity` naming the projected leaf.
-                The consuming operation owns selector evaluation; its expression may
-                differ from the selected source when a recast consumes that descriptor.
-            */
+            /// The dispatch already selected this existing endpoint before patterns.
+            /// Keep its exact carrier and access ceiling; the alias is not an owned
+            /// producer to reconstruct. This source names storage only, not a copied
+            /// value, readable contents, or new loan authority.
+            pub(super) fn retained_dispatch_place_source(
+                &self,
+                anchor: ExpressionHandle,
+                access: StructuralAccess,
+            ) -> Option<SourcePlan> {
+                let receiver = self
+                    .dispatch_receivers
+                    .get(&(anchor.arena_index(), anchor.generation()))?;
+                if receiver.value.is_valid()
+                    || access == StructuralAccess::Owned
+                    || !crate::values::reference_sources::access_can_supply(receiver.access, access)
+                    || reference_shell(self.program, receiver.type_reference).is_some()
+                {
+                    return None;
+                }
+                let root = canonical_place_type_reference(
+                    self.program,
+                    self.state,
+                    self.statement_index,
+                    &CanonicalPlace {
+                        root: PlaceRoot::Expression(anchor),
+                        segments: Vec::new(),
+                    },
+                )?;
+                if !validation::declared_carriers_match(self.program, root, receiver.type_reference)
+                {
+                    return None;
+                }
+                let identity = stored_structural_type_identity(
+                    self.program,
+                    receiver.type_reference,
+                    &[],
+                    &[],
+                );
+                identity
+                    .is_valid()
+                    .then_some(SourcePlan::StructuralExpression {
+                        expression: anchor,
+                        value_dependency: None,
+                        logical_root_type_identity: Some(identity),
+                    })
+            }
+
+            /// A readable leaf keeps its named or saved home and exact projection.
+            /// Its type names the leaf; borrowing it never takes the whole receiver.
+            /// The consuming operation owns selector evaluation; its expression may
+            /// differ from the selected source when a recast consumes that descriptor.
             pub(in crate::execution::scalar_computations) fn borrowed_leaf_argument(
                 &mut self,
                 expression: ExpressionHandle,
@@ -7446,15 +7981,25 @@ mod structural_values {
                 Vec<(ExpressionHandle, CheckedScalarComputationHandle)>,
             )> {
                 let place = self.canonical_place(expression)?;
-                let source_symbol = place.root.as_symbol()?;
-                let mut source = SourcePlan::StructuralLocal {
-                    symbol: source_symbol,
+                let source_symbol = place.root.as_symbol();
+                // Value planning precedes the final structural parameter roster. Its
+                // dense positions change when a borrowed receiver is retained, so an
+                // authored leaf must keep its symbol until binding resolves that roster.
+                // StructuralLocal already represents both live locals and named formals;
+                // independent source replay still checks the exact authored root.
+                let mut source = match place.root {
+                    PlaceRoot::Symbol(symbol) => SourcePlan::StructuralLocal { symbol },
+                    PlaceRoot::Expression(anchor) => {
+                        self.retained_dispatch_place_source(anchor, StructuralAccess::SharedBorrow)?
+                    }
+                    _ => return None,
                 };
                 let selectors =
                     self.projection_selector_evaluations(evaluation_owner, expression)?;
                 let ProjectedArgumentPath { mut path, .. } =
                     self.projected_place_path(&place, &selectors)?;
                 if !place.segments.is_empty()
+                    && let Some(source_symbol) = source_symbol
                     && let Some(state) = self.program.state_by_symbol(self.state)
                     && let Some((_, local)) =
                         self.program.state_local_declaration(state, source_symbol)
@@ -7556,13 +8101,18 @@ mod structural_values {
                     },
                 )?;
                 if matches!(place.root, PlaceRoot::Expression(_)) {
-                    let mut reference = root_reference;
-                    while let Some(shell) = reference_shell(self.program, reference)
-                        && stores_reference_shape(self.program, reference, &[])
-                    {
-                        path.insert(0, PathSegment::Referent);
-                        reference = shell.referee;
-                    }
+                    // The canonical place walk starts at borrowed storage. An
+                    // evaluated value instead owns its stored descriptor, so retain
+                    // each actual pointer crossing before selecting the first field.
+                    // View descriptors already interpret their own element paths.
+                    let mut prefix =
+                        crate::execution::terminal_unit::calls::stored_reference_prefix(
+                            self.program,
+                            root_reference,
+                            |access| access.is_readable(),
+                        )?;
+                    prefix.append(&mut path);
+                    path = prefix;
                 }
                 let source = self.structural_value(root_expression, root_reference)?;
                 if matches!(place.root, PlaceRoot::Expression(_)) {
@@ -7601,6 +8151,31 @@ mod structural_values {
                 })
             }
 
+            /// Authenticate a saved subject's original carrier and capture identity.
+            /// This query supplies no executable source edge or permission to replay it.
+            pub(super) fn saved_subject_anchor(
+                &self,
+                saved: &typed_trees::expression::TableSavedSubject,
+                expected: TypeReferenceHandle,
+            ) -> Option<ExpressionHandle> {
+                let source = self.program.saved_value_source(saved)?;
+                let machine = self.program.machine_by_symbol(self.machine)?;
+                let state = self.program.state_in_machine(machine, self.state)?;
+                let actual =
+                    expression_result_type_reference(self.program, machine, state, source)?;
+                if self.program.normalized_type_identity(actual)
+                    != self.program.normalized_type_identity(expected)
+                {
+                    return None;
+                }
+                Some(
+                    self.program
+                        .expression_table
+                        .value_capture(saved.capture)
+                        .value_anchor,
+                )
+            }
+
             pub(super) fn owned_structural_place(
                 &self,
                 expression: ExpressionHandle,
@@ -7609,23 +8184,13 @@ mod structural_values {
                 if let ExpressionNode::SavedSubject(saved) =
                     self.program.expression_table.expression(expression)
                 {
-                    let source = self.program.saved_value_source(saved)?;
-                    let machine = self.program.machine_by_symbol(self.machine)?;
-                    let state = self.program.state_in_machine(machine, self.state)?;
-                    let actual =
-                        expression_result_type_reference(self.program, machine, state, source)?;
-                    if self.program.normalized_type_identity(actual)
-                        != self.program.normalized_type_identity(expected)
-                    {
-                        return None;
-                    }
-                    let anchor = self
-                        .program
-                        .expression_table
-                        .value_capture(saved.capture)
-                        .value_anchor;
+                    let anchor = self.saved_subject_anchor(saved, expected)?;
                     return Some(ArgumentPlan {
-                        source: SourcePlan::StructuralExpression { expression: anchor },
+                        source: SourcePlan::StructuralExpression {
+                            value_dependency: None,
+                            expression: anchor,
+                            logical_root_type_identity: None,
+                        },
                         path: Vec::new(),
                         projection_evaluations: Default::default(),
                         type_identity: stored_structural_type_identity(
@@ -7684,13 +8249,11 @@ mod structural_values {
             }
         }
 
-        /*
-            A declaration that names a completed structural value this transfer owns
-            directly: a construction, linear owner or view, a stored reference
-            descriptor or loan, or a borrowed slice view. Membership here is the
-            authored declaration's shape, never a source spelling or a scalar lane.
-        */
-        fn names_owned_structural_value(
+        /// A declaration that names a completed structural value this transfer owns
+        /// directly: a construction, linear owner or view, a stored reference
+        /// descriptor or loan, or a borrowed slice view. Membership here is the
+        /// authored declaration's shape, never a source spelling or a scalar lane.
+        pub(in crate::execution::scalar_computations) fn names_owned_structural_value(
             program: &dyn ::validation::CheckingInput,
             reference: TypeReferenceHandle,
         ) -> bool {
@@ -7873,6 +8436,7 @@ mod structural_values {
     }
 
     pub(super) use place_types::{canonical_place_is_borrowable, needs_copied_place_root};
+    pub(super) use place_values::names_owned_structural_value;
 
     impl Builder<'_, '_> {
         /* Retain runtime children independently of the canonical endpoint's ordinal. */
@@ -8051,21 +8615,34 @@ mod structural_values {
             value: ValueHandle,
             reference: TypeReferenceHandle,
         ) -> Option<(
-            ExpressionHandle,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan,
             TypeReferenceHandle,
             Vec<checked_trees::CheckedUnitStructuralPathSegment>,
             arena::HandleSpan<checked_trees::CheckedScalarComputationHandle>,
         )> {
             let node = self.structural_values.nodes.get(value);
-            let (owner, path, projection_evaluations) = match &node.kind {
+            let (owner, path, projection_evaluations, logical_root_type_identity) = match &node.kind
+            {
+                // A noncopy selection retains its containing owner. A selected
+                // copy owns an independent completed value, just as a whole-value
+                // cast owns its checked memberships; using its source occurrence
+                // would lose that new value and its exact root identity.
                 ValueKind::Projection {
                     source,
                     path,
                     projection_evaluations,
                     copies_selected_value: false,
+                    logical_root_type_identity,
                     ..
-                } if !path.is_empty() => (*source, path.clone(), *projection_evaluations),
-                _ => (value, Vec::new(), Default::default()),
+                } if !path.is_empty() => (
+                    *source,
+                    path.clone(),
+                    *projection_evaluations,
+                    logical_root_type_identity
+                        .is_valid()
+                        .then_some(*logical_root_type_identity),
+                ),
+                _ => (value, Vec::new(), Default::default(), None),
             };
             let owner_node = self.structural_values.nodes.get(owner);
             let expression = owner_node.expression;
@@ -8091,7 +8668,16 @@ mod structural_values {
             {
                 return None;
             }
-            Some((expression, owner_reference, path, projection_evaluations))
+            Some((
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                    expression,
+                    value_dependency: Some(owner),
+                    logical_root_type_identity,
+                },
+                owner_reference,
+                path,
+                projection_evaluations,
+            ))
         }
 
         /*
@@ -8359,6 +8945,9 @@ mod structural_values {
             expression: ExpressionHandle,
             expected: TypeReferenceHandle,
         ) -> Option<ValueHandle> {
+            // Normalization can share an evaluated operand with a later projection.
+            // Preserve that occurrence's value identity. A saved subject below
+            // authenticates its separate lexical name against that same producer.
             if let Some(root) = self.structural_values.root_for_expression(
                 self.state,
                 u32::try_from(self.statement_index).ok()?,
@@ -8368,6 +8957,37 @@ mod structural_values {
                     && self.program.normalized_type_identity(root.type_reference)
                         == self.program.normalized_type_identity(expected))
                 .then_some(root.root);
+            }
+            if let ExpressionNode::SavedSubject(saved) =
+                self.program.expression_table.expression(expression)
+                && self
+                    .program
+                    .expression_table
+                    .contains_value_capture(saved.capture)
+                && !self.uses_captured_dispatch_value(expression)
+                && let Some(receiver) = self
+                    .dispatch_receivers
+                    .get(&{
+                        let anchor = self
+                            .program
+                            .expression_table
+                            .value_capture(saved.capture)
+                            .value_anchor;
+                        (anchor.arena_index(), anchor.generation())
+                    })
+                    .copied()
+                && receiver.value.is_valid()
+                && self
+                    .program
+                    .normalized_type_identity(receiver.type_reference)
+                    == self.program.normalized_type_identity(expected)
+            {
+                self.saved_subject_anchor(saved, expected)?;
+                // This match already saved the value. Reuse its exact producer
+                // when a later borrow selects a field. The saved name creates
+                // neither another value home nor another cleanup obligation.
+                self.retained_argument_owner(receiver.value, expected)?;
+                return Some(receiver.value);
             }
             if let ExpressionNode::Call(call) = self.program.expression_table.expression(expression)
                 && call.quotient_operation.is_some()
@@ -8525,8 +9145,44 @@ mod structural_values {
                                 .map(|shell| shell.referee)
                         });
                         let root_reference = root_reference?;
-                        source_value = self.structural_value(root, root_reference)?;
-                        self.retained_argument_owner(source_value, root_reference)?;
+                        source_value = if let Some(receiver) = self
+                            .dispatch_receivers
+                            .get(&(root.arena_index(), root.generation()))
+                            .copied()
+                        {
+                            // A completed value and an existing place are different
+                            // producer roles, even when both have expression roots.
+                            // Consume the retained role, not another owned wrapper
+                            // around its non-executable alias.
+                            if !validation::declared_carriers_match(
+                                self.program,
+                                root_reference,
+                                receiver.type_reference,
+                            ) {
+                                return None;
+                            }
+                            receiver.value
+                        } else {
+                            let value = self.structural_value(root, root_reference)?;
+                            let kind = &self.structural_values.nodes.get(value).kind;
+                            if argument_needs_establishment(kind) {
+                                value
+                            } else if let ValueKind::Place(argument) = kind {
+                                // Ordinary stored sources need no second producer.
+                                // Keep any already recorded real value dependency.
+                                argument
+                                    .source
+                                    .structural_value_dependency()
+                                    .unwrap_or_default()
+                            } else {
+                                return None;
+                            }
+                        };
+                        if source_value.is_valid() {
+                            // A real value keeps its exact producer and normal
+                            // disposition. An existing place needs no value birth.
+                            self.retained_argument_owner(source_value, root_reference)?;
+                        }
                     }
                     selectors =
                         self.projection_selector_evaluations(expression, formation.source)?;
@@ -8549,6 +9205,20 @@ mod structural_values {
                 )?;
                 let (mut source, storage, backing_type) =
                     (capture.source, capture.storage, capture.backing_type);
+                if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression: anchor,
+                ..
+            } = source.source
+                && self
+                    .dispatch_receivers
+                    .get(&(anchor.arena_index(), anchor.generation()))
+                    .is_some_and(|receiver| !receiver.value.is_valid())
+            {
+                // Existing-place aliases are already referent-presented. Bind
+                // their actual logical root type before catalog/path consumers;
+                // stored descriptor values retain their separate interpretation.
+                source.source = self.retained_dispatch_place_source(anchor, source.access)?;
+            }
                 let projection_evaluations = if selectors.is_empty() {
                     Default::default()
                 } else {
@@ -8577,6 +9247,11 @@ mod structural_values {
                 self.statement_index,
                 expression,
                 expected,
+                |anchor| {
+                    self.dispatch_receivers
+                        .get(&(anchor.arena_index(), anchor.generation()))
+                        .is_some_and(|receiver| !receiver.value.is_valid())
+                },
             ) {
                 self.copied_place(expression, expected)?
             } else if let Some(view) = self
@@ -8685,99 +9360,15 @@ mod structural_values {
                 else {
                     return None;
                 };
-                let subject = self.dispatch_subject(&dispatch)?;
-                let subject_type = match subject {
-                    checked_trees::CheckedDispatchSubject::Scalar(value) => {
-                        self.push_scalar_root(
-                            CheckedScalarExpressionRole::StructuralValueSubject { expression },
-                            value,
-                        )?;
-                        Some(self.plans.nodes.get(value).primitive_type)
-                    }
-                    checked_trees::CheckedDispatchSubject::Structural { .. } => None,
-                };
-                let authored = self
-                    .program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .to_vec();
-                let mut arms = Vec::new();
-                let mut covered = false;
-                let mut boolean_coverage = [false; 2];
-                for (ordinal, arm) in authored.iter().enumerate() {
-                    if subject_type.is_none()
-                        && self.structural_dispatch_arm_is_impossible(&dispatch, arm)
-                    {
-                        continue;
-                    }
-                    let source_arm = dispatch.arms.handle_at(u32::try_from(ordinal).ok()?);
-                    let mut equality_use = arena::Handle::invalid();
-                    let pattern = if let Some(subject_type) = subject_type {
-                        match arm.pattern {
-                            MatchPattern::Wildcard => {
-                                covered = true;
-                                checked_trees::CheckedScalarDispatchPattern::Wildcard
-                            }
-                            MatchPattern::Value(pattern) => {
-                                if subject_type == PrimitiveType::Bool
-                                    && let Some(value) =
-                                        self.program.expression_table.boolean_node(pattern)
-                                {
-                                    if boolean_coverage[usize::from(*value)] {
-                                        continue;
-                                    }
-                                    boolean_coverage[usize::from(*value)] = true;
-                                    covered = boolean_coverage == [true, true];
-                                }
-                                if matches!(subject_type, PrimitiveType::F32 | PrimitiveType::F64) {
-                                    equality_use = self.comparison_use(
-                                        expression,
-                                        checked_trees::CheckedOperatorOccurrence::MatchEquality {
-                                            source_arm,
-                                        },
-                                    )?;
-                                }
-                                let computation = self.expression(pattern, subject_type)?;
-                                self.plans.nodes.get_mut(computation).authored_root = pattern;
-                                self.push_scalar_root(
-                                    CheckedScalarExpressionRole::StructuralValuePattern {
-                                        source_arm,
-                                    },
-                                    computation,
-                                )?;
-                                checked_trees::CheckedScalarDispatchPattern::Value(computation)
-                            }
-                            MatchPattern::Destructure(_) => return None,
-                        }
-                    } else {
-                        self.structural_dispatch_pattern(
-                            expression,
-                            &dispatch,
-                            &subject,
-                            arm.pattern,
-                        )?
-                    };
-                    if let Some(computation) = pattern.computation()
-                        && subject_type.is_none()
-                    {
-                        self.push_scalar_root(
-                            CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
-                            computation,
-                        )?;
-                    }
-                    let value = self.structural_value(arm.value, expected)?;
+                let (subject, prepared) = self.prepare_dispatch(expression, &dispatch)?;
+                let mut arms = Vec::with_capacity(prepared.len());
+                for arm in prepared {
                     arms.push(CheckedStructuralDispatchArm {
-                        source_arm,
-                        equality_use,
-                        pattern,
-                        value,
+                        source_arm: arm.source_arm,
+                        equality_use: arm.equality_use,
+                        pattern: arm.pattern,
+                        value: self.structural_value(arm.value, expected)?,
                     });
-                    if matches!(arm.pattern, MatchPattern::Wildcard) || covered {
-                        break;
-                    }
-                }
-                if (!covered && subject_type.is_some()) || arms.is_empty() {
-                    return None;
                 }
                 ValueKind::Dispatch {
                     subject,
@@ -8811,6 +9402,7 @@ mod structural_values {
 
 use builder::Builder;
 mod builder {
+
     /*
         Build the ordinary scalar evaluation graph from retained checked operations.
         A declaration application supplies captured formal values and its admitted
@@ -8871,6 +9463,15 @@ mod builder {
         RankObservation,
     }
 
+    /// One actually produced saved subject. The carrier and role are published
+    /// together before any pattern observes its fields.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub(super) struct DispatchReceiver {
+        pub(super) value: CheckedStructuralValueHandle,
+        pub(super) type_reference: TypeReferenceHandle,
+        pub(super) access: checked_trees::CheckedStructuralAccess,
+    }
+
     pub(super) struct Builder<'program, 'plans> {
         pub(super) program: &'program dyn ::validation::CheckingInput,
         pub(super) shapes: ShapeCollector<'program>,
@@ -8901,6 +9502,10 @@ mod builder {
         pub(super) locals: &'program [ScalarLocal],
         pub(super) plans: &'plans mut CheckedScalarComputationPlans,
         pub(super) structural_values: &'plans mut checked_trees::CheckedStructuralValuePlans,
+        /// Produced subject associations for this statement's sparse generational
+        /// expression subset. A zero value retains existing storage; it is not an
+        /// absent producer. No global expression interval is allocated here.
+        pub(super) dispatch_receivers: std::collections::BTreeMap<(u32, u32), DispatchReceiver>,
         pub(super) statement_nodes_start: usize,
         pub(super) root_scope: RootScope,
         /*
@@ -9907,12 +10512,17 @@ pub(crate) fn build_checked_value_computation_plans(
     proof: &ProofFacts,
     pure: &mut CheckedScalarExpressionPlans,
     exact_integer_casts: &[ExactIntegerCastFact],
-) -> (CheckedScalarComputationPlans, CheckedStructuralValuePlans) {
+) -> (
+    CheckedScalarComputationPlans,
+    CheckedStructuralValuePlans,
+    checked_trees::CheckedCompletionPlans,
+) {
     dispatch_copies::withdraw_captured_pure_roots(program, flow, pure);
     let carriers = crate::execution::terminal_unit::types::carrier_index(program);
     let call_result_types = call_result_types::CallResultTypes::build(program, flow, &carriers);
     let mut plans = CheckedScalarComputationPlans::default();
     let mut structural_values = CheckedStructuralValuePlans::default();
+    let mut completions = checked_trees::CheckedCompletionPlans::default();
     for machine in program.machines() {
         let states = program.machine_states(machine);
         for state in states {
@@ -9965,10 +10575,35 @@ pub(crate) fn build_checked_value_computation_plans(
                     structural_values: &mut structural_values,
                     statement_nodes_start,
                     root_scope: builder::RootScope::Statement,
+                    dispatch_receivers: Default::default(),
                     scalar_occurrences: Vec::new(),
                     integer_occurrences: Vec::new(),
                 };
                 builder.retain_dispatch_copy_roots();
+                if crate::execution::terminal_unit::types::is_unit(program, state.return_type) {
+                    match statement {
+                        StatementNode::Expression(expression)
+                            if statement_index + 1 == statements.len() =>
+                        {
+                            let _ = builder.record_completion(*expression, &mut completions);
+                        }
+                        StatementNode::Transition(transition) => {
+                            for target in transition.targets() {
+                                if let TransitionTargetNode::Value(expression) =
+                                    program.statement_table.transition_target(target)
+                                {
+                                    let _ =
+                                        builder.record_completion(*expression, &mut completions);
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                // Endpoints are ordinary operands. Capture every occurrence
+                // before constructing consumers, so a call result and a pure
+                // bound supply the same range operation at its authored site.
                 for (expression, site) in sites(program, machine, state, statement_index, statement)
                     .into_iter()
                     .rev()
@@ -10018,6 +10653,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             statement_index,
                             *expression,
                             *expected,
+                            |_| false,
                         )
                     })
                     .and_then(|(expression, expected)| {
@@ -10025,6 +10661,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     });
                 if let Some((expression, expected)) = construction_destination
                     && scalar_elements.is_none()
+                    && !crate::execution::terminal_unit::types::is_unit(program, expected)
                     && (is_scalar_case_value(program, expression, expected)
                         || program.primitive_type_reference(expected).is_none())
                     && let Some(root) = builder.structural_value(expression, expected)
@@ -10456,7 +11093,8 @@ pub(crate) fn build_checked_value_computation_plans(
     }
     plans.seal();
     structural_values.seal();
-    (plans, structural_values)
+    completions.seal();
+    (plans, structural_values, completions)
 }
 
 /*

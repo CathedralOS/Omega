@@ -1034,7 +1034,14 @@ pub(crate) fn bind_active_structural_arguments(
     >,
     account: Option<&EvaluationInvocationAccount>,
 ) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
-    let active = active_structural_parameters(parameters, arguments, types, cases)?;
+    let active = active_structural_parameters(parameters, arguments, &|argument_index, rows| {
+        crate::boundary::structural_inputs::case_membership::active_projected_qualifications(
+            types,
+            &arguments[argument_index],
+            cases,
+            rows,
+        )
+    })?;
     bind_structural_arguments(&active, arguments, account)
 }
 
@@ -1083,17 +1090,20 @@ pub(crate) fn bind_active_retained_arguments(
     sources: &[terminal_psi::StructuralArgument],
     arguments: &[TerminalStructuralValue],
     provenance: &[StructuralArgumentProvenance<'_>],
-    types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    cases: &BTreeMap<
-        StructuralRuntimePlace,
-        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
+    active_qualifications: &impl Fn(
+        usize,
+        &[terminal_psi::StructuralPathQualification],
+    ) -> Result<
+        Vec<terminal_psi::StructuralPathQualification>,
+        TerminalInterpretError,
     >,
+    types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     account: Option<&EvaluationInvocationAccount>,
 ) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
     if sources.len() != parameters.len() || provenance.len() != parameters.len() {
         return Err(malformed());
     }
-    let active = active_structural_parameters(parameters, arguments, types, cases)?;
+    let active = active_structural_parameters(parameters, arguments, active_qualifications)?;
     bind_existing_structural_places(
         &active,
         arguments,
@@ -1107,10 +1117,12 @@ pub(crate) fn bind_active_retained_arguments(
 fn active_structural_parameters(
     parameters: &[StructuralParameterDeclaration],
     arguments: &[TerminalStructuralValue],
-    types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    cases: &BTreeMap<
-        StructuralRuntimePlace,
-        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
+    active_qualifications: &impl Fn(
+        usize,
+        &[terminal_psi::StructuralPathQualification],
+    ) -> Result<
+        Vec<terminal_psi::StructuralPathQualification>,
+        TerminalInterpretError,
     >,
 ) -> Result<Vec<StructuralParameterDeclaration>, TerminalInterpretError> {
     if parameters.len() != arguments.len() {
@@ -1120,14 +1132,9 @@ fn active_structural_parameters(
         });
     }
     let mut active_parameters = parameters.to_vec();
-    for (parameter, argument) in active_parameters.iter_mut().zip(arguments) {
+    for (argument_index, parameter) in active_parameters.iter_mut().enumerate() {
         parameter.projected_qualifications =
-            crate::boundary::structural_inputs::case_membership::active_projected_qualifications(
-                types,
-                argument,
-                cases,
-                &parameter.projected_qualifications,
-            )?;
+            active_qualifications(argument_index, &parameter.projected_qualifications)?;
     }
     Ok(active_parameters)
 }
@@ -2733,13 +2740,21 @@ pub(crate) mod tests {
             bind_structural_arguments(&parameters, &values, None).unwrap_err(),
             TerminalInterpretError::StructuralArgumentAliasing(7),
         );
+        let types = crate::embedding::program::ProgramDeclarations::new(&declarations);
         super::bind_active_retained_arguments(
             &parameters,
             &sources,
             &values,
             &provenance,
-            &crate::embedding::program::ProgramDeclarations::new(&declarations),
-            &BTreeMap::new(),
+            &|argument_index, rows| {
+                crate::boundary::structural_inputs::case_membership::active_projected_qualifications(
+                    &types,
+                    &values[argument_index],
+                    &BTreeMap::new(),
+                    rows,
+                )
+            },
+            &types,
             None,
         )
     }

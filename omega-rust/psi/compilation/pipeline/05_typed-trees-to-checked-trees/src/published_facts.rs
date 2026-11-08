@@ -11187,6 +11187,7 @@ fn finish_check_facts(
             (
                 prepared.values.scalar_computations,
                 prepared.values.structural_values,
+                prepared.values.completions,
             ) = crate::execution::scalar_computations::build_checked_value_computation_plans(
                 program,
                 &prepared.operators,

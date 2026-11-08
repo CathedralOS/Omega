@@ -224,6 +224,7 @@ pub(crate) mod contexts {
 }
 }
 pub(crate) mod control {
+
     use arena::HandleSpan;
     use language_semantics::{BlockingSummary, ServiceReachSummary, SuspensionSummary};
     use symbols::SymbolHandle;
@@ -333,6 +334,10 @@ pub(crate) mod control {
         pub storage_snapshot: arena::Handle<super::FlowStorageSnapshot>,
         pub value_observations: HandleSpan<super::FlowValueObservationFact>,
         pub operator_invocations: HandleSpan<FlowOperatorInvocationFact>,
+        /// Nested case decisions produced by this actual statement evaluation.
+        pub owned_case_selections: HandleSpan<super::FlowOwnedCaseSelection>,
+        /// Completed RHS after destination evaluation, before storage. Zero for
+        /// statements without a stored value; children retain their own epochs.
         pub stored_value: arena::Handle<super::FlowOperandFact>,
         pub store_target: arena::Handle<super::FlowOperandFact>,
         pub stored_destination: facts::PlaceHandle,
@@ -691,6 +696,7 @@ pub(crate) mod invalidations {
     }
 }
 pub(crate) mod operand {
+
     use arena::{Handle, HandleSpan};
     use typed_trees::expression::ExpressionHandle;
 
@@ -997,6 +1003,32 @@ pub(crate) mod operand {
         pub value: Handle<FlowOperandFact>,
     }
 
+    /// One checked case decision on the unchanged owned home of a completed
+    /// subject. The statement owns these rows in evaluation order. They introduce
+    /// no transfer or disposal; cleanup still meets the actual branch outcomes.
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub struct FlowOwnedCaseSelection {
+        pub machine_symbol: symbols::SymbolHandle,
+        pub state_symbol: symbols::SymbolHandle,
+        pub statement_index: usize,
+        pub statement: Handle<super::FlowStatementFact>,
+        pub expression: ExpressionHandle,
+        pub source_arm: Handle<typed_trees::expression::TableMatchArm>,
+        pub evaluation: super::FlowPermissionEvaluation,
+        pub subject: Handle<FlowOperandFact>,
+        pub root: facts::PlaceRoot,
+        pub path: HandleSpan<facts::PlaceSegment>,
+        pub variant: symbols::SymbolHandle,
+        /// Only a total case pattern's failure excludes that case. A failed guard
+        /// or payload equality may still have observed the same active case.
+        pub miss_excludes_case: bool,
+        pub captured_storage: Handle<super::FlowStorageSnapshot>,
+        pub selected_storage: Handle<super::FlowStorageSnapshot>,
+    }
+
+    /// One authored child installed at its resolved destination in a completed
+    /// record, case, or array. Rows are in evaluation order; paths name declaration
+    /// identities and are stored in `FlowControlFacts::operand_child_paths`.
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct FlowOperandChild {
         pub parent: ExpressionHandle,
@@ -2197,18 +2229,20 @@ pub use self::terminal::{
     CheckedConditionalReturnArm, CheckedControlResultPlan, CheckedDynamicClaimPath,
     CheckedDynamicSlotPlan, CheckedExtent, CheckedGuardedExitPlans, CheckedGuardedJumpArmPlan,
     CheckedGuardedJumpFallbackPlan, CheckedGuardedJumpPlan, CheckedGuardedJumpReturnPlan,
-    CheckedInitializedLocal, CheckedIntegerRankObservation, CheckedLayoutObservation,
-    CheckedMemberIdentity, CheckedNaturalRankFunction, CheckedNaturalRankMeasure,
-    CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
-    CheckedNormalCleanupAction, CheckedNormalCompletion, CheckedNormalExitCleanupPlan,
-    CheckedNormalExitCleanups, CheckedOpaqueRepresentation, CheckedOperandSequence,
+    CheckedGuardedReturnValue, CheckedInitializedLocal, CheckedIntegerRankObservation,
+    CheckedLayoutObservation, CheckedMemberIdentity, CheckedNaturalRankFunction,
+    CheckedNaturalRankMeasure, CheckedNominalAffineUnitCleanupMachinePlan,
+    CheckedNominalAffineUnitCleanupPlans, CheckedNormalCleanupAction, CheckedNormalCompletion,
+    CheckedNormalExitCleanupPlan, CheckedNormalExitCleanups, CheckedNormalResultArm,
+    CheckedNormalResultCompletion, CheckedOpaqueRepresentation, CheckedOperandSequence,
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
     CheckedPlaceLoanPlan, CheckedPlaceLoanRoot, CheckedRankEdgeCoordinate,
     CheckedReferenceOriginProjection, CheckedReferenceOriginRoot, CheckedReferenceOriginSourcePlan,
     CheckedReferenceOwnerCleanup, CheckedReferenceResultSourcePlan, CheckedReferenceStorage,
     CheckedReturnedReferencePlan, CheckedRuntimeIndex, CheckedScalarBranchDestination,
     CheckedScalarCaseFieldPlan, CheckedScalarGuardedExit, CheckedScalarGuardedTail,
-    CheckedScalarReturnPlan, CheckedScalarStateTerminator, CheckedStateContractRequirement,
+    CheckedScalarReturnCopies, CheckedScalarReturnPlan, CheckedScalarStateTerminator,
+    CheckedSelectedPayloadCopies, CheckedSelectedPayloadCopy, CheckedStateContractRequirement,
     CheckedStateNaturalRank, CheckedStructuralAccess, CheckedStructuralCallCustodyPlan,
     CheckedStructuralControlCleanupPlans, CheckedStructuralControlEdgeCleanupPlan,
     CheckedStructuralControlStateCleanupPlan, CheckedStructuralControlSuccessorPlan,
@@ -2224,21 +2258,24 @@ pub use self::terminal::{
     CheckedUnitCallCoordinate, CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult,
     CheckedUnitCallRoute, CheckedUnitCallTarget, CheckedUnitCallTransfers,
     CheckedUnitCallableEntry, CheckedUnitClaimTransferPlan, CheckedUnitCleanupBoundary,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
-    CheckedUnitEntryClaimPlan, CheckedUnitLocalBindingPlan,
+    CheckedUnitCompletionExpression, CheckedUnitCompletionKind, CheckedUnitCompletionPlan,
+    CheckedUnitCompletionSelection, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan, CheckedUnitLocalBindingPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitParameterStoragePlan,
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlan, CheckedUnitPlanGap,
-    CheckedUnitPlanGapReason, CheckedUnitRecordStorage, CheckedUnitScalarControlPlan,
+    CheckedUnitPlanGapReason, CheckedUnitRecordStorage, CheckedUnitScalarCompletionArm,
+    CheckedUnitScalarCompletionCondition, CheckedUnitScalarControlPlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitSelectedReferenceRetirementPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralCasePlan, CheckedUnitStructuralDomainPlan,
-    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
-    CheckedUnitStructuralReturnPlan, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
-    CheckedValueCompletionPlan, ScalarReturnPath, checked_structural_type_by_identity,
-    is_borrowed_view, is_bounded_nominal_cleanup_record, is_partial_affine_field_type,
+    CheckedUnitStructuralCasePlan, CheckedUnitStructuralCompletionArm,
+    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
+    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralReturnPlan,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, CheckedValueCompletionPlan,
+    ScalarReturnPath, checked_structural_type_by_identity, is_borrowed_view,
+    is_bounded_nominal_cleanup_record, is_partial_affine_field_type,
 };
 pub use borrow_lifetimes::{
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason,
@@ -2259,8 +2296,8 @@ pub use operand::{
     FlowOperandFact, FlowOperandLifetimeContract, FlowOperandReborrowSource, FlowOperandReferent,
     FlowOperandRetainedLeaf, FlowOperandRetainedRegion, FlowOperandRetainedSupplier,
     FlowOperandRetention, FlowOperandStoredSource, FlowOutputLifetimeSources,
-    FlowReferentFormation, FlowReferentFormationEvidence, FlowValueObservationFact,
-    ViewReturnInputSource,
+    FlowOwnedCaseSelection, FlowReferentFormation, FlowReferentFormationEvidence,
+    FlowValueObservationFact, ViewReturnInputSource,
 };
 pub use ownership::{
     FlowBorrowClaimFact, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource,

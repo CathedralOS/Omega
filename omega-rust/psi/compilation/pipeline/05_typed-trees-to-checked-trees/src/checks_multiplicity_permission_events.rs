@@ -16,7 +16,6 @@ use super::permission_schedule::PermissionStep;
 use super::permission_schedule::SelectedCases;
 use super::permission_schedule::exclude_case;
 use super::selected_cleanup::SelectedCleanup;
-use super::selected_evaluation::ExpressionRoutes;
 use crate::checks::multiplicity::claim_outcomes::{
     apply_claim_origin_rewrites, call_result_origin_rewrites, derive_checked_claim_outcome_maps,
     publish_call_claim_joins, publish_claim_outcome_maps,
@@ -1069,7 +1068,7 @@ fn walk_state<'program>(
                         .collect::<Vec<_>>();
                     let event_start = permission_events.len();
                     remaining.reserve(program, &statements[statement_index]);
-                    let evaluated = match evaluate_statement_permissions(
+                    let (evaluated, routes) = match evaluate_statement_permissions(
                         program,
                         facts,
                         state_flow.machine_symbol,
@@ -1102,7 +1101,6 @@ fn walk_state<'program>(
                             return;
                         }
                     };
-                    let routes = ExpressionRoutes::from_steps(&occurrences);
                     if let Some(capture) = &capture {
                         if let Err(diagnostic) = capture.record(
                             program,

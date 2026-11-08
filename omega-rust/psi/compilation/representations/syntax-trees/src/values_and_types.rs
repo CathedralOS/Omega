@@ -900,6 +900,7 @@ pub mod type_system {
 
 pub mod values {
     pub mod expression {
+
         use crate::FloatSpelling;
         use crate::identifier::Identifier;
         use crate::paged_roster::paged_roster;
@@ -1243,6 +1244,7 @@ pub mod values {
         }
         #[cfg(test)]
         pub(crate) mod tests {
+
             use super::ExpressionNode;
 
             #[test]
@@ -1259,6 +1261,7 @@ pub mod values {
                     source
                         .expressions
                         .insert(ExpressionNode::SavedSubject(TableSavedSubject {
+                            component: Default::default(),
                             capture,
                             pattern_head: head,
                         }));
@@ -2010,6 +2013,7 @@ pub mod values {
             compiler_storage::Record,
         )]
         pub struct TableSavedSubject {
+            pub component: language_core::PatternComponent,
             pub capture: Handle<MatchSubjectCapture>,
             pub pattern_head: ExpressionHandle,
         }
@@ -2052,6 +2056,7 @@ pub mod values {
             Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
         )]
         pub struct TableMatchField {
+            pub component: language_core::PatternComponent,
             pub member: Identifier,
             pub action: MatchFieldAction,
         }

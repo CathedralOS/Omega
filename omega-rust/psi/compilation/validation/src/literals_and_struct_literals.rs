@@ -3880,6 +3880,7 @@ pub mod struct_literals {
         }
     }
     pub(crate) mod field_obligations {
+
         pub(crate) mod scalar_values {
             use super::super::observations::ConstructionObservations;
             use crate::proof_contracts::arithmetic_domains::{
@@ -4598,6 +4599,14 @@ pub mod struct_literals {
                 return;
             }
             for element in element_handles {
+                crate::value_custody::pattern_components::report_delivery(
+                    program,
+                    *element,
+                    element_type,
+                    Some(language_core::PatternComponent::Fields),
+                    "array literal element",
+                    diagnostics,
+                );
                 crate::proof_contracts::domain_weakening::validate_implicit_domain_weakening(
                     program,
                     machine,

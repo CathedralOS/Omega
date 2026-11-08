@@ -839,6 +839,7 @@ pub(crate) mod expression {
     use syntax_trees::SyntaxTrees;
 
     pub(crate) mod match_dispatch {
+
         /*
             Resolve one capture definition and selected-arm aliases without introducing
             synthetic locals. Alias definitions are scoped by generational handles;
@@ -1001,6 +1002,7 @@ pub(crate) mod expression {
         })?;
             Ok(
                 expression_table(lowerer).insert(ExpressionNode::SavedSubject(TableSavedSubject {
+                    component: saved.component,
                     capture: binding.resolved_capture,
                     pattern_head: binding.resolved_head,
                 })),
@@ -1040,6 +1042,7 @@ pub(crate) mod expression {
                     syntax::MatchFieldAction::Waive => MatchFieldAction::Waive,
                 };
                 fields.push(TableMatchField {
+                    component: field.component,
                     member: lower_name(syntax_trees, &field.member),
                     field_symbol: Handle::invalid(),
                     action,
@@ -1065,6 +1068,7 @@ pub(crate) mod expression {
             let guard = guard?;
             let saved =
                 expression_table(lowerer).insert(ExpressionNode::SavedSubject(TableSavedSubject {
+                    component: Default::default(),
                     capture,
                     pattern_head: head,
                 }));

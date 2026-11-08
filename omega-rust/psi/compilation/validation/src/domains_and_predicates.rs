@@ -4,6 +4,7 @@ domains, and scalar domain membership (`proof_contracts::{bound_expression_meani
 collection_predicates, default_domains, domains}`).
 */
 pub mod bound_expression_meaning {
+
     use crate::frozen_program::expression_table;
     use crate::value_custody::places::declared_place_type_raw;
     use language_core::OperatorSpelling;
@@ -1322,6 +1323,7 @@ pub mod bound_expression_meaning {
             ExpressionNode::Cast(cast) if cast.form.is_recast() => computed_result(),
             ExpressionNode::Cast(cast) => Some(cast.target_type),
             ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
+            // Unknown operands cannot borrow another operand's carrier.
             _ => None,
         }?;
         program

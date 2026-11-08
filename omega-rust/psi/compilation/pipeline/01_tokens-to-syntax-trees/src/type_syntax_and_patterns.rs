@@ -5,6 +5,7 @@ Type reference grammar, type properties, and qualified names
 */
 
 pub(crate) mod patterns {
+
     use crate::grammar::expressions::parse_expression::parse_expression_handle_without_struct_literals;
     use crate::tokens::token_cursor::{Input, ParseResult};
     use syntax_trees::SyntaxTrees;
@@ -13,6 +14,7 @@ pub(crate) mod patterns {
     use tokens::{KeywordKind, PunctuationKind};
 
     pub(crate) mod bindings {
+
         use crate::storage::tables::{exprs, exprs_of, stmts_of};
         use arena::{Handle, HandleSpan};
         use syntax_trees::SyntaxTrees;
@@ -29,6 +31,7 @@ pub(crate) mod patterns {
 
         #[derive(Clone)]
         pub(crate) struct DestructureBinding {
+            pub(crate) component: language_core::PatternComponent,
             pub(crate) binding: Identifier,
             pub(crate) member: Identifier,
             pub(crate) case_variant: Option<Identifier>,
@@ -132,6 +135,7 @@ pub(crate) mod patterns {
                 }
                 ExpressionNode::SavedSubject(saved) => {
                     ExpressionNode::SavedSubject(TableSavedSubject {
+                        component: saved.component,
                         capture: captures
                             .iter()
                             .rev()
@@ -268,15 +272,29 @@ pub(crate) mod patterns {
                     access: inner.access,
                 }),
                 ExpressionNode::Name(path) => {
-                    if let Some((field, case_variant)) =
+                    if let Some((field, case_variant, component)) =
                         single_destructured_field_name(syntax_trees, path, fields)
                     {
-                        ExpressionNode::Member(TableMemberExpression {
-                            receiver: subject,
-                            access_source_span: Default::default(),
-                            member: field,
-                            case_variant,
-                        })
+                        if component == language_core::PatternComponent::Case {
+                            // This is another view of the dispatch's saved value,
+                            // never a field read or another evaluation of its source.
+                            let ExpressionNode::SavedSubject(mut saved) =
+                                *exprs_of(syntax_trees).expression(subject)
+                            else {
+                                unreachable!(
+                                    "destructure aliases are produced from a saved subject"
+                                )
+                            };
+                            saved.component = component;
+                            ExpressionNode::SavedSubject(saved)
+                        } else {
+                            ExpressionNode::Member(TableMemberExpression {
+                                receiver: subject,
+                                access_source_span: Default::default(),
+                                member: field,
+                                case_variant,
+                            })
+                        }
                     } else {
                         ExpressionNode::Name(path)
                     }
@@ -387,7 +405,11 @@ pub(crate) mod patterns {
             syntax_trees: &SyntaxTrees,
             path: HandleSpan<Identifier>,
             fields: &[DestructureBinding],
-        ) -> Option<(Identifier, Option<Identifier>)> {
+        ) -> Option<(
+            Identifier,
+            Option<Identifier>,
+            language_core::PatternComponent,
+        )> {
             let members = exprs_of(syntax_trees).identifier_path_members(path);
             let [member] = members else {
                 return None;
@@ -395,7 +417,13 @@ pub(crate) mod patterns {
             fields
                 .iter()
                 .find(|field| field.binding.as_str(syntax_trees) == member.as_str(syntax_trees))
-                .map(|field| (field.member.clone(), field.case_variant.clone()))
+                .map(|field| {
+                    (
+                        field.member.clone(),
+                        field.case_variant.clone(),
+                        field.component,
+                    )
+                })
         }
     }
 
@@ -436,7 +464,19 @@ pub(crate) mod patterns {
                 } else {
                     (MatchFieldAction::Bind(member.clone()), rest)
                 };
-                fields.push(TableMatchField { member, action });
+                let component = if member.as_str(syntax_trees) == "case" {
+                    if matches!(action, MatchFieldAction::Equal(_)) {
+                        return Err(input.error_here("the case component is bound with `case as name` or waived with `case as _`"));
+                    }
+                    language_core::PatternComponent::Case
+                } else {
+                    language_core::PatternComponent::Fields
+                };
+                fields.push(TableMatchField {
+                    member,
+                    component,
+                    action,
+                });
                 input = rest;
             }
             if input.at_punctuation(PunctuationKind::Comma) {

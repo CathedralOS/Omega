@@ -1467,6 +1467,7 @@ pub(crate) mod declaration_predicates {
 
     #[cfg(test)]
     pub(crate) mod tests {
+
         use super::*;
         use arena::HandleSpan;
         use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
@@ -2102,6 +2103,7 @@ pub(crate) mod declaration_predicates {
                 .expression_table
                 .insert(ExpressionNode::SavedSubject(
                     typed_trees::expression::TableSavedSubject {
+                        component: Default::default(),
                         capture,
                         pattern_head: yes,
                     },

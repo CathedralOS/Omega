@@ -676,6 +676,7 @@ mod references {
     }
 }
 mod traversal {
+
     use arena::HandleSpan;
     use symbols::{SymbolHandle, SymbolTable};
 
@@ -1181,6 +1182,7 @@ mod traversal {
             let saved =
                 self.expression_table
                     .insert(ExpressionNode::SavedSubject(TableSavedSubject {
+                        component: Default::default(),
                         capture: dispatch.capture,
                         pattern_head: head,
                     }));

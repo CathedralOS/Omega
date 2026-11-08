@@ -2141,6 +2141,7 @@ pub(crate) mod unit_cleanup {
                 |identities, source, path| {
                     let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                         expression,
+                        ..
                     } = source
                     else {
                         return unsupported("value completion lost its expression owner");

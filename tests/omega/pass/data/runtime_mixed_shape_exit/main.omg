@@ -46,9 +46,11 @@ machine Main::main(main: &mut Main) reaches Console {
         // Common-field WRITE without case knowledge; the case part survives.
         main.event.bonus = 70;
         transition main.event {
-            RoomEvent::Nothing -> bad(main)
-            RoomEvent::Treasure { consumed as _, bonus as _, gold } -> bad(main)
-            RoomEvent::Enemy { consumed as _, bonus as _, strength } -> finish(main, strength)
+            RoomEvent { consumed as _, bonus as _, case as operation } -> match operation {
+                RoomEvent::Nothing -> bad(main)
+                RoomEvent::Treasure { gold } -> bad(main)
+                RoomEvent::Enemy { strength } -> finish(main, strength)
+            }
         }
     }
 

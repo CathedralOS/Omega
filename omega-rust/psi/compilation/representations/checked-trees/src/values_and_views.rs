@@ -5,6 +5,7 @@ We represent checked value computations, structural values, and proof terms
 */
 
 pub mod values {
+
     use arena::{Arena, Handle, HandleSpan};
     use symbols::SymbolHandle;
     use typed_trees::expression::ExpressionHandle;
@@ -22,6 +23,7 @@ pub mod values {
     };
 
     pub(crate) mod computations {
+
         use super::{
             Arena, CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
             Handle, HandleSpan, SymbolHandle,
@@ -39,8 +41,13 @@ pub mod values {
         pub enum CheckedDispatchSubject {
             Scalar(CheckedScalarComputationHandle),
             Structural {
+                /// Exact subject occurrence whose ordered place selectors completed.
+                expression: ExpressionHandle,
                 value: crate::CheckedStructuralValueHandle,
                 place: crate::CheckedUnitStructuralArgumentPlan,
+                /// Completed-home name for lexical SavedSubject reads or, for a
+                /// tag-only place observation, its exact private subject occurrence.
+                /// A produced value needs no alias when no payload binding reads it.
                 alias: ExpressionHandle,
             },
         }
@@ -840,7 +847,164 @@ pub mod values {
         CheckedErasedProofParameterPlan, CheckedLocatedProofTerm, CheckedMathematicalArgument,
         CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole, CheckedProofTerms,
     };
+    mod completion_expressions {
+        //! Result-less completion expressions retain selection and invocation custody.
+        //! Unit creates no scalar slot or structural home. Subjects and patterns use
+        //! the same evaluated dispatch operands as value-producing selections.
+
+        use arena::{Arena, Handle, HandleSpan};
+        use symbols::SymbolHandle;
+        use typed_trees::expression::{ExpressionHandle, TableMatchArm};
+
+        pub type CheckedCompletionExpressionHandle = Handle<CheckedCompletionExpression>;
+
+        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+        pub struct CheckedCompletionPlans {
+            pub nodes: Arena<CheckedCompletionExpression>,
+            pub arms: Arena<CheckedCompletionArm>,
+            pub roots: Vec<CheckedCompletionRoot>,
+        }
+
+        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+        pub struct CheckedCompletionRoot {
+            pub machine: SymbolHandle,
+            pub state: SymbolHandle,
+            pub statement_ordinal: u32,
+            pub expression: ExpressionHandle,
+            pub root: CheckedCompletionExpressionHandle,
+            pub refusal: Option<CheckedCompletionRefusal>,
+        }
+
+        /// Why the exact selected completion could not be produced. This is diagnostic
+        /// data, not a partial executable plan or permission to omit a selected call.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+        pub struct CheckedCompletionRefusal {
+            pub expression: ExpressionHandle,
+            pub reason: CheckedCompletionRefusalReason,
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+        pub enum CheckedCompletionRefusalReason {
+            Cycle,
+            CallResult,
+            CallOccurrence,
+            DispatchOperands,
+            Comparison,
+            ExpressionKind,
+            NormalCompletion,
+        }
+
+        impl CheckedCompletionRefusalReason {
+            pub fn phase(self) -> &'static str {
+                match self {
+                    Self::Cycle => "Unit completion: cyclic expression dependency",
+                    Self::CallResult => "Unit completion: selected call has no Unit result",
+                    Self::CallOccurrence => {
+                        "Unit completion: selected call has no exact flow occurrence"
+                    }
+                    Self::DispatchOperands => "Unit completion: dispatch operands unavailable",
+                    Self::Comparison => "Unit completion: pattern comparison unavailable",
+                    Self::ExpressionKind => "Unit completion: result is not a selected invocation",
+                    Self::NormalCompletion => {
+                        "Unit completion: normal-return observation unavailable"
+                    }
+                }
+            }
+        }
+
+        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+        pub struct CheckedCompletionExpression {
+            pub expression: ExpressionHandle,
+            pub normal_continuation: bool,
+            pub kind: CheckedCompletionExpressionKind,
+        }
+
+        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+        pub enum CheckedCompletionExpressionKind {
+            #[default]
+            Missing,
+            Invocation {
+                source_call: Handle<crate::FlowCallFact>,
+            },
+            Dispatch {
+                subject: super::CheckedDispatchSubject,
+                arms: HandleSpan<CheckedCompletionArm>,
+            },
+        }
+
+        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+        pub struct CheckedCompletionArm {
+            pub source_arm: Handle<TableMatchArm>,
+            pub equality_use: Handle<crate::CheckedOperatorUseFact>,
+            pub pattern: super::CheckedScalarDispatchPattern,
+            pub completion: CheckedCompletionExpressionHandle,
+            pub comparison: CheckedCompletionComparison,
+        }
+
+        impl CheckedCompletionPlans {
+            pub fn seal(&mut self) {
+                self.roots
+                    .sort_unstable_by_key(CheckedCompletionRoot::coordinate);
+            }
+
+            pub fn root_at(
+                &self,
+                machine: SymbolHandle,
+                state: SymbolHandle,
+                statement: u32,
+                expression: ExpressionHandle,
+            ) -> Option<&CheckedCompletionRoot> {
+                let key = (
+                    machine.arena_index(),
+                    machine.generation(),
+                    state.arena_index(),
+                    state.generation(),
+                    statement,
+                    expression.arena_index(),
+                    expression.generation(),
+                );
+                let first = self.roots.partition_point(|root| root.coordinate() < key);
+                let root = self
+                    .roots
+                    .get(first)
+                    .filter(|root| root.coordinate() == key)?;
+                (!self
+                    .roots
+                    .get(first + 1)
+                    .is_some_and(|next| next.coordinate() == key))
+                .then_some(root)
+            }
+        }
+
+        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+        pub enum CheckedCompletionComparison {
+            #[default]
+            Predicate,
+            Boolean,
+            Integer,
+        }
+
+        impl CheckedCompletionRoot {
+            fn coordinate(&self) -> (u32, u32, u32, u32, u32, u32, u32) {
+                (
+                    self.machine.arena_index(),
+                    self.machine.generation(),
+                    self.state.arena_index(),
+                    self.state.generation(),
+                    self.statement_ordinal,
+                    self.expression.arena_index(),
+                    self.expression.generation(),
+                )
+            }
+        }
+    }
+    pub use completion_expressions::{
+        CheckedCompletionArm, CheckedCompletionComparison, CheckedCompletionExpression,
+        CheckedCompletionExpressionHandle, CheckedCompletionExpressionKind, CheckedCompletionPlans,
+        CheckedCompletionRefusal, CheckedCompletionRefusalReason, CheckedCompletionRoot,
+    };
     pub(crate) mod structural_values {
+
         use crate::{
             CheckedOperatorUseFact, CheckedScalarComputationHandle, CheckedScalarDispatchPattern,
         };
@@ -1536,6 +1700,25 @@ pub mod values {
                 self.unique_state_root(node.state, |root| root.root == value)
             }
 
+            /// The exact completed producer and the expression home it establishes.
+            /// A saved alias has its own enclosing capture association; it cannot
+            /// relabel a different value as this expression's producer.
+            pub fn root_for_value_home(
+                &self,
+                value: CheckedStructuralValueHandle,
+                expression: ExpressionHandle,
+            ) -> Option<&CheckedStructuralValueRoot> {
+                let root = self.root_for_value(value)?;
+                let node = self.nodes.get(value);
+                (root.expression == expression
+                    && node.expression == expression
+                    && root.machine == node.machine
+                    && root.state == node.state
+                    && root.statement_ordinal == node.statement_index
+                    && root.type_reference == node.type_reference)
+                    .then_some(root)
+            }
+
             pub fn root_at(
                 &self,
                 state: SymbolHandle,
@@ -1558,6 +1741,7 @@ pub mod values {
 }
         #[cfg(test)]
         mod index_tests {
+
             use super::{CheckedStructuralValuePlans, CheckedStructuralValueRoot, SymbolHandle};
             use typed_trees::expression::{
                 ExpressionHandle, ExpressionNode, ExpressionTable, MatchPattern,
@@ -1571,6 +1755,7 @@ pub mod values {
                 let capture = expressions.insert_match_subject(source);
                 let head = expressions.insert(ExpressionNode::Boolean(true));
                 let alias = expressions.insert(ExpressionNode::SavedSubject(TableSavedSubject {
+                    component: Default::default(),
                     capture,
                     pattern_head: head,
                 }));
@@ -1894,6 +2079,9 @@ pub mod values {
         pub scalar_expressions: CheckedScalarExpressionPlans,
         pub scalar_computations: CheckedScalarComputationPlans,
         pub structural_values: CheckedStructuralValuePlans,
+        pub completions: CheckedCompletionPlans,
+        /// Proof-only erased actuals recorded under `CheckedProofTermRole`
+        /// coordinates. They own no runtime operand rows.
         pub proof_terms: CheckedProofTerms,
     }
 
@@ -1904,6 +2092,7 @@ pub mod values {
                 scalar_expressions: CheckedScalarExpressionPlans::default(),
                 scalar_computations: CheckedScalarComputationPlans::default(),
                 structural_values: CheckedStructuralValuePlans::default(),
+                completions: CheckedCompletionPlans::default(),
                 proof_terms: CheckedProofTerms::default(),
                 scalar_type_refinements: Arena::new(),
                 scalar_type_predicates: Arena::new(),

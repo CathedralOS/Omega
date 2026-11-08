@@ -1117,6 +1117,7 @@ mod declared_domains {
     }
 }
 mod owned_qualifications {
+
     /*
         Owned value transfers preserve existing qualifications and IEEE predicates.
         No declaration, equal carrier geometry, or matching label creates a fact.
@@ -1124,14 +1125,12 @@ mod owned_qualifications {
         until the call/custody checker validates their exact producing invocation.
     */
     use arena::HandleSpan;
-    use checked_trees::FlowSemanticContextRef;
     use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceHandle, ProgramPoint};
 
     pub(in crate::flow) fn append_owned_qualification_transfer(
         program: &dyn ::validation::CheckingInput,
         semantic: &mut FactPlan,
-        contexts: &crate::flow::FlowBuildContext,
-        active: HandleSpan<FlowSemanticContextRef>,
+        active: &[facts::FactContextHandle],
         source_expression: typed_trees::expression::ExpressionHandle,
         source: PlaceHandle,
         destination: PlaceHandle,
@@ -1142,7 +1141,7 @@ mod owned_qualifications {
         let ProgramPoint::Statement {
             machine_symbol,
             state_symbol,
-            ..
+            statement_index,
         } = point
         else {
             return;
@@ -1152,10 +1151,23 @@ mod owned_qualifications {
         else {
             return;
         };
-        if !validation::value_has_builtin_coordinates(program, machine, state, source_expression) {
+        let source = *semantic.places.get(source);
+        // A completed expression's own facts name that exact result, independent
+        // of whether it came from a call or a constructor. Reusing storage facts
+        // still requires the canonical builtin coordinate owner; a selected call
+        // cannot borrow its arguments' or a same-spelled place's memberships.
+        let exact_result = source.root == facts::PlaceRoot::Expression(source_expression)
+            && source.segments.is_empty();
+        if !exact_result
+            && !validation::value_has_builtin_coordinates(
+                program,
+                machine,
+                state,
+                source_expression,
+            )
+        {
             return;
         }
-        let source = *semantic.places.get(source);
         let destination = *semantic.places.get(destination);
         let source_segments = semantic
             .place_segments
@@ -1165,30 +1177,37 @@ mod owned_qualifications {
             .place_segments
             .span_or_empty(destination.segments)
             .to_vec();
-        if !crate::flow::source_transfer_cases_selected(
+        if !crate::flow::place_cases_are_selected(
             program,
             semantic,
-            contexts,
             active,
-            point,
-            source.root,
-            source_segments.clone(),
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            &validation::CanonicalPlace {
+                root: source.root,
+                segments: source_segments.clone(),
+            },
         ) {
             return;
         }
-        let candidates = crate::flow::context::active_context_facts_matching(
-            contexts,
-            semantic,
-            active,
-            |fact| {
+        let candidates = active
+            .iter()
+            .flat_map(|context| {
+                semantic
+                    .context_view(semantic.contexts.get(*context))
+                    .facts()
+            })
+            .filter(|fact| {
                 (fact.payload.domain_membership().is_some()
                     || matches!(fact.payload, FactPayload::FloatPredicate { .. }))
                     && fact
                         .place
                         .as_place()
                         .is_some_and(|place| semantic.places.get(place).root == source.root)
-            },
-        );
+            })
+            .copied()
+            .collect::<Vec<_>>();
         for fact in candidates {
             let mut erased = false;
             let payload = if let Some((_, domain, domain_symbol, semantic_domain)) =
@@ -4034,11 +4053,12 @@ pub(super) fn propagate_statement_transfers(
             .then(|| build.control.operands.get(stored_value).type_reference)
             .filter(|reference| reference.is_valid());
         if let Some(destination_type) = destination_type {
+            let source_contexts =
+                super::active_context_handles(&build.contexts, assignment_source_contexts);
             owned_qualifications::append_owned_qualification_transfer(
                 program,
                 semantic,
-                build,
-                assignment_source_contexts,
+                &source_contexts,
                 source_expression,
                 source_place,
                 target_place,

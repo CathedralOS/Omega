@@ -29,6 +29,7 @@ text owners so Build continuation sharing observes every retained row.
 */
 
 pub(crate) mod equality {
+
     use crate::{SyntaxTextOwner, SyntaxTrees};
     use arena::{Arena, Handle, HandleSpan, PagedArenaSet};
     use std::sync::Arc;
@@ -146,6 +147,7 @@ pub(crate) mod equality {
 }
     plain!(
         bool,
+        language_core::PatternComponent,
         usize,
         u8,
         u16,

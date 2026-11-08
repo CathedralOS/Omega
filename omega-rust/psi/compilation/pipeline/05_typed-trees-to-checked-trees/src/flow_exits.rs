@@ -19,6 +19,7 @@ use facts::{FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
 
 mod guards {
+
     /*
         Selected predicates describe live storage, including comparisons against
         constructed values. Construction is repeatable only when every explicit
@@ -906,31 +907,31 @@ mod guards {
         if let FactPayload::MatchPattern {
             expression,
             arm,
-            matched: true,
+            matched,
         } = payload
             && let Some(dispatch) = program.expression_table.match_node(expression)
             && let Some((machine_position, state_position)) =
                 build.state_location(program, state_symbol)
+            && let Some(offset) = arm
+                .arena_index()
+                .checked_sub(dispatch.arms.start().arena_index())
+            && dispatch.arms.handles().nth(offset as usize) == Some(arm)
             && let Some(source_arm) = expressions(program)
                 .match_arms(dispatch.arms)
-                .iter()
-                .enumerate()
-                .find_map(|(ordinal, row)| {
-                    (u32::try_from(ordinal)
-                        .ok()
-                        .is_some_and(|ordinal| dispatch.arms.handle_at(ordinal) == arm))
-                    .then_some(row)
-                })
+                .get(offset as usize)
         {
             let machine = &program.machines()[machine_position];
             let state = &program.machine_states(machine)[state_position];
             if let Some(case) = validation::structural_match_pattern_case(
-                program,
-                machine,
-                state,
-                dispatch,
-                source_arm.pattern,
-            ) && case.is_valid()
+            program,
+            machine,
+            state,
+            dispatch,
+            source_arm.pattern,
+        ) && case.is_valid()
+            // Success selects the case even for a guarded pattern. Failure
+            // excludes it only when the whole pattern tests that case alone.
+            && (matched || validation::structural_match_pattern_is_total(program, source_arm.pattern))
             {
                 let alias = if dispatch.capture.is_valid() {
                     expressions(program)
@@ -954,7 +955,7 @@ mod guards {
                     &[],
                     FactPayload::CaseValue {
                         variant: case,
-                        value: true,
+                        value: matched,
                     },
                     point,
                     FactOrigin::TransitionGuard,
@@ -989,7 +990,7 @@ mod guards {
                         &[],
                         FactPayload::CaseValue {
                             variant: case,
-                            value: true,
+                            value: matched,
                         },
                         point,
                         FactOrigin::TransitionGuard,

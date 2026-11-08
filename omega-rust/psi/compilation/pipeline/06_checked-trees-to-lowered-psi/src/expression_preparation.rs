@@ -115,6 +115,7 @@ pub(crate) mod byte_literals {
     }
 }
 pub(crate) mod computation_graph {
+
     use crate::shared::checked_facts::{flow_facts, value_facts};
     use crate::shared::lowering_error::{LoweringError, unsupported};
     use checked_trees::CheckedTrees;
@@ -534,8 +535,15 @@ pub(crate) mod computation_graph {
                     for argument in structural_arguments {
                         if let Some(place) = argument.as_place() {
                             extend_range(checked, place, &mut pending);
-                            if matches!(place.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }) {
-                                let root = produced_value_root(checked, source_call.statement().ok_or(LoweringError::Unsupported("declaration call has no structural producer custody"))?, place)?.root;
+                            if place.source.structural_value_dependency().is_some() {
+                                let root = produced_value_root(
+                                    checked,
+                                    source_call.statement().ok_or(LoweringError::Unsupported(
+                                        "declaration call has no structural producer custody",
+                                    ))?,
+                                    place,
+                                )?
+                                .root;
                                 if !structural_roots.contains(&root) {
                                     structural_roots.push(root);
                                 }
@@ -749,6 +757,8 @@ pub(crate) mod computation_graph {
     ) -> Result<&'checked checked_trees::CheckedStructuralValueRoot, LoweringError> {
         let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
             expression,
+            value_dependency: Some(value),
+            ..
         } = argument.source
         else {
             return unsupported("computed structural operand has no produced expression");
@@ -780,18 +790,21 @@ pub(crate) mod computation_graph {
             LoweringError::Unsupported("computed structural operand statement exceeds u32")
         })?;
         let values = &checked.facts.values.structural_values;
-        let root = values
-            .completed_checked_expression_dependency(
-                &checked.facts.executable_bindings,
-                state.state_symbol,
-                Some(statement),
-                expression,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "computed structural operand has no unique authenticated value dependency",
-            ))?;
+        let root =
+            values
+                .root_for_value_home(value, expression)
+                .ok_or(LoweringError::Unsupported(
+                    "computed structural operand has no unique authenticated value dependency",
+                ))?;
+        // The root keeps the declared value contract; the argument and catalog
+        // name only its storage carrier's structural identity. Loan admission
+        // belongs to the checked root, including a borrowed slice descriptor;
+        // resolving that root does not manufacture an owned reference.
         if root.machine != state.machine_symbol
+            || root.state != state.state_symbol
+            || root.statement_ordinal != statement
             || !values.nodes.is_valid(root.root)
+            || values.nodes.get(root.root).expression != expression
             || (argument.path.is_empty()
                 && validation::structural_type_identity(
                     &checked.typed,

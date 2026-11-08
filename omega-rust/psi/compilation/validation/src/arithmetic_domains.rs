@@ -2699,6 +2699,7 @@ pub(crate) mod cast_ranges {
     }
 }
 pub(crate) mod dispatch_environments {
+
     use super::{Machine, State, ValueEnvironment, guard_narrowing};
     use crate::frozen_program::expression_table;
     use crate::machine_calls::calls::{CallFrameResolver, expression_has_calls};
@@ -2735,42 +2736,58 @@ pub(crate) mod dispatch_environments {
             .match_arms(dispatch.arms)
             .iter()
             .map(|arm| {
-                let mut selected = remaining.clone();
-                let condition = match arm.pattern {
-                    MatchPattern::Value(pattern) if form_pattern(&remaining, pattern) => {
-                        Some(DispatchCondition::Equality {
-                            subject: dispatch.subject,
-                            pattern,
-                        })
-                    }
-                    MatchPattern::Destructure(pattern)
-                        if form_pattern(&remaining, pattern.condition) =>
-                    {
-                        Some(DispatchCondition::Predicate(pattern.condition))
-                    }
-                    _ => None,
-                };
-                if let Some(condition) = condition {
-                    select(
-                        &mut selected,
-                        DispatchSelection {
-                            expression,
-                            condition,
-                            matched: true,
-                        },
-                    );
-                    select(
-                        &mut remaining,
-                        DispatchSelection {
-                            expression,
-                            condition,
-                            matched: false,
-                        },
-                    );
-                }
-                selected
+                dispatch_arm_context(
+                    expression,
+                    dispatch.subject,
+                    arm.pattern,
+                    &mut remaining,
+                    &mut form_pattern,
+                    &mut select,
+                )
             })
             .collect()
+    }
+
+    /// Select one already-associated authored arm from the remaining paths. The
+    /// caller owns its actual operand execution; this step retains only facts
+    /// justified by that completed pattern and its exact true or false outcome.
+    pub(crate) fn dispatch_arm_context<Context: Clone>(
+        expression: ExpressionHandle,
+        subject: ExpressionHandle,
+        pattern: MatchPattern,
+        remaining: &mut Context,
+        form_pattern: &mut impl FnMut(&Context, ExpressionHandle) -> bool,
+        select: &mut impl FnMut(&mut Context, DispatchSelection),
+    ) -> Context {
+        let mut selected = remaining.clone();
+        let condition = match pattern {
+            MatchPattern::Value(pattern) if form_pattern(remaining, pattern) => {
+                Some(DispatchCondition::Equality { subject, pattern })
+            }
+            MatchPattern::Destructure(pattern) if form_pattern(remaining, pattern.condition) => {
+                Some(DispatchCondition::Predicate(pattern.condition))
+            }
+            _ => None,
+        };
+        if let Some(condition) = condition {
+            select(
+                &mut selected,
+                DispatchSelection {
+                    expression,
+                    condition,
+                    matched: true,
+                },
+            );
+            select(
+                remaining,
+                DispatchSelection {
+                    expression,
+                    condition,
+                    matched: false,
+                },
+            );
+        }
+        selected
     }
 
     pub(crate) fn dispatch_arm_environments(
@@ -2794,42 +2811,7 @@ pub(crate) mod dispatch_environments {
             environment,
             |_, _| true,
             |selected, selection| {
-                match selection.condition {
-                    DispatchCondition::Equality { subject, pattern } => {
-                        let comparison = TableBinaryExpression {
-                            left: subject,
-                            operator: BinaryOperator::Equal,
-                            right: pattern,
-                        };
-                        guard_narrowing::narrow_environment_by_comparison(
-                            program,
-                            machine,
-                            state,
-                            selected,
-                            expression,
-                            &comparison,
-                            selection.matched,
-                        );
-                    }
-                    DispatchCondition::Predicate(condition) => {
-                        guard_narrowing::narrow_environment_by_condition(
-                            program,
-                            machine,
-                            state,
-                            selected,
-                            condition,
-                            selection.matched,
-                        );
-                    }
-                }
-                if dispatch.capture.is_valid()
-                    && let Some(source) = super::place_path(program, dispatch.subject)
-                {
-                    let anchor = expression_table(program)
-                        .value_capture(dispatch.capture)
-                        .value_anchor;
-                    selected.copy_path_facts(&super::place_paths::capture_path(anchor), &source);
-                }
+                narrow_dispatch_selection(program, machine, state, dispatch, selected, selection)
             },
         )
         .into_iter()
@@ -2841,6 +2823,215 @@ pub(crate) mod dispatch_environments {
             selected
         })
         .collect()
+    }
+
+    /// Publish the same selected comparison facts for expression checking and
+    /// state arrivals. The caller subsequently retires every source consequence
+    /// changed by the actual evaluated prefix before an arm can consume it.
+    pub(crate) fn narrow_dispatch_selection(
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: Option<&State>,
+        dispatch: &TableMatchExpression,
+        selected: &mut ValueEnvironment,
+        selection: DispatchSelection,
+    ) {
+        match selection.condition {
+            DispatchCondition::Equality { subject, pattern } => {
+                let comparison = TableBinaryExpression {
+                    left: subject,
+                    operator: BinaryOperator::Equal,
+                    right: pattern,
+                };
+                guard_narrowing::narrow_environment_by_comparison(
+                    program,
+                    machine,
+                    state,
+                    selected,
+                    selection.expression,
+                    &comparison,
+                    selection.matched,
+                );
+            }
+            DispatchCondition::Predicate(condition) => {
+                guard_narrowing::narrow_environment_by_condition(
+                    program,
+                    machine,
+                    state,
+                    selected,
+                    condition,
+                    selection.matched,
+                );
+            }
+        }
+        // The captured value and its source agree until a write changes
+        // the source. Rebind the predicate's captured paths now; the caller's
+        // evaluated write frame then withdraws every unstable source consequence
+        // before an arm can consume it. Capture paths retain
+        // their own identity and never become global source aliases.
+        if dispatch.capture.is_valid()
+            && let Some(source) = super::place_path(program, dispatch.subject)
+        {
+            let anchor = expression_table(program)
+                .value_capture(dispatch.capture)
+                .value_anchor;
+            selected.copy_path_facts(&super::place_paths::capture_path(anchor), &source);
+        }
+    }
+}
+mod evaluated_writes {
+    //! Writes from the subject and patterns that have actually completed. Later
+    //! patterns and selected bodies cannot invalidate an earlier arm's premises.
+    //! The ordered set indexes candidates; the call-frame owner decides overlap.
+
+    use std::collections::BTreeSet;
+    use std::ops::Bound::{Included, Unbounded};
+
+    #[derive(Default)]
+    pub(super) struct EvaluatedWritePrefix {
+        writes: BTreeSet<String>,
+        unknown: bool,
+    }
+
+    impl EvaluatedWritePrefix {
+        pub(super) fn extend(&mut self, writes: Option<Vec<String>>) {
+            if self.unknown {
+                return;
+            }
+            match writes {
+                Some(writes) => self.writes.extend(writes),
+                None => {
+                    self.unknown = true;
+                    self.writes.clear();
+                }
+            }
+        }
+
+        pub(super) fn is_unknown(&self) -> bool {
+            self.unknown
+        }
+
+        pub(super) fn is_empty(&self) -> bool {
+            !self.unknown && self.writes.is_empty()
+        }
+
+        pub(super) fn overlaps(&self, path: &str) -> bool {
+            if self.unknown {
+                return true;
+            }
+            if self.writes.is_empty() {
+                return false;
+            }
+            let agrees =
+                |candidate: &str| crate::machine_calls::calls::frame_paths_overlap(path, candidate);
+            // An ancestor write must be an exact string prefix. Looking up those
+            // prefixes avoids scanning all earlier writes for every new arm.
+            if path
+                .char_indices()
+                .map(|(end, _)| &path[..end])
+                .chain(std::iter::once(path))
+                .any(|prefix| self.writes.get(prefix).is_some_and(|write| agrees(write)))
+            {
+                return true;
+            }
+            let mut candidate = String::with_capacity(path.len() + 3);
+            // A collection-content frame also covers its indexed descendants,
+            // while its descriptor length remains a separate observation.
+            for (position, character) in path.char_indices() {
+                if character == '[' {
+                    candidate.clear();
+                    candidate.push_str(&path[..position]);
+                    candidate.push_str("[*]");
+                    if self
+                        .writes
+                        .get(candidate.as_str())
+                        .is_some_and(|write| agrees(write))
+                    {
+                        return true;
+                    }
+                }
+            }
+            // The first write in either descendant range suffices: all entries
+            // with that prefix are contiguous and the canonical relation covers
+            // each. A wildcard read additionally covers the collection's indexes.
+            let descendants = [
+                (Some(path), "."),
+                (Some(path), "["),
+                (path.strip_suffix("[*]"), "["),
+            ];
+            for (parent, separator) in descendants {
+                let Some(parent) = parent else { continue };
+                candidate.clear();
+                candidate.push_str(parent);
+                candidate.push_str(separator);
+                if self
+                    .writes
+                    .range::<str, _>((Included(candidate.as_str()), Unbounded))
+                    .next()
+                    .is_some_and(|write| write.starts_with(candidate.as_str()) && agrees(write))
+                {
+                    return true;
+                }
+            }
+            false
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+
+        use super::EvaluatedWritePrefix;
+
+        #[test]
+        fn accumulated_prefix_matches_the_call_frame_overlap_oracle() {
+            let observed = [
+                "packet",
+                "packet.value",
+                "packet.value.child",
+                "packet.value.child.nested",
+                "packet.value_suffix",
+                "packets.value",
+                "packet.cells",
+                "packet.cells[0]",
+                "packet.cells[0].field",
+                "packet.cells[1].field",
+                "packet.cells[*]",
+                "packet.cells.len",
+                "packet.side",
+            ];
+            let mut prefix = EvaluatedWritePrefix::default();
+            let mut linear = Vec::new();
+            for written in [
+                vec![],
+                vec!["packet.value.child"],
+                vec!["packets.value"],
+                vec!["packet.cells[0].field"],
+                vec!["packet.cells[*]"],
+                vec!["packet"],
+            ] {
+                prefix.extend(Some(
+                    written.iter().map(|path| (*path).to_owned()).collect(),
+                ));
+                linear.extend(written);
+                for path in observed {
+                    assert_eq!(
+                        prefix.overlaps(path),
+                        linear.iter().any(
+                            |write| crate::machine_calls::calls::frame_paths_overlap(path, write)
+                        ),
+                        "read {path}, evaluated writes {linear:?}",
+                    );
+                }
+            }
+            prefix.extend(None);
+            assert!(prefix.is_unknown());
+            assert!(!prefix.is_empty());
+            prefix.extend(Some(Vec::new()));
+            assert!(prefix.is_unknown());
+            for path in observed {
+                assert!(prefix.overlaps(path));
+            }
+        }
     }
 }
 pub(crate) use dispatch_environments::dispatch_arm_environments;
@@ -9637,6 +9828,7 @@ pub(crate) mod guard_narrowing {
     use typed_trees::expression::TableBinaryExpression;
 
     pub(crate) mod arrivals {
+
         use super::super::{
             TypeReferenceHandle, TypeReferenceNode, enforced_declared_range, record_assignment,
             record_unsigned_literal_assignment,
@@ -10985,13 +11177,12 @@ pub(crate) mod guard_narrowing {
                 expression: ExpressionHandle,
                 environment: &mut ValueEnvironment,
             ) {
-                self.cross_writes(
-                    source,
-                    environment,
-                    self.frames.and_then(|frames| {
-                        frames.expression_may_write_paths(self.machine, expression)
-                    }),
-                );
+                self.cross_writes(source, environment, self.expression_writes(expression));
+            }
+
+            fn expression_writes(&self, expression: ExpressionHandle) -> Option<Vec<String>> {
+                self.frames
+                    .and_then(|frames| frames.expression_may_write_paths(self.machine, expression))
             }
 
             fn should_arrive(&self, symbol: SymbolHandle) -> bool {
@@ -11750,45 +11941,54 @@ pub(crate) mod guard_narrowing {
                 match expression_table(self.program).expression(expression) {
                     ExpressionNode::Match(dispatch) => {
                         self.expression(source, dispatch.subject, environment);
+                        let mut prefix =
+                            super::super::evaluated_writes::EvaluatedWritePrefix::default();
+                        prefix.extend(self.expression_writes(dispatch.subject));
                         let mut remaining = environment.clone();
                         let mut joined: Option<ValueEnvironment> = None;
                         let mut boolean_values = [false; 2];
                         for arm in expression_table(self.program).match_arms(dispatch.arms) {
-                            if let typed_trees::expression::MatchPattern::Value(pattern) =
-                                arm.pattern
-                            {
-                                self.expression(source, pattern, &mut remaining);
-                                if let Some(value) =
-                                    expression_table(self.program).boolean_node(pattern)
-                                {
-                                    boolean_values[usize::from(*value)] = true;
+                            let pattern = match arm.pattern {
+                                typed_trees::expression::MatchPattern::Value(pattern) => {
+                                    if let Some(value) =
+                                        expression_table(self.program).boolean_node(pattern)
+                                    {
+                                        boolean_values[usize::from(*value)] = true;
+                                    }
+                                    Some(pattern)
                                 }
+                                typed_trees::expression::MatchPattern::Destructure(pattern) => {
+                                    Some(pattern.condition)
+                                }
+                                typed_trees::expression::MatchPattern::Wildcard => None,
+                            };
+                            if let Some(pattern) = pattern {
+                                self.expression(source, pattern, &mut remaining);
+                                prefix.extend(self.expression_writes(pattern));
                             }
-                            let mut selected = remaining.clone();
-                            if let typed_trees::expression::MatchPattern::Value(pattern) =
-                                arm.pattern
-                                && let ExpressionNode::Boolean(positive) =
-                                    expression_table(self.program).expression(pattern)
-                            {
-                                narrow_environment_by_condition(
-                                    self.program,
-                                    self.machine,
-                                    Some(source),
-                                    &mut selected,
+                            let mut selected =
+                                super::super::dispatch_environments::dispatch_arm_context(
+                                    expression,
                                     dispatch.subject,
-                                    *positive,
-                                );
-                                narrow_environment_by_condition(
-                                    self.program,
-                                    self.machine,
-                                    Some(source),
+                                    arm.pattern,
                                     &mut remaining,
-                                    dispatch.subject,
-                                    !*positive,
+                                    &mut |_, _| true,
+                                    &mut |selected, selection| {
+                                        super::super::dispatch_environments::narrow_dispatch_selection(
+                                        self.program,
+                                        self.machine,
+                                        Some(source),
+                                        dispatch,
+                                        selected,
+                                        selection,
+                                    );
+                                        selected.invalidate_call_prefix(
+                                            self.program,
+                                            Some(source),
+                                            &prefix,
+                                        );
+                                    },
                                 );
-                                self.expression_effects(source, dispatch.subject, &mut selected);
-                                self.expression_effects(source, dispatch.subject, &mut remaining);
-                            }
                             self.expression(source, arm.value, &mut selected);
                             joined =
                                 Some(joined.map_or_else(
@@ -18573,6 +18773,7 @@ pub(crate) mod operand_reports {
     }
 }
 pub(crate) mod ordered_values {
+
     use super::{
         ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
         PrimitiveType, State, ValueEnvironment, declared_place_type_raw, place_path,
@@ -20756,7 +20957,25 @@ pub(crate) mod ordered_values {
             state: Option<&State>,
             written: &[String],
         ) -> bool {
-            if self.survives(written)
+            self.survives_storage_writes_by(
+                program,
+                state,
+                &|path| written.iter().any(|write| place_paths_overlap(path, write)),
+                written.is_empty(),
+            )
+        }
+
+        pub(super) fn survives_storage_writes_by(
+            &self,
+            program: &dyn CheckingInput,
+            state: Option<&State>,
+            overlaps: &impl Fn(&str) -> bool,
+            empty: bool,
+        ) -> bool {
+            // A call's conservative storage frame cannot retarget an immutable
+            // copied scalar or private descriptor observation. Their declaration-
+            // checked snapshot identity supplies this distinction, never spelling.
+            if self.survives_path_query(overlaps, empty)
                 || state.is_some_and(|state| self.is_immutable_snapshot(program, state))
             {
                 return true;
@@ -20764,40 +20983,48 @@ pub(crate) mod ordered_values {
             match self {
                 Self::Binary { operands, .. } => operands
                     .iter()
-                    .all(|value| value.survives_storage_writes(program, state, written)),
+                    .all(|value| value.survives_storage_writes_by(program, state, overlaps, empty)),
                 Self::Call { arguments, .. } => arguments
                     .iter()
-                    .all(|value| value.survives_storage_writes(program, state, written)),
+                    .all(|value| value.survives_storage_writes_by(program, state, overlaps, empty)),
                 _ => false,
             }
         }
 
         fn survives_paths(&self, written: &[String]) -> bool {
+            self.survives_path_query(
+                &|path| written.iter().any(|write| place_paths_overlap(path, write)),
+                written.is_empty(),
+            )
+        }
+
+        fn survives_path_query(&self, overlaps: &impl Fn(&str) -> bool, empty: bool) -> bool {
+            if empty {
+                return true;
+            }
+            self.survives_paths_by(overlaps)
+        }
+
+        fn survives_paths_by(&self, overlaps: &impl Fn(&str) -> bool) -> bool {
             match self {
-                Self::Place { path, .. } => {
-                    !written.iter().any(|write| place_paths_overlap(path, write))
-                }
+                Self::Place { path, .. } => !overlaps(path),
                 Self::Field { receiver, .. } => self.static_path().map_or_else(
-                    || receiver.survives_paths(written),
-                    |path| {
-                        !written
-                            .iter()
-                            .any(|write| place_paths_overlap(&path, write))
-                    },
+                    || receiver.survives_paths_by(overlaps),
+                    |path| !overlaps(&path),
                 ),
                 Self::Integer(..) => true,
-                Self::Call { arguments, .. } => {
-                    arguments.iter().all(|value| value.survives_paths(written))
-                }
+                Self::Call { arguments, .. } => arguments
+                    .iter()
+                    .all(|value| value.survives_paths_by(overlaps)),
                 #[cfg(test)]
-                Self::CompletedCall { .. } => written.is_empty(),
-                Self::CollectionLength(collection) => collection.survives(written),
+                Self::CompletedCall { .. } => false,
+                Self::CollectionLength(collection) => collection.survives_paths_by(overlaps),
                 Self::Indexed {
                     collection, index, ..
-                } => collection.survives(written) && index.survives(written),
-                Self::Binary { operands, .. } => {
-                    operands.iter().all(|value| value.survives_paths(written))
-                }
+                } => collection.survives_paths_by(overlaps) && index.survives_paths_by(overlaps),
+                Self::Binary { operands, .. } => operands
+                    .iter()
+                    .all(|value| value.survives_paths_by(overlaps)),
             }
         }
 
@@ -25421,6 +25648,7 @@ pub(crate) mod unsigned_representability {
     }
 }
 pub(crate) mod value_environment {
+
     use super::{ExpressionHandle, Interval, Machine, State, ordered_values};
     use crate::proof_contracts::arithmetic_domains::place_paths::{
         canonical_path_pair, place_path_pair, place_paths_overlap,
@@ -25947,12 +26175,36 @@ pub(crate) mod value_environment {
             }
         }
 
+        /// Rebinding a saved subject cannot revive any source fact changed by an
+        /// earlier evaluated pattern. The prefix owns only completed operands.
+        pub(super) fn invalidate_call_prefix(
+            &mut self,
+            program: &dyn crate::CheckingInput,
+            state: Option<&State>,
+            prefix: &super::evaluated_writes::EvaluatedWritePrefix,
+        ) {
+            if prefix.is_unknown() {
+                self.invalidate_unknown_writes(program, state);
+                return;
+            }
+            let overlaps = |path: &str| prefix.overlaps(path);
+            self.invalidate_storage_by(overlaps, |operand| {
+                operand.survives_storage_writes_by(program, state, &overlaps, prefix.is_empty())
+            });
+        }
+
         fn invalidate_storage(&mut self, written: &[String], survives: impl Fn(&Operand) -> bool) {
-            let overlaps = |path: &str| {
-                written
-                    .iter()
-                    .any(|written| place_paths_overlap(path, written))
-            };
+            self.invalidate_storage_by(
+                |path| written.iter().any(|write| place_paths_overlap(path, write)),
+                survives,
+            );
+        }
+
+        fn invalidate_storage_by(
+            &mut self,
+            overlaps: impl Fn(&str) -> bool,
+            survives: impl Fn(&Operand) -> bool,
+        ) {
             self.boolean_values.retain_mut(|value| {
                 if !survives(&value.binding) {
                     return false;

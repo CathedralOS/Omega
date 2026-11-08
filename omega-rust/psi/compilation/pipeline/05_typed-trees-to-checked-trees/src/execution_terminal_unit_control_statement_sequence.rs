@@ -2161,6 +2161,7 @@ mod local_data {
     }
 }
 mod reference_retirement {
+
     /*
         Exact holder retirement and owned operands used by statement scheduling.
         The checked value graph supplies constructor transfers and copied-carrier
@@ -2757,9 +2758,10 @@ mod reference_retirement {
                 CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                     PlaceRoot::Symbol(*symbol)
                 }
-                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
-                    PlaceRoot::Expression(*expression)
-                }
+                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                    expression,
+                    ..
+                } => PlaceRoot::Expression(*expression),
                 CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
                     let parameter = parameters.get(*parameter_index as usize)?;
                     PlaceRoot::Symbol(
@@ -3420,6 +3422,7 @@ mod reference_retirement {
         }
     }
     mod owned_backing {
+
         /*
             Join source-selected anonymous owner deaths to completed holder lifetimes.
             A materialized descriptor and its owned backing are separate occurrences.
@@ -3723,7 +3726,9 @@ mod reference_retirement {
                         owner: CheckedUnitStructuralArgumentPlan {
                             projection_evaluations: Default::default(),
                             source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                                value_dependency: None,
                                 expression,
+                                logical_root_type_identity: None,
                             },
                             path: Vec::new(),
                             type_identity: shapes.add_type(owner.row.disposed_type, &[], &[])?,
@@ -6103,6 +6108,7 @@ mod reference_retirement {
     }
 }
 mod result_consumption {
+
     /*
         Result and source consumption: structural result bindings are appended
         per operation, retained results feed a call argument, and value-call
@@ -6269,7 +6275,7 @@ mod result_consumption {
                 };
                 cleanup_actions.iter().any(|action| {
                     let expression = match *action.source() {
-                        SourcePlan::StructuralExpression { expression } => expression,
+                        SourcePlan::StructuralExpression { expression, .. } => expression,
                         SourcePlan::StructuralResult { binding_ordinal } => {
                             let Some((_, owner)) = results
                                 .iter()
@@ -9486,10 +9492,22 @@ pub(in super::super) fn scalar_control(
     if !complete {
         return None;
     }
+    let selected_copies = if matches!(
+        terminator,
+        checked_trees::CheckedScalarStateTerminator::Crash { .. }
+    ) {
+        Vec::new()
+    } else {
+        let copies =
+            super::selected_copies::SelectedCopies::new(program, facts, machine.symbol, state)?;
+        let paths = terminator.returning_paths(&facts.flow.guarded_exits).ok()?;
+        copies.for_destinations(paths.iter().map(|path| &path.destination))?
+    };
     Some((
         checked_trees::CheckedUnitScalarControlPlan {
             primitive_type,
             terminator,
+            selected_copies,
         },
         prefix_count,
     ))

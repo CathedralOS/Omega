@@ -1,21 +1,22 @@
 /*
-We provide trusted descriptor read and write implementations over finite input
-and private output streams, plus optional Linux filesystem descriptor delegation.
+We provide trusted descriptor reads and writes over finite input and private
+output streams, with optional Linux filesystem descriptor delegation.
 
-Exact normalized locators, declarations, and target ABI authenticate
-compatibility rather than export names. Scalar leaves expose original backing
-through one capture and writeback protocol, while native lowering retains record
-and array placement so the adapter never guesses offsets or manufactures
-padding. Byte views supply their exact live range and retained pointer/length
-ABI, and mutable views stage fixed-extent writes into the original backing.
-Neither protocol grants allocation tails or resizing.
+Exact normalized locators, declarations and target ABI establish compatibility.
+Scalar leaves and byte views expose their original backing through one capture
+and writeback protocol. Native lowering retains record and array placement.
+Views retain their exact live range and pointer/length ABI; mutable views allow
+fixed-extent writes without granting allocation tails or resizing.
 
-Standard streams perform no real host I/O: descriptor 0 reads the finite replay
-stream and descriptors 1 and 2 append to private output buffers. Explicit
-matching-host filesystem delegation separately supplies Linux kernel reads and
-writes over the same captured bytes and an owned guest descriptor namespace,
-preserving actual syscall errors and partial transfers while keeping Linux VFS
-transfers below the common page-aligned INT_MAX cap (0x7fff0000).
+Descriptor 0 reads the finite replay stream. Descriptors 1 and 2 append to
+private output buffers. Matching-host filesystem delegation uses an owned guest
+descriptor namespace and preserves kernel errors and partial transfers, with
+Linux VFS transfers capped at 0x7fff0000 bytes. Versioned Linux libc uses the
+same finite input, private output and captured backing with its size_t/ssize_t
+ABI. Unsupported descriptors refuse before I/O. Input errors refuse without a
+fabricated libc result or TLS errno update; successful and EOF reads leave that
+state alone. The host explicitly assumes these implementations are equivalent;
+checked library wrappers remain guest code.
 */
 
 use std::io::Read;
@@ -565,7 +566,11 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                     }
                     Err(_) => {
                         return Err(TerminalEffectRejection::new(
-                            "finite input failed without an admitted raw kernel error status",
+                            if matches!(self.contract.abi, DescriptorAbi::LinuxLibc) {
+                                "finite input failed without an admitted libc errno result"
+                            } else {
+                                "finite input failed without an admitted raw kernel error status"
+                            },
                         ));
                     }
                 };

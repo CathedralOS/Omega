@@ -8,6 +8,7 @@ pub(crate) use crate::unit::*;
 pub(crate) mod attached_unit {
     pub(crate) use crate::unit::attached_unit::*;
     pub(crate) mod argument_evaluation {
+
         use super::super::{
             BlockId, QualifiedScalarType, StructuralAccess, StructuralParameterDeclaration,
             StructuralTypeDeclaration, ValueId, block_id, scalar_carriers,
@@ -54,14 +55,12 @@ pub(crate) mod attached_unit {
 
             use super::{
                 Evaluation, LoweringError, OperationBuffer, Terminator, ValueDeclaration,
-                allocate_dense, block_id, declarations, edge_id, value_id,
+                allocate_dense, block_id, declarations, edge_id,
             };
             use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
             use crate::unit::unit_cleanup::CleanupRegion;
-            use semantic_vocabulary::{BlockId, EdgeId, ProofTerm, ScalarType};
-            use terminal_psi::{
-                Block, OperationKind, OperationResult, SuccessorEdge, TerminalAffineCleanupAction,
-            };
+            use semantic_vocabulary::{BlockId, EdgeId, ProofTerm};
+            use terminal_psi::{Block, OperationKind, SuccessorEdge, TerminalAffineCleanupAction};
 
             pub(crate) mod case_observations {
 
@@ -147,6 +146,97 @@ pub(crate) mod attached_unit {
                             })
                     }
 
+                    /// Retain decisions whose sums contain an actual transferred argument.
+                    /// Other cleanup regions keep their ordinary selected scope: in particular
+                    /// an inactive sibling payload is never read ahead of its enclosing test.
+                    pub(super) fn capture_transfer_cases(
+                        &self,
+                        regions: &[crate::unit::unit_cleanup::CleanupRegion],
+                        arguments: &[terminal_psi::StructuralArgument],
+                        next_value: &mut u64,
+                        operations: &mut OperationBuffer,
+                    ) -> Result<(), LoweringError> {
+                        let owned = arguments
+                            .iter()
+                            .filter(|argument| {
+                                argument.access == terminal_psi::StructuralAccess::Owned
+                                    && !argument.path.is_empty()
+                            })
+                            .map(|argument| (argument.place, argument.path.as_slice()))
+                            .collect::<std::collections::BTreeSet<_>>();
+                        if owned.is_empty() {
+                            return Ok(());
+                        }
+                        let mut seen = std::collections::BTreeSet::new();
+                        for condition in regions.iter().flat_map(|region| &region.conditions) {
+                            if !inline_case_path(&condition.path)
+                                || !owned
+                                    .range((condition.place, condition.path.as_slice())..)
+                                    .next()
+                                    .is_some_and(|(place, path)| {
+                                        *place == condition.place
+                                            && path.starts_with(&condition.path)
+                                    })
+                                || !seen.insert((
+                                    condition.place,
+                                    condition.path.as_slice(),
+                                    condition.structural_type,
+                                    condition.case,
+                                ))
+                            {
+                                continue;
+                            }
+                            // The argument already names a readable selected descendant of
+                            // this sum. Its exact declaration still owns the case geometry.
+                            self.case_subject(condition, operations)?;
+                            if !self.declared_single_case(condition, operations) {
+                                self.observe_case(condition, next_value, operations)?;
+                            }
+                        }
+                        Ok(())
+                    }
+
+                    pub(super) fn observe_case(
+                        &self,
+                        condition: &crate::unit::unit_cleanup::CleanupCaseCondition,
+                        next_value: &mut u64,
+                        operations: &mut OperationBuffer,
+                    ) -> Result<ValueDeclaration, LoweringError> {
+                        if let Some(observed) = self.retained_case(condition, operations) {
+                            return Ok(observed);
+                        }
+                        let value = ValueDeclaration {
+                            id: crate::shared::terminal_identities::value_id(
+                                crate::shared::terminal_identities::allocate_dense(next_value)?,
+                            ),
+                            scalar_type: semantic_vocabulary::ScalarType::Boolean,
+                            qualifications: Default::default(),
+                        };
+                        let producer = operations.push_leaf(
+                            terminal_psi::OperationResult::Scalar(value),
+                            OperationKind::StructuralCaseMembership {
+                                source: condition.place,
+                                path: condition.path.clone(),
+                                case: condition.case,
+                            },
+                        );
+                        operations.storage_observations.cases.push(
+                crate::emission::operation_emission::buffer::CapturedStructuralCaseObservation {
+                    source: condition.place,
+                    path: condition.path.clone(),
+                    structural_type: condition.structural_type,
+                    case: condition.case,
+                    value,
+                    producer,
+                },
+            );
+                        Ok(value)
+                    }
+
+                    /// Reuse the completed Boolean, never a tag load on the current payload.
+                    /// Its scope supplies dominance. The append-only operation prefix also
+                    /// authenticates the unchanged storage epoch, including effects emitted in
+                    /// siblings before their observation scopes were restored.
                     pub(crate) fn retained_case(
                         &self,
                         condition: &crate::unit::unit_cleanup::CleanupCaseCondition,
@@ -586,13 +676,14 @@ pub(crate) mod attached_unit {
                     checked: &checked_trees::CheckedTrees,
                     arguments: &mut Vec<terminal_psi::StructuralArgument>,
                     declarations: &[terminal_psi::StructuralParameterDeclaration],
+                    regions: &[CleanupRegion],
                     values: &mut Vec<ValueDeclaration>,
                     next_place: &mut u64,
                     places: &mut Vec<terminal_psi::StructuralPlaceDeclaration>,
                     next_value: &mut u64,
                     next_block: &mut u64,
                     next_edge: &mut u64,
-                    operations: &OperationBuffer,
+                    operations: &mut OperationBuffer,
                 ) -> Result<(), LoweringError> {
                     let mut source_names = Vec::with_capacity(arguments.len());
                     for argument in arguments.iter() {
@@ -619,6 +710,7 @@ pub(crate) mod attached_unit {
                             identities,
                             arguments,
                             declarations,
+                            regions,
                             values,
                             next_place,
                             places,
@@ -681,13 +773,14 @@ pub(crate) mod attached_unit {
                     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
                     arguments: &mut Vec<terminal_psi::StructuralArgument>,
                     declarations: &[terminal_psi::StructuralParameterDeclaration],
+                    regions: &[CleanupRegion],
                     values: &mut Vec<ValueDeclaration>,
                     next_place: &mut u64,
                     places: &mut Vec<terminal_psi::StructuralPlaceDeclaration>,
                     next_value: &mut u64,
                     next_block: &mut u64,
                     next_edge: &mut u64,
-                    operations: &OperationBuffer,
+                    operations: &mut OperationBuffer,
                 ) -> Result<Vec<semantic_vocabulary::PlaceId>, LoweringError> {
                     if arguments.len() != declarations.len() {
                         return Err(LoweringError::Unsupported(
@@ -697,6 +790,10 @@ pub(crate) mod attached_unit {
                     if arguments.is_empty() {
                         return Ok(Vec::new());
                     }
+                    // All authored operands have completed. Capture the required case
+                    // decisions while the original owner is whole, before this edge moves
+                    // its selected children into the cleanup continuation.
+                    self.capture_transfer_cases(regions, arguments, next_value, operations)?;
                     let target = block_id(allocate_dense(next_block)?);
                     let parameters = super::declarations(
                         &values
@@ -798,17 +895,17 @@ pub(crate) mod attached_unit {
                         operations,
                     )?;
                     operations.selected_cleanup_groups.push(
-                        crate::emission::selected_continuations::SelectedCleanupGroup {
-                            edge,
-                            region: region.clone(),
-                            requirement: if retirement {
-                                crate::emission::selected_continuations::CleanupRequirement::ResidentHome
-                            } else {
-                                crate::emission::selected_continuations::CleanupRequirement::WholeValue
-                            },
-                            bypass,
-                        },
-                    );
+                crate::emission::selected_continuations::SelectedCleanupGroup {
+                    edge,
+                    region: region.clone(),
+                    requirement: if retirement {
+                        crate::emission::selected_continuations::CleanupRequirement::ResidentHome
+                    } else {
+                        crate::emission::selected_continuations::CleanupRequirement::WholeValue
+                    },
+                    bypass,
+                },
+            );
                     Ok((bypass, bypass_parameters))
                 }
 
@@ -1117,36 +1214,10 @@ pub(crate) mod attached_unit {
                         } else {
                             (join, join_parameters.to_vec())
                         };
-                        let observation = if let Some(observed) =
-                            self.retained_case(condition, operations)
-                        {
-                            observed
-                        } else {
-                            let value = ValueDeclaration {
-                                id: value_id(allocate_dense(next_value)?),
-                                scalar_type: ScalarType::Boolean,
-                                qualifications: Default::default(),
-                            };
-                            let producer = operations.push_leaf(
-                                OperationResult::Scalar(value),
-                                OperationKind::StructuralCaseMembership {
-                                    source: condition.place,
-                                    path: condition.path.clone(),
-                                    case: condition.case,
-                                },
-                            );
-                            operations.storage_observations.cases.push(
-                                crate::emission::operation_emission::buffer::CapturedStructuralCaseObservation {
-                                    source: condition.place,
-                                    path: condition.path.clone(),
-                                    structural_type: condition.structural_type,
-                                    case: condition.case,
-                                    value,
-                                    producer,
-                                },
-                            );
-                            value
-                        };
+                        let observation = self.observe_case(condition, next_value, operations)?;
+                        // The first discriminator dominates every arrival at this dispatch's
+                        // join. Observations made inside an arm or its later false-chain do
+                        // not: preserve only this common scope after the complete dispatch.
                         if common_cases.is_none() {
                             common_cases = Some(operations.storage_observations.cases.clone());
                         }
@@ -1639,6 +1710,7 @@ pub(crate) mod attached_unit {
             }
         }
         pub(crate) mod scalar_control {
+
             use super::{
                 CheckedScalarExpressionRole, CheckedTrees, Evaluation,
                 LoweredBooleanReturnExpression, LoweredDirectExpression, LoweringError,
@@ -1653,34 +1725,109 @@ pub(crate) mod attached_unit {
                 CaseDispatchArm, LoweredScalarBranchState, LoweredScalarBranchTerminator,
             };
             use crate::scalar_lowering::computations::parameters;
+            use crate::scalar_lowering::computations::{
+                NormalCompletionTarget, NormalResultTarget,
+            };
             use crate::unit::attached_unit::OperationEnvironment;
             use crate::unit::attached_unit::scalar_completion::control::returning_exits;
             use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
 
+            /// Cleanup already selected by source ownership, before scalar arm expansion.
+            /// Obligation identities belong to this exit, so all routes to that authored
+            /// return consume its admitted result tree before their scalar join.
             pub(crate) struct ScalarReturnCleanup {
                 pub(crate) exit: checked_trees::FlowClaimJoinExit,
                 pub(crate) destination: CheckedScalarBranchDestination,
                 pub(crate) actions: Vec<crate::unit::unit_cleanup::CleanupRegion>,
+                pub(crate) result:
+                    Option<crate::unit::attached_unit::completion_cleanup::NormalResultCleanup>,
+                pub(crate) copied_payloads: Vec<checked_trees::CheckedSelectedPayloadCopy>,
             }
 
-            fn completion_target(
+            fn completion_target<'a>(
                 destination: &CheckedScalarBranchDestination,
-                completions: &[(
+                completions: &'a [(
                     CheckedScalarBranchDestination,
-                    usize,
+                    NormalCompletionTarget,
                     checked_trees::FlowClaimJoinExit,
+                    &'a [checked_trees::CheckedSelectedPayloadCopy],
                 )],
-            ) -> Result<(usize, checked_trees::FlowClaimJoinExit), LoweringError> {
+            ) -> Result<
+                (
+                    &'a NormalCompletionTarget,
+                    checked_trees::FlowClaimJoinExit,
+                    &'a [checked_trees::CheckedSelectedPayloadCopy],
+                ),
+                LoweringError,
+            > {
                 let mut selected = completions
                     .iter()
-                    .filter(|(source, _, _)| source == destination);
-                let (_, target, exit) = selected.next().ok_or(LoweringError::Unsupported(
-                    "scalar return has no selected cleanup completion",
-                ))?;
+                    .filter(|(source, _, _, _)| source == destination);
+                let (_, target, exit, copies) = selected.next().ok_or(
+                    LoweringError::Unsupported("scalar return has no selected cleanup completion"),
+                )?;
                 if selected.next().is_some() {
                     return unsupported("scalar return repeats its cleanup completion");
                 }
-                Ok((*target, *exit))
+                Ok((target, *exit, *copies))
+            }
+
+            fn cleanup_target(
+                expansion: &mut crate::scalar_lowering::computations::Expansion<'_>,
+                types: &[QualifiedScalarType],
+                actions: &[crate::unit::unit_cleanup::CleanupRegion],
+                proof_arguments: Vec<crate::scalar_lowering::contracts::LoweredProofTerm>,
+            ) -> usize {
+                expansion.push(LoweredScalarBranchState::continuing(
+                    types.to_vec(),
+                    LoweredScalarBranchTerminator::Jump {
+                        cleanup_actions: actions
+                            .iter()
+                            .map(crate::unit::unit_cleanup::PreparedNormalCleanupAction::from)
+                            .collect(),
+                        structural_arguments: Vec::new(),
+                        target: 0,
+                        arguments: parameters(types),
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: proof_arguments,
+                    },
+                ))
+            }
+
+            fn result_targets(
+                expansion: &mut crate::scalar_lowering::computations::Expansion<'_>,
+                result: &crate::unit::attached_unit::completion_cleanup::NormalResultCleanup,
+                types: &[QualifiedScalarType],
+                proof_arguments: &[crate::scalar_lowering::contracts::LoweredProofTerm],
+            ) -> std::sync::Arc<NormalResultTarget> {
+                use crate::unit::attached_unit::completion_cleanup::NormalResultCleanup;
+                std::sync::Arc::new(match result {
+                    NormalResultCleanup::NoNormal { computation } => NormalResultTarget::NoNormal {
+                        computation: *computation,
+                    },
+                    NormalResultCleanup::Value {
+                        computation,
+                        actions,
+                    } => NormalResultTarget::Value {
+                        computation: *computation,
+                        target: cleanup_target(expansion, types, actions, proof_arguments.to_vec()),
+                    },
+                    NormalResultCleanup::Dispatch { computation, arms } => {
+                        NormalResultTarget::Dispatch {
+                            computation: *computation,
+                            arms: arms
+                                .iter()
+                                .map(|(arm, result)| {
+                                    (
+                                        arm.clone(),
+                                        result_targets(expansion, result, types, proof_arguments),
+                                    )
+                                })
+                                .collect::<Vec<_>>()
+                                .into(),
+                        }
+                    }
+                })
             }
 
             #[derive(Clone)]
@@ -1700,8 +1847,9 @@ pub(crate) mod attached_unit {
                 destination: &CheckedScalarBranchDestination,
                 completions: &[(
                     CheckedScalarBranchDestination,
-                    usize,
+                    NormalCompletionTarget,
                     checked_trees::FlowClaimJoinExit,
+                    &[checked_trees::CheckedSelectedPayloadCopy],
                 )],
             ) -> Result<usize, LoweringError> {
                 let CheckedScalarBranchDestination::Return {
@@ -1717,10 +1865,11 @@ pub(crate) mod attached_unit {
                 } else {
                     CheckedScalarExpressionRole::Return
                 };
-                let (target, exit) = completion_target(destination, completions)?;
+                let (target, exit, copies) = completion_target(destination, completions)?;
                 expansion.normal_return(
                     identities,
                     &exit,
+                    copies,
                     role,
                     bindings,
                     source_types,
@@ -1815,8 +1964,9 @@ pub(crate) mod attached_unit {
                     fallback: Option<&CheckedScalarBranchDestination>,
                     completions: &[(
                         CheckedScalarBranchDestination,
-                        usize,
+                        NormalCompletionTarget,
                         checked_trees::FlowClaimJoinExit,
+                        &[checked_trees::CheckedSelectedPayloadCopy],
                     )],
                 ) -> Result<LoweredScalarBranchTerminator, LoweringError> {
                     let source = dispatches[0].source;
@@ -1932,22 +2082,27 @@ pub(crate) mod attached_unit {
                     let completions = cleanups
                         .iter()
                         .map(|cleanup| {
-                            let target = expansion.push(LoweredScalarBranchState::continuing(
-                                completion_types.clone(),
-                                LoweredScalarBranchTerminator::Jump {
-                                    cleanup_actions: cleanup
-                                        .actions
-                                        .iter()
-                                        .map(crate::unit::unit_cleanup::PreparedNormalCleanupAction::from)
-                                        .collect(),
-                                    structural_arguments: Vec::new(),
-                                    target: 0,
-                                    arguments: parameters(&completion_types),
-                                    erased_arguments: Vec::new(),
-                                    erased_proof_arguments: self.proof_formal_forwarding(),
-                                },
-                            ));
-                            (cleanup.destination.clone(), target, cleanup.exit)
+                            let target = if let Some(result) = &cleanup.result {
+                                NormalCompletionTarget::Selected(result_targets(
+                                    &mut expansion,
+                                    result,
+                                    &completion_types,
+                                    &self.proof_formal_forwarding(),
+                                ))
+                            } else {
+                                NormalCompletionTarget::Ordinary(cleanup_target(
+                                    &mut expansion,
+                                    &completion_types,
+                                    &cleanup.actions,
+                                    self.proof_formal_forwarding(),
+                                ))
+                            };
+                            (
+                                cleanup.destination.clone(),
+                                target,
+                                cleanup.exit,
+                                cleanup.copied_payloads.as_slice(),
+                            )
                         })
                         .collect::<Vec<_>>();
                     let terminator = match &control.terminator {
@@ -2705,6 +2860,7 @@ pub(crate) mod attached_unit {
             }
         }
         pub(crate) mod state_emission {
+
             use super::super::super::{
                 BlockId, SuccessorEdge, ValueId, block_id, boolean_decision_block_count,
                 contains_short_circuit, emit_boolean_expression,
@@ -3008,28 +3164,28 @@ pub(crate) mod attached_unit {
                 block_structural_parameters = effect_span.structural_parameters;
                 operation_start = effect_span.operation_start;
                 let mut arguments =
-                    |expressions: &[LoweredDirectExpression]| -> Result<Vec<ValueId>, LoweringError> {
-                        expressions
-                            .iter()
-                            .map(|expression| {
-                                validate_direct_parameter_types(
-                                    expression,
-                                    &values
-                                        .iter()
-                                        .map(|value| value.scalar_type)
-                                        .collect::<Vec<_>>(),
-                                )?;
-                                if direct_expression_contains_short_circuit(expression) {
-                                    return unsupported(
-                                        "call computation transfer retains unexpanded Boolean control",
-                                    );
-                                }
-                                Ok(emit_direct_expression(
-                                    expression, &values, next_value, operations,
-                                ))
-                            })
-                            .collect()
-                    };
+            |expressions: &[LoweredDirectExpression]| -> Result<Vec<ValueId>, LoweringError> {
+                expressions
+                    .iter()
+                    .map(|expression| {
+                        validate_direct_parameter_types(
+                            expression,
+                            &values
+                                .iter()
+                                .map(|value| value.scalar_type)
+                                .collect::<Vec<_>>(),
+                        )?;
+                        if direct_expression_contains_short_circuit(expression) {
+                            return unsupported(
+                                "call computation transfer retains unexpanded Boolean control",
+                            );
+                        }
+                        Ok(emit_direct_expression(
+                            expression, &values, next_value, operations,
+                        ))
+                    })
+                    .collect()
+            };
                 let terminator = match &state.terminator {
                     LoweredScalarBranchTerminator::CompleteReturn { target, exit } => {
                         let edge = edge_id(allocate_dense(next_edge)?);
@@ -3112,7 +3268,10 @@ pub(crate) mod attached_unit {
                         access,
                     } => {
                         let arguments = arguments(outgoing)?;
-                        let path = emit_prepared_path(path, 0, &values, next_value, operations);
+                        let source = source.resolve(*access, operations)?;
+                        let mut captured_path = source.path;
+                        captured_path
+                            .extend(emit_prepared_path(path, 0, &values, next_value, operations));
                         Terminator::Jump {
                             edge: edge_id(allocate_dense(next_edge)?),
                             target: *targets.get(*target).ok_or(LoweringError::Unsupported(
@@ -3122,8 +3281,8 @@ pub(crate) mod attached_unit {
                             erased_arguments: Vec::new(),
                             erased_proof_arguments: Vec::new(),
                             structural_arguments: vec![terminal_psi::StructuralArgument {
-                                place: *source,
-                                path,
+                                place: source.place,
+                                path: captured_path,
                                 access: *access,
                             }],
                             cleanup_actions: Vec::new(),
@@ -3869,7 +4028,6 @@ pub(crate) mod attached_unit {
                 semantic_vocabulary::StructuralTypeId,
                 Option<ScalarType>,
             >,
-            pub(crate) call_views: Vec<crate::scalar_lowering::computations::call_views::Slot>,
             pub(crate) subslices: Vec<crate::scalar_lowering::computations::subslices::Slot>,
             pub(crate) observations: Vec<crate::scalar_lowering::computations::observations::Slot>,
             pub(crate) produced_values:
@@ -4017,24 +4175,12 @@ pub(crate) mod attached_unit {
                 if !alias.is_valid() {
                     return Ok(());
                 }
-                let completed = operations
-                    .computed_values
-                    .iter()
-                    .rev()
-                    .find(|(candidate, _)| *candidate == value)
-                    .map(|(_, binding)| binding.clone())
+                let completed = self
+                    .completed_value_binding(value, operations)?
                     .ok_or(LoweringError::Unsupported(
                         "saved subject has no completed producer home",
-                    ))?;
-                if self
-                    .retired_structural_homes
-                    .contains(&completed.argument.place)
-                    || self.current_claims.source(&completed.argument)?.is_none()
-                {
-                    return unsupported(
-                        "saved subject lost its completed name in this execution frame",
-                    );
-                }
+                    ))?
+                    .clone();
                 crate::expression_preparation::bindings::retain_completed_structural_homes(
                     &mut self.structural_locals,
                     &[StructuralLocalBinding {
@@ -4050,27 +4196,70 @@ pub(crate) mod attached_unit {
                 value: checked_trees::CheckedStructuralValueHandle,
                 operations: &'operations OperationBuffer,
             ) -> Result<&'operations ComputedValueBinding, LoweringError> {
-                let binding = operations
+                self.completed_value_binding(value, operations)?
+                    .filter(|binding| {
+                        binding.argument.path.is_empty()
+                            && binding.argument.access == StructuralAccess::Owned
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "saved value requires a completed whole owned home",
+                    ))
+            }
+
+            /// One exact producer's current physical name, without strengthening its
+            /// path or access. Absence means that producer has not completed; a retired
+            /// or out-of-frame name is an error, never permission to produce it again.
+            /// Consumers must independently authenticate their current source-root
+            /// association and retain ordinary operation/loan custody checks.
+            pub(crate) fn completed_value_binding<'operations>(
+                &self,
+                value: checked_trees::CheckedStructuralValueHandle,
+                operations: &'operations OperationBuffer,
+            ) -> Result<Option<&'operations ComputedValueBinding>, LoweringError> {
+                let Some(binding) = operations
                     .computed_values
                     .iter()
                     .rev()
                     .find(|(root, _)| *root == value)
                     .map(|(_, binding)| binding)
-                    .ok_or(LoweringError::Unsupported(
-                        "saved value has not completed in this execution frame",
-                    ))?;
-                if !binding.argument.path.is_empty()
-                    || binding.argument.access != StructuralAccess::Owned
-                    || self
-                        .retired_structural_homes
-                        .contains(&binding.argument.place)
+                else {
+                    return Ok(None);
+                };
+                if self
+                    .retired_structural_homes
+                    .contains(&binding.argument.place)
                     || self.current_claims.source(&binding.argument)?.is_none()
                 {
-                    return unsupported(
-                        "saved value lost its whole produced name in this execution frame",
-                    );
+                    return unsupported("completed value lost its current physical home");
                 }
-                Ok(binding)
+                Ok(Some(binding))
+            }
+
+            /// Reuse a producer only through its exact current source name and type.
+            /// None means the producer has not completed in this frame. A cached
+            /// producer with a retired home or a mismatched name is an error; it must
+            /// not be evaluated again or rebound under another source.
+            pub(crate) fn completed_source_binding<'operations>(
+                &self,
+                value: checked_trees::CheckedStructuralValueHandle,
+                root: facts::PlaceRoot,
+                structural_type: semantic_vocabulary::StructuralTypeId,
+                operations: &'operations OperationBuffer,
+            ) -> Result<Option<&'operations ComputedValueBinding>, LoweringError> {
+                let Some(binding) = self.completed_value_binding(value, operations)? else {
+                    return Ok(None);
+                };
+                if binding.structural_type != structural_type
+                    || structural_local_by_root(&self.structural_locals, root).is_none_or(
+                        |source| {
+                            source.structural_type != structural_type
+                                || source.argument != binding.argument
+                        },
+                    )
+                {
+                    return unsupported("completed value does not match its current source home");
+                }
+                Ok(Some(binding))
             }
 
             pub(crate) fn contextual_bindings(&self) -> ScalarBindings {
@@ -4141,7 +4330,6 @@ pub(crate) mod attached_unit {
                 .with_produced_values(&self.produced_values)
                 .with_completed_values(self.completed_operand_scope.iter().copied())
                 .with_literals(&self.literals)
-                .with_call_views(&self.call_views)
                 .with_subslices(&self.subslices)
                 .with_observations(&self.observations)
                 .with_source_carriers(self.completed_carrier_inventory(operations)?)
@@ -4202,6 +4390,7 @@ pub(crate) mod attached_unit {
                             }
                             CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                                 expression,
+                                ..
                             } => facts::PlaceRoot::Expression(expression),
                             _ => {
                                 return unsupported("value storage source has no storage identity");
@@ -4277,20 +4466,22 @@ pub(crate) mod attached_unit {
                 result: impl FnMut(u32) -> Result<StructuralValueStorage, LoweringError>,
             ) -> Result<StructuralValueStorage, LoweringError> {
                 if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                    expression,
-                } = *source
+                expression,
+                ..
+            } = *source
+            {
+                let root = facts::PlaceRoot::Expression(expression);
+                if structural_local_by_root(&self.structural_locals, root).is_none()
+                    && let Some(home) =
+                        structural_local_by_root(&self.completed_cleanup_homes, root)
                 {
-                    let root = facts::PlaceRoot::Expression(expression);
-                    if structural_local_by_root(&self.structural_locals, root).is_none()
-                        && let Some(home) = structural_local_by_root(&self.completed_cleanup_homes, root)
-                    {
-                        return Ok(StructuralValueStorage {
-                            place: home.argument.place,
-                            path: home.argument.path.clone(),
-                            selected_type: home.structural_type,
-                        });
-                    }
+                    return Ok(StructuralValueStorage {
+                        place: home.argument.place,
+                        path: home.argument.path.clone(),
+                        selected_type: home.structural_type,
+                    });
                 }
+            }
                 self.value_storage(source, parameters, result)
             }
 
@@ -4303,7 +4494,7 @@ pub(crate) mod attached_unit {
                 use checked_trees::CheckedUnitStructuralArgumentSourcePlan as Source;
                 let root = match *source {
                     Source::StructuralLocal { symbol } => Some(facts::PlaceRoot::Symbol(symbol)),
-                    Source::StructuralExpression { expression } => {
+                    Source::StructuralExpression { expression, .. } => {
                         Some(facts::PlaceRoot::Expression(expression))
                     }
                     _ => None,
@@ -4452,7 +4643,6 @@ pub(crate) mod attached_unit {
                     element_views: self.element_views.clone(),
                     produced_values: self.produced_values.clone(),
                     literals: self.literals.clone(),
-                    call_views: self.call_views.clone(),
                     subslices: self.subslices.clone(),
                     observations: self.observations.clone(),
                     cases: self.cases.clone(),
@@ -4902,7 +5092,6 @@ pub(crate) mod attached_unit {
                     element_views: std::collections::BTreeMap::new(),
                     produced_values: Vec::new(),
                     literals: Vec::new(),
-                    call_views: Vec::new(),
                     subslices: Vec::new(),
                     observations: Vec::new(),
                     cases: Vec::new(),
@@ -5682,11 +5871,11 @@ pub(crate) mod attached_unit {
                                     {
                                         if argument.access == StructuralAccess::Owned {
                                             let claims = state_evaluation
-                                                .current_claims
-                                                .source(argument)?
-                                                .ok_or(LoweringError::Unsupported(
-                                                    "scalar arrival has no completed owned namespace",
-                                                ))?;
+                                            .current_claims
+                                            .source(argument)?
+                                            .ok_or(LoweringError::Unsupported(
+                                                "scalar arrival has no completed owned namespace",
+                                            ))?;
                                             arriving.publish(parameter.place, claims)?;
                                         }
                                     }
@@ -5699,12 +5888,11 @@ pub(crate) mod attached_unit {
                                     );
                                 }
                             }
-                            let receiving =
-                                incoming_names
-                                    .get_mut(target)
-                                    .ok_or(LoweringError::Unsupported(
-                                        "computation successor namespace is absent",
-                                    ))?;
+                            let receiving = incoming_names.get_mut(target).ok_or(
+                                LoweringError::Unsupported(
+                                    "computation successor namespace is absent",
+                                ),
+                            )?;
                             if let Some(previous) = receiving {
                                 previous.meet(&arriving)?;
                             } else {

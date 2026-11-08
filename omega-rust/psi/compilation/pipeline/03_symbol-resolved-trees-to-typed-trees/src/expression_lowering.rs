@@ -569,6 +569,7 @@ pub(crate) mod expression {
     }
     pub(crate) mod table {
         pub(crate) mod lowerer {
+
             use crate::expressions::equatable::EqualityScope;
             use crate::expressions::expression::domain_membership::{
                 lower_case_membership_expression, lower_domain_membership_expression,
@@ -590,6 +591,7 @@ pub(crate) mod expression {
             use typed_trees as typed;
 
             pub(crate) mod match_dispatch {
+
                 use super::{Diagnostic, ExpressionTableLowerer, lower_name, resolved, typed};
                 use crate::tables::expression_table;
                 use arena::Handle;
@@ -658,10 +660,10 @@ pub(crate) mod expression {
                     ) -> Result<typed::expression::TableDestructurePattern, Diagnostic>
                     {
                         let program = self.program.ok_or_else(|| {
-                            Diagnostic::error(
-                "structural match predicates require their resolved declaration context",
-                            )
-                        })?;
+                Diagnostic::error(
+                    "structural match predicates require their resolved declaration context",
+                )
+            })?;
                         if !pattern.condition.is_valid() {
                             return Err(Diagnostic::error(
                                 "structural match has no resolved executable predicate",
@@ -685,6 +687,7 @@ pub(crate) mod expression {
                                 }
                             };
                             fields.push(typed::expression::TableMatchField {
+                                component: field.component,
                                 member: lower_name(&field.member),
                                 field_symbol: field.field_symbol,
                                 action,
@@ -699,6 +702,7 @@ pub(crate) mod expression {
                         let saved = completed_subject.unwrap_or_else(|| {
                             self.target()
                                 .insert(ExpressionNode::SavedSubject(TableSavedSubject {
+                                    component: Default::default(),
                                     capture,
                                     pattern_head: head,
                                 }))
@@ -778,7 +782,23 @@ pub(crate) mod expression {
                         if definition.purpose
                             == resolved::expression::SubjectCapturePurpose::Transition
                         {
-                            return self.lower_value(definition.subject);
+                            // This is an alias of the dispatch's already completed local, not
+                            // another expression-match capture or an additional evaluation.
+                            let subject = self.lower_value(definition.subject)?;
+                            if saved.component == language_core::PatternComponent::Fields {
+                                return Ok(subject);
+                            }
+                            if !matches!(
+                                self.target().expression(subject),
+                                typed::expression::ExpressionNode::Name(_)
+                            ) {
+                                return Err(Diagnostic::error(
+                                    "transition case component lost its completed subject local",
+                                ));
+                            }
+                            let copy = self.target().insert_copy(subject);
+                            self.target().set_pattern_component(copy, saved.component);
+                            return Ok(copy);
                         }
                         let capture = self
                             .match_captures
@@ -797,6 +817,7 @@ pub(crate) mod expression {
                             .target()
                             .insert(typed::expression::ExpressionNode::SavedSubject(
                                 typed::expression::TableSavedSubject {
+                                    component: saved.component,
                                     capture,
                                     pattern_head,
                                 },
@@ -1149,10 +1170,10 @@ pub(crate) mod expression {
                         resolved::expression::ExpressionNode::Cast(cast) => {
                             let value = self.lower_value(cast.value)?;
                             let program = self.program.ok_or_else(|| {
-                                Diagnostic::error(
-                                    "cast target type lowering requires the enclosing resolved program",
-                                )
-                            })?;
+                        Diagnostic::error(
+                            "cast target type lowering requires the enclosing resolved program",
+                        )
+                    })?;
                             let exposure = self.source.authored_expression_exposure(expression).unwrap_or(
                     language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
                 );
@@ -1359,24 +1380,24 @@ pub(crate) mod expression {
                             let arguments = self.lower_expression_handle_span(call.arguments)?;
                             let target_symbol = if !call.target_symbol.is_valid() {
                                 self.program
-                                    .map(|program| {
-                                        let declared = super::declared_receiver_method_target(
-                                            program,
-                                            self.source,
-                                            call.receiver,
-                                            &call.target,
-                                        );
-                                        if declared.is_valid() {
-                                            return declared;
-                                        }
-                                        crate::expressions::call_results::computed_receiver_method_target(
-                                            program,
-                                            &self.target_trees.expression_table,
-                                            receiver,
-                                            &call.target,
-                                        )
-                                    })
-                                    .unwrap_or_default()
+                            .map(|program| {
+                                let declared = super::declared_receiver_method_target(
+                                    program,
+                                    self.source,
+                                    call.receiver,
+                                    &call.target,
+                                );
+                                if declared.is_valid() {
+                                    return declared;
+                                }
+                                crate::expressions::call_results::computed_receiver_method_target(
+                                    program,
+                                    &self.target_trees.expression_table,
+                                    receiver,
+                                    &call.target,
+                                )
+                            })
+                            .unwrap_or_default()
                             } else {
                                 call.target_symbol
                             };
@@ -1644,10 +1665,10 @@ pub(crate) mod expression {
                         }
                         resolved::expression::ExpressionNode::ZeroValue(type_reference) => {
                             let program = self.program.ok_or_else(|| {
-                                Diagnostic::error(
-                                    "zero-value type lowering requires the enclosing resolved program",
-                                )
-                            })?;
+                        Diagnostic::error(
+                            "zero-value type lowering requires the enclosing resolved program",
+                        )
+                    })?;
                             if let Some(quotient) = quotient_zero_value_target(
                                 program,
                                 program.child_type_reference(*type_reference),
@@ -1763,25 +1784,25 @@ pub(crate) mod expression {
                     }
 
                     let theorem_evidence = selected_theorems
-                        .iter()
-                        .enumerate()
-                        .map(|(position, selected)| {
-                            Ok(typed::expression::QuotientTheoremSelection {
-                                role: if position == 0 {
-                                    typed::expression::QuotientTheoremRole::Congruence
-                                } else {
-                                    typed::expression::QuotientTheoremRole::ForwardPreconditionTransport
-                                },
-                                application: lower_static_machine_argument(
-                                    self.program,
-                                    self.target_trees,
-                                    None,
-                                    selected,
-                                )?,
-                            })
-                        })
-                        .collect::<Result<Vec<_>, Diagnostic>>()?
-                        .into_boxed_slice();
+                .iter()
+                .enumerate()
+                .map(|(position, selected)| {
+                    Ok(typed::expression::QuotientTheoremSelection {
+                        role: if position == 0 {
+                            typed::expression::QuotientTheoremRole::Congruence
+                        } else {
+                            typed::expression::QuotientTheoremRole::ForwardPreconditionTransport
+                        },
+                        application: lower_static_machine_argument(
+                            self.program,
+                            self.target_trees,
+                            None,
+                            selected,
+                        )?,
+                    })
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?
+                .into_boxed_slice();
 
                     Ok(Some(typed::expression::QuotientOperationRequest {
                         kind,
@@ -1915,9 +1936,9 @@ pub(crate) mod expression {
                     }
                     let [operand] = call.machine_arguments.as_ref() else {
                         return Err(Diagnostic::error(format!(
-                            "`{spelling}` requires exactly one static type argument, `{spelling}<T>()`"
-                        ))
-                        .with_source_span(call.target.source_span()));
+                    "`{spelling}` requires exactly one static type argument, `{spelling}<T>()`"
+                ))
+                .with_source_span(call.target.source_span()));
                     };
                     if operand.const_literal.is_some() || operand.evidence_projection.is_some() {
                         return Err(Diagnostic::error(format!(
@@ -2097,7 +2118,6 @@ pub(crate) mod expression {
                     };
                     let Some(holder) = program.data_definitions.iter().find(|definition| {
                         definition.symbol == literal.type_symbol
-                            && definition.type_parameters.is_empty()
                             && definition.supply_mode
                                 == language_semantics::DataSupplyMode::CheckedShape
                     }) else {
@@ -2118,6 +2138,10 @@ pub(crate) mod expression {
                         }
                     }
 
+                    // Holder genericity does not make an independently concrete evidence
+                    // field ambiguous. Each erased field must still name the nongeneric,
+                    // accessible unique nullary declaration accepted below. Open or
+                    // applied evidence types still supply no implicit inhabitance.
                     selected_fields
                         .into_iter()
                         .filter(|field| field.relevance.is_erased())
