@@ -378,44 +378,25 @@ impl Evaluation {
         value: checked_trees::CheckedStructuralValueHandle,
         operations: &'operations OperationBuffer,
     ) -> Result<&'operations ComputedValueBinding, LoweringError> {
-        let binding =
-            self.completed_value_binding(value, operations)?
-                .ok_or(LoweringError::Unsupported(
-                    "saved value has not completed in this execution frame",
-                ))?;
-        if !binding.argument.path.is_empty() || binding.argument.access != StructuralAccess::Owned {
-            return unsupported("saved value lost its whole produced name in this execution frame");
-        }
-        Ok(binding)
-    }
-
-    /// One exact producer's current physical name, without strengthening its
-    /// path or access. Absence means that producer has not completed; a retired
-    /// or out-of-frame name is an error, never permission to produce it again.
-    /// Consumers must independently authenticate their current source-root
-    /// association and retain ordinary operation/loan custody checks.
-    pub(crate) fn completed_value_binding<'operations>(
-        &self,
-        value: checked_trees::CheckedStructuralValueHandle,
-        operations: &'operations OperationBuffer,
-    ) -> Result<Option<&'operations ComputedValueBinding>, LoweringError> {
-        let Some(binding) = operations
+        let binding = operations
             .computed_values
             .iter()
             .rev()
             .find(|(root, _)| *root == value)
             .map(|(_, binding)| binding)
-        else {
-            return Ok(None);
-        };
-        if self
-            .retired_structural_homes
-            .contains(&binding.argument.place)
+            .ok_or(LoweringError::Unsupported(
+                "saved value has not completed in this execution frame",
+            ))?;
+        if !binding.argument.path.is_empty()
+            || binding.argument.access != StructuralAccess::Owned
+            || self
+                .retired_structural_homes
+                .contains(&binding.argument.place)
             || self.current_claims.source(&binding.argument)?.is_none()
         {
             return unsupported("saved value lost its whole produced name in this execution frame");
         }
-        Ok(Some(binding))
+        Ok(binding)
     }
 
     /// The evaluation's scalar bindings extended with the storage, local,

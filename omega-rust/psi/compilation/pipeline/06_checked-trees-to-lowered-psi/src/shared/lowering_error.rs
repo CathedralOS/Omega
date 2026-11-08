@@ -20,6 +20,36 @@ pub struct ProjectedCustodyObservation {
     pub operation: semantic_vocabulary::OperationId,
     pub kind: &'static str,
     pub root_declarations: Vec<semantic_vocabulary::StructuralTypeId>,
+    pub site: Option<Box<ProjectedCustodySite>>,
+}
+
+/// Bounded emitted neighbors and candidate transfers at an actual refusal.
+/// Candidate rows explain physical coordinates; they are not proof premises.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectedCustodySite {
+    pub block: semantic_vocabulary::BlockId,
+    pub neighbors: Vec<ProjectedCustodyOperation>,
+    pub transfers: Vec<ProjectedCustodyTransfer>,
+    pub further_transfers_omitted: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectedCustodyOperation {
+    pub operation: semantic_vocabulary::OperationId,
+    pub kind: &'static str,
+    pub callee: Option<semantic_vocabulary::MachineId>,
+    pub result: Option<PlaceId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectedCustodyTransfer {
+    pub block: semantic_vocabulary::BlockId,
+    pub operation: Option<semantic_vocabulary::OperationId>,
+    pub edge: Option<semantic_vocabulary::EdgeId>,
+    pub kind: &'static str,
+    pub callee: Option<semantic_vocabulary::MachineId>,
+    pub argument: terminal_psi::StructuralArgument,
+    pub path_truncated: bool,
 }
 
 /// A real entry jump encountered while authenticating one selected cleanup

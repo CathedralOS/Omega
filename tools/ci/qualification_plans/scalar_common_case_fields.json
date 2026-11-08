@@ -37,8 +37,7 @@
     "cache_key": "compiler-regression-Linux-X64-619be19a8e341c9422e0bbfdb9c702e2989ff767a7e78d51ff551da858c5fcb7-0f2b405ec2872cff96dae9f7082c24c41333e399-prepared-v1-with-runner"
   },
   "fixtures": [
-    "fail/borrows/returned_case_descriptor_unselected_source",
-    "fail/text/borrowed_bounded_byte_invariant_write"
+    "fail/generics/applied_payload_field_needs_case_membership"
   ],
   "source_only": true,
   "samples": [],
