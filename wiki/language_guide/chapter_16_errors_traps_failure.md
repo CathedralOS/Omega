@@ -107,11 +107,13 @@ inserted merely because the checker could not prove an obligation.
 A crash ends the activation without a normal successor or cleanup.
 `crashes Trap` permits specified operation or platform faults;
 `crashes Abort` permits deliberate termination of the execution domain.
-Leave the clause off and the compiler derives the routes from the body. Write
-`crashes none` to promise there are none; a body that can trap then fails to
-compile, and a callback requirement with `crashes none` accepts only
-crash-free callbacks. Declare Abort when a machine can deliberately end
-execution:
+On a public machine, leaving the clause off promises there are no crash
+routes, so a helper edit that introduces a trap fails to compile at that
+boundary until the public declaration says `crashes Trap` with its guard. A
+private helper with no clause has its routes derived from its body. On a
+callback requirement, leaving the clause off accepts whatever the selected
+callback publishes, and `crashes none` accepts only crash-free callbacks.
+Declare Abort when a machine can deliberately end execution:
 
 ```omega
 machine require_ready(ready: bool)
