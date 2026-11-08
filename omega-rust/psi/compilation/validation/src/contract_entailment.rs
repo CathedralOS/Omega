@@ -1921,19 +1921,23 @@ pub(crate) mod arithmetic_judgment {
         use typed_trees::types::PrimitiveType;
 
         impl Engine<'_> {
-            pub(crate) fn integer_complement_value(
-                primitive: PrimitiveType,
-                operand: &Polynomial,
-            ) -> Option<Polynomial> {
+            pub(crate) fn integer_complement_corner(primitive: PrimitiveType) -> Option<BigInt> {
                 if !primitive.is_fixed_integer() {
                     return None;
                 }
                 let (_, maximum) = primitive.integer_bounds()?;
-                let corner = if primitive.is_signed_integer() {
+                Some(if primitive.is_signed_integer() {
                     BigInt::from_i64(-1)
                 } else {
                     BigInt::from_i128(maximum)
-                };
+                })
+            }
+
+            pub(crate) fn integer_complement_value(
+                primitive: PrimitiveType,
+                operand: &Polynomial,
+            ) -> Option<Polynomial> {
+                let corner = Self::integer_complement_corner(primitive)?;
                 Some(Polynomial::constant(corner).sub(operand))
             }
 
@@ -53860,6 +53864,20 @@ pub(crate) mod structural_judgment {
                 if depth >= 64 {
                     return None;
                 }
+                // Retained source operations are values of their recorded word
+                // type. Keep that type until the scalar operation's formation and
+                // arithmetic policy have been checked by the integer receiver.
+                if let StructuralTerm::ObservedValue {
+                    observed_type,
+                    descriptor: None,
+                    ..
+                } = value
+                    && crate::reference_shell(self.program, *observed_type).is_none()
+                    && let Some(primitive) = self.program.primitive_type_reference(*observed_type)
+                    && primitive.is_fixed_integer()
+                {
+                    return self.integer_value(value, primitive, observations, depth + 1);
+                }
                 if let Some((_, _, primitive)) = self.prepared_completed_call(value, observations) {
                     return self.integer_value(value, primitive, observations, depth + 1);
                 }
@@ -57410,6 +57428,117 @@ pub(crate) mod structural_judgment {
             }
 
             #[test]
+            fn retained_word_operations_preserve_width_and_policy() {
+                use crate::proof_contracts::contract_entailment::structural_terms::{
+                    owned_projection_observation, unary_term_in_scope,
+                };
+                use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+                use typed_trees::expression::{
+                    ExpressionNode, TableUnaryExpression, UnaryOperator,
+                };
+
+                let mut symbols = SymbolTableBuilder::default();
+                let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                let builtins = symbols.insert_children(root, symbols::builtin_type_symbols());
+                let mut program = TypedTrees {
+                    symbols: symbols.finish(),
+                    ..Default::default()
+                };
+                let exact = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: builtins.handle_at(BuiltinTypeAtom::I32.ordinal() as u32),
+                        name: Identifier::generated("i32"),
+                    });
+                let constraints = program.type_reference_table.insert_constraints([
+                    TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Wrapping),
+                ]);
+                let wrapping =
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Constrained {
+                            base_type: exact,
+                            constraints,
+                        });
+                let byte = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: builtins.handle_at(BuiltinTypeAtom::U8.ordinal() as u32),
+                        name: Identifier::generated("u8"),
+                    });
+                let equal = |left, right| StructuralTerm::MathematicalBinary {
+                    operator: BinaryOperator::Equal,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                };
+                for (reference, expected) in [(byte, 255), (exact, -1)] {
+                    let zero = program
+                        .expression_table
+                        .insert(ExpressionNode::ZeroValue(reference));
+                    let complement = program.expression_table.insert(ExpressionNode::Unary(
+                        TableUnaryExpression {
+                            operator: UnaryOperator::BitwiseNot,
+                            operand: zero,
+                        },
+                    ));
+                    let value = unary_term_in_scope(
+                        &program,
+                        None,
+                        Some((SymbolHandle::invalid(), &[])),
+                        complement,
+                        integer(0),
+                    )
+                    .expect("the typed fixed-width complement must retain its value");
+                    let judge = StructuralJudge::from_declaration_requires(
+                        &program,
+                        SymbolHandle::invalid(),
+                        &[],
+                        &[],
+                        false,
+                    );
+                    assert!(matches!(
+                        judge.judge_observed_predicate(equal(value, integer(expected)), 0),
+                        StructuralJudgment::Proven
+                    ));
+                }
+
+                let judge = StructuralJudge::from_declaration_requires(
+                    &program,
+                    SymbolHandle::invalid(),
+                    &[],
+                    &[],
+                    false,
+                );
+                let product = |reference, policy| {
+                    owned_projection_observation(
+                        &program,
+                        reference,
+                        StructuralTerm::ScalarBinary {
+                            references: [reference; 2],
+                            operator: BinaryOperator::Multiply,
+                            meaning: [(PrimitiveType::I32, policy); 2],
+                            left: Box::new(integer(i64::from(i32::MAX))),
+                            right: Box::new(integer(i64::from(i32::MAX))),
+                        },
+                    )
+                };
+                assert!(matches!(
+                    judge.judge_observed_predicate(
+                        equal(product(wrapping, ArithmeticDomain::Wrapping), integer(1)),
+                        0,
+                    ),
+                    StructuralJudgment::Proven
+                ));
+                assert!(matches!(
+                    judge.judge_observed_predicate(
+                        equal(product(exact, ArithmeticDomain::Exact), integer(1)),
+                        0,
+                    ),
+                    StructuralJudgment::Unknown
+                ));
+            }
+
+            #[test]
             fn completed_wrapping_alias_preserves_compound_guard() {
                 let mut program = TypedTrees::default();
                 let (exact, wrapping) = references(&mut program);
@@ -59654,14 +59783,14 @@ pub(crate) mod structural_judgment {
                         let [(_, operand)] = inputs else {
                             return None;
                         };
-                        if let Some(negated) = structural_terms::logical_not_term_in_scope(
+                        if let Some(term) = structural_terms::unary_term_in_scope(
                             program,
                             Some(scope),
                             None,
                             expression,
                             operand.observed_value()?.clone(),
                         ) {
-                            value = negated;
+                            value = term;
                         }
                     }
                     if let ExpressionNode::Indexed(indexed) = node
@@ -68916,24 +69045,22 @@ pub(crate) mod structural_judgment {
                             result,
                             depth + 1,
                         ),
-                        ExpressionNode::Unary(unary) => {
-                            structural_terms::logical_not_term_in_scope(
-                                program,
-                                None,
-                                Some((scope, parameters)),
-                                expression,
-                                self.bound_contract_term(
-                                    unary.operand,
-                                    scope,
-                                    parameters,
-                                    callable,
-                                    bindings,
-                                    type_bindings,
-                                    result,
-                                    depth + 1,
-                                )?,
-                            )
-                        }
+                        ExpressionNode::Unary(unary) => structural_terms::unary_term_in_scope(
+                            program,
+                            None,
+                            Some((scope, parameters)),
+                            expression,
+                            self.bound_contract_term(
+                                unary.operand,
+                                scope,
+                                parameters,
+                                callable,
+                                bindings,
+                                type_bindings,
+                                result,
+                                depth + 1,
+                            )?,
+                        ),
                         ExpressionNode::Cast(cast) => {
                             let source = crate::parameter_expression_result_type_reference(
                                 program, scope, parameters, cast.value,
@@ -81132,7 +81259,7 @@ pub(crate) mod structural_judgment {
                         },
                     )
                 }
-                ExpressionNode::Unary(unary) => super::structural_terms::logical_not_term_in_scope(
+                ExpressionNode::Unary(unary) => super::structural_terms::unary_term_in_scope(
                     program,
                     scope,
                     None,
@@ -84506,7 +84633,7 @@ pub(crate) mod structural_terms {
         use typed_trees::state::State;
         use typed_trees::types::TypeReferenceHandle;
 
-        pub(crate) fn logical_not_term_in_scope(
+        pub(crate) fn unary_term_in_scope(
             program: &dyn crate::CheckingInput,
             scope: Option<(&Machine, &State, TypeReferenceHandle)>,
             frame: Option<(SymbolHandle, &[StateParameter])>,
@@ -84517,9 +84644,6 @@ pub(crate) mod structural_terms {
             else {
                 return None;
             };
-            if unary.operator != typed_trees::expression::UnaryOperator::LogicalNot {
-                return None;
-            }
             let reference = if let Some((owner, parameters)) = frame {
                 crate::parameter_expression_result_type_reference(
                     program,
@@ -84531,6 +84655,38 @@ pub(crate) mod structural_terms {
                 let (machine, state, _) = scope?;
                 crate::expression_result_type_reference(program, machine, state, unary.operand)
             };
+            if unary.operator == typed_trees::expression::UnaryOperator::BitwiseNot {
+                let reference = reference?;
+                let (primitive, _) = super::scalar_operand_meaning(program, reference, &operand)?;
+                let corner = super::super::arithmetic_judgment::Engine::integer_complement_corner(
+                    primitive,
+                )?;
+                let result = if let Some((owner, parameters)) = frame {
+                    crate::parameter_expression_result_type_reference(
+                        program, owner, parameters, expression,
+                    )
+                } else {
+                    let (machine, state, _) = scope?;
+                    crate::expression_result_type_reference(program, machine, state, expression)
+                }?;
+                if program.primitive_type_reference(result) != Some(primitive) {
+                    return None;
+                }
+                // At a checked fixed width, complement is corner minus the value:
+                // the unsigned maximum or signed -1 supplies the full bit width.
+                // Both source observations survive this mathematical interpretation.
+                let value = StructuralTerm::MathematicalBinary {
+                    operator: BinaryOperator::Subtract,
+                    left: Box::new(StructuralTerm::Integer(corner)),
+                    right: Box::new(super::owned_projection_observation(
+                        program, reference, operand,
+                    )),
+                };
+                return Some(super::owned_projection_observation(program, result, value));
+            }
+            if unary.operator != typed_trees::expression::UnaryOperator::LogicalNot {
+                return None;
+            }
             if reference.and_then(|reference| program.primitive_type_reference(reference))
                 != Some(typed_trees::types::PrimitiveType::Bool)
             {
@@ -86783,7 +86939,7 @@ pub(crate) mod structural_terms {
         }
     }
     pub(crate) use binary::{
-        binary_term_in_scope, logical_not_term_in_scope, sealed_primitive_float_operator,
+        binary_term_in_scope, sealed_primitive_float_operator, unary_term_in_scope,
     };
     pub(crate) use constructors::{
         admitted_const_value_term, captured_constructor_term, case_classifier,
@@ -87483,7 +87639,7 @@ pub(crate) mod structural_terms {
                 structural_term(program, scope, frame, binary.left, bindings)?,
                 structural_term(program, scope, frame, binary.right, bindings)?,
             ),
-            ExpressionNode::Unary(unary) => logical_not_term_in_scope(
+            ExpressionNode::Unary(unary) => unary_term_in_scope(
                 program,
                 scope,
                 frame,
