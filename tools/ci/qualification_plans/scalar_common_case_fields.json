@@ -36,10 +36,10 @@
     "origin_run": 42455705418,
     "cache_key": "compiler-regression-Linux-X64-4cf43fe0b283cafbaa2080cbd0cb5018d03a05a890353ac5d6c14509413ee07b-ea4a41d526ecd4f155d4e863736c123e7af7ead8-prepared-v1-with-runner"
   },
-  "fixtures": [],
-  "source_only": false,
+  "fixtures": [
+    "pass/storage/large_zero_initialized_local_exit"
+  ],
+  "source_only": true,
   "samples": [],
-  "cli_fixtures": [
-    "pass/generics/runtime_case_qualified_reference_storage_exit"
-  ]
+  "cli_fixtures": []
 }
