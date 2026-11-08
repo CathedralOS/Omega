@@ -1,11 +1,37 @@
 #![forbid(unsafe_code)]
 
-//! Canonical logical-work schedule and meter for terminal Psi.
-//!
-//! Logical work is deterministic portable work, not native instructions,
-//! cycles, energy, or elapsed time. The executing program cannot inspect this
-//! meter; an interpreter, evaluator, or bounded compiler service owns it.
-//! Native execution has no implicit logical-work meter.
+/*
+We define the target-neutral logical work schedule (`WorkSchedule`, `WorkScheduleIdentity`),
+per-site charge attribution (`WorkChargeSite`, `WorkAttribution`, `WorkUsage`), and sponsor-owned
+execution metering (`WorkMeter`, `WorkBudgetExhausted`, `WorkMeterError`) for Terminal Psi. Every
+executable `OperationKind` and taken control-flow `Terminator` edge in Terminal Psi is assigned an
+explicit, deterministic unit cost under `WorkSchedule::TerminalUnitV1`
+(`WorkScheduleIdentity::TERMINAL_UNIT_V1`, marker `"psi-work-unit-v1"`). `WorkMeter` charges each
+`WorkChargeSite::Operation(OperationId)` or `WorkChargeSite::Edge(EdgeId)` before the interpreter
+executes that instruction or takes that control-flow edge, recording exact execution counts and
+accumulated units in a deterministic `BTreeMap<WorkChargeSite, WorkAttribution>` while optionally
+debiting a shared `EvaluationInvocationAccount` and a local resumable budget ceiling.
+*/
+
+/*
+Why meter logical work at the target-neutral Terminal Psi representation layer rather than counting
+host instructions or wall-clock time? Proof-checked execution budgets, compile-time evaluation
+ceilings (`EvaluationInvocationAccount`), and differential interpreter replay require an
+architecture-independent cost model where every semantic operation and control-flow transfer charges
+the exact same deterministic unit regardless of host CPU, optimization pass selection, or target ABI
+realization. Pre-charging each site before execution—and validating both local remaining units and
+the shared invocation account atomically before committing attribution—ensures that budget
+exhaustion (`WorkBudgetExhausted`) is a clean, resumable sponsor event that never partially executes
+an instruction or mutates accumulated usage when payment is refused.
+*/
+
+/*
+`WorkSchedule::CURRENT` is pinned by `WorkScheduleIdentity::TERMINAL_UNIT_V1` into
+`EvaluationMeasurementIdentity::TerminalPsi`, consumed by the Terminal Psi interpreter
+(`terminal-interpreter`) to meter every step of program evaluation, and recorded into build
+settings, native image emission, and compilation provenance so published artifacts and execution
+traces bind to the exact logical work schedule under which they were evaluated.
+*/
 
 use std::collections::BTreeMap;
 
@@ -17,9 +43,6 @@ use terminal_psi::{Operation, OperationKind, Terminator};
 
 pub use semantic_vocabulary::WorkScheduleIdentity;
 
-/// The current schedule charges one unit for each executed semantic operation
-/// and one unit for each taken terminal edge. Adding a vocabulary variant
-/// forces an explicit update to these exhaustive matches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WorkSchedule {
     identity: WorkScheduleIdentity,
@@ -39,7 +62,8 @@ impl WorkSchedule {
 
     pub const fn operation_units(self, kind: &OperationKind) -> u64 {
         match kind {
-            OperationKind::EstablishNativeCodeLayout { .. } | OperationKind::EstablishAccessReference { .. }
+            OperationKind::EstablishNativeCodeLayout { .. }
+            | OperationKind::EstablishAccessReference { .. }
             | OperationKind::EstablishReference { .. }
             | OperationKind::ReleaseReference { .. }
             | OperationKind::EstablishScalarCase { .. }
@@ -117,8 +141,6 @@ impl WorkSchedule {
             | OperationKind::ExactIntegerShiftLeft { .. }
             | OperationKind::ExactIntegerShiftRight { .. }
             | terminal_psi::integer_arithmetic_operations!()
-            // A Trapping primitive charges its one unit before deciding
-            // whether it traps; the trap outcome takes no edge.
             | OperationKind::TrappingInteger { .. }
             | OperationKind::FloatResultPolicy { .. }
             | OperationKind::StorageAddress { .. }
@@ -144,14 +166,12 @@ impl WorkSchedule {
     }
 }
 
-/// Stable semantic site to which executed logical work is attributed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum WorkChargeSite {
     Operation(OperationId),
     Edge(EdgeId),
 }
 
-/// Aggregate execution count and logical units charged at one semantic site.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct WorkAttribution {
     executions: u64,
@@ -168,7 +188,6 @@ impl WorkAttribution {
     }
 }
 
-/// Deterministic usage for one concrete terminal-Psi execution.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct WorkUsage {
     schedule: WorkScheduleIdentity,
@@ -202,12 +221,6 @@ impl WorkUsage {
     }
 }
 
-/// Sponsor-owned meter for one terminal execution.
-///
-/// An absent budget meters without imposing a ceiling. A finite budget
-/// fails before executing the first site it cannot pay for. Exhaustion leaves
-/// both usage and remaining work unchanged, so it is a sponsor event and
-/// never partially charges one semantic instruction.
 #[derive(Debug, Clone)]
 pub struct WorkMeter {
     schedule: WorkSchedule,
@@ -225,12 +238,6 @@ impl WorkMeter {
         Self::new(WorkSchedule::CURRENT, Some(units))
     }
 
-    /// Pay each real Terminal charge from this exact invocation account as well
-    /// as the optional resumable local budget. Cloning a meter shares the
-    /// account; replenishing local budget cannot enlarge the sponsor's budget.
-    /// Account refusal is a host accounting error, never a guest crash/result.
-    /// This connects work only: it does not claim that the interpreter's storage
-    /// or returned values have been reserved against the same account.
     pub fn with_invocation(
         invocation: EvaluationInvocationAccount,
         budget: Option<u64>,
@@ -262,8 +269,6 @@ impl WorkMeter {
         self.schedule
     }
 
-    /// Execution must use this same account for storage as well as work.
-    /// Borrowing it does not increase the sponsor's budget.
     pub fn invocation_account(&self) -> Option<&EvaluationInvocationAccount> {
         self.invocation.as_ref()
     }
@@ -280,8 +285,6 @@ impl WorkMeter {
         self.usage
     }
 
-    /// Add sponsor budget without changing usage. An unbounded meter stays
-    /// unbounded; a finite budget fails rather than wrapping.
     pub fn replenish(&mut self, additional_units: u64) -> Result<(), WorkMeterError> {
         let Some(remaining) = self.work_remaining else {
             return Ok(());
@@ -316,7 +319,6 @@ impl WorkMeter {
         self.charge_edge(edge, terminator)
     }
 
-    /// Charge exactly the selected successor of a conditional terminator.
     pub fn charge_edge(
         &mut self,
         edge: EdgeId,
@@ -359,9 +361,6 @@ impl WorkMeter {
             .checked_add(units)
             .ok_or(WorkMeterError::AccountingOverflow(site))?;
 
-        // All local refusals precede shared payment. The account atomically
-        // checks invocation and aggregate ceilings; only successful payment
-        // commits local attribution and permits the semantic site to execute.
         if let Some(invocation) = &self.invocation {
             invocation
                 .charge_work(units)
@@ -397,8 +396,6 @@ pub struct WorkBudgetExhausted {
     pub work_used: u64,
 }
 
-// Exhaustion reports logical charges already paid and the next unpaid charge.
-// Replenishment changes the local budget without resetting accumulated usage.
 impl std::fmt::Display for WorkBudgetExhausted {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(

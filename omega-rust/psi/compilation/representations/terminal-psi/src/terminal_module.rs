@@ -1,23 +1,788 @@
-//! The current, self-contained Terminal program.
-//!
-//! Start with `TerminalModule` below. Its declarations live in `types`,
-//! `values`, `control_flow`, and `boundary`; `ownership` and `proof` retain
-//! the semantic facts those declarations consume. `observation` defines what
-//! consumers compare, while `identity` names the exact published vocabulary.
-//! No target layout, selected installation, or transformation history lives here.
+/*
+Root `TerminalModule` aggregate combining interned identities, structural and scalar domain
+declarations, mathematical proof declarations, boundary requirements, executable `TerminalMachine`
+bodies, folded constants, quotients, scalar applications, and task-activation descriptors.
+*/
 
-// Every submodule publishes its own vocabulary in its `mod.rs`; this facade
-// re-exports that list instead of re-spelling it, so a name added to a module
-// is reachable at the module root without a second edit. `control_flow` and
-// `types` keep explicit lists because each publishes one name this root does
-// not adopt.
-pub mod boundary;
+pub use crate::types_and_values::{types, values};
+pub use crate::{boundary, control_flow, identity, observation, ownership, proof};
+
 pub use boundary::*;
-pub mod folded_constants;
+pub(crate) mod folded_constants {
+
+    use super::{
+        NominalDeclarationIdentity, TargetMachineCallable, TerminalIdentityIndex, TerminalModule,
+    };
+    use semantic_vocabulary::{BoundaryMachineId, MachineId};
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct FoldedConstantClosure {
+        pub target: Option<String>,
+        pub dependencies: Vec<FoldedConstantDependency>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+    pub struct FoldedConstantDependency {
+        pub target: String,
+        pub requirement: TerminalIdentityIndex,
+        pub plan: [u8; 32],
+        pub candidate: Option<FoldedConstantCandidate>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+    pub struct FoldedConstantCandidate {
+        pub boundary: BoundaryMachineId,
+        pub machine: MachineId,
+        pub declaration: NominalDeclarationIdentity,
+    }
+
+    impl FoldedConstantClosure {
+        pub fn validate_plan_inputs(
+            &self,
+            target: &str,
+            inputs: &[Vec<u8>],
+        ) -> Result<(), &'static str> {
+            if self.target.as_deref() != Some(target) {
+                return Err("folded constant closure belongs to another target");
+            }
+            let expected: std::collections::BTreeSet<_> = self
+                .dependencies
+                .iter()
+                .filter(|dependency| dependency.target == target)
+                .map(|dependency| dependency.plan)
+                .collect();
+            if inputs.len() != expected.len() {
+                return Err(
+                    "folded constant selected realization closure is incomplete or repeated",
+                );
+            }
+            let supplied: std::collections::BTreeSet<_> = inputs
+                .iter()
+                .map(|preimage| {
+                    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
+                    digest.raw(preimage);
+                    digest.finish()
+                })
+                .collect();
+            if supplied != expected || supplied.len() != inputs.len() {
+                return Err(
+                    "folded constant normalized plan input differs from its retained commitment",
+                );
+            }
+            Ok(())
+        }
+
+        pub fn validate(&self, module: &TerminalModule) -> Result<(), &'static str> {
+            if self.dependencies.is_empty() {
+                return if self.target.is_none() {
+                    Ok(())
+                } else {
+                    Err("folded constant target has no realization dependencies")
+                };
+            }
+            if self.target.as_deref().is_none_or(str::is_empty) {
+                return Err("folded constant dependencies have no primary target closure");
+            }
+            if self.dependencies.windows(2).any(|pair| pair[0] >= pair[1]) {
+                return Err("folded constant dependencies are repeated or out of canonical order");
+            }
+            for dependency in &self.dependencies {
+                if dependency.target.is_empty()
+                    || dependency.plan == [0; 32]
+                    || module
+                        .identities
+                        .text(dependency.requirement)
+                        .is_none_or(str::is_empty)
+                {
+                    return Err("folded constant dependency has incomplete realization identity");
+                }
+                let Some(association) = &dependency.candidate else {
+                    continue;
+                };
+                let count = module
+                    .provider_candidates
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.boundary == association.boundary
+                            && candidate.candidate == association.machine
+                            && candidate.provider_declaration == association.declaration
+                            && candidate.source_requirement_identity == dependency.requirement
+                    })
+                    .count();
+                if count != 1 {
+                    return Err(
+                        "folded constant dependency lost its exact checked candidate association",
+                    );
+                }
+                let callable = TargetMachineCallable::Machine(association.machine);
+                for family in &module.target_machine_families {
+                    if family
+                        .members
+                        .iter()
+                        .any(|member| member.callable == callable)
+                        && !family.members.iter().any(|member| {
+                            member.callable == callable && member.target == dependency.target
+                        })
+                    {
+                        return Err("folded constant candidate belongs to another target scope");
+                    }
+                }
+            }
+            Ok(())
+        }
+    }
+}
 pub use folded_constants::*;
-pub mod proof_application_scope;
-pub mod scalar_applications;
-pub mod scalar_conditions;
+pub mod proof_application_scope {
+
+    use super::{CheckedMachineDeclaration, TerminalIdentityIndex};
+    use arena::Arena;
+    use semantic_vocabulary::proof_applications::{
+        ProofApplicationPlan, ProofApplications, ProofCallGraph,
+    };
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+    pub struct ProofDeclarationId(pub u32);
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub enum ProofScopeDeclaration {
+        #[default]
+        Missing,
+        Nominal(TerminalIdentityIndex),
+        Callable(CheckedMachineDeclaration),
+        Operator(super::BoundaryOperatorRequirement),
+        Unavailable(String),
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub enum ProofCallableAssociation {
+        #[default]
+        Missing,
+        Callable {
+            declaration: ProofDeclarationId,
+            callable: super::TargetMachineCallable,
+        },
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct ProofCallableHeader {
+        pub declaration: ProofDeclarationId,
+        pub callable: Result<TerminalIdentityIndex, String>,
+        pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
+        pub source_target: Option<String>,
+        pub product_eligible: bool,
+        pub supplies_checked_body: bool,
+        pub type_parameter_count: usize,
+        pub compiler_evaluation:
+            Result<semantic_vocabulary::compiler_evaluation::CompilerEvaluationDeclaration, String>,
+        pub synchronous_invocations: Result<Vec<DeclaredSynchronousBoundaryTarget>, String>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct DeclaredSynchronousBoundaryTarget {
+        pub declaration: TerminalIdentityIndex,
+        pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
+        pub application: Option<TerminalIdentityIndex>,
+    }
+
+    impl Default for ProofCallableHeader {
+        fn default() -> Self {
+            Self {
+                declaration: ProofDeclarationId::default(),
+                callable: Err("checked callable header is absent".into()),
+                package: None,
+                source_target: None,
+                product_eligible: false,
+                supplies_checked_body: false,
+                type_parameter_count: 0,
+                compiler_evaluation: Err("checked compiler-evaluation facts are absent".into()),
+                synchronous_invocations: Err(
+                    "checked synchronous invocation facts are absent".into()
+                ),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct ProofApplicationScope {
+        pub declarations: Arena<ProofScopeDeclaration>,
+        pub callable_headers: Arena<ProofCallableHeader>,
+        pub callables: Arena<ProofCallableAssociation>,
+        pub plan: ProofApplicationPlan<ProofDeclarationId>,
+        pub calls: ProofCallGraph<ProofDeclarationId>,
+        pub recursive_components: Arena<ProofCheckedRecursiveComponent>,
+        pub recursive_members: Arena<ProofDeclarationId>,
+        pub recursive_calls: Arena<ProofCheckedRecursiveCall>,
+        pub pending_evaluation_conditions: Arena<ProofDeclarationId>,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct ProofCheckedRecursiveComponent {
+        pub members: arena::HandleSpan<ProofDeclarationId>,
+        pub calls: arena::HandleSpan<ProofCheckedRecursiveCall>,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct ProofCheckedRecursiveCall {
+        pub caller: ProofDeclarationId,
+        pub call_ordinal: u32,
+        pub callee: ProofDeclarationId,
+    }
+
+    impl ProofApplicationScope {
+        pub fn callable_declaration(
+            &self,
+            callable: super::TargetMachineCallable,
+        ) -> Option<ProofDeclarationId> {
+            self.callables.iter().find_map(|(_, row)| match row {
+                ProofCallableAssociation::Callable {
+                    declaration,
+                    callable: emitted,
+                } if *emitted == callable => Some(*declaration),
+                _ => None,
+            })
+        }
+
+        pub fn applications(
+            &self,
+        ) -> ProofApplications<'_, ProofDeclarationId, ProofCallGraph<ProofDeclarationId>> {
+            ProofApplications::new(&self.plan, &self.calls)
+        }
+
+        pub fn declaration(&self, identity: ProofDeclarationId) -> Option<&ProofScopeDeclaration> {
+            let position = usize::try_from(identity.0.checked_sub(1)?).ok()?;
+            self.declarations.storage_slice().get(position)
+        }
+    }
+}
+pub mod scalar_applications {
+
+    use arena::Arena;
+    use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralTypeId};
+
+    use crate::TargetMachineCallable;
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct ScalarApplications {
+        declarations: Arena<ScalarApplication>,
+        pub conditions: super::ScalarConditions,
+        pub proof_scope: super::ProofApplicationScope,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    pub enum ScalarApplication {
+        #[default]
+        Missing,
+        LayoutObservation {
+            subject: StructuralTypeId,
+            measurement: LayoutMeasurement,
+            semantics_version: u32,
+            scalar_type: ScalarType,
+        },
+        Evaluate {
+            entry: TargetMachineCallable,
+            scalar_type: ScalarType,
+        },
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum LayoutMeasurement {
+        Size,
+        Alignment,
+    }
+
+    impl LayoutMeasurement {
+        pub const SEMANTICS_VERSION: u32 = 1;
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum ArrayExtent {
+        Literal(u64),
+        Application(ScalarApplicationId),
+    }
+
+    impl ArrayExtent {
+        pub const fn literal(self) -> Option<u64> {
+            match self {
+                Self::Literal(length) => Some(length),
+                Self::Application(_) => None,
+            }
+        }
+    }
+
+    impl From<u64> for ArrayExtent {
+        fn from(length: u64) -> Self {
+            Self::Literal(length)
+        }
+    }
+
+    impl std::fmt::Display for ArrayExtent {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::Literal(length) => write!(formatter, "{length}"),
+                Self::Application(application) => {
+                    write!(formatter, "pending application #{}", application.get())
+                }
+            }
+        }
+    }
+
+    impl ScalarApplication {
+        pub const fn scalar_type(self) -> Option<ScalarType> {
+            match self {
+                Self::Missing => None,
+                Self::LayoutObservation { scalar_type, .. }
+                | Self::Evaluate { scalar_type, .. } => Some(scalar_type),
+            }
+        }
+    }
+
+    impl ScalarApplications {
+        pub fn insert(
+            &mut self,
+            declaration: ScalarApplication,
+        ) -> Result<ScalarApplicationId, &'static str> {
+            if declaration == ScalarApplication::Missing {
+                return Err("a scalar application cannot publish the arena sentinel");
+            }
+            let coordinate = u64::try_from(self.declarations.len())
+                .ok()
+                .and_then(|length| length.checked_add(1))
+                .and_then(ScalarApplicationId::new)
+                .ok_or("scalar application namespace is exhausted")?;
+            self.declarations.insert(declaration);
+            Ok(coordinate)
+        }
+
+        pub fn declaration(&self, application: ScalarApplicationId) -> Option<&ScalarApplication> {
+            let position = usize::try_from(application.get().checked_sub(1)?).ok()?;
+            self.declarations.storage_slice().get(position)
+        }
+
+        pub fn declarations(&self) -> &[ScalarApplication] {
+            self.declarations.storage_slice()
+        }
+
+        pub fn is_empty(&self) -> bool {
+            self.declarations.is_empty() && self.conditions.is_empty()
+        }
+    }
+}
+pub mod scalar_conditions {
+
+    use arena::{Arena, Handle, HandleSpan};
+    use numerics::bignum::BigInt;
+    use numerics::integer_bounds::IntegerBoundStep;
+    use numerics::scalar_predicates::{
+        PredicateNode, PredicateValueKind, ScalarValue, evaluate_nodes,
+    };
+    use semantic_vocabulary::{
+        MachineId, ScalarApplicationId, ScalarConditionRole, ScalarType, ValueId,
+    };
+
+    use super::ProofDeclarationId;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ScalarConditionSubject {
+        Module,
+        Declaration(ProofDeclarationId),
+        Application(ScalarApplicationId),
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub enum ScalarRangeObservation {
+        #[default]
+        Missing,
+        Literal(BigInt),
+        Application(ScalarApplicationId),
+        EntryResult {
+            application: ScalarApplicationId,
+            machine: MachineId,
+            result: ValueId,
+            scalar_type: ScalarType,
+        },
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum ScalarRangeRequirement {
+        Fixed { minimum: BigInt, maximum: BigInt },
+        AddressModel,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub enum ScalarRangeCondition {
+        #[default]
+        Missing,
+        Range {
+            subject: ScalarConditionSubject,
+            role: ScalarConditionRole,
+            requirement: ScalarRangeRequirement,
+            steps: HandleSpan<IntegerBoundStep<ScalarRangeObservation>>,
+        },
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub enum ScalarCompletionCondition {
+        #[default]
+        Missing,
+        Complete {
+            subject: ScalarConditionSubject,
+            application: ScalarApplicationId,
+        },
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct ScalarConditions {
+        ranges: Arena<ScalarRangeCondition>,
+        steps: Arena<IntegerBoundStep<ScalarRangeObservation>>,
+        predicates: Arena<ScalarPredicateCondition>,
+        completions: Arena<ScalarCompletionCondition>,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct ScalarPredicateNode(
+        pub PredicateNode<Handle<ScalarPredicateNode>, ScalarRangeObservation>,
+    );
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct ScalarPredicateCondition {
+        pub subject: ScalarConditionSubject,
+        pub role: ScalarConditionRole,
+        pub description: String,
+        nodes: Arena<ScalarPredicateNode>,
+        root: Handle<ScalarPredicateNode>,
+    }
+
+    impl Default for ScalarPredicateCondition {
+        fn default() -> Self {
+            Self {
+                subject: ScalarConditionSubject::Module,
+                role: ScalarConditionRole::Prerequisite,
+                description: String::new(),
+                nodes: Arena::new(),
+                root: Handle::invalid(),
+            }
+        }
+    }
+
+    impl ScalarPredicateCondition {
+        pub fn nodes(&self) -> &Arena<ScalarPredicateNode> {
+            &self.nodes
+        }
+        pub fn root(&self) -> Handle<ScalarPredicateNode> {
+            self.root
+        }
+
+        pub fn evaluate(
+            &self,
+            observe: &mut impl FnMut(ScalarRangeObservation) -> Option<ScalarValue>,
+        ) -> Option<ScalarValue> {
+            evaluate_nodes(
+                self.root,
+                &mut |reference| {
+                    self.nodes
+                        .is_valid(reference)
+                        .then(|| self.nodes.get(reference).0.clone())
+                },
+                &mut |observation| match observation {
+                    ScalarRangeObservation::Missing => None,
+                    ScalarRangeObservation::Literal(value) => Some(ScalarValue::Integer(value)),
+                    observed => match observe(observed)? {
+                        ScalarValue::Integer(value) => Some(ScalarValue::Integer(value)),
+                        _ => None,
+                    },
+                },
+                &|_, _| true,
+            )
+        }
+    }
+
+    impl ScalarConditions {
+        pub fn contains_subject(&self, subject: ScalarConditionSubject) -> bool {
+            self.ranges().iter().any(|condition| {
+                matches!(condition, ScalarRangeCondition::Range { subject: owner, .. } if *owner == subject)
+            }) || self.predicates().iter().any(|condition| condition.subject == subject)
+                || self.completions().iter().any(|condition| {
+                    matches!(condition, ScalarCompletionCondition::Complete { subject: owner, .. } if *owner == subject)
+                })
+        }
+
+        pub fn completions(&self) -> &[ScalarCompletionCondition] {
+            self.completions.storage_slice()
+        }
+
+        pub fn retain_completion(
+            &mut self,
+            subject: ScalarConditionSubject,
+            application: ScalarApplicationId,
+        ) {
+            self.completions
+                .insert(ScalarCompletionCondition::Complete {
+                    subject,
+                    application,
+                });
+        }
+
+        pub fn ranges(&self) -> &[ScalarRangeCondition] {
+            self.ranges.storage_slice()
+        }
+
+        pub fn predicates(&self) -> &[ScalarPredicateCondition] {
+            self.predicates.storage_slice()
+        }
+
+        pub fn is_empty(&self) -> bool {
+            self.ranges.is_empty() && self.predicates.is_empty() && self.completions.is_empty()
+        }
+
+        pub fn retain_predicate(
+            &mut self,
+            subject: ScalarConditionSubject,
+            role: ScalarConditionRole,
+            description: String,
+            nodes: Arena<ScalarPredicateNode>,
+            root: Handle<ScalarPredicateNode>,
+        ) -> Result<(), &'static str> {
+            let mut preceding = Vec::new();
+            for (reference, node) in nodes.iter() {
+                if matches!(
+                    node.0,
+                    PredicateNode::Missing
+                        | PredicateNode::Value(ScalarValue::Unknown)
+                        | PredicateNode::Leaf(ScalarRangeObservation::Missing)
+                ) {
+                    return Err("scalar predicate contains an absent node or observation");
+                }
+                let kind = node.0.value_kind(
+                    &mut |child| {
+                        preceding
+                            .iter()
+                            .find(|(reference, _)| *reference == child)
+                            .map(|(_, kind)| *kind)
+                            .ok_or("scalar predicate lost a preceding child")
+                    },
+                    &mut |_| Ok(PredicateValueKind::Integer),
+                )?;
+                preceding.push((reference, kind));
+            }
+            if !nodes.is_valid(root) {
+                return Err("scalar predicate lost its root");
+            }
+            if preceding
+                .iter()
+                .find(|(reference, _)| *reference == root)
+                .map(|(_, kind)| *kind)
+                != Some(PredicateValueKind::Boolean)
+            {
+                return Err("scalar predicate root is not Boolean");
+            }
+            self.predicates.insert(ScalarPredicateCondition {
+                subject,
+                role,
+                description,
+                nodes,
+                root,
+            });
+            Ok(())
+        }
+
+        pub fn observations(&self) -> impl Iterator<Item = &ScalarRangeObservation> {
+            self.steps
+                .storage_slice()
+                .iter()
+                .filter_map(|step| match step {
+                    IntegerBoundStep::Observation(observation) => Some(observation),
+                    _ => None,
+                })
+                .chain(
+                    self.predicates
+                        .storage_slice()
+                        .iter()
+                        .flat_map(|condition| {
+                            condition.nodes.storage_slice().iter().filter_map(|node| {
+                                match &node.0 {
+                                    PredicateNode::Leaf(observation) => Some(observation),
+                                    _ => None,
+                                }
+                            })
+                        }),
+                )
+        }
+
+        pub fn steps(
+            &self,
+            condition: &ScalarRangeCondition,
+        ) -> Result<&[IntegerBoundStep<ScalarRangeObservation>], &'static str> {
+            let ScalarRangeCondition::Range { steps, .. } = condition else {
+                return Err("scalar condition is absent");
+            };
+            self.steps
+                .span(*steps)
+                .ok_or("scalar condition lost its captured bounds")
+        }
+
+        pub fn retain_range(
+            &mut self,
+            subject: ScalarConditionSubject,
+            role: ScalarConditionRole,
+            requirement: ScalarRangeRequirement,
+            steps: Vec<IntegerBoundStep<ScalarRangeObservation>>,
+        ) -> Result<(), &'static str> {
+            if let ScalarRangeRequirement::Fixed { minimum, maximum } = &requirement
+                && minimum > maximum
+            {
+                return Err("scalar condition has inverted required bounds");
+            }
+            let mut depth = 0usize;
+            for step in &steps {
+                match step {
+                    IntegerBoundStep::Missing => {
+                        return Err("scalar condition contains an absent step");
+                    }
+                    IntegerBoundStep::Bounds { low, high } => {
+                        if low > high {
+                            return Err("scalar condition has inverted captured bounds");
+                        }
+                        depth += 1;
+                    }
+                    IntegerBoundStep::Observation(ScalarRangeObservation::Missing) => {
+                        return Err("scalar condition contains an absent observation");
+                    }
+                    IntegerBoundStep::Observation(_) => depth += 1,
+                    IntegerBoundStep::Add
+                    | IntegerBoundStep::Subtract
+                    | IntegerBoundStep::Multiply
+                    | IntegerBoundStep::Union
+                    | IntegerBoundStep::Interval
+                    | IntegerBoundStep::Intersect => {
+                        if depth < 2 {
+                            return Err("scalar condition has missing bound operands");
+                        }
+                        depth -= 1;
+                    }
+                }
+            }
+            if depth != 1 {
+                return Err("scalar condition does not produce one bound interval");
+            }
+            let steps = self.steps.insert_many(steps);
+            self.ranges.insert(ScalarRangeCondition::Range {
+                subject,
+                role,
+                requirement,
+                steps,
+            });
+            Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use numerics::scalar_predicates::PredicateOperator;
+
+        #[test]
+        fn scalar_predicate_formation_checks_root_and_all_operator_kinds() {
+            for operator in [
+                PredicateOperator::And,
+                PredicateOperator::Or,
+                PredicateOperator::Less,
+                PredicateOperator::GreaterOrEqual,
+            ] {
+                let mut nodes = Arena::new();
+                let integer = nodes.insert(ScalarPredicateNode(PredicateNode::Value(
+                    ScalarValue::Integer(BigInt::from_u64(1)),
+                )));
+                let boolean = nodes.insert(ScalarPredicateNode(PredicateNode::Value(
+                    ScalarValue::Boolean(true),
+                )));
+                let root = nodes.insert(ScalarPredicateNode(PredicateNode::Binary {
+                    operator,
+                    left: integer,
+                    right: boolean,
+                }));
+                assert_eq!(
+                    ScalarConditions::default().retain_predicate(
+                        ScalarConditionSubject::Module,
+                        semantic_vocabulary::ScalarConditionRole::Prerequisite,
+                        "bad kinds".into(),
+                        nodes,
+                        root
+                    ),
+                    Err("scalar predicate operator has incompatible operand kinds")
+                );
+            }
+            let mut nodes = Arena::new();
+            let root = nodes.insert(ScalarPredicateNode(PredicateNode::Value(
+                ScalarValue::Integer(BigInt::from_u64(1)),
+            )));
+            assert_eq!(
+                ScalarConditions::default().retain_predicate(
+                    ScalarConditionSubject::Module,
+                    semantic_vocabulary::ScalarConditionRole::Prerequisite,
+                    "integer root".into(),
+                    nodes,
+                    root
+                ),
+                Err("scalar predicate root is not Boolean")
+            );
+        }
+
+        #[test]
+        fn scalar_predicate_observations_cannot_change_declared_kind_or_literal() {
+            let mut nodes = Arena::new();
+            let left = nodes.insert(ScalarPredicateNode(PredicateNode::Leaf(
+                ScalarRangeObservation::Application(ScalarApplicationId::new(1).unwrap()),
+            )));
+            let right = nodes.insert(ScalarPredicateNode(PredicateNode::Leaf(
+                ScalarRangeObservation::Literal(BigInt::from_u64(24)),
+            )));
+            let root = nodes.insert(ScalarPredicateNode(PredicateNode::Binary {
+                operator: PredicateOperator::Equal,
+                left,
+                right,
+            }));
+            let mut conditions = ScalarConditions::default();
+            conditions
+                .retain_predicate(
+                    ScalarConditionSubject::Module,
+                    semantic_vocabulary::ScalarConditionRole::Prerequisite,
+                    "exact integer observations".into(),
+                    nodes,
+                    root,
+                )
+                .unwrap();
+            assert_eq!(
+                conditions.predicates()[0].evaluate(&mut |_| Some(ScalarValue::Boolean(true))),
+                None
+            );
+            let mut observations = 0;
+            assert_eq!(
+                conditions.predicates()[0].evaluate(&mut |_| {
+                    observations += 1;
+                    Some(ScalarValue::Integer(BigInt::from_u64(24)))
+                }),
+                Some(ScalarValue::Boolean(true))
+            );
+            assert_eq!(observations, 1);
+        }
+    }
+}
+pub use control_flow::{
+    AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion, FenceOrdering,
+    FloatResultPolicy, MemoryOrdering, ModuleInvocation, ModuleInvocationInputs, Operation,
+    OperationKind, OperationResult, RecordFieldInitializer, RecordFieldValue, ReferenceStorageView,
+    RegisterAccessEvent, ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
+    StructuralResultClaimBinding, StructuralStoreDisposition, SuccessorEdge, TargetMachineCallable,
+    TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply, TerminalBlockNaturalRank,
+    TerminalIntegerRankValue, TerminalMachine, TerminalNaturalCycle, TerminalNaturalRankComparison,
+    TerminalNaturalRankEdge, TerminalRankedScc, Terminator, TrappingIntegerOperation,
+    TrappingIntegerPrimitive, structural_parameter_position,
+};
+pub use identity::*;
+pub use observation::*;
+pub use ownership::*;
+pub use proof::*;
 pub use proof_application_scope::{
     DeclaredSynchronousBoundaryTarget, ProofApplicationScope, ProofCallableAssociation,
     ProofCallableHeader, ProofCheckedRecursiveCall, ProofCheckedRecursiveComponent,
@@ -30,30 +795,206 @@ pub use scalar_conditions::{
     ScalarCompletionCondition, ScalarConditionSubject, ScalarConditions, ScalarPredicateCondition,
     ScalarPredicateNode, ScalarRangeCondition, ScalarRangeObservation, ScalarRangeRequirement,
 };
-pub mod control_flow;
-pub use control_flow::{
-    AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion, FenceOrdering,
-    FloatResultPolicy, MemoryOrdering, ModuleInvocation, ModuleInvocationInputs, Operation,
-    OperationKind, OperationResult, RecordFieldInitializer, RecordFieldValue, ReferenceStorageView,
-    RegisterAccessEvent, ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
-    StructuralResultClaimBinding, StructuralStoreDisposition, SuccessorEdge, TargetMachineCallable,
-    TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply, TerminalBlockNaturalRank,
-    TerminalIntegerRankValue, TerminalMachine, TerminalNaturalCycle, TerminalNaturalRankComparison,
-    TerminalNaturalRankEdge, TerminalRankedScc, Terminator, TrappingIntegerOperation,
-    TrappingIntegerPrimitive, structural_parameter_position,
-};
-pub mod identity;
-pub use identity::*;
-pub mod observation;
-pub use observation::*;
-pub mod ownership;
-pub use ownership::*;
-pub mod proof;
-pub use proof::*;
-pub mod quotients;
-mod task_activation;
+pub mod quotients {
+    use language_semantics::quotient_correspondence::{
+        QuotientPositionalRelation, QuotientRelationIdentity,
+    };
+    use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct TerminalQuotientCatalog {
+        pub representations: Vec<TerminalQuotientRepresentation>,
+        pub operations: Vec<TerminalQuotientOperation>,
+        pub adaptations: Vec<TerminalQuotientAdaptation>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalQuotientRepresentation {
+        pub quotient: StructuralTypeId,
+        pub carrier: StructuralTypeId,
+        pub quotient_storage_identity: crate::TerminalIdentityIndex,
+        pub carrier_storage_identity: crate::TerminalIdentityIndex,
+        pub formation: QuotientRelationIdentity,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalQuotientOperation {
+        pub public_machine: MachineId,
+        pub representative_machine: MachineId,
+        pub call: OperationId,
+        pub input_relations: Vec<QuotientPositionalRelation>,
+        pub result_relation: QuotientPositionalRelation,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum TerminalQuotientAdaptationLicense {
+        Mint,
+        Input { operation: u32, position: u32 },
+        Result { operation: u32 },
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalQuotientAdaptation {
+        pub machine: MachineId,
+        pub copy: OperationId,
+        pub source: PlaceId,
+        pub result: PlaceId,
+        pub source_type: StructuralTypeId,
+        pub result_type: StructuralTypeId,
+        pub representation: u32,
+        pub license: TerminalQuotientAdaptationLicense,
+    }
+}
+pub mod task_activation {
+
+    use crate::{
+        LayoutApplicationId, StructuralTypeDeclaration, terminal_module::TerminalIdentityIndex,
+    };
+    use language_semantics::CarryPolicy;
+    use semantic_vocabulary::{ScalarType, StructuralTypeId};
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum TerminalTaskStartOperation {
+        Start,
+        TryStart,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum TerminalTaskValueType {
+        Unit,
+        Scalar(ScalarType),
+        Structural(StructuralTypeId),
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalTaskSignatureValue {
+        pub value_type: TerminalTaskValueType,
+        pub normalized_identity: TerminalIdentityIndex,
+        pub is_mutable: bool,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum TerminalTaskCarryStorage {
+        Persistent,
+        Parameter,
+        Local,
+        CallArgument,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalTaskLiveCarry {
+        pub place: u64,
+        pub value_type: u64,
+        pub storage: TerminalTaskCarryStorage,
+        pub claims: Vec<u64>,
+        pub effective: CarryPolicy,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalTaskSuspensionCrossing {
+        pub identity: u64,
+        pub suspension_allowed: bool,
+        pub preserve_cpu: bool,
+        pub preserve_host_thread: bool,
+        pub live_carry: Vec<TerminalTaskLiveCarry>,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+    pub struct TerminalTaskCarryObligations {
+        pub preserve_cpu: bool,
+        pub preserve_host_thread: bool,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalTaskResidentValue {
+        pub value_type: TerminalTaskValueType,
+        pub normalized_identity: TerminalIdentityIndex,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalTaskFrameState {
+        pub state: TerminalIdentityIndex,
+        pub resident: Vec<TerminalTaskResidentValue>,
+        pub crossing_arguments: Vec<Vec<TerminalTaskResidentValue>>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalTaskFrameCall {
+        pub callee: u64,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum TerminalTaskUnresolvedCallKind {
+        UnresolvedTarget,
+        NonCheckedSupply,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalTaskUnresolvedCall {
+        pub state: TerminalIdentityIndex,
+        pub statement_index: u32,
+        pub call_ordinal: u32,
+        pub kind: TerminalTaskUnresolvedCallKind,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalTaskFrame {
+        pub identity: u64,
+        pub machine_callable_identity: TerminalIdentityIndex,
+        pub entry: TerminalIdentityIndex,
+        pub states: Vec<TerminalTaskFrameState>,
+        pub calls: Vec<TerminalTaskFrameCall>,
+        pub unresolved_calls: Vec<TerminalTaskUnresolvedCall>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalTaskActivationDemand {
+        pub operation: TerminalTaskStartOperation,
+        pub report_fingerprint: u64,
+        pub requirement_callable_identity: TerminalIdentityIndex,
+        pub requirement_owner_path: TerminalIdentityIndex,
+        pub requirement_owner_package: Option<semantic_vocabulary::PackageKeyIdentity>,
+        pub requirement_in_scope: bool,
+        pub authored_requirement_identity: TerminalIdentityIndex,
+        pub machine_callable_identity: TerminalIdentityIndex,
+        pub entry: TerminalIdentityIndex,
+        pub entry_report_fingerprint: u64,
+        pub contract_report_fingerprint: u64,
+        pub specialization_commitment: [u8; 32],
+        pub specialization_report_fingerprint: u64,
+        pub may_suspend: bool,
+        pub may_block: bool,
+        pub cancellation_required: bool,
+        pub signature_arguments: Vec<TerminalTaskSignatureValue>,
+        pub signature_outcome: TerminalTaskSignatureValue,
+        pub root_frame: u64,
+        pub frames: Vec<TerminalTaskFrame>,
+        pub crossings: Vec<TerminalTaskSuspensionCrossing>,
+        pub carry_obligations: TerminalTaskCarryObligations,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct TerminalTaskActivationDemands {
+        pub demands: Vec<TerminalTaskActivationDemand>,
+        pub structural_types: Vec<StructuralTypeDeclaration>,
+        pub structural_referents: Vec<crate::StructuralReferentIdentity>,
+        pub target_layout_applications: Vec<TerminalTaskTargetLayout>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalTaskTargetLayout {
+        pub id: LayoutApplicationId,
+        pub record: StructuralTypeId,
+        pub realizations: Vec<TerminalTaskLayoutRealization>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalTaskLayoutRealization {
+        pub target: String,
+        pub storage: semantic_vocabulary::AuthoredRecordStorage,
+    }
+}
 pub use task_activation::*;
-pub mod types;
 pub use types::{
     ByteSequenceCarrier, ResultQualificationEstablishment, ScalarDomainDeclaration,
     ScalarDomainEstablishmentRoute, ScalarDomainPredicate, ScalarFieldQualification,
@@ -69,20 +1010,16 @@ pub use types::{
     structural_type_contains_reference_by, structural_type_has_borrowed_storage_by,
     unique_structural_declaration,
 };
-pub mod values;
 pub use values::*;
 
 use semantic_vocabulary::{MachineId, ServiceId};
 
-/// A closed source evidence carrier's independent mathematical obligation.
-/// The key commits to the complete checked signature and exact kernel type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalMathematicalCarrier {
     pub type_identity: TerminalIdentityIndex,
     pub carrier_key: Vec<u8>,
 }
 
-/// A cited source induction theorem retained after its logical call erases.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalIndexedTheorem {
     pub source_contract: CheckedMachineDeclaration,
@@ -95,151 +1032,60 @@ pub struct TerminalIndexedTheorem {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalModule {
-    /// Pending target-dependent values and their complete source-free meanings.
-    /// Their answers and conditional admission belong to the target closure.
     pub scalar_applications: ScalarApplications,
-    /// Historical semantic compatibility consumed by folding. This supplies
-    /// no executable boundary demand, provider installation or host authority.
     pub folded_constants: FoldedConstantClosure,
     pub indexed_theorems: Vec<TerminalIndexedTheorem>,
     pub mathematical_carriers: Vec<TerminalMathematicalCarrier>,
-    /// Exact whole-value quotient adaptations; ordinary shape carries no observation authority.
     pub quotients: quotients::TerminalQuotientCatalog,
     pub vocabulary_marker: VocabularyMarker,
-    /// Every rendered identity the module's rows name, deduplicated once.
-    /// `*identity` fields hold `TerminalIdentityIndex` handles into this
-    /// table; the codec writes it once and decoding checks its entries once.
     pub identities: TerminalIdentityTable,
-    /// Portable callable root. A target-family head is a contract, not an
-    /// executable representative: installation selects its exact tagged body
-    /// without changing this root or the canonical artifact.
-    /// Optional default invocation root. Declaration-only products carry no
-    /// entry; executing a retained callable requires an explicit selection.
     pub entry: Option<TargetMachineCallable>,
-    /// Canonical scalar membership vocabulary and explicit successor-edge coercions.
     pub scalar_qualifications: ScalarQualificationCatalog,
-    /// Concrete target-neutral instantiated type shapes, ordered by `id`.
-    /// Native layout is deliberately absent and is selected by Omega.
     pub structural_types: Vec<StructuralTypeDeclaration>,
-    /// Closed identities reached only through reference edges, ordered by id.
-    /// Disjoint from storage definitions; actual dereferences demand their
-    /// own definition. Growing generic reference chains therefore stay finite.
     pub structural_referents: Vec<types::StructuralReferentIdentity>,
-    /// Structural qualification domains, ordered by `id`.
     pub structural_domains: Vec<StructuralDomainDeclaration>,
-    /// Boundary-service declarations and their normalized parent closure.
     pub services: Vec<ServiceDeclaration>,
-    /// Source-handle-free service-reach closure of the selected entry.
-    /// Concrete reach remains distinct from bounded installation dependencies;
-    /// final installation substitutes one selected provider row per dependency.
     pub root_service_reach: TerminalRootServiceReach,
-    /// Closure-wide direct entry inputs whose opaque access-view meaning is
-    /// bound to one exact source-derived placement interpretation. This is
-    /// semantic custody only and grants no runtime storage or access.
     pub access_view_inputs: Vec<TerminalAccessViewInput>,
-    /// Complete normalized placement and generated-operation relationships.
-    /// Description only; establishments separately bind actual backing custody.
     pub access_view_plans: Vec<TerminalAccessViewPlan>,
-    /// Whole-value lifecycle demand independent of any later field view.
-    /// Like access-view plans, these rows grant no backing or execution rights.
     pub access_lifecycle_plans: Vec<TerminalAccessLifecyclePlan>,
-    /// One exact whole-parent mutating call after a one-hop exclusive child
-    /// reactivates its direct mutable root. These rows grant use only at the
-    /// named call and cannot express cleanup, transfer, or discharge.
     pub reborrow_restored_call_uses: Vec<TerminalReborrowRestoredCallUse>,
-    /// Bodyless target-neutral Unit machines callable from terminal Psi.
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
-    /// Source-issued native formals associated with exact opaque declarations.
-    /// Shapes and contracts remain on those declarations, not in a second type
-    /// graph. These rows select no calling policy or provider implementation.
     pub calling_signatures: Vec<crate::CallingSignatureDeclaration>,
     pub calling_abi_signatures: Vec<crate::CallingAbiDeclaration>,
     pub calling_policy_requests: Vec<crate::CallingPolicyRequest>,
     pub opaque_representations: Vec<crate::TerminalOpaqueRepresentation>,
-    /// Source-produced potential semantic operations before optional rewrites.
-    /// A missing body row supplies no evidence of absence for product policy.
     pub unoptimized_behavior: Vec<crate::UnoptimizedMachineBehavior>,
-    /// Exact external satisfaction edges, including demands lowered without calls.
     pub external_providers: Vec<ExternalProviderConformance>,
-    /// Every checked, target-neutral provider candidate eligible to realize a
-    /// retained Unit boundary requirement. This is a semantic catalog, not a
-    /// selection: installation policy remains outside terminal-Psi identity.
     pub provider_candidates: Vec<ProviderCandidateConformance>,
-    /// Independent source-issued completeness obligations, not a census
-    /// reconstructed from whichever candidates happened to be emitted.
     pub provider_instance_requirements: Vec<ProviderInstanceRequirements>,
     pub boundary_application_candidates: Vec<crate::BoundaryApplicationCandidate>,
-    /// Checked callback applications joined to their emitted registrar operations.
     pub callback_applications: Vec<crate::TerminalCallbackApplication>,
     pub installed_interrupt_registrations: Vec<crate::TerminalInstalledInterruptRegistration>,
-    /// Interfaces and implementation tables runtime selectors name.
     pub dynamic_dispatch: TerminalDynamicDispatchCatalog,
-    /// Source-handle-free proof-only float projections. These rows are
-    /// semantic-module evidence, never executable operations or runtime values.
     pub float_meaning_projections: Vec<crate::FloatMeaningProjection>,
-    /// Proof-only propositions consuming exact float projection results.
     pub float_meaning_equalities: Vec<crate::FloatMeaningEqualityProposition>,
-    /// Nominal proof-formula vocabulary, strictly ordered by `id`.
-    /// Transparent aliases never receive a declaration row.
     pub proposition_declarations: Vec<PropositionDeclaration>,
-    /// Normalized applications retained without frontend arena handles.
     pub proposition_applications: Vec<PropositionApplicationIdentity>,
-    /// Canonical erased witness identities. Multiple terms may inhabit the
-    /// same proposition application; a forwarding assignment preserves its
-    /// source identity and therefore does not add a declaration here.
     pub evidence_terms: Vec<EvidenceTermDeclaration>,
-    /// Strictly ordered erased machine-contract lane rows. These reference
-    /// term vocabulary identities and have no runtime representation.
     pub evidence_contract_lanes: Vec<EvidenceContractLane>,
-    /// Canonical immediate invocations that introduce fresh caller-local
-    /// evidence from a proof-output lane. Runtime-value bindings retain
-    /// their exact ordinary scalar call operation.
     pub proof_output_calls: Vec<ProofOutputCall>,
-    /// Source-free proof-only SCCs reachable from the retained root proof
-    /// closure. These are semantic obligation inputs, not producer evidence.
     pub proof_recursive_components: Vec<TerminalProofRecursiveComponent>,
-    /// Optional scalar block assertions ordered by machine and header.
-    /// Every actual arrival owns an independently checked obligation;
-    /// no first-arrival fact or ranking certificate establishes these implicitly.
     pub scalar_block_invariants: Vec<ScalarBlockInvariant>,
-    /// Crash contracts of selected operator invocations that lower to one
-    /// ordinary operation, ordered by machine and operation. Each row carries
-    /// the operator's published routes in its formal namespace beside the
-    /// exact continuations the verifier reconstructs from the operation's
-    /// operands; calls keep their own carriers.
     pub operation_crash_contracts: Vec<TerminalOperationCrashContract>,
-    /// Exact source-handle-free generic conformance applications used by the
-    /// retained machine closure. Rows are owned by the concrete terminal
-    /// machine whose specialization selected the application.
     pub closed_conformance_applications: Vec<ClosedConformanceApplication>,
-    /// Exact source-free live frontier at each possibly-suspending ordinary
-    /// call. This is a semantic carry demand only; it adds no control edge,
-    /// cleanup action, activation choice, or park/resume behavior.
     pub suspension_call_plan_count: u32,
-    /// Independent call-side roster. Every row must have exactly one detailed
-    /// plan with the same key/target and committed frontier.
     pub suspension_call_sites: Vec<TerminalSuspensionCallSite>,
     pub suspension_call_plans: Vec<TerminalSuspensionCallPlan>,
     pub machines: Vec<TerminalMachine>,
-    /// All target-scoped callable members, including unreachable bodies and
-    /// opaque declarations. Selection belongs to subsequent realization.
     pub target_machine_families: Vec<TargetMachineFamily>,
-    /// Complete unclosed policy applications; exact deployment selects a result.
     pub target_layout_applications: Vec<crate::TargetLayoutApplication>,
     pub native_layouts: crate::NativeLayoutCatalog,
-    /// Exact source-free operator requirements and closed applications for
-    /// surviving operations. Provider choices belong to Omega, not this roster.
     pub boundary_application_demands: Vec<TerminalBoundaryApplicationDemand>,
-    /// Provider-independent task activation evidence: one demand row per
-    /// checked `TaskRuntime` start specialization, with the bundle-local
-    /// structural and target-layout tables its value types reference.
     pub task_activation_demands: TerminalTaskActivationDemands,
 }
 
 impl TerminalModule {
-    /// The checked callback selected at an ordinary call or an installation.
-    /// Application indexes belong to one shared namespace; installation keeps
-    /// its own registrar subject without inventing an ordinary registrar call.
     pub fn callback_application(&self, index: u32) -> Option<&crate::TerminalCallbackApplication> {
         self.callback_applications
             .binary_search_by_key(&index, |row| row.application_index)
@@ -257,7 +1103,6 @@ impl TerminalModule {
                     })
             })
     }
-    /// Exact declaration ABI selected by this concrete boundary occurrence.
     pub fn calling_abi_identity(
         &self,
         boundary: semantic_vocabulary::BoundaryMachineId,
@@ -279,13 +1124,10 @@ impl TerminalModule {
             .ok_or("boundary lost its exact declaration ABI")?
             .identity(&self.identities)
     }
-    /// The machine keyed `id`, when the module declares it.
-    /// Every machine's blocks, in machine order.
     pub fn blocks(&self) -> impl Iterator<Item = &Block> + '_ {
         self.machines.iter().flat_map(|machine| &machine.blocks)
     }
 
-    /// Every machine's operations, in machine then block order.
     pub fn operations(&self) -> impl Iterator<Item = &Operation> + '_ {
         self.machines
             .iter()
@@ -315,12 +1157,10 @@ impl TerminalModule {
             .find(|body| body.machine == id)
     }
 
-    /// The service keyed `id`, when the module declares it.
     pub fn service(&self, id: ServiceId) -> Option<&ServiceDeclaration> {
         self.services.iter().find(|service| service.id == id)
     }
 
-    /// The structural type keyed `id`, when the module declares it.
     pub fn structural_type(
         &self,
         id: semantic_vocabulary::StructuralTypeId,
@@ -328,9 +1168,6 @@ impl TerminalModule {
         find_structural_type(&self.structural_types, id)
     }
 
-    /// Foreign reference transport, independent of pointee storage demand.
-    /// A retained definition supplies its carrier kind; an identity-only leaf
-    /// retains the checked pointer/descriptor judgment. Neither grants access.
     pub fn foreign_reference_descriptor(
         &self,
         referent: semantic_vocabulary::StructuralTypeId,
@@ -347,7 +1184,6 @@ impl TerminalModule {
             .map(|row| row.foreign_descriptor)
     }
 
-    /// The structural domain keyed `id`, when the module declares it.
     pub fn structural_domain(
         &self,
         id: semantic_vocabulary::StructuralDomainId,
@@ -357,7 +1193,6 @@ impl TerminalModule {
             .find(|declaration| declaration.id == id)
     }
 
-    /// The boundary machine keyed `id`, when the module declares it.
     pub fn boundary_machine(
         &self,
         id: semantic_vocabulary::BoundaryMachineId,
@@ -367,11 +1202,6 @@ impl TerminalModule {
             .find(|declaration| declaration.id == id)
     }
 
-    /// A module for `entry` with the current vocabulary and every roster
-    /// empty. Producers name only the rosters they fill
-    /// (`TerminalModule { machines, structural_types, ..TerminalModule::for_entry(entry) }`),
-    /// so a new module field defaults in one place instead of in every
-    /// producer's literal.
     pub fn for_entry(entry: MachineId) -> Self {
         Self {
             entry: Some(TargetMachineCallable::Machine(entry)),
@@ -379,7 +1209,6 @@ impl TerminalModule {
         }
     }
 
-    /// An empty declaration catalog without an executable default.
     pub fn declarations() -> Self {
         Self {
             scalar_applications: Default::default(),

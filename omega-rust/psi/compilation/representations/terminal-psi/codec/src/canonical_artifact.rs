@@ -1,10 +1,8 @@
-//! Canonical, source-free Terminal-Psi handoff artifact.
-//!
-//! This is the exact ownership seam between Psi semantic production and Omega
-//! target realization. It contains canonical semantic, pre-Terminal
-//! optimization, and optional debug bytes plus their manifest identity. Target selection,
-//! provider realization, deployment policy, output paths, and installation
-//! authority are deliberately absent.
+/*
+Whole-artifact `CanonicalTerminalArtifact` container codec (`encode_canonical_artifact`,
+`decode_canonical_artifact`) and retained execution-code wrapper (`TerminalExecutionCode`,
+`encode_execution_code`, `decode_execution_code`).
+*/
 
 use crate::cursor::Cursor;
 use terminal_psi::TerminalModule;
@@ -19,13 +17,6 @@ use crate::{
 const ARTIFACT_MAGIC: &[u8; 8] = b"PSIART\0\0";
 const ARTIFACT_FORMAT_MARKER: u16 = 3;
 
-/// An immutable semantic module paired with the identity of its canonical
-/// artifact. This view borrows either producer-retained storage or storage
-/// admitted at external ingress; consumers do not reconstruct it from bytes.
-///
-/// Private fields prevent pairing an unrelated module with an artifact's
-/// identity. Canonical encoding establishes wire order, not structural
-/// validity, proof validity or permission to install a provider.
 #[derive(Debug, Clone, Copy)]
 pub struct TerminalArtifactView<'artifact> {
     module: &'artifact TerminalModule,
@@ -42,12 +33,6 @@ impl<'artifact> TerminalArtifactView<'artifact> {
     }
 }
 
-/// One exact canonical Terminal-Psi semantic artifact.
-///
-/// Construction establishes canonical sections and retains their semantic
-/// storage. Readers borrow that storage directly; there is no lazy decoding or
-/// replay state. `Clone` copies byte sections and shares immutable semantics;
-/// execution consumers borrow a view or retain only the execution storage.
 #[derive(Clone)]
 #[must_use = "a canonical Terminal artifact owns the Psi-to-Omega handoff bytes"]
 pub struct CanonicalTerminalArtifact {
@@ -59,8 +44,6 @@ pub struct CanonicalTerminalArtifact {
     semantic_module: std::sync::Arc<TerminalModule>,
 }
 
-// Canonical bytes determine the retained module. Comparing or printing that
-// second representation would traverse the program again without adding data.
 impl PartialEq for CanonicalTerminalArtifact {
     fn eq(&self, other: &Self) -> bool {
         self.manifest == other.manifest
@@ -85,12 +68,6 @@ impl std::fmt::Debug for CanonicalTerminalArtifact {
 }
 
 impl CanonicalTerminalArtifact {
-    /// Encode one source-free Terminal artifact.
-    ///
-    /// The sections are this call's own encoding of these inputs, so the
-    /// artifact owns the module it encoded without copying it. External
-    /// bytes cross a trust boundary and are read back through
-    /// [`Self::from_bytes`], which decodes and re-decides every section.
     pub fn from_parts(
         semantic_module: TerminalModule,
         optimization: PsiOptimizationExecutionRecord,
@@ -105,7 +82,6 @@ impl CanonicalTerminalArtifact {
                     .map_err(CanonicalTerminalArtifactError::Debug)
             })
             .transpose()?;
-        // The manifest names the module by the fingerprint of these same bytes.
         let semantic = terminal_psi::TerminalPsiIdentity {
             vocabulary_marker: semantic_module.vocabulary_marker,
             program_fingerprint: crate::sections::semantic_module::encoded_fingerprint(
@@ -130,9 +106,6 @@ impl CanonicalTerminalArtifact {
         })
     }
 
-    /// Serialize every canonical Terminal-Psi section into one source-free
-    /// transport envelope. The manifest is reconstructed by the receiver from
-    /// the exact section bytes rather than trusted as redundant input.
     pub fn to_bytes(&self) -> Vec<u8> {
         let debug_header_bytes = if self.debug_bytes.is_some() { 9 } else { 1 };
         let capacity = ARTIFACT_MAGIC
@@ -163,9 +136,6 @@ impl CanonicalTerminalArtifact {
         bytes
     }
 
-    /// Decode and independently replay a complete source-free transport
-    /// envelope. No producer-owned module or manifest crosses
-    /// this boundary.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, CanonicalTerminalArtifactError> {
         let mut cursor = Cursor::new(bytes);
         if cursor.take(ARTIFACT_MAGIC.len())? != ARTIFACT_MAGIC {
@@ -217,8 +187,6 @@ impl CanonicalTerminalArtifact {
         &self.semantic_bytes
     }
 
-    /// Borrow the canonical module and its already established identity.
-    /// This does not re-encode, clone or re-admit the artifact.
     pub fn view(&self) -> TerminalArtifactView<'_> {
         TerminalArtifactView {
             module: &self.semantic_module,
@@ -226,9 +194,6 @@ impl CanonicalTerminalArtifact {
         }
     }
 
-    /// Transfer retained semantic storage to an execution owner without a
-    /// second byte load. A shared module is copied only when this caller asks
-    /// for independently owned mutable storage; execution uses `retain_code`.
     pub fn into_semantics(self) -> (TerminalModule, terminal_psi::TerminalPsiIdentity) {
         (
             std::sync::Arc::unwrap_or_clone(self.semantic_module),
@@ -236,8 +201,6 @@ impl CanonicalTerminalArtifact {
         )
     }
 
-    /// Share immutable execution storage without copying code or byte sections.
-    /// The returned owner has no artifact-publication or installation authority.
     pub fn retain_code(&self) -> crate::RetainedTerminalCode {
         crate::RetainedTerminalCode::new(
             std::sync::Arc::clone(&self.semantic_module),
@@ -245,13 +208,6 @@ impl CanonicalTerminalArtifact {
         )
     }
 
-    /// The canonical semantic module these bytes decode to.
-    ///
-    /// Producer construction retains the module serialized by `encode_module`;
-    /// external ingress retains the module reconstructed by `decode_module`.
-    /// Only external decoding validates structural foundations. Neither route
-    /// establishes semantic proof validity. Readers share that immutable module
-    /// rather than repeating its encoding or decoding.
     pub fn semantic_module(&self) -> &TerminalModule {
         &self.semantic_module
     }
@@ -325,4 +281,164 @@ fn section_len(
 ) -> Result<usize, CanonicalTerminalArtifactEnvelopeError> {
     usize::try_from(cursor.u64()?)
         .map_err(|_| CanonicalTerminalArtifactEnvelopeError::SectionTooLong(section))
+}
+
+pub(crate) mod execution_code {
+
+    use crate::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError, TerminalArtifactView};
+    use std::sync::Arc;
+    use terminal_psi::{TerminalModule, TerminalPsiIdentity};
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    pub enum TerminalPublication {
+        #[default]
+        Portable,
+        Invocation,
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct TerminalExecutionView<'code> {
+        module: &'code TerminalModule,
+        identity: TerminalPsiIdentity,
+    }
+
+    impl<'code> TerminalExecutionView<'code> {
+        pub fn custody_identity(self) -> TerminalExecutionIdentity {
+            TerminalExecutionIdentity {
+                semantic: self.identity,
+                invocation: self.module.identities.invocation_scope().cloned(),
+            }
+        }
+        pub const fn module(self) -> &'code TerminalModule {
+            self.module
+        }
+        pub const fn identity(self) -> TerminalPsiIdentity {
+            self.identity
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalExecutionIdentity {
+        semantic: TerminalPsiIdentity,
+        invocation: Option<terminal_psi::InvocationCodeScope>,
+    }
+
+    impl TerminalExecutionIdentity {
+        pub const fn portable(semantic: TerminalPsiIdentity) -> Self {
+            Self {
+                semantic,
+                invocation: None,
+            }
+        }
+
+        pub const fn semantic(&self) -> TerminalPsiIdentity {
+            self.semantic
+        }
+    }
+
+    impl<'code> From<TerminalArtifactView<'code>> for TerminalExecutionView<'code> {
+        fn from(artifact: TerminalArtifactView<'code>) -> Self {
+            Self {
+                module: artifact.module(),
+                identity: artifact.identity(),
+            }
+        }
+    }
+
+    #[derive(Clone)]
+    pub struct RetainedTerminalCode {
+        module: Arc<TerminalModule>,
+        identity: TerminalPsiIdentity,
+    }
+
+    impl RetainedTerminalCode {
+        pub(crate) fn new(module: Arc<TerminalModule>, identity: TerminalPsiIdentity) -> Self {
+            Self { module, identity }
+        }
+
+        pub fn view(&self) -> TerminalExecutionView<'_> {
+            TerminalExecutionView {
+                module: &self.module,
+                identity: self.identity,
+            }
+        }
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct InvocationTerminalCode {
+        module: Arc<TerminalModule>,
+        identity: TerminalPsiIdentity,
+    }
+
+    impl InvocationTerminalCode {
+        pub fn new(module: TerminalModule) -> Result<Self, crate::CodecError> {
+            if module.identities.invocation_scope().is_none() {
+                return Err(crate::CodecError::MalformedStructuralFoundation(
+                    "invocation code requires a retained local-code owner",
+                ));
+            }
+            let identity = crate::terminal_psi_identity(&module)?;
+            Ok(Self {
+                module: Arc::new(module),
+                identity,
+            })
+        }
+
+        pub fn view(&self) -> TerminalExecutionView<'_> {
+            TerminalExecutionView {
+                module: &self.module,
+                identity: self.identity,
+            }
+        }
+
+        pub fn retain_code(&self) -> RetainedTerminalCode {
+            RetainedTerminalCode::new(Arc::clone(&self.module), self.identity)
+        }
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub enum TerminalProgramProduct {
+        Portable(CanonicalTerminalArtifact),
+        Invocation(InvocationTerminalCode),
+    }
+
+    impl TerminalProgramProduct {
+        pub fn retain_code(&self) -> RetainedTerminalCode {
+            match self {
+                Self::Portable(artifact) => artifact.retain_code(),
+                Self::Invocation(code) => code.retain_code(),
+            }
+        }
+
+        pub fn view(&self) -> TerminalExecutionView<'_> {
+            match self {
+                Self::Portable(artifact) => artifact.view().into(),
+                Self::Invocation(code) => code.view(),
+            }
+        }
+
+        pub fn portable(
+            &self,
+        ) -> Result<&CanonicalTerminalArtifact, CanonicalTerminalArtifactError> {
+            match self {
+                Self::Portable(artifact) => Ok(artifact),
+                Self::Invocation(_) => Err(private_publication_error()),
+            }
+        }
+
+        pub fn into_portable(
+            self,
+        ) -> Result<CanonicalTerminalArtifact, CanonicalTerminalArtifactError> {
+            match self {
+                Self::Portable(artifact) => Ok(artifact),
+                Self::Invocation(_) => Err(private_publication_error()),
+            }
+        }
+    }
+
+    fn private_publication_error() -> CanonicalTerminalArtifactError {
+        CanonicalTerminalArtifactError::Semantic(crate::CodecError::MalformedStructuralFoundation(
+            "invocation code is not a portable Terminal artifact",
+        ))
+    }
 }
