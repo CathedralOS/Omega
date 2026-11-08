@@ -1,0 +1,361 @@
+/*
+  Fixed and precolored half-open point-interval analysis
+  (`analyze_fixed_precolored_intervals`, `ValidatedFixedPrecoloredIntervals`,
+  `FixedPrecoloredIntervalValidationReceipt`).
+
+  Resolves existing fixed register view constraints on virtual live ranges to
+  exact half-open point intervals without choosing homes, inserting copies, or
+  splitting ranges.
+*/
+
+mod compute {
+
+    use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+
+    use crate::work_accounting::Work;
+    use crate::{FixedPrecoloredIntervalError, ValidatedAllocationLegality, ValidatedLiveRanges};
+    use register_homes::{
+        FixedPrecoloredInterval, FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPolicy,
+        FunctionAllocationLegality, FunctionFixedPrecoloredIntervals,
+    };
+    use selected_instructions::{FunctionLiveRanges, LiveRangePoint, VirtualFixedConstraintSite};
+
+    pub fn compute(
+        ranges: &ValidatedLiveRanges,
+        legality: &ValidatedAllocationLegality,
+        policy: FixedPrecoloredIntervalPolicy,
+        budget: OptimizationWorkBudget,
+    ) -> Result<FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalError> {
+        roots(ranges, legality)?;
+        let mut work = Work::new(OptimizationWorkUsage {
+            iterations: 2,
+            ..Default::default()
+        });
+        let functions = family(
+            &ranges.plan().functions,
+            &legality.plan().functions,
+            &mut work,
+        )?;
+        let usage = work.finish(budget)?;
+        Ok(FixedPrecoloredIntervalPlan {
+            ranges: ranges.receipt().identity(),
+            legality: legality.receipt().identity(),
+            register_environment: legality.receipt().register_environment(),
+            allocator_availability: legality.receipt().allocator_availability(),
+            optimization_unit: ranges.receipt().optimization_unit(),
+            work_schedule: ranges.receipt().work_schedule(),
+            policy,
+            budget,
+            usage,
+            functions,
+        })
+    }
+
+    fn roots(
+        ranges: &ValidatedLiveRanges,
+        legality: &ValidatedAllocationLegality,
+    ) -> Result<(), FixedPrecoloredIntervalError> {
+        if legality.receipt().ranges() != ranges.receipt().identity()
+            || ranges.plan().functions.len() != legality.plan().functions.len()
+        {
+            return Err(FixedPrecoloredIntervalError::RootMismatch);
+        }
+        Ok(())
+    }
+
+    fn family(
+        ranges: &[std::sync::Arc<FunctionLiveRanges>],
+        legality: &[std::sync::Arc<FunctionAllocationLegality>],
+        work: &mut Work,
+    ) -> Result<Vec<FunctionFixedPrecoloredIntervals>, FixedPrecoloredIntervalError> {
+        ranges
+            .iter()
+            .zip(legality)
+            .enumerate()
+            .map(|(function, (ranges, legality))| derive_function(function, ranges, legality, work))
+            .collect()
+    }
+
+    fn derive_function(
+        function: usize,
+        ranges: &FunctionLiveRanges,
+        legality: &FunctionAllocationLegality,
+        work: &mut Work,
+    ) -> Result<FunctionFixedPrecoloredIntervals, FixedPrecoloredIntervalError> {
+        work.rule_evaluations(1)?;
+        if ranges.machine != legality.machine
+            || ranges.virtual_registers.len() != legality.virtual_registers.len()
+        {
+            return Err(FixedPrecoloredIntervalError::FunctionMismatch { function });
+        }
+        let mut intervals = Vec::new();
+        for (range, legal) in ranges
+            .virtual_registers
+            .iter()
+            .zip(&legality.virtual_registers)
+        {
+            work.validation_steps(1)?;
+            if range.virtual_register != legal.virtual_register || range.class != legal.class {
+                return Err(FixedPrecoloredIntervalError::RegisterMismatch {
+                    function,
+                    register: range.virtual_register.0,
+                });
+            }
+            for constraint in &range.fixed_constraints {
+                reject_early_clobber_fixed(function, ranges, range, constraint.site)?;
+                work.candidates(1)?;
+                work.validation_steps(1)?;
+                let (block, start) = resolve_point(function, range, constraint.site)?;
+                require_view(
+                    function,
+                    range.virtual_register.0,
+                    block,
+                    start,
+                    constraint.view,
+                    legal,
+                )?;
+                let end = LiveRangePoint(start.0.checked_add(1).ok_or(
+                    FixedPrecoloredIntervalError::IntervalOverflow {
+                        function,
+                        register: range.virtual_register.0,
+                        point: start.0,
+                    },
+                )?);
+                intervals.push(FixedPrecoloredInterval {
+                    virtual_register: range.virtual_register,
+                    class: range.class,
+                    site: constraint.site,
+                    block,
+                    start,
+                    end,
+                    view: constraint.view,
+                });
+                work.commits(1)?;
+            }
+        }
+        intervals.sort_by_key(interval_key);
+        Ok(FunctionFixedPrecoloredIntervals {
+            machine: ranges.machine,
+            intervals,
+        })
+    }
+
+    fn reject_early_clobber_fixed(
+        function: usize,
+        ranges: &FunctionLiveRanges,
+        range: &selected_instructions::VirtualLiveRange,
+        site: VirtualFixedConstraintSite,
+    ) -> Result<(), FixedPrecoloredIntervalError> {
+        let VirtualFixedConstraintSite::Operand {
+            instruction,
+            operand,
+            access: register_model::RegisterOperandAccess::Def,
+            ..
+        } = site
+        else {
+            return Ok(());
+        };
+        if ranges.early_clobbers.iter().any(|row| {
+            row.instruction == instruction
+                && row.def_operand == operand
+                && row.def_virtual_register == range.virtual_register
+        }) {
+            return Err(
+                FixedPrecoloredIntervalError::UnsupportedEarlyClobberFixedConstraint {
+                    function,
+                    register: range.virtual_register.0,
+                    instruction: instruction.0,
+                    operand,
+                },
+            );
+        }
+        Ok(())
+    }
+
+    fn resolve_point(
+        function: usize,
+        range: &selected_instructions::VirtualLiveRange,
+        site: VirtualFixedConstraintSite,
+    ) -> Result<
+        (selected_instructions::SelectedBlockId, LiveRangePoint),
+        FixedPrecoloredIntervalError,
+    > {
+        let point = match site {
+            VirtualFixedConstraintSite::Entry => range.fragments.first().map(|row| row.start),
+            VirtualFixedConstraintSite::Operand { point, .. } => Some(point),
+        }
+        .ok_or(FixedPrecoloredIntervalError::ConstraintPointMissing {
+            function,
+            register: range.virtual_register.0,
+            point: 0,
+        })?;
+        let blocks = range
+            .fragments
+            .iter()
+            .filter(|row| row.start <= point && point < row.end)
+            .map(|row| row.block)
+            .collect::<Vec<_>>();
+        if blocks.len() != 1 {
+            return Err(FixedPrecoloredIntervalError::ConstraintPointMissing {
+                function,
+                register: range.virtual_register.0,
+                point: point.0,
+            });
+        }
+        Ok((blocks[0], point))
+    }
+
+    fn require_view(
+        function: usize,
+        register: u32,
+        block: selected_instructions::SelectedBlockId,
+        point: LiveRangePoint,
+        view: register_model::RegisterViewId,
+        legality: &register_homes::VirtualRegisterAllocationLegality,
+    ) -> Result<(), FixedPrecoloredIntervalError> {
+        let rows = legality
+            .spans
+            .iter()
+            .filter(|row| row.block == block && row.start <= point && point < row.end)
+            .collect::<Vec<_>>();
+        if rows.len() != 1 {
+            return Err(FixedPrecoloredIntervalError::ConstraintPointMissing {
+                function,
+                register,
+                point: point.0,
+            });
+        }
+        if rows[0].candidates.as_slice() != [view] {
+            return Err(FixedPrecoloredIntervalError::ConstraintViewMismatch {
+                function,
+                register,
+                view: view.0,
+            });
+        }
+        Ok(())
+    }
+
+    fn interval_key(row: &FixedPrecoloredInterval) -> (u32, u8, u32, u32, u16, u8) {
+        match row.site {
+            VirtualFixedConstraintSite::Entry => (row.virtual_register.0, 0, 0, 0, 0, 0),
+            VirtualFixedConstraintSite::Operand {
+                point,
+                instruction,
+                operand,
+                access,
+                ..
+            } => (
+                row.virtual_register.0,
+                1,
+                point.0,
+                instruction.0,
+                operand,
+                access.access_tag(),
+            ),
+        }
+    }
+}
+
+use crate::WorkDefect;
+use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
+use register_homes::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlan,
+    FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredIntervalPolicy,
+};
+use register_model::TargetRegisterEnvironmentIdentity;
+use selected_instructions::LiveRangeIdentity;
+use semantic_vocabulary::WorkScheduleIdentity;
+
+pub fn analyze_fixed_precolored_intervals(
+    ranges: &crate::ValidatedLiveRanges,
+    legality: &crate::ValidatedAllocationLegality,
+    policy: FixedPrecoloredIntervalPolicy,
+    budget: optimization_core::OptimizationWorkBudget,
+) -> Result<ValidatedFixedPrecoloredIntervals, FixedPrecoloredIntervalError> {
+    let plan = compute::compute(ranges, legality, policy, budget)?;
+    seal_fixed_precolored_intervals(plan)
+}
+
+seal_plan!(
+    seal_fixed_precolored_intervals(FixedPrecoloredIntervalPlan)
+        -> ValidatedFixedPrecoloredIntervals: FixedPrecoloredIntervalValidationReceipt
+        = register_homes::fixed_precolored_interval_plan_identity, FixedPrecoloredIntervalError
+    {
+        ranges,
+        legality,
+        register_environment,
+        allocator_availability,
+        optimization_unit,
+        work_schedule,
+        policy,
+        usage
+    }
+);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FixedPrecoloredIntervalValidationReceipt {
+    pub(crate) identity: FixedPrecoloredIntervalPlanIdentity,
+    pub(crate) ranges: LiveRangeIdentity,
+    pub(crate) legality: AllocationLegalityIdentity,
+    pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
+    pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
+    pub(crate) optimization_unit: OptimizationUnitIdentity,
+    pub(crate) work_schedule: WorkScheduleIdentity,
+    pub(crate) policy: FixedPrecoloredIntervalPolicy,
+    pub(crate) usage: OptimizationWorkUsage,
+}
+
+impl FixedPrecoloredIntervalValidationReceipt {
+    receipt_accessor_rows!(FixedPrecoloredIntervalValidationReceipt {
+        identity: FixedPrecoloredIntervalPlanIdentity,
+        policy: FixedPrecoloredIntervalPolicy,
+        usage: OptimizationWorkUsage,
+    });
+    shared_analysis_identity_accessors!(pub);
+}
+
+validated_plan_carrier!(
+    ValidatedFixedPrecoloredIntervals: FixedPrecoloredIntervalPlan,
+    FixedPrecoloredIntervalValidationReceipt
+);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FixedPrecoloredIntervalError {
+    RootMismatch,
+    FunctionMismatch {
+        function: usize,
+    },
+    RegisterMismatch {
+        function: usize,
+        register: u32,
+    },
+    ConstraintPointMissing {
+        function: usize,
+        register: u32,
+        point: u32,
+    },
+    ConstraintViewMismatch {
+        function: usize,
+        register: u32,
+        view: u16,
+    },
+    UnsupportedEarlyClobberFixedConstraint {
+        function: usize,
+        register: u32,
+        instruction: u32,
+        operand: u16,
+    },
+    IntervalOverflow {
+        function: usize,
+        register: u32,
+        point: u32,
+    },
+    Work(WorkDefect),
+    UsageMismatch,
+    NonCanonicalFunctions,
+}
+
+failed_display!(
+    FixedPrecoloredIntervalError,
+    "fixed/precolored interval analysis failed"
+);
