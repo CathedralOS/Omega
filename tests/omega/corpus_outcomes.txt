@@ -26763,8 +26763,7 @@ pass/proofs/mathematical_negated_identity_exit checked 12744ms check-target:maco
 pass/proofs/mathematical_negated_integer_order_double_exit checked 3598ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/mathematical_negated_integer_order_exit checked 3835ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/mathematical_nullary_constructor_exit checked 14409ms check-target:macos_arm64 @02e75d5a4d4d
-pass/proofs/mathematical_predicate_contract_import_exit rejected 3486ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove ensures contract for exit from typed_result at statement 0: helpers::byte_mask() == helpers::byte_mask()
+pass/proofs/mathematical_predicate_contract_import_exit checked 14907ms check-target:macos_arm64 @af5f78a378f4
 pass/proofs/mathematical_prepared_scalar_interval checked 3504ms @ccdb99ca2214
 pass/proofs/mutable_fixed_array_ensures_exact_product checked 3671ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/named_witness_static_trait_plural_compile checked 2838ms @ccdb99ca2214
