@@ -37,9 +37,33 @@
     "cache_key": "compiler-regression-Linux-X64-4cf43fe0b283cafbaa2080cbd0cb5018d03a05a890353ac5d6c14509413ee07b-9af3eb514e1665328bbdbbc875be077276c47869-prepared-v1-with-runner"
   },
   "fixtures": [
-    "pass/host/runtime_descriptor_nested_case_array_exit"
+    "pass/atomics/runtime_mixed_common_atomic_cell_exit",
+    "pass/borrows/runtime_case_payload_partial_transfer_exit",
+    "pass/calls/mixed_value_forwarding_exit",
+    "pass/calls/runtime_constructed_borrowed_payload_arguments_exit",
+    "pass/calls/runtime_constructed_copy_payload_arguments_exit",
+    "pass/cases/runtime_case_component_borrow_identity_exit",
+    "pass/control_flow/captured_nominal_result_region_identity_exit",
+    "pass/control_flow/runtime_scalar_case_arm_evaluation_exit",
+    "pass/data/mixed_record_common_field_and_payload_dispatch_exit",
+    "pass/data/runtime_mixed_case_payload_dispatch_exit",
+    "pass/data/runtime_mixed_shape_exit",
+    "pass/data/runtime_zeroed_first_case_enum_payload_exit",
+    "pass/domains/runtime_case_constructor_child_memberships_exit",
+    "pass/generics/runtime_case_qualified_reference_storage_exit",
+    "pass/generics/runtime_mixed_generic_erased_sum_exit",
+    "pass/storage/large_zero_initialized_local_exit",
+    "pass/structs/case_field_type_store_shapes",
+    "pass/structs/runtime_composed_case_payload_reads_exit",
+    "pass/structs/runtime_mixed_common_field_store_exit",
+    "pass/structural/runtime_state_local_whole_store_exit",
+    "pass/text/runtime_inline_byte_case_payload_variants_exit",
+    "pass/text/runtime_inline_byte_case_values_exit",
+    "pass/wire/reflection_active_mutation_exit",
+    "pass/drops/runtime_cleanup_case_evidence_exit",
+    "pass/borrow/runtime_method_view_write_after_last_use_exit"
   ],
-  "source_only": true,
+  "source_only": false,
   "samples": [],
   "cli_fixtures": []
 }
