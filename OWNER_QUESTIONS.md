@@ -122,3 +122,57 @@ file records the same rows with fewer checked calls.
 Under any option, each requirement still records its own row for each target.
 No option changes `Float` meaning or lets a provider replace primitive operator
 semantics.
+
+### Q2 - Must every compile check library code its program cannot reach?
+
+Decision name: `reachable-closure-checking`.
+
+**Customer.** Every user compile. A one-line `omega --check` (`main.marker = 0;`)
+runs Psi 05 on 837 machines across its three checks: core's Build, the user's
+`build.omg`, and the product. Only 8 of them are reachable from those checks'
+entries, even counting every contract, proof, lemma and requirement-satisfier
+dependency the checker itself records. The product check covers 555 machines
+and reaches one, `Main::main`. The other 554 are 408 core machines, the 46-machine
+build prelude (also checked in both Build checks), 13 std machines, and 86
+machines across all six `std/targets` directories. 269 of the 555 have no
+incoming dependency edge at all (counts at `541152f9d5c`). On a quiet 16-core
+Linux host at `a35508126ea`, Psi 05 is 1.43 s of the 2.8 s release compile, and
+Jai (beta 2-026) builds the same program to a linked executable in 0.14 s. Binding one hosted target would raise
+the product's reachable set to 28 machines.
+
+**Gap.** The contracts settle the current behavior. They do not settle whether
+the per-compile cost is required.
+[Optimization phases](wiki/spec/build/optimizations.md#phase-and-product-boundaries)
+allow checked-tree pruning only after all authored source is parsed, resolved,
+typed and checked, because deleting unreachable code must not make invalid
+source valid.
+[Component publication](wiki/spec/build/component_publication.md) says unused
+library functionality "does not waive its ordinary source checks".
+[Proof contracts](wiki/spec/proofs/contracts.md) already compute assumption
+closure over the reachable checked declaration graph, and state that unused
+declarations are not dependencies merely by sharing a package. None of these
+says where the bundled library's ordinary checks must run: in every user
+compile, or in a gate that admits that library.
+
+**Audit.** The dependency graph used for the count is the checker's own
+`declaration_call_dependencies`. It follows contracts, requires/ensures, proof
+facts, lemma calls, specialization selections and requirement satisfiers. Body
+calls alone give the same 8 machines. Type and data references were not
+traversed, so a reachable-closure rule would also have to follow those. Reuse of
+earlier check results is ruled out for now, so any saving must come from not
+doing the work, not from replaying it.
+
+**Options.**
+
+- Keep the rule: every compile checks all authored source, including the whole
+  bundled library. Per-compile cost grows with the library, not with the program.
+- Check user-authored source in full, but check bundled library machines only
+  within the program's reachable dependency closure. Each library release must
+  then pass a library-wide check gate (corpus or CI) before it ships. A broken
+  library proof that no program reaches would fail that gate, not a user's
+  compile.
+- As the second option, plus every implementation of each target the Build
+  binds, so a compile still checks the program's declared targets in full.
+
+Under any option, an invalid reachable declaration is still rejected, and
+pruning after checking keeps its existing meaning.
