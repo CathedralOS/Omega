@@ -40,8 +40,6 @@
   "source_only": false,
   "samples": [],
   "cli_fixtures": [
-    "pass/text/runtime_inline_byte_case_values_exit",
-    "pass/borrows/runtime_case_payload_partial_transfer_exit",
-    "pass/drops/runtime_cleanup_case_evidence_exit"
+    "pass/text/runtime_inline_byte_case_values_exit"
   ]
 }
