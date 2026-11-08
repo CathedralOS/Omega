@@ -1,0 +1,8 @@
+// A named negation cannot contradict the same established Nat identity.
+use omega::language::core::nat;
+let not_zero(value: Nat): core::Strict<0> = !core::Identity<Nat>(value, Nat::Zero);
+machine bogus(a: Nat)
+requires core::Identity<Nat>(a, Nat::Zero)
+ensures not_zero(a)
+{ }
+machine main() { }

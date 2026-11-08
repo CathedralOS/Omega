@@ -10,9 +10,10 @@ negative and positive zero. Its executable record-field calculation must produce
 The [unresolved-subject control](../../../fail/proofs/mathematical_negated_identity_unknown/main.omg)
 removes any justification for distinguishing the exact record subjects. It must
 fail its `ensures`; forming identity or failing to prove identity supplies no
-negation. The [known-equal Nat control](../../../fail/proofs/nat_structural_disproof_refuted/main.omg)
+negation. The [named known-equal Nat control](../../../fail/proofs/mathematical_negated_identity_refuted/main.omg)
 uses a named negation under an established identity and must be refuted
-structurally. Together these cover proven, refuted and unresolved operands.
+structurally. The original [direct Nat control](../../../fail/proofs/nat_structural_disproof_refuted/main.omg)
+retains direct source negation of that same established identity. Together these cover proven, refuted and unresolved operands.
 
 The governing contracts are [explicit identity](../../../../../wiki/spec/proofs/contracts.md#data-identity-in-facts),
 [separate judgments](../../../../../wiki/spec/proofs/foundation.md#separate-judgments),
