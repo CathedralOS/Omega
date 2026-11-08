@@ -85,6 +85,14 @@ pub(crate) mod source_occurrences {
                     let Some(call) = self.expression_table.call_node(expression) else {
                         continue;
                     };
+                    // An ordinary call still has a source application when its
+                    // static tuple is empty. Result evidence needs that exact
+                    // declaration and lexical owner too.
+                    let declaration = (!call.static_machine_parameter.is_valid()
+                        && !call.requirement_application.is_valid()
+                        && call.static_requirement_dispatch.is_none())
+                    .then(|| direct_declaration(self, call.target_symbol))
+                    .flatten();
                     if call.authored_machine_application.is_valid() {
                         let application = call.authored_machine_application;
                         let retained = self
@@ -92,6 +100,11 @@ pub(crate) mod source_occurrences {
                             .static_machine_application_mut(application);
                         if !retained.lexical_owner.is_valid() {
                             retained.lexical_owner = owner;
+                        }
+                        if !retained.binding_declaration.is_valid()
+                            && let Some(declaration) = declaration
+                        {
+                            retained.binding_declaration = declaration;
                         }
                         continue;
                     }
@@ -102,6 +115,7 @@ pub(crate) mod source_occurrences {
                     if call.machine_arguments.is_empty()
                         && !has_region_telescope(self, call.target_symbol)
                         && !implementation_namespace(self, namespace)
+                        && declaration.is_none()
                     {
                         continue;
                     }
@@ -111,9 +125,13 @@ pub(crate) mod source_occurrences {
                         call.target,
                         &call.machine_arguments,
                     );
-                    self.expression_table
-                        .static_machine_application_mut(application)
-                        .lexical_owner = owner;
+                    let retained = self
+                        .expression_table
+                        .static_machine_application_mut(application);
+                    retained.lexical_owner = owner;
+                    if let Some(declaration) = declaration {
+                        retained.binding_declaration = declaration;
+                    }
                     let ExpressionNode::Call(call) =
                         self.expression_table.expression_mut(expression)
                     else {
@@ -132,7 +150,11 @@ pub(crate) mod source_occurrences {
                                     let call = statement.as_call()?;
                                     ((!call.machine_arguments.is_empty()
                                         || has_region_telescope(self, call.target_symbol)
-                                        || implementation_namespace(self, call.receiver_symbol))
+                                        || implementation_namespace(self, call.receiver_symbol)
+                                        || (!call.static_machine_parameter.is_valid()
+                                            && call.static_requirement_dispatch.is_none()
+                                            && direct_declaration(self, call.target_symbol)
+                                                .is_some()))
                                         && !call.authored_machine_application.is_valid())
                                     .then(|| (handle, machine.symbol, call.clone()))
                                 })
@@ -140,14 +162,22 @@ pub(crate) mod source_occurrences {
                     })
                     .collect::<Vec<_>>();
                 for (handle, owner, call) in statement_calls {
+                    let declaration = (!call.static_machine_parameter.is_valid()
+                        && call.static_requirement_dispatch.is_none())
+                    .then(|| direct_declaration(self, call.target_symbol))
+                    .flatten();
                     let application = self.expression_table.retain_static_machine_application(
                         call.target_symbol,
                         call.target,
                         &call.machine_arguments,
                     );
-                    self.expression_table
-                        .static_machine_application_mut(application)
-                        .lexical_owner = owner;
+                    let retained = self
+                        .expression_table
+                        .static_machine_application_mut(application);
+                    retained.lexical_owner = owner;
+                    if let Some(declaration) = declaration {
+                        retained.binding_declaration = declaration;
+                    }
                     let StatementNode::Call(call) = self.statement_table.statement_mut(handle)
                     else {
                         unreachable!("retaining a source application does not replace its call");
@@ -155,6 +185,13 @@ pub(crate) mod source_occurrences {
                     call.authored_machine_application = application;
                 }
             }
+        }
+
+        fn direct_declaration(program: &TypedTrees, target: SymbolHandle) -> Option<SymbolHandle> {
+            program
+                .machine_by_symbol(target)
+                .or_else(|| program.machine_holding_state(target))
+                .map(|machine| machine.symbol)
         }
 
         fn implementation_namespace(program: &TypedTrees, symbol: SymbolHandle) -> bool {

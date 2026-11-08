@@ -8059,6 +8059,19 @@ pub(crate) mod write_frames {
             {
                 let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
                 let parameter_type = substituted_head(program, parameter_type, bindings);
+                // Only writable carried borrows can reach caller storage from an
+                // owned value. Use the complete substituted borrow frontier before
+                // requiring aliases for opaque owned leaves or shared-only views.
+                if crate::borrow_contracts::carried_lifetimes::substituted_carried_lifetimes(
+                    program,
+                    parameter_type,
+                    bindings,
+                    &[0],
+                )
+                .is_some_and(|leaves| leaves.iter().all(|leaf| !leaf.access.is_exclusive()))
+                {
+                    continue;
+                }
                 let TypeReferenceNode::Reference { access, .. } =
                     program.type_reference_table.type_reference(parameter_type)
                 else {
