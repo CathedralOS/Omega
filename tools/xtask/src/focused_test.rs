@@ -17,6 +17,61 @@ fn is_valid_filter(s: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
 }
 
+fn unit_target(targets: &[serde_json::Value]) -> Result<Vec<String>, String> {
+    let has_kind = |target: &serde_json::Value, kind: &str| {
+        target["kind"]
+            .as_array()
+            .is_some_and(|kinds| kinds.iter().any(|value| value == kind))
+    };
+    if targets
+        .iter()
+        .any(|target| has_kind(target, "lib") || has_kind(target, "proc-macro"))
+    {
+        return Ok(vec!["--lib".to_owned()]);
+    }
+    let binaries: Vec<_> = targets
+        .iter()
+        .filter(|target| has_kind(target, "bin"))
+        .filter_map(|target| target["name"].as_str())
+        .collect();
+    match binaries.as_slice() {
+        [name] => Ok(vec!["--bin".to_owned(), (*name).to_owned()]),
+        _ => Err("package needs a library or one unambiguous binary unit-test target".to_owned()),
+    }
+}
+
+fn selected_unit_target(root: &std::path::Path, package: &str) -> Result<Vec<String>, u8> {
+    let result = (|| {
+        let output = Command::new("cargo")
+            .args(["metadata", "--locked", "--no-deps", "--format-version=1"])
+            .current_dir(root)
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|e| format!("read test targets: {e}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "read test targets: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+        let metadata: serde_json::Value =
+            serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
+        let selected = metadata["packages"]
+            .as_array()
+            .and_then(|packages| packages.iter().find(|entry| entry["name"] == package))
+            .ok_or_else(|| format!("unknown test package {package}"))?;
+        unit_target(
+            selected["targets"]
+                .as_array()
+                .ok_or("package has no targets")?,
+        )
+    })();
+    result.map_err(|error| {
+        eprintln!("focused-test: {error}");
+        1u8
+    })
+}
+
 pub fn run(args: &[String]) -> Result<(), u8> {
     let mut prepare = false;
     let mut validate = false;
@@ -55,6 +110,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         eprintln!("Invalid integration test target");
         return Err(1);
     }
+    let root = repo_root();
+    let target_args = if target.is_empty() {
+        selected_unit_target(&root, &package)?
+    } else {
+        vec!["--test".to_owned(), target]
+    };
     if validate {
         return Ok(());
     }
@@ -65,12 +126,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         "-p".to_owned(),
         package,
     ];
-    if target.is_empty() {
-        command_args.push("--lib".to_owned());
-    } else {
-        command_args.push("--test".to_owned());
-        command_args.push(target);
-    }
+    command_args.extend(target_args);
     if prepare {
         command_args.push("--no-run".to_owned());
         command_args.push(selected);
@@ -85,7 +141,6 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     println!("Source: {sha}");
     println!("Command: mbx {}", command_args.join(" "));
 
-    let root = repo_root();
     let _ = Command::new("rustc")
         .args(["--version", "--verbose"])
         .current_dir(&root)
@@ -128,4 +183,37 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         return Err(1);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    #[test]
+    fn unit_selection_preserves_library_scope_and_supports_binary_only_packages() {
+        assert_eq!(
+            unit_target(&[
+                json!({"kind": ["lib"], "name": "library"}),
+                json!({"kind": ["bin"], "name": "cli"})
+            ])
+            .unwrap(),
+            ["--lib"]
+        );
+        assert_eq!(
+            unit_target(&[
+                json!({"kind": ["bin"], "name": "cli"}),
+                json!({"kind": ["test"], "name": "corpus_runner"})
+            ])
+            .unwrap(),
+            ["--bin", "cli"]
+        );
+        assert!(
+            unit_target(&[
+                json!({"kind": ["bin"], "name": "one"}),
+                json!({"kind": ["bin"], "name": "two"})
+            ])
+            .is_err()
+        );
+        assert!(unit_target(&[json!({"kind": ["test"], "name": "corpus_runner"})]).is_err());
+    }
 }

@@ -16,5 +16,8 @@ requires region.remaining != 0
 boundary trait Forward {
     machine forward(whole: Region in Owned) -> Region in Owned
     reaches
-    ensures Owned::content(old(&whole)) == Owned::content(&result);
+    ensures core::Identity<CountedQuantity<ByteUnit>>(
+        Owned::content(old(&whole)),
+        Owned::content(&result)
+    );
 }

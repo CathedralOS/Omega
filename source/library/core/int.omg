@@ -28,7 +28,7 @@ public data IntPair {
 // The quotient relation is a named proof family. Applications state the
 // relation; the declaration itself proves no instance.
 proposition int_pair_equivalent(left: IntPair, right: IntPair) =
-    (add(left.pos, right.neg)) == (add(right.pos, left.neg));
+    core::Identity<Nat>(add(left.pos, right.neg), add(right.pos, left.neg));
 
 // Componentwise addition: (p1 - n1) + (p2 - n2) = (p1 + p2) - (n1 + n2).
 machine add_int(a: IntPair, b: IntPair) -> IntPair
@@ -59,7 +59,7 @@ machine neg_int(a: IntPair) -> IntPair {
 machine add_int_comm(a: IntPair, b: IntPair)
 satisfies CommutativeSemiring<IntPair>::add_comm
 ensures
-    (add_int(a, b)) == (add_int(b, a))
+    core::Identity<IntPair>(add_int(a, b), add_int(b, a))
 {
     add_comm(a.neg, b.neg);
     add_comm(a.pos, b.pos);
@@ -69,16 +69,15 @@ ensures
 machine add_int_assoc(a: IntPair, b: IntPair, c: IntPair)
 satisfies CommutativeSemiring<IntPair>::add_assoc
 ensures
-    (add_int(add_int(a, b), c)) == (add_int(a, add_int(b, c)))
+    core::Identity<IntPair>(add_int(add_int(a, b), c), add_int(a, add_int(b, c)))
 {
     add_assoc(a.neg, b.neg, c.neg);
     add_assoc(a.pos, b.pos, c.pos);
 }
 
-// The symmetric pair (n+p, p+n) -- the difference-pair ZERO CLASS shape a
-// cancelled sum lands in (kept as an application so the ensures below
-// compares application-to-application; a record-LITERAL comparand routes
-// through runtime Equatable synthesis, which recursive Nat cannot join).
+// The symmetric pair (n+p, p+n) represents the zero equivalence class.
+// Naming this construction keeps the cancellation law below in terms of
+// the same pair operation rather than repeating its fields.
 machine cross_sum(a: IntPair) -> IntPair {
     transition { _ -> (IntPair { neg: add(a.neg, a.pos), pos: add(a.pos, a.neg) }) }
 }
@@ -87,7 +86,7 @@ machine cross_sum(a: IntPair) -> IntPair {
 // exactly cross_sum's body -- pure unfolding, no citations.
 machine add_int_neg(a: IntPair) -> IntPair
 ensures
-    (add_int(a, neg_int(a))) == (cross_sum(a))
+    core::Identity<IntPair>(add_int(a, neg_int(a)), cross_sum(a))
 {
     let negated: IntPair = neg_int(a);
     transition { _ -> (add_int(a, negated)) }
@@ -109,7 +108,7 @@ satisfies CommutativeSemiring<IntPair>::mul
 machine mul_int_comm(a: IntPair, b: IntPair)
 satisfies CommutativeSemiring<IntPair>::mul_comm
 ensures
-    (mul_int(a, b)) == (mul_int(b, a))
+    core::Identity<IntPair>(mul_int(a, b), mul_int(b, a))
 {
     mul_comm(a.pos, b.neg);
     mul_comm(a.neg, b.pos);
@@ -124,7 +123,7 @@ ensures
 machine mul_int_assoc(a: IntPair, b: IntPair, c: IntPair)
 satisfies CommutativeSemiring<IntPair>::mul_assoc
 ensures
-    (mul_int(mul_int(a, b), c)) == (mul_int(a, mul_int(b, c)))
+    core::Identity<IntPair>(mul_int(mul_int(a, b), c), mul_int(a, mul_int(b, c)))
 {
 }
 
@@ -133,7 +132,7 @@ ensures
 machine mul_int_distributes(a: IntPair, b: IntPair, c: IntPair)
 satisfies CommutativeSemiring<IntPair>::mul_distributes
 ensures
-    (mul_int(a, add_int(b, c))) == (add_int(mul_int(a, b), mul_int(a, c)))
+    core::Identity<IntPair>(mul_int(a, add_int(b, c)), add_int(mul_int(a, b), mul_int(a, c)))
 {
 }
 
@@ -154,9 +153,9 @@ ensures
 // ~ is symmetric: the hypothesis read right-to-left.
 machine int_eq_symmetric(a: IntPair, b: IntPair) -> IntPair
 requires
-    (add(a.pos, b.neg)) == (add(b.pos, a.neg))
+    core::Identity<Nat>(add(a.pos, b.neg), add(b.pos, a.neg))
 ensures
-    (add(b.pos, a.neg)) == (add(a.pos, b.neg))
+    core::Identity<Nat>(add(b.pos, a.neg), add(a.pos, b.neg))
 {
     transition { _ -> (add_int(a, b)) }
 }
@@ -168,10 +167,12 @@ ensures
 // distributivity is Nat's conformed license).
 machine mul_int_respects_eq(a: IntPair, a2: IntPair, b: IntPair) -> IntPair
 requires
-    (add(a.pos, a2.neg)) == (add(a2.pos, a.neg))
+    core::Identity<Nat>(add(a.pos, a2.neg), add(a2.pos, a.neg))
 ensures
-    (add(add(mul(a.pos, b.pos), mul(a.neg, b.neg)), add(mul(a2.pos, b.neg), mul(a2.neg, b.pos))))
-        == (add(add(mul(a2.pos, b.pos), mul(a2.neg, b.neg)), add(mul(a.pos, b.neg), mul(a.neg, b.pos))))
+    core::Identity<Nat>(
+        add(add(mul(a.pos, b.pos), mul(a.neg, b.neg)), add(mul(a2.pos, b.neg), mul(a2.neg, b.pos))),
+        add(add(mul(a2.pos, b.pos), mul(a2.neg, b.neg)), add(mul(a.pos, b.neg), mul(a.neg, b.pos)))
+    )
 {
     transition { _ -> (mul_int(a, b)) }
 }
@@ -183,10 +184,10 @@ ensures
 // own requires discharges at the site through the depth-2 exchange.
 machine int_eq_transitive(a: IntPair, b: IntPair, c: IntPair) -> IntPair
 requires
-    (add(a.pos, b.neg)) == (add(b.pos, a.neg)),
-    (add(b.pos, c.neg)) == (add(c.pos, b.neg))
+    core::Identity<Nat>(add(a.pos, b.neg), add(b.pos, a.neg)),
+    core::Identity<Nat>(add(b.pos, c.neg), add(c.pos, b.neg))
 ensures
-    (add(a.pos, c.neg)) == (add(c.pos, a.neg))
+    core::Identity<Nat>(add(a.pos, c.neg), add(c.pos, a.neg))
 {
     _ = add_cancel(add(b.neg, b.pos), add(a.pos, c.neg), add(c.pos, a.neg));
     transition { _ -> (add_int(a, c)) }
@@ -198,7 +199,7 @@ ensures
 machine add_int_identity(a: IntPair)
 satisfies CommutativeSemiring<IntPair>::add_identity
 ensures
-    (add_int(a, zero_int())) == (a)
+    core::Identity<IntPair>(add_int(a, zero_int()), a)
 {
     add_zero_right(a.neg);
     add_zero_right(a.pos);
@@ -207,7 +208,7 @@ ensures
 machine mul_int_identity(a: IntPair)
 satisfies CommutativeSemiring<IntPair>::mul_identity
 ensures
-    (mul_int(a, one_int())) == (a)
+    core::Identity<IntPair>(mul_int(a, one_int()), a)
 {
     _ = mul_zero_right(a.pos);
     _ = mul_zero_right(a.neg);
@@ -221,7 +222,7 @@ ensures
 // from `a` itself -- pure unfolding closed by record ETA, no citations.
 machine neg_int_involution(a: IntPair) -> IntPair
 ensures
-    (neg_int(neg_int(a))) == (a)
+    core::Identity<IntPair>(neg_int(neg_int(a)), a)
 {
     let flipped: IntPair = neg_int(a);
     transition { _ -> (neg_int(flipped)) }
@@ -231,9 +232,9 @@ ensures
 // -- the hypothesis read through one addend exchange.
 machine neg_int_respects_eq(a: IntPair, a2: IntPair) -> IntPair
 requires
-    (add(a.pos, a2.neg)) == (add(a2.pos, a.neg))
+    core::Identity<Nat>(add(a.pos, a2.neg), add(a2.pos, a.neg))
 ensures
-    (add(a.neg, a2.pos)) == (add(a2.neg, a.pos))
+    core::Identity<Nat>(add(a.neg, a2.pos), add(a2.neg, a.pos))
 {
     transition { _ -> (neg_int(a)) }
 }

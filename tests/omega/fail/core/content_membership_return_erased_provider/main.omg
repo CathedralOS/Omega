@@ -1,7 +1,12 @@
 use omega::language::core::extent;
+use omega::language::core::content;
+use omega::language::core::nat;
 Adapter satisfies VacantContentTransfer {
     machine transfer(storage: Extent in Granted) -> Extent
-    ensures Granted::content(old(&storage)) == Granted::content(&result)
+    ensures core::Identity<IntervalSet<Nat>>(
+        Granted::content(old(&storage)),
+        Granted::content(&result)
+    )
     { storage as Extent }
 }
 machine main() {}

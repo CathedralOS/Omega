@@ -1320,8 +1320,8 @@ mod call_arguments {
                 return None;
             }
             self.retain_structural_value_root(receiver.value, receiver.type_reference)?;
-            // The value root owns its storage namespace. The saved name remains
-            // an alias of that same value, with no new birth or disposal.
+            // Keep the saved name attached to the existing value. This does not
+            // allocate storage or add cleanup.
             *expression = self.structural_values.nodes.get(receiver.value).expression;
             *value_dependency = Some(receiver.value);
             Some(())

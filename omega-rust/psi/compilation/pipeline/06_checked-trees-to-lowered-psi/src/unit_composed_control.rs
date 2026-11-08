@@ -7865,19 +7865,78 @@ pub(crate) mod attached_unit {
                         lookup_type_id(&self.catalogs.type_ids, &result.type_identity)?,
                         &self.catalogs.structural_types,
                     )?;
-                    if self.content_entry_claims.iter().any(|entry| {
+                    let identity_parameters = self.state_contract_rosters[position]
+                        .iter()
+                        .map(|(_, parameter)| parameter.clone())
+                        .collect::<Vec<_>>();
+                    let state_identities = crate::unit::attached_unit::claims::lower_result_identity(
+                        checked,
+                        owner,
+                        state.state,
+                        &state.structural_parameters,
+                        &identity_parameters,
+                        &self.machine_result,
+                        &self.claims.source_claims,
+                    )?;
+                    if let Some(entry) = self.content_entry_claims.iter().find(|entry| {
                         returned_claims
                             .iter()
                             .any(|binding| binding.claim == entry.claim)
-                            && !self.content_identity_reshuffles.iter().any(|identity| {
+                            && !state_identities.iter().any(|identity| {
                                 identity.claim == entry.claim
                                     && identity.input == entry.input
                                     && identity.projections == entry.projections
                             })
                     }) {
-                        return unsupported(
-                            "structural return lost its checked content identity guarantee",
-                        );
+                        let reason = if state_identities.is_empty() {
+                            "structural return lost its checked content identity guarantee: returning state has no checked content rows"
+                        } else if !state_identities
+                            .iter()
+                            .any(|identity| identity.claim == entry.claim)
+                        {
+                            "structural return lost its checked content identity guarantee: no checked row names the returned claim"
+                        } else if !state_identities
+                            .iter()
+                            .any(|identity| identity.claim == entry.claim && identity.input == entry.input)
+                        {
+                            "structural return lost its checked content identity guarantee: checked row names another input place"
+                        } else {
+                            "structural return lost its checked content identity guarantee: checked projections disagree"
+                        };
+                        return unsupported(reason);
+                    }
+                    let invocation_identities = state_identities
+                        .into_iter()
+                        .filter(|identity| {
+                            self.content_entry_claims.iter().any(|entry| {
+                                identity.claim == entry.claim
+                                    && identity.input == entry.input
+                                    && identity.projections == entry.projections
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    if let Some(common) = &mut self.content_identity_reshuffles {
+                        let keys = invocation_identities
+                            .iter()
+                            .map(|identity| {
+                                (
+                                    identity.claim,
+                                    &identity.input,
+                                    &identity.output,
+                                    &identity.projections,
+                                )
+                            })
+                            .collect::<std::collections::BTreeSet<_>>();
+                        common.retain(|identity| {
+                            keys.contains(&(
+                                identity.claim,
+                                &identity.input,
+                                &identity.output,
+                                &identity.projections,
+                            ))
+                        });
+                    } else {
+                        self.content_identity_reshuffles = Some(invocation_identities);
                     }
                     Terminator::ReturnStructural {
                         edge: edge_id(allocate_dense(&mut next_edge)?),
@@ -10035,7 +10094,8 @@ pub(crate) mod attached_unit {
                     machine_result: TerminalMachineResult,
                     claims: LoweredUnitClaims,
                     content_entry_claims: Vec<terminal_psi::ContentEntryClaim>,
-                    content_identity_reshuffles: Vec<terminal_psi::ContentIdentityReshuffle>,
+                    content_identity_reshuffles:
+                        Option<Vec<terminal_psi::ContentIdentityReshuffle>>,
                     loan_completions: Vec<terminal_psi::LoanCompletion>,
                     block_entry_claims: Vec<terminal_psi::EntryClaim>,
                     entry_reentered: bool,
@@ -10364,16 +10424,6 @@ pub(crate) mod attached_unit {
                             &entry.structural_parameters,
                             &parameters,
                             &entry.entry_claims,
-                            &claims.source_claims,
-                        )?;
-                    let content_identity_reshuffles =
-                        crate::unit::attached_unit::claims::lower_result_identity(
-                            checked,
-                            plan.machine,
-                            entry.state,
-                            &entry.structural_parameters,
-                            &parameters,
-                            &machine_result,
                             &claims.source_claims,
                         )?;
                     let entry_reentered = plan
@@ -10726,7 +10776,7 @@ pub(crate) mod attached_unit {
                         machine_result,
                         claims,
                         content_entry_claims,
-                        content_identity_reshuffles,
+                        content_identity_reshuffles: None,
                         loan_completions: Vec::new(),
                         block_entry_claims,
                         entry_reentered,
@@ -10794,6 +10844,8 @@ pub(crate) mod attached_unit {
                         mut rank_edges,
                         ..
                     } = emission;
+                    let content_identity_reshuffles =
+                        content_identity_reshuffles.unwrap_or_default();
                     // A retained `requires` becomes the header's scalar block invariant:
                     // every incoming Jump or Conditional edge discharges it before the block
                     // runs. A plain entry publishes its clauses on the machine contract

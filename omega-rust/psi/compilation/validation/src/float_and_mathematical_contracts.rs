@@ -1577,6 +1577,13 @@ pub mod float_projection_invocations {
 }
 
 pub mod mathematical_applications {
+    /*
+    Source custody for mathematical applications, shared by signature
+    elaboration, specification formation and fact substitution. A mathematical
+    definition owns a checked dependent telescope and transparent term; it is
+    never an executable machine, a runtime result occurrence or a purity claim.
+    */
+
     pub(crate) mod fixed_core_vocabulary {
         use symbols::{FixedCoreDeclaration, SymbolHandle, SymbolTable};
         use typed_trees::name::Identifier;
@@ -1587,6 +1594,8 @@ pub mod mathematical_applications {
             Type,
             Strict,
             Squash,
+            /// The sealed dependent identity relation.
+            Identity,
         }
 
         impl FixedCore {
@@ -1596,6 +1605,7 @@ pub mod mathematical_applications {
                     Self::Type => "core::Type",
                     Self::Strict => "core::Strict",
                     Self::Squash => "core::Squash",
+                    Self::Identity => "core::Identity",
                 }
             }
 
@@ -1605,7 +1615,7 @@ pub mod mathematical_applications {
                 match self {
                     Self::Type => Some(proof_admission::Sort::Type),
                     Self::Strict => Some(proof_admission::Sort::Strict),
-                    Self::Level | Self::Squash => None,
+                    Self::Level | Self::Squash | Self::Identity => None,
                 }
             }
 
@@ -1615,6 +1625,7 @@ pub mod mathematical_applications {
                     Self::Type => FixedCoreDeclaration::Type,
                     Self::Strict => FixedCoreDeclaration::Strict,
                     Self::Squash => FixedCoreDeclaration::Squash,
+                    Self::Identity => FixedCoreDeclaration::Identity,
                 }
             }
         }
@@ -1624,6 +1635,7 @@ pub mod mathematical_applications {
             ty: SymbolHandle,
             strict: SymbolHandle,
             squash: SymbolHandle,
+            identity: SymbolHandle,
         }
 
         impl FixedCoreVocabulary {
@@ -1638,6 +1650,7 @@ pub mod mathematical_applications {
                     ty: find(FixedCore::Type),
                     strict: find(FixedCore::Strict),
                     squash: find(FixedCore::Squash),
+                    identity: find(FixedCore::Identity),
                 }
             }
 
@@ -1655,6 +1668,9 @@ pub mod mathematical_applications {
                     if symbol == self.squash {
                         return Some(FixedCore::Squash);
                     }
+                    if symbol == self.identity {
+                        return Some(FixedCore::Identity);
+                    }
                     return None;
                 }
                 FIXED_CORE_FALLBACK
@@ -1671,7 +1687,140 @@ pub mod mathematical_applications {
             (FixedCore::Squash, FixedCore::Squash.name()),
         ];
     }
+    mod identity {
+        /*
+        The sealed identity declaration retains its carrier and exact source subjects.
+
+        This view forms a statement; it grants neither a witness nor a value law.
+        Source elaboration checks its kernel Id, and consumers retain the same
+        selected declaration instead of recognizing a call's displayed spelling.
+        */
+
+        use symbols::FixedCoreDeclaration;
+        use typed_trees::expression::{ExpressionHandle, TableCallExpression};
+        use typed_trees::types::TypeReferenceHandle;
+
+        #[derive(Clone, Copy)]
+        pub struct IdentityApplication {
+            pub carrier: TypeReferenceHandle,
+            pub subjects: [ExpressionHandle; 2],
+        }
+
+        /// Read a direct declaration use or its emitted checked value after ordinary
+        /// transparent application. Only the authenticated Id row supplies meaning;
+        /// the source occurrences come from that application's exact capture roster.
+        pub fn identity_application_at(
+            program: &dyn crate::CheckingInput,
+            expression: ExpressionHandle,
+        ) -> Result<IdentityApplication, &'static str> {
+            if let Some(call) = program.expression_table.call_node(expression)
+                && is_identity_call(program, call)
+            {
+                return identity_application(program, call);
+            }
+            let view = program
+                .prepared_mathematics()
+                .ok_or("identity has no checked mathematical view")?;
+            let application = view
+                .application(expression)
+                .ok_or("expression has no checked mathematical application")?;
+            let term = match view.arena.get(application.term) {
+                proof_admission::Term::Squash { ty } => ty,
+                _ => application.term,
+            };
+            let (identity, subjects) = view
+                .identity_value(application, term, 0)
+                .ok_or("expression does not emit an authenticated typed Id")?;
+            let captures = view
+                .applications
+                .captures
+                .span_or_empty(application.captures);
+            let capture = |term| {
+                let proof_admission::Term::Variable(index) = view.arena.get(term) else {
+                    return Err("canonical content Id subject has no retained source capture");
+                };
+                let position = captures
+                    .len()
+                    .checked_sub(index as usize + 1)
+                    .ok_or("canonical content Id subject is outside its capture telescope")?;
+                let value = &captures[position];
+                if identity.type_identity != program.normalized_type_identity(value.source_type) {
+                    return Err("canonical content Id subject lost its exact source carrier");
+                }
+                Ok(value)
+            };
+            let left = capture(subjects[0])?;
+            let right = capture(subjects[1])?;
+            Ok(IdentityApplication {
+                carrier: left.source_type,
+                subjects: [left.expression, right.expression],
+            })
+        }
+
+        pub fn is_identity_call(
+            program: &dyn crate::CheckingInput,
+            call: &TableCallExpression,
+        ) -> bool {
+            call.target_symbol.is_valid()
+                && program
+                    .symbols
+                    .fixed_core_declaration_symbol(FixedCoreDeclaration::Identity)
+                    == Some(call.target_symbol)
+        }
+
+        pub fn identity_application(
+            program: &dyn crate::CheckingInput,
+            call: &TableCallExpression,
+        ) -> Result<IdentityApplication, &'static str> {
+            if !is_identity_call(program, call) {
+                return Err("identity requires the sealed core declaration");
+            }
+            if call.receiver.is_valid()
+                || call.static_machine_parameter.is_valid()
+                || !call.selects_only_nominal_route()
+                || !call.evidence_arguments.is_empty()
+                || call.operational_acknowledgement.acknowledges_suspend
+                || call.operational_acknowledgement.acknowledges_block
+            {
+                return Err(
+                    "core::Identity cannot carry a receiver, machine, evidence or operational argument",
+                );
+            }
+            let [argument] = call.machine_arguments.as_ref() else {
+                return Err("core::Identity requires exactly one type argument");
+            };
+            if argument.const_literal.is_some() || argument.evidence_projection.is_some() {
+                return Err("core::Identity requires a type, not a value or evidence argument");
+            }
+            let carrier = if argument.type_reference.is_valid() {
+                argument.type_reference
+            } else if argument.symbol.is_valid() {
+                program
+                    .type_reference_table
+                    .find_named_type_reference(argument.symbol)
+                    .ok_or("core::Identity type argument has no retained type")?
+            } else {
+                return Err("core::Identity type argument is unresolved");
+            };
+            if !program
+                .type_reference_table
+                .contains_type_reference(carrier)
+            {
+                return Err("core::Identity type argument is unavailable");
+            }
+            let [left, right] = program.expression_table.expression_handles(call.arguments) else {
+                return Err("core::Identity requires exactly two subjects");
+            };
+            Ok(IdentityApplication {
+                carrier,
+                subjects: [*left, *right],
+            })
+        }
+    }
     pub use fixed_core_vocabulary::{FixedCore, FixedCoreVocabulary};
+    pub use identity::{
+        IdentityApplication, identity_application, identity_application_at, is_identity_call,
+    };
     use typed_trees::type_identity::TypeIdentityRequest;
     pub(crate) mod static_arguments {
         use super::{FixedCore, FixedCoreVocabulary};
@@ -2186,7 +2335,7 @@ pub mod mathematical_applications {
                         matches!(fact, ProofFact::Expression(expression) if *expression == theorem.expression)
                     })
             })
-    })
+            })
         }
 
         fn logical_carrier(
@@ -2469,7 +2618,7 @@ pub mod mathematical_applications {
                 || erased_evidence_initializer(program, state, member.receiver)
         }
         _ => true,
-    };
+            };
             if !admitted {
                 return false;
             }
@@ -2640,6 +2789,7 @@ pub mod mathematical_applications {
         #[derive(Debug, Default)]
         pub struct PreparedMathematicalApplications {
             pub applications: Arena<PreparedApplication>,
+            pub identity_values: Arena<PreparedIdentityValue>,
             pub captures: Arena<PreparedCapture>,
             pub constants: Arena<PreparedConstant>,
             pub source_evidence: Arena<PreparedSourceEvidence>,
@@ -2651,6 +2801,7 @@ pub mod mathematical_applications {
 
         #[derive(Debug, Default)]
         pub struct PreparedIndexedTheorem {
+            pub level_arity: u32,
             pub machine: SymbolHandle,
             pub expression: ExpressionHandle,
             pub ensure_ordinal: u32,
@@ -2672,6 +2823,7 @@ pub mod mathematical_applications {
 
         #[derive(Debug, Default, Clone)]
         pub struct PreparedSourceConstructor {
+            pub level_arity: u32,
             pub expression: ExpressionHandle,
             pub constructor: ExpressionHandle,
             pub source_type: TypeReferenceHandle,
@@ -2686,6 +2838,7 @@ pub mod mathematical_applications {
 
         #[derive(Debug, Default)]
         pub struct PreparedSourceCarrier {
+            pub level_arity: u32,
             pub source_type: TypeReferenceHandle,
             pub type_identity: typed_trees::type_identity::TypeIdentityId,
             pub ty: TermHandle,
@@ -2694,9 +2847,14 @@ pub mod mathematical_applications {
 
         #[derive(Debug, Default)]
         pub struct PreparedApplication {
+            pub level_arity: u32,
             pub expression: ExpressionHandle,
+            pub owner: SymbolHandle,
             pub term: TermHandle,
+            pub ty: TermHandle,
+            pub domains: Vec<TermHandle>,
             pub captures: HandleSpan<PreparedCapture>,
+            pub identity_values: HandleSpan<PreparedIdentityValue>,
         }
 
         #[derive(Debug, Default)]
@@ -2705,16 +2863,56 @@ pub mod mathematical_applications {
             pub source_type: TypeReferenceHandle,
         }
 
+        /// Exact source carrier carried by one emitted checked identity value.
+        #[derive(Debug, Default)]
+        pub struct PreparedIdentityValue {
+            pub term: TermHandle,
+            pub ty: TermHandle,
+            pub type_identity: typed_trees::type_identity::TypeIdentityId,
+        }
+
         #[derive(Debug, Default)]
         pub struct PreparedConstant {
             pub declaration: u32,
             pub meaning: PreparedConstantMeaning,
         }
 
+        /// One position in an opaque source value's checked dependency telescope.
+        /// Type positions remain present even when they have no structural value.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum PreparedSourceBindingKind {
+            Type,
+            Value,
+        }
+
+        #[derive(Debug, Clone)]
+        pub struct PreparedSourceBinding {
+            /// Original domain identity fences reuse across separately prepared scopes.
+            pub source_domain: TermHandle,
+            /// The same domain rebound over this dependency telescope's prefix.
+            pub domain: TermHandle,
+            pub kind: PreparedSourceBindingKind,
+            pub symbol: SymbolHandle,
+            pub source_type: TypeReferenceHandle,
+            pub expressions: Vec<ExpressionHandle>,
+        }
+
+        impl PreparedSourceBinding {
+            pub fn same_source_binding(&self, other: &Self) -> bool {
+                self.kind == other.kind
+                    && self.source_domain == other.source_domain
+                    && self.symbol == other.symbol
+                    && self.source_type == other.source_type
+                    && self.expressions == other.expressions
+            }
+        }
+
         #[derive(Debug, Default)]
         pub enum PreparedConstantMeaning {
             #[default]
             Opaque,
+            /// Authenticated transparent definition whose body is kernel Id.
+            Identity,
             Integer(BigInt),
             Boolean(bool),
             IntegerCarrier,
@@ -2739,7 +2937,9 @@ pub mod mathematical_applications {
             },
             SourceOperation {
                 expression: ExpressionHandle,
+                owner: SymbolHandle,
                 source_type: TypeReferenceHandle,
+                bindings: Vec<PreparedSourceBinding>,
             },
         }
 
@@ -2793,6 +2993,44 @@ pub mod mathematical_applications {
                     .find_map(|(_, application)| {
                         (application.expression == expression).then_some(application)
                     })
+            }
+
+            /// Read the checked value emitted by the sealed declaration, including
+            /// through transparent mathematical application and capture substitution.
+            pub fn identity_value(
+                self,
+                application: &PreparedApplication,
+                term: TermHandle,
+                inserted_binders: u32,
+            ) -> Option<(&'program PreparedIdentityValue, [TermHandle; 2])> {
+                let (declaration, arguments) = application_spine(self, term)?;
+                if !matches!(
+                    self.constant(declaration)?,
+                    PreparedConstantMeaning::Identity
+                ) {
+                    return None;
+                }
+                let [_ty, left, right] = arguments.as_slice() else {
+                    return None;
+                };
+                let mut matches = self
+                    .applications
+                    .identity_values
+                    .span_or_empty(application.identity_values)
+                    .iter()
+                    .filter(|row| {
+                        row.type_identity.is_valid()
+                            && self.arena.structurally_equal_shifted(
+                                row.term,
+                                term,
+                                inserted_binders,
+                            )
+                    });
+                let carrier = matches.next()?;
+                if matches.any(|other| other.type_identity != carrier.type_identity) {
+                    return None;
+                }
+                Some((carrier, [*left, *right]))
             }
 
             pub fn constant(self, declaration: u32) -> Option<&'program PreparedConstantMeaning> {
@@ -3073,7 +3311,8 @@ pub mod mathematical_applications {
     pub(crate) use prepared::application_spine;
     pub use prepared::{
         PreparedApplication, PreparedCapture, PreparedConstant, PreparedConstantMeaning,
-        PreparedIndexedTheorem, PreparedMathematicalApplications, PreparedMathematicalView,
+        PreparedIdentityValue, PreparedIndexedTheorem, PreparedMathematicalApplications,
+        PreparedMathematicalView, PreparedSourceBinding, PreparedSourceBindingKind,
         PreparedSourceCarrier, PreparedSourceConstructor, PreparedSourceEvidence,
         integer_embedding_meaning,
     };
@@ -3085,6 +3324,14 @@ pub mod mathematical_applications {
     };
     use typed_trees::mathematical::{MathematicalDefinition, MathematicalType};
     use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+    /// Mathematical declarations own dependent formation and have no runtime call.
+    pub fn is_mathematical_call(
+        program: &dyn crate::CheckingInput,
+        call: &TableCallExpression,
+    ) -> bool {
+        is_identity_call(program, call) || selected_definition(program, call).is_some()
+    }
 
     pub fn selected_definition<'program>(
         program: &'program dyn crate::CheckingInput,
@@ -3133,9 +3380,24 @@ pub mod mathematical_applications {
                 _ => None,
             })
             .unwrap_or_else(|| program.symbols.root());
+        operand_type_reference_in_declaration(program, owner, expression)
+    }
+
+    /// Read an operand under its retained declaration telescope. Sibling trait
+    /// operations and applied signatures can return types that belong to that
+    /// exact owner; a context-free call query cannot export those local binders.
+    pub fn operand_type_reference_in_declaration(
+        program: &dyn crate::CheckingInput,
+        owner: SymbolHandle,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        if !program.expression_table.expression_is_valid(expression) {
+            return None;
+        }
         crate::value_custody::expression_types::declaration_expression_result_type_reference(
             program,
             owner,
+            None,
             &|expression| match program.expression_table.expression(expression) {
                 ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
                     crate::proof_contracts::proof_embeddings::expression_type_reference(
@@ -3162,6 +3424,36 @@ pub mod mathematical_applications {
         }
     }
 
+    /// Complete ordinary receiving types of a mathematical call's value slots.
+    /// These are formation inputs, not evidence that an actual inhabits its type.
+    pub fn argument_type_references(
+        program: &dyn crate::CheckingInput,
+        call: &TableCallExpression,
+    ) -> Option<Vec<Option<TypeReferenceHandle>>> {
+        if is_identity_call(program, call) {
+            let application = identity_application(program, call).ok()?;
+            return Some(vec![Some(application.carrier); 2]);
+        }
+        let definition = selected_definition(program, call)?;
+        let parameters = program.mathematical_parameters(definition.parameters);
+        (parameters.len() == call.arguments.len()).then_some(())?;
+        Some(
+            parameters
+                .iter()
+                .map(|parameter| match program.mathematical_type(parameter.ty) {
+                    MathematicalType::Ordinary(reference) => {
+                        applied_result_reference(program, definition, call, *reference)
+                    }
+                    _ => None,
+                })
+                .collect(),
+        )
+    }
+
+    /// Read the selected source telescope, independently of the caller's value
+    /// operands. The mathematical application checker owns argument validity and
+    /// universe inference; this projection only finds an existing ordinary result
+    /// reference. Inserted actual references keep their supplying scope.
     fn applied_result_reference(
         program: &dyn crate::CheckingInput,
         definition: &MathematicalDefinition,

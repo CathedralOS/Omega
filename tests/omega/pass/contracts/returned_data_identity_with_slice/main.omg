@@ -12,11 +12,11 @@ FloatingEquality satisfies Equatable<Floating> {
 }
 
 machine through_field<'buffer>(incoming: Packet<'buffer>) -> Slot<'buffer>
-ensures result.answer == incoming
+ensures core::Identity<Packet<'buffer>>(result.answer, incoming)
 { Slot { before: 83u8, answer: incoming, after: 89u8 } }
 
 machine forward_float(incoming: Floating) -> Floating
-ensures result == incoming
+ensures core::Identity<Floating>(result, incoming)
 { incoming }
 
 machine observe<'buffer>(output: &'buffer mut [u8]) -> bool {

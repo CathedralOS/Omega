@@ -3,6 +3,7 @@
 // Numeric custody model only; no physical backing or access is granted.
 use omega::language::core::content;
 use omega::language::core::drop;
+use omega::language::core::nat;
 data Region [linear] dropped by drop_region { base: u64; length: u64; }
 domain Region::First established by issue;
 domain Region::Second established by issue;
@@ -24,8 +25,14 @@ data Parts { left: Region in First & Second; right: Region in First & Second; }
 machine partition(whole: Region in First, requested: u64) -> Parts
 requires whole.base == 10 && whole.length == 48 && requested == 16
 ensures
-    First::content(old(&whole)) == separate(First::content(&result.left), First::content(&result.right)),
-    Second::content(old(&whole)) == separate(Second::content(&result.left), Second::content(&result.right))
+    core::Identity<IntervalSet<Nat>>(
+        First::content(old(&whole)),
+        separate(First::content(&result.left), First::content(&result.right))
+    ),
+    core::Identity<IntervalSet<Nat>>(
+        Second::content(old(&whole)),
+        separate(Second::content(&result.left), Second::content(&result.right))
+    )
 {
     let { base, length } = whole;
     Parts { left: Region { base: base, length: requested },

@@ -3854,7 +3854,16 @@ mod denotation {
         pub(super) atoms: BTreeMap<Proposition, u32>,
         pub(super) carriers: BTreeMap<ScalarType, u32>,
         pub(super) terms: BTreeMap<ScalarTerm, u32>,
-        pub(super) content_carriers: BTreeMap<ContentAlgebra, u32>,
+        /// Content algebra → its `Type 0` carrier application. Each
+        /// algebra's conservation equations denote `Id` over their own
+        /// carrier, so identities in different algebras can never compose.
+        pub(super) content_carriers: BTreeMap<ContentAlgebra, TermHandle>,
+        content_families: [Option<u32>; 2],
+        content_parameters: BTreeMap<String, u32>,
+        /// `(algebra, content term)` → element assumption position at that
+        /// algebra's carrier. The key is the term itself: `ContentTerm`'s
+        /// constructors already normalize ordering and nesting, so
+        /// syntactic identity is the algebra's own canonical form.
         pub(super) content_terms: BTreeMap<(ContentAlgebra, ContentTerm), u32>,
         pub(super) integer: Option<u32>,
         pub(super) integer_less_than: Option<u32>,
@@ -4409,6 +4418,8 @@ mod denotation {
                 carriers: BTreeMap::new(),
                 terms: BTreeMap::new(),
                 content_carriers: BTreeMap::new(),
+                content_families: [None, None],
+                content_parameters: BTreeMap::new(),
                 content_terms: BTreeMap::new(),
                 integer: None,
                 integer_less_than: None,
@@ -4507,16 +4518,64 @@ mod denotation {
             Ok(self.constant(position))
         }
 
+        /// The `Type 0` carrier one closed content algebra denotes: its canonical
+        /// family applied to the exact parameter. Conservation equations are
+        /// identities over this carrier, interned once per algebra.
         pub(super) fn content_carrier(
             &mut self,
             algebra: &ContentAlgebra,
         ) -> Result<TermHandle, BoundedDenotationError> {
+            if let Some(carrier) = self.content_carriers.get(algebra) {
+                return Ok(*carrier);
+            }
             let position = self.interned_keyed_assumption(
-                |this| &mut this.content_carriers,
-                algebra.clone(),
+                |this| &mut this.content_parameters,
+                algebra.parameter.clone(),
                 |this| Ok(this.type_zero),
             )?;
-            Ok(self.constant(position))
+            let parameter = self.constant(position);
+            let carrier = self.content_carrier_at(algebra.kind, parameter, Level::Constant(0))?;
+            self.content_carriers.insert(algebra.clone(), carrier);
+            Ok(carrier)
+        }
+
+        /// The canonical algebra family is small; its type parameter is an outer
+        /// argument, rather than a stored literal field. Its exact checked level
+        /// remains on the application, including under source Pi substitution.
+        pub(super) fn content_carrier_at(
+            &mut self,
+            kind: semantic_vocabulary::ContentAlgebraKind,
+            parameter: TermHandle,
+            level: Level,
+        ) -> Result<TermHandle, BoundedDenotationError> {
+            let slot = match kind {
+                semantic_vocabulary::ContentAlgebraKind::IntervalSet => 0,
+                semantic_vocabulary::ContentAlgebraKind::CountedQuantity => 1,
+            };
+            let declaration = match self.content_families[slot] {
+                Some(declaration) => declaration,
+                None => {
+                    let domain = self
+                        .arena
+                        .insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+                    let ty = self.arena.insert(Term::Pi {
+                        domain,
+                        codomain: self.type_zero,
+                    });
+                    let declaration = self.position()?;
+                    self.declarations.push(Declaration::assumption(1, ty));
+                    self.content_families[slot] = Some(declaration);
+                    declaration
+                }
+            };
+            let function = self.arena.insert(Term::Constant {
+                declaration,
+                levels: vec![level],
+            });
+            Ok(self.arena.insert(Term::Apply {
+                function,
+                argument: parameter,
+            }))
         }
 
         pub(super) fn content_term(
@@ -6836,7 +6895,7 @@ mod equality_transport {
                 .map(|(index, conclusion)| proof_node!(conclusion.clone() => ProofRule::SemanticAxiom { index }))
                 .collect(),
         },
-    };
+            };
             let parameters = BTreeSet::new();
             let mut elaboration =
                 Elaboration::new(&context, &goal, &assumptions, &axioms, &parameters).unwrap();
@@ -6912,7 +6971,7 @@ mod equality_transport {
                 .map(|(index, conclusion)| proof_node!(conclusion.clone() => ProofRule::SemanticAxiom { index }))
                 .collect(),
         },
-    };
+            };
             let assumptions = [premise];
             let parameters = BTreeSet::new();
             let mut elaboration =
@@ -6989,9 +7048,9 @@ mod equality_transport {
                 "the search does not invent a decision axiom"
             );
         }
-    })
-    .join()
-    .expect("oriented evidence construction stays on a default stack");
+            })
+            .join()
+            .expect("oriented evidence construction stays on a default stack");
         }
 
         #[test]
@@ -10875,7 +10934,7 @@ mod integer_operations {
             _ => return None,
         }
     };
-}
+    }
 
     struct IntegerApplication<'source> {
         operation: IntegerOperation,
@@ -12173,6 +12232,150 @@ mod order_translation {
         }
     }
 }
+mod source_content {
+    /*
+    Source content values use the same opaque canonical algebra carriers as
+    checked content derivations. A carrier declaration forms values and Id
+    statements; it grants no conservation theorem or resource authority.
+    */
+
+    use super::{BoundedDenotationError, Denotation};
+    use crate::mathematical_core::{Declaration, Level, TermArena, TermHandle};
+    use semantic_vocabulary::ContentAlgebraKind;
+
+    /// One arena's append-only content vocabulary. Stored handles belong to that
+    /// arena/signature pair, just as they do in SourceIntegerTheory.
+    pub struct SourceContentTheory {
+        state: Denotation,
+    }
+
+    impl SourceContentTheory {
+        pub fn new(arena: &mut TermArena, declarations: &mut Vec<Declaration>) -> Self {
+            let mut state = Denotation::new_in(std::mem::take(arena), std::mem::take(declarations));
+            std::mem::swap(arena, &mut state.arena);
+            std::mem::swap(declarations, &mut state.declarations);
+            Self { state }
+        }
+
+        pub fn carrier(
+            &mut self,
+            arena: &mut TermArena,
+            declarations: &mut Vec<Declaration>,
+            kind: ContentAlgebraKind,
+            parameter: TermHandle,
+            level: Level,
+        ) -> Result<TermHandle, BoundedDenotationError> {
+            std::mem::swap(arena, &mut self.state.arena);
+            std::mem::swap(declarations, &mut self.state.declarations);
+            let result = self.state.content_carrier_at(kind, parameter, level);
+            std::mem::swap(arena, &mut self.state.arena);
+            std::mem::swap(declarations, &mut self.state.declarations);
+            result
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::{
+            Budget, Context, DEFAULT_CONVERSION_STEPS, Sort, Term, check_signature, check_type,
+            convertible,
+        };
+
+        #[test]
+        fn canonical_content_family_substitutes_its_outer_type_without_storing_it() {
+            let mut arena = TermArena::default();
+            let mut declarations = Vec::new();
+            let mut content = SourceContentTheory::new(&mut arena, &mut declarations);
+            let type_zero = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+            let parameter = arena.insert(Term::Variable(0));
+            let generic = content
+                .carrier(
+                    &mut arena,
+                    &mut declarations,
+                    ContentAlgebraKind::CountedQuantity,
+                    parameter,
+                    Level::Constant(0),
+                )
+                .unwrap();
+            let family = arena.insert(Term::Lambda {
+                domain: type_zero,
+                body: generic,
+            });
+            let two = arena.insert(Term::Two);
+            let applied = arena.insert(Term::Apply {
+                function: family,
+                argument: two,
+            });
+            let concrete = content
+                .carrier(
+                    &mut arena,
+                    &mut declarations,
+                    ContentAlgebraKind::CountedQuantity,
+                    two,
+                    Level::Constant(0),
+                )
+                .unwrap();
+            let higher = content
+                .carrier(
+                    &mut arena,
+                    &mut declarations,
+                    ContentAlgebraKind::CountedQuantity,
+                    type_zero,
+                    Level::Constant(1),
+                )
+                .unwrap();
+            let intervals = content
+                .carrier(
+                    &mut arena,
+                    &mut declarations,
+                    ContentAlgebraKind::IntervalSet,
+                    two,
+                    Level::Constant(0),
+                )
+                .unwrap();
+            let signature = check_signature(
+                &mut arena,
+                &declarations,
+                &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+            )
+            .unwrap();
+            let context = Context::empty().with_signature(signature);
+            for value in [applied, concrete, higher, intervals] {
+                check_type(
+                    &mut arena,
+                    &context,
+                    value,
+                    type_zero,
+                    &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                )
+                .unwrap();
+            }
+            assert!(
+                convertible(
+                    &mut arena,
+                    &context,
+                    applied,
+                    concrete,
+                    type_zero,
+                    &mut Budget::new(DEFAULT_CONVERSION_STEPS)
+                )
+                .unwrap()
+            );
+            assert!(
+                !convertible(
+                    &mut arena,
+                    &context,
+                    concrete,
+                    intervals,
+                    type_zero,
+                    &mut Budget::new(DEFAULT_CONVERSION_STEPS)
+                )
+                .unwrap()
+            );
+        }
+    }
+}
 mod source_integer {
     use super::{BoundedDenotationError, Denotation};
     use crate::mathematical_core::{Declaration, TermArena, TermHandle};
@@ -13193,6 +13396,7 @@ mod source_integer {
         }
     }
 }
+pub use source_content::SourceContentTheory;
 mod subtraction {
     use std::collections::BTreeMap;
 
@@ -16730,7 +16934,7 @@ mod tests {
             assert_eq!(denotation.arena.len(), before, "invalid arity refuses before allocating a member");
             assert_eq!(denotation.declarations.len(), declarations);
         }
-    }).join().expect("connective denotation and kernel formation use the default stack");
+            }).join().expect("connective denotation and kernel formation use the default stack");
         }
 
         #[test]
@@ -17420,6 +17624,7 @@ mod tests {
     }
     mod content_algebra {
         use super::*;
+        use crate::mathematical_core::{Level, Sort};
         use crate::proof_node;
 
         fn content_algebra() -> ContentAlgebra {
@@ -17467,6 +17672,34 @@ mod tests {
             ))
         }
 
+        fn assert_content_carrier_vocabulary(denoted: &BoundedDenotation) {
+            let parameter = &denoted.certificate.signature[0];
+            assert_eq!(parameter.level_arity, 0);
+            assert!(parameter.is_assumption());
+            assert_eq!(
+                denoted.arena.get(parameter.ty),
+                Term::Sort(Sort::Type(Level::Constant(0)))
+            );
+            let family = &denoted.certificate.signature[1];
+            assert_eq!(family.level_arity, 1);
+            assert!(family.is_assumption());
+            let Term::Pi { domain, codomain } = denoted.arena.get(family.ty) else {
+                panic!("the canonical carrier is an outer type family");
+            };
+            assert_eq!(
+                denoted.arena.get(domain),
+                Term::Sort(Sort::Type(Level::Parameter(0)))
+            );
+            assert_eq!(
+                denoted.arena.get(codomain),
+                Term::Sort(Sort::Type(Level::Constant(0)))
+            );
+        }
+
+        /// `ContentConservation` denotes `Id` over its algebra's carrier, so
+        /// its transitivity rule is a `J` composition the kernel re-decides
+        /// in every shared-endpoint orientation the bounded relation check
+        /// licenses — never an interned rule axiom.
         #[test]
         fn content_conservation_transitivity_is_a_j_composition() {
             let root = content_root();
@@ -17500,7 +17733,11 @@ mod tests {
                 .unwrap_or_else(|error| {
                     panic!("content transitivity {goal_pair:?} verifies as J: {error}")
                 });
-                assert_eq!(denoted.certificate.signature.len(), 4);
+                // `{P, C, a', b', c'}` — the parameter, carrier family and one element
+                // constant per distinct content term; the rule cites no
+                // axiom of its own.
+                assert_content_carrier_vocabulary(&denoted);
+                assert_eq!(denoted.certificate.signature.len(), 5);
                 assert!(
                     denoted
                         .certificate
@@ -17517,7 +17754,7 @@ mod tests {
                 );
                 assert_eq!(
                     certificate_assumption_closure(&denoted.arena, &denoted.certificate),
-                    BTreeSet::from([0, 1, 2, 3]),
+                    BTreeSet::from([0, 1, 2, 3, 4]),
                 );
                 assert_eq!(
                     denoted.rules,
@@ -17543,14 +17780,17 @@ mod tests {
             let denoted =
                 verify_bounded_certificate(&context, &proposition, &[], &[], &proof, &mut budget())
                     .expect("reflexive conservation verifies as refl");
-            assert_eq!(denoted.certificate.signature.len(), 2);
+            // `{P, C, s'}` — the parameter, carrier family and one endpoint;
+            // the evidence is `refl (C P) s'` with no decision assumption.
+            assert_content_carrier_vocabulary(&denoted);
+            assert_eq!(denoted.certificate.signature.len(), 3);
             assert!(matches!(
                 denoted.arena.get(denoted.certificate.term),
                 Term::Refl { .. }
             ));
             assert_eq!(
                 certificate_assumption_closure(&denoted.arena, &denoted.certificate),
-                BTreeSet::from([0, 1]),
+                BTreeSet::from([0, 1, 2]),
             );
         }
 
@@ -17635,14 +17875,16 @@ mod tests {
                 &mut budget(),
             )
             .expect("the original content evidence verifies");
-            assert_eq!(denoted.certificate.signature.len(), 6);
+            // P, C, a', b', Int, m_x and m_z remain; no new rule axiom.
+            assert_content_carrier_vocabulary(&denoted);
+            assert_eq!(denoted.certificate.signature.len(), 7);
             assert_eq!(
                 denoted.arena.get(denoted.certificate.term),
                 Term::Variable(1)
             );
             assert_eq!(
                 certificate_assumption_closure(&denoted.arena, &denoted.certificate),
-                (0..6).collect()
+                (0..7).collect()
             );
             assert!(
                 matches!(

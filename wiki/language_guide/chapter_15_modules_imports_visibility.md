@@ -109,12 +109,20 @@ Provider-owned confidential state can remain behind a checked handle. Changing
 public structure changes the source interface; binary replacement additionally
 uses [component contracts](../spec/build/component_publication.md).
 
-There are no private fields. A representation that must stay replaceable is
-hidden at the package boundary instead: put the storage type in a package your
-clients do not depend on directly and export operations over it. Clients can
-hold, move, borrow and store the value but cannot select its fields, cases or
-conformances, so renaming or reorganizing the storage changes no client. The
-next section shows the client side.
+There are no private fields, and you do not need them to keep a representation
+replaceable. In one package, the access plan is the abstraction: it names the
+operations that may establish, read and write the governed value, so every
+other machine, inside the package or out, goes through those operations. A
+client that uses only the operations keeps compiling and verifying when you
+reorganize the fields; it is rebuilt, not edited. A client that names a field
+has chosen to depend on it, exactly as it would by depending on a public
+function. The shape stays visible because data is data, and because the access
+plan already says precisely who may touch it.
+
+If you also want to deny selecting the fields at all, that is a package
+boundary: a type carried from a package the client does not depend on directly
+can be held, moved, borrowed and stored, but its fields, cases and conformances
+cannot be selected. The next section shows the client side.
 
 ## Use a type returned by a dependency
 

@@ -3157,6 +3157,7 @@ mod runtime_indices {
                                 .iter()
                                 .any(|(_, carrier)| {
                                     carrier.domains.is_empty()
+                                        && carrier.level_arity == 0
                                         && carrier.type_identity == evidence.type_identity
                                         && carrier.ty == evidence.ty
                                 })
@@ -9496,7 +9497,6 @@ mod crashes {
             use super::{CrashPredicateIdentity, ExpressionHandle};
             pub(super) struct Consequences<'a> {
                 program: &'a dyn ::validation::CheckingInput,
-                parameters: &'a [typed_trees::signature::StateParameter],
                 parameter_names: &'a [String],
                 content_conservation: &'a [validation::ContentConservationSourcePlan],
                 integer_types: &'a super::super::IntegerTypeClassification,
@@ -9506,14 +9506,12 @@ mod crashes {
             impl<'a> Consequences<'a> {
                 pub(super) fn new(
                     program: &'a dyn ::validation::CheckingInput,
-                    parameters: &'a [typed_trees::signature::StateParameter],
                     parameter_names: &'a [String],
                     content_conservation: &'a [validation::ContentConservationSourcePlan],
                     integer_types: &'a super::super::IntegerTypeClassification,
                 ) -> Self {
                     Self {
                         program,
-                        parameters,
                         parameter_names,
                         content_conservation,
                         integer_types,
@@ -9543,7 +9541,6 @@ mod crashes {
                         self.program,
                         expression,
                         negated,
-                        self.parameters,
                         self.parameter_names,
                         self.content_conservation,
                     )
@@ -9650,9 +9647,9 @@ mod crashes {
             let Some(entry) = program.machine_states(machine).first() else {
                 return result;
             };
+            let entry_predicates = validation::EntryPredicateObservations::new(program, machine);
             let mut common = consequences::Consequences::new(
                 program,
-                program.state_parameters(entry),
                 parameter_names,
                 content_conservation,
                 integer_types,
@@ -9672,6 +9669,7 @@ mod crashes {
                         machine,
                         operators,
                         parameter_names,
+                        &entry_predicates,
                         *expression,
                     ) {
                         continue;
@@ -9680,7 +9678,6 @@ mod crashes {
                         program,
                         *expression,
                         false,
-                        program.state_parameters(entry),
                         parameter_names,
                         content_conservation,
                     ));
@@ -9701,22 +9698,29 @@ mod crashes {
                     let Some(expression) = fact.as_expression() else {
                         continue;
                     };
-                    if !has_exact_entry_meaning(
-                        program,
-                        machine,
-                        operators,
-                        parameter_names,
-                        *expression,
-                    ) {
+                    // Mathematical predicates use the same formed-value judgment as
+                    // other contracts. Scalar entry syntax remains independently strict.
+                    let proved = entry_predicates.proves_crash_condition(*expression);
+                    if !proved
+                        && !has_exact_entry_meaning(
+                            program,
+                            machine,
+                            operators,
+                            parameter_names,
+                            &entry_predicates,
+                            *expression,
+                        )
+                    {
                         continue;
                     }
-                    if common.establishes(*expression, false, &result.consequences, 0) == Some(true)
+                    if proved
+                        || common.establishes(*expression, false, &result.consequences, 0)
+                            == Some(true)
                     {
                         result.consequences.push(canonical_crash_contract_predicate(
                             program,
                             *expression,
                             false,
-                            program.state_parameters(entry),
                             parameter_names,
                             content_conservation,
                         ));
@@ -9737,28 +9741,32 @@ mod crashes {
             machine: &Machine,
             operators: &CheckedOperatorFacts,
             parameter_names: &[String],
+            entry_predicates: &validation::EntryPredicateObservations<'_>,
             expression: ExpressionHandle,
         ) -> bool {
-            if lower_machine_entry_crash_contract_expression(
-                program,
-                operators,
-                machine,
-                expression,
-                &[],
-            )
-            .is_none()
-            {
-                return false;
-            }
             let Some(entry) = program.machine_states(machine).first() else {
                 return false;
             };
             let parameters = program.state_parameters(entry);
-            parameter_names.len() == parameters.len()
-                && parameter_names
+            if parameter_names.len() != parameters.len()
+                || !parameter_names
                     .iter()
                     .zip(parameters)
                     .all(|(name, parameter)| name == parameter.name.as_str())
+            {
+                return false;
+            }
+            let scalar = |expression| {
+                lower_machine_entry_crash_contract_expression(
+                    program,
+                    operators,
+                    machine,
+                    expression,
+                    &[],
+                )
+                .is_some()
+            };
+            scalar(expression) || entry_predicates.has_formed_identity_predicate(expression, scalar)
         }
     }
     mod operation_sites {

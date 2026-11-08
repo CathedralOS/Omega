@@ -2,6 +2,7 @@
 // with interval conservation, without granting address identity or backing.
 use omega::language::core::content;
 use omega::language::core::drop;
+use omega::language::core::nat;
 data Region [linear] dropped by drop_region { remaining: u64; }
 machine drop_region(region: &mut Region) {}
 domain Region::Owned;
@@ -12,8 +13,11 @@ satisfies Content<Region, CountedQuantity<Nat>>::project {
 data Pieces { left: Region in Owned; right: Region in Owned; }
 machine split(whole: Region in Owned, length: u64) -> Pieces
 requires length <= whole.remaining
-ensures Owned::content(old(&whole)) == separate(
-    Owned::content(&result.left), Owned::content(&result.right))
+ensures core::Identity<CountedQuantity<Nat>>(
+    Owned::content(old(&whole)),
+    separate(
+        Owned::content(&result.left), Owned::content(&result.right))
+)
 {
     let left: Region in Owned = Region { remaining: length };
     let right: Region in Owned = Region { remaining: whole.remaining };

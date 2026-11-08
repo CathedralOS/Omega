@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 252`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 253`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -4043,7 +4043,12 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-pub(crate) const FORMAT_MARKER: u16 = 252;
+// Marker 253 combines checked Id formations with installed interrupt
+// registrations and execution kinds, retaining input/result lifetimes, provider
+// application roles, target case-tag geometry, lifecycle target inputs and
+// separate source/destination relocation requirements. Both independently
+// extended 252 layouts, and all earlier layouts, are incompatible.
+pub(crate) const FORMAT_MARKER: u16 = 253;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4102,6 +4107,10 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(&module)?;
     validate_structural_foundation(&module)?;
+    crate::identity_formations::validate_identity_formations(
+        &module,
+        &mut proof_admission::Budget::default(),
+    )?;
     dynamic_result_admission::validate_dynamic_descriptor_results(&module)?;
     let canonical = encode_raw(&module)?;
     if canonical != bytes {
@@ -4864,6 +4873,30 @@ mod descriptor_operation_tests {
                 result.scalar_type = unsigned(8);
             }
             assert!(refusal(&result).contains("exact unsigned result"));
+        }
+    }
+}
+
+#[cfg(test)]
+mod format_marker_tests {
+    use super::*;
+
+    #[test]
+    fn legacy_semantic_markers_are_refused_before_payload_interpretation() {
+        // Independent Id and interrupt layouts both used 252 (and earlier
+        // independent Id and relocation layouts both used 251).
+        // Neither body may be interpreted as the combined layout, regardless
+        // of which payload follows their shared legacy marker.
+        for legacy in [250u16, 251, 252] {
+            for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
+                let mut bytes = MAGIC.to_vec();
+                bytes.extend_from_slice(&legacy.to_le_bytes());
+                bytes.extend_from_slice(payload);
+                assert!(matches!(
+                    decode_module(&bytes),
+                    Err(CodecError::UnsupportedFormatMarker(marker)) if marker == legacy
+                ));
+            }
         }
     }
 }

@@ -7,6 +7,7 @@
 // before its extent can be released.
 use omega::language::core::extent;
 use omega::language::core::content;
+use omega::language::core::nat;
 
 public data Split {
     taken: Extent in Granted & Vacant;
@@ -17,25 +18,33 @@ public boundary trait ExtentPartition {
     machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
     reaches
     ensures
-        Granted::content(old(&whole))
-        == separate(
-            Granted::content(&result.taken),
-            Granted::content(&result.rest),
+        core::Identity<IntervalSet<Nat>>(
+            Granted::content(old(&whole)),
+            separate(
+                Granted::content(&result.taken),
+                Granted::content(&result.rest),
+            )
         ),
-        Vacant::content(old(&whole))
-        == separate(Vacant::content(&result.taken), Vacant::content(&result.rest));
+        core::Identity<IntervalSet<Nat>>(
+            Vacant::content(old(&whole)),
+            separate(Vacant::content(&result.taken), Vacant::content(&result.rest))
+        );
 
     machine merge(parts: Split) -> Extent
     reaches
     ensures
         result in Granted & Vacant,
-        separate(
-            Granted::content(old(&parts.taken)),
-            Granted::content(old(&parts.rest)),
-        )
-        == Granted::content(&result),
-        separate(Vacant::content(old(&parts.taken)), Vacant::content(old(&parts.rest)))
-        == Vacant::content(&result);
+        core::Identity<IntervalSet<Nat>>(
+            separate(
+                Granted::content(old(&parts.taken)),
+                Granted::content(old(&parts.rest)),
+            ),
+            Granted::content(&result)
+        ),
+        core::Identity<IntervalSet<Nat>>(
+            separate(Vacant::content(old(&parts.taken)), Vacant::content(old(&parts.rest))),
+            Vacant::content(&result)
+        );
 }
 
 data Bump {
@@ -62,7 +71,10 @@ public boundary trait ResidentStorage {
     machine place(storage: Extent in Granted & Vacant, value: Slot) -> Occupied
     reaches
     ensures
-        Granted::content(old(&storage)) == Granted::content(&result.storage);
+        core::Identity<IntervalSet<Nat>>(
+            Granted::content(old(&storage)),
+            Granted::content(&result.storage)
+        );
 }
 
 machine allocate(strategy: Bump, length: u64) -> Issued

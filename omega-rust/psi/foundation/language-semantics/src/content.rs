@@ -13,6 +13,23 @@ pub enum ContentAlgebraIdentity {
     CountedQuantity { unit: String },
 }
 
+impl ContentAlgebraIdentity {
+    /// One canonical algebra for source formation and Terminal denotation.
+    pub fn canonical_algebra(&self) -> semantic_vocabulary::ContentAlgebra {
+        use semantic_vocabulary::{ContentAlgebra, ContentAlgebraKind};
+        match self {
+            Self::IntervalSet { coordinate_space } => ContentAlgebra {
+                kind: ContentAlgebraKind::IntervalSet,
+                parameter: coordinate_space.clone(),
+            },
+            Self::CountedQuantity { unit } => ContentAlgebra {
+                kind: ContentAlgebraKind::CountedQuantity,
+                parameter: unit.clone(),
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentFieldSegment {
     pub symbol: SymbolHandle,

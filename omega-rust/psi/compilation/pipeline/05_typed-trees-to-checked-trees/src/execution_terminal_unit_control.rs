@@ -5648,7 +5648,6 @@ pub(in crate::execution::terminal_unit) mod scalar_arrays {
         validation::scalar_array_preserves_memberships(program, expected).then_some(expected)
     }
 }
-#[path = "execution_terminal_unit_control_statement_sequence.rs"]
 pub(in crate::execution::terminal_unit) mod selected_copies {
     //! Associate selected returns with their completed payload reads once. Both
     //! scalar and structural consumers use the same checked target and copy list.
@@ -5848,6 +5847,7 @@ pub(in crate::execution::terminal_unit) mod selected_copies {
         }
     }
 }
+#[path = "execution_terminal_unit_control_statement_sequence.rs"]
 pub(super) mod statement_sequence;
 pub(super) mod structural_operands {
     /*

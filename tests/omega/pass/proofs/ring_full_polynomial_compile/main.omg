@@ -10,8 +10,7 @@ machine Main::main(main: &mut Main) reaches Console { Console::exit_process(70);
 
 machine four_term_expansion(a: Nat, b: Nat, c: Nat, d: Nat)
 ensures
-    (mul(add(a, b), add(c, d)))
-        == (add(add(mul(a, c), mul(a, d)), add(mul(b, c), mul(b, d))))
+    core::Identity<Nat>((mul(add(a, b), add(c, d))), (add(add(mul(a, c), mul(a, d)), add(mul(b, c), mul(b, d)))))
 {
 }
 

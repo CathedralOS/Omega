@@ -12,15 +12,24 @@ satisfies Content<Region, CountedQuantity<Units>>::project {
 }
 trait Transfer<T> {
     machine transfer(region: Region in Owned) -> Region in Owned
-    ensures Owned::content(old(&region)) == Owned::content(&result);
+    ensures core::Identity<CountedQuantity<Units>>(
+        Owned::content(old(&region)),
+        Owned::content(&result)
+    );
 }
 machine retain(region: Region in Owned) -> Region in Owned
 satisfies Transfer<Payload>::transfer
-ensures Owned::content(old(&region)) == Owned::content(&result)
+ensures core::Identity<CountedQuantity<Units>>(
+    Owned::content(old(&region)),
+    Owned::content(&result)
+)
 { region }
 machine apply<machine Callback>(region: Region in Owned) -> Region in Owned
 requires machine Callback(region: Region in Owned) -> Region in Owned
-    ensures Owned::content(old(&region)) == Owned::content(&result);
+    ensures core::Identity<CountedQuantity<Units>>(
+        Owned::content(old(&region)),
+        Owned::content(&result)
+    );
 { Callback(region) }
 machine main() crashes Trap {
     let original: Region in Owned = Region { amount: 29 };

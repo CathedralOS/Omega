@@ -3208,7 +3208,7 @@ pub mod completed_storage {
             }
             let state = program.state_by_symbol(capture.state_symbol)?;
             if let Some((receiver, mut path)) =
-                owned_observation_projection(program, control, capture, active_statements)?
+                owned_observation_projection(program, control, value, active_statements)?
             {
                 path.extend_from_slice(projection);
                 return Some(vec![(receiver, path)]);
@@ -3241,12 +3241,16 @@ pub mod completed_storage {
         pub fn owned_observation_projection(
             program: &dyn crate::CheckingInput,
             control: &checked_trees::FlowControlFacts,
-            capture: &FlowOperandFact,
+            value: Handle<FlowOperandFact>,
             active_statements: Option<(
                 symbols::SymbolHandle,
                 arena::HandleSpan<FlowStatementFact>,
             )>,
         ) -> Option<Option<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>> {
+            if !control.operands.is_valid(value) {
+                return None;
+            }
+            let capture = control.operands.get(value);
             let Some(member) = program.expression_table.member_node(capture.expression) else {
                 return Some(None);
             };
@@ -3263,13 +3267,32 @@ pub mod completed_storage {
                 .span(statements)?
                 .iter()
                 .find(|statement| statement.statement_index == capture.statement_index)?;
+            // Publishing the member's own facts can extend its constraints after
+            // the receiver was observed. The retained final result identifies that
+            // exact completion without requiring the earlier prefix to equal it.
             let mut observations = control
                 .value_observations
                 .span_or_empty(statement.value_observations)
                 .iter()
                 .filter(|observation| {
                     observation.expression == capture.expression
-                        && observation.constraints == capture.constraints
+                        && observation.evaluation == capture.evaluation
+                        && if observation.result.is_valid() {
+                            observation.result == value
+                                || (capture.value_source == observation.result
+                                    && control.operands.is_valid(observation.result)
+                                    && {
+                                        let source = control.operands.get(observation.result);
+                                        source.state_symbol == capture.state_symbol
+                                            && source.statement_index == capture.statement_index
+                                            && source.evaluation == capture.evaluation
+                                            && source.expression == capture.expression
+                                            && source.storage_snapshot == capture.storage_snapshot
+                                            && source.type_reference == capture.type_reference
+                                    })
+                        } else {
+                            observation.constraints == capture.constraints
+                        }
                 });
             let Some(observation) = observations.next() else {
                 return Some(None);
@@ -3311,7 +3334,215 @@ pub mod completed_storage {
 
         pub(crate) struct MembershipWalk<'observer> {
             visiting: Vec<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>,
+            remaining: usize,
             on_refusal: &'observer mut dyn FnMut(&'static str),
+        }
+
+        /// A completed checked call may return a qualification proved on its raw
+        /// result, even when that qualification is not an authored callee ensures.
+        /// Read every actual normal return; never reintroduce a moved caller input
+        /// or use an earlier callee entry value as its completed result.
+        fn checked_invocation_returns(
+            program: &dyn crate::CheckingInput,
+            facts: &CheckFacts,
+            state: SymbolHandle,
+            call: &checked_trees::FlowCallFact,
+            reference: typed_trees::types::TypeReferenceHandle,
+            path: &[PlaceSegment],
+        ) -> Option<Vec<Handle<FlowOperandFact>>> {
+            let control = &facts.flow.control;
+            let target = crate::call_target_state(program, call.target_symbol)?;
+            let machine = program.machine_holding_state(target.symbol)?;
+            let caller = program.machine_holding_state(state)?;
+            let site = crate::find_call_site(
+                program,
+                caller.symbol,
+                state,
+                call.statement_index,
+                call.call_ordinal,
+            )?;
+            if crate::call_target_entry_symbol(program, site.target_symbol(program))
+                != target.symbol
+                || site.static_machine_parameter().is_valid()
+                || site.static_requirement_dispatch().is_some()
+                || control.call_arguments.span(call.authored_arguments)
+                    != Some(crate::call_site_argument_expressions(program, &site))
+            {
+                return None;
+            }
+            match &site {
+                crate::CallSite::Expression {
+                    expression,
+                    call: source,
+                } => {
+                    if *expression != call.authored_expression
+                        || source.requirement_application.is_valid()
+                    {
+                        return None;
+                    }
+                    // A selected requirement or callable binder cannot expose its
+                    // implementation's stronger private result qualifications.
+                    let (declaration, _) =
+                        crate::authored_call_parameters(program, caller.symbol, &site).ok()?;
+                    program.machine_by_symbol(declaration)?;
+                }
+                crate::CallSite::TransitionNamed { .. } => {
+                    let transition = program
+                        .statement_table
+                        .statement_at(program.state_by_symbol(state)?, call.statement_index)?
+                        .as_transition()?;
+                    if transition.exit != typed_trees::statement::TransitionExit::Ordinary
+                        || !call.authored_closing_invocation
+                        || ![transition.target, transition.continuation]
+                            .into_iter()
+                            .filter(|target| target.is_valid())
+                            .any(|target| site.completes_transition(program, target))
+                    {
+                        return None;
+                    }
+                }
+                crate::CallSite::Statement(_) => return None,
+            }
+            if !call.authored_source_custody_valid
+                || call.static_requirement_dispatch.is_some()
+                || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                || !reference.is_valid()
+                || !target.return_type.is_valid()
+                || program.normalized_type_identity(reference)
+                    != program.normalized_type_identity(target.return_type)
+            {
+                return None;
+            }
+            for length in 0..=path.len() {
+                let selected = crate::project_type_reference_from_segments(
+                    program,
+                    target.return_type,
+                    &path[..length],
+                )?;
+                if crate::reference_shell(program, selected).is_some()
+                    || !crate::borrow_contracts::borrow_carrying_owner_paths(program, selected)?
+                        .is_empty()
+                {
+                    return None;
+                }
+            }
+            let flow = control.unique_state(machine.symbol, target.symbol)?;
+            let mut returned = Vec::new();
+            for outgoing in control.outgoing.span(flow.outgoing)? {
+                if outgoing.cannot_return_normally {
+                    continue;
+                }
+                if outgoing.transition_target.is_valid() {
+                    let transition = program
+                        .statement_table
+                        .statement_at(target, outgoing.statement_index)?
+                        .as_transition()?;
+                    if transition.exit != typed_trees::statement::TransitionExit::Ordinary {
+                        continue;
+                    }
+                }
+                if outgoing.machine_symbol != machine.symbol
+                    || outgoing.state_symbol != target.symbol
+                    || !control.operands.is_valid(outgoing.returned_value)
+                {
+                    return None;
+                }
+                let captured = control.operands.get(outgoing.returned_value);
+                if captured.state_symbol != target.symbol
+                    || captured.statement_index != outgoing.statement_index
+                    || !captured.type_reference.is_valid()
+                    || program.normalized_type_identity(captured.type_reference)
+                        != program.normalized_type_identity(target.return_type)
+                {
+                    return None;
+                }
+                returned.push(outgoing.returned_value);
+            }
+            (!returned.is_empty()).then_some(returned)
+        }
+
+        fn checked_call_returns(
+            program: &dyn crate::CheckingInput,
+            facts: &CheckFacts,
+            value: &FlowOperandFact,
+            path: &[PlaceSegment],
+        ) -> Option<Vec<Handle<FlowOperandFact>>> {
+            let control = &facts.flow.control;
+            let call = if let checked_trees::FlowOperandCompletion::InvocationResult {
+                invocation,
+                result_type,
+                path: prefix,
+            } = value.completion
+            {
+                let flow = control.state_by_symbol(value.state_symbol)?;
+                if !control.calls.is_valid(invocation)
+                    || !flow.calls.handles().any(|handle| handle == invocation)
+                    || !control.operand_retained_paths.span(prefix)?.is_empty()
+                    || !result_type.is_valid()
+                    || program.normalized_type_identity(result_type)
+                        != program.normalized_type_identity(value.type_reference)
+                {
+                    return None;
+                }
+                control.calls.get(invocation)
+            } else {
+                super::versions::unique_call(
+                    program,
+                    control,
+                    value.state_symbol,
+                    value.expression,
+                )?
+            };
+            if call.statement_index != value.statement_index
+                || call.completed_storage != value.storage_snapshot
+            {
+                return None;
+            }
+            checked_invocation_returns(
+                program,
+                facts,
+                value.state_symbol,
+                call,
+                value.type_reference,
+                path,
+            )
+        }
+
+        fn checked_named_exit_returns(
+            program: &dyn crate::CheckingInput,
+            facts: &CheckFacts,
+            exit: &checked_trees::FlowExitFact,
+            path: &[PlaceSegment],
+        ) -> Option<Vec<Handle<FlowOperandFact>>> {
+            if !exit.transition_target.is_valid() {
+                return None;
+            }
+            let control = &facts.flow.control;
+            let flow = control.unique_state(exit.machine_symbol, exit.state_symbol)?;
+            let mut calls = control.calls.span(flow.calls)?.iter().filter(|call| {
+                call.statement_index == exit.statement_index
+                    && call.authored_site == checked_trees::FlowCallSite::NamedTransition
+                    && crate::find_call_site(
+                        program,
+                        exit.machine_symbol,
+                        exit.state_symbol,
+                        exit.statement_index,
+                        call.call_ordinal,
+                    )
+                    .is_some_and(|site| site.completes_transition(program, exit.transition_target))
+            });
+            let call = calls.next()?;
+            if calls.next().is_some() {
+                return None;
+            }
+            checked_invocation_returns(
+                program,
+                facts,
+                exit.state_symbol,
+                call,
+                program.state_by_symbol(exit.state_symbol)?.return_type,
+                path,
+            )
         }
 
         pub fn completed_membership(
@@ -3325,7 +3556,7 @@ pub mod completed_storage {
             judge_completed_membership(
                 program,
                 facts,
-                value,
+                std::slice::from_ref(&value),
                 path,
                 domain,
                 semantic_domain,
@@ -3336,16 +3567,23 @@ pub mod completed_storage {
         pub fn completed_membership_with_refusal(
             program: &dyn crate::CheckingInput,
             facts: &CheckFacts,
-            value: Handle<FlowOperandFact>,
+            exit: &checked_trees::FlowExitFact,
             path: &[PlaceSegment],
             domain: SymbolHandle,
             semantic_domain: SemanticDomainId,
             first_refusal: &mut Option<CompletedMembershipRefusal>,
         ) -> bool {
+            let values = if facts.flow.control.operands.is_valid(exit.returned_value) {
+                vec![exit.returned_value]
+            } else if let Some(returned) = checked_named_exit_returns(program, facts, exit, path) {
+                returned
+            } else {
+                return false;
+            };
             judge_completed_membership(
                 program,
                 facts,
-                value,
+                &values,
                 path,
                 domain,
                 semantic_domain,
@@ -3358,7 +3596,7 @@ pub mod completed_storage {
         fn judge_completed_membership(
             program: &dyn crate::CheckingInput,
             facts: &CheckFacts,
-            value: Handle<FlowOperandFact>,
+            values: &[Handle<FlowOperandFact>],
             path: &[PlaceSegment],
             domain: SymbolHandle,
             semantic_domain: SemanticDomainId,
@@ -3373,6 +3611,11 @@ pub mod completed_storage {
                 semantic_domain: SemanticDomainId,
                 walk: &mut MembershipWalk<'_>,
             ) -> bool {
+                if walk.remaining == 0 || walk.visiting.len() >= 128 {
+                    (walk.on_refusal)("completed membership traversal exhausted");
+                    return false;
+                }
+                walk.remaining -= 1;
                 if !facts.flow.control.operands.is_valid(value)
                     || walk
                         .visiting
@@ -3419,8 +3662,20 @@ pub mod completed_storage {
                     }
                     None => {}
                 }
-                let Some(predecessors) = super::predecessors(program, facts.view(), value, path)
-                else {
+                let predecessors = checked_call_returns(
+                    program,
+                    facts,
+                    facts.flow.control.operands.get(value),
+                    path,
+                )
+                .map(|returned| {
+                    returned
+                        .into_iter()
+                        .map(|returned| (returned, path.to_vec()))
+                        .collect()
+                })
+                .or_else(|| super::predecessors(program, facts.view(), value, path));
+                let Some(predecessors) = predecessors else {
                     return false;
                 };
                 walk.visiting.push((value, path.to_vec()));
@@ -3439,18 +3694,23 @@ pub mod completed_storage {
                 walk.visiting.pop();
                 proven
             }
-            proves(
-                program,
-                facts,
-                value,
-                path,
-                domain,
-                semantic_domain,
-                &mut MembershipWalk {
-                    visiting: Vec::new(),
-                    on_refusal,
-                },
-            )
+            let mut walk = MembershipWalk {
+                visiting: Vec::new(),
+                remaining: 65_536,
+                on_refusal,
+            };
+            !values.is_empty()
+                && values.iter().all(|value| {
+                    proves(
+                        program,
+                        facts,
+                        *value,
+                        path,
+                        domain,
+                        semantic_domain,
+                        &mut walk,
+                    )
+                })
         }
     }
     pub(crate) mod owned_memberships {
@@ -4579,7 +4839,7 @@ pub mod content_conservation {
         };
         use symbols::SymbolHandle;
         use typed_trees::data::DataMember;
-        use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+        use typed_trees::expression::{ExpressionHandle, ExpressionNode};
         use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
         use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -4600,22 +4860,36 @@ pub mod content_conservation {
             expression: ExpressionHandle,
             formations: &mut Vec<ContentProjectionFormation>,
         ) -> Result<(ContentAlgebraIdentity, ContentConservationEquation), String> {
-            let Some(binary) = expression_table(context.program).binary_node(expression) else {
-                return Err(
-            "the contract must be one equality over exact projection and `separate(...)` terms"
-                .to_owned(),
-        );
-            };
-            if binary.operator != BinaryOperator::Equal {
-                return Err("content conservation is authored with `==`; containment or scalar comparisons are not the n-ary conservation theorem".to_owned());
-            }
-            let (left, left_algebra) = normalize_term(context, binary.left, formations)?;
-            let (right, right_algebra) = normalize_term(context, binary.right, formations)?;
+            let identity = crate::mathematical_applications::identity_application_at(
+                context.program,
+                expression,
+            )
+            .map_err(|reason| {
+                format!("content conservation requires the sealed typed core::Identity: {reason}")
+            })?;
+            let carrier = super::super::content_projections::content_algebra_for_type(
+                context.program,
+                identity.carrier,
+            )
+            .ok_or_else(|| {
+                "content conservation identity requires an exact closed content algebra carrier"
+                    .to_owned()
+            })?;
+            let [left, right] = identity.subjects;
+            let (left, left_algebra) = normalize_term(context, left, formations)?;
+            let (right, right_algebra) = normalize_term(context, right, formations)?;
             if left_algebra != right_algebra {
                 return Err(format!(
                     "the two sides select different content algebras (`{}` versus `{}`)",
                     algebra_key(&left_algebra),
                     algebra_key(&right_algebra),
+                ));
+            }
+            if carrier != left_algebra {
+                return Err(format!(
+                    "the identity carrier selects content algebra `{}` but its subjects select `{}`",
+                    algebra_key(&carrier),
+                    algebra_key(&left_algebra),
                 ));
             }
             Ok((left_algebra, ContentConservationEquation::new(left, right)))
@@ -4981,9 +5255,9 @@ pub mod content_conservation {
                     }
                     TypeReferenceNode::Reference { .. } => {
                         return Err(
-                    "content projection subjects cannot observe write-only reference storage"
-                        .to_owned(),
-                );
+                            "content projection subjects cannot observe write-only reference storage"
+                                .to_owned(),
+                        );
                     }
                     _ => return Ok(current),
                 }
@@ -5120,9 +5394,9 @@ pub mod content_conservation {
                             TypeReferenceNode::FixedArray { element_type, .. } => *element_type,
                             _ => {
                                 return Err(
-                            "a fixed index is applied to a non-fixed-array structural place"
-                                .to_owned(),
-                        );
+                                    "a fixed index is applied to a non-fixed-array structural place"
+                                        .to_owned(),
+                                );
                             }
                         };
                     }
@@ -5219,7 +5493,7 @@ pub mod content_conservation {
                 || type_has_domain(program, *base_type, domain)
         }
         _ => false,
-    }
+            }
         }
     }
 
@@ -6094,7 +6368,7 @@ pub mod content_projections {
                     program, machine, expression, diagnostics,
 
     formation_obligations,
-);
+    );
                     if diagnostics.len() != before {
                         continue;
                     }
@@ -6220,34 +6494,57 @@ pub mod content_projections {
         else {
             return None;
         };
+        content_algebra_for_type(program, *argument)
+    }
+
+    /// The closed algebra carrier selected by content projections and explicit
+    /// conservation identities. A same-spelled user declaration has no authority.
+    pub fn content_algebra_for_type(
+        program: &dyn CheckingInput,
+        reference: typed_trees::types::TypeReferenceHandle,
+    ) -> Option<ContentAlgebraIdentity> {
+        Some(content_algebra_application(program, reference)?.identity)
+    }
+
+    pub struct ContentAlgebraApplication {
+        pub identity: ContentAlgebraIdentity,
+        pub parameter: typed_trees::types::TypeReferenceHandle,
+    }
+
+    pub fn content_algebra_application(
+        program: &dyn CheckingInput,
+        reference: typed_trees::types::TypeReferenceHandle,
+    ) -> Option<ContentAlgebraApplication> {
         let TypeReferenceNode::Generic {
             base_symbol,
             base_name,
             arguments,
             ..
-        } = program.type_reference_table.type_reference(*argument)
+        } = program.type_reference_table.type_reference(reference)
         else {
             return None;
         };
         if !compiler_owned_symbol(program, *base_symbol) {
             return None;
         }
-        let [identity] = program
+        let [parameter] = program
             .type_reference_table
             .type_reference_handles(*arguments)
         else {
             return None;
         };
-        let identity = program.normalized_type_identity_text(*identity);
-        match base_name.as_str().rsplit("::").next() {
-            Some("IntervalSet") => Some(ContentAlgebraIdentity::IntervalSet {
+        let identity = program.normalized_type_identity_text(*parameter);
+        let algebra = match base_name.as_str().rsplit("::").next() {
+            Some("IntervalSet") => ContentAlgebraIdentity::IntervalSet {
                 coordinate_space: identity,
-            }),
-            Some("CountedQuantity") => {
-                Some(ContentAlgebraIdentity::CountedQuantity { unit: identity })
-            }
-            _ => None,
-        }
+            },
+            Some("CountedQuantity") => ContentAlgebraIdentity::CountedQuantity { unit: identity },
+            _ => return None,
+        };
+        Some(ContentAlgebraApplication {
+            identity: algebra,
+            parameter: *parameter,
+        })
     }
 
     fn projection_result_expression(

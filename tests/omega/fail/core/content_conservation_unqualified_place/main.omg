@@ -22,9 +22,11 @@ data SplitResult {
 trait InvalidSplit {
     machine split(whole: Region) -> SplitResult
     ensures
-        Owned::content(old(&whole))
-        == separate(
-            Owned::content(&result.left),
-            Owned::content(&result.right),
+        core::Identity<CountedQuantity<ByteUnit>>(
+            Owned::content(old(&whole)),
+            separate(
+                Owned::content(&result.left),
+                Owned::content(&result.right),
+            )
         );
 }

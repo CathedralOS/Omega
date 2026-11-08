@@ -15,6 +15,9 @@ satisfies Content<Envelope, CountedQuantity<Units>>::project {
     CountedQuantity { magnitude: embed(value.quantity) as Nat }
 }
 machine discard_nested(whole: Envelope in Accounted) -> Envelope in Accounted
-ensures Accounted::content(old(&whole)) == Accounted::content(&result) {
+ensures core::Identity<CountedQuantity<Units>>(
+    Accounted::content(old(&whole)),
+    Accounted::content(&result)
+) {
     Envelope::Empty { quantity: whole.quantity }
 }

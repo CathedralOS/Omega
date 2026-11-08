@@ -4,10 +4,15 @@
 // admitted crossing is the requirement's own call; this fixture pins the
 // direct realization call that is not it.
 use omega::language::core::extent;
+use omega::language::core::content;
+use omega::language::core::nat;
 Adapter satisfies VacantContentTransfer {
     machine transfer(storage: Extent in Granted) -> Extent
     ensures result in Granted,
-            Granted::content(old(&storage)) == Granted::content(&result)
+            core::Identity<IntervalSet<Nat>>(
+                Granted::content(old(&storage)),
+                Granted::content(&result)
+            )
     { storage }
 }
 machine direct(storage: Extent in Granted) -> Extent

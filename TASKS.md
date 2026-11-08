@@ -65,9 +65,10 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **STATIC-BINDER-CONTRACT-DEPENDENCIES.** Implement [static binder contract dependencies](wiki/drafts/designs/static_binder_contract_dependencies.md): one published dependency term per contract axis for static callbacks, substituted from selected published contracts.
   - Unify the `service_reach.rs` binder terms and `operational.rs` selector contexts into one term representation; publish and import it through Psi rows; forward through renamed binders; converge recursive propagation.
-  - Add the crash row (inferred public `crashes`, deferred requirement `crashes`, `crashes none` enforced on private bodies and requirements, per-cause route composition) and the termination row (binder premises on authored `terminates`, discharged from selected published promises).
+  - Add the crash row (public inference, requirement deferral, `crashes none` enforcement, per-cause routes) and the termination row (binder premises on authored `terminates`).
   - Retire the bare `reaches` keyword in both parsers; sweep `tests/omega`, `samples`, `tests/psi/parser` and `tests/psi/resolver` to `reaches none` and re-record the touched golden rows.
-  Acceptance: `forward`/`compose`/`choose` fixtures across reach, suspends, blocks, crashes, terminates and carry pass `--both` with negative twins; a dependency survives export, import, binder forwarding and substitution; `for_each` over a crash-free callback publishes no route and over a trapping one publishes `Trap`.
+  - Add the [result-relation row](wiki/spec/language/effects.md#callback-result-relations): opaque relation per checked call, authored `F::ensures(args, r)` claims discharged from it, selected relation substituted at specialization; immutable arguments first.
+  Acceptance: `forward`/`compose`/`choose` fixtures across reach, suspends, blocks, crashes, terminates and carry pass `--both` with negative twins; a dependency survives export, import, binder forwarding and substitution; `for_each` over a crash-free callback publishes no route and over a trapping one publishes `Trap`; the draft's result-relation fixtures pass.
 
 - **CORE-INDEXING-CONTRACTS.** Implement [contract-gated core indexing](wiki/drafts/designs/core_indexing_contracts.md).
   Acceptance: generic sealed access proves whole contracts, retains exact Terminal evidence and passes both engines/negative controls; retire independent bounds admission.

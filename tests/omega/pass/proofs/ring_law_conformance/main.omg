@@ -16,7 +16,7 @@ data Peano {
 trait RingOps2<T> {
     machine add(a: T, b: T) -> T terminates;
     machine add_assoc(a: T, b: T, c: T)
-    ensures add(add(a, b), c) == add(a, add(b, c));
+    ensures core::Identity<T>(add(add(a, b), c), add(a, add(b, c)));
 }
 
 machine plus(a: Peano, b: Peano) -> Peano
@@ -35,7 +35,7 @@ machine plus_assoc(a: Peano, b: Peano, c: Peano)
 satisfies RingOps2<Peano>::add_assoc
 terminates by a
 ensures
-    (plus(plus(a, b), c)) == (plus(a, plus(b, c)))
+    core::Identity<Peano>((plus(plus(a, b), c)), (plus(a, plus(b, c))))
 {
     transition a {
         Peano::Zero -> base()

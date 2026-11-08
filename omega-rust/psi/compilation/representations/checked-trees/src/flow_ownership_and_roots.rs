@@ -257,7 +257,7 @@ pub(crate) mod roots {
         pub descriptor_context_observations: crate::flow::FlowDescriptorObservationTable,
         pub atomic_executions: Arena<crate::flow::FlowAtomicExecutionFact>,
         pub case_accesses: Arena<crate::flow::FlowCaseAccessFact>,
-        pub owned_case_selections: Arena<super::FlowOwnedCaseSelection>,
+        pub owned_case_selections: Arena<crate::FlowOwnedCaseSelection>,
         pub operator_invocations: Arena<crate::flow::FlowOperatorInvocationFact>,
         pub operands: Arena<crate::flow::FlowOperandFact>,
         pub copied_values: Arena<crate::flow::FlowCopiedValue>,

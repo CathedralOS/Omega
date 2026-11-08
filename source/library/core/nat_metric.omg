@@ -12,7 +12,7 @@ machine nat_gap(a: Nat, b: Nat) -> Nat {
 
 machine nat_gap_reflexive(a: Nat)
 ensures
-    (nat_gap(a, a)) == Nat::Zero
+    core::Identity<Nat>(nat_gap(a, a), Nat::Zero)
 {
     _ = sub_self(a);
     _ = add_zero_left(Nat::Zero);
@@ -20,14 +20,14 @@ ensures
 
 machine nat_gap_symmetric(a: Nat, b: Nat)
 ensures
-    (nat_gap(a, b)) == (nat_gap(b, a))
+    core::Identity<Nat>(nat_gap(a, b), nat_gap(b, a))
 {
     add_comm(saturating_sub(a, b), saturating_sub(b, a));
 }
 
 machine nat_gap_zero_left(b: Nat)
 ensures
-    (nat_gap(Nat::Zero, b)) == b
+    core::Identity<Nat>(nat_gap(Nat::Zero, b), b)
 {
     _ = sub_zero_left(b);
     _ = sub_zero_right(b);
@@ -36,7 +36,7 @@ ensures
 
 machine nat_gap_zero_right(a: Nat)
 ensures
-    (nat_gap(a, Nat::Zero)) == a
+    core::Identity<Nat>(nat_gap(a, Nat::Zero), a)
 {
     _ = sub_zero_right(a);
     _ = sub_zero_left(a);
@@ -45,7 +45,7 @@ ensures
 
 machine nat_gap_succ(a: Nat, b: Nat)
 ensures
-    (nat_gap(Nat::Succ { prev: a }, Nat::Succ { prev: b })) == (nat_gap(a, b))
+    core::Identity<Nat>(nat_gap(Nat::Succ { prev: a }, Nat::Succ { prev: b }), nat_gap(a, b))
 {
     _ = succ_sub_succ(a, b);
     _ = succ_sub_succ(b, a);
@@ -54,9 +54,9 @@ ensures
 machine add_le_add_right(a: Nat, b: Nat, c: Nat) -> Nat
 terminates by c
 requires
-    (saturating_sub(a, b)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(a, b), Nat::Zero)
 ensures
-    (saturating_sub(add(a, c), add(b, c))) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(add(a, c), add(b, c)), Nat::Zero)
 {
     transition c {
         Nat::Zero -> alar_zero(a, b)
@@ -80,10 +80,10 @@ ensures
 machine le_trans(a: Nat, b: Nat, c: Nat) -> Nat
 terminates by a
 requires
-    (saturating_sub(a, b)) == Nat::Zero,
-    (saturating_sub(b, c)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(a, b), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(b, c), Nat::Zero)
 ensures
-    (saturating_sub(a, c)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(a, c), Nat::Zero)
 {
     transition a {
         Nat::Zero -> le_trans_zero(c)
@@ -123,10 +123,10 @@ ensures
 
 machine add_le_add(a: Nat, b: Nat, c: Nat, d: Nat)
 requires
-    (saturating_sub(a, b)) == Nat::Zero,
-    (saturating_sub(c, d)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(a, b), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(c, d), Nat::Zero)
 ensures
-    (saturating_sub(add(a, c), add(b, d))) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(add(a, c), add(b, d)), Nat::Zero)
 {
     _ = add_le_add_right(a, b, c);
     add_comm(c, b);
@@ -141,9 +141,9 @@ ensures
 machine mul_le_mul_right(a: Nat, b: Nat, factor: Nat) -> Nat
 terminates by factor
 requires
-    (saturating_sub(a, b)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(a, b), Nat::Zero)
 ensures
-    (saturating_sub(mul(a, factor), mul(b, factor))) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(mul(a, factor), mul(b, factor)), Nat::Zero)
 {
     transition factor {
         Nat::Zero -> mlmr_zero(a, b)
@@ -171,10 +171,10 @@ ensures
 machine mul_le_cancel_right(a: Nat, b: Nat, factor: Nat) -> Nat
 terminates by a
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, factor)) == Nat::Zero,
-    (saturating_sub(mul(a, factor), mul(b, factor))) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, factor), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(mul(a, factor), mul(b, factor)), Nat::Zero)
 ensures
-    (saturating_sub(a, b)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(a, b), Nat::Zero)
 {
     transition a {
         Nat::Zero -> mlcr_a_zero(b, factor)
@@ -215,7 +215,7 @@ ensures
 machine le_add_gap(a: Nat, b: Nat) -> Nat
 terminates by a
 ensures
-    (saturating_sub(b, add(a, nat_gap(a, b)))) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(b, add(a, nat_gap(a, b))), Nat::Zero)
 {
     transition a {
         Nat::Zero -> lag_zero(b)
@@ -250,7 +250,7 @@ ensures
 // Absolute difference never exceeds the sum of its endpoints.
 machine nat_gap_le_add(a: Nat, b: Nat)
 ensures
-    (saturating_sub(nat_gap(a, b), add(a, b))) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(nat_gap(a, b), add(a, b)), Nat::Zero)
 {
     _ = sub_le(a, b);
     _ = sub_le(b, a);
@@ -260,7 +260,7 @@ ensures
 machine nat_gap_triangle(a: Nat, b: Nat, c: Nat) -> Nat
 terminates by a
 ensures
-    (saturating_sub(nat_gap(a, c), add(nat_gap(a, b), nat_gap(b, c)))) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(nat_gap(a, c), add(nat_gap(a, b), nat_gap(b, c))), Nat::Zero)
 {
     transition a {
         Nat::Zero -> ngt_a_zero(b, c)
@@ -320,7 +320,7 @@ ensures
 machine sub_add_cancel_left(prefix: Nat, a: Nat, b: Nat) -> Nat
 terminates by prefix
 ensures
-    (saturating_sub(add(prefix, a), add(prefix, b))) == (saturating_sub(a, b))
+    core::Identity<Nat>(saturating_sub(add(prefix, a), add(prefix, b)), saturating_sub(a, b))
 {
     transition prefix {
         Nat::Zero -> sacl_zero(a, b)
@@ -341,7 +341,7 @@ ensures
 // This bridges IntPair's nonnegative coordinates to Rat's public Nat metric.
 machine nat_gap_add_common(prefix: Nat, a: Nat, b: Nat)
 ensures
-    (nat_gap(add(prefix, a), add(prefix, b))) == (nat_gap(a, b))
+    core::Identity<Nat>(nat_gap(add(prefix, a), add(prefix, b)), nat_gap(a, b))
 {
     _ = sub_add_cancel_left(prefix, a, b);
     _ = sub_add_cancel_left(prefix, b, a);
@@ -351,7 +351,7 @@ ensures
 machine nat_gap_mul_right(a: Nat, b: Nat, factor: Nat) -> Nat
 terminates by a
 ensures
-    (nat_gap(mul(a, factor), mul(b, factor))) == (mul(nat_gap(a, b), factor))
+    core::Identity<Nat>(nat_gap(mul(a, factor), mul(b, factor)), mul(nat_gap(a, b), factor))
 {
     transition a {
         Nat::Zero -> ngmr_a_zero(b, factor)
@@ -391,7 +391,7 @@ ensures
 // cross-products at one common denominator.
 machine mul_swap_trailing(a: Nat, b: Nat, c: Nat)
 ensures
-    (mul(mul(a, b), c)) == (mul(mul(a, c), b))
+    core::Identity<Nat>(mul(mul(a, b), c), mul(mul(a, c), b))
 {
 }
 
@@ -413,7 +413,7 @@ machine nat_max(a: Nat, b: Nat) -> Nat {
 machine le_add_right_self(a: Nat, b: Nat) -> Nat
 terminates by b
 ensures
-    (saturating_sub(a, (add(a, b)))) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(a, (add(a, b))), Nat::Zero)
 {
     transition b {
         Nat::Zero -> lars_zero(a)
@@ -436,7 +436,7 @@ ensures
 // le_add_right_self at the residual.
 machine le_max_left(a: Nat, b: Nat) -> Nat
 ensures
-    (saturating_sub(a, (nat_max(a, b)))) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(a, (nat_max(a, b))), Nat::Zero)
 {
     _ = le_add_right_self(a, (saturating_sub(b, a)));
     transition { _ -> Nat::Zero }
@@ -449,7 +449,7 @@ ensures
 machine le_max_right(a: Nat, b: Nat) -> Nat
 terminates by a
 ensures
-    (saturating_sub(b, (nat_max(a, b)))) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(b, (nat_max(a, b))), Nat::Zero)
 {
     transition a {
         Nat::Zero -> lmr_zero(b)
@@ -492,10 +492,10 @@ ensures
 machine nat_max_le(a: Nat, b: Nat, c: Nat) -> Nat
 terminates by a
 requires
-    (saturating_sub(a, c)) == Nat::Zero,
-    (saturating_sub(b, c)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(a, c), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(b, c), Nat::Zero)
 ensures
-    (saturating_sub((nat_max(a, b)), c)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub((nat_max(a, b)), c), Nat::Zero)
 {
     transition a {
         Nat::Zero -> ml_zero(b, c)
@@ -546,7 +546,7 @@ ensures
 // premise.
 machine nat_max_self(a: Nat) -> Nat
 ensures
-    (nat_max(a, a)) == a
+    core::Identity<Nat>(nat_max(a, a), a)
 {
     _ = sub_self(a);
     add_zero_right(a);

@@ -13,12 +13,18 @@ satisfies Content<Region, CountedQuantity<Units>>::project {
 }
 trait Transfer<const Expected: u64> {
     machine transfer(region: Region in Owned) -> Region in Owned
-    ensures Owned::content(old(&region)) == Owned::content(&result),
+    ensures core::Identity<CountedQuantity<Units>>(
+        Owned::content(old(&region)),
+        Owned::content(&result)
+    ),
         result.marker == Expected;
 }
 First satisfies Transfer<FirstExpected> {
 machine transfer(region: Region in Owned) -> Region in Owned
-ensures Owned::content(old(&region)) == Owned::content(&result),
+ensures core::Identity<CountedQuantity<Units>>(
+    Owned::content(old(&region)),
+    Owned::content(&result)
+),
     result.marker == 29
 {
     let amount: u64 = region.amount;
@@ -28,7 +34,10 @@ ensures Owned::content(old(&region)) == Owned::content(&result),
 }
 Second satisfies Transfer<SecondExpected> {
 machine transfer(region: Region in Owned) -> Region in Owned
-ensures Owned::content(old(&region)) == Owned::content(&result),
+ensures core::Identity<CountedQuantity<Units>>(
+    Owned::content(old(&region)),
+    Owned::content(&result)
+),
     result.marker == 30
 {
     let amount: u64 = region.amount;

@@ -1,9 +1,8 @@
-// Equality-style value-call precondition validation also rejects an
-// instantiated inequality when the operands are structurally equal.
+// A value call must refuse a negated identity when its actual is zero.
 use omega::language::core::nat;
 
 machine nonzero_identity(value: Nat) -> Nat
-requires value != Nat::Zero
+requires !core::Identity<Nat>(value, Nat::Zero)
 {
     value
 }

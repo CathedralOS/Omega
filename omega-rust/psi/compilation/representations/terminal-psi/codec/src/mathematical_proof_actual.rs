@@ -901,7 +901,10 @@ pub(crate) mod indexed_theorem_roots {
                 decode_mathematical_certificate(&actual.certificate).map_err(Error::Wire)?;
             let expected_judgment =
                 decode_mathematical_certificate(&trusted.certificate).map_err(Error::Wire)?;
-            if decoded.certificate.level_arity != 0 || !decoded.certificate.context.is_empty() {
+            if !decoded.certificate.context.is_empty()
+                || !expected_judgment.certificate.context.is_empty()
+                || decoded.certificate.level_arity != expected_judgment.certificate.level_arity
+            {
                 return Err(Error::OpenContext);
             }
             if mathematical_carrier_key(&decoded.arena, &decoded.certificate)

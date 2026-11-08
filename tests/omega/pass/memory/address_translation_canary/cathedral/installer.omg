@@ -84,11 +84,11 @@ public machine CathedralPageTables::install(
 reaches TranslationHardware + MachineControl
 invokes TranslationHardware
 {
-    let virtual_base: u64 = pending.destination.base as u64;
-    let source_frame: u64 = pending.source.base as u64;
-    let pdpt_base: u64 = tables.pdpt.storage.base as u64;
-    let pd_base: u64 = tables.pd.storage.base as u64;
-    let pt_base: u64 = tables.pt.storage.base as u64;
+    let virtual_base: u64 = TableEntry::address_bits(pending.destination.base);
+    let source_frame: u64 = TableEntry::address_bits(pending.source.base);
+    let pdpt_base: u64 = TableEntry::address_bits(tables.pdpt.storage.base);
+    let pd_base: u64 = TableEntry::address_bits(tables.pd.storage.base);
+    let pt_base: u64 = TableEntry::address_bits(tables.pt.storage.base);
     let pml4_slot: u64 = level_index(virtual_base, 0);
     let pdpt_slot: u64 = level_index(virtual_base, 1);
     let pd_slot: u64 = level_index(virtual_base, 2);
@@ -123,7 +123,7 @@ public machine CathedralPageTables::remove(
 reaches TranslationHardware + MachineControl
 invokes TranslationHardware
 {
-    let leaf_slot: u64 = level_index(active.destination.base as u64, 3);
+    let leaf_slot: u64 = level_index(TableEntry::address_bits(active.destination.base), 3);
     let cleared: TableEntry = TableEntry::EMPTY;
     let pt_table: Table = TranslationHardware::store_entry(tables.pt, leaf_slot, cleared);
     TranslationHardware::invalidate_leaf(active.destination.base);
@@ -150,10 +150,10 @@ public machine CathedralPageTables::install_huge(
 reaches TranslationHardware + MachineControl
 invokes TranslationHardware
 {
-    let virtual_base: u64 = pending.destination.base as u64;
-    let source_frame: u64 = pending.source.base as u64;
-    let pdpt_base: u64 = tables.pdpt.storage.base as u64;
-    let pd_base: u64 = tables.pd.storage.base as u64;
+    let virtual_base: u64 = TableEntry::address_bits(pending.destination.base);
+    let source_frame: u64 = TableEntry::address_bits(pending.source.base);
+    let pdpt_base: u64 = TableEntry::address_bits(tables.pdpt.storage.base);
+    let pd_base: u64 = TableEntry::address_bits(tables.pd.storage.base);
     let pml4_slot: u64 = level_index(virtual_base, 0);
     let pdpt_slot: u64 = level_index(virtual_base, 1);
     let pd_slot: u64 = level_index(virtual_base, 2);
@@ -182,7 +182,7 @@ public machine CathedralPageTables::remove_huge(
 reaches TranslationHardware + MachineControl
 invokes TranslationHardware
 {
-    let leaf_slot: u64 = level_index(active.destination.base as u64, 2);
+    let leaf_slot: u64 = level_index(TableEntry::address_bits(active.destination.base), 2);
     let cleared: TableEntry = TableEntry::EMPTY;
     let pd_table: Table = TranslationHardware::store_entry(tables.pd, leaf_slot, cleared);
     TranslationHardware::invalidate_leaf(active.destination.base);

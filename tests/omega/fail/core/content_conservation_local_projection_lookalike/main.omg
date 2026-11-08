@@ -11,7 +11,7 @@ satisfies Content<Region, CountedQuantity<ByteUnit>>::project
 data Pieces { left: Region in Owned; right: Region in Owned; }
 trait InvalidSplit {
     machine split(whole: Region in Owned) -> Pieces
-    ensures Owned::content(old(&whole))
-        == separate(Owned::content(&result.left), Owned::content(&result.right));
+    ensures core::Identity<CountedQuantity<ByteUnit>>(Owned::content(old(&whole)),
+        separate(Owned::content(&result.left), Owned::content(&result.right)));
 }
 machine main() {}

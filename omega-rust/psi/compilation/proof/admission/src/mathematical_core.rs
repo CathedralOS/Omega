@@ -375,9 +375,9 @@ pub(crate) mod certificate {
             )
             .expect("the imported term has its complete type");
             assert!(imported.arena.structurally_equal(inferred, copied.expected));
-        })
-        .join()
-        .expect("term import uses default-stack handle worklists");
+                    })
+                    .join()
+                    .expect("term import uses default-stack handle worklists");
             }
             #[test]
             fn public_mathematical_verification_keeps_its_callers_default_stack() {
@@ -3725,6 +3725,46 @@ pub(crate) mod substitution {
         remap(arena, term, 0, Remapping::Levels { arguments })
     }
 
+    /// The universe telescope needed by these terms, without opening declaration
+    /// bodies. Constants retain their explicit level applications. This describes
+    /// syntax only; the ordinary kernel judgment still checks every parameter.
+    pub fn universe_parameter_arity(arena: &TermArena, roots: &[TermHandle]) -> u32 {
+        let mut pending = roots.to_vec();
+        let mut seen = Vec::<u64>::new();
+        let mut arity = 0;
+        while let Some(term) = pending.pop() {
+            // Resolve the complete generational handle before using its dense
+            // slot. A stale sibling cannot hide the current node behind a bit.
+            // Dummy contributes no syntax; the kernel still rejects it wherever
+            // this query's result is used to form a judgment.
+            let node = arena.get(term);
+            if matches!(node, Term::Dummy) {
+                continue;
+            }
+            let position = term.arena_index() as usize;
+            let word = position / 64;
+            if word >= seen.len() {
+                seen.resize(word + 1, 0);
+            }
+            let bit = 1u64 << (position % 64);
+            if seen[word] & bit != 0 {
+                continue;
+            }
+            seen[word] |= bit;
+            match &node {
+                Term::Sort(sort) => arity = arity.max(sort.level().parameter_arity()),
+                Term::Constant { levels, .. } => {
+                    for level in levels {
+                        arity = arity.max(level.parameter_arity());
+                    }
+                }
+                _ => {}
+            }
+            pending.extend(node.subterms().iter().map(|(child, _)| child));
+        }
+        arity
+    }
+
     #[derive(Clone, Copy)]
     enum Remapping<'a> {
         Shift { amount: u32 },
@@ -3873,6 +3913,30 @@ pub(crate) mod term {
         use std::hash::{Hash, Hasher};
 
         impl Level {
+            /// Required parameter prefix; this does not validate a universe scope.
+            pub fn parameter_arity(&self) -> u32 {
+                let mut pending = vec![self];
+                let mut arity = 0;
+                while let Some(level) = pending.pop() {
+                    match level {
+                        Level::Parameter(index) => arity = arity.max(index.saturating_add(1)),
+                        Level::Successor(inner) => pending.push(inner),
+                        Level::Maximum(left, right) => {
+                            pending.push(left);
+                            pending.push(right);
+                        }
+                        Level::Constant(_) => {}
+                    }
+                }
+                arity
+            }
+
+            /// Substitute exact universe actuals without resizing or cumulativity.
+            pub fn instantiate(&self, arguments: &[Level]) -> Result<Level, u32> {
+                instantiate_level(self, arguments)
+            }
+
+            /// Closed constants fold, with the original checked overflow boundary.
             pub fn successor(self) -> Option<Level> {
                 match self {
                     Level::Constant(value) => value.checked_add(1).map(Level::Constant),
@@ -4408,7 +4472,7 @@ pub(crate) mod term {
             }
         }
     };
-}
+    }
 
     term_layout! {
         Pi { domain: 0, codomain: 1 }
@@ -4490,34 +4554,61 @@ pub(crate) mod term {
         }
 
         pub fn structurally_equal(&self, left: TermHandle, right: TermHandle) -> bool {
-            let mut pending = vec![(false, (left, right))];
+            self.structurally_equal_shifted(left, right, 0)
+        }
+
+        /// Compare a term with the same value carried under additional binders.
+        /// Locally bound variables keep their indices; only free variables cross
+        /// the inserted telescope. This is structural correspondence, not a new
+        /// conversion or equality rule, and allocates no shifted term tree.
+        pub fn structurally_equal_shifted(
+            &self,
+            source: TermHandle,
+            shifted: TermHandle,
+            inserted_binders: u32,
+        ) -> bool {
+            let mut pending = vec![(false, (source, shifted, 0u32))];
             let mut active = HashSet::new();
             let mut complete = HashSet::new();
             while let Some((finish, pair)) = pending.pop() {
                 if finish {
-                    active.remove(&pair);
+                    active.remove(&(pair.0, pair.1));
                     complete.insert(pair);
                     continue;
                 }
                 if complete.contains(&pair) {
                     continue;
                 }
-                if !active.insert(pair) {
+                // The local depth belongs to the key: a shared node may occur
+                // both under its own binder and in the surrounding telescope.
+                if !active.insert((pair.0, pair.1)) {
                     return false;
                 }
                 let left = self.node(pair.0);
                 let right = self.node(pair.1);
-                if !left.payloads_equal(right) {
+                let payloads_equal = match (left, right) {
+                    (Term::Variable(left), Term::Variable(right)) if *left >= pair.2 => {
+                        left.checked_add(inserted_binders) == Some(*right)
+                    }
+                    _ => left.payloads_equal(right),
+                };
+                if !payloads_equal {
                     return false;
                 }
                 pending.push((true, pair));
-                pending.extend(
-                    left.subterms()
-                        .iter()
-                        .zip(right.subterms().iter())
-                        .rev()
-                        .map(|((left, _), (right, _))| (false, (left, right))),
-                );
+                for ((left, binders), (right, _)) in
+                    left.subterms().iter().zip(right.subterms().iter()).rev()
+                {
+                    let depth = if inserted_binders == 0 {
+                        0
+                    } else {
+                        let Some(depth) = pair.2.checked_add(binders) else {
+                            return false;
+                        };
+                        depth
+                    };
+                    pending.push((false, (left, right, depth)));
+                }
             }
             true
         }
@@ -4526,6 +4617,51 @@ pub(crate) mod term {
     impl Default for TermArena {
         fn default() -> Self {
             Self::new()
+        }
+    }
+
+    #[cfg(test)]
+    mod shifted_correspondence_tests {
+        use super::{Term, TermArena};
+
+        #[test]
+        fn shifted_comparison_matches_capture_avoiding_shift_on_shared_scopes() {
+            let mut arena = TermArena::new();
+            let two = arena.insert(Term::Two);
+            let zero = arena.insert(Term::Variable(0));
+            let one = arena.insert(Term::Variable(1));
+            let relation = arena.insert(Term::Id {
+                ty: two,
+                left: zero,
+                right: one,
+            });
+            let lambda = arena.insert(Term::Lambda {
+                domain: two,
+                body: relation,
+            });
+            let source = arena.insert(Term::Sigma {
+                domain: relation,
+                codomain: lambda,
+            });
+            for amount in [0, 1, 3] {
+                let shifted = crate::shift(&mut arena, source, 0, amount);
+                assert!(arena.structurally_equal_shifted(source, shifted, amount));
+                assert!(!arena.structurally_equal_shifted(source, shifted, amount + 1));
+            }
+        }
+
+        #[test]
+        fn a_binder_cycle_is_not_correspondence_at_any_offset() {
+            let mut arena = TermArena::new();
+            let two = arena.insert(Term::Two);
+            let cyclic = arena.insert(Term::Dummy);
+            *arena.terms.get_mut(cyclic) = Term::Lambda {
+                domain: two,
+                body: cyclic,
+            };
+            for amount in [0, 1] {
+                assert!(!arena.structurally_equal_shifted(cyclic, cyclic, amount));
+            }
         }
     }
 }
@@ -4595,8 +4731,8 @@ pub(crate) use crate::mathematical_typing as typing;
 pub(crate) use bounded_denotation::test_utilities::{assert_refused, verify_and_assert_forged};
 pub(crate) use bounded_denotation::verify_bounded_certificate_with_machine_parameters;
 pub use bounded_denotation::{
-    BoundedDenotation, BoundedDenotationError, SourceIntegerTheory, SourceIntegerVocabulary,
-    denote_bounded_certificate, verify_bounded_certificate,
+    BoundedDenotation, BoundedDenotationError, SourceContentTheory, SourceIntegerTheory,
+    SourceIntegerVocabulary, denote_bounded_certificate, verify_bounded_certificate,
 };
 #[cfg(test)]
 pub(crate) use bounded_observations::bounded_verification_entries;
@@ -4624,7 +4760,7 @@ pub use signature::{
     Declaration, Signature, SignatureCheckError, assumption_closure, check_signature,
     check_signature_with_attribution, judgment_assumption_closure,
 };
-pub use substitution::{instantiate_levels, shift, substitute};
+pub use substitution::{instantiate_levels, shift, substitute, universe_parameter_arity};
 pub use term::{Level, Sort, Term, TermArena, TermHandle};
 pub use theorems::identity_substitution;
 pub use typing::{Context, CoreError, check_type, infer_sort, infer_type};
@@ -4880,7 +5016,7 @@ mod tests {
             assert!(
         conv!(&mut arena => &context => elimination => same_refl => result_type => &mut budget)
             .unwrap()
-    );
+            );
         }
 
         #[test]
@@ -8071,7 +8207,7 @@ mod tests {
             assert!(
         conv!(&mut arena => &context => neutral_left => neutral_right => shared => &mut budget)
             .unwrap()
-    );
+            );
             assert!(
                 conv!(&mut arena => &context => neutral_left => right => shared => &mut budget)
                     .unwrap()

@@ -1432,7 +1432,7 @@ pub(crate) mod expression_scanning {
             matches!(statement, StatementNode::LocalData(local) if local.initial_value == value)
                 || matches!(statement, StatementNode::Expression(expression) if *expression == value)
         })
-    });
+            });
             let Some(state) = states.next() else {
                 return false;
             };
@@ -2002,7 +2002,7 @@ pub(crate) mod expression_scanning {
             }
             if crate::machine_calls::compiler_operations::classify_expression_call_intrinsic(program, call)
         == Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::StorageAddress)
-    {
+            {
         let valid = crate::machine_calls::compiler_operations::storage_address_operand(program, call)
             .and_then(|operand| crate::expression_result_type_reference(program, current_machine, current_state, operand))
             .and_then(|target| crate::reference_shell(program, target));
@@ -2013,7 +2013,7 @@ pub(crate) mod expression_scanning {
             Some(_) => {}
         }
         return;
-    }
+            }
             let target = call.target.as_str();
             if typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
                 return;
@@ -3040,7 +3040,11 @@ pub(crate) mod expression_scanning {
         diagnostics: &mut Vec<Diagnostic>,
         formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
     ) {
-        if crate::mathematical_applications::selected_definition(program, call).is_some()
+        // A checked mathematical application in an erased initializer has no
+        // machine entry or executable call obligations. Its complete dependent
+        // application was checked by the mathematical producer; relevance still
+        // visits every operand and rejects runtime effects or escaped evidence.
+        if crate::mathematical_applications::is_mathematical_call(program, call)
             && program
                 .prepared_mathematics()
                 .is_some_and(|view| view.application(expression).is_some())
@@ -8170,6 +8174,19 @@ pub(crate) mod write_frames {
             {
                 let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
                 let parameter_type = substituted_head(program, parameter_type, bindings);
+                // Only writable carried borrows can reach caller storage from an
+                // owned value. Use the complete substituted borrow frontier before
+                // requiring aliases for opaque owned leaves or shared-only views.
+                if crate::borrow_contracts::carried_lifetimes::substituted_carried_lifetimes(
+                    program,
+                    parameter_type,
+                    bindings,
+                    &[0],
+                )
+                .is_some_and(|leaves| leaves.iter().all(|leaf| !leaf.access.is_exclusive()))
+                {
+                    continue;
+                }
                 let TypeReferenceNode::Reference { access, .. } =
                     program.type_reference_table.type_reference(parameter_type)
                 else {
@@ -8746,7 +8763,7 @@ pub(crate) mod write_frames {
         }
 
         macro_rules! signature_result_candidate_adapter {
-    ($(#[$attr:meta])* $adapter:ident => $origins:ident) => {
+            ($(#[$attr:meta])* $adapter:ident => $origins:ident) => {
         $(#[$attr])*
         #[allow(clippy::too_many_arguments)]
         pub(crate) fn $adapter(
@@ -8779,8 +8796,8 @@ pub(crate) mod write_frames {
                 stored,
             )
         }
-    };
-}
+            };
+        }
 
         signature_result_candidate_adapter! {
             boundary_result_candidate_origins => boundary_result_origins
@@ -14046,6 +14063,9 @@ pub(crate) mod write_frames {
         pub struct CallFrameTables<'program> {
             pub(crate) symbols: TopLevelSymbols<'program>,
             machine_symbols: HashMap<SymbolHandle, Option<Arc<MachineSymbols<'program>>>>,
+            /// Exact direct scalar locals, prepared once for every state. None keeps
+            /// duplicate names and non-private declarations ineligible.
+            private_scalar_locals: Vec<PrivateScalarLocals<'program>>,
         }
 
         impl<'program> CallFrameTables<'program> {
@@ -14054,6 +14074,7 @@ pub(crate) mod write_frames {
                 let symbols = TopLevelSymbols::build(program, &mut diagnostics);
                 diagnostics.is_empty().then(|| Self {
                     symbols,
+                    private_scalar_locals: prepare_private_scalar_locals(program),
                     machine_symbols: program
                         .machines()
                         .iter()
@@ -14068,6 +14089,87 @@ pub(crate) mod write_frames {
                         .collect(),
                 })
             }
+        }
+
+        #[derive(Default)]
+        struct PrivateScalarLocals<'program> {
+            state: SymbolHandle,
+            names: Option<HashMap<&'program str, Option<SymbolHandle>>>,
+        }
+
+        fn prepare_private_scalar_locals(
+            program: &dyn crate::CheckingInput,
+        ) -> Vec<PrivateScalarLocals<'_>> {
+            let mut rows: Vec<PrivateScalarLocals<'_>> = Vec::new();
+            for state in program
+                .machines()
+                .iter()
+                .flat_map(|machine| program.machine_states(machine))
+            {
+                if !state.symbol.is_valid() {
+                    continue;
+                }
+                let index = state.symbol.arena_index() as usize;
+                if rows.len() <= index {
+                    rows.resize_with(index + 1, PrivateScalarLocals::default);
+                }
+                let slot = &mut rows[index];
+                if slot.state.is_valid() {
+                    slot.names = None;
+                    continue;
+                }
+                let mut names = HashMap::default();
+                for local in program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .filter_map(|statement| statement.as_local_data())
+                {
+                    names
+                        .entry(local.name.as_str())
+                        .and_modify(|root| *root = None)
+                        .or_insert_with(|| private_scalar_local_symbol(program, local));
+                }
+                *slot = PrivateScalarLocals {
+                    state: state.symbol,
+                    names: Some(names),
+                };
+            }
+            rows
+        }
+
+        fn private_scalar_local_symbol(
+            program: &dyn crate::CheckingInput,
+            local: &typed_trees::statement::TableLocalData,
+        ) -> Option<SymbolHandle> {
+            if !local.symbol.is_valid() {
+                return None;
+            }
+            let typed_trees::types::TypeReferenceNode::Named { symbol, .. } = program
+                .type_reference_table
+                .type_reference(local.type_reference)
+            else {
+                return None;
+            };
+            use symbols::BuiltinTypeAtom;
+            matches!(
+                program.symbols.builtin_type_atom(*symbol),
+                Some(
+                    BuiltinTypeAtom::Bool
+                        | BuiltinTypeAtom::Address
+                        | BuiltinTypeAtom::I8
+                        | BuiltinTypeAtom::I16
+                        | BuiltinTypeAtom::I32
+                        | BuiltinTypeAtom::I64
+                        | BuiltinTypeAtom::U8
+                        | BuiltinTypeAtom::U16
+                        | BuiltinTypeAtom::U32
+                        | BuiltinTypeAtom::U64
+                        | BuiltinTypeAtom::F32
+                        | BuiltinTypeAtom::F64
+                )
+            )
+            .then_some(local.symbol)
         }
 
         pub(crate) fn machine_symbols<'program>(
@@ -14173,6 +14275,26 @@ pub(crate) mod write_frames {
         }
 
         impl<'program> CallFrameResolver<'program> {
+            /// One uniquely named direct scalar declaration in the exact caller state.
+            /// No reference, field path, alias or same-spelled foreign local qualifies.
+            pub(crate) fn private_scalar_local(
+                &self,
+                owner: SymbolHandle,
+                state: &State,
+                name: &str,
+            ) -> Option<SymbolHandle> {
+                (self.program.machine_holding_state(state.symbol)?.symbol == owner).then_some(())?;
+                let row = self
+                    .tables
+                    .private_scalar_locals
+                    .get(state.symbol.arena_index() as usize)?;
+                (row.state == state.symbol).then_some(())?;
+                row.names.as_ref()?.get(name).copied().flatten()
+            }
+
+            /// Reconstruct every carried slot along this local home's successor path.
+            /// This proves intermediate retention and prevents a repeated establishment
+            /// from overwriting a prior live generation; it is not a return summary.
             pub fn local_backing_survives_state_jump(
                 &self,
                 machine: &Machine,
@@ -15393,19 +15515,21 @@ pub(crate) mod write_frames {
                         expression,
                     )
                     .is_some()
-                        || value_builtin_has_empty_write_frame(self.program, call)
-                        || crate::mathematical_applications::selected_definition(self.program, call)
-                            .is_some()
-                        || crate::machine_calls::denotational_calls::abstract_value_call_signature(
-                            self.program,
-                            call.target_symbol,
-                        )
-                        .is_some()
-                    {
-                        return true;
-                    }
-                            super::machine_state_by_symbol(self.program, call.target_symbol)
-                                .is_some_and(|(machine, state)| {
+                                || value_builtin_has_empty_write_frame(self.program, call)
+                                || crate::mathematical_applications::is_mathematical_call(
+                                    self.program,
+                                    call,
+                                )
+                                || crate::machine_calls::denotational_calls::abstract_value_call_signature(
+                                    self.program,
+                                    call.target_symbol,
+                                )
+                                .is_some()
+                            {
+                                return true;
+                            }
+                            super::machine_state_by_symbol(self.program, call.target_symbol).is_some_and(
+                                |(machine, state)| {
                                     self.inferred_state_write_frame(machine, state)
                                         .into_complete_paths()
                                         .is_some_and(|paths| paths.is_empty())
@@ -15487,9 +15611,7 @@ pub(crate) mod write_frames {
                         .iter()
                         .map(LocalWriteSource::frame_origin)
                         .collect::<Vec<_>>();
-                    captured
-                        .references
-                        .ok_or("contained references changed during argument evaluation")?;
+                    let references_complete = captured.references.is_some();
                     let argument_origins = captured
                         .arguments
                         .into_iter()
@@ -15506,7 +15628,6 @@ pub(crate) mod write_frames {
                         site,
                         &self.caches.state_write_shared_collections,
                         |inference, prefix| {
-                            let prefix = prefix?;
                             let written = known_call_written_paths_for_parts(
                         self.program,
                         target_symbol,
@@ -15549,6 +15670,16 @@ pub(crate) mod write_frames {
                             Some(&argument_origins),
                         )
                     })?;
+                            // No caller location can be written when the complete
+                            // signature footprint is empty. Unrelated incomplete
+                            // origins must not turn that proved empty set opaque.
+                            if written.is_empty() {
+                                return Some(written);
+                            }
+                            if !references_complete {
+                                return None;
+                            }
+                            let prefix = prefix?;
                             if scalar_accessor.is_some() {
                                 Some(prefix.close_scalar_access_paths(written))
                             } else {
@@ -15556,7 +15687,14 @@ pub(crate) mod write_frames {
                             }
                         },
                     )
-                    .ok_or_else(|| "signature input write closure unavailable".to_owned())
+                    .ok_or_else(|| {
+                        if references_complete {
+                            "signature input write closure unavailable"
+                        } else {
+                            "contained references changed during argument evaluation"
+                        }
+                        .to_owned()
+                    })
                 })();
                 match written {
                     Ok(paths) => NormalizedWriteFrame::complete(paths),
@@ -18571,15 +18709,15 @@ pub(crate) mod write_frames {
                 inference: &mut FrameInference,
             ) -> Option<Vec<String>> {
                 let leaves = reference_leaves(
-        program,
-        caller_machine,
-        argument,
-        expected_type,
-        suffix,
-        symbols,
-        inference,
-        false,
-        &crate::machine_calls::calls::write_frames::path_instantiation::aggregate_arguments::SymbolicArguments {
+                    program,
+                    caller_machine,
+                    argument,
+                    expected_type,
+                    suffix,
+                    symbols,
+                    inference,
+                    false,
+                    &crate::machine_calls::calls::write_frames::path_instantiation::aggregate_arguments::SymbolicArguments {
             reference: &|expression, _, _, inference| {
             symbolic_sources(exclusive_reference_origins(
                 program,
@@ -18588,12 +18726,12 @@ pub(crate) mod write_frames {
                 symbols,
                 inference,
             ))
-        },
+                    },
             stored: &|expression, reference, inference| {
             symbolic_reference_leaves(program, caller_machine, expression, reference, inference)
-        },
-        },
-    )?;
+                    },
+                    },
+                )?;
                 let mut written = Vec::new();
                 for leaf in leaves.references {
                     if !leaf.kind.may_indirect_storage()
@@ -20863,7 +21001,7 @@ pub(crate) mod write_frames {
             )
         },
         },
-    )?;
+            )?;
             let mut origins = Vec::new();
             for leaf in &returned.references {
                 if leaf.local_segments == segments {
@@ -21898,14 +22036,14 @@ pub(crate) mod write_frames {
                     caller_aliases::CallerWriteSite::Expression(expression),
                 )?;
                 let returned = result_origins::call_result_origins(
-        program,
-        machine,
-        expression,
-        crate::machine_calls::calls::call_result_type(program, expression)?,
-        symbols,
-        inference,
-        true,
-        &crate::machine_calls::calls::write_frames::path_instantiation::aggregate_arguments::SymbolicArguments {
+                    program,
+                    machine,
+                    expression,
+                    crate::machine_calls::calls::call_result_type(program, expression)?,
+                    symbols,
+                    inference,
+                    true,
+                    &crate::machine_calls::calls::write_frames::path_instantiation::aggregate_arguments::SymbolicArguments {
             reference: &|actual, _, implicit_borrow, inference| {
             super::super::path_instantiation::aggregate_arguments::symbolic_sources(value_origins(
                 program,
@@ -21917,7 +22055,7 @@ pub(crate) mod write_frames {
                 stored,
                 implicit_borrow,
             ))
-        },
+                    },
             stored: &|actual, reference, _| {
             stored_origins::reference_leaves_before_statement_for_query(
                 program,
@@ -21929,9 +22067,9 @@ pub(crate) mod write_frames {
                 None,
                 true,
             )
-        },
-        },
-    )?;
+                    },
+                    },
+                )?;
                 if !returned.cases.is_empty()
                     || !returned.moves.is_empty()
                     || returned.references.is_empty()
@@ -23676,7 +23814,7 @@ pub(crate) mod write_frames {
                 if !include_shared {
                     result.references.retain(|leaf| {
             !matches!(leaf.kind, StoredOriginKind::Reference(access) if !access.is_exclusive())
-        });
+                    });
                 }
                 Some(result)
             }
@@ -25445,7 +25583,7 @@ pub(crate) mod write_frames {
             include_shared,
             inference,
         )
-    })
+            })
         }
 
         #[allow(clippy::too_many_arguments)]
@@ -25798,7 +25936,7 @@ pub(crate) mod write_frames {
             include_shared,
             inference,
         )
-    })
+            })
         }
 
         #[allow(clippy::too_many_arguments)]
@@ -27395,7 +27533,7 @@ pub(crate) mod write_frames {
                     }
                     super::public_effects(self.effects).ok_or(StoredReferenceRelationRefusal::Unavailable(
             "stored call has no complete statement-successor effects: a descriptor source is unavailable",
-        ))
+                    ))
                 }
 
                 pub fn unknown(
@@ -27731,7 +27869,7 @@ pub(crate) mod write_frames {
                 && opaque_outputs::owner_segments(&output.owner_path).as_ref()
                     == Some(&slot.origin.local_segments)
                 && slot.kind == stored_origins::StoredOriginKind::Reference(output.access)
-        })
+                    })
                 }) {
                     return None;
                 }
@@ -28217,9 +28355,9 @@ pub(crate) mod write_frames {
             .local_segments
             .iter()
             .any(|part| matches!(part, PlaceSegment::Index { expression } if expression.is_valid()))
-        {
+                    {
             return None;
-        }
+                    }
                     let record = stored
                         .iter()
                         .find(|record| record.local_symbol == slot.local_symbol)?;
@@ -28563,15 +28701,15 @@ pub(crate) mod write_frames {
                 symbols: &TopLevelSymbols<'_>,
             ) -> Option<Vec<(FrameSourcePlace, FrameSourcePlace)>> {
                 if segments.iter().any(|segment| {
-        !matches!(
+                    !matches!(
             segment,
             PlaceSegment::Field { .. }
                 | PlaceSegment::Case { .. }
                 | PlaceSegment::FixedIndex { .. }
-        ) && !matches!(segment, PlaceSegment::Index { expression } if !expression.is_valid())
-    }) {
-        return None;
-    }
+                    ) && !matches!(segment, PlaceSegment::Index { expression } if !expression.is_valid())
+                }) {
+                    return None;
+                }
                 let mut pending = Vec::new();
                 let reference = parameter.type_reference;
                 if let Some(shell) = crate::reference_shell(program, reference) {
@@ -29383,7 +29521,7 @@ pub(crate) mod write_frames {
                         } else {
                             cursor.advance(segment).ok_or(
                 "destination projection crosses an uncaptured descriptor or unsupported coordinate",
-            )?;
+                            )?;
                         }
                     }
                     Ok(())
@@ -30248,7 +30386,7 @@ pub(crate) mod write_frames {
                         &[],
                     )
             },
-        ) {
+                    ) {
             let origins = stored_origins::canonical_storage_origins(
                 self.program,
                 &carrier,
@@ -30276,7 +30414,7 @@ pub(crate) mod write_frames {
                     })
                     .collect()
             });
-        }
+                    }
                     let mut sources = Vec::new();
                     let alternatives =
                         captured.context.divergent.iter().find(|(name, _)| {
@@ -33146,7 +33284,7 @@ pub(crate) mod write_frames {
             trace_refusal("call-parameters");
             return None;
         }
-    };
+            };
             if parameters.len() != captures.len() {
                 trace_refusal("parameter-capture-correspondence");
                 return None;
@@ -33815,15 +33953,15 @@ pub(crate) mod write_frames {
                     return None;
                 }
                 let leaves = reference_leaves(
-        program,
-        machine,
-        assignment.value,
-        target_type,
-        "",
-        symbols,
-        inference,
-        include_shared,
-        &crate::machine_calls::calls::write_frames::path_instantiation::aggregate_arguments::SymbolicArguments {
+                    program,
+                    machine,
+                    assignment.value,
+                    target_type,
+                    "",
+                    symbols,
+                    inference,
+                    include_shared,
+                    &crate::machine_calls::calls::write_frames::path_instantiation::aggregate_arguments::SymbolicArguments {
             reference: &|expression, reference, _implicit_borrow, inference| {
             super::super::path_instantiation::aggregate_arguments::symbolic_sources(
                 if include_shared {
@@ -33836,7 +33974,7 @@ pub(crate) mod write_frames {
                     exclusive_reference_origins(program, machine, expression, symbols, inference)
                 },
             )
-        },
+                    },
             stored: &|expression, reference, _| {
             reference_leaves_before_statement_for_query(
                 program,
@@ -33848,9 +33986,9 @@ pub(crate) mod write_frames {
                 None,
                 include_shared,
             )
-        },
-        },
-    )?;
+                    },
+                    },
+                )?;
                 let mut replaced = StoredLocalOrigins::new(super::StoredOriginRecord {
                     local_symbol: source.root,
                     references: Vec::new(),
@@ -33876,7 +34014,7 @@ pub(crate) mod write_frames {
                     canonical_reference_origins(program, &origin, aliases, stored)
                 }
             }
-        };
+                    };
                     for origin in captured {
                         let mut local_segments = source.segments.clone();
                         local_segments.extend(leaf.local_segments.iter().copied());
@@ -35135,14 +35273,14 @@ pub(crate) mod write_frames {
                 selected: &[PlaceSegment],
             ) -> bool {
                 container.len() <= selected.len()
-        && container.iter().zip(selected).all(|(container, selected)| {
+                    && container.iter().zip(selected).all(|(container, selected)| {
             container == selected
                 || matches!(container, PlaceSegment::Index { expression } if !expression.is_valid())
                     && matches!(
                         selected,
                         PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. }
                     )
-        })
+                    })
             }
 
             pub(crate) fn reference_is_shadowed(
@@ -36820,7 +36958,7 @@ pub(crate) mod write_frames {
                 matches!(statement, typed_trees::statement::StatementNode::LocalData(candidate)
                 if std::ptr::eq(candidate, local))
             }))
-    .then_some(state)
+            .then_some(state)
         }
 
         pub(crate) fn record_declaration_origins(
@@ -36924,7 +37062,7 @@ pub(crate) mod write_frames {
             )
         },
         },
-    )?;
+            )?;
             let mut origins = Vec::new();
             for leaf in leaves.references {
                 let captured = match &leaf.origin {

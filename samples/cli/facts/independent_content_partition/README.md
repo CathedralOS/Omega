@@ -1,14 +1,29 @@
 # Independent content partition
 
+Current owning task: **PROOF-KERNEL-CORE**.
+
 Fact: Two independent routed interval claims on one owned region remain independently conserved by one checked split.
 
-Parents: `BUMP-ALLOCATOR-CANARY` and `BUILD-OWNED-TARGET-SELECTION`.
+Historical parent context: `BUMP-ALLOCATOR-CANARY` and `BUILD-OWNED-TARGET-SELECTION`.
 The migration requirement is to preserve this same split through an ordinary
 selected implementation without claiming that its public requirement can issue
 private qualifications. A backing grant and vacancy describe different
 facts about one allocation. Their projections may use the same interval algebra;
 neither equation substitutes for the other. This row exercises that independent
 conservation mechanism using a numeric model, not physical backing.
+
+Each complete equation now uses `core::Identity<IntervalSet<Nat>>` for its
+canonical set elements. First and Second keep separate projection selections,
+entry/current subjects and conservation statements. The identical algebra and
+geometry do not supply either owner's missing claim. Scalar conditions and
+runtime checks remain ordinary numeric comparisons.
+
+This source checkpoint supplies preservation audits only. The integrated
+optimized producer must establish the original proof/native results and the
+missing-Second-equation refusals, then record the changed fixtures from clean
+source. Earlier requirements and observations below belong to their recorded
+source revisions and do not establish acceptance of this explicit-identity
+source.
 
 Each place issues a 48-unit region at 10, partitions 16 units, and observes
 children (10, 16) and (26, 32). Both selector values execute. The nine places

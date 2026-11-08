@@ -2,7 +2,7 @@
 data Packet<'buffer> { tag: u8; output: &'buffer mut [u8]; }
 
 machine replace_buffer<'buffer>(incoming: Packet<'buffer>, other: &'buffer mut [u8]) -> Packet<'buffer>
-ensures result == incoming
+ensures core::Identity<Packet<'buffer>>(result, incoming)
 { Packet { tag: incoming.tag, output: other } }
 
 machine main() {

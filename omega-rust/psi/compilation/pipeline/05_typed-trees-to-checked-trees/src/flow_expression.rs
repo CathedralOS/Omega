@@ -9993,7 +9993,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             capture.completion = checked_trees::FlowOperandCompletion::Observation;
             capture.value_source = Handle::invalid();
             capture.type_reference = destination;
-            self.retain_observation_result(expression, capture);
+            self.retain_observation_result(expression, &mut capture);
             return EvaluatedOperand {
                 boolean,
                 boolean_completion: completed.boolean_completion,
@@ -10100,7 +10100,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         {
             if let Some(leaves) = completed.reference_leaves {
                 capture.reference_leaves = self.publish_returned_reference_leaves(&capture, leaves);
-                self.retain_observation_result(expression, capture);
+                self.retain_observation_result(expression, &mut capture);
                 return EvaluatedOperand {
                     boolean,
                     boolean_completion: completed.boolean_completion,
@@ -10125,7 +10125,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             capture.value_source = owner;
         }
         self.retain_descriptor_permission(&mut capture, constraints);
-        self.retain_observation_result(expression, capture);
+        self.retain_observation_result(expression, &mut capture);
         EvaluatedOperand {
             boolean,
             boolean_completion: completed.boolean_completion,
@@ -10140,7 +10140,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     fn retain_observation_result(
         &mut self,
         expression: ExpressionHandle,
-        capture: checked_trees::FlowOperandFact,
+        capture: &mut checked_trees::FlowOperandFact,
     ) {
         let control = &mut self.context.control;
         let observations = control
@@ -10157,8 +10157,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             })
             .collect::<Vec<_>>();
         if let [observation] = matching.as_slice() {
-            let result = control.operands.append(capture);
+            let result = control.operands.append(*capture);
             control.value_observations.get_mut(*observation).result = result;
+            capture.value_source = result;
         }
     }
 
@@ -10217,9 +10218,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 capture,
             };
         }
-        let capture =
+        let mut capture =
             self.capture_place_operand(expression, first_write, completed, *contexts, constraints);
-        self.retain_observation_result(expression, capture);
+        self.retain_observation_result(expression, &mut capture);
         EvaluatedOperand {
             boolean,
             boolean_completion: completed.boolean_completion,
