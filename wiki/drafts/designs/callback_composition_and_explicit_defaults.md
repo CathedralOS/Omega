@@ -23,10 +23,11 @@ documentation ratification.
    implementation choice, callable-shape guessing or invented authority.
 3. [Operational dependencies](../../spec/language/effects.md#static-callback-operational-dependencies):
    derive finite OR summaries for suspension/blocking from static callbacks
-   and fixed calls. Public generics declare ceilings and publish the summaries.
+   and fixed calls. Public generics declare suspension/blocking ceilings and
+   publish the summaries.
    Bodies use upper bounds; callers substitute selected published contracts.
-   Nominal reach dependencies keep their existing union rule; structural
-   callable reach keeps its existing fixed bound.
+   Service reach follows the later [deferred callback reach](deferred_callback_reach.md)
+   decision for structural, nominal and conformance-member selections.
 
 A public wrapper's inferred requirements and dependencies are interface data.
 Changes invalidate dependent checking without requiring private-source
@@ -53,7 +54,7 @@ in force. Existing some packages and machine values retain their contracts.
 | Forwarding | Derive the same requirement through private/public and multi-layer wrappers, independent of body statement order. Preserve exact substitutions and nested callable contracts. |
 | Conjunction | Enforce every forwarded requirement; reject incompatible callable shapes, unsatisfied contracts and public requirements violating visibility. Do not silently strengthen an explicit origin. |
 | Missing origins | Reject a bare callback invocation without a contract, a forwarding cycle with no origin, implementation search and attempts to invoke identity-only binders. |
-| Public effects | Require ceilings covering the abstract body. Specialize suspension and blocking independently; retain any fixed contribution. Unknown selections keep their ceiling. |
+| Public effects | Require suspension/blocking ceilings covering the abstract body. Specialize those axes independently; retain fixed contributions. Service reach may be inferred. |
 | Markers | Require markers covering body upper bounds and substituted caller envelopes; reject missing markers and permit redundant ones under [conservative acknowledgements](../../spec/language/effects.md#call-site-acknowledgements). |
 | Safety and evaluation | Preserve upper-bound carry, windows, termination and outcome checks. Admit evaluation only when the specialized contract meets all existing evaluation conditions. |
 | Representation | Carry requirement/dependency identities through checked artifacts and specialization; lower the specialized operational envelope in both interpreter and native paths. |

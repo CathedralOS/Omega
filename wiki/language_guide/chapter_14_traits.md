@@ -663,10 +663,28 @@ machines. `reaches` names reachable boundary traits such as `Readable` or
 before returning; `suspends`, `blocks`, and `crashes` publish operational possibilities. An
 ordinary trait is not a service identity. Boundary traits may be named in
 `reaches`, but calling their requirements contributes only the explicitly
-declared row, not the containing trait's name. Omission on a trait requirement
-means an empty service row,
-never-suspends, never-blocks, or no route for the omitted crash cause on the
-corresponding axis.
+declared row, not the containing trait's name. Boundary requirements always
+declare reach. On an ordinary trait requirement, omission forwards the selected
+implementation's reach; bare `reaches` requires an empty row.
+
+This also works when a generic selects a whole named implementation:
+
+```omega
+trait Step<T> {
+    machine apply(item: &mut T);
+}
+
+machine visit<T, S satisfies Step<T>>(item: &mut T) {
+    S::apply(item);
+}
+```
+
+`visit` reaches whatever the selected `S::apply` reaches. Each member has its own
+row, so calling one operation does not add the services of every other member.
+
+Suspension, blocking and crashes keep their separate defaults: an omitted clause
+on a requirement forbids that behavior. Opening service reach does not permit
+a callback to park, block or crash.
 
 Calls through the requirement acknowledge its statically retained operational
 envelope with `suspend` and `block`. A concrete or transparent refinement that

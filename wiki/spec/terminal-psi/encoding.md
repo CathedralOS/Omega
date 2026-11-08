@@ -1507,6 +1507,22 @@ when present, by the call application.
 | 2 | Proposition | identity index |
 | 3 | Machine | identity index + 32-byte contract commitment |
 
+### Deferred static reach summaries
+
+The [deferred reach contract](../language/effects.md#static-callback-reach-dependencies)
+requires published summaries to distinguish an open bound from every finite
+bound, including empty. Preserve structural and nominal machine-binder origins,
+and conformance projections keyed by evidence binder, exact requirement member
+and substitutions. Closed applications retain the selected published contract
+commitments and the resulting finite rows. Runtime callable ceilings stay finite;
+an installed root cannot retain unresolved static projections.
+
+Canonical identities include these distinctions. An old empty bound cannot be
+reinterpreted as an open one. The [migration](../../drafts/designs/deferred_callback_reach.md#implementation)
+must update the reach schema, wire-field tables, commitments and codecs together,
+with exact round-trip and refusal coverage. Source omission alone cannot recover
+an absent dependency from a previously published interface.
+
 ## Module declaration tables
 
 The counted module tables that precede the machine roster carry the module's

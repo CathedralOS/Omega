@@ -226,6 +226,13 @@ reach. Boundary requirements must retain explicit ceilings, including empty,
 and an opaque provider does not acquire inferred-body evidence. Changing an
 annotation never hides actual transitive demand or grants manifest permission.
 
+For [static callback reach](../language/effects.md#static-callback-reach-dependencies),
+retain whether the originating non-boundary requirement defers to selection or
+declares a finite ceiling, including empty. Review generic APIs with their fixed
+service contributions and exact machine/member projections; review closed uses
+after substitution. A policy change from empty to open is an interface change
+even when every currently selected implementation reaches no services.
+
 A bodyless guarantee is an explicit accepted claim; a claim-free boundary symbol
 is not. Retain the complete published envelope as a distinct trust finding.
 Authority establishment, provider guarantees, executable mechanisms, assumptions,
