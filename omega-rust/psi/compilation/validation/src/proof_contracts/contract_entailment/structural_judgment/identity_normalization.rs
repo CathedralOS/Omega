@@ -22,7 +22,13 @@ impl<'value> IdentitySubstitutions<'value> {
     ) -> Result<Self, &'static str> {
         let mut admitted = Vec::new();
         for (left, right) in rows {
-            spend_component_work(remaining)?;
+            spend_component_work(remaining).inspect_err(|reason| {
+                judge.trace_le_case(
+                    "component-preparation",
+                    &[("left", left), ("right", right)],
+                    format_args!("stage=collection rows={} depth={depth} remaining={remaining} reason={reason}", admitted.len()),
+                );
+            })?;
             if judge.identity_value_is_available(left) && judge.identity_value_is_available(right) {
                 admitted.push((left, right));
             }
@@ -68,7 +74,13 @@ impl<'value> IdentitySubstitutions<'value> {
                     (right, other_left),
                     (right, other_right),
                 ] {
-                    spend_component_work(remaining)?;
+                    spend_component_work(remaining).inspect_err(|reason| {
+                        judge.trace_le_case(
+                            "component-preparation",
+                            &[("left", left), ("right", right)],
+                            format_args!("stage=join seed={seed} row={row} candidate={candidate} members={} total={} depth={} remaining={remaining} reason={reason}", members.len(), self.rows.len(), self.query_depth),
+                        );
+                    })?;
                     let verdict = judge.identity_representation_correspondence(
                         left.clone(),
                         right.clone(),
@@ -81,6 +93,11 @@ impl<'value> IdentitySubstitutions<'value> {
                         break;
                     }
                     if *remaining == 0 {
+                        judge.trace_le_case(
+                            "component-preparation",
+                            &[("left", left), ("right", right)],
+                            format_args!("stage=join seed={seed} row={row} candidate={candidate} members={} total={} depth={} remaining={remaining}", members.len(), self.rows.len(), self.query_depth),
+                        );
                         return Err(
                             "the reached Id component exhausted the shared query allowance",
                         );
@@ -92,12 +109,28 @@ impl<'value> IdentitySubstitutions<'value> {
             .iter()
             .any(|&row| self.active[self.representatives[row]])
         {
+            judge.trace_le_case(
+                "component-preparation",
+                &[],
+                format_args!(
+                    "stage=suspension seed={seed} members={} total={} remaining={remaining}",
+                    members.len(),
+                    self.rows.len()
+                ),
+            );
             return Err("the reached Id component revisits a suspended representative");
         }
         let mut best = None;
         for &row in &members {
-            let cost =
-                judge.identity_normalization_cost(self.rows[row].1, self.query_depth, remaining)?;
+            let cost = judge
+                .identity_normalization_cost(self.rows[row].1, self.query_depth, remaining)
+                .inspect_err(|reason| {
+                    judge.trace_le_case(
+                        "component-target-cost",
+                        &[("target", self.rows[row].1)],
+                        format_args!("seed={seed} row={row} members={} depth={} remaining={remaining} reason={reason}", members.len(), self.query_depth),
+                    );
+                })?;
             let candidate = (cost, row);
             if best.is_none_or(|known| candidate < known) {
                 best = Some(candidate);
@@ -120,7 +153,16 @@ impl<'value> IdentitySubstitutions<'value> {
         remaining: &mut usize,
     ) -> Result<Option<usize>, &'static str> {
         for index in 0..self.rows.len() {
-            spend_component_work(remaining)?;
+            spend_component_work(remaining).inspect_err(|reason| {
+                judge.trace_le_case(
+                    "component-lookup",
+                    &[("value", value)],
+                    format_args!(
+                        "row={index} total={} depth={depth} remaining={remaining} reason={reason}",
+                        self.rows.len()
+                    ),
+                );
+            })?;
             let component = self.representatives[index];
             if self.component_ready[index] {
                 let target = self.normalized[component]
@@ -149,6 +191,15 @@ impl<'value> IdentitySubstitutions<'value> {
                     break;
                 }
                 if *remaining == 0 {
+                    judge.trace_le_case(
+                        "component-lookup",
+                        &[("value", value), ("endpoint", endpoint)],
+                        format_args!(
+                            "row={index} total={} depth={depth} ready={} remaining={remaining}",
+                            self.rows.len(),
+                            self.component_ready[index]
+                        ),
+                    );
                     return Err("the Id component lookup exhausted the shared query allowance");
                 }
             }
@@ -434,6 +485,15 @@ impl StructuralJudge<'_> {
         let target = substitutions.rows[component].1.clone();
         let result = self.normalize_identity_context(target, depth + 1, remaining, substitutions);
         substitutions.active[component] = false;
+        if let Err(reason) = &result {
+            self.trace_le_case(
+                "representative-normalization",
+                &[("target", substitutions.rows[component].1)],
+                format_args!(
+                    "component={component} depth={depth} remaining={remaining} reason={reason}"
+                ),
+            );
+        }
         if let Ok(value) = &result {
             substitutions.normalized[component] = Some(value.clone());
         }
