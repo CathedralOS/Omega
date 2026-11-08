@@ -2065,38 +2065,35 @@ impl<'program> StructuralJudge<'program> {
                     .unwrap_or_else(|| vec![None]);
                 let mut completed = Vec::with_capacity(alternatives.len());
                 for contents in alternatives {
-                    let result = judge.clone().completed_value_path(
-                        expression,
-                        environment,
-                        scope,
-                        &inputs,
-                        call_values.clone(),
-                        receiver_changed,
-                        scalar_storage_read,
-                        contents,
-                        scalar_read_completed,
-                    );
-                    if result.is_none() && super::super::struct_trace() {
-                        let operands = inputs.iter().take(8).map(|(source, value)| {
-                            (*source, true, value.observed_value().is_some(),
-                                judge.normal_value_type_reference(*source, scope))
-                        }).collect::<Vec<_>>();
-                        let cast = expression_table(program).cast_node(expression)
-                            .map(|cast| (cast.value, cast.target_type, cast.form));
-                        eprintln!(
-                            "STRUCT normal-value-completion-refused machine={:?} state={:?} expression={expression:?} cast={cast:?} runtime_values={} receiver_changed={receiver_changed} result_type={:?} constructed_type={:?} operand_count={} operands={operands:?}",
-                            scope.0.symbol, scope.1.symbol, judge.runtime_body_values,
-                            judge.normal_value_type_reference(expression, scope),
-                            expression_table(program).constructed_value_type_reference(expression),
-                            inputs.len(),
-                        );
-                    }
                     let path = match requested_operations.delivery {
-                        ValueDelivery::Required => result?,
+                        ValueDelivery::Required => judge.clone().completed_value_path(
+                            expression,
+                            environment,
+                            scope,
+                            &inputs,
+                            call_values.clone(),
+                            receiver_changed,
+                            scalar_storage_read,
+                            contents,
+                            scalar_read_completed,
+                        )?,
                         ValueDelivery::RetainObservations => {
                             // Failure of provisional metadata never erases the
                             // independently completed operands and effects.
-                            result.unwrap_or_else(|| NormalReturnPath::unobserved(judge.clone()))
+                            judge
+                                .clone()
+                                .completed_value_path(
+                                    expression,
+                                    environment,
+                                    scope,
+                                    &inputs,
+                                    call_values.clone(),
+                                    receiver_changed,
+                                    scalar_storage_read,
+                                    contents,
+                                    scalar_read_completed,
+                                )
+                                .unwrap_or_else(|| NormalReturnPath::unobserved(judge.clone()))
                         }
                     };
                     completed.push(path.at_expression(expression, demand));
