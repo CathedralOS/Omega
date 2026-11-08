@@ -18,6 +18,21 @@ impl<'program> CallFrameResolver<'program> {
         expression: ExpressionHandle,
         reference: typed_trees::types::TypeReferenceHandle,
     ) -> Option<Vec<LocalWriteSource>> {
+        self.reference_operand_write_sources_with_captures(
+            machine,
+            expression,
+            reference,
+            &mut Vec::new(),
+        )
+    }
+
+    fn reference_operand_write_sources_with_captures(
+        &self,
+        machine: &'program Machine,
+        expression: ExpressionHandle,
+        reference: typed_trees::types::TypeReferenceHandle,
+        active_captures: &mut Vec<ExpressionHandle>,
+    ) -> Option<Vec<LocalWriteSource>> {
         crate::reference_shell(self.program, reference)?;
         let site = CallerWriteSite::Expression(expression);
         let (_, statement, _) = caller_statement_owner(self.program, machine, site)?;
@@ -38,6 +53,7 @@ impl<'program> CallFrameResolver<'program> {
                     &[expression],
                     &[reference],
                     preceding_effect,
+                    active_captures,
                 )?
                 .pop()?
             },
@@ -128,6 +144,7 @@ impl<'program> CallFrameResolver<'program> {
                         &arguments,
                         parameter_types,
                         preceding_effect,
+                        &mut Vec::new(),
                     )?,
                 })
             },
@@ -310,6 +327,7 @@ impl<'program> CallFrameResolver<'program> {
                     arguments,
                     &argument_types,
                     preceding_effect,
+                    &mut Vec::new(),
                 )?;
                 result.references = prefix.and_then(|prefix| {
                     self.capture_reference_origins(
@@ -360,6 +378,7 @@ impl<'program> CallFrameResolver<'program> {
         arguments: &[ExpressionHandle],
         argument_types: &[typed_trees::types::TypeReferenceHandle],
         mut preceding_effect: bool,
+        active_captures: &mut Vec<ExpressionHandle>,
     ) -> Option<Vec<Option<Vec<LocalWriteSource>>>> {
         let program = self.program;
         let machine_symbols = self.machine_symbols(machine)?;
@@ -399,27 +418,144 @@ impl<'program> CallFrameResolver<'program> {
                             &reference.into_iter().collect::<Vec<_>>(),
                         )
                         .and_then(|mut origins| origins.pop().flatten())
+                        .or_else(|| {
+                            reference?;
+                            frames::reference_subjects::validate_operand_selectors(
+                                program, machine, *argument,
+                            )?;
+                            self.saved_reference_operand_origins(
+                                machine,
+                                *argument,
+                                reference,
+                                prefix,
+                                active_captures,
+                            )
+                        })
                         .map(|origins| origins.into_iter().map(LocalWriteSource::from).collect())
                 })
             };
-            if origins.is_none()
-                && std::env::var("OMEGA_STATE_REFERENCE_DIAGNOSTICS")
-                    .is_ok_and(|selected| selected == program.symbols.name(machine.symbol))
-            {
-                let coordinate = frames::frame_place_path(program, *argument);
-                eprintln!(
-                    "CHECKSITE call-argument-origin-refused machine={} expression={argument:?} argument={index} prefix_present={} preceding_effect={preceding_effect} changes_origins={changes_origins} raw_root={:?} storage_root={:?} selector_count={:?}",
-                    program.symbols.name(machine.symbol),
-                    prefix.is_some(),
-                    crate::canonical_place_from_expression(program, *argument).map(|place| place.root),
-                    coordinate.as_ref().map(|origin| origin.source.root),
-                    coordinate.as_ref().map(|origin| origin.source.segments.len()),
-                );
-            }
             result.push(origins);
             preceding_effect |= changes_origins;
         }
         Some(result)
+    }
+
+    /// A saved reference owns the descriptor completed by its original producer.
+    /// Its synthetic value anchor is not a new declaration or the storage behind
+    /// the reference. Resolve that producer at its own cut, then load only newly
+    /// selected inner descriptors from the consuming prefix.
+    ///
+    /// The caller has already refused every preceding/operand origin-changing
+    /// effect. This supplies provenance only; ordinary formation, access, loans
+    /// and normal-exit restoration remain independent obligations.
+    fn saved_reference_operand_origins(
+        &self,
+        machine: &'program Machine,
+        expression: ExpressionHandle,
+        receiving: Option<typed_trees::types::TypeReferenceHandle>,
+        prefix: &CallOriginContext<'_>,
+        active_captures: &mut Vec<ExpressionHandle>,
+    ) -> Option<Vec<frames::FramePlaceOrigin>> {
+        use typed_trees::expression::{ExpressionNode, ValueCaptureOwner};
+        let program = self.program;
+        match expression_table(program).expression(expression) {
+            ExpressionNode::Borrow(borrow) => {
+                if crate::value_custody::expression_types::borrow_selects_reference_storage(
+                    program,
+                    borrow.target,
+                    receiving?,
+                    &[],
+                ) {
+                    // Replacing the descriptor cell is not writing its captured
+                    // referent. The existing cell-address route owns that case.
+                    return None;
+                }
+                self.saved_reference_operand_origins(
+                    machine,
+                    borrow.target,
+                    receiving,
+                    prefix,
+                    active_captures,
+                )
+            }
+            ExpressionNode::Member(member) => {
+                let receivers = self.saved_reference_operand_origins(
+                    machine,
+                    member.receiver,
+                    receiving,
+                    prefix,
+                    active_captures,
+                )?;
+                let mut origins = Vec::new();
+                for receiver in receivers {
+                    let projected = frames::alias_origins::projected_member_origins(
+                        program,
+                        vec![receiver.clone()],
+                        expression,
+                        member,
+                    );
+                    for projected in projected {
+                        for origin in frames::stored_origins::captured_reference_projection_origins(
+                            program,
+                            &receiver,
+                            &projected,
+                            prefix.stored,
+                        ) {
+                            frames::place_paths::push_unique_origin(&mut origins, origin?);
+                        }
+                    }
+                }
+                (!origins.is_empty()).then_some(origins)
+            }
+            ExpressionNode::SavedSubject(saved) => {
+                let production = program.saved_value_source(saved)?;
+                let capture = expression_table(program).value_capture(saved.capture);
+                if !expression_table(program).expression_is_valid(capture.value_anchor)
+                    || active_captures.len() >= 64
+                    || active_captures.contains(&capture.value_anchor)
+                {
+                    return None;
+                }
+                let (state, _, index) = caller_statement_owner(
+                    program,
+                    machine,
+                    CallerWriteSite::Expression(expression),
+                )?;
+                // Every authenticated capture owner identifies its own
+                // producing operation. Argument aliases retain the original
+                // actual's ordered cut, not the call's completed inventory.
+                let producer_site = match capture.owner {
+                    ValueCaptureOwner::Match => CallerWriteSite::Expression(capture.definition),
+                    ValueCaptureOwner::ExpressionArgument { call, .. } => {
+                        CallerWriteSite::Expression(call)
+                    }
+                    ValueCaptureOwner::StatementArgument { call, .. } => {
+                        CallerWriteSite::Call(program.statement_table.statement(call).as_call()?)
+                    }
+                };
+                let (owner, _, producer_index) =
+                    caller_statement_owner(program, machine, producer_site)?;
+                if state.symbol != owner.symbol || index != producer_index {
+                    return None;
+                }
+                let reference =
+                    crate::expression_result_type_reference(program, machine, state, production)?;
+                // A copied aggregate keeps its own captured value. Only an
+                // actual reference descriptor can supply a captured referent.
+                crate::reference_shell(program, reference)?;
+                active_captures.push(capture.value_anchor);
+                let sources = self.reference_operand_write_sources_with_captures(
+                    machine,
+                    production,
+                    reference,
+                    active_captures,
+                );
+                active_captures.pop();
+                sources.map(|sources| sources.iter().map(LocalWriteSource::frame_origin).collect())
+            }
+            // No computed/indexed/cast source is reconstructed from its spelling.
+            _ => None,
+        }
     }
 
     fn prefix_may_change_origins(
