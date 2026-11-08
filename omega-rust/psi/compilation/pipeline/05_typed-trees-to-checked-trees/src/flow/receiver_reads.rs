@@ -244,12 +244,13 @@ fn build_state_receiver_reads(
         }
         let mut reads = Vec::new();
         if complete {
-            DirectReads {
+            complete = DirectReads {
                 program,
                 owner: &owner,
                 statement_index: 0,
                 delegated: &delegated,
                 reads: &mut reads,
+                complete: true,
             }
             .collect();
         }
@@ -418,10 +419,11 @@ struct DirectReads<'walk, 'program> {
     statement_index: usize,
     delegated: &'walk DelegatedReceivers,
     reads: &'walk mut Vec<CanonicalPlace>,
+    complete: bool,
 }
 
 impl DirectReads<'_, '_> {
-    fn collect(&mut self) {
+    fn collect(&mut self) -> bool {
         let program = self.program;
         for (statement_index, statement) in
             crate::flow::state_statements(program, self.owner.state.statement_nodes)
@@ -464,6 +466,7 @@ impl DirectReads<'_, '_> {
                 }
             }
         }
+        self.complete
     }
 
     fn record(&mut self, place: CanonicalPlace) {
@@ -548,22 +551,32 @@ impl DirectReads<'_, '_> {
         if !expression.is_valid() {
             return;
         }
-        if let Some(place) = place_at(
+        let captured_home = match place_at(
             self.program,
             self.owner.state.symbol,
             self.statement_index,
             expression,
-        )
-        .filter(|place| matches!(place.root, facts::PlaceRoot::Symbol(_)))
-        {
-            if named {
-                self.record(place);
+        ) {
+            Some(place) if matches!(place.root, facts::PlaceRoot::Symbol(_)) => {
+                if named {
+                    self.record(place);
+                }
+                self.selectors(expression);
+                return;
             }
-            self.selectors(expression);
-            return;
-        }
+            Some(CanonicalPlace {
+                root: facts::PlaceRoot::Expression(_),
+                ..
+            }) => true,
+            _ => false,
+        };
         // A computed base: its own operands are ordinary reads.
         match self.program.expression_table.expression(expression) {
+            // A saved value reads its already established home. Its source and
+            // selectors were evaluated at the capture, not again at this alias.
+            // An unauthenticated home leaves the footprint unknown, so callers
+            // conservatively observe their whole receiver.
+            ExpressionNode::SavedSubject(_) => self.complete &= captured_home,
             ExpressionNode::Member(member) => self.place(member.receiver, named),
             ExpressionNode::Indexed(indexed) => {
                 self.place(indexed.collection, named);

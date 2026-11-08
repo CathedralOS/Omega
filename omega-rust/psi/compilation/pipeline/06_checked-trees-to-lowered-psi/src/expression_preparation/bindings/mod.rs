@@ -321,6 +321,7 @@ impl ScalarBindings {
 
     /// Resolve the source home before lowering the argument's relative path.
     /// A projected alias retains its physical root and its established prefix.
+    #[track_caller]
     pub(crate) fn borrowed_structural_home(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -427,9 +428,10 @@ impl ScalarBindings {
                                     })
                                     .collect::<Vec<_>>();
                                 eprintln!(
-                                    "CHECKSITE computed-borrow-home-missing root={storage_root:?} result_ordinal={result_ordinal:?} access={access:?} path_segments={} local_count={} first_homes={homes:?}",
+                                    "CHECKSITE computed-borrow-home-missing root={storage_root:?} result_ordinal={result_ordinal:?} access={access:?} path_segments={} local_count={} first_homes={homes:?} caller={}",
                                     argument.path.len(),
                                     self.structural_locals.len(),
+                                    std::panic::Location::caller(),
                                 );
                             }
                             return unsupported("computed borrow lost its established expression");
