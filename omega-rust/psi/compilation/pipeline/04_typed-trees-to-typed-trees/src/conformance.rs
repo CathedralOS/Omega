@@ -387,8 +387,10 @@ pub(crate) mod conformance_application_lifetimes {
                     ));
                     continue;
                 };
-                let machine_parameters =
-                    program.machine_type_parameters(callee_declaration).to_vec();
+                // Nested trait actuals can name evidence such as a selected model.
+                // Keep the whole callable telescope so those actuals retain their
+                // complete map application instead of remaining formal binders.
+                let machine_parameters = program.machine_callable_parameters(callee_declaration);
                 let (declared_arguments, expected_arguments) =
                     match inherited_arguments::materialize(
                         program,
