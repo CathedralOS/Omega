@@ -176,9 +176,14 @@ restrictions are opt-in domain clauses, not field visibility or privileges for
 every machine in a file, namespace, or package. Omitting them adds no access
 restriction beyond ordinary validity, ownership, and other authority rules.
 Visibility is not confidentiality, unforgeable authority, or an ABI policy.
-There are no private fields. Representation hiding is a package-boundary
-property: selecting a type's fields, cases or conformances requires a direct
-dependency on the owning package, while carrying its values does not
+There are no private fields, by design: access plans already authorize exact
+operations on governed values, so field visibility would duplicate that
+machinery to enforce nothing, and the shape of data is part of its API. A
+consumer that uses only a type's operations rebuilds without edits when the
+shape changes; a consumer that selects a field has taken that dependency on
+purpose. Denying selection itself is a package-boundary property: selecting a
+type's fields, cases or conformances requires a direct dependency on the owning
+package, while carrying its values does not
 ([declaration selection](../packages/boundaries.md#exposure-and-declaration-selection)).
 
 Constructing geometry or handle bits does not construct its routed authority or
