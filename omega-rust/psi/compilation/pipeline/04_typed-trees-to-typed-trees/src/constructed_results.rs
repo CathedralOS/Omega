@@ -119,9 +119,15 @@ impl ValueTypeOwner {
         program: &TypedTrees,
         expression: ExpressionHandle,
     ) -> Option<TypeReferenceHandle> {
+        // One result-type query only reads the trees, which are borrowed for
+        // its whole duration. A checking context over that borrow answers the
+        // query's repeated `result` ownership lookups from one pass over the
+        // callable contracts instead of rescanning them per lookup, and it is
+        // dropped before this pass writes the answer back.
+        let context = validation::CheckingContext::new(program);
         match self {
             Self::State { machine, state } => validation::expression_result_type_reference(
-                program,
+                &context,
                 program.machine_by_symbol(machine)?,
                 program.state_by_symbol(state)?,
                 expression,
@@ -130,7 +136,7 @@ impl ValueTypeOwner {
                 callable,
                 parameters,
             } => validation::parameter_expression_result_type_reference(
-                program,
+                &context,
                 callable,
                 program.state_parameters.span_or_empty(parameters),
                 expression,
