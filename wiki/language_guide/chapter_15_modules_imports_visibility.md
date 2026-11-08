@@ -1,18 +1,11 @@
-# Chapter 15: Modules, Imports, And Visibility
+# Chapter 15: Modules, imports, and visibility
 
-A package declares which other packages its source may use. Visibility then
-determines which declarations those dependencies expose. Neither importing a
-name nor carrying a value grants additional authority.
+A package declares its dependencies. Modules organize its declarations, and
+imports give a file convenient names for declarations it may use.
 
-The [source naming rules](../spec/language/modules.md) and
-[package boundary](../spec/packages/boundaries.md) specify the contract.
-This chapter explains how to use it; [using source packages](packages.md)
-covers installation and review.
+## Declare a package
 
-## Packages
-
-A package is a directory with a `build.omg`. Files belong by location rather
-than repeating a package declaration. The package declares its own name:
+A package is a directory containing `build.omg`:
 
 ```omega
 machine build(builder: &mut Build) {
@@ -20,46 +13,128 @@ machine build(builder: &mut Build) {
 }
 ```
 
-Use `Build::application(builder, "name")` for an application, executable by default.
-Add `Build::artifact_only(builder)` for an artifact-only application; it must
-complete at least one required output and cannot select executable roots/providers.
-A workspace instead lists
-`Build::member(builder, "path")` calls; each member is an independently selectable
-root, not part of one combined dependency graph. An application can depend on
-packages, but cannot itself be imported as a library.
+Use `Build::application` for an application. A workspace lists its members with
+`Build::member`; each member is an independently selectable build root.
+An application may depend on packages but is not itself imported as a library.
 
-The build root is a free machine, not an attached `Owner::build`. It takes an
-explicit mutable Build and any declared backing arguments supplied by its
-invocation. The compiler checks and admits an initial prefix, then prepares
-subsequent checked continuations as dependencies become available. One logical
-activation retains its mutable data and resumes without replaying earlier
-effects. Helpers and control flow remain ordinary Omega; no unchecked source
-or second discovery run may execute to learn the graph.
+A dependency's default import alias keeps its declared snake_case name, such as
+`arithmetic_kernels`. A requester can choose another alias without renaming the
+package inside its own source. Package identity
+includes source lineage, so aliases cannot make incompatible revisions of the
+same package coexist.
 
-A package name is not globally unique. Its stable identity combines its declared
-name with its source lineage. A revision identifies the selected source, not a
-new nominal package: two incompatible resolutions of one package cannot coexist
-merely because a caller gives them different aliases. For a Git workspace,
-moving a member within the same repository does not rename it.
+Commit `omega.lock` with the project. It retains the dependency graph, source
+pins and accepted review decisions. [Using source packages](packages.md) covers
+declaring dependencies, installation and updates.
 
-The default import alias for `arithmetic-kernels` is `arithmetic_kernels`.
-Aliases belong to the requester: your rename does not change names used inside
-the dependency. See [source selection](../spec/packages/sources.md) for exact
-Git pins, workspace member selection, and reconciliation.
+## Organize files and modules
 
-Commit `omega.lock` under the project's review controls. It records the graph,
-pins, accepted policy, and decisions. Install/update reviews changed findings;
-ordinary compilation uses the accepted baseline rather than asking for the same
-permission again. Source changes remain visible even when permissions do not
-change. Acceptance neither proves the dependency safe nor bypasses compiler
-proof, reach, or artifact checks.
+Put a module declaration at the top of a file:
 
-### Build and product dependencies
+```omega
+module dungeon::combat;
+```
 
-Use `Build::dependency` for product code and `Build::build_dependency` for
-interpreted helpers. Configure a dependency description before registration;
-registration atomically fixes its source, purpose, alias and delegated context.
-The following is ratified source design, not a current executable fixture:
+Files declaring the same module share its declarations. Files with no module
+declaration form one logical module within the package. Imports remain local
+to each file.
+
+Use `::` for static names and `.` for fields:
+
+```omega
+let room: dungeon::rooms::Room = dungeon::rooms::create();
+dungeon::rooms::describe(&room);
+```
+
+`describe` receives the room explicitly. Module paths resolve declarations;
+they are not paths for reaching outside the package directory.
+
+## Import a declaration
+
+```omega
+use dungeon::combat::CombatSystem;
+use dungeon::rooms::Room;
+```
+
+External packages must be direct declared dependencies. A fully qualified name
+obeys the same rule as an import. Importing a name does not run its code.
+
+Prefer a narrow import when you need one declaration. Importing a module also
+exposes its directly declared public foreign domains; importing a specific
+domain exposes only that domain. Neither imports from sibling files nor the
+imported module's own imports spread into this file.
+
+Conflicting imports produce an ambiguity error with both owners and import
+sites. Import order never chooses a winner. See [import scope](../spec/language/modules.md#import-scope-and-exposure)
+for domain attachments and extension lookup.
+
+## Publish an API
+
+Independently nameable declarations are private unless marked `public`:
+
+```omega
+public data Player {
+    health: i32;
+}
+
+public machine take_damage(player: &mut Player, amount: i32)
+requires amount >= 0
+requires player.health >= amount
+{
+    player.health = player.health - amount;
+}
+```
+
+Publishing `Player` exposes its fields and shape. Publishing `take_damage` is
+a separate choice. Its preconditions keep the subtraction valid.
+
+Fields, cases and trait requirements follow their containing declaration's
+visibility. Nested machines have lexical scope inside their enclosing machine;
+exporting the outer machine does not expose its helpers.
+
+A public body may use private implementation details. Its public signature and
+contracts must expose names consumers are permitted to select. Named public
+conformances can retain private implementing machines because consumers select
+the conformance's published row map.
+
+## Public fields and access policies
+
+Consumers can inspect and construct public structural data while satisfying its
+types, invariants, borrowing and access policies. Field visibility alone does
+not grant a routed qualification. Reconstructing the range fields of an
+`Extent`, for example, does not establish `Extent::Granted`.
+
+Use domains and access policies for controlled establishment and mutation.
+Provider-owned confidential state can remain behind a checked handle. Changing
+public structure changes the source interface; binary replacement additionally
+uses [component contracts](../spec/build/component_publication.md).
+
+## Use a type returned by a dependency
+
+An API may return a type owned by one of its own dependencies. You can pass that
+value back through the API without directly depending on its original owner:
+
+```omega
+// Sketch: filesystem supplies the signatures and handle contract.
+let handle = filesystem::open(path);
+filesystem::read(&handle);
+filesystem::close(handle);
+```
+
+Moving, borrowing or storing the inferred value preserves its type and
+obligations. Selecting its owner's declarations, such as fields, cases,
+operators or named conformances, requires a direct dependency on that owner.
+Automatic cleanup still follows the exact owner-selected operation.
+
+To expose behavior through your own API, write a public wrapper. See
+[package boundaries](../spec/packages/boundaries.md) for carried foreign types
+and declaration selection.
+
+## Run a build helper
+
+Product dependencies supply code to the program. Build dependencies supply
+helpers interpreted during the build. Configure the dependency, register it,
+then prepare it before calling its code:
 
 ```omega
 use generator;
@@ -79,351 +154,26 @@ suspends
 }
 ```
 
-The dependency helper is ordinary library code. Its source selection uses the
-invocation's authorized acquisition/backing, never an ambient filesystem read.
-The import alone acquires and executes nothing. Preparation permits resolution
-and checking of the dependent continuation, including generator-defined public
-interfaces, before any use executes. Unused deferred imports normally warn;
-aliases cannot be retargeted after registration. No later request justifies
-an earlier unresolved call. Exact provider calls retain normal selected
-implementation and effect admission.
-
-Passing Build to the generator above deliberately delegates its registration
-operations; a narrow generator normally takes bytes, a writer or an ordinary
-filesystem backing with a selected implementation instead. The parent can
-create a restricted subtree or copy-on-write virtual tree, run the dependency
-against that view, inspect changes, then explicitly register generated bytes
-or apply changes through its own authorized filesystem. The child calls the
-same filesystem contract without knowing its backing is virtual. A different
-provider with the same theoretical reach cannot manufacture real host access.
-
-Generated code naming a product dependency still needs its ordinary edge. Using std or
-another library in both contexts requires both declarations. A build library
-uses its own ordinary dependencies for its host implementation, not the
-consumer's product aliases.
-
-Imports remain file-local. Build helpers can live in ordinary local files;
-importing a file in both contexts checks it twice under the corresponding scope.
-A Build import may remain deferred until preparation, but no unchecked use
-executes. Syntax and resolvable local obligations are still checked, and every
-selected continuation must be admitted. Untaken deferred branches receive no
-claim of complete checking. Two scopes may use the same alias differently
-without lookup fallback. Old dependency spellings and injected filesystem
-facets are deprecate-then-remove migration work, not permanent alternate APIs.
-
-When `build` returns, the compiler waits for every outstanding request and
-rejects failed, cyclic, unresolved, or unadmitted dependencies before compiling
-product source. Declaring a dependency is therefore fire-and-forget within the
-Build activation, not optional in the final result.
-
-The build evaluator's execution profile and the product target are distinct.
-A macOS helper generating Windows code is checked for the build execution profile,
-and emits ordinary named implementations rather than target-prefixed declarations.
-One Build evaluation records explicit target-keyed provider rows without observing
-a selected realization target. Build-only source acquisition is reusable,
-but host-generated configuration is not target evidence. The
-[scoped execution contract](../spec/build/scoped_execution.md) fixes these rules;
-[implementation tasks](../../TASKS.md) retain `STAGED-BUILD-CAPABILITIES` and
-the underlying Psi execution work.
-
-Targets are explicit invocation inputs. They do not change the dependency graph.
-Executable applications bind target entries with
-`Build::bind(builder, target::ProgramEntry, entry)` rows. The
-[multi-target contract](../spec/build/configuration.md) requires an explicit,
-nonempty target set and independent outcomes; it does not infer an `all` set
-from declarations or the compiler catalog.
-
-For macOS GUI output, `Subsystem::Gui` selects the
-[application publication contract](../spec/build/macos_application.md):
-one bundle, with an authored application identifier supplied before signed
-native emission. Bundle production and its new identifier field remain
-implementation work; the current output is a flat executable and std requests
-foreground activation. Producing Psi alone does not need those native
-inputs.
-
-### Build orchestration is not semantic evaluation
-
-Both can run before the final program, but they have different authority:
-
-| Work | Inputs and effects |
-| --- | --- |
-| `build.omg` | Admitted build-host services, staging, generated source, and provider/root selections. |
-| Semantic evaluation | Hermetic target-semantic constants, proofs, plans, and generators. |
-
-A host observation becomes a semantic input only through recorded build-input
-custody. A constant or proof cannot directly read the build host's filesystem
-or environment. Selecting a runtime service provider does not grant build-host
-authority.
-
-Product entry/provider operands in designated Build operations resolve against
-the product scope without importing or executing target code on the host.
-Ordinary host calls and same-named authored methods do not get that exception.
-Reusable helpers can receive restricted, non-callable product descriptions.
-Passing the entire Build does not grant access to the caller's private names.
-Own generated entries and this invocation's final component are unavailable
-during its build; inspect them in a separate, later build instead.
-
-Default build I/O is a read-only captured input tree and fresh append-and-seal
-staging, with deterministic logical paths and metadata. No home directory,
-network, subprocess, environment, or implicit symlink traversal is granted.
-Pass a template view and narrow output writer to a generator rather than the
-whole builder. A required-output token is linear: complete it with a sealed file
-or explicitly fail it. Publication waits for all required outputs and final
-product checks; logging an error is not the same as recording failure.
-Artifact-only mode changes entry requiredness, not target identity or authority.
-
-The parent supplies filesystem backing and selected implementations within its
-actual grant. Helpers can receive attenuated or virtual views through ordinary
-service contracts; a virtual root never becomes a host filesystem because a
-leaf imports another package. One activation resumes through checked stages
-against exact accepted dependencies and contexts; a mismatch fails rather than
-updating acceptance or replaying earlier effects.
-See [build execution](../spec/build/execution.md),
-[observations](../spec/build/observations.md), and
-[semantic evaluation](../spec/language/evaluation.md).
-
-### Build-level behavior exclusions
-
-A library can keep conservative `crashes Trap` contracts while the build requires
-its selected executable to have no possible Trap. Source contract checking and
-this product check are independent: the build neither removes handwritten clauses
-nor permits a callee to violate an intermediate contract.
-
-For example, use the same library source and public crash allowances with two
-ordinary assertion implementations:
-
-| Build selection | Additional requirement | Result |
-| --- | --- | --- |
-| Checking implementation | No added crash exclusion | May Trap where its ordinary contracts permit. |
-| Checking implementation | Exclude Trap | Reject if an assertion can fail. |
-| No-op implementation | Exclude Trap | Pass only if the entire selected product excludes Trap. |
-
-These are configuration choices, not built-in debug/release modes. No special
-assertion macro or diagnostic crash cause is needed. Exact Build API spellings
-and implementation coverage are tracked by
-[the implementation tasks](../../TASKS.md#build-level-behavior-exclusions).
-
-The no-op does not skip eager argument evaluation. A predicate that can Trap
-still prevents a no-Trap result; logging, mutation, divergence and resource
-disposition are not erased because an assertion ignores their result. A shared
-checking/no-op contract also cannot establish the asserted condition on return.
-Validation needed for safe subsequent operations must remain enabled. General
-optimization can remove redundant pure work, but optional optimization switches
-must not decide whether the product satisfies its exclusions.
-
-Service exclusions work similarly, but abstract services and physical mechanisms
-remain distinct. An ordinary silent logger can exclude Console when its verified
-implementation never invokes it. A call to Console still counts even with a silent
-Console provider. Excluding the physical process-output class is a separate choice.
-
-The compiler needs complete selected-code evidence, including dependencies,
-generated code, callbacks and cleanup. An opaque dependency promising only that
-it may Trap cannot certify absence. A verified no-Trap product does not turn its
-public may-Trap functions into no-Trap callables for unrelated consumers. Its
-guarantee binds the exact composition and must survive installation/replacement
-checks. See [behavior exclusions](../spec/build/behavior_exclusions.md).
-
-## Path separator: `::` for names, `.` for values
-
-Use `::` to resolve a static name: a package, module, type, case, domain, trait
-requirement or named implementation member. Use `.` to access a field. Data
-does not own machine declarations. An ordinary declaration with signature
-`public machine describe(room: &Room)` in `dungeon::rooms` takes its data
-argument explicitly:
-
-```omega
-let room: dungeon::rooms::Room = dungeon::rooms::create();
-dungeon::rooms::describe(&room);
-```
-
-Both `dungeon::rooms::create` and `dungeon::rooms::describe` select
-declarations. The latter receives an explicit shared borrow; it neither moves
-`room` nor inserts a receiver. The machine's declaring package must still be
-an authorized dependency.
-
-## Files And Modules
-
-Files organize declarations; module paths name them:
-
-```omega
-module dungeon::combat;
-```
-
-Module paths participate in name resolution and artifact identity. They are
-not filesystem escape paths or additional package reach boundaries. The Rust
-implementation admits module-owned forms — domains, operator homes, constants
-and qualified case membership in declared-domain proof facts — under the same
-namespace law: qualified spellings select exactly, and relative spellings bind
-inside the declaring module or through a narrow import of the exact
-declaration. See [source resolution](../../omega-rust/psi/compilation/pipeline/README.md#resolution-and-closed-instance-normalization).
-
-## Imports
-
-Imports select logical names, not filesystem paths:
-
-```omega
-use dungeon::combat::CombatSystem;
-use dungeon::rooms::Room;
-```
-
-An external package must be a direct declared dependency. Fully qualifying its
-name does not bypass that rule. Imports affect resolution; they do not execute
-the imported code. Tooling may discover an enclosing build directory, but source
-imports cannot reach upward through directories to evade package declarations.
-
-A package's files that declare no module form one logical module: a file can
-name a sibling file's declarations without importing them.
-
-Imports are local to this source file, even when sibling files declare the same
-logical module. They do not spread transitively or change visibility of the
-module's own declarations. Importing a module exposes its directly declared
-public foreign domains; importing one domain exposes only that declaration.
-Importing a machine or carrier exposes no sibling or foreign domains merely
-because their source was loaded. Descendant modules and the imported module's
-own imports do not add extension candidates.
-
-For example, `use ui_policy::screen::Point::OnScreen;` selects an independently
-owned domain in `ui_policy::screen`. Its carrier attachment resolves in the
-declaring context, not against the caller's same-spelled `Point`. Direct qualified
-selection exposes no siblings. The domain's exact owner and the carrier's owner
-remain distinct. Importing grants no membership, minting authority, private
-representation access, or implicit operator change.
-
-Two distinct exposed declarations competing for one carrier-qualified name
-reject; repeating the same exact import does not. Neither import order nor
-carrier ownership gives priority. A broad import may collide after module growth;
-a narrow import avoids unrelated additions. Diagnostics show both owners and
-the imports responsible. See [ordinary import rules](../spec/language/modules.md#import-scope-and-exposure).
-
-### Declaration selection and carried foreign types
-
-Suppose `filesystem` is your direct dependency, and its API returns a handle
-type owned by one of its dependencies. You may use that API without directly
-depending on the handle's owner:
-
-```omega
-let handle: filesystem::Handle = filesystem::open(path);
-filesystem::read(&handle);
-filesystem::close(handle);
-```
-
-This example is schematic: the selected API supplies the concrete signatures
-and ownership modes. Moving, borrowing, storing, returning, and passing the
-inferred value does not select its owner's declarations. Multiplicity and
-compiler-planned cleanup still apply.
-
-The same distinction preserves an exact foreign-domain qualification and its
-evidence when received through an API. Carrying it does not import the domain
-for authored lookup or activate its declaring package's other extensions.
-
-Selecting the handle owner's fields, cases, domains, operators or named
-implementations is different. That needs a direct dependency on the selected
-declaration's owner; carrying an inferred foreign type does not provide that
-access. Authoring `machine inspect(handle: &Handle)` explicitly selects the
-parameter type in its declaring scope. A data-owned declaration such as
-`machine Handle::inspect` is retired, not another import route.
-
-Automatic cleanup is carried type behavior. The compiler uses the exact
-owner-selected nominal cleanup operation, not an arbitrary same-spelled machine. Authored
-early cleanup uses an ordinary consuming operation such as
-`omega::core::drop(value)`, with its ordinary dependency requirements.
-
-Public signatures preserve transitive nominal identity. Carrying a private
-conformance chosen by another package does not grant permission to name it.
-The [boundary contract](../spec/packages/boundaries.md) specifies these
-distinctions; the [review contract](../spec/packages/review.md) explains their
-API and rebuild consequences.
-
-## Visibility
-
-Independently nameable declarations are private unless marked `public`.
-Qualification does not inherit visibility: a public `Player` does not
-automatically publish a separate `take_damage` machine or create a machine
-namespace. A genuine field, case, or
-trait requirement follows its exact containing declaration.
-
-Nested machines instead have lexical visibility inside their enclosing machine
-scope. Exporting a machine does not export its private helpers; qualification
-cannot enter another machine's private descendants. See
-[nested machines](chapter_4_nested_machines_transitions.md).
-
-```omega
-public data Player {
-    health: i32;
-}
-
-public const MAX_DAMAGE: i32 = 100;
-
-public machine Player::take_damage(player: &mut Player, amount: i32)
-requires amount >= 0
-requires player.health >= amount
-{
-    player.health = player.health - amount;
-}
-```
-
-The preconditions also keep this subtraction within range. Public visibility
-does not waive numeric, ownership, or proof rules.
-
-A public contract cannot expose a private declaration for consumer selection.
-A public machine's body
-may use private implementation details; its exposed contracts may not. Likewise,
-`terminates` is the public promise, while its ranking measure is private
-proof machinery. Measures are not published with `public`.
-
-Named conformances have independent visibility. A public conformance may
-retain private implementing machine identities: its consumer selects the public
-conformance and its row map, not those machines independently. A requirement-local
-`as Name` label does not create another public declaration.
-
-A public domain may similarly retain private trait requirements or exact machines
-in its issuer catalog. This [authorization metadata](../spec/resources/authority.md#private-issuer-routes)
-does not make the private route callable or externally implementable, and does
-not expose private carrier types. The verifier still checks exact issuer identity;
-private does not mean secret or omitted from evidence.
-
-Omega has no re-export item that changes dependency ownership. To present a
-dependency's behavior under your package's API, write an ordinary public wrapper.
-A public lookalike also cannot grant access to compiler intrinsics.
-
-### Public data shape
-
-A public structural data declaration exposes its fields and shape. Authorized
-consumers can construct, read, and update it while preserving its field types,
-invariants, borrow rules, and qualification requirements.
-
-Visible fields are not authority. A caller may assemble the geometry of a public
-linear `Extent`, but that does not establish `Extent::Granted`. Linearity
-tracks the value's use; the routed qualification establishes the authority.
-
-Changing public shape changes the source/API contract. Source visibility is not
-an ABI guarantee; independent replacement uses explicit
-[component publication](../spec/build/component_publication.md) contracts.
-
-### Authority visibility and custody
-
-Handle bits and range fields can be public while the state they refer to stays
-in provider custody. Reconstructing the bits does not reproduce validation,
-provenance, or permission. Checked operations require the applicable evidence.
-
-Use invariants for ordinary data correctness, routed qualifications for authority
-that needs an establishment route, and provider custody for confidential state.
-See [authority and qualification](../spec/resources/authority.md).
-
-## Name Resolution
-
-Resolution considers lexical bindings and parameters before imported names.
-Fields are accessed through explicit values or parameters; a fully qualified package path
-still obeys direct-dependency and visibility rules. Ambiguous imported names
-reject rather than selecting one by traversal order.
-
-The [source naming rules](../spec/language/modules.md#resolution) give the
-resolution order. Importing names never changes the meaning of an already
-selected declaration.
-
-## Build Reports
-
-Reports expose the package/import graph, public API, boundary imports, and
-published wire/versioned declarations. Review also preserves source changes
-and authority/assumption findings without treating report wording as identity.
-Read [using source packages](packages.md) for inspecting and accepting changes.
+This build API sketch assumes the dependency helpers are in scope. Preparation
+resolves and checks the generator's continuation before it executes.
+Registration fixes its source and alias. The build waits for outstanding
+dependency requests before compiling the product.
+
+Passing the whole `Build` delegates its registration operations. A small
+generator can instead accept input bytes and a narrow output writer or
+filesystem view. Build dependencies do not inherit the resolver's network or
+credential authority.
+
+A helper runs for the build host, even when generating source for another
+target. Semantic evaluation of constants and proofs uses hermetic inputs.
+The [build execution reference](../spec/build/execution.md) covers staging,
+generated outputs and delegated filesystem views; [configuration](../spec/build/configuration.md)
+covers target entries and artifact-only applications.
+
+## Inspect the package
+
+Build reports show dependencies, imports, public APIs and boundary requirements.
+Package review also shows source changes and authority findings. Use
+[package audits](packages.md) to inspect the selected program, and
+[behavior exclusions](../spec/build/behavior_exclusions.md) when a build should
+forbid a service or crash cause throughout its selected code.

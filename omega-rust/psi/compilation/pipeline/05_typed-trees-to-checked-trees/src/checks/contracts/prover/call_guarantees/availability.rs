@@ -132,7 +132,7 @@ pub(crate) enum GuaranteeUse {
 
 pub(in crate::checks) fn available<'program>(
     program: &'program dyn ::validation::CheckingInput,
-    facts: &checked_trees::CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     caller: &FlowStateFact,
     use_point: GuaranteeUse,
     contexts: &[facts::FactContextHandle],
@@ -204,14 +204,14 @@ pub(in crate::checks) fn available<'program>(
             || !stable_predicate_inputs(program, facts, caller, &supplied, expression)
             || !capture_preserved(
                 program,
-                &facts.operators,
-                &facts.borrow,
+                facts.operators,
+                facts.borrow,
                 caller_machine,
                 &supplied,
                 expression,
                 frames,
             )
-            || !builtin_predicate(program, &facts.operators, &supplied, expression)
+            || !builtin_predicate(program, facts.operators, &supplied, expression)
         {
             continue;
         }

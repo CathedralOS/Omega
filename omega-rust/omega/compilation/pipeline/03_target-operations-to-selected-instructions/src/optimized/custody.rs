@@ -26,7 +26,7 @@ pub(super) fn selection_custody_receipt(
             projection: input.projection,
             manifest: input.manifest,
             optimization_unit: unit.identity,
-            fuel_schedule: unit.fuel_schedule,
+            work_schedule: unit.work_schedule,
             register_environment: register_environment.identity(),
         },
         legalized: legalized.receipt().identity(),

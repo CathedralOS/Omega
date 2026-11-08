@@ -11,7 +11,7 @@ not reconstruct the source type or invent an owned storage declaration.
 
 The inspection checks that this exact reference edge still has an identity-only
 target, validates the field graph, then executes the policy to produce the real
-argument/return placements. Existing rejection, fuel, target and nominal-identity
+argument/return placements. Existing rejection, work, target and nominal-identity
 controls remain active. Run with `OMEGA_CORPUS_HOST_PROVISIONS=1`; an `unrequested`
 runtime observation is not execution evidence.
 

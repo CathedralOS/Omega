@@ -10,7 +10,7 @@
 //! executing these values. Converting interpreter storage is an engine concern.
 //!
 //! Retained-size functions count this value's cells and text payload, not work
-//! performed by any particular engine. Terminal fuel remains independently
+//! performed by any particular engine. Terminal work remains independently
 //! measured by the shared interpreter; these counts do not substitute for it.
 
 /// A structured value crossing the compile-time argument/result boundary in

@@ -1,3 +1,8 @@
+// `OptimizationRuleContract`: 97-byte wire declaration (`OMGRUL\0\0` v1)
+// binding a rule identity, its owning pass identity, nonzero rule version,
+// required and invalidated analysis bitsets, and required validation safety
+// class.
+
 use super::{
     AnalysisInvalidationSet, AnalysisSet, CoreContractDecodeError, OptimizationSafetyClass,
 };
@@ -6,15 +11,14 @@ use crate::{OptimizationPassIdentity, OptimizationRuleIdentity};
 const RULE_CONTRACT_MAGIC: &[u8; 8] = b"OMGRUL\0\0";
 const RULE_CONTRACT_SCHEMA_VERSION: u32 = 1;
 
-/// Stable declaration consumed by an ordered registry and pass manager.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct OptimizationRuleContract {
-    identity: OptimizationRuleIdentity,
-    pass: OptimizationPassIdentity,
-    version: u32,
-    required_analyses: AnalysisSet,
-    invalidated_analyses: AnalysisInvalidationSet,
-    safety_class: OptimizationSafetyClass,
+    identity: OptimizationRuleIdentity, // Canonical identity of the rewrite rule.
+    pass: OptimizationPassIdentity,     // Pass group that schedules this rule.
+    version: u32,                       // Nonzero rule implementation version.
+    required_analyses: AnalysisSet,     // Analyses that must be valid before evaluation.
+    invalidated_analyses: AnalysisInvalidationSet, // Analyses invalidated when the rule commits.
+    safety_class: OptimizationSafetyClass, // Validation strength required before commit.
 }
 
 crate::record_views! {

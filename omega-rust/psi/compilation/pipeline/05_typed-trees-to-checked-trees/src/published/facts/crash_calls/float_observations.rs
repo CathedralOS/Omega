@@ -45,7 +45,7 @@ impl<'a> FloatObservations<'a> {
         reference: TypeReferenceHandle,
     ) -> Option<String> {
         let (operands, offset) =
-            crate::flow::captured_call_operands(self.program, self.flow, state, call)?;
+            crate::flow::captured_call_operands(self.program, self.flow.view(), state, call)?;
         let values = self.capture_values(
             state,
             operands.get(position + offset)?,
@@ -72,7 +72,7 @@ impl<'a> FloatObservations<'a> {
         // select alternatives again from the source expression's shape.
         let values = crate::flow::captured_operand_values(
             self.program,
-            self.flow,
+            self.flow.view(),
             self.semantic,
             state,
             crate::flow::CapturedOperand::unrecorded(operand),
@@ -96,7 +96,11 @@ impl<'a> FloatObservations<'a> {
                     value.observation,
                     value.observation_type,
                     &value.observation_projection,
-                    crate::flow::captured_observation_places(self.program, self.flow, &value),
+                    crate::flow::captured_observation_places(
+                        self.program,
+                        self.flow.view(),
+                        &value,
+                    ),
                     invocation,
                     epoch,
                 ),
@@ -104,7 +108,7 @@ impl<'a> FloatObservations<'a> {
                     value.operand,
                     value.type_reference,
                     &value.projection,
-                    crate::flow::captured_value_places(self.program, self.flow, &value),
+                    crate::flow::captured_value_places(self.program, self.flow.view(), &value),
                     value.producer_invocation(invocation),
                     value.producer_epoch.map_or(epoch, |source| source.row()),
                 ),
@@ -283,8 +287,12 @@ impl<'a> FloatObservations<'a> {
                 {
                     return None;
                 }
-                let (operands, offset) =
-                    crate::flow::captured_call_operands(self.program, self.flow, state, call)?;
+                let (operands, offset) = crate::flow::captured_call_operands(
+                    self.program,
+                    self.flow.view(),
+                    state,
+                    call,
+                )?;
                 self.capture_values(
                     state,
                     operands.get(position + offset)?,
@@ -394,7 +402,12 @@ impl<'a> FloatObservations<'a> {
         // This source place is classified from the recast, not replayed. A
         // completed prefix that could change its binding prevents borrowing an
         // earlier origin for that read; unknown selectors remain unresolved.
-        if !crate::flow::operand_entry_origin_is_stable(self.program, self.flow, epoch, &place) {
+        if !crate::flow::operand_entry_origin_is_stable(
+            self.program,
+            self.flow.view(),
+            epoch,
+            &place,
+        ) {
             return None;
         }
         self.integer_bits(source_type, target, &place, contexts)

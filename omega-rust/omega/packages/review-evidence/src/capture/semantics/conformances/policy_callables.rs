@@ -1,4 +1,15 @@
-//! Exact callable coordinates for retained conformance selections.
+/*
+We compute exact callable coordinates for retained conformance selections.
+
+Caller binders under overloaded machines require the owning overload and
+telescope ordinal; other declaration kinds use their nominal path only when
+the checked parameter arena proves it denotes a single binder. A fixed
+operator token is part of a declaration's public signature (adding, removing,
+or changing it is a breaking revision), so it joins the review coordinate
+here while staying out of the Psi overload identity. Identity uses the
+declaration's resolved symbols and lifetime ordinals rather than instantiated
+policy parameters or private specialization captures.
+*/
 
 use super::policy_arguments::rejected;
 use crate::capture::PackageReviewInput;
@@ -10,9 +21,6 @@ use crate::record::PackageReviewNominalIdentity;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-/// Caller binders under overloaded machines need the owning overload and
-/// telescope ordinal. Other declaration kinds may use their nominal path only
-/// when the checked parameter arena proves it denotes exactly one binder.
 pub(super) fn caller_binder_identity(
     compilation: &PackageReviewInput<'_>,
     symbol: SymbolHandle,
@@ -78,20 +86,10 @@ pub(crate) fn callable_identity(
     let overload = compilation
         .machine_callable_identity_text(machine)
         .ok_or_else(|| rejected("a callable without an exact overload coordinate"))?;
-    // A fixed operator token is part of the declaration's public signature:
-    // adding, removing, or changing it is a breaking revision, so it joins
-    // the review coordinate here. It stays out of the Psi overload identity
-    // because a token never distinguishes named overloads (two same-shape
-    // declarations differing only by token are still duplicates). A tokenless
-    // declaration keeps the bare overload coordinate, so retained locks and
-    // decoders that treat this field as an opaque coordinate see no change.
     let overload = match machine.spelling {
         Some(spelling) => framed_identity("token-bound", &[overload, spelling.symbol().to_owned()]),
         None => overload,
     };
-    // Identity uses the declaration's resolved symbols and lifetime ordinals,
-    // not instantiated policy parameters or private specialization captures.
-    // The declaration query retains the method-local prefix coordinates.
     let scope = callable_declaration_scope(compilation, machine)?;
     let binders = scope
         .type_parameters

@@ -6,20 +6,20 @@ data Packet { #2 bottom: i64; #0 delta: i32; #1 flag: bool; }
 machine fields(value: &Packet, context: &mut EncodeContext) {
     reflect::visit_runtime_fields<Packet, CompactBinary::scalar_field>(value, context);
 }
-machine same(bytes: &[u8], expected: &[u8], index: u64, fuel: u64) -> bool
-terminates by fuel
-requires fuel > 0u64
+machine same(bytes: &[u8], expected: &[u8], index: u64, remaining_steps: u64) -> bool
+terminates by remaining_steps
+requires remaining_steps > 0u64
 {
     transition {
         index == bytes.len && index == expected.len -> true
-        index < bytes.len && index < expected.len && fuel > 1u64 -> compare(bytes, expected, index, fuel)
+        index < bytes.len && index < expected.len && remaining_steps > 1u64 -> compare(bytes, expected, index, remaining_steps)
         _ -> false
     }
-    machine compare(bytes: &[u8], expected: &[u8], index: u64, fuel: u64) -> bool
-    requires index < bytes.len && index < expected.len && fuel > 1u64
+    machine compare(bytes: &[u8], expected: &[u8], index: u64, remaining_steps: u64) -> bool
+    requires index < bytes.len && index < expected.len && remaining_steps > 1u64
     {
         transition bytes[index] == expected[index] {
-            true -> same(bytes, expected, index + 1u64, fuel - 1u64)
+            true -> same(bytes, expected, index + 1u64, remaining_steps - 1u64)
             false -> false
         }
     }

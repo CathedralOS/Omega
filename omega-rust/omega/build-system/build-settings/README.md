@@ -75,7 +75,7 @@ Host facets and product capabilities are not copied into settings. The embedding
 must retain the matching admission and initial value with its activation; this
 projection does not independently admit an arbitrary Terminal artifact as Build.
 `terminal_entry_writeback` exercises complete source-produced Build execution,
-ordered binding effects and settings readback across fuel pauses, using both
+ordered binding effects and settings readback across work-budget pauses, using both
 retained and loaded artifacts. It also tests nested records, case payloads,
 byte views and invalid identifiers, loaders and duplicate optimization counts.
 Production Build preparation uses this Terminal activation through
@@ -91,11 +91,11 @@ anonymous defaults, one execution per invocation, role/graph substitution refusa
 and retained Product preparation after deleting live source. Its Product defines
 a trapping machine named `build` and its own `Build` type; neither can impersonate
 the selected default or the toolchain receiver.
-Terminal's existing fuel meter now accepts the exact invocation sponsor and
+Terminal's existing work meter now accepts the exact invocation sponsor and
 charges it at the ordinary operation/edge sites. The Build integration witness
 uses a shared account across two activations: an exact budget completes both,
 one unit less refuses the second return without publishing settings or replaying
-effects. These are real fuel observations, not complete storage/result receipts.
+effects. These are real work observations, not complete storage/result receipts.
 
 Filesystem preparation, retained captured-input views, observation identities and
 sealed-output settlement belong to
@@ -162,7 +162,7 @@ is retained. Each occurrence still performs semantic/authority admission before
 looking for a completed result, and every target row remains in that result.
 Generated-source and required-output activations remain on their existing path.
 
-A sponsored cache hit pays its recorded logical fuel, BuildLog and result-custody
+A sponsored cache hit pays its recorded logical work, BuildLog and result-custody
 cost to the current account before publication. Its recorded live demand must
 fit beside current reservations. Refusal changes no counters and does not
 execute Build again. The returned usage keeps the measured invocation counts
@@ -172,7 +172,7 @@ so a warm result cannot bypass a ceiling a cold evaluation would exceed.
 
 Run `mbx run -p compiler --example build_session` from the repository root.
 This public compiler measurement requires two target products, two preliminary
-admissions and one Build execution. It also requires a later one-unit fuel
+admissions and one Build execution. It also requires a later one-unit work
 account to reject and a different source input to execute its own Build.
 This is the repeated-work acceptance for `BUILD-EVALUATES-ONCE`, not a new
 language fact row or a foreign-host execution claim. The broader capability,
@@ -181,7 +181,7 @@ including generated-source and target-row completion, remains open.
 Run `mbx run -p compiler --example build_charge` to challenge current accounting.
 Two target rows execute one pure Build while paying two logical charges; a
 fresh equal-policy account pays its own charge, and an account short by one
-fuel unit rejects the warm occurrence without executing it. This measures the
+work unit rejects the warm occurrence without executing it. This measures the
 Build workflow rather than adding another language transport fact.
 
 ## Root-binding implementation boundary

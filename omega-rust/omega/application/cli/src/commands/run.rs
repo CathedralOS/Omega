@@ -37,7 +37,7 @@ A guest program can legitimately exit with small positive statuses (including
 `$?`, we reserve 200..=203 for outcomes that are not a normal guest exit code:
 - `200`: compile rejection, launch failure, output-forwarding failure, empty or
   unreadable `--inputs`, or Terminal Psi execution stopping without a process
-  exit (unavailable host capability, sponsor fuel exhaustion, or pending host
+  exit (unavailable host capability, sponsor work exhaustion, or pending host
   effect).
 - `201`: differential divergence under `--both` (exit code mismatch, crash vs.
   normal exit, or Terminal Psi interpretation failure after native execution).
@@ -69,7 +69,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         root_path: arguments.main_path,
         target_name: arguments.target_name,
         selection: arguments.selection,
-        terminal_fuel_allowance: arguments.terminal_fuel_allowance,
+        psi_work_budget: arguments.psi_work_budget,
         keep_artifacts: arguments.keep,
     }) {
         Ok(outcome) => outcome,
@@ -182,8 +182,8 @@ fn present_terminal(outcome: TerminalOutcome) -> i32 {
             eprintln!("terminal: program entry returned a non-process result: {result:?}");
             200
         }
-        TerminalExecutionStatus::SponsorExhausted(_) => {
-            eprintln!("terminal: execution exhausted its sponsor fuel allowance");
+        TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
+            eprintln!("psi: {exhaustion}; raise --psi-work-budget to permit more work");
             200
         }
         TerminalExecutionStatus::AwaitingEffect(site) => {
@@ -226,7 +226,7 @@ fn run_cases(arguments: RunArguments, outputs: PathBuf) -> ! {
         private_entry_ram: arguments.private_entry_ram,
         root_path: arguments.main_path,
         compare_interpreter: arguments.selection == ExecutionSelection::Both,
-        terminal_fuel_allowance: arguments.terminal_fuel_allowance,
+        psi_work_budget: arguments.psi_work_budget,
         inputs: cases,
         output_directory: outputs.clone(),
         keep_artifacts: arguments.keep,

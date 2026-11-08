@@ -132,8 +132,8 @@ pub use bytes::byte_sequence_predicates::{
 };
 pub use calls::call_composition::{
     BorrowedReferentPresentation, CallArgumentRule, CallCompositionSchema,
-    CallCompositionSemanticRow, CallCrashRule, CallEvidenceRule, CallFrontierRule, CallFuelPolicy,
-    CallOutcomeRule, CallRequirementRule, CallResultRule, CallTargetRule, CallTransferRule,
+    CallCompositionSemanticRow, CallCrashRule, CallEvidenceRule, CallFrontierRule, CallOutcomeRule,
+    CallRequirementRule, CallResultRule, CallTargetRule, CallTransferRule, CallWorkPolicy,
     FixedCollectionWindow, borrowed_referent_matches, borrowed_referent_presentation,
     boundary_buffer_capacity, bounded_byte_owner_capacity,
     bounded_byte_owner_capacity_from_catalogs, bounded_byte_owner_capacity_in,
@@ -171,8 +171,8 @@ pub use scalars::scalar_field_requirements::{
 };
 pub use scalars::scalar_leaf_schema::{
     GoalFreeScalarLeafSchema, ScalarLeafCrashPolicy, ScalarLeafDenotation, ScalarLeafFactShape,
-    ScalarLeafFrontierPolicy, ScalarLeafFuelPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape,
-    ScalarLeafResultShape, ScalarLeafSchema,
+    ScalarLeafFrontierPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape, ScalarLeafResultShape,
+    ScalarLeafSchema, ScalarLeafWorkPolicy,
 };
 pub use scalars::scalar_leaf_semantics::{
     GoalFreeScalarLeafSemantics, ScalarLeafLiteral, constant_goal_free_scalar_leaf,
@@ -203,11 +203,12 @@ pub use structural::partial_affine::partial_affine_residuals;
 pub use structural::primitive_place::{
     Position, StructuralStorageSelection, borrowed_primitive_projection_declaration,
     byte_carrier_geometry_matches, canonical_primitive_path, canonical_primitive_read_path,
-    canonical_static_projection, fixed_array_place_shape, primitive_place_type,
-    primitive_projection_declaration, primitive_projection_restriction, primitive_projection_type,
-    primitive_read_field, primitive_read_projection_type, primitive_read_requirement,
-    projection_stays_in_inline_storage, projection_storage_dependencies,
-    runtime_structural_copy_type, runtime_structural_path_tip, stored_descriptor_paths,
+    canonical_static_projection, fixed_array_place_shape, inline_backing_container,
+    primitive_place_type, primitive_projection_declaration, primitive_projection_restriction,
+    primitive_projection_type, primitive_read_field, primitive_read_projection_type,
+    primitive_read_requirement, projection_stays_in_inline_storage,
+    projection_storage_dependencies, runtime_structural_copy_type, runtime_structural_path_tip,
+    stored_descriptor_paths,
 };
 pub use structural::record_field::{
     CasePayloadCarrier, RecordFieldCarrier, SequenceFieldObservation, case_payload_carrier,
@@ -225,9 +226,9 @@ pub use structural::static_path::{
 };
 pub use structural::structural_effect::{
     StructuralEffectAction, StructuralEffectCustody, StructuralEffectExternalEffect,
-    StructuralEffectFrontierPolicy, StructuralEffectFuelPolicy, StructuralEffectGoalShape,
-    StructuralEffectLeafSchema, StructuralEffectObservation, StructuralEffectResultShape,
-    StructuralEffectSemanticRow, byte_equal_equation, byte_predicate_equation,
+    StructuralEffectFrontierPolicy, StructuralEffectGoalShape, StructuralEffectLeafSchema,
+    StructuralEffectObservation, StructuralEffectResultShape, StructuralEffectSemanticRow,
+    StructuralEffectWorkPolicy, byte_equal_equation, byte_predicate_equation,
     element_establishment_length_equation, element_subslice_length_equation,
     element_view_leaf_scalar, exact_structural_effect_semantic_row_in, literal_length_equation,
     same_descriptor_coordinate, structural_effect_leaf_observation,

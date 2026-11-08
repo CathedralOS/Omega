@@ -8,14 +8,14 @@ does not satisfy this control.
 At historical library revision `c1303f89d4`, `SchemaField.size` carried
 `u64 [0..=4096]`, `SchemaField.align` carried `u64 [1..=16]`, and
 `Schema.field_count` carried `u64 [0..=32]`. Their canonical replacements are
-the containing data predicates. `evaluate.fuel`, `fill.fuel`, and
-`put_wrong.fuel` each carried `u64 [1..=96]`; each now has that exact arrival
+the containing data predicates. `evaluate.work`, `fill.work`, and
+`put_wrong.work` each carried `u64 [1..=96]`; each now has that exact arrival
 premise. Unsigned carriers retain the zero floors. No nominal interval domain
 replaces a proposition.
 
 `FieldPlan` explicitly declares copyability because returning the plan array
 reads borrowed scratch storage rather than consuming it. The deliberately wrong
-framing, field identities, conversion call, mutable cursor, and fuel algorithm
+framing, field identities, conversion call, mutable cursor, and work algorithm
 remain unchanged.
 
 The conversion call in the assignment previously prevented ranked-prefix

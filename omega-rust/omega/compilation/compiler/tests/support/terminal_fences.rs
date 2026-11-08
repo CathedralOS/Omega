@@ -4,8 +4,8 @@
 
 use std::path::Path;
 
+use psi_work::WorkMeter;
 use terminal_codec::CanonicalTerminalArtifact;
-use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalEffect, TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation,
     TerminalMemoryOrderingEnvironment, TerminalProgram, TerminalRuntimeSupplyRequest,
@@ -255,9 +255,9 @@ fn observe_target(
     };
     let complete = TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit);
     let mut reference = instantiate()?;
-    let mut reference_fuel = TerminalFuelMeter::with_allowance(allowance);
+    let mut reference_work = WorkMeter::with_budget(allowance);
     if reference
-        .invoke(&mut reference_fuel)
+        .invoke(&mut reference_work)
         .map_err(|error| error.to_string())?
         != complete
     {
@@ -275,12 +275,12 @@ fn observe_target(
         return Err(format!("expected {expected:?}, observed {observed:?}"));
     }
     let mut paused = instantiate()?;
-    let mut fuel = TerminalFuelMeter::with_allowance(0);
+    let mut work = WorkMeter::with_budget(0);
     let mut finished = false;
     let mut paused_inside_sequence = false;
-    for _ in 0..=reference_fuel.usage().total_units() {
+    for _ in 0..=reference_work.usage().total_units() {
         match paused
-            .invoke(&mut fuel)
+            .invoke(&mut work)
             .map_err(|error| error.to_string())?
         {
             TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
@@ -290,24 +290,24 @@ fn observe_target(
                 paused_inside_sequence |=
                     !paused.effects().is_empty() && paused.effects().len() < expected.len();
                 let before = paused.effects().to_vec();
-                let usage = fuel.usage().clone();
-                let allowance_before = fuel.remaining_allowance();
+                let usage = work.usage().clone();
+                let allowance_before = work.work_remaining();
                 if paused
-                    .invoke(&mut fuel)
+                    .invoke(&mut work)
                     .map_err(|error| error.to_string())?
                     != TerminalExecutionStatus::SponsorExhausted(exhaustion)
                     || paused.effects() != before
-                    || fuel.usage() != &usage
-                    || fuel.remaining_allowance() != allowance_before
+                    || work.usage() != &usage
+                    || work.work_remaining() != allowance_before
                 {
-                    return Err("unfunded retry repeated progress, effects or fuel charges".into());
+                    return Err("unfunded retry repeated progress, effects or work charges".into());
                 }
                 let additional = exhaustion
                     .required_units
                     .checked_sub(exhaustion.remaining_units)
                     .filter(|units| *units != 0)
-                    .ok_or("refused site requires no new fuel")?;
-                fuel.replenish(additional)
+                    .ok_or("refused site requires no new work")?;
+                work.replenish(additional)
                     .map_err(|error| error.to_string())?;
             }
             status => {
@@ -322,14 +322,15 @@ fn observe_target(
     if !finished
         || (expected.len() > 1 && !paused_inside_sequence)
         || paused.effects() != reference.effects()
-        || fuel.usage() != reference_fuel.usage()
+        || work.usage() != reference_work.usage()
     {
         return Err(
-            "fuel-paused fence stream or attribution differs, or no interior pause occurred".into(),
+            "work-budget-paused fence stream or attribution differs, or no interior pause occurred"
+                .into(),
         );
     }
     let effects = paused.effects().to_vec();
-    let mut empty = TerminalFuelMeter::with_allowance(0);
+    let mut empty = WorkMeter::with_budget(0);
     if paused
         .invoke(&mut empty)
         .map_err(|error| error.to_string())?

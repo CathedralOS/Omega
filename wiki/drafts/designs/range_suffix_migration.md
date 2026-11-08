@@ -338,15 +338,15 @@ requirement. Zero lower bounds are inherent in the carrier.
 
 | Machine/state and parameters | Original suffix | Canonical requirement |
 |---|---|---|
-| `AccessPlan::with_bounded.fuel` | `[1..=128]` | `fuel >= 1 && fuel <= 128` |
-| `seek.index`, `seek.fuel` | `[0..=32]`, `[1..=128]` | `index <= 32 && fuel >= 1 && fuel <= 128` |
-| `inspect.index`, `inspect.fuel` | `[0..=31]`, `[1..=128]` | `index <= 31 && fuel >= 1 && fuel <= 128` |
+| `AccessPlan::with_bounded.work` | `[1..=128]` | `work >= 1 && work <= 128` |
+| `seek.index`, `seek.work` | `[0..=32]`, `[1..=128]` | `index <= 32 && work >= 1 && work <= 128` |
+| `inspect.index`, `inspect.work` | `[0..=31]`, `[1..=128]` | `index <= 31 && work >= 1 && work <= 128` |
 | `replace.index` | `[0..=31]` | `index <= 31` |
-| `advance.index`, `advance.fuel` | `[0..=31]`, `[1..=128]` | `index <= 31 && fuel >= 1 && fuel <= 128` |
+| `advance.index`, `advance.work` | `[0..=31]`, `[1..=128]` | `index <= 31 && work >= 1 && work <= 128` |
 | `grow_invalid.field_count` | `[0..=31]` | `field_count <= 31` |
 
-The initial call supplies fuel 128 and index zero. Search guards establish
-the next state's bounds before subtracting fuel or advancing an index;
+The initial call supplies work 128 and index zero. Search guards establish
+the next state's bounds before subtracting work or advancing an index;
 `grow_invalid` receives a count only on the `< 32` arm. The invalid-key route
 still retains an extra or overwriting decision for policy rejection, rather
 than silently ignoring it. `layouts/access_plan_inaccessible_seed` and

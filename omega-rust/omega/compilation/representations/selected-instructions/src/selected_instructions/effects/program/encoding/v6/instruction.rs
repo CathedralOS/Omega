@@ -1,13 +1,13 @@
 use super::{
-    AcceptedObligationFactIdentity, Cursor, EdgeId, FuelSettlement, InstructionMachineEffects,
-    IntegerValue, MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
+    AcceptedObligationFactIdentity, Cursor, EdgeId, InstructionMachineEffects, IntegerValue,
+    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineId, MachineLatencyKnowledge,
     MachineMemoryEffect, MachineSizeKnowledge, MachineTrapBehavior, ObligationId, OperationId,
     PreAllocationMachineEffectDecodeError, PsiProvenance, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, ValueId, decode_accepted_fact,
-    decode_constraint_key, decode_ids, decode_obligation, decode_units,
+    SelectedInstructionKind, SelectedInstructionProvenance, ValueId, WorkSettlement,
+    decode_accepted_fact, decode_constraint_key, decode_ids, decode_obligation, decode_units,
 };
 use crate::FrameStorageSlotId::Outgoing;
 use crate::{
@@ -29,6 +29,10 @@ pub(super) fn decode_instruction(
     let memory = match cursor.byte()? {
         9 => MachineMemoryEffect::TemporaryStackStorageV1,
         18 => MachineMemoryEffect::TaskRegisterActivationV1,
+        20 => MachineMemoryEffect::InstalledInterruptCpuCheckV1,
+        21 => MachineMemoryEffect::InstalledInterruptTaskCommitV1,
+        22 => MachineMemoryEffect::InstalledInterruptTablePublicationV1,
+
         19 => MachineMemoryEffect::SegmentDescriptorReloadV1,
         0 => MachineMemoryEffect::NoneV1,
         1 => MachineMemoryEffect::ReadPointerV1,
@@ -192,6 +196,15 @@ fn decode_kind(
             operation: crate::RegisterOperation::from_catalog_tag(cursor.u16()?)
                 .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
         },
+        249 => SelectedInstructionKind::InstalledInterruptCpuCheck {
+            gdt_bytes: cursor.u32()?,
+        },
+        250 => SelectedInstructionKind::InstalledInterruptTaskCommit {
+            gdt_bytes: cursor.u32()?,
+        },
+        251 => SelectedInstructionKind::InstalledInterruptTablePublication {
+            table_bytes: cursor.u32()?,
+        },
         238 => SelectedInstructionKind::AtomicFence,
         235 => SelectedInstructionKind::ZeroBytes,
         2 => SelectedInstructionKind::CopyI64,
@@ -242,6 +255,7 @@ fn decode_kind(
         },
         tag @ (17 | 18) => {
             let slot = match cursor.byte()? {
+                4 => crate::FrameStorageSlotId::ActivationBase,
                 2 => crate::FrameStorageSlotId::Incoming {
                     parameter_index: cursor.u32()?,
                     abi_stack_byte_offset: cursor.u32()?,
@@ -263,6 +277,10 @@ fn decode_kind(
                 _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
             };
             let byte_offset = cursor.u32()?;
+            if slot == crate::FrameStorageSlotId::ActivationBase && (tag != 18 || byte_offset != 0)
+            {
+                return Err(PreAllocationMachineEffectDecodeError::InvalidField);
+            }
             if tag == 17 {
                 SelectedInstructionKind::Store64 { slot, byte_offset }
             } else {
@@ -347,6 +365,7 @@ fn decode_kind(
         5 => obligated!(ExactSubtractI64),
         6 => SelectedInstructionKind::ConditionalBranchNonZero,
         111 => SelectedInstructionKind::Crash,
+        252 => SelectedInstructionKind::PrivilegedCrash,
         31 => SelectedInstructionKind::HostedExitProcessI32,
         7 => SelectedInstructionKind::ReturnScalar,
         36 => SelectedInstructionKind::ReturnAggregate {
@@ -373,6 +392,12 @@ fn decode_kind(
         },
         232 => SelectedInstructionKind::ImageAddress {
             reference: match cursor.byte()? {
+                4 => crate::SelectedImageAddressReference::PrivateFunction {
+                    identity: function_identity::MachineFunctionIdentity::from_bytes(
+                        cursor.array()?,
+                    )
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                },
                 3 => crate::SelectedImageAddressReference::RetainedEntryStorageStart,
                 0 => crate::SelectedImageAddressReference::ByteLiteral {
                     operation: OperationId::new(cursor.u64()?)
@@ -476,9 +501,9 @@ pub fn decode_provenance(
     let values = decode_ids(cursor, ValueId::new)?;
     let edges = decode_ids(cursor, EdgeId::new)?;
     let obligations = decode_ids(cursor, ObligationId::new)?;
-    let fuel_count = cursor.length()?;
-    let mut fuel = Vec::with_capacity(fuel_count.min(cursor.remaining()));
-    for _ in 0..fuel_count {
+    let work_count = cursor.length()?;
+    let mut work = Vec::with_capacity(work_count.min(cursor.remaining()));
+    for _ in 0..work_count {
         let site_tag = cursor.byte()?;
         let raw = cursor.u64()?;
         let site = match site_tag {
@@ -490,7 +515,7 @@ pub fn decode_provenance(
             ),
             _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
         };
-        fuel.push(FuelSettlement {
+        work.push(WorkSettlement {
             site,
             units: cursor.u64()?,
         });
@@ -500,9 +525,9 @@ pub fn decode_provenance(
         values,
         edges,
         obligations,
-        fuel,
+        work,
     };
-    if !provenance.fuel_settles_only_claimed_sites() {
+    if !provenance.work_settles_only_claimed_sites() {
         return Err(PreAllocationMachineEffectDecodeError::InvalidField);
     }
     Ok(provenance)
@@ -573,6 +598,10 @@ fn decode_alternative_for_version(
         260 => MachineAlternativeFamily::GlobalDescriptorTableStore,
         261 => MachineAlternativeFamily::TaskRegisterActivate,
         262 => MachineAlternativeFamily::TaskRegisterRead,
+        266 => MachineAlternativeFamily::InstalledInterruptCpuCheck,
+        267 => MachineAlternativeFamily::InstalledInterruptTaskCommit,
+        268 => MachineAlternativeFamily::InstalledInterruptTablePublication,
+
         263 => MachineAlternativeFamily::CodeSegmentReload,
         264 => MachineAlternativeFamily::DataSegmentReload,
         265 => MachineAlternativeFamily::SegmentSelectorRead,
@@ -601,6 +630,7 @@ fn decode_alternative_for_version(
         45 => MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual,
 
         111 => MachineAlternativeFamily::Crash,
+        269 => MachineAlternativeFamily::PrivilegedCrash,
         31 => MachineAlternativeFamily::HostedExitProcessI32,
         32 => MachineAlternativeFamily::HostedReadByte,
         23 => MachineAlternativeFamily::HostedWriteByteI32,
@@ -809,6 +839,22 @@ fn decode_encoded_effects(
             count_operand: cursor.u16()?,
         },
         0 => MachineEncodedMemoryEffect::NoneV1,
+        25 => MachineEncodedMemoryEffect::InstalledInterruptCpuCheckV1 {
+            table_pointer_operand: cursor.u16()?,
+            task_pointer_operand: cursor.u16()?,
+            scratch_pointer_operand: cursor.u16()?,
+            stack_pointer: register_model::RegisterViewId(cursor.u16()?),
+        },
+        26 => MachineEncodedMemoryEffect::InstalledInterruptTaskCommitV1 {
+            table_pointer_operand: cursor.u16()?,
+            task_pointer_operand: cursor.u16()?,
+            scratch_pointer_operand: cursor.u16()?,
+            stack_pointer: register_model::RegisterViewId(cursor.u16()?),
+        },
+        27 => MachineEncodedMemoryEffect::InstalledInterruptTablePublicationV1 {
+            table_pointer_operand: cursor.u16()?,
+            scratch_pointer_operand: cursor.u16()?,
+        },
         22 => MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
             table_pointer_operand: cursor.u16()?,
             table_byte_count_operand: cursor.u16()?,
@@ -889,6 +935,8 @@ fn decode_encoded_effects(
     let control = match cursor.byte()? {
         9 => MachineEncodedControlEffect::CrashV1,
         10 => MachineEncodedControlEffect::FallThroughOrTrapV1,
+        15 => MachineEncodedControlEffect::FallThroughOrStopV1,
+        16 => MachineEncodedControlEffect::PrivilegedStopV1,
         7 => MachineEncodedControlEffect::HostedExitOrTrapV1,
         8 => MachineEncodedControlEffect::HostedReadReturnOrTrapV1,
         6 => MachineEncodedControlEffect::HostedWriteReturnOrTrapV1,
@@ -1156,7 +1204,7 @@ mod float_result_policy_tests {
         assert_eq!(cursor.remaining(), 0);
         // Neither truncating to the low byte nor accepting an unknown high
         // family may reinterpret the event as a legacy arithmetic alternative.
-        for tag in [266_u16, u16::MAX] {
+        for tag in [270_u16, u16::MAX] {
             encoded[..2].copy_from_slice(&tag.to_le_bytes());
             assert!(decode_alternative(&mut Cursor::new(&encoded)).is_err());
         }
@@ -1198,4 +1246,53 @@ mod port_write_tests {
             }
         }
     }
+}
+
+#[cfg(test)]
+#[test]
+fn private_address_effect_codec_keeps_the_complete_function_identity() {
+    let caller = terminal_psi::TerminalPsiIdentity {
+        vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+        program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([73; 32]),
+    };
+    let identity = function_identity::MachineFunctionIdentity::callback_thunk(caller, 17).unwrap();
+    let kind = SelectedInstructionKind::ImageAddress {
+        reference: crate::SelectedImageAddressReference::PrivateFunction { identity },
+    };
+    let mut bytes = Vec::new();
+    crate::kind_encoding::encode_kind(&mut bytes, 232, kind);
+    let mut cursor = Cursor::new(&bytes);
+    assert_eq!(decode_kind(&mut cursor, true, true, true), Ok(kind));
+    assert_eq!(cursor.remaining(), 0);
+    for length in 0..bytes.len() {
+        assert!(decode_kind(&mut Cursor::new(&bytes[..length]), true, true, true).is_err());
+    }
+    bytes[4..36].fill(0);
+    assert_eq!(
+        decode_kind(&mut Cursor::new(&bytes), true, true, true),
+        Err(PreAllocationMachineEffectDecodeError::InvalidField)
+    );
+}
+
+#[cfg(test)]
+#[test]
+fn activation_base_codec_has_a_closed_address_only_payload() {
+    let kind = SelectedInstructionKind::FrameAddress {
+        slot: crate::FrameStorageSlotId::ActivationBase,
+        byte_offset: 0,
+    };
+    let mut bytes = Vec::new();
+    crate::kind_encoding::encode_kind(&mut bytes, 18, kind);
+    assert_eq!(bytes, [18, 4, 0, 0, 0, 0]);
+    assert_eq!(
+        decode_kind(&mut Cursor::new(&bytes), true, true, true).unwrap(),
+        kind
+    );
+    bytes[0] = 17;
+    assert!(decode_kind(&mut Cursor::new(&bytes), true, true, true).is_err());
+    bytes[0] = 18;
+    bytes[2] = 1;
+    assert!(decode_kind(&mut Cursor::new(&bytes), true, true, true).is_err());
+    bytes.truncate(2);
+    assert!(decode_kind(&mut Cursor::new(&bytes), true, true, true).is_err());
 }

@@ -1,4 +1,4 @@
-//! Git resolution tests that require private acquisition and issuance seams.
+// Unit tests for Git resolution acquisition and issuance seams.
 
 use super::{issuance::*, repository::*};
 use crate::custody::tree::*;

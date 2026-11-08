@@ -1,4 +1,6 @@
-//! Exact CoreGraphics affine construction with a materialized C record result.
+// Interpret macOS CoreGraphics `_CGAffineTransformMake` (`AffineTransformImport`)
+// as a shared six-double C word-record admission returning a materialized
+// `TerminalScalarAggregateValue`.
 
 use super::super::TerminalRuntimeError;
 use calling_conventions::BoundaryCallingApplication;
@@ -12,8 +14,6 @@ use terminal_interpreter::{
 };
 use terminal_psi::BoundaryMachineDeclaration;
 
-/// The affine import is the shared six-double C word-record admission; the
-/// effect handler below owns only the CoreGraphics call contract.
 pub(super) type AffineTransformImport = super::scalar_record::ScalarRecordAdmission<6>;
 
 impl AffineTransformImport {

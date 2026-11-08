@@ -17,11 +17,24 @@ in the vocabulary reference while that part is consolidated.
   decodes once and retains that storage. Views borrow it without fallible
   decoding or replay caches. The manifest is reconstructed from the sections.
 
-The portable envelope carries no proof certificate. Decoding checks canonical
-encoding and representation shape; consumers perform the structural, contract
-and authority checks required by the [Terminal product contract](../../../../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
-and rely on Psi for discharged source judgments. Encoding alone grants no
-execution or provider-installation authority.
+The [Psi product contract](../../../../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
+permits checked judgments to be reused under host authorization of a trusted
+producer's exact artifact. Canonical decoding establishes encoding and structural
+validity, not truth of arbitrary claims or execution authority. No receiving
+theorem rediscovery or certificate replay is required.
+
+The codec carries certificate bytes in mathematical proof terms and indexed
+theorem roots, including the `PSICORE` framing. Keep those canonical encodings;
+they grant nothing at admission. The local proof kernel and interpreter's closed
+evaluation uses remain separate from byte transport.
+
+The [implementation plan](../../../../../../wiki/drafts/designs/psi_claim_admission.md)
+splits canonical/structural inspection from execution-only preparation. Today
+decode also performs module-foundation and dynamic-result analyses, including
+descriptor and entailment work. The split preserves structural validation, moves
+execution-only work to preparation and retains exact reusable results. Shared
+input and aggregate work limits must cover these paths; per-query search caps
+alone do not bound total loading cost to a host-granted budget.
 
 The other `sections/` owners encode manifest, debug, optimization and
 observation-profile data.
@@ -33,8 +46,8 @@ vocabulary in [VocabularyMarker](../src/terminal_module/identity/vocabulary.rs),
 [canonical_artifact.rs](src/canonical_artifact.rs), and manifest in
 [artifact_manifest.rs](src/sections/artifact_manifest.rs). The image-emission owner
 maintains the separate [installation format](../../../../../omega/compilation/backend/images/image-emission/src/installation_record.rs).
-Codec-owned [current-format tests](src/sections/semantic_module/current_format_tests.rs) pin canonical
-bytes and incompatible-marker rejection. Source-lowering tests check semantic
+The [module wire decoder](src/sections/semantic_module/module_wire.rs) owns
+incompatible-marker rejection. Source-lowering tests check semantic
 round trips without duplicating a transient wire-version number.
 
 Scalar declarations encode their exact qualification-set identity. The semantic
@@ -60,12 +73,13 @@ for a bounded integer field, its declaration-derived range obligation. The case,
 operand identities, and obligation identities all participate in semantic identity;
 an empty roster is the payloadless case of the same operation. Encoding a module
 does not establish its proofs. Source checking establishes the range facts;
-receiving checks validate their structural correspondence under producer trust.
+receiving structural checks retain their exact correspondence, while source
+judgments are reused only under the host's producer-trust authorization.
 
 ## Observation-profile implementation
 
-[terminal_trace_v1_profile.rs](src/sections/terminal_trace_v1_profile.rs) implements
-canonical profile encoding and module-bound acceptance for
+[profile.rs](../src/terminal_module/observation/profile.rs) defines the retained
+profile for
 [TerminalTraceV1](../../../../../../wiki/spec/terminal-psi/observations.md). Acceptance
 validates the module, derives its complete identity and site roster independently,
 and compares the decoded profile exactly. Revision 2
@@ -95,10 +109,11 @@ The module decoder accepts only the current semantic format and vocabulary
 markers. It rejects every other marker before reading the module body, including
 crossed format/vocabulary pairs. All current rosters are required; the decoder
 does not supply missing historical rows or migrate an older artifact.
-Proof, envelope, and installation markers remain independently owned.
+Proof, envelope and installation markers remain independently owned. Current
+certificate-bearing forms remain carried and canonically decoded.
 
-Run the marker, captured-byte, truncation, and envelope-admission controls with:
+Run the codec's existing controls with:
 
 ```sh
-cargo nextest run -p terminal-codec --lib --no-fail-fast --no-tests fail -E 'test(current_format_tests)'
+cargo nextest run -p terminal-codec --lib --no-fail-fast --no-tests fail
 ```

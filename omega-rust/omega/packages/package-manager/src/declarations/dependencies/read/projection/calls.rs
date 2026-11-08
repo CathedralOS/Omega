@@ -1,3 +1,5 @@
+// Direct dependency call projection from shared `build_declarations` row grammar into `DependencySourceRequest` values.
+
 use crate::declarations::dependencies::read::error::DependencyProjectionError;
 use crate::declarations::dependencies::read::source_literal::{
     project_alias_literal, project_source_literal,
@@ -9,18 +11,12 @@ use syntax_trees::expression::ExpressionHandle;
 use syntax_trees::statement::StatementHandle;
 
 pub(super) struct ProjectedDirectDependencies {
-    /// Authored-order rows tagged with the scope their call authorizes.
-    pub requests: Vec<(DependencyPurpose, DependencySourceRequest)>,
+    pub requests: Vec<(DependencyPurpose, DependencySourceRequest)>, // Authored-order rows tagged with the scope their call authorizes.
     pub accepted_statements: Vec<StatementHandle>,
     pub accepted_sources: Vec<ExpressionHandle>,
     pub accepted_aliases: Vec<ExpressionHandle>,
 }
 
-/// Interpret the shared dependency row grammar into source requests.
-///
-/// `build_declarations` owns which `builder.<operation>(...)` statements are
-/// dependency rows, their authorized scope, and their argument shape. This
-/// layer only interprets the retained literals into requests.
 pub(super) fn project_direct_dependencies(
     syntax_trees: &SyntaxTrees,
     build: &shared::BuildEntrySyntaxProjection,

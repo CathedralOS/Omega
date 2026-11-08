@@ -1,3 +1,10 @@
+// Public constant and operator declaration shapes (`PackageReviewConstShape`
+// and `PackageReviewOperatorShape`).
+//
+// `PackageReviewConstMeaning` distinguishes a completed evaluated value from an
+// admitted target-dependent contract expression so a folded scalar never
+// replaces its target dependency.
+
 use crate::record::PackageReviewCallableContract;
 use crate::record::PackageReviewCrashRoute;
 use crate::record::PackageReviewNominalIdentity;
@@ -14,8 +21,6 @@ pub struct PackageReviewConstShape {
     pub(crate) meaning: PackageReviewConstMeaning,
 }
 
-/// A completed value and an admitted target-dependent declaration describe
-/// different public meanings. A folded scalar never replaces its dependency.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewConstMeaning {
     Evaluated(String),

@@ -1,4 +1,4 @@
-//! Read-only package-source inspection.
+// Read-only package-source locator parsing, acquisition, and summary reporting.
 
 mod execution;
 mod report;

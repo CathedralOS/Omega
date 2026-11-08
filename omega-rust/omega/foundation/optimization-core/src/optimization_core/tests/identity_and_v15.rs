@@ -1,3 +1,6 @@
+// Unit test verifying the v15 wire header and tag `20` for
+// `Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1`.
+
 use super::super::{Optimization, OptimizationSelections};
 
 #[test]

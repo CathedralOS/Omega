@@ -12,7 +12,7 @@ use legalized_operations::{
 };
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedTerminator};
 
-fn scratch(
+pub(super) fn scratch(
     builder: &mut Builder<'_>,
     class: register_model::RegisterClassId,
     scalar_type: semantic_vocabulary::ScalarType,
@@ -46,7 +46,7 @@ pub(super) fn build(
         psi_edge,
         call,
         declared_result,
-        fuel,
+        work,
         effect,
         ownership,
     } = &block.terminator
@@ -69,7 +69,7 @@ pub(super) fn build(
         edge: *psi_edge,
         call,
         ownership,
-        fuel,
+        work,
     };
     let mut operands = super::call_arguments::marshal(
         source,
@@ -156,7 +156,7 @@ pub(super) fn build(
                 .filter_map(|argument| argument.scalar_source())
                 .collect(),
             obligations: call.requirement_obligations.clone(),
-            fuel: fuel.clone(),
+            work: work.clone(),
             ..Default::default()
         },
     )?;

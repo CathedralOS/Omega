@@ -87,7 +87,7 @@ under it could still exist.
 | Resource | Ceiling | Realization evidence |
 | --- | --- | --- |
 | Stack | Admitted domain provision | Composed WCSU and entry-context derivation. |
-| Logical work | Logical-fuel provision | Maximum logical work and IR proof/admitted-provider evidence. |
+| Logical work | Logical-work provision | Maximum logical work and IR proof/admitted-provider evidence. |
 | Machine state | `StatePlan` | Actual footprint and final-code evidence. |
 
 These columns are independent; a calling-plan digest substitutes for none of
@@ -103,7 +103,7 @@ it may support analysis but reserves no register, changes no ABI, and authorizes
 no sponsor, transfer, or resume operation. See [logical work](../resources/logical_work.md)
 and [machine-state evidence](machine_state_evidence.md).
 
-`StatePlan` is part of the public boundary contract. Stack and fuel realization
+`StatePlan` is part of the public boundary contract. Stack and work realization
 facts normally belong to the candidate and admission provision, not public
 API identity. A replacement contract promising no reprovisioning must explicitly
 publish the resource ceiling that promise requires. Equal public contracts do
@@ -121,6 +121,12 @@ the bound, substitutes it through the complete root closure, and rejects any
 remaining unresolved row. Equal service sets do not establish entry/completion
 or multi-operation protocol coherence; that requires exact provider execution
 and lineage.
+
+Ordinary generic APIs may publish deferred static callback/member reach under
+[static reach dependencies](../language/effects.md#static-callback-reach-dependencies).
+Their selected applications must likewise resolve to finite rows in the installed
+root closure. Such dependencies do not create installation slots, select
+providers, or grant authority.
 
 ## Interruption ordering
 

@@ -1,5 +1,11 @@
-//! Optimizer module role: stage group. Canonical, domain-separated optimization identities.
-//! Shared digest framing routes into rule/fact, stage, artifact, decision, and bundle ownership.
+// Domain-separated 32-byte optimization identities (`canonical_identity!`,
+// `CanonicalIdentityEncoder`).
+//
+// Every identity hashes its unique NUL-terminated domain string, the `u64`
+// little-endian canonical byte length, and the canonical byte sequence.
+// `CanonicalIdentityEncoder` allows callers that know `canonical_len` up front
+// to stream the identical byte sequence without materializing a contiguous
+// buffer.
 
 pub(crate) const IDENTITY_WIDTH: usize = 32;
 
@@ -9,11 +15,6 @@ fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WIDTH] {
     digest.finish()
 }
 
-/// Incremental [`domain_digest`] input. The domain and total canonical length
-/// are hashed up front, then the identical content byte sequence streams
-/// through `update`; `finish` yields the same digest without materializing
-/// the whole encoding. The digest frame requires the length before content,
-/// so callers derive it from a prior count over the same deterministic walk.
 pub struct CanonicalIdentityEncoder(crate::digest_encoder::DomainDigestEncoder);
 
 impl CanonicalIdentityEncoder {
@@ -38,21 +39,14 @@ macro_rules! canonical_identity {
         pub struct $name([u8; super::IDENTITY_WIDTH]);
 
         impl $name {
-            /// Derive this identity from the owner's canonical,
-            /// relocation-independent encoding.
             pub fn from_canonical_bytes(canonical: &[u8]) -> Self {
                 Self(super::domain_digest($domain, canonical))
             }
 
-            /// Streaming counterpart of `from_canonical_bytes`: returns an
-            /// encoder seeded with this identity's domain and the total
-            /// canonical length, for feeding the identical byte sequence.
             pub fn canonical_encoder(canonical_len: u64) -> super::CanonicalIdentityEncoder {
                 super::CanonicalIdentityEncoder::new($domain, canonical_len)
             }
 
-            /// Complete a streaming encode. The resulting identity equals
-            /// `from_canonical_bytes` over the same byte sequence.
             pub fn from_canonical_encoder(encoder: super::CanonicalIdentityEncoder) -> Self {
                 Self(encoder.finish())
             }

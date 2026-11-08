@@ -21,4 +21,5 @@ diagnostics = { path = "../../../psi/foundation/diagnostics" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 
 [dev-dependencies]
+sha2 = "0.10.9"
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }

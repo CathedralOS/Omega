@@ -1,4 +1,6 @@
-//! Portable captured inventory selection and ordering algorithms.
+// Unit tests for `CapturedBuildSourceInput` subset verification and canonical
+// entry ordering.
+
 use super::{
     CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRowKind, CapturedBuildSourceInput,
     CapturedSourceEntry, CapturedSourceEntryKind,

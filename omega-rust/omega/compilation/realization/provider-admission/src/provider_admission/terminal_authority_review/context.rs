@@ -1,4 +1,13 @@
-//! Exact source, selection, mechanism, and installed-candidate lookup context.
+/*
+Lookup context for terminal-authority closure review.
+
+`ReviewContext` indexes boundary declarations, admitted terminal mechanisms,
+selected provider plan rows, specialization rows, and component callable
+authority for a single `TargetProfile`. When a reachable requirement is missing
+from the selected provider rows on the target, `missing_requirement` formats a
+bounded refusal diagnostic listing up to 12 selected rows with matching arity
+without ever admitting equal arity as a replacement.
+*/
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
@@ -35,6 +44,7 @@ pub(super) struct ReviewContext<'a> {
     pub(super) installed_candidates: &'a [terminal_psi::ProviderCandidateConformance],
     target_profile: target::TargetProfile,
     components: &'a [crate::provider_admission::NativeProviderSettlement<'a>],
+    pub(super) installed_interrupts: &'a crate::AdmittedInstalledInterruptCohort,
 }
 
 impl<'a> ReviewContext<'a> {
@@ -48,9 +58,11 @@ impl<'a> ReviewContext<'a> {
         settlements: &'a [crate::AdmittedBoundarySettlement<'_>],
         installed_candidates: &'a [terminal_psi::ProviderCandidateConformance],
         components: &'a [crate::provider_admission::NativeProviderSettlement<'a>],
+        installed_interrupts: &'a crate::AdmittedInstalledInterruptCohort,
     ) -> Result<Self, String> {
         let plan = input.plan();
-        let graph = AuthorityGraph::new(input, target_profile)?;
+        let graph = AuthorityGraph::new(input, target_profile)?
+            .with_installed_interrupts(installed_interrupts)?;
         let mut boundaries = BTreeMap::new();
         let mut boundary_identities = BTreeSet::new();
         for boundary in &plan.boundary_machines {
@@ -114,6 +126,7 @@ impl<'a> ReviewContext<'a> {
             installed_candidates,
             target_profile,
             components,
+            installed_interrupts,
         })
     }
 
@@ -234,10 +247,6 @@ impl<'a> ReviewContext<'a> {
     > {
         let requirement = self.selected.assumed_supplier_identity(requirement)?;
         let specialization = self.selected.specialized_requirement_row(requirement);
-        // The absent case stays a real refusal here: provider supply rejects
-        // an unselected requirement the entry reaches before settlement, but a
-        // selected provider's own nested boundary calls first meet selection
-        // in this closure expansion.
         let (plan, row) = self
             .selected
             .selected_requirement_row(requirement)
@@ -264,8 +273,6 @@ impl<'a> ReviewContext<'a> {
         let mut message = format!(
             "reachable requirement `{requirement}` resolves to 0 selected provider rows on target `{target}`"
         );
-        // These rows explain a refusal; equal arity never admits a replacement.
-        // Keep complete canonical identities while bounding diagnostic output.
         let mut shown = 0;
         let mut offered = 0;
         for plan in self

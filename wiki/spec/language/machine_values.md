@@ -31,8 +31,10 @@ The same type form is usable for locals, parameters, results, fields, arrays and
 other ordinary containers. Parameter names in its contract bind that callable's
 formal arguments; `result` denotes its result. Lifetime binders and ordinary
 `requires`, `ensures`, reach, invocation, suspension, blocking, crash, progress,
-resource and custody contracts retain their existing meanings and omission
-rules. A signature-only callable does not silently permit arbitrary effects.
+resource and custody contracts retain their meanings. Runtime callable service
+reach has a fixed finite ceiling: omission and bare `reaches` both mean empty.
+The deferred omission rule for static requirements does not apply to callable
+types. Other axes retain their existing omission rules.
 
 In a callable-valued context, a named machine reference selects an exact closed
 declaration application. A qualified named implementation member is eligible;
@@ -47,6 +49,8 @@ value families retain their declared coverage, as described in
 Construction proves ordinary [contract refinement](machines.md#substitution):
 the selected body must accept every input permitted by the callable requirement,
 provide its guarantees, and stay within its operational/resource/custody bounds.
+Substitute any static callback or conformance-member reach dependencies before
+checking the closed selection against the destination callable's finite ceiling.
 It does not run the body. Machine values contain code selection and retained
 contract evidence, not an implicit state capture, receiver, allocation, raw
 address or new source of authority. Ordinary initialization must establish a

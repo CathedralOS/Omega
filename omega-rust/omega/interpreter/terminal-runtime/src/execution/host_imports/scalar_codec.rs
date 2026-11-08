@@ -1,6 +1,6 @@
-//! Encode logical scalar values with the target producer's exact storage codec.
-//! Staged I/O and original native homes share this conversion; neither may
-//! recover signedness or qualifications from an equal byte width.
+// We encode and decode logical scalar values using the target producer's exact
+// storage codec. Staged I/O and original native homes share this conversion and
+// never recover signedness or qualifications from an equal byte width.
 
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerValue, ScalarType};
 use terminal_interpreter::{TerminalEffectRejection, TerminalScalarValue};

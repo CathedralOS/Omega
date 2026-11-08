@@ -47,6 +47,105 @@ where
     ) && matches!(node.operation, AbstractOperation::BoundaryCall { .. })
     {
         storage_instructions::project_structural_leaf_copy(node, optimized, plan, unit)?
+    } else if let target_operations::TargetUnitOperation::InstallStaticInterrupt {
+        boundary,
+        arguments,
+        calls,
+        ..
+    } = targeted
+    {
+        let indices = arguments
+            .iter()
+            .map(|argument| {
+                let root =
+                    scalar_graph_input::primitive_locals::read_root_type(optimized, argument.place)
+                        .ok_or(Error::custody())?;
+                projection(
+                    optimized,
+                    unit,
+                    operation,
+                    root,
+                    &argument.path,
+                    &unit.structural_types,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .try_into()
+            .map_err(|_| Error::custody())?;
+        let calls = calls
+            .iter()
+            .enumerate()
+            .map(|(position, call)| {
+                let mut semantic = arguments[if position == 0 { 0 } else { 5 }].clone();
+                semantic.access = terminal_psi::StructuralAccess::SharedBorrow;
+                let indices = projection(
+                    optimized,
+                    unit,
+                    operation,
+                    call.argument.root_structural_type,
+                    &call.argument.path,
+                    &unit.structural_types,
+                )?;
+                Ok(legalized_operations::LegalizedScalarCall {
+                    source: target_operations::NativeCallOrigin::Authored,
+                    target: target_operations::NativeCallTarget::Machine(call.callee),
+                    call_plan: call.call_plan.clone(),
+                    arguments: vec![legalized_operations::LegalizedScalarArgument::Structural {
+                        semantic,
+                        target: call.argument.clone(),
+                        indices,
+                    }],
+                    result_placement: call.call_plan.result.clone(),
+                    structural_result: None,
+                    descriptor_origins: Vec::new(),
+                    access_bindings: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                })
+            })
+            .collect::<Result<Vec<_>, LegalizationError>>()?
+            .try_into()
+            .map_err(|_| Error::custody())?;
+        LegalizedScalarInstructionKind::InstallStaticInterrupt {
+            boundary: *boundary,
+            arguments: arguments.clone(),
+            indices,
+            calls,
+        }
+    } else if let target_operations::TargetUnitOperation::StaticInterrupt {
+        boundary,
+        operation: kind,
+        token,
+        result_home,
+        ..
+    } = targeted
+    {
+        let root = scalar_graph_input::primitive_locals::read_root_type(optimized, token.place)
+            .ok_or(Error::custody())?;
+        let indices = projection(
+            optimized,
+            unit,
+            operation,
+            root,
+            &token.path,
+            &unit.structural_types,
+        )?;
+        let result = result_home
+            .as_ref()
+            .map(|home| {
+                home.operation_result()
+                    .map(|(_, result)| result.clone())
+                    .ok_or(Error::custody())
+            })
+            .transpose()?;
+        LegalizedScalarInstructionKind::StaticInterrupt {
+            boundary: *boundary,
+            operation: *kind,
+            token: token.clone(),
+            indices,
+            result,
+        }
     } else if let target_operations::TargetUnitOperation::AccessLifecycle {
         boundary,
         operands,
@@ -854,7 +953,7 @@ where
             definition_site: node.definitions[0].site,
         }),
         kind,
-        fuel: node.fuel.clone(),
+        work: node.work.clone(),
         effect: node.effect,
         ownership: node.ownership.clone(),
     })

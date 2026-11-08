@@ -7,6 +7,5 @@ remaining source has an eligible disposition.
 The unchanged no-hook control is
 `fail/ownership/selected_linear_source_missing_drop`; its retained linear source
 must still reject. This fixture retains the existing nominal-cleanup compiler
-profile. The replacement for its legacy hook attachment remains design-blocked
-by Q2 in `OWNER_QUESTIONS.md`; this fixture does not establish that future
-language authorization syntax or claim runtime coverage.
+profile; it does not establish new language authorization syntax or claim
+runtime coverage.

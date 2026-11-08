@@ -8,11 +8,11 @@ pub(super) use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
 };
 pub(super) use optimization_core::OptimizationUnitIdentity;
-pub(super) use optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, PsiProvenance};
+pub(super) use optimization_unit::{EffectLink, OwnershipEvent, PsiProvenance, WorkSettlement};
 pub(super) use semantic_vocabulary::{
-    BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
-    IntegerValue, OperationId, ScalarType, StructuralDomainId, StructuralFieldId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    BoundaryMachineId, ClaimId, EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId,
+    ScalarType, StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
+    ValueId, WorkScheduleIdentity,
 };
 pub(super) use target::NativeTarget;
 pub(super) use target_operations::TerminalPsiProvenance;

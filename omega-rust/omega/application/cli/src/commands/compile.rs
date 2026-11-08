@@ -53,6 +53,10 @@ use crate::arguments::CompileArguments;
 pub(crate) fn run(arguments: CompileArguments) {
     let started = arguments.timings.then(Instant::now);
     let report_file = arguments.report_file;
+    let installation_assumptions = arguments.installation_assumptions.clone();
+    for row in &installation_assumptions {
+        println!("{}", assumption_text(row));
+    }
     let target_names = arguments.target_names;
     let targets = match resolve_targets(&target_names) {
         Ok(targets) => targets,
@@ -66,6 +70,7 @@ pub(crate) fn run(arguments: CompileArguments) {
             ProjectProduct::Check
         } else {
             ProjectProduct::Native {
+                installation_assumptions: arguments.installation_assumptions,
                 destination: NativeDestination::Published,
                 private_entry_ram: Vec::new(),
             }
@@ -81,13 +86,19 @@ pub(crate) fn run(arguments: CompileArguments) {
     };
 
     if target_names.len() > 1 {
-        present_batch(request, started, report_file.as_deref());
+        present_batch(
+            request,
+            started,
+            report_file.as_deref(),
+            &installation_assumptions,
+        );
     } else {
         present_single(
             request,
             target_names.first().map(String::as_str),
             started,
             report_file.as_deref(),
+            &installation_assumptions,
         );
     }
 }
@@ -109,6 +120,7 @@ fn present_single(
     target_name: Option<&str>,
     started: Option<Instant>,
     report_file: Option<&Path>,
+    installation_assumptions: &[compilation_products::InstallationEnvironmentAssumption],
 ) {
     let result = build(request).and_then(|outcomes| match outcomes.into_iter().next() {
         Some(outcome) => outcome.result.and_then(BuildOutcome::into_report),
@@ -127,12 +139,20 @@ fn present_single(
         Err(error) => exit_on_refusal([&error]),
     };
     if let Some(path) = report_file {
-        write_report_or_exit(path, &report_text(target_name, &outcome));
+        write_report_or_exit(
+            path,
+            &report_text(target_name, &outcome, installation_assumptions),
+        );
     }
     print_outcome(&outcome);
 }
 
-fn present_batch(request: BuildRequest, started: Option<Instant>, report_file: Option<&Path>) {
+fn present_batch(
+    request: BuildRequest,
+    started: Option<Instant>,
+    report_file: Option<&Path>,
+    installation_assumptions: &[compilation_products::InstallationEnvironmentAssumption],
+) {
     let outcomes = match build(request) {
         Ok(outcomes) => outcomes,
         Err(error) => {
@@ -156,7 +176,11 @@ fn present_batch(request: BuildRequest, started: Option<Instant>, report_file: O
                     print_timings(&outcome);
                 }
                 print_outcome(&outcome);
-                report_contents.push_str(&report_text(Some(name), &outcome));
+                report_contents.push_str(&report_text(
+                    Some(name),
+                    &outcome,
+                    installation_assumptions,
+                ));
             }
             Err(error) => {
                 eprintln!("{error}");
@@ -233,18 +257,46 @@ fn print_outcome(outcome: &BuildReport) {
     print!("{}", format_publication_lines(outcome));
 }
 
-fn report_text(target_name: Option<&str>, outcome: &BuildReport) -> String {
+fn assumption_text(row: &compilation_products::InstallationEnvironmentAssumption) -> String {
+    format!(
+        "Caller assumption (not proof or observation): {}; entry {:?}; installation {:?}; target {}; Psi {}; environment SHA-256 {}; source {}; caller {}",
+        row.description(),
+        row.entry(),
+        row.installation(),
+        row.profile().target_name(),
+        row.psi().program_fingerprint,
+        row.environment_description_sha256()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>(),
+        row.source_provenance(),
+        row.caller_provenance()
+    )
+}
+
+fn report_text(
+    target_name: Option<&str>,
+    outcome: &BuildReport,
+    installation_assumptions: &[compilation_products::InstallationEnvironmentAssumption],
+) -> String {
     let product = if outcome.executable_path.is_some() {
         "native artifact"
     } else {
         "check"
     };
     let target = target_name.unwrap_or("host default");
-    format!(
-        "product: {product}\ntarget: {target}\n{}\n{}",
-        outcome.report.summary(),
-        format_publication_lines(outcome)
-    )
+    let mut contents = format!("product: {product}\ntarget: {target}\n");
+    for row in installation_assumptions
+        .iter()
+        .filter(|row| target_name.is_none_or(|target| row.profile().target_name() == target))
+    {
+        contents.push_str(&assumption_text(row));
+        contents.push('\n');
+    }
+    contents.push_str(&outcome.report.summary());
+    contents.push('\n');
+    contents.push_str(&format_publication_lines(outcome));
+    contents
 }
 
 fn format_publication_lines(outcome: &BuildReport) -> String {

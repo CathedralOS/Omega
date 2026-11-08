@@ -1,16 +1,19 @@
-//! The execution-time grant join between a fresh compile and the consuming
-//! project's accepted lock policy
-//! (wiki/spec/packages/acceptance.md#restricted-build-acceptance).
-//!
-//! Review compiles are observational: private issued snapshot/staging builds
-//! run without restricted authority, while a non-exempt request stops before
-//! execution and remains available for a decision. A lock that retains decisions is
-//! different: an operation consuming that compile must refuse any occurrence
-//! whose projected restricted build requests lack retained accepted-request
-//! meaning. The lock stores decisions, not credentials, so the join
-//! re-projects each occurrence's acceptance rows and compares complete
-//! normalized request meaning — never host state — before the compile's
-//! generated sources and checked results are consumed.
+/*
+    We perform the execution-time grant join between a fresh compile and the
+    consuming project's accepted lock policy. Review compiles are observational:
+    private snapshot/staging builds run without restricted authority, while a
+    non-exempt request stops before execution and remains available for a
+    decision. A lock that retains decisions is different: an operation consuming
+    that compile refuses any occurrence whose projected restricted build
+    requests lack retained accepted-request meaning.
+
+    Because the lock stores decisions rather than credentials,
+    `RestrictedBuildCheckpoint` and `CheckpointRestrictedBuildGrants` re-project
+    each occurrence's acceptance rows under its exact package identity and
+    `PackageCheckedContext`, comparing complete normalized request meaning
+    before the request's build effect executes or its generated sources are
+    consumed.
+*/
 
 use std::collections::BTreeSet;
 
@@ -25,15 +28,6 @@ use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::build_execution::RestrictedBuildRequest;
 use package_evidence::encoding::restricted_build_request_acceptance_text;
 
-/// One normalized restricted build request a checked package occurrence
-/// projected without identical retained accepted-request meaning. Its
-/// compile result must not be consumed as locked evidence: acceptance is the
-/// only authority a locked operation honors for restricted host reach.
-///
-/// Restricted-build acceptance attributes each request to the originating
-/// package *and the dependency path* by which resolution reached it, so the
-/// record carries the occurrence's shortest root-to-package route alongside
-/// its identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UngrantedRestrictedBuildRequest {
     package: PackageKeyIdentity,
@@ -43,9 +37,6 @@ pub struct UngrantedRestrictedBuildRequest {
 }
 
 impl UngrantedRestrictedBuildRequest {
-    /// Bind a pre-effect request to the exact requesting occurrence. Both a
-    /// fresh pending observation and a consuming compile's consent refusal use
-    /// the same canonical meaning; neither path grants execution.
     pub(crate) fn project(
         package: PackageKeyIdentity,
         context: PackageCheckedContext,
@@ -63,8 +54,6 @@ impl UngrantedRestrictedBuildRequest {
         })
     }
 
-    /// The complete normalized request meaning the accepted policy did not
-    /// grant, in the same canonical row form the decision document renders.
     pub(crate) fn request_meaning(&self) -> &str {
         &self.request_meaning
     }
@@ -98,27 +87,12 @@ impl std::fmt::Display for UngrantedRestrictedBuildRequest {
     }
 }
 
-/// The restricted-request consent a consuming compile carries into the
-/// candidate pass: the accepted target's retained request meanings bound to
-/// the exact checked occurrence — package identity plus `PackageCheckedContext`
-/// — each grants.
-///
-/// Observation passes carry no checkpoint and never consult one: audit-only
-/// inspection must not issue grants, and a not-yet-accepted request has to
-/// project so the decision document can present it. A consuming compile arms
-/// the checkpoint so an occurrence's projected request joins before its
-/// review is retained or its generated-source bundle hands off to a consumer;
-/// acceptance recorded for one purpose or target never authorizes a different
-/// occurrence's restricted action on the same package.
 #[derive(Debug, Clone)]
 pub(crate) struct RestrictedBuildCheckpoint {
     grants: Vec<(PackageKeyIdentity, PackageCheckedContext, BTreeSet<String>)>,
 }
 
 impl RestrictedBuildCheckpoint {
-    /// Retain each accepted occurrence's granted restricted-request meanings
-    /// under its own checked context. Rows outside the restricted-request
-    /// kind never enter the grant view.
     pub fn derive(accepted: &PackageLockTarget) -> Self {
         Self {
             grants: accepted
@@ -143,12 +117,6 @@ impl RestrictedBuildCheckpoint {
         }
     }
 
-    /// Arm the checkpoint for one admitted activation: the returned binding
-    /// crosses to the compile worker and joins each restricted request the
-    /// occurrence's build machine projects — by canonical accepted-request
-    /// meaning — before that request's own build effect executes. An
-    /// occurrence absent from the accepted target carries an empty grant
-    /// view: every request it projects refuses.
     pub fn grants(
         &self,
         package: PackageKeyIdentity,
@@ -171,17 +139,6 @@ impl RestrictedBuildCheckpoint {
     }
 }
 
-/// Occurrence-bound consent one consuming compile hands to `checking`: each
-/// restricted build-host request the activation's admitted build machine
-/// projects joins here — in issue order — before that request's own build
-/// effect executes, so an absent or widened request never runs.
-///
-/// The binding is owned data (`Send` across the compile thread): it consults
-/// the request's canonical acceptance-row meaning against the granted
-/// meanings retained for this exact package identity and checked context.
-/// A refusal fails the compile with the pending meaning attached. A review
-/// carried from the persisted cache ran no Build, so the candidate pass admits
-/// its retained requests through this same binding.
 pub(crate) struct CheckpointRestrictedBuildGrants {
     package: PackageKeyIdentity,
     context: PackageCheckedContext,
@@ -191,8 +148,6 @@ pub(crate) struct CheckpointRestrictedBuildGrants {
 
 impl RestrictedBuildGrants for CheckpointRestrictedBuildGrants {
     fn admit(&mut self, request: &RestrictedBuildRequest) -> Result<(), Vec<Diagnostic>> {
-        // The Build evaluates without a realized target; this checkpoint's
-        // checked context names the target whose acceptance rows apply.
         let pending = UngrantedRestrictedBuildRequest::project(
             self.package,
             self.context,

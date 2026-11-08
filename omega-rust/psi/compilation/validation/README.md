@@ -38,7 +38,7 @@ source-only inference from ownership-complete checking. Psi 05 supplies the
 completed graph by explicit borrow after selecting cleanup; service-reach reuse
 requires the exact operational input. There is no ambient program-plan scope or
 restore guard. Other checker-local ambient state remains unfinished migration.
-[expression_traversal.rs](src/expression_traversal.rs) owns the
+[expression_traversal.rs](src/queries/expression_traversal.rs) owns the
 ordered expression-child roster, while each checker keeps its own visitation and
 pruning policy. [Operator namespaces](src/declarations/operators/namespaces.rs)
 are declaration resolution, consumed by call checking and local-value checks.
@@ -76,8 +76,8 @@ rules; a machine route is not blanket trust or a new capacity origin.
 fragment: canonical integer polynomials, substitutions from equalities,
 difference-bound closure, congruence, correlated intervals, signed remainder
 bounds, and accumulator-style self induction. Each recursive hypothesis needs
-strict descent at its exact edge. This is trusted source automation, not yet
-the source-to-kernel certificate bridge.
+strict descent at its exact edge. This is trusted source automation; it does not
+emit kernel evidence for every accepted obligation.
 
 Closed `FloatMeaning` equalities use the exact sealed float catalog through
 [semantic_values.rs](src/proof_contracts/float_projection_bindings/semantic_values.rs).
@@ -87,7 +87,7 @@ payload-erased NaN equality. It checks the selected equality operation using
 the bound declarations' result types; proof-only calls have no runtime place
 type. Unknown operands and exhausted work budgets provide no fact. Format and
 contract recognition are shared with checked application binding; portable
-contract-obligation retention and certificate production remain separate work.
+published obligation retention and receiver admission remain separate work.
 
 [Collection predicates](src/proof_contracts/collection_predicates.rs) give
 [collection invariants](../../../../wiki/spec/language/dependent_values.md#collection-invariants)
@@ -123,18 +123,20 @@ Unsupported judgments are not proved because this engine stands down. General
 quantified contracts, arbitrary mathematical functions/predicates, noncomputable
 values, proof views, and broader recursive proofs remain separate work.
 
-`PROOF-CERTIFICATION-BRIDGE` and `PROOF-CONTRACT-MIGRATION` on the
-[execution board](../../../../TASKS.md) own portable production: per-component
-well-foundedness, per-edge descent, exact normalization licenses, transitive
-assumptions, and certificate-derived review. The [proof admission kernel](../proof/admission/README.md)
-already has bounded recursion and normalization certificate checkers; that
-does not establish that source automation emits them or that general
-mathematical foundations are implemented. The
-[selected foundation](../../../../wiki/spec/proofs/foundation.md) owns the
-general core and its remaining profile joins. `PROOF-KERNEL-CORE` and
-`PROOF-CERTIFICATION-BRIDGE` replace parallel general truth routes with one
-checked term/declaration model; the bounded automation remains useful as a
-producer, not an implementation precedent that changes the foundation.
+`PROOF-KERNEL-CORE` and `PROOF-CONTRACT-MIGRATION` on the
+[execution board](../../../../TASKS.md) own local source proving: well-foundedness,
+per-edge descent, normalization licenses, assumptions and the selected foundation.
+The [proof admission kernel](../proof/admission/README.md) keeps its local proof
+objects and checkers. They do not imply that every source automation route uses
+the kernel or that every foundation feature is implemented.
+
+The theorem-citation erasure above must preserve the exact subject, assumptions
+and dependencies of a judgment reused from a trusted producer. A declaration
+roster does not itself establish an omitted theorem conclusion. The
+[Psi admission and preparation plan](../../../../wiki/drafts/designs/psi_claim_admission.md)
+requires explicit host trust for execution, keeps concrete interpreter checks,
+and moves static descriptor/entailment work out of dispatch. It does not require
+receivers to rediscover source proofs or remove the local kernel or proof codec.
 
 ## Arithmetic and arrival analysis
 

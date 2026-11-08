@@ -1,20 +1,18 @@
-//! Toolchain-authored Build declarations consumed as ordinary Omega source.
-//!
-//! These declarations supply static shapes only. Evaluation admits exact
-//! toolchain provenance and activation-local values before granting any access.
-//! Optimization cases and counters are projected from the shared catalog.
+// Toolchain-authored `Build` API source consumed as ordinary Omega source.
+//
+// These declarations provide static types and boundary protocols only; loading
+// and parsing them grants no build-host authority until the evaluator admits
+// exact toolchain provenance and activation-local facet markers. Target and
+// optimization declarations are spliced in from their canonical catalogs so the
+// source API cannot drift from the compiler's internal tables.
 
 mod optimizations;
 mod targets;
 
-/// Construct the target-neutral Build API with the exact optimization catalog.
-/// Loading and parsing this source do not grant build-host authority.
 pub fn build_prelude_source() -> String {
     targets::install(&optimizations::install(BUILD_PRELUDE))
 }
 
-/// Ordinary default activation. Its supplied role and owner are retained by
-/// source selection; this code neither names a project nor selects an entry.
 pub fn default_build_source() -> &'static str {
     "machine build(builder: &mut Build) {}\n"
 }

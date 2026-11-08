@@ -1,3 +1,6 @@
+// `OptimizationRollback` constructors (`new`, `from_exact_names`) and input
+// validation errors (`OptimizationRollbackInputError`).
+
 use crate::{DuplicateOptimization, Optimization, OptimizationSelections};
 
 use super::OptimizationRollback;

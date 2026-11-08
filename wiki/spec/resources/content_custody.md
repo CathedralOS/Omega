@@ -103,8 +103,11 @@ adds decomposition rather than replacing linearity.
 summary for dense runtime-count storage. They retain actual element obligations
 opaquely rather than projecting a sum of their contents. Neither a counted
 quantity nor byte interval conservation substitutes for their checked cell-to-
-backing correspondence. Split, merge and extraction transfer that retained
-custody; they do not reconstruct authority from a type and count.
+backing correspondence. The sealed core split, merge and extraction primitives
+transfer that retained custody. Their rules preserve the ordered actual cells;
+ordinary `old`/`separate` equations over backing do not prove that transfer or
+reconstruct authority from a type and count. Library machines compose these
+operations under the [run contracts](typed_runs.md#split-and-merge-contracts).
 
 ## Source conservation contracts
 

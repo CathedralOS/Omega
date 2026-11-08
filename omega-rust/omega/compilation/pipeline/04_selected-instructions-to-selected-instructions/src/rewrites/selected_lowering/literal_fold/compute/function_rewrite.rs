@@ -177,8 +177,8 @@ pub(super) fn rewritten_consumer(
     let consumer_provenance = consumer.provenance.clone();
     let mut operations = literal_provenance.operations;
     operations.extend(consumer_provenance.operations);
-    let mut fuel = literal_provenance.fuel;
-    fuel.extend(consumer_provenance.fuel);
+    let mut work = literal_provenance.work;
+    work.extend(consumer_provenance.work);
     // Bind each rewritten row operand to its recorded register: `Use`
     // positions take the surviving source operand — the left operand under a
     // right-literal grammar, the right operand under a left-literal one —
@@ -219,7 +219,7 @@ pub(super) fn rewritten_consumer(
         values: consumer_provenance.values,
         edges: consumer_provenance.edges,
         obligations: consumer_provenance.obligations,
-        fuel,
+        work,
     };
     Ok(consumer)
 }

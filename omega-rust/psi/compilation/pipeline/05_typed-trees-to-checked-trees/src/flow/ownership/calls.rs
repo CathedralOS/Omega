@@ -189,7 +189,7 @@ pub(crate) fn owned_call_operand_places(
     borrow_call: &BorrowCallFact,
 ) -> Vec<CanonicalPlace> {
     transfers_for_source(
-        facts,
+        facts.view(),
         state,
         FlowOwnershipEventSource::Call {
             statement_index: borrow_call.statement_index,
@@ -216,7 +216,7 @@ pub(crate) fn owned_call_operand_places(
 /// This association identifies storage only. Live claim authority still comes
 /// from the exact committed permission occurrence, not from a move candidate.
 pub(crate) fn owned_operand_transfer_place(
-    facts: &checked_trees::CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     expression: ExpressionHandle,
@@ -224,6 +224,7 @@ pub(crate) fn owned_operand_transfer_place(
     source: language_semantics::PermissionEventSource,
 ) -> Result<Option<CanonicalPlace>, &'static str> {
     use language_semantics::PermissionEventSource;
+    facts.flow.ownership.walk_guard.note(state);
     if evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
         return Err("owned operand has no permission evaluation coordinate");
     }
@@ -273,10 +274,11 @@ pub(crate) fn owned_operand_transfer_place(
 }
 
 fn transfers_for_source<'facts>(
-    facts: &'facts checked_trees::CheckFacts,
+    facts: checked_trees::CheckFactsRef<'facts>,
     state: &checked_trees::FlowStateFact,
     source: FlowOwnershipEventSource,
 ) -> impl Iterator<Item = &'facts checked_trees::FlowStorageTransferFact> {
+    facts.flow.ownership.walk_guard.note(state.state_symbol);
     facts
         .flow
         .ownership

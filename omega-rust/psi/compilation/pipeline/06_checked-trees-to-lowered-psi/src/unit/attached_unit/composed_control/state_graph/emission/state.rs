@@ -267,7 +267,14 @@ impl StateGraphEmission<'_, '_> {
             state_parameters
                 .iter()
                 .filter(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned)
-                .map(|parameter| parameter.place),
+                .map(|parameter| parameter.place)
+                // These hidden owners are block parameters too. A later edge
+                // forwards their recorded homes just like authored parameters.
+                .chain(
+                    self.captured_loans
+                        .declarations(position)
+                        .map(|parameter| parameter.place),
+                ),
             &entry_names,
         )?;
         // A `&`-primitive state parameter arrives by edge argument: its

@@ -1,4 +1,15 @@
-//! Compiler-owned source, cache, process, and observation ceilings.
+/*
+Compiler-owned source, cache, process, and observation ceilings.
+
+Repository discovery retains metadata for unselected workspace members rather
+than their source payloads, so `GIT_TREE_GRAPH_ENTRY_LIMIT` gives the discovery
+graph its own bounded capacity (262,144 entries; Omega's own workspace needs
+163,219 graph entries / 23 MiB of listing to select its 122-file standard
+library) while the 64 MiB Git output and depth ceilings still bound discovery
+and selected source / cache custody keep their smaller independent limits.
+`LocalSourceLimits::compiler_bounded` clamps caller-selected acceptance limits to
+compiler-owned ceilings enforced by the resolver.
+*/
 
 use std::sync::atomic::AtomicU64;
 use std::time::Duration;
@@ -27,14 +38,6 @@ pub(crate) const GIT_CONFIG_SHA1: &[u8] =
 pub(crate) const GIT_CONFIG_SHA256: &[u8] = b"[core]\n\trepositoryformatversion = 1\n\tfilemode = false\n\tbare = true\n[extensions]\n\tobjectformat = sha256\n";
 pub(crate) const CACHE_CUSTODY_ENTRY_LIMIT: usize = 65_536;
 pub(crate) const SOURCE_ENTRY_ABSOLUTE_LIMIT: usize = 65_536;
-// Repository discovery retains metadata for unselected workspace members, not
-// their source payloads. Give that graph its own bounded capacity: a repository
-// may exceed one selected package's entry budget. The 64 MiB Git output and
-// depth ceilings still bound discovery; selected source and cache custody keep
-// their independent, smaller limits.
-// Omega's own workspace already needs 163,219 graph entries / 23 MiB of listing
-// to select its 122-file standard library. These discovery bounds leave room
-// for that graph without broadening the selected package's payload budget.
 pub(crate) const GIT_TREE_GRAPH_ENTRY_LIMIT: usize = 262_144;
 pub(crate) const SOURCE_BYTE_ABSOLUTE_LIMIT: u64 = 512 * 1024 * 1024;
 pub(crate) const SOURCE_DEPTH_ABSOLUTE_LIMIT: usize = 256;
@@ -58,8 +61,7 @@ pub(crate) static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocalSourceLimits {
-    /// Caps every non-root source identity entry, including directories.
-    pub max_entries: usize,
+    pub max_entries: usize, // Caps every non-root source identity entry, including directories.
     pub max_bytes: u64,
     pub max_depth: usize,
 }
@@ -75,11 +77,6 @@ impl Default for LocalSourceLimits {
 }
 
 impl LocalSourceLimits {
-    /// Apply compiler-owned ceilings to caller-selected source limits.
-    ///
-    /// These are acceptance limits enforced by the resolver. They do not
-    /// claim to constrain an unconfined helper while it is writing its
-    /// quarantine object store.
     #[doc(hidden)]
     pub fn compiler_bounded(self) -> Self {
         Self {

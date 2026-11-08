@@ -1,6 +1,13 @@
-//! Close a catalog's complete authenticated inventory without publishing its
-//! unrelated files. Build sees the ordinary captured-source representation;
-//! selected member publication keeps the session's independent package limits.
+// In-memory catalog inventory capture (`GitWorkspaceSession::capture_inventory`)
+// for root `Build` evaluation.
+//
+// Captures the complete authenticated repository inventory into an in-memory
+// `CapturedLocalSource` under `GIT_TREE_GRAPH_ENTRY_LIMIT` and
+// `SOURCE_BYTE_ABSOLUTE_LIMIT` (applying `SourceTreePolicy::LocalPackage`
+// control/output exclusions after graph and blob authentication) without
+// writing a disk snapshot or widening a selected member package's source
+// budget. The retained `catalog-<namespace>/<commit>` directory serves only as
+// a routing identity for the in-memory tree.
 
 use super::{GitWorkspaceSession, source_error};
 use crate::git::cache::identity::git_cache_identity;
@@ -21,10 +28,6 @@ use crate::{LocalSourceLimits, SourceResolveError, SourceResolver};
 use std::sync::Arc;
 
 impl GitWorkspaceSession {
-    /// Capture the complete immutable catalog input. Authored Build code may
-    /// import local helpers or inspect assets outside any eventual member.
-    /// Catalog capture has its own bounded inventory budget; it neither parses
-    /// the Build nor widens a selected package's source budget.
     pub fn capture_inventory(
         &self,
         storage: &SourceResolver,
@@ -43,8 +46,6 @@ impl GitWorkspaceSession {
             self.request.requested_revision(),
             self.request.execution_transport(),
         );
-        // This directory routes an invocation-owned immutable inventory. It
-        // contains no source publication and grants no permission to reopen it.
         let route = storage
             .workspace_members()
             .retain_child(&format!("catalog-{namespace}"))?
@@ -62,8 +63,6 @@ impl GitWorkspaceSession {
                 let entries =
                     self.inspection
                         .open_catalog_inventory(executor, repository, catalog_limits)?;
-                // Apply the same control/output exclusions as physical capture
-                // after the retained graph and actual blob bytes authenticate.
                 let entries = entries
                     .into_iter()
                     .filter(|entry| {

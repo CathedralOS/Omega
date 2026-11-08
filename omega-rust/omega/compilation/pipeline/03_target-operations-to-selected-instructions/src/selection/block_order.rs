@@ -38,7 +38,7 @@ pub(super) fn derive(
         );
     }
     // Iterative reverse postorder puts every dominating definition before its
-    // uses, including when a predecessor is a backedge. No execution fuel is set.
+    // uses, including when a predecessor is a backedge. No execution work is set.
     let mut visited = vec![false; source.blocks.len()];
     let mut pending = vec![(entry, false)];
     let mut postorder = Vec::new();

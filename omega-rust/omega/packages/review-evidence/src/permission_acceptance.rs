@@ -1,11 +1,16 @@
-//! Refuse execution when a program requests permissions its root has not accepted.
-//!
-//! The package manager selects the exact root Product occurrence. A retained
-//! lock is historical consent and is compared here; compilation does not write
-//! one. When the consuming root's own public Build evaluation recorded an
-//! assumed binding and no lock is present, the Product risk rows are projected
-//! from saved declarations and admitted for this activation only. Target
-//! selection and provider admission remain independent requirements.
+/*
+Runtime permission and assumed-binding consent verification for the root Product
+occurrence (`RuntimePermissionInput` and `TerminalPermissionAcceptance`).
+
+The package manager selects the exact root Product occurrence and compares its
+projected `TerminalPermission` and `AssumedBindingContract` policy rows against
+retained lock consent without writing a lock during compilation. When no lock is
+present and the consuming root's own public `Build` evaluation recorded an
+assumed binding, `TerminalPermissionAcceptance::from_public_build` projects the
+Product risk rows from `PreparedRuntimePolicy` saved before shared Terminal
+publication and admits them for that single activation only. Target selection
+and provider admission remain independent requirements.
+*/
 
 use crate::capture::EvidenceOption;
 pub use crate::capture::PreparedRuntimePolicy;
@@ -14,8 +19,6 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
-/// Completed target choices and saved declarations used for runtime consent.
-/// There is no source program in this input.
 pub struct RuntimePermissionInput<'a> {
     pub(crate) declarations: &'a PreparedRuntimePolicy,
     pub(crate) execution: &'a selected_dispatch::SelectedExecution,
@@ -24,9 +27,6 @@ pub struct RuntimePermissionInput<'a> {
 }
 
 impl<'a> RuntimePermissionInput<'a> {
-    /// Borrow completed outputs from one compilation so callers cannot mix
-    /// one program's selected code with another program's permission inputs.
-    /// This assembly reads no source declarations.
     pub fn from_compilation(
         declarations: &'a PreparedRuntimePolicy,
         checked: &'a compilation_products::CheckedCompilation,
@@ -40,26 +40,14 @@ impl<'a> RuntimePermissionInput<'a> {
     }
 }
 
-/// Exact consent for one root Product occurrence.
-///
-/// A lock supplies historical rows. [`Self::from_public_build`] projects the
-/// same rows from the compilation whose Build evaluation recorded the
-/// relationship. Neither form writes a lock or accepts a dependency's
-/// relationship on another package's behalf.
 pub struct TerminalPermissionAcceptance {
     pub schema_version: u16,
     pub package: PackageKeyIdentity,
     pub target: TargetProfile,
-    /// Canonical coordinate digest and readable meaning, in lock order.
-    pub rows: Vec<([u8; 32], String)>,
+    pub rows: Vec<([u8; 32], String)>, // Canonical coordinate digest and readable meaning, in lock order.
 }
 
 impl TerminalPermissionAcceptance {
-    /// Product risk rows carried by the root Build that this compilation
-    /// evaluated. The rows exist only when that evaluation recorded the
-    /// assumed relationship and the checked plan still names the same count.
-    /// A later locked compile does not reuse this value; it must present its
-    /// own retained rows.
     pub fn from_public_build(input: &RuntimePermissionInput<'_>) -> Result<Self, Vec<Diagnostic>> {
         let package = input
             .sources

@@ -1,4 +1,16 @@
-//! Source-resolution session: retain private storage and select host Git once.
+/*
+Source-resolution session retaining private storage custody and selecting the
+host Git executable once.
+
+Git quarantine, local snapshots, publication stages, and locks remain
+descendants of the retained root (`git-sources`, `workspace-members`, and
+`external-local-sources`). Git selection belongs to the session rather than its
+directories so local-only resolution remains available when no host Git
+executable is present. `for_current_user` fails closed without a temporary
+directory fallback; `for_hardened_base` exists only for tests to place an
+isolated custody boundary. On Windows, `verify_path_identity` reconciles the
+parent root before and after verifying direct child lane identities.
+*/
 
 use crate::SourceResolveError;
 use crate::custody::tree::CacheCustodyKind;
@@ -10,11 +22,6 @@ const GIT_SOURCES: &str = "git-sources";
 const WORKSPACE_MEMBERS: &str = "workspace-members";
 const EXTERNAL_LOCAL_SOURCES: &str = "external-local-sources";
 
-/// One source-resolution session with retained directory custody and host Git selection.
-///
-/// Git quarantine, local snapshots, publication stages, and locks remain descendants
-/// of the retained root. Git selection belongs to this session, not its directories;
-/// local-only resolution remains available when no host Git executable was found.
 #[derive(Debug)]
 pub struct SourceResolver {
     root: RetainedStorageRoot,
@@ -24,33 +31,18 @@ pub struct SourceResolver {
     primary_git: Option<PrimaryGitSelection>,
 }
 
-/// Operator choices that narrow how the resolver selects its primary Git executable.
-///
-/// The default lets the resolver select automatically from the host; an explicit
-/// executable or excluded controlled roots come from operator flags.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PrimaryGitChoices<'a> {
-    /// One explicit operator-selected Git executable.
-    pub explicit_git: Option<&'a Path>,
-    /// Operator-known controlled roots excluded from automatic selection.
-    pub excluded_controlled_roots: &'a [PathBuf],
+    pub explicit_git: Option<&'a Path>, // Explicit operator-selected Git executable.
+    pub excluded_controlled_roots: &'a [PathBuf], // Operator-known controlled roots excluded from auto-selection.
 }
 
 impl SourceResolver {
-    /// Open or create the current user's production source resolver.
-    ///
-    /// There is deliberately no temporary-directory fallback. If the host has
-    /// no usable per-user cache location, source resolution fails closed.
     pub fn for_current_user(choices: PrimaryGitChoices<'_>) -> Result<Self, SourceResolveError> {
         let base = current_user_cache_base()?;
         Self::create_beneath(&base, choices)
     }
 
-    /// Open an isolated resolver tree beneath a caller-custodied base.
-    ///
-    /// No production caller exists: every shipped command reaches the resolver
-    /// through [`Self::for_current_user`]. This exists so tests can place their
-    /// own custody boundary instead of the per-user cache.
     #[cfg(test)]
     pub(crate) fn for_hardened_base(
         base: impl AsRef<Path>,
@@ -76,10 +68,6 @@ impl SourceResolver {
         &self.external_local_sources
     }
 
-    /// The host Git selected when this session opened.
-    ///
-    /// Git lane entrances take this selection explicitly; directory custody does
-    /// not choose an executable or prevent callers supplying another selection.
     pub fn primary_git(&self) -> Result<&PrimaryGitSelection, SourceResolveError> {
         self.primary_git
             .as_ref()
@@ -98,8 +86,6 @@ impl SourceResolver {
             #[cfg(not(windows))]
             lane.verify_path_identity()?;
         }
-        // The siblings share this fresh parent walk, not a check from a prior
-        // operation. Reconcile its pathname again after all child observations.
         #[cfg(windows)]
         self.root.verify_path_identity()?;
         Ok(())
@@ -139,9 +125,6 @@ impl SourceResolver {
             root.create_lane(WORKSPACE_MEMBERS, CacheCustodyKind::LocalSnapshot)?;
         let external_local_sources =
             root.create_lane(EXTERNAL_LOCAL_SOURCES, CacheCustodyKind::LocalSnapshot)?;
-        // Each lane reconciled its pathname with its retained directory as the
-        // last step of `create_lane`, and nothing has used a lane since. Only
-        // the root still needs its first full custody check here.
         root.verify_path_identity()?;
         Ok(Self {
             root,

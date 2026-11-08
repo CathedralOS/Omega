@@ -40,6 +40,8 @@ mod payload_predicates;
 mod payload_reachability;
 mod payload_versions;
 mod scalar_captures;
+mod value_identity;
+pub use value_identity::{ValueIdentityAnalysis, ValueIdentitySeed, require_unchanged_value};
 mod scalar_contracts;
 pub use contents::{
     DescriptorContentsOperand, DescriptorContentsQuery, DescriptorContentsStep,
@@ -568,6 +570,14 @@ pub fn descriptor_machine(
     graph.iter().find(|current| current.id == id)
 }
 
+/// Borrowed pre-invocation coordinates. These describe actual storage only;
+/// they establish no invocation, normal result, permission or backing grant.
+#[derive(Clone, Copy)]
+pub struct DescriptorActualInputs<'a> {
+    pub arguments: &'a [Option<DescriptorLocation>],
+    pub argument_contents: &'a [Option<DescriptorContentsQuery>],
+}
+
 pub struct DescriptorInvocation {
     pub operation: semantic_vocabulary::OperationId,
     pub target: DescriptorInvocationTarget,
@@ -607,6 +617,13 @@ pub enum DescriptorInvocationTarget {
 }
 
 impl DescriptorInvocation {
+    pub fn actual_inputs(&self) -> DescriptorActualInputs<'_> {
+        DescriptorActualInputs {
+            arguments: &self.arguments,
+            argument_contents: &self.argument_contents,
+        }
+    }
+
     pub fn stored_effects_callee(&self) -> Option<MachineId> {
         match self.target {
             DescriptorInvocationTarget::Public {
@@ -769,7 +786,16 @@ pub fn terminal_borrowed_storage_graph_from(
         DescriptorSlotKind::BorrowedStorage,
         selected_calls,
     )
-    .ok_or("executable borrowed-storage closure cannot be reconstructed")
+    .map_err(|_| "executable borrowed-storage closure cannot be reconstructed")
+}
+
+/// A required body could not supply a complete descriptor graph. Keep its
+/// identity so callers can report the actual failed dependency, rather than
+/// mistaking an empty graph for a missing query root.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DescriptorGraphError {
+    MissingOrAmbiguousMachine(MachineId),
+    IncompleteMachine(MachineId),
 }
 
 fn terminal_graph_closure(
@@ -777,11 +803,11 @@ fn terminal_graph_closure(
     roots: impl IntoIterator<Item = MachineId>,
     kind: DescriptorSlotKind,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
-) -> Option<Vec<DescriptorMachine>> {
+) -> Result<Vec<DescriptorMachine>, DescriptorGraphError> {
     let mut machines = BTreeMap::new();
     for machine in &module.machines {
         if machines.insert(machine.id, machine).is_some() {
-            return None;
+            return Err(DescriptorGraphError::MissingOrAmbiguousMachine(machine.id));
         }
     }
     let mut pending: Vec<_> = roots.into_iter().collect();
@@ -790,8 +816,11 @@ fn terminal_graph_closure(
         if reached.contains_key(&identity) {
             continue;
         }
-        let body = *machines.get(&identity)?;
-        let graph = terminal_flow::adapt(module, body, kind, selected_calls, None)?;
+        let body = *machines
+            .get(&identity)
+            .ok_or(DescriptorGraphError::MissingOrAmbiguousMachine(identity))?;
+        let graph = terminal_flow::adapt(module, body, kind, selected_calls, None)
+            .ok_or(DescriptorGraphError::IncompleteMachine(identity))?;
         for call in graph.calls.values() {
             match &call.target {
                 DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
@@ -821,12 +850,26 @@ fn terminal_graph_closure(
         body.operations()
             .any(|operation| matches!(operation.kind, OperationKind::CallDynamic { .. }))
     }) {
-        return Some(initial);
+        return Ok(initial);
     }
     bodies
         .into_iter()
-        .map(|body| terminal_flow::adapt(module, body, kind, selected_calls, Some(&initial)))
+        .map(|body| {
+            terminal_flow::adapt(module, body, kind, selected_calls, Some(&initial))
+                .ok_or(DescriptorGraphError::IncompleteMachine(body.id))
+        })
         .collect()
+}
+
+/// Reference-slot replay for the complete invocation closure of the supplied
+/// roots. Unrelated retained bodies cannot erase this closure, and a missing
+/// reached dependency remains an explicit error. Pair with
+/// `DescriptorAnalysis::with_reference_slots`.
+pub fn terminal_reference_graph_from(
+    module: &TerminalModule,
+    roots: impl IntoIterator<Item = MachineId>,
+) -> Result<Vec<DescriptorMachine>, DescriptorGraphError> {
+    terminal_graph_closure(module, roots, DescriptorSlotKind::References, &[])
 }
 
 /// Current Terminal reference-slot graph; pair with `with_reference_slots`.

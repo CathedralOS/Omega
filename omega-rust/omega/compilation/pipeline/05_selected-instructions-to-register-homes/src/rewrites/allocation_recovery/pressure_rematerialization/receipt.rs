@@ -18,7 +18,7 @@ pub(crate) fn bind(
         register_environment: plan.register_environment,
         allocator_availability: plan.allocator_availability,
         optimization_unit: plan.optimization_unit,
-        fuel_schedule: plan.fuel_schedule,
+        work_schedule: plan.work_schedule,
         transformed_selected,
         policy: plan.policy,
         usage: plan.usage,

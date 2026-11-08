@@ -1,3 +1,14 @@
+/*
+Domain predicate and shared definition-fact verification (`project_domain_predicate_facts`,
+`project_definition_contract_fact`, and `require_exact_checked_fact`).
+
+`require_exact_checked_fact` enforces the ownership invariant shared by public
+domains and data definitions: each `ProofFact` handle must match exactly one
+semantic definition row at `ProgramPoint::Definition { symbol }` with default
+`QualificationEvidence`, and exactly one retained ownership record bound to
+that semantic row.
+*/
+
 use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
@@ -136,12 +147,6 @@ pub(crate) fn require_exact_checked_domain_fact(
     )
 }
 
-/// The exact-checked definition-fact requirement both public fact owners
-/// share: exactly one semantic definition row for the symbol's fact handle and
-/// exactly one retained ownership record bound to that row. `kind` and `noun`
-/// complete the diagnostics (`public {kind} \`x\` {noun} fact`), `origin`
-/// builds the definition origin the rows must carry, and `record_fields`
-/// reads each retained record's symbol, typed fact, and semantic handle.
 pub(crate) fn require_exact_checked_fact<'a, R: 'a>(
     typed: &typed_trees::TypedTrees,
     semantic_facts: &facts::evidence::FactTable,

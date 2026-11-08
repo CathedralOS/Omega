@@ -6,7 +6,7 @@
 //! This crate deliberately performs no optimization. It makes the implicit
 //! structure in [`AbstractOperationPlan`] explicit so independent
 //! validators and later passes do not have to rediscover CFG, SSA, semantic
-//! fuel, effects, or provenance from a mutable instruction stream.
+//! work, effects, or provenance from a mutable instruction stream.
 
 use std::{collections::BTreeSet, sync::Arc};
 
@@ -19,9 +19,9 @@ use optimization_core::{
     ProofQuestionIdentity, ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
 use semantic_vocabulary::{
-    AdmissionSiteId, BlockId, ClaimId, ContractId, EdgeId, EvidenceIdentity, FuelScheduleIdentity,
-    IntegerCarrier, IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
-    ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    AdmissionSiteId, BlockId, ClaimId, ContractId, EdgeId, EvidenceIdentity, IntegerCarrier,
+    IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ScalarType,
+    ServiceId, StructuralPlaceKind, StructuralTypeId, ValueId, WorkScheduleIdentity,
 };
 use terminal_psi::{
     BoundaryMachineDeclaration, ContentEntryClaim, EntryClaim, EvidenceContractLane,
@@ -44,15 +44,14 @@ pub use optimization_unit::{
     CycleComponentId, DeadScalarNodeRewrite, DispatchCondition,
     DominatingScalarCommonSubexpressionRewrite, EffectLink, Establishment, FieldEvidence,
     FieldValueResolution, FieldValueRow, FieldValueSpecializationRewrite, FoldedCaseMembershipRow,
-    FoldedFieldValue, ForwardedFieldValue, FuelSettlement, FunctionAnalysis,
-    IntegerConstantRewrite, IntegerEvaluationWitness, IntervalExtraction,
-    InvalidPsiTransformationLedger, LinearEmptyBlockRewrite, LocalScalarCommonSubexpressionRewrite,
-    LoopInvariantNodeResult, LoopInvariantScalarMotionCandidate, LoopInvariantScalarNode,
-    LoopInvariantScalarRelocation, NodeLocation, NonAdjacentBlockMergeRewrite,
-    ObservationKnowledge, OptimizationBlock, OptimizationEdge, OptimizationFact,
-    OptimizationManifestStage, OptimizationNode, OptimizationRunUsage,
-    OptimizationStructuralStatistics, OptimizationUnitBuildError, OptimizerCycleComponent,
-    OptimizerCycleComponentSnapshot, OptimizerRankingCertificateSnapshot,
+    FoldedFieldValue, ForwardedFieldValue, FunctionAnalysis, IntegerConstantRewrite,
+    IntegerEvaluationWitness, IntervalExtraction, InvalidPsiTransformationLedger,
+    LinearEmptyBlockRewrite, LocalScalarCommonSubexpressionRewrite, LoopInvariantNodeResult,
+    LoopInvariantScalarMotionCandidate, LoopInvariantScalarNode, LoopInvariantScalarRelocation,
+    NodeLocation, NonAdjacentBlockMergeRewrite, ObservationKnowledge, OptimizationBlock,
+    OptimizationEdge, OptimizationFact, OptimizationManifestStage, OptimizationNode,
+    OptimizationRunUsage, OptimizationStructuralStatistics, OptimizationUnitBuildError,
+    OptimizerCycleComponent, OptimizerCycleComponentSnapshot, OptimizerRankingCertificateSnapshot,
     OptimizerUnsignedCountdownRankingCertificate, OptimizerUnsignedMinusOneDescent,
     OptimizerUnsignedPositiveGuard, OwnershipEvent, OwnershipFrontierFact,
     OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace, OwnershipFrontierPartialCustody,
@@ -72,7 +71,7 @@ pub use optimization_unit::{
     SpecializedStateEdgeRow, StateArgumentSpecializationRewrite, TotalScalarIdentityKind,
     TotalScalarIdentityRewrite, UnreachablePrivateMachinesRewrite, ValueDefinition,
     ValueDefinitionSite, ValueRangeFact, ValueRangeRegion, ValueRangeScope, ValueRangeSupport,
-    ValueUse, access_view_catalog_identity_bytes, argument_rewrites_place,
+    ValueUse, WorkSettlement, access_view_catalog_identity_bytes, argument_rewrites_place,
     attach_accepted_obligation_facts, attach_ownership_frontier_facts,
     attach_verified_module_context, bound_place, bound_value,
     canonical_ownership_frontier_snapshot, declared_structural_type,

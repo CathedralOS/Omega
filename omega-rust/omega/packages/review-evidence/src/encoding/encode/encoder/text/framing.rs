@@ -1,4 +1,4 @@
-//! Canonical text vocabulary shared with bounded recovery.
+// Canonical text markup header, nesting ceiling, and label character predicate shared with bounded recovery.
 
 pub(in crate::encoding) const MAXIMUM_MARKUP_DEPTH: usize = 1024;
 pub(in crate::encoding) const HEADER: &str = "omega_package_policy_text 1\n";

@@ -1,3 +1,6 @@
+// Windows direct-child custody verification tests
+// (`verify_retained_cache_child_custody_root`).
+
 use crate::custody::tree::{CacheCustodyKind, verify_retained_cache_child_custody_root};
 use crate::test_support::temp_root;
 use crate::tree::filesystem::open_absolute_directory_nofollow;

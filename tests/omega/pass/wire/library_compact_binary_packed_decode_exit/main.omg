@@ -1,17 +1,17 @@
 // Expected exit: 0
-// Packed bodies are bounded regions; malformed suffixes and capacity/fuel
+// Packed bodies are bounded regions; malformed suffixes and capacity/remaining_steps
 // exhaustion never turn a partial element list into a successful document.
 use omega::language::core::wire;
-machine invalid(bytes: &[u8], capacity: u64, fuel: u64) -> bool {
+machine invalid(bytes: &[u8], capacity: u64, remaining_steps: u64) -> bool {
     let mut words: [u64; 3] = [99u64, 99u64, 99u64];
-    transition capacity <= 3u64 && fuel > 0u64 {
-        true -> read(bytes, &mut words[..], capacity, fuel)
+    transition capacity <= 3u64 && remaining_steps > 0u64 {
+        true -> read(bytes, &mut words[..], capacity, remaining_steps)
         false -> false
     }
-    machine read(bytes: &[u8], words: &mut [u64], capacity: u64, fuel: u64) -> bool
-    requires capacity <= words.len && fuel > 0u64
+    machine read(bytes: &[u8], words: &mut [u64], capacity: u64, remaining_steps: u64) -> bool
+    requires capacity <= words.len && remaining_steps > 0u64
     {
-        transition CompactBinary::read_packed(bytes, &mut words[0u64..capacity], fuel) {
+        transition CompactBinary::read_packed(bytes, &mut words[0u64..capacity], remaining_steps) {
             PackedRead::Invalid -> true
             _ -> false
         }

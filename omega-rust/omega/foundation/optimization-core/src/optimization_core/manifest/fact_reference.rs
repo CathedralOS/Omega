@@ -1,4 +1,6 @@
-//! Canonical closed vocabulary for evidence consumed by optimization rules.
+// `OptimizationFactReference`: 33-byte closed tagged union (`1` = ScalarConstant,
+// `2` = AcceptedObligation, `3` = OwnershipFrontier, `4` = ValueRange) over
+// 32-byte fact identities consumed by optimization rules.
 
 use crate::{
     AcceptedObligationFactIdentity, OwnershipFrontierFactIdentity, ScalarConstantFactIdentity,
@@ -14,11 +16,8 @@ pub enum OptimizationFactReference {
 }
 
 impl OptimizationFactReference {
-    /// One closed fact-family tag followed by its exact 32-byte identity.
     pub(crate) const ENCODED_LENGTH: usize = 33;
 
-    /// Encode one fact reference in the canonical representation shared by
-    /// decision manifests and external policy schemas.
     pub fn encode(self) -> [u8; Self::ENCODED_LENGTH] {
         let (tag, identity) = match self {
             Self::ScalarConstant(identity) => (1, identity.bytes()),
@@ -32,8 +31,6 @@ impl OptimizationFactReference {
         encoded
     }
 
-    /// Decode exactly one canonical fact reference. Framing belongs to the
-    /// caller, so truncated and trailing inputs both reject by exact length.
     pub fn decode(encoded: &[u8]) -> Result<Self, OptimizationFactReferenceDecodeError> {
         if encoded.len() != Self::ENCODED_LENGTH {
             return Err(OptimizationFactReferenceDecodeError::WrongLength {

@@ -37,13 +37,18 @@ mod entries;
 mod image;
 mod object;
 pub use entries::callable_entry_transport::{
-    create_callable_entry_transport, create_private_function_object,
+    CallableEntryTransport, NativeBodyCpuState, create_callable_entry_transport,
+    create_installed_private_function_object, create_private_function_object,
+    observe_native_body_cpu_state, observe_native_constant_operand,
+    observe_native_function_cpu_state,
 };
 pub use entries::foreign_adapter::{
     NativeForeignAdapterEmissionError, NativeForeignAdapterImage, emit_native_foreign_adapter,
 };
 pub use entries::physical_entry::{
-    PhysicalEntryBinding, PhysicalEntryPartitions, bind_physical_entry,
+    InstalledPhysicalCpuRequirement, PhysicalEntryBinding, PhysicalEntryPartitions,
+    PhysicalEntryRequirements, PhysicalEntryStackRequirement, PhysicalIncomingStackRequirement,
+    bind_physical_entry,
 };
 pub use object::component_object::{
     ComponentFunctionImage, component_export_symbol, prepare_component_function_image,
@@ -68,8 +73,8 @@ pub use object::object_artifact::replay::boundary::completion_receipts::completi
 pub(crate) use object::object_artifact::stack_demand::StackDemand;
 pub use object::object_artifact::stack_demand::derive_stack_demand;
 pub use object::object_artifact::{
-    ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution, ObjectForeignCall,
-    ObjectFunction, ObjectScalarCallStack, ObjectUnitCallStack,
+    NativeInstructionSourceRows, ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution,
+    ObjectForeignCall, ObjectFunction, ObjectScalarCallStack, ObjectUnitCallStack,
     derive_normalized_foreign_call_custody, durable_home_offsets,
     foreign_invocation_provenance_matches, foreign_result_operand_count, fragment_instruction_span,
     producer_instruction, scalar_call_result_producer, scalar_immediate_span,
@@ -93,8 +98,13 @@ pub use image::final_image_validation::native_code_layouts::{
 pub use image::image_output::{
     ExecutableImage, ExecutableImageEmissionRequest, ImageApplicationMetadataError,
     ObjectContainer, RequestedExecutableImage, can_emit_executable_image, emit_executable_image,
-    validate_direct_executable_image,
+    validate_direct_executable_image, validate_direct_executable_image_output,
 };
 
 pub use installation_record::InstallationError;
 pub use machine_code::BoundaryExecutionRecord;
+
+pub use object::object_artifact::installed_stack::{
+    compose_installed_arrival_demands, correlate_native_instruction_sources,
+    installed_interrupt_stack_requirement, require_installed_root_provision,
+};

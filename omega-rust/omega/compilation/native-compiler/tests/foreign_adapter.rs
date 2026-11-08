@@ -1,5 +1,7 @@
-//! The emitted shared library must survive the actual platform loader and call
-//! the original C provider. The C driver knows only the fixed two-pointer ABI.
+// Integration test verifying that emitted foreign-adapter shared libraries load
+// through the host platform loader, call the C provider across the fixed
+// two-pointer ABI, and trap with the expected architecture signal/exit code on
+// a repeated completion violation.
 
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
@@ -156,8 +158,8 @@ fn emitted_adapters_load_and_share_the_real_provider_registration() {
     {
         use std::os::unix::process::ExitStatusExt;
         let signal = match target.architecture {
-            target::Architecture::Aarch64 => 5, // C __builtin_trap: BRK / SIGTRAP
-            target::Architecture::X86_64 => 4,  // UD2 / SIGILL
+            target::Architecture::Aarch64 => 5,
+            target::Architecture::X86_64 => 4,
         };
         assert_eq!(
             output.status.signal(),

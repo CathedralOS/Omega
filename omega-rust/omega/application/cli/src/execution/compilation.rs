@@ -41,7 +41,7 @@ pub(super) fn compile(
     options: CompileOptions,
     destination: NativeDestination,
     reference_inputs: Vec<std::fs::File>,
-    terminal_fuel_allowance: u64,
+    psi_work_budget: u64,
 ) -> Result<ProbeCompilation, Vec<Diagnostic>> {
     let targets = match options.target_name.as_deref() {
         Some(name) => BuildTargets::Single(
@@ -55,6 +55,7 @@ pub(super) fn compile(
         build_directory: options.build_dir,
         targets,
         product: ProjectProduct::Native {
+            installation_assumptions: Vec::new(),
             destination,
             private_entry_ram,
         },
@@ -80,12 +81,7 @@ pub(super) fn compile(
     let interpretations = reference_inputs
         .into_iter()
         .map(|input| {
-            interpret_product(
-                &report,
-                Some(Box::new(input)),
-                target_name,
-                terminal_fuel_allowance,
-            )
+            interpret_product(&report, Some(Box::new(input)), target_name, psi_work_budget)
         })
         .collect();
     Ok(ProbeCompilation {
@@ -99,7 +95,7 @@ pub(super) fn interpret_product(
     report: &CompileReport,
     input: Option<Box<dyn std::io::Read + Send>>,
     target: &str,
-    terminal_fuel_allowance: u64,
+    psi_work_budget: u64,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
     let artifact = report
         .retained_native_program()
@@ -127,7 +123,7 @@ pub(super) fn interpret_product(
         artifact,
         target: Some(target),
         provisions: report.runtime_provisions(),
-        fuel_allowance: terminal_fuel_allowance,
+        work_budget: psi_work_budget,
         domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: input,
         clock: Some(terminal_runtime::TerminalClockEnvironment::Host),

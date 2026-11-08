@@ -1,4 +1,5 @@
-//! Authored source custody, compiler-private row pairings, and finalization.
+// Authored source custody, compiler-private row pairings (`ProjectedReviewRow`),
+// family interfaces, invocations, source locations, service reach, and suspension.
 
 pub(super) mod family_interfaces;
 pub(super) mod invocations;

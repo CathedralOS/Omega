@@ -65,20 +65,8 @@ pub fn settle_native_callback_placements(
                     .into(),
             );
         }
-        let inbound_boundary = application
-            .boundary
-            .ok_or("admitted callback lost its exact inbound declaration")?;
-        let inbound_boundary =
-            crate::optimization::selected_calling_boundary(module, targets, inbound_boundary)?;
-        let inbound = calling_application(
-            calling,
-            &module.calling_abi_identity(inbound_boundary)?,
-            Some(&application.calling_owner_application),
-            None,
-        )?;
-        if inbound.dispatch_only_parameter_count != 0 {
-            return Err("callback inbound entry cannot omit dispatch-only formals".into());
-        }
+        let (inbound_boundary, inbound) =
+            inbound_application(module, targets, calling, application)?;
         // Selection and occurrence custody retain the portable head above;
         // only ABI and telescope formation use its admitted physical member.
         let registrar_boundary =
@@ -91,38 +79,84 @@ pub fn settle_native_callback_placements(
                 "callback registrar lost its independently selected exact calling application",
             )?;
         let registrar = calling_application(calling, &registrar_abi, None, Some(selected_calling))?;
-        let inbound_telescope =
-            TerminalCallingTelescope::for_application(module, inbound_boundary, inbound)?;
-        let registrar_telescope =
-            TerminalCallingTelescope::for_application(module, registrar_boundary, registrar)?;
-        let entry_parameters = inbound_telescope
-            .parameters
-            .iter()
-            .map(|parameter| {
-                Ok(NativeCallbackEntryParameter {
-                    application: parameter_application(inbound, parameter)?,
-                    origin: parameter.origin,
-                })
-            })
-            .collect::<Result<Vec<_>, String>>()?;
-        placements.push(NativeCallbackPlacement {
-            application_index: application.application_index,
-            static_machine_ordinal: application.static_machine_ordinal,
-            canonical_requirement_overload: application.requirement.clone(),
-            contract_commitment: application.body.contract,
-            boundary_entry_plan: inbound.plan.plan().clone(),
-            entry_parameters,
-            private_materialization: private_materialization(
-                application,
-                registrar,
-                &registrar_telescope,
-            )?,
-        });
+        placements.push(place_callback(
+            module,
+            application,
+            inbound_boundary,
+            inbound,
+            registrar_boundary,
+            registrar,
+        )?);
     }
     Ok(placements)
 }
 
-fn calling_application<'plans>(
+pub(super) fn inbound_application<'plans>(
+    module: &TerminalModule,
+    targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
+    calling: &'plans [BoundaryCallingApplication],
+    application: &TerminalCallbackApplication,
+) -> Result<
+    (
+        semantic_vocabulary::BoundaryMachineId,
+        &'plans BoundaryCallingApplication,
+    ),
+    String,
+> {
+    let boundary = application
+        .boundary
+        .ok_or("admitted callback lost its exact inbound declaration")?;
+    let boundary = crate::optimization::selected_calling_boundary(module, targets, boundary)?;
+    let inbound = calling_application(
+        calling,
+        &module.calling_abi_identity(boundary)?,
+        Some(&application.calling_owner_application),
+        None,
+    )?;
+    if inbound.dispatch_only_parameter_count != 0 {
+        return Err("callback inbound entry cannot omit dispatch-only formals".into());
+    }
+    Ok((boundary, inbound))
+}
+
+pub(super) fn place_callback(
+    module: &TerminalModule,
+    application: &TerminalCallbackApplication,
+    inbound_boundary: semantic_vocabulary::BoundaryMachineId,
+    inbound: &BoundaryCallingApplication,
+    registrar_boundary: semantic_vocabulary::BoundaryMachineId,
+    registrar: &BoundaryCallingApplication,
+) -> Result<NativeCallbackPlacement, String> {
+    let inbound_telescope =
+        TerminalCallingTelescope::for_application(module, inbound_boundary, inbound)?;
+    let registrar_telescope =
+        TerminalCallingTelescope::for_application(module, registrar_boundary, registrar)?;
+    let entry_parameters = inbound_telescope
+        .parameters
+        .iter()
+        .map(|parameter| {
+            Ok(NativeCallbackEntryParameter {
+                application: parameter_application(inbound, parameter)?,
+                origin: parameter.origin,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    Ok(NativeCallbackPlacement {
+        application_index: application.application_index,
+        static_machine_ordinal: application.static_machine_ordinal,
+        canonical_requirement_overload: application.requirement.clone(),
+        contract_commitment: application.body.contract,
+        boundary_entry_plan: inbound.plan.plan().clone(),
+        entry_parameters,
+        private_materialization: private_materialization(
+            application,
+            registrar,
+            &registrar_telescope,
+        )?,
+    })
+}
+
+pub(super) fn calling_application<'plans>(
     calling: &'plans [BoundaryCallingApplication],
     abi: &semantic_vocabulary::CallingAbiIdentity,
     calling_owner: Option<&str>,

@@ -1,7 +1,12 @@
-//! Plan-laid semantic ranges.
+// We derive bit-level semantic field ranges (`plan_laid_semantic_ranges`) for
+// plan-laid records so private callback closure can verify that callback slots
+// never overlap semantic storage. Repeated fixed-array placements claim each
+// element's exact extent rather than the whole stride, leaving validated
+// inter-element padding available to private demands.
 
 use crate::data_layout_queries::FieldLayout;
 use diagnostics::Diagnostic;
+
 pub(crate) fn plan_laid_semantic_ranges(
     plan: &checked_trees::typed_trees::typed_trees::PlanLaidLayout,
     geometry: &checked_trees::typed_trees::PlanLaidGeometry,
@@ -67,11 +72,6 @@ pub(crate) fn plan_laid_semantic_ranges(
                 )));
             }
             let element_size = field.layout.size / length;
-            // Repeated placement owns each compiler-derived element extent,
-            // not the whole stride. The already-validated inter-element
-            // padding is intentionally available to a private demand; an
-            // ordinary one-entry aggregate `At` row instead reaches the
-            // whole-field arm below and occupies its complete layout size.
             for element in 0..length {
                 let start = field
                     .offset
@@ -96,9 +96,6 @@ pub(crate) fn plan_laid_semantic_ranges(
     Ok(ranges.ranges)
 }
 
-/// The semantic-field byte extents of one plan-laid value, appended in field
-/// order with the range checks every extent must pass before a private callback
-/// slot may claim adjacent storage.
 struct SemanticRanges<'a> {
     plan: &'a checked_trees::typed_trees::typed_trees::PlanLaidLayout,
     geometry: &'a checked_trees::typed_trees::PlanLaidGeometry,
@@ -121,6 +118,7 @@ impl SemanticRanges<'_> {
         ));
         Ok(())
     }
+
     fn validate_extent(
         &self,
         field: &str,

@@ -34,9 +34,9 @@ fn resolve_sources(
     )
 }
 
-fn limits(fuel: u64) -> BuildEvaluationSponsorLimits {
+fn limits(work: u64) -> BuildEvaluationSponsorLimits {
     BuildEvaluationSponsorLimits::new(
-        fuel, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
+        work, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
     )
     .expect("positive limits")
 }
@@ -49,7 +49,7 @@ fn sponsor(limits: BuildEvaluationSponsorLimits) -> BuildEvaluationSponsor {
     BuildEvaluationSponsor::new_with_measurement(
         limits,
         evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
-            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
             storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
         },
     )
@@ -170,13 +170,13 @@ fn pure_build_accounting() {
     )
     .result
     .expect("cold calibration");
-    let fuel = measured.consumed_fuel_units();
+    let work = measured.consumed_work_units();
     let cells = measured.consumed_result_storage_cells();
-    assert!(fuel > 1 && cells > 0);
-    println!("one_build_fuel={fuel} result_cells={cells}");
+    assert!(work > 1 && cells > 0);
+    println!("one_build_work={work} result_cells={cells}");
 
     let mut session = CompilationSession::default();
-    let shared_sponsor = sponsor(limits(2 * fuel));
+    let shared_sponsor = sponsor(limits(2 * work));
     let before = counters::build_execution_count();
     let sources_before = counters::source_build_execution_count();
     let suppliers_before = counters::provider_defaults_execution_count();
@@ -209,29 +209,29 @@ fn pure_build_accounting() {
     );
     let executions = counters::build_execution_count() - before;
     println!(
-        "two_rows_executions={executions} charged_fuel={} charged_cells={}",
-        shared_sponsor.consumed_fuel_units(),
+        "two_rows_executions={executions} charged_work={} charged_cells={}",
+        shared_sponsor.consumed_work_units(),
         shared_sponsor.consumed_result_storage_cells()
     );
     build_sequence::print_execution_counts("two Pure source requests completed");
     assert_eq!(executions, 2);
     assert_eq!(
-        shared_sponsor.consumed_fuel_units(),
-        2 * fuel,
-        "warm occurrence owes its logical fuel"
+        shared_sponsor.consumed_work_units(),
+        2 * work,
+        "warm occurrence owes its logical work"
     );
     assert_eq!(shared_sponsor.consumed_result_storage_cells(), 2 * cells);
-    let fresh = sponsor(limits(2 * fuel));
+    let fresh = sponsor(limits(2 * work));
     check(&mut session, &fresh, "linux_x86_64")
         .result
         .expect("fresh account");
-    assert_eq!(fresh.consumed_fuel_units(), fuel);
+    assert_eq!(fresh.consumed_work_units(), work);
     assert_eq!(fresh.consumed_result_storage_cells(), cells);
     assert_eq!(counters::build_execution_count() - before, 2);
     println!("fresh_account_charged_without_execution");
 
     let mut limited_session = CompilationSession::default();
-    let limited = sponsor(limits(2 * fuel - 1));
+    let limited = sponsor(limits(2 * work - 1));
     check(&mut limited_session, &limited, "windows_x86_64")
         .result
         .expect("one affordable row");
@@ -243,13 +243,13 @@ fn pure_build_accounting() {
     assert!(
         diagnostics
             .iter()
-            .any(|d| d.message.contains("aggregate fuel sponsor exhausted")),
+            .any(|d| d.message.contains("aggregate work sponsor exhausted")),
         "{diagnostics:?}"
     );
     assert_eq!(counters::build_execution_count(), before_refusal);
     assert_eq!(
-        limited.consumed_fuel_units(),
-        fuel,
+        limited.consumed_work_units(),
+        work,
         "refused replay charge is atomic"
     );
     assert_eq!(limited.consumed_result_storage_cells(), cells);
@@ -257,7 +257,7 @@ fn pure_build_accounting() {
 
     // Force a cold second occurrence with the same remaining allowance. Both
     // policies reject; only the cold path performs another actual execution.
-    let cold = sponsor(limits(2 * fuel - 1));
+    let cold = sponsor(limits(2 * work - 1));
     check(&mut CompilationSession::default(), &cold, "windows_x86_64")
         .result
         .expect("affordable cold row");
@@ -274,11 +274,11 @@ fn pure_build_accounting() {
         diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message
-                .contains("evaluation Fuel allowance exhausted")
+                .contains("evaluation Work budget exhausted")
         }),
         "{diagnostics:?}"
     );
-    build_sequence::print_execution_counts("cold source fuel refusal");
+    build_sequence::print_execution_counts("cold source work refusal");
     assert_eq!(
         (
             counters::build_execution_count() - before_cold.0,
@@ -289,9 +289,9 @@ fn pure_build_accounting() {
     );
     println!("cold_and_warm_hard_ceiling_decisions_agree");
 
-    // A later-axis refusal must not partially spend fuel on the cached path.
+    // A later-axis refusal must not partially spend work on the cached path.
     let result_limits = BuildEvaluationSponsorLimits::new(
-        2 * fuel,
+        2 * work,
         1_000_000,
         1_000_000,
         1_000_000,
@@ -317,7 +317,7 @@ fn pure_build_accounting() {
             .any(|diagnostic| diagnostic.message.contains("result-cell sponsor exhausted"))
     );
     assert_eq!(counters::build_execution_count(), before_result);
-    assert_eq!(result_limited.consumed_fuel_units(), fuel);
+    assert_eq!(result_limited.consumed_work_units(), work);
     assert_eq!(result_limited.consumed_result_storage_cells(), cells);
     println!("warm_result_limit_rejected_atomically");
 }
@@ -551,9 +551,9 @@ fn source_discovery_root_resources() {
             .unwrap()
             .unwrap()
     };
-    for (name, fuel, bytes, expected) in [
+    for (name, work, bytes, expected) in [
         ("adequate", 1_000_000, 1024, None),
-        ("fuel", 1, 1024, Some("Fuel allowance exhausted")),
+        ("work", 1, 1024, Some("Work budget exhausted")),
         (
             "bytes",
             1_000_000,
@@ -573,7 +573,7 @@ fn source_discovery_root_resources() {
         )
         .unwrap();
         let output = filesystem.session_root().unwrap().join("output");
-        let evaluation = sponsor(limits(fuel));
+        let evaluation = sponsor(limits(work));
         let mut session = orchestration::BuildSession::create(&workspace.join("session")).unwrap();
         let session_evaluation = session.resources().evaluation_sponsor().clone();
         let result = orchestration::resolve_project_sources(
@@ -615,11 +615,11 @@ fn source_discovery_root_resources() {
             println!("root_resource_output=four");
         }
         assert_eq!(
-            session_evaluation.consumed_fuel_units(),
+            session_evaluation.consumed_work_units(),
             0,
             "root must use the supplied sponsor, not a session replacement"
         );
-        assert!(evaluation.consumed_fuel_units() > 0);
+        assert!(evaluation.consumed_work_units() > 0);
         session.close().unwrap();
         let capture = preparation()
             .acquire_root()
@@ -982,7 +982,7 @@ fn terminal_build_filesystem() {
         loop {
             assert!(
                 !guard_dropped.load(std::sync::atomic::Ordering::Acquire),
-                "grant guard must survive fuel suspension and filesystem effects"
+                "grant guard must survive work suspension and filesystem effects"
             );
             if activation
                 .advance(1)
@@ -1076,7 +1076,7 @@ fn terminal_build_filesystem() {
         diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message
-                .contains("FilesystemAttempts allowance exhausted")
+                .contains("FilesystemAttempts budget exhausted")
         }),
         "{diagnostics:?}"
     );
@@ -1470,10 +1470,10 @@ fn application_source_resolution(project: &str, private_call: bool) {
     .unwrap_or_else(|error| panic!("application source resolution: {error:?}"));
     assert_eq!(resolved.builds.len(), 2);
     assert_eq!(counters::build_execution_count(), before + 2);
-    assert!(root_sponsor.consumed_fuel_units() > 0);
-    let discovery_fuel = dependency_sponsor.consumed_fuel_units();
+    assert!(root_sponsor.consumed_work_units() > 0);
+    let discovery_work = dependency_sponsor.consumed_work_units();
     assert!(
-        discovery_fuel > 0,
+        discovery_work > 0,
         "discovery must charge the project sponsor"
     );
     // Normal application discovery owns both captured namespaces and returned
@@ -1535,8 +1535,8 @@ fn application_source_resolution(project: &str, private_call: bool) {
     }
     assert_eq!(counters::build_execution_count(), before + 2);
     assert_eq!(
-        dependency_sponsor.consumed_fuel_units(),
-        discovery_fuel,
+        dependency_sponsor.consumed_work_units(),
+        discovery_work,
         "Product cannot replay Build"
     );
     assert_eq!(
@@ -1836,6 +1836,7 @@ fn project_session_lifecycle() {
         build_directory: Some(temporary.path().join("ordinary")),
         targets: orchestration::BuildTargets::Single(profile),
         product: orchestration::ProjectProduct::Native {
+            installation_assumptions: Vec::new(),
             destination: orchestration::NativeDestination::Retained,
             private_entry_ram: Vec::new(),
         },
@@ -1884,7 +1885,7 @@ fn project_session_lifecycle() {
             assert!(
                 diagnostics.iter().any(|diagnostic| diagnostic
                     .message
-                    .contains("evaluation ResultCustody allowance exhausted")),
+                    .contains("evaluation ResultCustody budget exhausted")),
                 "{diagnostics:?}"
             );
         }
@@ -1972,6 +1973,8 @@ fn completed_build_target_fanout() {
     products.push(((host, true), compiler::PreparedPackageProduct {
         build,
         product: compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+            installation_assumptions: Vec::new(),
+            retain_native_inputs: false,
             image: Default::default(),
             private_entry_ram: Vec::new(),
             terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
@@ -2129,7 +2132,7 @@ fn settled_build_product_contexts() {
         before + 2,
         "source discovery and settlement start the root and its dependency once"
     );
-    let fuel = sponsor.consumed_fuel_units();
+    let work = sponsor.consumed_work_units();
     for name in ["main.omg", "build.omg"] {
         std::fs::remove_file(project.join(name)).unwrap();
     }
@@ -2213,8 +2216,8 @@ fn settled_build_product_contexts() {
         "Product contexts cannot start a Build after entry-contract setup"
     );
     assert_eq!(
-        sponsor.consumed_fuel_units(),
-        fuel,
+        sponsor.consumed_work_units(),
+        work,
         "Product cannot replay Build"
     );
     assert_eq!(settled.package_inputs(), &inputs);
@@ -2252,6 +2255,7 @@ fn production_project_discovery() {
         build_directory: Some(temporary.path().join("output")),
         targets: orchestration::BuildTargets::Batch(targets.clone()),
         product: orchestration::ProjectProduct::Native {
+            installation_assumptions: Vec::new(),
             destination: orchestration::NativeDestination::Retained,
             private_entry_ram: Vec::new(),
         },
@@ -2628,15 +2632,15 @@ fn sliced_build_retains_effects() {
         ),
         (2, 1, 1)
     );
-    let fuel = account.consumed_fuel_units();
+    let work = account.consumed_work_units();
     assert!(
-        fuel > 1024,
-        "witness must cross the production scheduling slice: {fuel}"
+        work > 1024,
+        "witness must cross the production scheduling slice: {work}"
     );
     assert_eq!(account.live_storage_cells(), 0);
     assert_eq!(account.live_payload_bytes(), 0);
-    println!("sliced_build_executed_once_with_fuel={fuel}");
-    let limited = sponsor(limits(fuel - 1));
+    println!("sliced_build_executed_once_with_work={work}");
+    let limited = sponsor(limits(work - 1));
     let mut request = CheckedCompileRequest::new(&root, Some("linux_x86_64"));
     request.build.evaluation_sponsor = Some(limited.clone());
     let before = (
@@ -2651,10 +2655,10 @@ fn sliced_build_retains_effects() {
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("evaluation Fuel allowance exhausted")),
+            .contains("evaluation Work budget exhausted")),
         "{diagnostics:?}"
     );
-    build_sequence::print_execution_counts("sliced source Build refused for fuel");
+    build_sequence::print_execution_counts("sliced source Build refused for work");
     assert_eq!(
         (
             counters::build_execution_count() - before.0,
@@ -2750,7 +2754,7 @@ fn logged_build_reuse() {
         counters::source_build_execution_count(),
         counters::provider_defaults_execution_count(),
     );
-    let mut cold_fuel = 0;
+    let mut cold_work = 0;
     for target in ["windows_x86_64", "linux_x86_64"] {
         let checked = check(&mut session, &account, target)
             .result
@@ -2767,10 +2771,10 @@ fn logged_build_reuse() {
         let usage = build.evaluation_usage.expect("charged execution");
         assert_eq!(usage.build_log_bytes, expected.len() as u64);
         assert!(usage.result_payload_bytes >= expected.len() as u64);
-        if cold_fuel == 0 {
-            cold_fuel = usage.fuel_units;
+        if cold_work == 0 {
+            cold_work = usage.work_units;
         } else {
-            assert_eq!(usage.fuel_units, cold_fuel);
+            assert_eq!(usage.work_units, cold_work);
         }
     }
     build_sequence::print_execution_counts("two logged source requests completed");
@@ -2782,13 +2786,13 @@ fn logged_build_reuse() {
         ),
         (2, 1, 1)
     );
-    assert_eq!(account.consumed_fuel_units(), 2 * cold_fuel);
+    assert_eq!(account.consumed_work_units(), 2 * cold_work);
     assert_eq!(account.live_storage_cells(), 0);
     assert_eq!(account.live_payload_bytes(), 0);
     println!("logged_build_reused_once_with_exact_bytes_and_paid_custody");
 
     // One byte short of two logs: a warm occurrence must refuse before
-    // spending fuel or publishing the cached output as a successful result.
+    // spending work or publishing the cached output as a successful result.
     let limited = sponsor(
         BuildEvaluationSponsorLimits::new(
             1_000_000,
@@ -2818,7 +2822,7 @@ fn logged_build_reuse() {
         "{diagnostics:?}"
     );
     assert_eq!(counters::build_execution_count(), before_refusal);
-    assert_eq!(limited.consumed_fuel_units(), cold_fuel);
+    assert_eq!(limited.consumed_work_units(), cold_work);
     println!("warm_log_limit_rejected_atomically_without_execution");
 
     let before_cold = (
@@ -2833,7 +2837,7 @@ fn logged_build_reuse() {
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("evaluation BuildLog allowance exhausted")),
+            .contains("evaluation BuildLog budget exhausted")),
         "{diagnostics:?}"
     );
     build_sequence::print_execution_counts("cold source log refusal");

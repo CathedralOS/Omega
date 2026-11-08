@@ -1,3 +1,5 @@
+// Bounded recovery for boundary value placements, System V eightbyte classes, and machine registers.
+
 use super::{Error, Reader};
 use crate::record::{
     PackageReviewBoundaryValueClass as Class, PackageReviewBoundaryValueLocation as Location,

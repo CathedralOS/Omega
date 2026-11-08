@@ -107,12 +107,46 @@ pub(crate) enum CheckedClaimOutcomeSource {
     },
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct ClaimIdentityAllocator {
     next_ordinal: u32,
+    /// One past the highest ordinal handed out so far, kept across
+    /// `begin_state`, so identities minted after the per-state walk stay above
+    /// every walk ordinal.
+    high_water: u32,
 }
 
+/// Ordinals reserved per roster position before the next state's base. A state
+/// that mints more keeps counting upward; its identities still differ from
+/// every other state's, because each identity also names its machine and state.
+const CLAIM_ORDINALS_PER_STATE: u32 = 1 << 12;
+
 impl ClaimIdentityAllocator {
+    /// Mint the walk's identities for the state at roster `position` from a
+    /// base fixed by that position alone. A state's ordinals then never depend
+    /// on how many identities the states before it minted, which is what lets
+    /// states be walked apart from one another and still mint the same ones.
+    pub(crate) fn begin_state(&mut self, position: usize) {
+        self.high_water = self.high_water.max(self.next_ordinal);
+        let window = u32::try_from(position % (1 << 20)).expect("window fits in u32");
+        self.next_ordinal = window * CLAIM_ORDINALS_PER_STATE;
+    }
+
+    /// Continue after every ordinal this allocator or `other` handed out.
+    pub(crate) fn absorb(&mut self, other: Self) {
+        self.high_water = self
+            .high_water
+            .max(self.next_ordinal)
+            .max(other.high_water)
+            .max(other.next_ordinal);
+        self.next_ordinal = self.high_water;
+    }
+
+    /// Mint after the walk: above every ordinal the walk's states used.
+    pub(crate) fn finish_walk(&mut self) {
+        self.high_water = self.high_water.max(self.next_ordinal);
+        self.next_ordinal = self.high_water;
+    }
     pub(crate) fn mint(
         &mut self,
         machine_symbol: SymbolHandle,
@@ -196,7 +230,7 @@ pub(super) fn prepare_storage_deaths(
             // execution order. Every taken edge and implicit return must see
             // discharged windows; a continuing path may still repair them.
             let captures = crate::checks::StorageSelectorFacts {
-                flow: &facts.flow,
+                flow: facts.flow.view(),
                 semantic: &facts.semantic,
             };
             let mut windows = borrowed_windows::BorrowedStorageWindows::new(captures);

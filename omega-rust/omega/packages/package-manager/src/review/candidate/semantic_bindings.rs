@@ -1,3 +1,18 @@
+/*
+    We validate consumer-scoped semantic-binding policy inputs
+    (`semantic_bindings_by_consumer`) and derive non-authoritative semantic
+    binding proposals (`candidate_semantic_binding_inputs`) from the preliminary
+    discovery review pass for the bound recompilation pass.
+
+    Only the closure's Product root occurrence may carry terminal-authority
+    permission proposals (for `ProcessExit` / `Console` exit-binding leaves or
+    settled `FilesystemHost` / `TimeHost` cohort permission tables) into root
+    policy, because permissions are the consuming project's decision and every
+    package's open permissions propagate into one root policy where duplicate
+    rows would be rejected. Non-root or Build occurrences have their proposed
+    terminal-authority permissions cleared before recompilation.
+*/
+
 use super::{CompileResolvedPackageReviewsError, CompilerIssuedPackageReviewSet};
 use crate::declarations::{DependencyPurpose, PackageKey};
 use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
@@ -8,11 +23,6 @@ use provider_admission::{filesystem_host_permission_rows, time_host_permission_r
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi_to_abstract_operations::provider_admission;
 
-/// One consumer-scoped semantic-binding policy input for candidate review.
-///
-/// The consumer and checked context name an exact occurrence in the resolver-owned
-/// closure. The binding is policy authority supplied only to that compilation; this
-/// input is not proof of an audit, an audit receipt, or package admission.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ConsumerScopedSemanticBindingReviewInput {
     consumer: PackageKey,
@@ -105,41 +115,6 @@ pub(super) fn semantic_bindings_by_consumer(
     Ok(bindings_by_consumer)
 }
 
-/// Derive non-authoritative semantic-binding proposals from a preliminary
-/// compiler review. The bound recompilation remains the exact validator, and
-/// its resulting provider and authority rows still require root policy.
-///
-/// Console and core ProcessExit use the same exit-binding proposal flow. Console
-/// owns its schema in the provider package; ProcessExit owns its schema in core
-/// and binds the provider package instead. Both retain the exact selected plan
-/// and require the bound recompilation to validate that ownership relationship.
-/// Intrinsic and imported exit leaves go through the same review: target linkage
-/// changes realization, not the consumer's obligation to approve termination.
-///
-/// The exit proposal for the closure root also carries the
-/// terminal-authority permissions its recognized compiler-intrinsic leaves
-/// need at native realization: process termination for `exit_process`, and
-/// process output and input for the `write_byte` and `read_byte` rows the
-/// nominated provider declares. Without those rows the review has nothing to
-/// decide, the lock retains no permission, and the accepted policy projected
-/// for realization is empty, so the ordinary CLI route can never realize a
-/// program that writes, reads or exits. Each row is a proposal, not a grant:
-/// it surfaces in the review as its own blocking `terminal_permission`
-/// decision, the final pass rejoins it to exactly one schema method, and
-/// realization still checks the selected mechanism's exercised classes
-/// against it. Only the root consumer receives them because permissions are
-/// the consuming project's decision and every package's open permissions
-/// propagate into one root policy, where an identical row accepted twice
-/// would be a duplicate rather than a grant.
-///
-/// A discovered `FilesystemHost` or `TimeHost` service binding at the root
-/// likewise carries the toolchain-settled cohort permission table for its
-/// exact checked schema: every method row the canonical boundary declares
-/// resolves its own settled disposition, so the proposal remains exact per
-/// requirement and the accepted policy projected for realization covers the
-/// demanded leaves. The table refuses to fabricate rows for requirements
-/// outside the settled cohorts, and the accepted binding still rejoins each
-/// row to its exact schema digest.
 pub(super) fn candidate_semantic_binding_inputs(
     preliminary: &CompilerIssuedPackageReviewSet,
     root: &PackageKey,
@@ -193,9 +168,6 @@ pub(super) fn candidate_semantic_binding_inputs(
                         })?;
                 }
             } else {
-                // Cached nominations are package-local, not root-local.
-                // A hosted candidate may propose permissions, but only this
-                // invocation's product root may carry them into policy.
                 binding = binding
                     .with_terminal_authority_permissions(
                         Vec::new(),
@@ -218,7 +190,6 @@ pub(super) fn candidate_semantic_binding_inputs(
     Ok(inputs)
 }
 
-/// Attach the resolver's occurrence identity without interpreting compiler facts.
 pub(super) fn projection_error(
     consumer: &PackageKey,
     error: SemanticBindingProjectionError,

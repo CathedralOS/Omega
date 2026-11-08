@@ -10,11 +10,12 @@ TestRoots satisfies ExtentRootProvider {
 
 FirmwareBootstrap satisfies UefiPhysicalEntry {
     machine enter(image_handle: EfiImageHandle, system_table: &EfiSystemTable) -> EfiStatus
-    reaches ExtentRootProvider + ProgramStorageEntry
+    reaches ExtentRootProvider + ProgramStorageEntry + MachineControl
     invokes ExtentRootProvider
     invokes ProgramStorageEntry
     requires addr::Bound == 18446744073709551616
     {
+        let observed: u64 = observe_msrs();
         let image: Extent = ExtentRootProvider::grant(Extent { base: 4096, length: 4096 });
         let storage: Extent = ExtentRootProvider::grant(Extent { base: 8192, length: 4096 });
         forward_roots(image, storage);
@@ -61,4 +62,17 @@ reaches PortIo
     machine retain(image: Extent in Granted, storage: Extent in Granted) {
         transition { _ -> retain(image, storage) }
     }
+}
+
+// Keep the two architectural reads separate from the entry and debug-port code.
+machine observe_msrs() -> u64
+reaches MachineControl
+{
+    let mut efer: u64 = 0;
+    let mut pat: u64 = 0;
+    let efer_index: u32 = 3221225600;
+    let pat_index: u32 = 631;
+    asm { rdmsr efer, efer_index }
+    asm { rdmsr pat, pat_index }
+    efer ^ pat
 }

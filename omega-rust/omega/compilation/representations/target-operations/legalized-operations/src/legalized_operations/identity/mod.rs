@@ -17,7 +17,7 @@ pub use canonical::identity as legalized_operation_plan_identity;
 mod ordinary_calls;
 mod read_byte;
 pub use calling::{encode_call_plan, encode_placement, encode_shape};
-pub use encoding::encode_fuel;
+pub use encoding::encode_work;
 pub use normalized_foreign::{
     encode_call_binding, encode_locator, encode_machine_function_identity,
     encode_native_callback_argument,

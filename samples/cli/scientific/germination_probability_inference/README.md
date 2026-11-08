@@ -72,7 +72,7 @@ input. It also links a private output observer against that supplied compiler's
 exact fingerprinted Rust library closure using `tools/link_terminal_sponsor.py`.
 The observer prepares the complete admitted project, retains its canonical
 Terminal artifact and executes it with the report's exact runtime provisions,
-explicit containing-domain exit delegation, fuel and wall-clock allowances.
+explicit containing-domain exit delegation, work and wall-clock allowances.
 Actual stdout, stderr, status and numerical values are captured per case.
 `omega run --both` exit agreement alone does not establish numerical agreement.
 Declines, mismatches, wrong source rejection and exhausted allowances fail.

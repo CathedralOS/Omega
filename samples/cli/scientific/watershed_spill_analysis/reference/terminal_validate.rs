@@ -35,7 +35,7 @@ fn run(root: PathBuf) -> Result<(), String> {
             artifact, target:Some("linux_x86_64"), provisions:report.runtime_provisions(),
             // Ordinary CLI default: no root-authored Terminal provider proposal.
             provider_proposal:None,
-            fuel_allowance:10_000_000,
+            work_budget:10_000_000,
             domain_exit:TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input:Some(Box::new(fs::File::open(fixture).map_err(|e|e.to_string())?)),
             clock:Some(TerminalClockSnapshot::capture_host_epoch().map_err(|e|e.to_string())?),

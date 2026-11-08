@@ -316,6 +316,9 @@ boundary calling plan. Component manifests, proof artifacts, admission, and
 replacement checks retain it when runtime lowering erases proof-only material.
 The normalized compiler-derived reach dependency is part of this contract under
 [automatic reach propagation](effects.md#static-callback-reach-dependencies).
+The operational contract also retains derived
+[conditional suspension-carry obligations](effects.md#conditional-suspension-carry)
+with their exact subjects, provenance and normalized conditions.
 An implementation body hash, source keyword, or opportunistic narrowing of an
 opaque requirement cannot replace that identity. Private ranking evidence follows
 the separate

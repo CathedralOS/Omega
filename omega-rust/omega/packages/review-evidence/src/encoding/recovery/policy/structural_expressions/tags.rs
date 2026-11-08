@@ -1,4 +1,5 @@
-//! Inverses of the shared structural-expression closed vocabulary.
+// Inverses of the shared structural-expression closed vocabulary for primitive types and integer binary operators.
+
 use crate::encoding::recovery::policy::structural_expressions::Reader;
 use crate::record::PackageReviewIntegerBinaryKind;
 use crate::record::PackageReviewPrimitiveType;

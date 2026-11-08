@@ -1,10 +1,7 @@
-//! Join an owned aggregate's public ABI graph to its complete semantic tree.
-//!
-//! Child extents/alignment come from the already-admitted calling application,
-//! not a runtime layout calculation. The root storage codec independently owns
-//! the total allocation and every scalar's full typed path, offset and stored
-//! carrier. Matching only flattened bytes would lose empty children and permit
-//! a different field tree. Neither this join nor its geometry grants custody.
+// We join an owned aggregate's public ABI graph to its complete semantic tree
+// and storage codec. Child extents and alignments come from the admitted
+// calling application while the root storage codec authenticates the total
+// allocation and every scalar's full typed path, offset, and stored carrier.
 
 use super::{StorageCodec, rejection, validate_scalar_shape};
 use calling_conventions::{BoundarySignatureGeometry, BoundaryValueClass, BoundaryValueShape};
@@ -49,8 +46,6 @@ enum SchemaVisit<'declaration> {
     },
 }
 
-/// The schema walk visits an array element once, even below a zero dimension.
-/// Its leaf counts bound the later instance walk by the actual codec payload.
 struct Schema<'input> {
     signature: &'input BoundarySignatureGeometry,
     nodes: Vec<Node>,
@@ -100,8 +95,6 @@ impl Schema<'_> {
     }
 }
 
-/// Match a complete OS record-array contract against semantic shape and the
-/// exact selected native recipes. No field or policy spelling supplies geometry.
 pub(in crate::execution::host_imports) fn matches_signed_record_array(
     program: &TerminalProgram,
     layouts: &[NativeBorrowedStorageLayout],
@@ -173,8 +166,6 @@ pub(in crate::execution::host_imports) fn matches_signed_record_array(
         })
 }
 
-/// One complete direct record field. Array shape remains part of the contract;
-/// its leaves cannot be donated by unrelated scalar fields or nested records.
 #[derive(Clone, Copy, Debug)]
 pub(in crate::execution::host_imports) enum IntegerRecordField {
     Scalar(IntegerSign, u16),
@@ -186,8 +177,6 @@ pub(in crate::execution::host_imports) enum IntegerRecordField {
     ReferenceArray(IntegerSign, u16, u64, terminal_psi::StructuralAccess),
 }
 
-/// Match a C scalar slot or scalar array against the complete selected recipe.
-/// Semantic width alone cannot authorize a wider C write into narrowed storage.
 pub(in crate::execution::host_imports) fn matches_integer_storage(
     program: &TerminalProgram,
     layouts: &[NativeBorrowedStorageLayout],
@@ -244,9 +233,6 @@ pub(in crate::execution::host_imports) fn matches_integer_storage(
         })
 }
 
-/// Complete integer record, ordered by its selected native offsets. Every
-/// expected field joins the semantic field identity to its exact codec paths.
-/// Neither equal byte extent nor a flattened roster can replace this tree.
 pub(in crate::execution::host_imports) fn matches_integer_record(
     program: &TerminalProgram,
     layouts: &[NativeBorrowedStorageLayout],
@@ -415,9 +401,6 @@ pub(in crate::execution::host_imports) fn matches_integer_record(
             leaves += 1;
         }
     }
-    // C record size includes final alignment padding. That padding supplies
-    // no semantic field; every declared field and array leaf still matched
-    // its exact path and offset above. Larger arbitrary tails do not match.
     offset.checked_next_multiple_of(alignment) == Some(codec.extent)
         && codec.fields.len() == leaves
         && codec.references.len() == references
@@ -457,8 +440,6 @@ pub(super) fn validate<'declaration>(
                 {
                     return Err(rejection("native value ABI has cyclic aggregate storage"));
                 }
-                // A completed pair can recur in siblings. Check active ancestry
-                // first so sharing never turns a backedge into a cached proof.
                 if let Some((_, _, node)) = schema
                     .completed
                     .iter()
@@ -478,8 +459,6 @@ pub(super) fn validate<'declaration>(
                 let public = shape(signature, identity)?;
                 match &semantic.shape {
                     StructuralTypeShape::PrimitiveScalar(logical) => {
-                        // Restrictions govern actual values, not this geometry.
-                        // A primitive declaration has no authored stored-field override.
                         validate_scalar_shape(*public, *logical)?;
                         schema.scalar(*logical, identity)?;
                         schema
@@ -487,9 +466,6 @@ pub(super) fn validate<'declaration>(
                             .push((semantic.id, identity, schema.nodes.len() - 1));
                     }
                     StructuralTypeShape::Record { fields, storage } => {
-                        // Selected placement is already authenticated by the
-                        // storage codec and public ABI graph. Keep comparing
-                        // the complete semantic tree without inventing geometry.
                         if matches!(
                             storage,
                             StructuralRecordStorage::AccessView(_)
@@ -534,8 +510,6 @@ pub(super) fn validate<'declaration>(
                             let end = start
                                 .checked_add(usize::from(child.byte_size))
                                 .ok_or_else(|| rejection("native public child extent overflows"))?;
-                            // The admitted application owns packing. Do not impose
-                            // natural-alignment guesses on independently packed fields.
                             if end > usize::from(public.byte_size) {
                                 return Err(rejection(
                                     "native public child exceeds its record extent",
@@ -586,8 +560,6 @@ pub(super) fn validate<'declaration>(
                             })?;
                         let element_shape = shape(signature, public_element)?;
                         let stride = usize::from(element_shape.byte_size);
-                        // BoundaryValueLayout constructs exactly this product and
-                        // inherits element alignment; classification uses this stride.
                         if stride.checked_mul(usize::from(public_length))
                             != Some(usize::from(public.byte_size))
                             || public.alignment != element_shape.alignment

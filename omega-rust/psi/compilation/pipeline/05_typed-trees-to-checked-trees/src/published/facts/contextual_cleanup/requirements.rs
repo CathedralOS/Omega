@@ -370,12 +370,13 @@ fn selected_requirements(
             continue;
         }
         let selected = facts.contextual_cleanup.is_selected_disposition(handle);
-        let points = occurrence_contexts(program, facts, state, disposition).ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "cleanup prerequisite has no exact outgoing edge context in {}",
-                crate::published::labels::machine_name(program, disposition.machine)
-            ))]
-        })?;
+        let points =
+            occurrence_contexts(program, facts.view(), state, disposition).ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "cleanup prerequisite has no exact outgoing edge context in {}",
+                    crate::published::labels::machine_name(program, disposition.machine)
+                ))]
+            })?;
         for (statement, contexts) in points {
             let position = groups
                 .iter()
@@ -693,7 +694,7 @@ fn has_symbolic_origin(
 
 pub(crate) fn occurrence_contexts(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     state: &FlowStateFact,
     disposition: &checked_trees::ContextualCleanupDisposition,
 ) -> Option<Vec<(usize, Vec<FactContextHandle>)>> {
@@ -783,7 +784,7 @@ pub(crate) fn occurrence_contexts(
             statement_index,
             call_ordinal,
             target_symbol,
-        } => crate::flow::call_flows(&facts.flow.control, state.calls)
+        } => crate::flow::call_flows(facts.flow.control, state.calls)
             .iter()
             .filter(|call| {
                 call.statement_index == statement_index

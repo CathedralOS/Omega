@@ -2,7 +2,7 @@
 use super::SaturatingCarrier;
 use abstract_operations::ValueBinding;
 use calling_conventions::{CallPlan, ValuePlacement};
-use optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, ValueDefinitionSite};
+use optimization_unit::{EffectLink, OwnershipEvent, ValueDefinitionSite, WorkSettlement};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, IntegerType, IntegerValue, MachineId, ObligationId,
     OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
@@ -112,7 +112,7 @@ pub struct LegalizedScalarInstruction {
     pub operation: OperationId,
     pub result: Option<LegalizedValueDefinition>,
     pub kind: LegalizedScalarInstructionKind,
-    pub fuel: Vec<FuelSettlement>,
+    pub work: Vec<WorkSettlement>,
     pub effect: EffectLink,
     pub ownership: Vec<OwnershipEvent>,
 }
@@ -136,7 +136,13 @@ impl LegalizedScalarInstruction {
     /// reads; a value appears once per operand position that reads it.
     pub fn visit_scalar_operands(&self, mut visit: impl FnMut(ValueId)) {
         match &self.kind {
-            LegalizedScalarInstructionKind::AccessLifecycle { indices, .. } => {
+            LegalizedScalarInstructionKind::InstallStaticInterrupt { indices, .. } => {
+                for operand in indices.iter().flatten() {
+                    visit(operand.operand.value);
+                }
+            }
+            LegalizedScalarInstructionKind::StaticInterrupt { indices, .. }
+            | LegalizedScalarInstructionKind::AccessLifecycle { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value));
             }
             LegalizedScalarInstructionKind::EstablishActivationClaim { committed, .. }
@@ -424,6 +430,21 @@ impl LegalizedScalarInstruction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    InstallStaticInterrupt {
+        boundary: BoundaryMachineId,
+        arguments: [terminal_psi::StructuralArgument; 6],
+        indices: [Vec<LegalizedRuntimeIndexOperand>; 6],
+        /// The independently retained order is Validate followed by Work.
+        calls: [crate::LegalizedScalarCall; 2],
+    },
+    StaticInterrupt {
+        boundary: BoundaryMachineId,
+        operation: language_core::static_interrupts::StaticInterruptOperation,
+        token: terminal_psi::StructuralArgument,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
+        result: Option<terminal_psi::StructuralOperationResult>,
+    },
+
     /// Whole-value placement retains the same original operands and result as
     /// the checked boundary. Selectors are concatenated in operand/path order;
     /// the shared structural catalog owns the complete normalized image plan.
@@ -1132,6 +1153,7 @@ impl LegalizedScalarInstructionKind {
             | Self::ByteSequenceSubslice { result, .. }
             | Self::EstablishElementView { result, .. }
             | Self::ElementViewSubslice { result, .. } => Some(result),
+            Self::StaticInterrupt { result, .. } => result.as_ref(),
             Self::Call(call) => call.structural_result.as_ref(),
             Self::AtomicAccess { outcome, .. } => outcome.as_ref().map(|(result, _)| result),
             Self::NormalizedForeignCall(call) => match &call.result {
@@ -1142,6 +1164,7 @@ impl LegalizedScalarInstructionKind {
                 | target_operations::TargetBoundaryResult::Scalar(_) => None,
             },
             Self::ReleaseActivationClaim { .. }
+            | Self::InstallStaticInterrupt { .. }
             | Self::ProgramImageAddress { .. }
             | Self::SelectImplementation { .. }
             | Self::FloatResultPolicy { .. }
@@ -1372,7 +1395,7 @@ pub struct LegalizedScalarSuccessor {
     pub target: BlockId,
     pub bindings: Vec<ValueBinding>,
     pub structural_bindings: Vec<LegalizedStructuralBinding>,
-    pub fuel: Vec<FuelSettlement>,
+    pub work: Vec<WorkSettlement>,
     /// Ordinary calls owned by this edge, executed before successor binding.
     pub cleanup_calls: Vec<(target_operations::CallSiteOwner, LegalizedScalarCall)>,
 }
@@ -1427,7 +1450,7 @@ pub enum LegalizedScalarTerminator {
         call: LegalizedScalarCall,
         /// Declared ABI result mechanics without a semantic receiving value.
         declared_result: abstract_operations::AbstractFunctionResult,
-        fuel: Vec<FuelSettlement>,
+        work: Vec<WorkSettlement>,
         effect: EffectLink,
         ownership: Vec<OwnershipEvent>,
     },
@@ -1440,7 +1463,7 @@ pub enum LegalizedScalarTerminator {
         structural_arguments: Vec<terminal_psi::StructuralArgument>,
         requirement_obligations: Vec<ObligationId>,
         frontier_lower_bound: Vec<semantic_vocabulary::ClaimId>,
-        fuel: Vec<FuelSettlement>,
+        work: Vec<WorkSettlement>,
         effect: EffectLink,
         ownership: Vec<OwnershipEvent>,
     },
@@ -1450,7 +1473,7 @@ pub enum LegalizedScalarTerminator {
         cause: terminal_psi::CrashCause,
         site_guard: Vec<terminal_psi::CrashPredicateTerm>,
         frontier_lower_bound: Vec<semantic_vocabulary::ClaimId>,
-        fuel: Vec<optimization_unit::FuelSettlement>,
+        work: Vec<optimization_unit::WorkSettlement>,
         effect: EffectLink,
         ownership: Vec<OwnershipEvent>,
     },
@@ -1715,7 +1738,7 @@ pub enum LegalizedScalarReturnValue {
 pub struct LegalizedScalarReturn {
     pub edge: EdgeId,
     pub value: LegalizedScalarReturnValue,
-    pub fuel: Vec<FuelSettlement>,
+    pub work: Vec<WorkSettlement>,
     pub effect: EffectLink,
     pub ownership: Vec<OwnershipEvent>,
 }

@@ -174,8 +174,8 @@ mod tests {
             std::fs::read(project.path().join("omega.lock")).unwrap(),
             lock_before
         );
-        let first_fuel = sponsor.consumed_fuel_units();
-        assert!(first_fuel > 0);
+        let first_work = sponsor.consumed_work_units();
+        assert!(first_work > 0);
 
         let mut resume_options = options(project.path());
         resume_options.targets.clear();
@@ -188,7 +188,7 @@ mod tests {
         )
         .expect("pending review resumes under the same compiler and sponsors");
         assert_eq!(resumed.status, PackageCommandStatus::ReviewRequired);
-        assert!(sponsor.consumed_fuel_units() > first_fuel);
+        assert!(sponsor.consumed_work_units() > first_work);
         for path in &resumed.review_paths {
             let document = std::fs::read_to_string(path).expect("review document");
             let mut accepted = String::with_capacity(document.len());

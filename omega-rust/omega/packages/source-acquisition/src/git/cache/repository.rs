@@ -1,4 +1,11 @@
-//! Operations over a retained, custody-verified bare Git repository.
+// Retained, custody-verified bare Git repository (`VerifiedGitRepository`).
+//
+// Holds open capability handles and device/inode identities for the cache
+// parent, entry directory, bare `repository` directory, and `objects`
+// directory. Every operation verifies handle identity before and after running
+// sealed Git commands or opening the `snapshots/` collection, and
+// `verify_current` checks metadata, repository tree custody, absence of
+// `alternates`/`commondir` indirection, and exact canonical `config` bytes.
 
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};

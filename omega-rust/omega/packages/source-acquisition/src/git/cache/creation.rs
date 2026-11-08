@@ -1,4 +1,13 @@
-//! Canonical Git cache entry construction and object-format discovery.
+// Canonical Git cache entry construction and remote object-format discovery.
+//
+// `create_git_cache_entry` initializes a bare Git repository inside a staged
+// `PendingCacheEntry` using an empty template directory, discovers whether the
+// remote uses SHA-1 or SHA-256 (either from a known full object ID or via
+// `git ls-remote --symref`), replaces the repository `config` with the
+// compiler-owned canonical configuration, writes and syncs `GIT_CACHE_METADATA`
+// (`0600` on Unix), verifies the staged repository through
+// `VerifiedGitRepository::open`, drops the open metadata handle so Windows
+// permits the directory rename, and atomically publishes the cache entry.
 
 use std::ffi::{OsStr, OsString};
 use std::io::Write;
@@ -32,8 +41,6 @@ use super::identity::git_cache_metadata;
 use super::repository::VerifiedGitRepository;
 use crate::error::cache_invalid;
 
-/// A recorded full object ID supplies the repository format without remote
-/// selector discovery. `None` preserves the ordinary acquisition path.
 pub(crate) fn create_git_cache_entry(
     executor: &GitExecutor,
     cache_dir: &Path,
@@ -165,8 +172,6 @@ pub(crate) fn create_git_cache_entry(
         pending.verify_ambient_path_identity(cache_dir),
         None,
     )?;
-    // Windows cannot rename a directory while this metadata file is retained.
-    // Its bytes and custody have already been synchronized and verified.
     drop(metadata);
     pending.publish(cache_dir, entry_root, entry_name)?;
     Ok(())

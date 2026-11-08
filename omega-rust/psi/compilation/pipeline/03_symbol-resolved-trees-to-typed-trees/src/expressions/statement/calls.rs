@@ -93,9 +93,23 @@ fn lower_ordinary_call(
             "a proposition application is proof-only and cannot appear as an executable call statement",
         ));
     }
+    let installed_interrupt_operation = crate::expressions::installed_interrupts::lower_request(
+        Some(lowerer.source_trees),
+        &mut lowerer.typed_trees,
+        lowerer.type_reference_exposure,
+        &call.authored_static_argument_selections,
+        call.target_symbol,
+        &call.machine_arguments,
+    )?;
+    let ordinary_arguments = if installed_interrupt_operation.is_some() {
+        &call.machine_arguments[2..]
+    } else {
+        &call.machine_arguments
+    };
     let arguments = lower_statement_argument_span(lowerer, call.arguments)?;
 
     Ok(typed::statement::TableCall {
+        installed_interrupt_operation,
         authored_machine_application: Default::default(),
         receiver_root_symbol: call.receiver_root_symbol,
         receiver_symbol: call.receiver_symbol,
@@ -109,7 +123,7 @@ fn lower_ordinary_call(
             &mut lowerer.typed_trees,
             lowerer.type_reference_exposure,
             call.target_symbol,
-            &call.machine_arguments,
+            ordinary_arguments,
         )?,
         arguments,
         evidence_arguments: call

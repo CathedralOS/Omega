@@ -45,11 +45,15 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v41\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v43\0");
     bytes.extend_from_slice(&catalog.target.identity_bytes());
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
         catalog.selected_keys.port_write,
+        catalog.selected_keys.privileged_crash,
+        catalog.selected_keys.installed_interrupt_cpu_check,
+        catalog.selected_keys.installed_interrupt_task_commit,
+        catalog.selected_keys.installed_interrupt_table_publication,
         catalog.selected_keys.atomic_fence,
         catalog.selected_keys.atomic_load,
         catalog.selected_keys.access_read,
@@ -118,6 +122,10 @@ pub fn machine_effect_catalog_identity(
             crate::MachineMemoryEffect::AtomicPointerV1 => 8,
             crate::MachineMemoryEffect::TemporaryStackStorageV1 => 9,
             crate::MachineMemoryEffect::TaskRegisterActivationV1 => 18,
+            crate::MachineMemoryEffect::InstalledInterruptCpuCheckV1 => 20,
+            crate::MachineMemoryEffect::InstalledInterruptTaskCommitV1 => 21,
+            crate::MachineMemoryEffect::InstalledInterruptTablePublicationV1 => 22,
+
             crate::MachineMemoryEffect::SegmentDescriptorReloadV1 => 19,
             crate::MachineMemoryEffect::NoneV1 => 0,
             crate::MachineMemoryEffect::ReadPointerV1 => 1,
@@ -372,6 +380,38 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
             bytes.identity_bytes(&destination_pointer_operand.to_le_bytes());
             bytes.identity_bytes(&count_operand.to_le_bytes());
         }
+        MachineEncodedMemoryEffect::InstalledInterruptCpuCheckV1 {
+            table_pointer_operand,
+            task_pointer_operand,
+            scratch_pointer_operand,
+            stack_pointer,
+        } => {
+            bytes.identity_bytes(&[25]);
+            bytes.identity_bytes(&table_pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&task_pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&scratch_pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::InstalledInterruptTaskCommitV1 {
+            table_pointer_operand,
+            task_pointer_operand,
+            scratch_pointer_operand,
+            stack_pointer,
+        } => {
+            bytes.identity_bytes(&[26]);
+            bytes.identity_bytes(&table_pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&task_pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&scratch_pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::InstalledInterruptTablePublicationV1 {
+            table_pointer_operand,
+            scratch_pointer_operand,
+        } => {
+            bytes.identity_bytes(&[27]);
+            bytes.identity_bytes(&table_pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&scratch_pointer_operand.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::NoneV1 => bytes.identity_bytes(&[0]),
         MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
             table_pointer_operand,
@@ -524,6 +564,8 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
     match effects.control {
         MachineEncodedControlEffect::CrashV1 => bytes.identity_bytes(&[9]),
         MachineEncodedControlEffect::FallThroughOrTrapV1 => bytes.identity_bytes(&[10]),
+        MachineEncodedControlEffect::FallThroughOrStopV1 => bytes.identity_bytes(&[15]),
+        MachineEncodedControlEffect::PrivilegedStopV1 => bytes.identity_bytes(&[16]),
         MachineEncodedControlEffect::HostedExitOrTrapV1 => bytes.identity_bytes(&[7]),
         MachineEncodedControlEffect::HostedReadReturnOrTrapV1 => bytes.identity_bytes(&[8]),
         MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => bytes.identity_bytes(&[6]),
@@ -596,6 +638,7 @@ macro_rules! effect_tag_arms {
             $enum::Load16 => 34,
             $enum::Load32 => 30,
             $enum::Crash => 111,
+            $enum::PrivilegedCrash => 269,
             $enum::HostedExitProcessI32 => 31,
             $enum::HostedReadByte => 32,
             $enum::HostedWriteByteI32 => 23,
@@ -671,6 +714,10 @@ macro_rules! effect_tag_arms {
             $enum::GlobalDescriptorTableStore => 260,
             $enum::TaskRegisterActivate => 261,
             $enum::TaskRegisterRead => 262,
+            $enum::InstalledInterruptCpuCheck => 266,
+            $enum::InstalledInterruptTaskCommit => 267,
+            $enum::InstalledInterruptTablePublication => 268,
+
             $enum::CodeSegmentReload => 263,
             $enum::DataSegmentReload => 264,
             $enum::SegmentSelectorRead => 265,

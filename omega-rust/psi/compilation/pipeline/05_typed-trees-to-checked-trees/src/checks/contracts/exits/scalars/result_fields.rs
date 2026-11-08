@@ -106,7 +106,7 @@ impl ExitScalars<'_, '_> {
                     |place, observation| {
                         arithmetic::observation_origin(
                             self.program,
-                            self.facts,
+                            self.facts.view(),
                             caller,
                             self.exit.statement_index,
                             self.call_frames?,
@@ -169,7 +169,7 @@ impl ExitScalars<'_, '_> {
                     if remaining.is_empty() {
                         let value = arithmetic::scalar_term(
                             self.program,
-                            self.facts,
+                            self.facts.view(),
                             &Callable::Machine {
                                 machine: self.machine,
                                 state,

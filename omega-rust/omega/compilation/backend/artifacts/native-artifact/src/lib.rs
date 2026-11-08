@@ -39,7 +39,7 @@ pub use image_emission::BoundaryExecutionRecord;
 pub use image_emission::NativeForeignAdapterImage;
 pub use native_artifact::{
     DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity, NativeArtifact,
-    NativeArtifactIdentity, RequestedNativeArtifact,
+    NativeArtifactIdentity, NativeArtifactValidationError, RequestedNativeArtifact,
 };
 pub(crate) use native_artifact::{
     NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderPlan,

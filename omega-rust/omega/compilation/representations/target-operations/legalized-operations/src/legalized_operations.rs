@@ -5,7 +5,7 @@
 //! Identity encoding describes this representation; it is not a lowering pass.
 
 use optimization_core::OptimizationUnitIdentity;
-use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use sha2::{Digest, Sha256};
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
@@ -14,7 +14,7 @@ use terminal_psi::TerminalPsiIdentity;
 pub struct LegalizedOperationPlan {
     pub psi: TerminalPsiIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
-    pub fuel_schedule: FuelScheduleIdentity,
+    pub work_schedule: WorkScheduleIdentity,
     pub target: NativeTarget,
     pub entry: MachineId,
     /// Ordinary ordered scalar and Unit graphs with explicit ABI transport.
@@ -61,10 +61,10 @@ pub use control_flow::{
 pub mod identity;
 mod validation;
 pub use identity::{
-    encode_access_call_bindings, encode_call_binding, encode_call_plan, encode_fuel,
+    encode_access_call_bindings, encode_call_binding, encode_call_plan,
     encode_hosted_read_byte_identity, encode_integer, encode_locator,
     encode_machine_function_identity, encode_native_callback_argument, encode_placement,
-    encode_provider_execution, encode_register, encode_scalar_type, encode_shape,
+    encode_provider_execution, encode_register, encode_scalar_type, encode_shape, encode_work,
     legalized_operation_plan_identity,
 };
 

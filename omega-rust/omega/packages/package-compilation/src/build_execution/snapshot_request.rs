@@ -1,22 +1,14 @@
-//! Caller-selected immutable build inputs and required output names.
+// Caller-selected immutable build snapshot requests (`BuildSnapshotRequest`,
+// `BuildSnapshotCapture`) and named input slots. When package inputs carry
+// validated canonical `Source` metadata, `automatic_package_inventory` selects
+// `BuildSnapshotCapture::PackageInventory` automatically unless overridden by
+// an explicit snapshot request.
 
 use crate::BuildSourceCaptureRequest;
 use build_output::CapturedBuildSourceInput;
 use diagnostics::Diagnostic;
 use std::collections::BTreeMap;
 
-/// Invocation-level request to execute one build occurrence against a
-/// captured immutable source snapshot and to require the named outputs to
-/// complete as sealed regular files before the build result may publish.
-///
-/// The request is a plain carrier: it expresses intent but grants nothing by
-/// itself. The caller binds the captured input inventory and the roster onto
-/// the build's filesystem scope; admission then serves the retained inventory directly through
-/// an exact non-following memory view and completion checking enforces the roster against
-/// retained staged-output custody. Capture requires the source root's
-/// canonical sealed form (the same physical inventory validated for canonical
-/// Source metadata); an unsealed or mutating root fails capture rather than
-/// producing a falsely attributed snapshot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildSnapshotRequest {
     required_outputs: Vec<Vec<u8>>,
@@ -24,24 +16,13 @@ pub struct BuildSnapshotRequest {
     inputs: BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
 }
 
-/// The caller-authorized source inventory one build activation captures
-/// before execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BuildSnapshotCapture {
-    /// The root package's complete sealed inventory — the exact custody the
-    /// resolver already validated. Capture reads no member the package
-    /// binding did not commit.
-    PackageInventory,
-    /// An explicit invocation inventory of files and subtrees. A package
-    /// root retains full resolver provenance while its build receives only
-    /// the selected view; a standalone root captures only declared members.
-    Scoped(BuildSourceCaptureRequest),
+    PackageInventory,                  // Root package's complete sealed inventory.
+    Scoped(BuildSourceCaptureRequest), // Explicit invocation inventory of files and subtrees.
 }
 
 impl BuildSnapshotRequest {
-    /// A snapshot over the root package's sealed inventory. Package custody
-    /// is itself the caller-authorized inventory — the resolver's canonical
-    /// index fixes membership — so this form needs no capture request.
     pub fn new(required_outputs: impl IntoIterator<Item = Vec<u8>>) -> Self {
         Self {
             required_outputs: required_outputs.into_iter().collect(),
@@ -50,19 +31,6 @@ impl BuildSnapshotRequest {
         }
     }
 
-    /// The capture a root package selects on its own, with no caller intent.
-    ///
-    /// Compiler-validated canonical Source metadata means the resolver has
-    /// already fixed this package's membership, so the activation captures
-    /// that sealed inventory into immutable memory storage and requires no
-    /// invocation roster — the same source custody package review uses. A
-    /// binding carrying no such index stays live and captures nothing.
-    ///
-    /// This belongs to the custody the package inputs carry, not to the
-    /// entrypoint a caller happened to use, so every route that assembles a
-    /// checked activation applies it and an explicitly supplied snapshot
-    /// always wins. Deriving it on one route only is what let a build machine
-    /// reach the filesystem with no staged-output custody behind it.
     pub fn automatic_package_inventory(
         package_inputs: Option<&crate::PackageCompilationInputs>,
     ) -> Option<Self> {
@@ -71,9 +39,6 @@ impl BuildSnapshotRequest {
             .map(|_| Self::new(std::iter::empty::<Vec<u8>>()))
     }
 
-    /// A snapshot over exactly the files and subtrees the caller declared.
-    /// Package capture additionally verifies this view against the complete
-    /// resolver-owned source inventory; it never replaces package provenance.
     pub fn scoped(
         required_outputs: impl IntoIterator<Item = Vec<u8>>,
         capture: BuildSourceCaptureRequest,
@@ -85,8 +50,6 @@ impl BuildSnapshotRequest {
         }
     }
 
-    /// Supply immutable slots to this activation, separately from its source
-    /// inventory. The caller owns capture; these names never select host paths.
     pub fn with_inputs(
         mut self,
         inputs: impl IntoIterator<Item = (Vec<u8>, CapturedBuildSourceInput)>,
@@ -101,20 +64,15 @@ impl BuildSnapshotRequest {
         &self.inputs
     }
 
-    /// Required sealed output paths in canonical slash-separated form. An
-    /// empty roster still runs against the captured source snapshot.
     pub fn required_outputs(&self) -> &[Vec<u8>] {
         &self.required_outputs
     }
 
-    /// The caller-authorized inventory this snapshot captures.
     pub const fn capture(&self) -> &BuildSnapshotCapture {
         &self.capture
     }
 }
 
-// These are implementation resource ceilings, not extra authority. Count
-// complete inventories, including unread files and names, before issuing views.
 fn insert_named_input(
     slots: &mut BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
     name: Vec<u8>,

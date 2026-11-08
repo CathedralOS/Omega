@@ -419,7 +419,7 @@ impl Captures<'_> {
         let flow = self.flow(state.symbol)?;
         super::super::stored_carrier_ingress_is_complete(
             self.program,
-            self.facts,
+            self.facts.view(),
             flow.machine_symbol,
             state.symbol,
             symbol,
