@@ -54037,8 +54037,6 @@ pub(crate) mod structural_judgment {
         per question; this table contains no scalar equations or active goals.
         */
 
-        use std::{collections::HashMap, ops::Range};
-
         use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 
         mod contextual {
@@ -54362,81 +54360,156 @@ pub(crate) mod structural_judgment {
         struct IdentitySubstitution<'value> {
             values: [&'value StructuralTerm; 2],
             heads: [RepresentationHead; 2],
+            rosters: [usize; 2],
         }
 
         /// Rows retain original order in each conservative head roster. Unknown
         /// endpoints remain eligible for every head; the full matcher still decides.
-        #[derive(Default)]
+        /// Each head resolves to its roster once, so walking candidates never
+        /// hashes a head again.
         struct RepresentationCandidates {
-            applications: HashMap<(symbols::SymbolHandle, usize), Vec<usize>>,
-            constructors: Vec<usize>,
-            unknown: Vec<usize>,
+            applications: symbols::SymbolKeyMap<(symbols::SymbolHandle, usize), usize>,
+            rosters: Vec<Vec<usize>>,
         }
 
         impl RepresentationCandidates {
-            fn retain(&mut self, row: usize, head: RepresentationHead) {
-                let rows = match head {
-                    RepresentationHead::Application { target, arguments } => {
-                        self.applications.entry((target, arguments)).or_default()
-                    }
-                    RepresentationHead::Constructor => &mut self.constructors,
-                    RepresentationHead::Other => &mut self.unknown,
-                };
-                if rows.last() != Some(&row) {
-                    rows.push(row);
+            const CONSTRUCTORS: usize = 0;
+            const UNKNOWN: usize = 1;
+            const EMPTY: usize = 2;
+            const ALL: usize = 3;
+
+            fn new() -> Self {
+                Self {
+                    applications: symbols::SymbolKeyMap::default(),
+                    rosters: vec![Vec::new(); 4],
                 }
             }
 
-            fn rows_for_head(&self, head: RepresentationHead) -> &[usize] {
+            fn retain(&mut self, row: usize, head: RepresentationHead) -> usize {
+                let roster = match head {
+                    RepresentationHead::Application { target, arguments } => {
+                        let next = self.rosters.len();
+                        let roster = *self.applications.entry((target, arguments)).or_insert(next);
+                        if roster == next {
+                            self.rosters.push(Vec::new());
+                        }
+                        roster
+                    }
+                    RepresentationHead::Constructor => Self::CONSTRUCTORS,
+                    RepresentationHead::Other => Self::UNKNOWN,
+                };
+                let rows = &mut self.rosters[roster];
+                if rows.last() != Some(&row) {
+                    rows.push(row);
+                }
+                roster
+            }
+
+            fn roster(&self, head: RepresentationHead) -> usize {
                 match head {
                     RepresentationHead::Application { target, arguments } => self
                         .applications
                         .get(&(target, arguments))
-                        .map_or(&[], Vec::as_slice),
-                    RepresentationHead::Constructor => &self.constructors,
-                    RepresentationHead::Other => &self.unknown,
+                        .copied()
+                        .unwrap_or(Self::EMPTY),
+                    RepresentationHead::Constructor => Self::CONSTRUCTORS,
+                    RepresentationHead::Other => Self::UNKNOWN,
                 }
+            }
+
+            fn seal(&mut self, count: usize) {
+                self.rosters[Self::ALL] = (0..count).collect();
+            }
+        }
+
+        /// Positions within each roster already known to hold only rows of the
+        /// component being closed. `included` only grows while one component
+        /// closes, so a skipped span never reopens and each member's scan visits
+        /// only rows not yet in the component, in the same order as before.
+        struct ClosedSpans {
+            next: Vec<Vec<usize>>,
+        }
+
+        impl ClosedSpans {
+            fn new(rosters: usize) -> Self {
+                Self {
+                    next: vec![Vec::new(); rosters],
+                }
+            }
+
+            fn first_open(
+                &mut self,
+                roster: usize,
+                rows: &[usize],
+                included: &[bool],
+                start: usize,
+            ) -> usize {
+                let next = &mut self.next[roster];
+                if next.is_empty() {
+                    next.extend(0..=rows.len());
+                }
+                // `next[p] > p` records that rows p..next[p] are all included.
+                let mut end = start;
+                while end < rows.len() && (next[end] != end || included[rows[end]]) {
+                    end = if next[end] != end { next[end] } else { end + 1 };
+                }
+                let mut position = start;
+                while position < end {
+                    let following = next[position].max(position + 1);
+                    next[position] = end;
+                    position = following;
+                }
+                end
             }
         }
 
         /// A cursor borrows no component state, so reaching a row can publish its
         /// completed component while the immutable candidate roster remains in use.
         struct CandidateRows {
-            all: Option<Range<usize>>,
-            heads: [RepresentationHead; 2],
+            rosters: [usize; 3],
             positions: [usize; 3],
         }
 
         impl CandidateRows {
-            fn new(heads: [RepresentationHead; 2], count: usize) -> Self {
-                let all = heads
+            fn new(rosters: [usize; 2], heads: [RepresentationHead; 2]) -> Self {
+                let rosters = if heads
                     .iter()
                     .any(|head| matches!(head, RepresentationHead::Other))
-                    .then_some(0..count);
+                {
+                    [
+                        RepresentationCandidates::ALL,
+                        RepresentationCandidates::EMPTY,
+                        RepresentationCandidates::EMPTY,
+                    ]
+                } else {
+                    [rosters[0], rosters[1], RepresentationCandidates::UNKNOWN]
+                };
                 Self {
-                    all,
-                    heads,
+                    rosters,
                     positions: [0; 3],
                 }
             }
 
-            fn next(&mut self, candidates: &RepresentationCandidates) -> Option<usize> {
-                if let Some(all) = &mut self.all {
-                    return all.next();
+            /// The next candidate in original row order. With `open`, rows already
+            /// in the closing component are passed over without being yielded.
+            fn next(
+                &mut self,
+                candidates: &RepresentationCandidates,
+                mut open: Option<(&mut ClosedSpans, &[bool])>,
+            ) -> Option<usize> {
+                let mut next = None::<usize>;
+                for (roster, position) in self.rosters.into_iter().zip(&mut self.positions) {
+                    let rows = candidates.rosters[roster].as_slice();
+                    if let Some((spans, included)) = &mut open {
+                        *position = spans.first_open(roster, rows, included, *position);
+                    }
+                    if let Some(&row) = rows.get(*position) {
+                        next = Some(next.map_or(row, |known| known.min(row)));
+                    }
                 }
-                let lists = [
-                    candidates.rows_for_head(self.heads[0]),
-                    candidates.rows_for_head(self.heads[1]),
-                    candidates.unknown.as_slice(),
-                ];
-                let next = lists
-                    .iter()
-                    .zip(self.positions)
-                    .filter_map(|(rows, position)| rows.get(position))
-                    .copied()
-                    .min()?;
-                for (rows, position) in lists.into_iter().zip(&mut self.positions) {
-                    if rows.get(*position) == Some(&next) {
+                let next = next?;
+                for (roster, position) in self.rosters.into_iter().zip(&mut self.positions) {
+                    if candidates.rosters[roster].get(*position) == Some(&next) {
                         *position += 1;
                     }
                 }
@@ -54462,7 +54535,7 @@ pub(crate) mod structural_judgment {
                 remaining: &mut usize,
             ) -> Result<Self, &'static str> {
                 let mut admitted = Vec::new();
-                let mut candidates = RepresentationCandidates::default();
+                let mut candidates = RepresentationCandidates::new();
                 for (left, right) in rows {
                     spend_component_work(remaining)?;
                     if judge.identity_value_is_available(left)
@@ -54472,16 +54545,16 @@ pub(crate) mod structural_judgment {
                             judge.identity_representation_head(left, remaining)?,
                             judge.identity_representation_head(right, remaining)?,
                         ];
-                        for head in heads {
-                            candidates.retain(admitted.len(), head);
-                        }
+                        let rosters = heads.map(|head| candidates.retain(admitted.len(), head));
                         admitted.push(IdentitySubstitution {
                             values: [left, right],
                             heads,
+                            rosters,
                         });
                     }
                 }
                 let count = admitted.len();
+                candidates.seal(count);
                 Ok(Self {
                     rows: admitted,
                     candidates,
@@ -54508,15 +54581,16 @@ pub(crate) mod structural_judgment {
                 let mut members = vec![seed];
                 let mut included = vec![false; self.rows.len()];
                 included[seed] = true;
+                let mut spans = ClosedSpans::new(self.candidates.rosters.len());
                 let mut cursor = 0;
                 while cursor < members.len() {
                     let row = members[cursor];
                     cursor += 1;
-                    let mut candidates = CandidateRows::new(self.rows[row].heads, self.rows.len());
-                    while let Some(candidate) = candidates.next(&self.candidates) {
-                        if included[candidate] {
-                            continue;
-                        }
+                    let mut candidates =
+                        CandidateRows::new(self.rows[row].rosters, self.rows[row].heads);
+                    while let Some(candidate) =
+                        candidates.next(&self.candidates, Some((&mut spans, &included)))
+                    {
                         let other = &self.rows[candidate];
                         let [left, right] = self.rows[row].values;
                         let [left_head, right_head] = self.rows[row].heads;
@@ -54589,8 +54663,9 @@ pub(crate) mod structural_judgment {
                 remaining: &mut usize,
             ) -> Result<Option<usize>, &'static str> {
                 let value_head = judge.identity_representation_head(value, remaining)?;
-                let mut candidates = CandidateRows::new([value_head; 2], self.rows.len());
-                while let Some(index) = candidates.next(&self.candidates) {
+                let value_roster = self.candidates.roster(value_head);
+                let mut candidates = CandidateRows::new([value_roster; 2], [value_head; 2]);
+                while let Some(index) = candidates.next(&self.candidates, None) {
                     spend_component_work(remaining)?;
                     let component = self.representatives[index];
                     if self.component_ready[index] {
@@ -55117,6 +55192,39 @@ pub(crate) mod structural_judgment {
                     substitutions.normalized[component] = Some(value.clone());
                 }
                 result
+            }
+        }
+
+        #[cfg(test)]
+        mod closed_span_tests {
+            use super::ClosedSpans;
+
+            /// Closing a component must still reach every row outside it, in
+            /// roster order, however the included rows are interleaved.
+            #[test]
+            fn open_rows_are_found_in_order_past_included_spans() {
+                let rows = [0, 2, 3, 5, 7, 8];
+                let mut included = [false; 9];
+                let mut spans = ClosedSpans::new(1);
+                let open = |spans: &mut ClosedSpans, included: &[bool]| {
+                    let mut found = Vec::new();
+                    let mut position = spans.first_open(0, &rows, included, 0);
+                    while position < rows.len() {
+                        found.push(rows[position]);
+                        position = spans.first_open(0, &rows, included, position + 1);
+                    }
+                    found
+                };
+                assert_eq!(open(&mut spans, &included), rows);
+                for row in [2, 3, 7] {
+                    included[row] = true;
+                }
+                assert_eq!(open(&mut spans, &included), [0, 5, 8]);
+                included[0] = true;
+                included[8] = true;
+                assert_eq!(open(&mut spans, &included), [5]);
+                included[5] = true;
+                assert!(open(&mut spans, &included).is_empty());
             }
         }
     }
@@ -87674,14 +87782,11 @@ pub(crate) mod structural_terms {
         if !target.is_valid() {
             return None;
         }
-        let mut matches = program.machines().iter().filter(|machine| {
-            program
-                .machine_states(machine)
-                .first()
-                .is_some_and(|state| state.symbol == target)
-        });
-        let machine = matches.next()?;
-        matches.next().is_none().then_some(machine)
+        // The state index answers "the only machine entered at `target`" from the
+        // same table-order rows a scan of every machine would visit.
+        program
+            .unique_machine_by_entry_state_symbol(target)
+            .map(|(machine, _)| machine)
     }
 }
 pub(crate) mod transparent_applications {
