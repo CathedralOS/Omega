@@ -154,7 +154,16 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
             )
             .chain(std::iter::repeat_n("measured", options.runs));
         for (index, phase) in plan.enumerate() {
-            let row = measure(&root, &omega, workload, phase, index, &scratch)?;
+            let row = measure(
+                &root,
+                &omega,
+                workload.name,
+                workload.arguments,
+                workload.clean,
+                phase,
+                index,
+                &scratch,
+            )?;
             eprintln!(
                 "progress: {} {phase} {:.3}s exit {}",
                 workload.name, row["wall_s"], row["exit_code"]
@@ -268,7 +277,7 @@ fn parse_options(arguments: &[String]) -> Result<Options, String> {
     Ok(options)
 }
 
-fn git(arguments: &[&str]) -> Result<String, String> {
+pub(crate) fn git(arguments: &[&str]) -> Result<String, String> {
     let output = Command::new("git")
         .args(arguments)
         .stdin(Stdio::null())
@@ -378,22 +387,25 @@ fn accept_review(omega: &Path, root: &Path, project: &str, target: &str) -> Resu
     Ok(())
 }
 
-fn measure(
+/// One process row. `template` may name `{build}`, replaced by a fresh empty
+/// build directory; `clean` is removed under `root` before the run.
+pub(crate) fn measure(
     root: &Path,
     omega: &Path,
-    workload: &Workload,
+    name: &str,
+    template: &[&str],
+    clean: Option<&str>,
     phase: &str,
     index: usize,
     scratch: &Path,
 ) -> Result<Value, String> {
-    let build = scratch.join(format!("{}-{index}", workload.name));
+    let build = scratch.join(format!("{name}-{index}"));
     let _ = fs::remove_dir_all(&build);
     fs::create_dir_all(&build).map_err(|error| error.to_string())?;
-    if let Some(clean) = workload.clean {
+    if let Some(clean) = clean {
         let _ = fs::remove_dir_all(root.join(clean));
     }
-    let arguments: Vec<String> = workload
-        .arguments
+    let arguments: Vec<String> = template
         .iter()
         .map(|argument| argument.replace("{build}", &build.display().to_string()))
         .collect();
@@ -435,10 +447,10 @@ fn measure(
     let resource = |name: &str| observation.resources[name]["value"].as_u64();
     let seconds = |nanos: Option<u64>| nanos.map(|nanos| nanos as f64 / 1e9);
     Ok(json!({
-        "workload": workload.name,
+        "workload": name,
         "phase": phase,
         "index": index,
-        "arguments": workload.arguments,
+        "arguments": template,
         "exit_code": observation.exit_code,
         "ok": observation.exit_code == Some(0),
         "wall_s": observation.process_wall_ns as f64 / 1e9,
@@ -488,7 +500,7 @@ fn load_average() -> Option<[f64; 3]> {
     Some([values.next()?, values.next()?, values.next()?])
 }
 
-fn median(values: &mut [f64]) -> Option<f64> {
+pub(crate) fn median(values: &mut [f64]) -> Option<f64> {
     if values.is_empty() {
         return None;
     }

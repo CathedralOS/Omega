@@ -24,6 +24,7 @@ mod process;
 mod profiling;
 mod progress;
 mod records;
+mod scaling;
 mod statistics;
 mod suite;
 
@@ -53,20 +54,26 @@ fn main() {
         println!(
             "Any command may start with --address-space-gib N (Linux address-space cap, default 64).
 omega-bench compare <plan.json> <new-result-directory>\nomega-bench suite <suite.json> <new-result-directory>\nomega-bench validate <run-directory>\nomega-bench show <run-directory>\nomega-bench check <run-directory> <maximum-regression-percent>\nomega-bench history <old-run-directory> <new-run-directory>\nomega-bench profile <plan.json> <baseline|candidate> <allocations|wpr|perf-stat|perf-record> <new-result-directory>
-omega-bench progress [--omega <release-omega>] [--results <dir>] [--runs N] [--aa-runs N] [--only <workload>] [--completion]"
+omega-bench progress [--omega <release-omega>] [--results <dir>] [--runs N] [--aa-runs N] [--only <workload>] [--completion]
+omega-bench scaling --omega <release-omega> [--sizes 0,1000,2000] [--runs N] [--max-ratio R]"
         );
         return;
     }
     let command = arguments.first().and_then(|argument| argument.to_str());
-    if command == Some("progress") {
+    if let Some(name @ ("progress" | "scaling")) = command {
         let options: Option<Vec<String>> = arguments[1..]
             .iter()
             .map(|argument| argument.to_str().map(str::to_owned))
             .collect();
         match options
-            .ok_or("progress arguments must be UTF-8".to_owned())
-            .and_then(|options| progress::run(&options))
-        {
+            .ok_or(format!("{name} arguments must be UTF-8"))
+            .and_then(|options| {
+                if name == "scaling" {
+                    scaling::run(&options)
+                } else {
+                    progress::run(&options)
+                }
+            }) {
             Ok(()) => return,
             Err(error) => {
                 eprintln!("omega-bench: {error}");

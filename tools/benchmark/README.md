@@ -5,6 +5,30 @@ runtime experiments, suite runs, regression checks, compatible history
 comparisons, and allocation, WPR, or Linux `perf` profiles. Build it with
 `cargo build -p omega-bench`.
 
+## Scaling check
+
+Most slowdowns found so far were a check that walks the whole program per
+question, which makes each machine cost more in a bigger program.
+`omega-bench scaling` checks the one-line program plus N uncalled machines for
+each N in `--sizes` (default `0,1000,2000`) and fails when the cost per added
+machine in the last interval exceeds the first by more than `--max-ratio`
+(default 1.3). A linear compiler stays near 1.
+
+```text
+target/debug/omega-bench scaling --omega target/release/omega
+```
+
+Cost is `instructions:u` from `perf stat` on Linux and CPU time elsewhere, so
+run it on `omega-linux`. A change that removes a whole-program walk shows its
+ratio before and after; a change that adds one fails here.
+
+To find which walk is responsible, sample the largest size with samply on
+Linux and read the heaviest frames under the checking workers:
+
+```text
+samply record --save-only -o scaling.json.gz -- target/release/omega --check <dir>/main.omg < /dev/null
+```
+
 ## Progress records
 
 `omega-bench progress` records how fast one commit's release compiler is on
