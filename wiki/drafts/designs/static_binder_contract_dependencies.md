@@ -52,9 +52,11 @@ acceptance are complete.
   and result. Generic checking treats it as opaque. Wrappers publish it only by
   an authored `ensures` claim, which the checker discharges or rejects; no
   derived relation is exported. Specialization substitutes the selected
-  published relation. First scope: immutable arguments and normal returns. The
-  surface spelling of the projection is the owner's choice; this draft uses no
-  concrete token.
+  published relation. First scope: immutable arguments and normal returns.
+  Spelling (ratified 2026-11-08): `F::ensures(a1, ..., an, r)`, parameters in
+  declaration order and the result subject last, an ordinary proof-only
+  proposition on the static binder. No unapplied value, partial application or
+  `F::requires` is implied.
 
 ## Current code
 
@@ -136,7 +138,11 @@ Result-relation fixtures, immutable arguments:
 - A selected callback with a stronger published guarantee than its requirement
   specializes the wrapper's authored claim to that guarantee.
 - Two calls with a non-transitive relation compose through the intermediate
-  value instead of collapsing to one application.
+  value instead of collapsing to one application. The fixture must show the
+  authored claim as real source, written with the existing witness machinery
+  or a named mathematical definition packaging it, since Omega has no
+  existential syntax; if that claim is unpleasant to write, the ergonomic gap
+  is in the mathematical surface and is reported as its own item.
 - Two calls where the intermediate may violate the second call's input
   requirement reject unless the wrapper establishes closure.
 - A discarded callback result and an unrelated wrapper result: the relation

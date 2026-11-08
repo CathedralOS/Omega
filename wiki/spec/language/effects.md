@@ -419,6 +419,34 @@ immutable arguments and normal returns; mutable arguments follow the existing
 storage-version and invalidation rules. No derived relation is exported without
 an authored claim.
 
+The projection is spelled `F::ensures(a1, ..., an, r)` on the static binder:
+the callback's parameters in declaration order, then the subject standing for
+its result. Any in-scope value may fill any position; `result` is the usual
+final subject in a forwarder's claim, not a required token. The application is
+an ordinary proof-only proposition and composes with other propositions and
+named mathematical definitions. The static-selection path `::` keeps the
+reference attached to the exact binder and its selected contract; it is not a
+field selection, a call, or a first-class value of the unapplied relation, and
+it does not introduce a `requires` projection.
+
+```omega
+public machine forward<machine F>(x: u64) -> u64
+requires machine F(value: u64) -> u64
+    ensures result >= value;
+ensures F::ensures(x, result)
+{
+    F(x)
+}
+```
+
+The requirement states the least an admitted `F` must guarantee. The wrapper
+promises that the selected `F`'s published relation holds between `x` and its
+own result, so a selection guaranteeing `result == value + 1` gives this
+application that guarantee. A two-call wrapper relates `x` to its result
+through the intermediate value using the ordinary
+[witness machinery](../proofs/mathematical_bindings.md#witnesses-existence-and-proof-construction);
+there is no existential syntax.
+
 ### Static callback operational dependencies
 
 Named decision: `static-callback-operational-dependencies`, ratified 2026-11-06.
