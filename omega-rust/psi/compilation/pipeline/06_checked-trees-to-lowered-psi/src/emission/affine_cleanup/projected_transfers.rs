@@ -207,7 +207,26 @@ pub(super) fn complete(
     while let Some(position) = ready.pop_front() {
         let mut frontier = incoming[position].clone().expect("queued frontier");
         for operation in &blocks[position].operations {
-            observe(&frontier, operation, &roots, types)?;
+            observe(&frontier, operation, &roots, types).map_err(|mut error| {
+                if let LoweringError::OverlappingProjectedCustody {
+                    place,
+                    earlier,
+                    observation: Some(observation),
+                    ..
+                } = &mut error
+                {
+                    observation.site = Some(Box::new(refusal_site(
+                        blocks,
+                        position,
+                        operation.id,
+                        *place,
+                        earlier,
+                        extractions,
+                        &copied_roots,
+                    )));
+                }
+                error
+            })?;
             for argument in operands(&operation.kind) {
                 transfer(&mut frontier, argument, &copied_roots)?;
             }
@@ -493,6 +512,7 @@ fn observe(
             *observation = Some(Box::new(ProjectedCustodyObservation {
                 operation: operation.id,
                 kind,
+                site: None,
                 root_declarations: roots
                     .iter()
                     .filter(|(root, _)| root == place)
@@ -502,6 +522,141 @@ fn observe(
         }
         error
     })
+}
+
+/// Render only the failing request's emitted sites, without retaining graph
+/// copies or adding work to a successful custody walk.
+fn refusal_site(
+    blocks: &[Block],
+    position: usize,
+    observed: OperationId,
+    place: PlaceId,
+    earlier: &[StructuralPathSegment],
+    extractions: &[(OperationId, StructuralArgument)],
+    copied_roots: &BTreeSet<PlaceId>,
+) -> crate::shared::lowering_error::ProjectedCustodySite {
+    use crate::shared::lowering_error::{
+        ProjectedCustodyOperation, ProjectedCustodySite, ProjectedCustodyTransfer,
+    };
+    let block = &blocks[position];
+    let observed_position = block
+        .operations
+        .iter()
+        .position(|operation| operation.id == observed)
+        .unwrap_or(block.operations.len());
+    let neighbors = block
+        .operations
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| {
+            *index >= observed_position.saturating_sub(3)
+                && *index <= observed_position.saturating_add(1)
+        })
+        .take(5)
+        .map(|(_, operation)| ProjectedCustodyOperation {
+            operation: operation.id,
+            kind: terminal_semantics::operation_semantic_row(&operation.kind)
+                .map_or("unclassified", |row| row.name()),
+            callee: operation.kind.direct_callee(),
+            result: operation.result.structural().map(|result| result.place),
+        })
+        .collect();
+    let mut transfers = Vec::new();
+    let mut further_transfers_omitted = false;
+    let mut retain = |block, operation, edge, kind, callee, argument: &StructuralArgument| {
+        if argument.place != place
+            || !terminal_semantics::structural_paths_may_overlap(&argument.path, earlier)
+        {
+            return;
+        }
+        if transfers.len() == 4 {
+            further_transfers_omitted = true;
+            return;
+        }
+        transfers.push(ProjectedCustodyTransfer {
+            block,
+            operation,
+            edge,
+            kind,
+            callee,
+            argument: StructuralArgument {
+                place: argument.place,
+                path: argument.path.iter().take(8).cloned().collect(),
+                access: argument.access,
+            },
+            path_truncated: argument.path.len() > 8,
+        });
+    };
+    for candidate in blocks {
+        for operation in &candidate.operations {
+            let kind = terminal_semantics::operation_semantic_row(&operation.kind)
+                .map_or("unclassified", |row| row.name());
+            for argument in operands(&operation.kind)
+                .filter(|argument| transfers_custody(argument, copied_roots))
+            {
+                retain(
+                    candidate.id,
+                    Some(operation.id),
+                    None,
+                    kind,
+                    operation.kind.direct_callee(),
+                    argument,
+                );
+            }
+        }
+        for ((edge, _), arguments) in candidate
+            .terminator
+            .successor_edges()
+            .into_iter()
+            .zip(candidate.terminator.successor_block_arguments())
+        {
+            for argument in arguments
+                .iter()
+                .filter(|argument| transfers_custody(argument, copied_roots))
+            {
+                retain(
+                    candidate.id,
+                    None,
+                    Some(edge),
+                    "successor transfer",
+                    None,
+                    argument,
+                );
+            }
+        }
+    }
+    // At most five matching extraction candidates need a containing-block
+    // lookup; unrelated extraction rows do not cause another graph walk.
+    for (operation, argument) in extractions
+        .iter()
+        .filter(|(_, argument)| {
+            argument.place == place
+                && terminal_semantics::structural_paths_may_overlap(&argument.path, earlier)
+        })
+        .take(5)
+    {
+        if let Some(block) = blocks.iter().find(|block| {
+            block
+                .operations
+                .iter()
+                .any(|candidate| candidate.id == *operation)
+        }) {
+            retain(
+                block.id,
+                Some(*operation),
+                None,
+                "field extraction",
+                None,
+                argument,
+            );
+        }
+    }
+    ProjectedCustodySite {
+        block: block.id,
+        neighbors,
+        transfers,
+        further_transfers_omitted,
+    }
 }
 
 fn require_available(
