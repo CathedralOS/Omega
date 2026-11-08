@@ -288,6 +288,8 @@ impl CompletedProviderDefaults {
             }
         }
         let mut selections = Vec::new();
+        // One guarded span lookup serves every selection's two declarations.
+        let mut candidates = symbols::SourceSpanCandidates::default();
         for selection in self.selections() {
             let mut selected = selection.clone();
             selected.subject = self.admit_declaration(admission, &selected.subject)?;
@@ -330,7 +332,7 @@ impl CompletedProviderDefaults {
             }
             selections.push(
                 source
-                    .rejoin_product_provider_selection(&selected)
+                    .rejoin_product_provider_selection(&selected, &mut candidates)
                     .map_err(|error| vec![error])?,
             );
         }
@@ -357,18 +359,22 @@ impl CompletedProviderDefaults {
             admit_toolchain_source(capture, capture, file)?;
         }
         let mut joined = Vec::new();
+        // One guarded span lookup serves every declaration rejoined below.
+        let mut candidates = symbols::SourceSpanCandidates::default();
         for selection in selections.iter() {
             let subject = rejoin_build_declaration(
                 capture,
                 program,
                 &selection.subject,
                 &selection.subject_identity,
+                &mut candidates,
             )?;
             let provider = rejoin_build_declaration(
                 capture,
                 program,
                 &selection.provider,
                 &selection.provider_identity,
+                &mut candidates,
             )?;
             let (subject, provider) = match (subject, provider) {
                 (None, None) => continue,
@@ -412,7 +418,12 @@ impl CompletedProviderDefaults {
             }
             joined.push(
                 selected
-                    .rejoin(program, source::DependencyScope::Build, &joined)
+                    .rejoin(
+                        program,
+                        source::DependencyScope::Build,
+                        &joined,
+                        &mut candidates,
+                    )
                     .map_err(|error| vec![error])?,
             );
         }
@@ -506,28 +517,26 @@ fn rejoin_build_declaration(
     program: &typed_trees::TypedTrees,
     original: &RetainedDeclaration,
     identity: &str,
+    span_candidates: &mut symbols::SourceSpanCandidates,
 ) -> Result<Option<RetainedDeclaration>, Vec<Diagnostic>> {
     let Some(file) = receiving_build_source(capture, program, original.source())? else {
         return Ok(None);
     };
     let anchor = RetainedDeclaration::from_retained_parts(file, original.span(), original.kind())
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let candidates = program
-        .symbols
-        .symbols()
-        .nodes()
-        .iter()
-        .map(|(symbol, _)| symbol)
+    // The guarded span lookup returns the symbols at the anchor's exact span
+    // in table order; keep those in the anchor's Build source.
+    let candidates = span_candidates
+        .at_span(&program.symbols, anchor.span())
+        .into_iter()
         .filter(|symbol| {
             program
                 .symbols
                 .symbol_source_span(*symbol)
-                .is_some_and(|span| {
-                    span.span == anchor.span()
-                        && program.symbols.source_file(span).is_some_and(|file| {
-                            file.path == anchor.source().path
-                                && file.dependency_scope == source::DependencyScope::Build
-                        })
+                .and_then(|span| program.symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.path == anchor.source().path
+                        && file.dependency_scope == source::DependencyScope::Build
                 })
         })
         .collect::<Vec<_>>();
