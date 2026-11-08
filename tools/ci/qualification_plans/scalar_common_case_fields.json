@@ -1,47 +1,45 @@
 {
   "schema": "omega-compiler-pilot-plan-v1",
   "producer": {
-    "revision": "a4c274a8c986caf4a2522b5432b3ca2f1bd3346b",
-    "tree": "bd53a2619d0fcbb5f279cacae94e5db071ae5f04",
+    "revision": "81e47dc9f8993efcba112c14446402f89b64e906",
+    "tree": "f8483f7a32c113af8a8097a042d29b21f63c60ef",
     "target": "linux_x86_64",
     "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
     "input_objects": {
-      "omega-rust": "86ee0fa4ad8b2ee6f53b6e9d7a6989e63e5af2d0",
-      "source/library": "46754f5f6584d158e0fb077d4ed89a83afd07230",
+      "omega-rust": "9c4b3b0b76224f4bd5a255993b88311b8f9c1c7b",
+      "source/library": "b40f44024dc87743a5faab6ad403a4681115cb40",
       "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
       "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
-      "bootstrap": "42230c0aa7138a175590d9dd6a57d8ee71934df1",
+      "bootstrap": "72883e5a453b49a6ab888719e803ff2f69faee34",
       "tools/benchmark": "58715a339b701d6e1efc1bf6a0916096ec4c697b",
-      "Cargo.toml": "611d634f15e9f745dc0d429fe7b26b3ec87850d9",
-      "Cargo.lock": "f12e9c233c5f667d5903546a7d85d9e6ab684f58",
+      "Cargo.toml": "c06b0404ca9785ddcf3c6204983cde4d731136ba",
+      "Cargo.lock": "453f35760d3ae5180805223cbc477d086590d517",
       "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
-      ".cargo": "152f54b1593e9a8e1c5139fc5a4373a14bbc0701"
+      ".cargo": "146a56dfde672dd04f4ac406d84fc64bdff84115"
     },
     "executables": {
       "cli": {
-        "sha256": "93b10199949be944a495a626f6585a21b852acc98b9ae1e3781dba1a0d32612c",
+        "sha256": "ff29402e98a1162afc293dff98cd518bf6eb888ef8e562ac49f753967bd1081f",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       },
       "runner": {
-        "sha256": "65495496ec73680c10794e64d752850521240f5fa4d7ef89768372f163f046f8",
+        "sha256": "26ad63a147105612f44f2154dad9966fea55a753627c1ed50f190ef347e2743e",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       }
     },
-    "origin_run": 42444635155,
-    "cache_key": "compiler-regression-Linux-X64-619be19a8e341c9422e0bbfdb9c702e2989ff767a7e78d51ff551da858c5fcb7-a4c274a8c986caf4a2522b5432b3ca2f1bd3346b-prepared-v1-with-runner"
+    "origin_run": 42447199242,
+    "cache_key": "compiler-regression-Linux-X64-4cf43fe0b283cafbaa2080cbd0cb5018d03a05a890353ac5d6c14509413ee07b-81e47dc9f8993efcba112c14446402f89b64e906-prepared-v1-with-runner"
   },
-  "fixtures": [],
-  "source_only": false,
+  "fixtures": [
+    "pass/generics/runtime_case_qualified_reference_storage_exit"
+  ],
+  "source_only": true,
   "samples": [],
-  "cli_fixtures": [
-    "pass/text/runtime_inline_byte_case_values_exit",
-    "pass/borrows/runtime_case_payload_partial_transfer_exit",
-    "pass/drops/runtime_cleanup_case_evidence_exit"
-  ]
+  "cli_fixtures": []
 }
