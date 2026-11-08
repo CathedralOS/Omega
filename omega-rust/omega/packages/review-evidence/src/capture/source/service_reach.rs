@@ -1,17 +1,3 @@
-/*
-We rejoin authored service-reach targets and checked ceilings for machines
-without constructing location rows.
-
-Publication policy belongs to the reconstructed inference plan: its row handles
-use a different table, so we compare the interface category and row service
-contents rather than copying an inference handle into checked custody.
-Publication retains an authored ceiling (including an explicitly empty clause)
-or derives the complete checked-call row when omitted, without manufacturing
-source custody. Invoked interface identity is checked separately in
-`invocations.rs`; only authored capability reach and its parents belong to this
-source row.
-*/
-
 use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::facts::exactly_one;
@@ -22,6 +8,7 @@ use flow_effects::ServiceReachInferencePlan;
 use language_semantics::ServiceReachInterface;
 use symbols::SymbolHandle;
 
+/// Rejoin authored targets and checked ceilings without constructing location rows.
 pub(crate) fn validate_machine_service_reach(
     compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
@@ -30,6 +17,8 @@ pub(crate) fn validate_machine_service_reach(
     checked_machine_service_reach(compilation, machine, inferred).map(|_| ())
 }
 
+/// The exact authored row, including an explicitly empty clause. Publication
+/// may infer a callable surface without manufacturing source custody.
 pub(crate) fn authored_machine_service_reach<'a>(
     compilation: &'a PackageReviewInput<'a>,
     machine: &typed_trees::machine::Machine,
@@ -79,12 +68,18 @@ fn checked_machine_service_reach<'a>(
         machine.name.as_str(),
         "reconstructed service-reach",
     )?;
+    // Publication policy belongs to the reconstructed inference plan. Its row
+    // handles use a different table, so compare the category here and contents
+    // below rather than copying an inference handle into checked custody.
     let expected_interface = match expected.interface {
         ServiceReachInterface::PublishedCeiling(_) => {
             ServiceReachInterface::PublishedCeiling(checked.published_ceiling)
         }
         ServiceReachInterface::InternalInferred => ServiceReachInterface::InternalInferred,
     };
+    // Authored custody remains exact above. Publication retains an authored
+    // ceiling, or derives the complete checked-call row when it is omitted;
+    // reconstruct that distinction once for this capture request.
     let published = compilation
         .facts
         .service_reaches
@@ -150,6 +145,8 @@ fn derive_declared_service_reach(
     authored: Option<&typed_trees::signature::AuthoredServiceReachRow>,
     owner_name: &str,
 ) -> Result<Vec<language_semantics::ServiceReachId>, Vec<Diagnostic>> {
+    // Invoked interface identity is checked separately in invocations.rs; only
+    // authored capability reach and its parents belong to this source row.
     let direct = authored
         .into_iter()
         .flat_map(|row| &row.targets)

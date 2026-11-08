@@ -1,5 +1,3 @@
-// Public policy type parameters, machine parameter contracts, and signature telescopes.
-
 use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackagePolicyCrashRoute, PackagePolicyTermination, PackageReviewCallableContract,
@@ -17,9 +15,12 @@ pub struct PackagePolicyTypeParameter {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicyTypeParameterKind {
     Type,
-    Implementation, // Positional code selection linked to the owner's conformance bounds.
+    /// A positional code selection linked to the owner's conformance bounds.
+    Implementation,
     Const(PackageReviewTypeIdentity),
-    Value(PackageReviewTypeIdentity), // Runtime-capable value binder preserving authored kind rather than strengthening to `const`.
+    /// A runtime-capable value binder; the public record preserves the
+    /// authored kind rather than strengthening it to `const`.
+    Value(PackageReviewTypeIdentity),
     Machine(PackagePolicyMachineParameterContract),
     Proposition(PackageReviewPropositionParameterSignature),
 }

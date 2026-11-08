@@ -1,17 +1,13 @@
-// Complete, inert comparison rows (`PackagePolicyRow` and `PackagePolicyRowKind`).
-//
-// `PACKAGE_POLICY_ROW_VERSION` (version 9) is independent of legacy review rows
-// and of the complete baseline grammar; builtin-function slots returned to
-// their published numbers after three fences were briefly inserted mid-table in
-// version 8, so version 8 rows must be re-reviewed rather than decoded.
-// `tag_and_name` pairs each `PackagePolicyRowKind` with its persisted byte tag
-// and authored spelling in one table so wire and text representations cannot
-// drift.
+//! Complete, inert comparison rows. Classification is not an acceptance decision.
 
 use crate::record::accessors::field_projection_accessors;
 mod limits;
 pub use limits::{PackagePolicyRowLimits, PackagePolicyRowUsage};
 
+/// Independent of legacy review rows and of the complete baseline grammar.
+// Version 9: builtin-function slots returned to their published numbers after
+// three fences were briefly inserted mid-table. Rows recorded under version 8
+// may carry the shifted slots, so they must be re-reviewed rather than decoded.
 pub const PACKAGE_POLICY_ROW_VERSION: u16 = 9;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -45,6 +41,8 @@ pub enum PackagePolicyRowKind {
 }
 
 impl PackagePolicyRowKind {
+    /// One row per kind: the persisted tag and the authored spelling, so the
+    /// encoded byte and the canonical text cannot disagree about the roster.
     pub const fn tag_and_name(self) -> (u8, &'static str) {
         match self {
             Self::Header => (0, "header"),

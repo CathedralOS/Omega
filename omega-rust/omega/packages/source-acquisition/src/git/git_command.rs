@@ -1,12 +1,5 @@
-// Sealed Git command execution: policy configuration, launch accounting,
-// bounded stream capture, and whole-resolution budget reconciliation.
-//
-// `GitCommandCapture` supplies per-operation capture inputs while deadlines,
-// stderr bounds, and cumulative output accounting remain owned by the command
-// lifecycle. `run_git_output` returns the raw `BoundedProcessOutput` so object
-// inspection protocols can distinguish a clean absence response from a failed
-// process, whereas `run_git`, `run_git_stdout`, and `run_git_bytes_stdout`
-// require a zero exit status.
+//! Sealed Git command execution: policy, launch accounting, bounded capture,
+//! and whole-resolution budget reconciliation.
 
 pub(crate) mod capture;
 mod policy;
@@ -25,6 +18,8 @@ use resolver_execution::ResolverExecutionPhase;
 use std::ffi::OsStr;
 use std::path::Path;
 
+/// Per-operation capture inputs. Deadlines, stderr bounds, and cumulative
+/// accounting remain owned by the command lifecycle, not its callers.
 pub(crate) struct GitCommandCapture<'a> {
     pub(crate) operation: &'a str,
     pub(crate) input: BoundedProcessInput,
@@ -41,6 +36,8 @@ impl Default for GitCommandCapture<'_> {
     }
 }
 
+/// Returns the actual exit status: object protocols must distinguish a
+/// successful absence response from a failed command themselves.
 pub(crate) fn run_git_output<I, S>(
     executor: &GitExecutor,
     working_directory: &Path,

@@ -1,5 +1,4 @@
-// Structural scalar expression encoding preserving exact numeric vocabulary.
-
+//! Structural scalar expressions preserve exact numeric vocabulary.
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::values::crashes::Encoder;
 use crate::encoding::encode::values::crashes::arithmetic_domain_name;

@@ -107,6 +107,7 @@ macro_rules! plain {
 }
 plain!(
     bool,
+    language_core::PatternComponent,
     usize,
     u8,
     u16,

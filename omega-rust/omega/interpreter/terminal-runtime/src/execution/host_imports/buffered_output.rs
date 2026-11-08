@@ -1,7 +1,7 @@
-// Invocation-owned `stdout` and `stderr` buffers (`BufferedStreams`,
-// `BufferedOutput`) shared by all installed output adapters. Appending at
-// dispatch prevents builtin and foreign slots from reordering output;
-// `OutputKind::Byte` writes the low 8 bits of its signed 32-bit operand.
+//! Invocation-owned stdout and stderr shared by exact installed adapters.
+//! Append at dispatch, so different builtin and foreign slots cannot reorder
+//! output by being collected separately. These bytes never reach OS stdout:
+//! the consumer compares this private observation after execution.
 
 use semantic_vocabulary::IntegerValue;
 use std::sync::{Arc, Mutex};
@@ -15,6 +15,7 @@ use super::{OutputKind, TerminalRuntimeError};
 #[derive(Clone)]
 pub(crate) struct BufferedBytes(Arc<Mutex<Vec<u8>>>);
 
+/// Separate private streams shared by every adapter in one invocation.
 #[derive(Clone)]
 pub(crate) struct BufferedStreams {
     pub(crate) stdout: BufferedBytes,
@@ -131,6 +132,8 @@ impl TerminalEffectHandler for BufferedOutput {
                 let value = i32::try_from(*value).map_err(|_| {
                     TerminalEffectRejection::new("byte output exceeds its signed 32-bit carrier")
                 })?;
+                // HostedWriteByteI32 writes the low eight bits of its i32
+                // operand, including negative values and values above 255.
                 self.output.append(&[value as u8])
             }
         }

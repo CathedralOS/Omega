@@ -1,17 +1,3 @@
-/*
-Public trait, parent-trait, and trait-requirement projection
-(`project_public_traits`, `project_trait_parent`, and `project_trait_requirement`).
-
-Traits bind only their declared static parameters (`type-parameter:N`) so
-contract binder positions and recovery scopes stay aligned before appending a
-requirement's own type parameters. In `project_trait_requirement`, we validate
-public termination premises before projecting general contracts, crash routes,
-service reach, synchronous invocations, and dynamic-slot metadata. In
-`project_parent_arguments`, named `Implementation` arguments that are not
-caller-owned conformance parameters are closed via `close_conformance_application`
-and re-projected with their full static telescope.
-*/
-
 use super::super::behavior::{
     project_crash_routes, project_service_row, project_synchronous_invocations,
     project_trait_requirement_termination,
@@ -52,6 +38,10 @@ pub(crate) fn project_public_traits<'a>(
             continue;
         };
         let parameters = compilation.trait_type_parameters(definition);
+        // A trait binds exactly its declared statics. Contract binders are
+        // numbered by list position and type identities spell `type-parameter:N`,
+        // so a leading subject entry would shift one numbering off the other and
+        // off the recovery scope (declared statics, then the requirement's own).
         let (trait_binders, type_parameters) = project_type_parameters(
             compilation,
             parameters,
@@ -182,6 +172,8 @@ pub(crate) fn project_trait_requirement(
         &lifetime_binders,
         0,
     )?;
+    // Preserve the more specific public-progress validation before the same
+    // membership facts enter the general contract lane.
     let termination = project_trait_requirement_termination(compilation, requirement)?;
     let contract_parameters = compilation.state_signature_parameters(requirement);
     let contract_context = ContractProjectionContext {
@@ -267,6 +259,8 @@ pub(crate) fn project_trait_requirement(
     })
 }
 
+/// A named implementation is code with its own telescope, not a data type.
+/// Reclose the source selection before projecting its exact checked arguments.
 fn project_parent_arguments(
     compilation: &PackageReviewInput<'_>,
     definition: &typed_trees::trait_definition::TraitDefinition,
@@ -291,6 +285,7 @@ fn project_parent_arguments(
         }
         let operand = compilation.static_operand_from_type_reference(*reference)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        // Caller-owned implementation binders retain their ordinal identity.
         if operand.symbol.is_valid() && compilation.symbols.get(operand.symbol).kind == symbols::SymbolKind::ConformanceParameter {
             return review_signature_type_identity_with_binders(compilation, *reference, binders, lifetime_binders);
         }

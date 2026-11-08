@@ -6,10 +6,10 @@ mod fixture_package_inputs;
 
 use compiler::{CheckedCompileRequest, CompilationProduct, CompilationSession};
 use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
-use psi_work::WorkMeter;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use std::sync::{Arc, Mutex};
 use terminal_codec::CanonicalTerminalArtifact;
+use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalAccessViewEstablishment, TerminalEffect, TerminalEffectHandler,
     TerminalEffectRejection, TerminalEffectResult, TerminalExecutionResult,
@@ -230,7 +230,7 @@ fn qualify_helper(machine: &str, writes: bool) {
             .unwrap();
     }
     let actual = instance
-        .invoke(&mut WorkMeter::unbounded())
+        .invoke(&mut TerminalFuelMeter::unbounded())
         .expect("helper executes");
     assert_eq!(
         actual,
@@ -346,7 +346,9 @@ fn reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors() {
             )
             .unwrap();
     }
-    let actual = instance.invoke(&mut WorkMeter::unbounded()).unwrap();
+    let actual = instance
+        .invoke(&mut TerminalFuelMeter::unbounded())
+        .unwrap();
     assert_eq!(
         actual,
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(scalar(73041, 64)))
@@ -523,7 +525,9 @@ fn mixed_parameters_rejoin_checked_dense_coordinate() {
             )
             .unwrap();
     }
-    let actual = instance.invoke(&mut WorkMeter::unbounded()).unwrap();
+    let actual = instance
+        .invoke(&mut TerminalFuelMeter::unbounded())
+        .unwrap();
     assert_eq!(
         actual,
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(scalar(60, 64)))

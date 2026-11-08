@@ -1,8 +1,3 @@
-// Contract name-path expression projection and 32-bit portable ordinal conversion.
-// Compiler carrier members (`BuiltinTypeMember`) have closed semantic identity
-// rather than package provenance, so exact symbol lookup keeps authored same-spelled
-// names on the nominal route while preserving builtin carrier members symbolically.
-
 use super::members::{
     AuthoredMember, checked_contract_member_path, data_predicate_subject,
     data_subject_binder_position, is_data_subject_field_expression,
@@ -150,6 +145,9 @@ pub(crate) fn project_contract_name_expression(
         if !path.symbol.is_valid() {
             return Err(context.rejected("contract contains an unresolved name expression"));
         }
+        // Compiler carrier members have closed semantic identity, not package
+        // provenance. Exact symbol lookup keeps authored same-spelled names
+        // on the nominal route and preserves the selected model symbolically.
         if let Some(member) = compilation.symbols.builtin_type_member(path.symbol) {
             return Ok(PackageReviewContractExpression::BuiltinTypeMember(member));
         }
@@ -207,6 +205,8 @@ pub(crate) fn project_contract_name_expression(
     })
 }
 
+/// A reviewed ordinal (a parameter position, a lane position) must fit the
+/// 32-bit portable identity range that canonical package-review bytes carry.
 pub(crate) fn portable_ordinal(position: usize) -> Result<u32, Vec<Diagnostic>> {
     u32::try_from(position).map_err(|_| {
         vec![Diagnostic::error(

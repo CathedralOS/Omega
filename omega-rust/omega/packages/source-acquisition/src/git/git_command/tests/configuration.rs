@@ -1,6 +1,3 @@
-// Unit tests verifying the sealed Git command environment variables and `-c`
-// protocol/security arguments.
-
 use super::{
     GitExecutionTransport, ResolverExecutionPhase, sealed_git_command, test_system_git_executor,
 };

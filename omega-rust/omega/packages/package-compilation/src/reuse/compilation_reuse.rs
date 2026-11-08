@@ -1,9 +1,9 @@
-// Exact input equivalence keys (`SourceAssemblyInputs`, `ProductSourceInputs`)
-// for source assembly, resolution, and typing checkpoints. These keys project
-// only the source content, package scopes, generated-source bytes, and
-// entry-contract supplier selections that affect frontend preparation; every
-// consumer still validates live package closure, target custody, and consumed
-// source bytes before admitting a reused checkpoint.
+//! Exact input equivalence for source preparation.
+//!
+//! These keys describe content, not admission. Every child still validates its
+//! package closure and generated-source execution/target custody before reuse.
+//! Producer stamps do not alter imported bytes, but source scope and package
+//! ownership do. These keys authorize neither Build execution nor target selection.
 
 use crate::source::source_imports::EntryContractSource;
 use crate::{PackageCompilationInputs, PackageCompilationSourceInputs};
@@ -13,6 +13,14 @@ use semantic_vocabulary::PackageKeyIdentity;
 use std::sync::Arc;
 use target::TargetProfile;
 
+/// Input content observed by source assembly, resolution and typing within one
+/// immutable parse checkpoint. Entry bindings partition this frontier only
+/// when they select different source suppliers. Every target's contracts join
+/// assembly, so target-specific nominations of one supplier must share it.
+/// Complete binding records remain separate execution and admission inputs.
+/// Supplier presence is only a source-routing observation: checkpoint reuse
+/// still validates live custody, and source sealing rechecks the consumed bytes
+/// before issuing a checked product. This key cannot attest filesystem contents.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct SourceAssemblyInputs {
     build_execution_profile: Option<TargetProfile>,
@@ -40,6 +48,10 @@ impl SourceAssemblyInputs {
     }
 }
 
+/// Exact source inputs to a Product frontend. Target attachments and semantic
+/// binding admissions do not partition source assembly, resolution, or typing;
+/// entry contract source selection is already recorded in `SourceAssemblyInputs`,
+/// and custody/semantic bindings are still admitted per occurrence.
 #[derive(Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductSourceInputs {
     assembly: SourceAssemblyInputs,
@@ -56,6 +68,10 @@ impl ProductSourceInputs {
     }
 }
 
+/// The source projection used by preparation. Generated bundles
+/// retain only the scope, package and bytes assembly consumes. Their producing
+/// target, dependency closure and source commitment remain admission evidence
+/// on PackageCompilationInputs, checked separately for each child.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct PackageSourceContent {
     purpose: DependencyPurpose,

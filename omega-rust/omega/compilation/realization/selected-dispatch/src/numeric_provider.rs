@@ -1,5 +1,5 @@
-// Numeric execution consumes Psi declarations; only selected-plan association
-// remains here. Review supplies its candidate separately from checked custody.
+//! Numeric execution consumes Psi declarations; only selected-plan association
+//! remains here. Review supplies its candidate separately from checked custody.
 
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow};

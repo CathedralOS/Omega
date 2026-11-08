@@ -1,5 +1,3 @@
-// Canonical encoding for calling-policy applications and declaration ABIs.
-
 use super::super::encoder::encode_canonical_component;
 use super::{Encoder, PackageReviewEncodingError, callbacks, opaque, ordinal, type_identity};
 use crate::encoding::encode::declarations::{
@@ -19,6 +17,7 @@ impl PackagePolicyCallingPlan {
     );
 }
 
+/// Inner semantic fields share their enclosing component's writer budget.
 pub(crate) fn encode_application(
     encoder: &mut Encoder,
     application: &PackagePolicyCallingPlan,

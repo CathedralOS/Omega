@@ -1,22 +1,8 @@
-/*
-We admit and prepare Build invocations while retaining pending Product
-implementations (`BuildSourceInvocation`) and completing the Product frontend
-once Build settles (`complete_product_frontend`).
-
-Dependency preparation needs Build's result and declaration descriptions, not an
-executable whole-package Product. When an actual Product demand arrives, we
-consume its retained Build once, complete the authored module closure, and parse
-and type any generated source extension without replaying Build effects.
-*/
-
-/*
-For the core Build (`BuildSourcePurpose::Defaults`), we speculatively type its
-Product sources on a forked `SourcePreparation` (`SpeculativeProduct`) in
-parallel with Build evaluation preparation. The fork is adopted on the compile
-thread when the core Build completes iff no intervening Product query modified
-the preparation; if refused or failed, the ordinary sequential typing path runs
-unchanged.
-*/
+//! Admit and execute Build while retaining pending Product implementations.
+//!
+//! Dependency preparation needs Build's result and declaration descriptions,
+//! not an executable whole-package Product. An actual Product request completes
+//! its loaded module bodies, then types generated sources without replaying Build.
 
 use artifacts::compile_timings::CompileTimings;
 use compilation_products::{
@@ -42,12 +28,31 @@ pub(super) struct BuildSourceInvocation {
     speculative_product: Option<SpeculativeProduct>,
 }
 
+/// The core Build's Product frontend, typed while that Build is checked.
+///
+/// Completing the core Build always types its Product sources next, with no
+/// package inputs and the same execution profile, and nothing the check or
+/// the Build run produces feeds that typing. So the typing runs beside the
+/// check instead of after the Build returns.
+///
+/// It runs against a fork of the core preparation, never the preparation
+/// itself, so nothing it admits is visible until completion adopts it. The
+/// fork is taken and adopted on the compile thread at fixed points in the
+/// serial order: before the check starts and when the core Build completes.
+/// Adoption succeeds exactly when no source or frontend was admitted to the
+/// preparation between those points, which depends only on what the program
+/// does there (a Product query issued by the core Build), never on thread
+/// timing. Adopted, the preparation holds what typing after the return would
+/// have produced; refused or failed, the preparation is untouched and
+/// completion types the sources as before. Either way the output is the same.
 struct SpeculativeProduct {
     pending: compilation_products::DeferredProductCompilation,
     fork: compilation_products::PreparationFork,
     frontier: TypedCompilationFrontier,
 }
 
+/// Test seam: refuse every speculation, so tests can compare the refused path
+/// with the adopted one in a single process.
 static REFUSE_SPECULATION: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 static SPECULATIONS: [std::sync::atomic::AtomicU64; 2] = [
@@ -60,6 +65,7 @@ pub fn refuse_core_product_speculation(refuse: bool) {
     REFUSE_SPECULATION.store(refuse, std::sync::atomic::Ordering::Relaxed);
 }
 
+/// Speculative core Product frontends (adopted, refused) in this process.
 #[doc(hidden)]
 pub fn core_product_speculations() -> (u64, u64) {
     let load = |index: usize| SPECULATIONS[index].load(std::sync::atomic::Ordering::Relaxed);
@@ -71,6 +77,7 @@ fn type_core_product(
     fork: compilation_products::PreparationFork,
     build_execution_profile: Option<target::TargetProfile>,
 ) -> Result<SpeculativeProduct, Vec<Diagnostic>> {
+    // Core timings are never collected (its source is prepared without them).
     let mut timings = CompileTimings::default();
     let preparation = &fork.preparation;
     let (count, syntax) =
@@ -92,6 +99,8 @@ fn type_core_product(
     })
 }
 
+/// Consume a prepared typed program. Source preparation owns any reuse;
+/// declaration authority and Build effects are admitted for this activation.
 pub(super) fn prepare_build_invocation(
     root_path: &Path,
     child: CheckedExecutionRequest<'_>,
@@ -170,6 +179,8 @@ pub(super) fn prepare_build_invocation(
             },
             &mut timings,
         );
+        // A panicked or failed speculation leaves completion to type the
+        // sources itself, reporting whatever that ordinary path reports.
         let speculative_product = speculation
             .and_then(|worker| worker.join().ok())
             .and_then(Result::ok);
@@ -239,6 +250,7 @@ impl BuildSourceInvocation {
                 && preparation.adopt(&speculative.fork)?;
             SPECULATIONS[usize::from(!adopted)].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             if adopted {
+                // The frontier now names the preparation that holds its admissions.
                 let mut frontier = speculative.frontier;
                 frontier.preparation = preparation.clone();
                 speculative.pending.retain(
@@ -371,6 +383,9 @@ pub(super) fn prepare_settled_product(
             ) {
         settled.frontier
     } else {
+        // A default Build may already have typed its Product prefix. Different
+        // source-routing inputs need a fresh judgment from retained parsing,
+        // never a retagged typed program or another Build execution.
         let (frontier, prepared_timings) =
             super::prepare_typed_frontier(settled.parsed, inputs, settled.build_execution_profile)?;
         timings = prepared_timings;
@@ -424,6 +439,9 @@ fn complete_build_source(
         retained_check: retained_build_check,
     } = evaluated;
     if let Some(pending) = product_sources {
+        // Successful Build return currently implies its dependency requests
+        // have all joined (the executor refuses any unresolved request). Final
+        // ownership precedes Product typing; never retag the private judgment.
         let inputs =
             package_compilation::ProductSourceInputs::new(package_inputs, build_execution_profile);
         let product = match pending.retained(&inputs, package_inputs)? {
@@ -455,6 +473,9 @@ fn complete_build_source(
                 product
             }
         };
+        // The retained parsed input preserves declaration source coordinates.
+        // No display name, allocation order or old typed handle selects a body
+        // in this distinct Product context.
         let selected = match computed_build_config.selected_build_machine_symbol {
             Some(selected) => Some(product.source.rejoin_machine(&source, selected)?),
             None => None,
@@ -527,12 +548,16 @@ pub(super) fn lower_typed_frontier(
 ) -> Result<TypedCompilationFrontier, Vec<Diagnostic>> {
     let generated_source_custody = std::mem::take(&mut syntax.generated_source_custody);
     let base_sources = syntax.sources.clone();
+    // Only build helpers select an execution target here. Product families
+    // retain a canonical frontend shared by every requested product target.
     let build_scope_sources = std::mem::take(&mut syntax.build_scope_sources);
     let execution = execution_profile
         .or_else(target::TargetProfile::host_if_supported)
         .ok_or_else(|| vec![Diagnostic::error(
             "no target profile named and this host has no catalogued Omega deployment profile; name an exact target profile explicitly",
         )])?;
+    // Build execution still requires an implemented host shape, but that
+    // projection is not the identity used to choose source declarations.
     if execution.native_realization().is_none() {
         return Err(vec![Diagnostic::error(format!(
             "native realization for target profile `{}` is not implemented",
@@ -568,6 +593,9 @@ pub(super) fn lower_typed_frontier(
     })
 }
 
+/// An actual Product demand consumes its retained Build exactly once and
+/// completes the implementation sources already selected by its module closure.
+/// Generated source is a later stratum, never a reason to rerun authored Build.
 pub(super) fn complete_product_frontend(
     built: BuiltTypedProgram,
     sources: &mut BuildSourceCustody,
@@ -594,6 +622,8 @@ pub(super) fn complete_product_frontend(
     } = built;
     let source =
         source.complete_authored(&mut crate::observations::PsiStageTimings::new(timings))?;
+    // Package custody, generated-byte admission and parsing stay outside Psi's
+    // resolver/typing owner. No authored Build effects repeat on this path.
     let prepared = if let Some((extension, package_inputs)) = sources.admit_generated_extension(
         &base_sources,
         package_inputs,
@@ -610,6 +640,9 @@ pub(super) fn complete_product_frontend(
                 )]
             })?;
         let (sources, units) = extension.parse(&base_sources, timings)?;
+        // Extension failures can name generated units absent from base_sources.
+        // Resolve their spans before consuming the only map that owns those bytes;
+        // the outer authored-source handler preserves resolved locations.
         let diagnostic_sources = Arc::clone(&sources);
         source
             .extend(

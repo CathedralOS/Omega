@@ -1,10 +1,8 @@
-// Selection and admission of the authored `Build` entry machine
-// (`select_build_machine`, `admit_build_machine`). Rejects programs with more
-// than one build machine or build machines that reach runtime boundary services
-// outside compiler-owned `Build` protocols (`project_request` and
-// `BuildFilesystemOperations`), and selects `BuildMachineExecutionMode::Pure`
-// or `BuildMachineExecutionMode::Granted` based on transitive
-// `BuildFilesystemOperations` reach.
+//! Select the exact Build entry and admit its value protocol and host authority.
+//!
+//! Preparation and reach inference are supplied by the caller. This policy
+//! never executes authored code; runtime service reach cannot grant Build
+//! authority, and filesystem grants come only from the captured package scope.
 
 use super::BuildMachineFilesystemScope;
 use super::build_value::{BuildValueAdmission, is_build_machine};
@@ -15,6 +13,9 @@ use build_time_evaluation::{
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
+/// Selected activation inputs, retaining the prepared program's exact entry token.
+/// This record is not an executable checkpoint; evaluation must rejoin that token
+/// to the same prepared program. The compiler keeps both in its private carrier.
 pub struct SelectedBuildMachine {
     pub entry: PreparedBuildMachineEntry,
     pub symbol: SymbolHandle,
@@ -26,6 +27,8 @@ pub struct SelectedBuildMachine {
     pub initial_build: BuildTimeValue,
 }
 
+/// Select the authored entry before preparing an activation or granting resources.
+/// Source assembly supplies an ordinary default entry when no Build file exists.
 pub fn select_build_machine(
     typed: &typed_trees::TypedTrees,
     build_source_id: Option<source::SourceId>,
@@ -47,6 +50,8 @@ pub fn select_build_machine(
     Ok(Some(machine))
 }
 
+/// Admit the already-selected entry against its prepared program and host grants.
+/// Preparation preserves authored symbol identity; it does not repeat discovery.
 pub fn admit_build_machine(
     prepared: &PreparedBuildMachineProgram,
     machine_symbol: SymbolHandle,
@@ -75,6 +80,9 @@ pub fn admit_build_machine(
             })?;
     let value_admission = BuildValueAdmission::admit(typed)?;
 
+    // Build authority comes only from compiler-owned Build facets. Runtime
+    // boundary services remain ordinary program authority and are never
+    // admitted merely because a build machine reaches them.
     let transitive = service_reach_plan
         .for_machine(machine.symbol)
         .map(|entry| service_reach_plan.services(entry.inferred_transitive))
@@ -119,6 +127,8 @@ pub fn admit_build_machine(
             transitive_names.join(", "),
         ))]);
     }
+    // Reach follows the exact toolchain protocol through ordinary call edges.
+    // Helper spelling and unresolved calls cannot provision filesystem authority.
     let filesystem_reachable = transitive.iter().any(|service| {
         typed
             .service_reaches
@@ -134,6 +144,9 @@ pub fn admit_build_machine(
 
     let zero_build = value_admission.initial_value(typed, machine, filesystem_scope);
 
+    // Omega owns the grant decision. Psi owns the target-neutral interpreter
+    // entry selected by that explicit mode. BuildLog remains available in
+    // either mode without granting a runtime boundary service.
     let execution_mode = if !filesystem_reachable {
         BuildMachineExecutionMode::Pure
     } else {

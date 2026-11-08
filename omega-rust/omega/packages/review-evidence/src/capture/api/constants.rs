@@ -1,14 +1,3 @@
-/*
-Public constant declaration projection (`project_public_consts`).
-
-We verify that each public constant's `pending_target_observation` flag and
-authored initializer agree with immutable compiler custody. Target-dependent
-initializers project under `PrivateImplementation` selection exposure because
-the initializer is implementation even when the constant is public, whereas
-evaluated constants emit either their canonical encoded bytes or
-`semantic-nan:<format>` without committing to specific IEEE NaN payload bits.
-*/
-
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::facts::ContractProjectionContext;
@@ -62,6 +51,9 @@ pub(crate) fn project_public_consts<'a>(
                     identity.path
                 ))]);
             }
+            // An initializer is implementation, even when its value is public.
+            // It can depend on private types/callables without exporting them.
+            // No runtime proof owner or target evaluation entry is invented.
             let context = ContractProjectionContext {
                 subject_kind: "constant",
                 subject_name: &identity.path,
@@ -91,6 +83,7 @@ pub(crate) fn project_public_consts<'a>(
                     identity.path
                 ))]);
             };
+            // Semantic NaN is not a request for particular IEEE image bits.
             PackageReviewConstMeaning::Evaluated(match value {
                 language_core::constant_value::EvaluatedConstant::Encoded(encoding) => {
                     encoding.clone()

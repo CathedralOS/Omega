@@ -1,24 +1,9 @@
-/*
-Unit tests for bounded file reads and drift rejection (`read_opened_file_bounded`,
-`read_capability_file_bounded`, and `require_unchanged_entry`).
-
-`SourceFixture::replace_bytes` advances the file modification time explicitly via
-`set_times` rather than sleeping so changed metadata is distinguishable on
-coarse-clock filesystems. On Windows, `missing_file_identity_rejects_without_panicking`
-constructs incomplete `Metadata::from_just_metadata` from `DirEntry::metadata`
-to verify that missing volume/file-index identity rejects fail-closed. Non-Unix
-runs explicitly log the skipped Unix symlink-retarget and mode-change legs.
-*/
-
-#[cfg(unix)]
-use super::read_capability_file_bounded;
-use super::read_opened_file_bounded;
+use super::{read_capability_file_bounded, read_opened_file_bounded};
 use crate::SourceResolveError;
 use crate::test_support::temp_root;
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::ambient_authority;
 use cap_std::fs::{Dir, File, Metadata, OpenOptions};
-#[cfg(unix)]
 use std::ffi::OsStr;
 use std::fs::FileTimes;
 use std::io::Write;
@@ -58,6 +43,8 @@ impl SourceFixture {
             .open(self.root.join("source.bin"))
             .expect("retain source writer");
         writer.write_all(bytes).expect("replace bytes in same file");
+        // No clock sleeps: make the changed metadata distinguishable even on
+        // a filesystem whose automatic modification times have coarse resolution.
         writer
             .set_times(
                 FileTimes::new().set_modified(
@@ -100,6 +87,10 @@ fn bounded_copy_rejects_growth_within_the_remaining_budget() {
 fn missing_file_identity_rejects_without_panicking() {
     let fixture = SourceFixture::new(b"bytes");
     let path = fixture.root.join("source.bin");
+    // Path metadata carries volume and file index on this toolchain, so the
+    // incomplete observation must come from directory enumeration — the same
+    // `DirEntry::metadata` source cap-std feeds `Metadata::from_just_metadata`
+    // when listing a directory.
     let entry = std::fs::read_dir(&fixture.root)
         .expect("list fixture root")
         .next()
@@ -158,6 +149,10 @@ fn bounded_copy_rejects_executable_mode_changes_and_preserves_stable_modes() {
     }
 }
 
+/// The link-retarget, in-place-restore, and mode-change rejection legs above
+/// depend on unix symlink spelling, kernel change time, and permission bits;
+/// none exist on this host. Record the absent coverage explicitly rather
+/// than letting a non-unix run drop it silently.
 #[cfg(not(unix))]
 #[test]
 fn unix_mutable_copy_drift_legs_recorded_as_unavailable_on_this_host() {

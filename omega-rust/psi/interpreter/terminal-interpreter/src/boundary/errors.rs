@@ -3,11 +3,11 @@
 
 use crate::boundary::effects::TerminalEffectRejection;
 use crate::boundary::results::TerminalCrash;
-use psi_work::WorkMeterError;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType, StructuralDomainId,
     StructuralFieldId, StructuralTypeId, ValueId,
 };
+use terminal_fuel::FuelMeterError;
 use terminal_psi::CrashCause;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -249,7 +249,7 @@ pub enum TerminalInterpretError {
         reason: crate::boundary::effects::crash_outcome::BoundaryCrashOutcomeError,
     },
     Crash(TerminalCrash),
-    Work(WorkMeterError),
+    Fuel(FuelMeterError),
     Storage(evaluation_accounting::EvaluationAccountingError),
     StorageAllocationFailed {
         requested_bytes: usize,
@@ -298,9 +298,9 @@ impl TerminalInterpretError {
     }
 }
 
-impl From<WorkMeterError> for TerminalInterpretError {
-    fn from(error: WorkMeterError) -> Self {
-        Self::Work(error)
+impl From<FuelMeterError> for TerminalInterpretError {
+    fn from(error: FuelMeterError) -> Self {
+        Self::Fuel(error)
     }
 }
 
@@ -336,7 +336,7 @@ impl std::fmt::Display for TerminalInterpretError {
             } => {
                 write!(formatter, "{} at {operation:?}", rejection.reason)
             }
-            Self::Work(reason) => reason.fmt(formatter),
+            Self::Fuel(reason) => reason.fmt(formatter),
             Self::Storage(reason) => reason.fmt(formatter),
             other => write!(formatter, "{other:?}"),
         }

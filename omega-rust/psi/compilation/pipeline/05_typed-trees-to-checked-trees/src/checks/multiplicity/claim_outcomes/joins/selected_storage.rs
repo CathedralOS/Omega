@@ -49,7 +49,7 @@ pub(super) fn selection_routes_agree(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn expand_storage_frontier(
     program: &dyn validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &checked_trees::CheckFacts,
     state: &typed_trees::state::State,
     events: &[FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],

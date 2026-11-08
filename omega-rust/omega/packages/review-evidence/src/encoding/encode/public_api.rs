@@ -1,4 +1,4 @@
-// Public API declaration encoding sharing the enclosing baseline writer and budgets.
+//! Full policy declarations share the enclosing baseline writer and budgets.
 
 use crate::record::PackagePolicyPublicApi;
 pub(super) mod declarations;

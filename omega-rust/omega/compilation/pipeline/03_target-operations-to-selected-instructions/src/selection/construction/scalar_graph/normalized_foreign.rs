@@ -31,7 +31,7 @@ pub(super) enum Invocation<'source> {
         edge: semantic_vocabulary::EdgeId,
         effect: optimization_unit::EffectLink,
         ownership: &'source [optimization_unit::OwnershipEvent],
-        work: &'source [optimization_unit::WorkSettlement],
+        fuel: &'source [optimization_unit::FuelSettlement],
     },
 }
 
@@ -69,25 +69,25 @@ pub(super) fn emit_invocation(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let (invocation_site, operation, effect, ownership, work) = match invocation {
+    let (invocation_site, operation, effect, ownership, fuel) = match invocation {
         Invocation::Operation(operation) => (
             operation.operation.into(),
             Some(operation),
             operation.effect,
             operation.ownership.as_slice(),
-            operation.work.as_slice(),
+            operation.fuel.as_slice(),
         ),
         Invocation::ExternalCompletion {
             edge,
             effect,
             ownership,
-            work,
+            fuel,
         } => (
             InvocationSite::ExternalCompletion(edge),
             None,
             effect,
             ownership,
-            work,
+            fuel,
         ),
     };
     let result = operation.and_then(|operation| operation.result);
@@ -368,7 +368,7 @@ pub(super) fn emit_invocation(
                 .map(|argument| argument.source.source_value())
                 .chain(result.map(|result| result.value))
                 .collect(),
-            work: work.to_vec(),
+            fuel: fuel.to_vec(),
             ..Default::default()
         },
     )?;

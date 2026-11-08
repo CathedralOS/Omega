@@ -1,10 +1,4 @@
-// Final custody revalidation and `ResolvedGitSource` issuance
-// (`finalize_git_resolution`).
-//
-// Re-verifies the entry lock, cache root custody, entry custody, and published
-// snapshot bytes (`verify_pending_git_snapshot`), checks that `PendingResolvedGitSource`
-// matches the validated `GitSourceRequest` and object formats, and records the
-// final `GitRetainedStorageCustody` measurement.
+//! Revalidate direct source custody and issue the final immutable result.
 
 use crate::custody::lock::CacheEntryLock;
 use crate::custody::tree::{verify_git_cache_custody, verify_git_cache_root_custody};

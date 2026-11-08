@@ -82,8 +82,7 @@ pub(super) fn replay_provider_executions(
                 (boundary, BoundaryCompletion::External(kind))
             }
             target_operations::CallSiteOwner::InvokeNoNormal(_)
-            | target_operations::CallSiteOwner::CleanupAction { .. }
-            | target_operations::CallSiteOwner::Installation { .. } => {
+            | target_operations::CallSiteOwner::CleanupAction { .. } => {
                 return Err(ProviderExecutionReplayError::MissingForeignOperationOwner);
             }
         };

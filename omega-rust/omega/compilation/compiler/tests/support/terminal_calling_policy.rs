@@ -241,7 +241,7 @@ pub(super) fn observe(
             return Err("reference calling fixture did not preserve its pointer geometry".into());
         }
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         };
         let sponsor = BuildEvaluationSponsor::new_with_measurement(
@@ -297,7 +297,7 @@ pub(super) fn observe(
             return Err("calling fixture did not produce its authored word-sized ABI".into());
         }
         if usage.total_units() == 0 {
-            return Err("calling fixture recorded no execution work".into());
+            return Err("calling fixture recorded no execution fuel".into());
         }
         // Loading a serialized calling program must still check its conditions.
         // Reject a false module predicate even when the calling code is valid.
@@ -410,9 +410,9 @@ pub(super) fn observe(
                 "calling shape control reached an unrelated refusal: {error}"
             ));
         }
-        for (control, description, work) in [
+        for (control, description, fuel) in [
             ("rejection", rejected, 1_000_000),
-            ("work", description, 1),
+            ("fuel", description, 1),
             ("target", description, 1_000_000),
         ] {
             let signature =
@@ -424,7 +424,7 @@ pub(super) fn observe(
                 target
             };
             let account = sponsor
-                .begin_invocation(measurement, work)
+                .begin_invocation(measurement, fuel)
                 .map_err(|error| error.to_string())?;
             let error = evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
                 artifact,
@@ -448,7 +448,7 @@ pub(super) fn observe(
             .ok_or_else(|| format!("calling policy accepted {control} control"))?;
             let expected = match control {
                 "rejection" => "scalar result required",
-                "work" => "BudgetExhausted(Work)",
+                "fuel" => "AllowanceExhausted(Fuel)",
                 _ => "target differs",
             };
             if !error.contains(expected) {

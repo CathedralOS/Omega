@@ -1,8 +1,3 @@
-// Unit tests for `git cat-file --batch-check` response parsing, offline exact
-// object probing, launch/timeout/output budget errors (where cleanup failures
-// take precedence over output overflow on hosts that refuse container
-// termination), and detached repository custody rejection.
-
 use super::{
     ExactGitObjectAvailability, ExactGitObjectKind, GitExecutor, OPERATION, SourceResolveError,
     VerifiedGitRepository, probe_exact_git_object, protocol,
@@ -223,6 +218,9 @@ fn command_time_and_output_limits_are_errors_not_availability() {
     executor.captured_output_budget = GitCapturedOutputBudget::new(0);
     let error =
         probe_exact_git_object(&executor, &fixture.repository, &fixture.commit).unwrap_err();
+    // The process owner gives a cleanup failure precedence over an output
+    // overflow when the host refuses process-container termination. Both must
+    // remain errors; neither can authorize an exact-revision fetch.
     match error {
         SourceResolveError::GitResolutionCapturedOutputLimit {
             ceiling: 0,

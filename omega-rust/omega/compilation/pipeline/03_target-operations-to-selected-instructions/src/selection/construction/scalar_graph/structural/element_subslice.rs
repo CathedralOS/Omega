@@ -141,7 +141,7 @@ pub(super) fn create(
             operations: vec![row.operation],
             values: vec![*start, *end, *length],
             obligations: vec![*obligation],
-            work: row.work.clone(),
+            fuel: row.fuel.clone(),
             ..Default::default()
         },
     )?;

@@ -50,7 +50,6 @@ pub(crate) fn substitute_machine_parameter_type_references(
 }
 
 pub(crate) fn substitute_forwarded_machine_arguments(
-    expressions: &mut typed_trees::expression::ExpressionTable,
     arguments: &mut [StaticMachineArgument],
     static_rewrites: &[(SymbolHandle, StaticMachineArgument)],
     rewrites: &[(SymbolHandle, SymbolHandle, typed_trees::name::Identifier)],
@@ -73,27 +72,10 @@ pub(crate) fn substitute_forwarded_machine_arguments(
         }
         if let Some(application) = &mut argument.application {
             substitute_forwarded_machine_arguments(
-                expressions,
                 &mut application.arguments,
                 static_rewrites,
                 rewrites,
             );
-            if application.member.is_valid() {
-                let mut member = expressions
-                    .static_member(application.member)
-                    .expect("qualified static member belongs to its receiving expression table")
-                    .clone();
-                substitute_forwarded_machine_arguments(
-                    expressions,
-                    std::slice::from_mut(&mut member),
-                    static_rewrites,
-                    rewrites,
-                );
-                *expressions
-                    .static_member_mut(application.member)
-                    .expect("qualified static member remains in its receiving expression table") =
-                    member;
-            }
         }
     }
 }

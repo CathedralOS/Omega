@@ -1,4 +1,4 @@
-// Public and nested generic-signature projection entrypoints.
+//! Public and nested generic-signature projection.
 
 mod callable_scope;
 pub(crate) use callable_scope::callable_declaration_scope;

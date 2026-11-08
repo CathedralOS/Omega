@@ -1,19 +1,18 @@
-/*
-Canonical encoding and bounded recovery (`PendingPackageChange`) for inert pending-review proposals (`omega-package-proposal 2`).
-
-Version 2 uses fixed-order LF rows, lowercase hexadecimal digests, and canonical target
-identities sorted strictly ascending by `target.target_name()`. Each `proposed-build N`
-or `source N` row precedes exactly `N` UTF-8 bytes and one framing LF before `end\n`
-closes the envelope.
-*/
-
-/*
-The caller's root build-input selection is retained as `build-inputs absent` or
-`build-inputs present` followed by `build-input-count N` and strictly byte-ordered
-`build-input required|optional` / `build-input-path N` frames so an empty explicit
-inventory remains distinct from the absent default. Version 1 proposals cannot retain
-that distinction and are rejected with `--discard-review` guidance.
-*/
+//! Inert pending-review input, with no acceptance or compiler authority.
+//!
+//! Version 2 uses fixed-order LF rows, lowercase hexadecimal digests, and
+//! canonical target identities. Targets are strictly ascending by
+//! `target.target_name()` (not enum order).
+//! Each `proposed-build N` / `source N` row precedes exactly N UTF-8 bytes and
+//! one framing LF, even when the payload already ends in LF. `end\n` closes
+//! the envelope. Kind and old-project digests only support stale-state checks.
+//! The caller's root inventory is retained as `build-inputs absent`, or
+//! `build-inputs present` followed by `build-input-count N` and strictly
+//! byte-ordered `build-input required|optional` / `build-input-path N` frames.
+//! Path payloads use the same length-plus-LF framing as source text. An empty
+//! explicit inventory differs from the absent default. Version 1 cannot retain
+//! that distinction and rejects; callers may discard its pending review and
+//! start again. Decoding input intent never supplies capture or review evidence.
 
 mod framing;
 
@@ -29,6 +28,8 @@ use target::TargetProfile;
 const HEADER: &str = "omega-package-proposal 2";
 const MAXIMUM_TEXT_BYTES: usize = 128 * 1024 * 1024;
 const MAXIMUM_TARGETS: usize = 32;
+// Match capture's non-root entry ceiling and aggregate relative-path byte
+// budget. Optional absent entries still consume pending-review storage.
 const MAXIMUM_BUILD_INPUTS: usize =
     filesystem_authority::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT - 1;
 const MAXIMUM_BUILD_INPUT_PATH_BYTES: usize =
@@ -82,6 +83,8 @@ impl PendingPackageChange {
         Ok(writer.finish())
     }
 
+    /// Decode bounded data only. Source acquisition, live-project comparison,
+    /// fresh compilation, and review decisions remain command operations.
     pub(super) fn recover(text: &str) -> Result<Self, String> {
         if text.len() > MAXIMUM_TEXT_BYTES {
             return Err("package proposal exceeds text byte limit".into());
@@ -105,6 +108,7 @@ impl PendingPackageChange {
         if count == 0 {
             return Err("package proposal targets must be nonempty".into());
         }
+        // Keep untrusted target rows on the stack until every frame is checked.
         let mut targets = [TargetProfile::CrossPlatformCli; MAXIMUM_TARGETS];
         for target in &mut targets[..count] {
             let identity = reader.field("target")?;
@@ -122,6 +126,8 @@ impl PendingPackageChange {
         reader.expect("end")?;
         reader.finish()?;
 
+        // The source codec checks its own counts, canonical text and graph
+        // consistency. Successful recovery issues no compiler evidence.
         let source = CanonicalSourceClosureSubject::recover_text(source_text, source_limits)
             .map_err(|error| error.to_string())?;
         validate_targets(targets, source.target_profile())?;

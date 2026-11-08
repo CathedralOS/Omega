@@ -209,7 +209,7 @@ fn callable_entry_parameter(
         .control
         .state(entry.machine_symbol, entry.state_symbol)
         .ok_or("callee lineage entry has no state flow")?;
-    let origins = crate::flow::state_exit_parameter_origins(facts.view(), flow);
+    let origins = crate::flow::state_exit_parameter_origins(facts, flow);
     let mut matching = origins
         .iter()
         .filter(|origin| origin.state_parameter == parameter);

@@ -1,11 +1,4 @@
-// Revision selection intent (`GitRevisionSelection`, `RecordedGitRevision`)
-// separating floating/pinned ordinary requests from exact recorded revisions.
-//
-// Determines whether a missing cache entry may be created and fetched
-// (`permits_new_acquisition`), whether a known object algorithm applies at
-// cache creation (`known_object_algorithm`), whether an absent cache entry
-// fails with `GitExactRevisionUnavailable` (`offline_unavailable`), and which
-// revision string a fetch targets (`fetch_revision`).
+//! Selection intent is separate from authenticated source custody.
 
 use crate::error::SourceResolveError;
 use crate::git::objects::authentication::verify_exact_git_revision;
@@ -95,6 +88,9 @@ impl<'a> GitRevisionSelection<'a> {
         }
     }
 
+    /// A missing retained entry may be acquired only when the selection
+    /// authorizes transport: an unpinned ordinary request, or a recorded
+    /// revision explicitly admitted for fetch.
     pub(super) fn permits_new_acquisition(self) -> bool {
         match self {
             Self::Ordinary(pin) => pin.is_none(),
@@ -104,6 +100,9 @@ impl<'a> GitRevisionSelection<'a> {
         }
     }
 
+    /// The object format a created cache entry must assume, when the selection
+    /// already names one. An ordinary request lets the fetched commit select
+    /// its own format.
     pub(super) fn known_object_algorithm(self) -> Option<GitObjectIdAlgorithm> {
         match self {
             Self::Ordinary(_) => None,
@@ -111,6 +110,8 @@ impl<'a> GitRevisionSelection<'a> {
         }
     }
 
+    /// The recorded revision's own absence failure, when the selection refuses
+    /// transport and the retained cache holds no such entry.
     pub(super) fn offline_unavailable(self) -> Option<SourceResolveError> {
         match self {
             Self::Recorded(recorded)
@@ -122,6 +123,8 @@ impl<'a> GitRevisionSelection<'a> {
         }
     }
 
+    /// The revision a fetch of this selection targets: the recorded commit, or
+    /// the request's own revision for ordinary resolution.
     pub(super) fn fetch_revision(self, requested_rev: &'a str) -> &'a str {
         match self {
             Self::Ordinary(_) => requested_rev,

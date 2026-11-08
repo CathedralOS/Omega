@@ -1,5 +1,3 @@
-// Canonical type identities, static parameter kinds, machine parameter contracts, and alpha-normalized conformance bounds.
-
 use crate::record::PackageReviewCallableContract;
 use crate::record::PackageReviewCrashRoute;
 use crate::record::PackageReviewDataProperties;
@@ -22,9 +20,14 @@ impl PackageReviewTypeIdentity {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewTypeParameterKind {
     Type,
-    Implementation, // Positional implementation selection whose contract lives in declaration-ordered conformance bounds.
+    /// A positional implementation selection; its exact contract is retained
+    /// in the owner's declaration-ordered conformance bounds.
+    Implementation,
     Const(PackageReviewTypeIdentity),
-    Value(PackageReviewTypeIdentity), // Runtime-capable value binder kept distinct from `const`.
+    /// A runtime-capable value binder; today only statically supplied
+    /// arguments specialize it, but the kind must not be republished as
+    /// `const`.
+    Value(PackageReviewTypeIdentity),
     Machine(PackageReviewMachineParameterContract),
     Proposition(PackageReviewPropositionParameterSignature),
 }
@@ -51,7 +54,8 @@ pub(crate) enum PackageReviewMachineParameterContract {
     Nominal {
         trait_identity: PackageReviewNominalIdentity,
         requirement_identity: PackageReviewNominalIdentity,
-        trait_arguments: Vec<PackageReviewTypeIdentity>, // Binder's trait application, empty for a parameterless trait.
+        /// The binder's trait application, empty for a parameterless trait.
+        trait_arguments: Vec<PackageReviewTypeIdentity>,
     },
     RequirementIdentity,
 }
@@ -91,6 +95,11 @@ pub(crate) struct PackageReviewTypeParameter {
     pub(crate) bounds: PackageReviewDataProperties,
 }
 
+/// One evidence binder in a public signature: `Order satisfies Ranked<T>`.
+///
+/// The binder is alpha-normalized to `binder_ordinal`, its position among the
+/// declaration's evidence binders. The trait application carries every data
+/// type the interface names; there is no subject parameter.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewConformanceBound {
     pub(crate) binder_ordinal: u32,

@@ -1,5 +1,4 @@
-// Dependency-first scheduling and occurrence-qualified staging names.
-// `package_build_root` encodes the package key digest, content digest, and dependency purpose directly into one child directory of the session root rather than creating intermediate directories outside the filesystem sponsor's creation protocol.
+//! Dependency-first scheduling and occurrence-qualified staging names.
 
 use crate::declarations::DependencyPurpose;
 use crate::declarations::PackageKey;
@@ -47,6 +46,9 @@ pub(crate) fn package_build_root(
     resolution: &ImmutableSourceResolution,
     purpose: DependencyPurpose,
 ) -> PathBuf {
+    // The staging sponsor creates one child of the existing session root.
+    // Encode the occurrence in that child name rather than inventing an
+    // intermediate directory outside the sponsor's creation protocol.
     build_root.join(format!(
         "{}-{}-{}",
         crate::Hex(&key.identity().digest()),

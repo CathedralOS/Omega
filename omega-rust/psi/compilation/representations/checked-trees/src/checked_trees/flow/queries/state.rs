@@ -5,7 +5,6 @@ use super::super::{
     FlowCallFact, FlowConstraintRef, FlowFacts, FlowInvalidationFact, FlowInvalidationSource,
     FlowStateFact, FlowStatementFact,
 };
-use crate::FlowFactsRef;
 
 impl FlowFacts {
     pub fn state_statement(
@@ -13,7 +12,11 @@ impl FlowFacts {
         state: &FlowStateFact,
         statement_index: usize,
     ) -> Option<&FlowStatementFact> {
-        self.view().state_statement(state, statement_index)
+        self.control
+            .statements
+            .span_or_empty(state.statements)
+            .iter()
+            .find(|statement| statement.statement_index == statement_index)
     }
 
     pub fn state_call(
@@ -24,81 +27,6 @@ impl FlowFacts {
         target_symbol: SymbolHandle,
         receiver_symbol: SymbolHandle,
     ) -> Option<&FlowCallFact> {
-        self.view().state_call(
-            state,
-            statement_index,
-            call_ordinal,
-            target_symbol,
-            receiver_symbol,
-        )
-    }
-
-    pub fn state_call_entry_constraints(
-        &self,
-        state: &FlowStateFact,
-        statement_index: usize,
-        call_ordinal: usize,
-        target_symbol: SymbolHandle,
-        receiver_symbol: SymbolHandle,
-    ) -> HandleSpan<FlowConstraintRef> {
-        self.view().state_call_entry_constraints(
-            state,
-            statement_index,
-            call_ordinal,
-            target_symbol,
-            receiver_symbol,
-        )
-    }
-
-    pub fn state_call_entry_semantic_contexts(
-        &self,
-        state: &FlowStateFact,
-        statement_index: usize,
-        call_ordinal: usize,
-        target_symbol: SymbolHandle,
-        receiver_symbol: SymbolHandle,
-    ) -> impl Iterator<Item = facts::FactContextHandle> + '_ {
-        self.view().state_call_entry_semantic_contexts(
-            state,
-            statement_index,
-            call_ordinal,
-            target_symbol,
-            receiver_symbol,
-        )
-    }
-
-    pub fn state_call_prior_invalidations<'a>(
-        &'a self,
-        state: &'a FlowStateFact,
-        call: &'a FlowCallFact,
-    ) -> impl Iterator<Item = &'a FlowInvalidationFact> + 'a {
-        self.view().state_call_prior_invalidations(state, call)
-    }
-}
-
-/// The same queries on a shared view, so a pass holding the flow facts split
-/// field by field (the permission walk) answers them identically.
-impl<'f> FlowFactsRef<'f> {
-    pub fn state_statement(
-        self,
-        state: &FlowStateFact,
-        statement_index: usize,
-    ) -> Option<&'f FlowStatementFact> {
-        self.control
-            .statements
-            .span_or_empty(state.statements)
-            .iter()
-            .find(|statement| statement.statement_index == statement_index)
-    }
-
-    pub fn state_call(
-        self,
-        state: &FlowStateFact,
-        statement_index: usize,
-        call_ordinal: usize,
-        target_symbol: SymbolHandle,
-        receiver_symbol: SymbolHandle,
-    ) -> Option<&'f FlowCallFact> {
         self.control
             .calls
             .span_or_empty(state.calls)
@@ -112,7 +40,7 @@ impl<'f> FlowFactsRef<'f> {
     }
 
     pub fn state_call_entry_constraints(
-        self,
+        &self,
         state: &FlowStateFact,
         statement_index: usize,
         call_ordinal: usize,
@@ -135,13 +63,13 @@ impl<'f> FlowFactsRef<'f> {
     }
 
     pub fn state_call_entry_semantic_contexts(
-        self,
+        &self,
         state: &FlowStateFact,
         statement_index: usize,
         call_ordinal: usize,
         target_symbol: SymbolHandle,
         receiver_symbol: SymbolHandle,
-    ) -> impl Iterator<Item = facts::FactContextHandle> + use<'f> {
+    ) -> impl Iterator<Item = facts::FactContextHandle> + '_ {
         self.semantic_constraint_contexts(self.state_call_entry_constraints(
             state,
             statement_index,
@@ -152,13 +80,10 @@ impl<'f> FlowFactsRef<'f> {
     }
 
     pub fn state_call_prior_invalidations<'a>(
-        self,
+        &'a self,
         state: &'a FlowStateFact,
         call: &'a FlowCallFact,
-    ) -> impl Iterator<Item = &'f FlowInvalidationFact> + 'a
-    where
-        'f: 'a,
-    {
+    ) -> impl Iterator<Item = &'a FlowInvalidationFact> + 'a {
         self.invalidations
             .events
             .span_or_empty(state.invalidations)

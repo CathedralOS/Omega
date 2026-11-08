@@ -5,7 +5,7 @@
 //! virtual registers and operand uses; `instructions` owns executable forms.
 //! `calls` retains the distinct structural ABI shapes. `constraints` and
 //! `effects` describe target restrictions; `provenance` retains semantic,
-//! proof and work links. Physical homes belong to the allocated representation.
+//! proof and fuel links. Physical homes belong to the allocated representation.
 //! `liveness` and `live_ranges` retain facts about this selected program and
 //! their canonical identities, without granting analysis admission authority.
 //!
@@ -116,7 +116,7 @@ pub use structural_case::{
 };
 pub use values::{SelectedOperand, VirtualRegister, VirtualRegisterOrigin};
 
-use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
+use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
 impl SelectedInstructionPlan {
@@ -134,7 +134,7 @@ impl SelectedInstructionPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedInstructionPlan {
     pub psi: TerminalPsiIdentity,
-    pub work_schedule: WorkScheduleIdentity,
+    pub fuel_schedule: FuelScheduleIdentity,
     pub target: NativeTarget,
     pub entry: MachineId,
     pub functions: SelectedFunctions,
@@ -147,7 +147,7 @@ pub struct SelectedProgram {
     pub plan: std::sync::Arc<SelectedInstructionPlan>,
     pub identity: SelectedInstructionPlanIdentity,
     pub optimization_unit: optimization_core::OptimizationUnitIdentity,
-    pub work_schedule: WorkScheduleIdentity,
+    pub fuel_schedule: FuelScheduleIdentity,
 }
 
 impl SelectedProgram {
@@ -167,8 +167,8 @@ impl SelectedProgram {
         self.optimization_unit
     }
 
-    pub const fn work_schedule(&self) -> WorkScheduleIdentity {
-        self.work_schedule
+    pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
+        self.fuel_schedule
     }
 }
 
@@ -181,5 +181,5 @@ pub struct CurrentSelectedProgram<'plan> {
     pub plan: &'plan SelectedInstructionPlan,
     pub identity: SelectedInstructionPlanIdentity,
     pub optimization_unit: optimization_core::OptimizationUnitIdentity,
-    pub work_schedule: WorkScheduleIdentity,
+    pub fuel_schedule: FuelScheduleIdentity,
 }

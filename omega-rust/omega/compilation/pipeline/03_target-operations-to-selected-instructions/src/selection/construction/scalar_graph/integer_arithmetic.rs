@@ -378,7 +378,7 @@ pub(super) fn emit(
                 // carrier is MIN / -1, whose widened i64 value is
                 // -MIN; truncating it back to the carrier is the
                 // wrapped MIN. This private normalization adds no
-                // source operation or work.
+                // source operation or fuel.
                 let output = builder.register(result.value, result.definition_site, scalar_type)?;
                 builder.emit_integer(
                     crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type),
@@ -431,7 +431,7 @@ pub(super) fn emit(
             )?;
             // Machine addition is modulo 64 bits. Only the normalized
             // low-width result becomes available to later source uses;
-            // this private normalization adds no source operation/work.
+            // this private normalization adds no source operation/fuel.
             let normalization =
                 crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type);
             normalized_result(builder, normalization, raw)?
@@ -561,7 +561,7 @@ pub(super) fn emit(
                         }
                         _ => vec![],
                     },
-                    work: operation.work.clone(),
+                    fuel: operation.fuel.clone(),
                     ..Default::default()
                 },
             )?;
@@ -734,7 +734,7 @@ pub(super) fn emit(
 /// without the former divide/multiply/shift source-equality recognizers.
 /// Early-clobber rows additionally need distinct participants even on targets
 /// with flexible inputs. Copies retain the value, type and definition lineage;
-/// operation obligations and work remain on the arithmetic instruction.
+/// operation obligations and fuel remain on the arithmetic instruction.
 fn binary_operands(
     builder: &mut Builder<'_>,
     key: RegisterConstraintKey,
@@ -770,7 +770,7 @@ fn binary_operands(
 }
 
 /// Provenance for a binary row that retains one obligation: the source
-/// operation with its work settlement, both source operands followed by the
+/// operation with its fuel settlement, both source operands followed by the
 /// result, and the obligation the row discharges.
 fn obligated_binary_provenance(
     operation: &legalized_operations::LegalizedScalarInstruction,
@@ -783,7 +783,7 @@ fn obligated_binary_provenance(
         operations: vec![operation.operation],
         values: vec![left, right, result],
         obligations: vec![obligation],
-        work: operation.work.clone(),
+        fuel: operation.fuel.clone(),
         ..Default::default()
     }
 }

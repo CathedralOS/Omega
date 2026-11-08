@@ -1,5 +1,3 @@
-// Provider plan realization rows and leaf binding mechanisms (preserving evaluated producers without evaluator receipts).
-
 use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackagePolicyEvaluatedBindingProducer, PackageReviewCompilerIntrinsicExecution,
@@ -12,10 +10,16 @@ use semantic_vocabulary::PackageKeyIdentity;
 pub struct PackagePolicyProviderRow {
     pub(crate) method: String,
     pub(crate) requirement: PackageReviewNominalIdentity,
-    pub(crate) realization: Option<PackageReviewNominalIdentity>, // Authored realization machine (`None` for toolchain-settled rows).
-    pub(crate) native_build: Option<PackagePolicyEvaluatedBindingProducer>, // Actual Build producer when native supply has no realization body.
+    /// The authored realization machine, when one exists. A toolchain-settled
+    /// plan row has no authored machine to name: its realization is a
+    /// toolchain settlement table entry, so this stays `None`.
+    pub(crate) realization: Option<PackageReviewNominalIdentity>,
+    /// The actual Build producer when native supply has no realization body.
+    pub(crate) native_build: Option<PackagePolicyEvaluatedBindingProducer>,
     pub(crate) requirement_lifetime_partition: Vec<u32>,
-    pub(crate) admitted_same_stack_bytes: u64, // Authored same-stack demand in bytes (`0` when no `stack N bytes` clause was written).
+    /// Authored same-stack demand in bytes. Zero means the realization wrote
+    /// no `stack N bytes` clause.
+    pub(crate) admitted_same_stack_bytes: u64,
     pub(crate) binding: PackagePolicyProviderBinding,
     pub(crate) compiler_intrinsic_execution: Option<PackageReviewCompilerIntrinsicExecution>,
     pub(crate) installation_reach: Option<PackageReviewSelectedInstallationReach>,
@@ -55,6 +59,7 @@ pub struct PackagePolicyProviderEvaluatedSyscall {
 
 impl PackagePolicyProviderEvaluatedSyscall {}
 
+/// Leaf mechanisms preserve evaluated producers but never evaluator receipts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackagePolicyProviderBinding {
     Import {

@@ -1,12 +1,4 @@
-/*
-Native locator commitment for prepared Build native-binding requests.
-
-When a Build machine commits a native binding, we authenticate the owned
-structural locator snapshot against its checked carrier schema, verify that
-observed snapshot paths are strictly ordered, and validate the activation ticket
-against the original prepared source request before charging result-custody
-storage and decoding the `NativeLocatorValue` tree.
-*/
+//! Commit an owned typed locator through its original prepared Build request.
 
 use super::{TerminalBuildBindingAdapter, activation_ticket, lock_state};
 use language_semantics::{
@@ -89,6 +81,8 @@ impl TerminalBuildBindingAdapter {
             ));
         }
         let mut state = lock_state(&self.host.state).map_err(refuse)?;
+        // The structural value has been authenticated independently above;
+        // the common ticket owner still compares the exact source request.
         let (ticket, values) = activation_ticket(arguments, &[], &state, &call.request)?;
         let [
             TerminalScalarValue::Integer {

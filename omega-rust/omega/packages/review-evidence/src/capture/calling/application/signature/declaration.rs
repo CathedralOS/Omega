@@ -1,9 +1,9 @@
-// Service declaration parameter and signature projection. An uninstantiated service
-// telescope is not a closed calling application, so root arguments retain
-// declaration-order symbolic coordinates in a separate namespace from each
-// requirement's own static parameters while checked expression handles and
-// declarations remain unchanged.
-
+//! An uninstantiated service telescope is not a closed calling application.
+//!
+//! Root arguments retain declaration-order symbolic coordinates in a separate
+//! namespace from each requirement's own static parameters. Checked expression
+//! handles and declarations remain unchanged; only temporary type references
+//! and scope-normalized signature copies are allocated.
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::signature::CallingSignatureProjection;
 use crate::capture::calling::application::signature::count;

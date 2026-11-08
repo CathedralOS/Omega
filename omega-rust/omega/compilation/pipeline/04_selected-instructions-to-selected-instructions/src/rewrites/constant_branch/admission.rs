@@ -48,7 +48,7 @@ pub(super) struct Admission<'source> {
     pub branch_id: SelectedInstructionId,
     pub provenance: SelectedInstructionProvenance,
     /// The decided successor the rebuilt `Jump` terminator carries
-    /// verbatim — bindings, structural payloads, case custody, and work
+    /// verbatim — bindings, structural payloads, case custody, and fuel
     /// included.
     pub successor: SelectedSuccessor,
     /// The jump row the rebuilt terminator instruction is built from.

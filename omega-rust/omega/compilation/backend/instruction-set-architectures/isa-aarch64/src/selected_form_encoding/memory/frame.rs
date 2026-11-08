@@ -52,16 +52,6 @@ fn request(
     if matches!(
         kind,
         SelectedInstructionKind::Store64 {
-            slot: selected_instructions::FrameStorageSlotId::ActivationBase,
-            ..
-        }
-    ) || matches!(kind, SelectedInstructionKind::FrameAddress { slot: selected_instructions::FrameStorageSlotId::ActivationBase, byte_offset } if byte_offset != 0)
-    {
-        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    if matches!(
-        kind,
-        SelectedInstructionKind::Store64 {
             slot: selected_instructions::FrameStorageSlotId::Incoming { .. },
             ..
         }
@@ -94,16 +84,6 @@ pub fn encode(
     displacement: u32,
     alignment_bytes: u16,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-    if matches!(
-        kind,
-        SelectedInstructionKind::FrameAddress {
-            slot: selected_instructions::FrameStorageSlotId::ActivationBase,
-            ..
-        }
-    ) && (displacement != 0 || alignment_bytes != 1)
-    {
-        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-    }
     let (register, scratch) = request(physical, kind, alternative, operands, displacement)?;
     let words = if alignment_bytes != 1 {
         let member = match kind {
@@ -159,16 +139,6 @@ pub fn validate(
     alignment_bytes: u16,
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-    if matches!(
-        kind,
-        SelectedInstructionKind::FrameAddress {
-            slot: selected_instructions::FrameStorageSlotId::ActivationBase,
-            ..
-        }
-    ) && (displacement != 0 || alignment_bytes != 1)
-    {
-        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-    }
     let (register, scratch) = request(physical, kind, alternative, operands, displacement)?;
     let words = word_stream(bytes).ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
     if alignment_bytes != 1 {

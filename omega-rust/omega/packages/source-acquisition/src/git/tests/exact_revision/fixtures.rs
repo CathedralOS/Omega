@@ -1,6 +1,3 @@
-// Test fixture harness for exact-revision Git resolution, holding persisted hex
-// commit and tree IDs alongside a local Git repository and hardened storage.
-
 use super::super::{
     GitCommitId, GitSourceRequest, GitTreeId, PathBuf, SourceResolver,
     create_git_source_with_format, fixture_storage, git_cache_identity, remove_fixture,
@@ -35,6 +32,7 @@ impl Fixture {
             storage_base,
             storage,
             request,
+            // These are persisted hex inputs, not privately issued reuse pins.
             commit: GitCommitId::parse_hex(&commit).unwrap(),
             tree: GitTreeId::parse_hex(&tree).unwrap(),
         }

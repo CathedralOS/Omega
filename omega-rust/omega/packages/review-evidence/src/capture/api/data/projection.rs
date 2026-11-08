@@ -1,7 +1,3 @@
-// Public data declaration and invariant fact projection (`project_public_data`
-// and `project_data_invariant_facts`), including quotient formation verification
-// and variant/field member capture.
-
 use super::evidence::require_rederived_data_definition_facts;
 use crate::capture::PackageReviewInput;
 use crate::capture::api::domains::facts::project_definition_contract_fact;

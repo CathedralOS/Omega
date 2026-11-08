@@ -1,8 +1,3 @@
-// Boundary-operator realization validation for checked adapters and external leaves.
-// A boundary-operator provider plan must carry exactly one schema method, one
-// realization row, and one requirement and one realization declaration in the
-// retained provenance joining the operator's requirement identity.
-
 use super::external_supply::external_binding_matches_provider_binding;
 use crate::capture::PackageReviewInput;
 use crate::record::PackageReviewExternalBinding;
@@ -11,6 +6,9 @@ use provider_planning::ProviderRowRealization;
 use provider_planning::ProviderSchemaDeclaration;
 use typed_trees::operator::boundary_operator_requirement_identity;
 
+/// The singleton members a boundary-operator plan must carry: exactly one
+/// schema method, one realization row, and one requirement and one
+/// realization declaration in the retained provenance.
 fn boundary_operator_plan_singletons<'plan>(
     plan: &'plan effects::provider_plan::ProviderPlan,
     retained: &'plan provider_planning::SelectedProviderReviewProvenance,
@@ -55,6 +53,8 @@ fn boundary_operator_plan_singletons<'plan>(
     Ok((method, row, requirement_symbol, realization_symbol))
 }
 
+/// One selected boundary-operator plan and the provenance it was selected
+/// alongside, which must join the operator's requirement identity.
 type SelectedBoundaryOperatorPlan<'a> = (
     &'a effects::provider_plan::ProviderPlan,
     &'a provider_planning::SelectedProviderReviewProvenance,

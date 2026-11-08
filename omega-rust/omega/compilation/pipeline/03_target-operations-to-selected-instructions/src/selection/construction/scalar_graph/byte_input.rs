@@ -66,7 +66,7 @@ pub(super) fn emit(
         &[],
         SelectedInstructionProvenance {
             operations: vec![row.operation],
-            work: row.work.clone(),
+            fuel: row.fuel.clone(),
             ..Default::default()
         },
     )?;

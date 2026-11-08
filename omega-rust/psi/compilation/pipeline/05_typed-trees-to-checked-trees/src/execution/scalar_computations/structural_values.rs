@@ -12,12 +12,14 @@
 //! owned or borrowed root may supply an unrestricted child without moving it.
 //! Exact source/path replay and ordinary liveness remain downstream checks.
 use super::{
-    Builder, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType,
-    SymbolHandle, TypeReferenceNode,
+    Builder, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, SymbolHandle,
+    TypeReferenceNode,
 };
 use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::calls::byte_sequence_literal_argument;
 use crate::execution::terminal_unit::calls::projected_argument_path;
+use crate::execution::terminal_unit::control::checked_structural_result_type;
+use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::flow::expressions;
 use crate::published::places::place_at;
 use crate::published::semantic::calls::shared_argument_referent;
@@ -30,7 +32,6 @@ use checked_trees::{
     CheckedScalarComputationHandle, CheckedStructuralDispatchArm, CheckedStructuralValue,
     CheckedStructuralValueHandle as ValueHandle, CheckedStructuralValueKind as ValueKind,
 };
-use typed_trees::expression::MatchPattern;
 use typed_trees::types::TypeReferenceHandle;
 use value_predicates::argument_needs_establishment;
 
@@ -218,13 +219,13 @@ impl Builder<'_, '_> {
         value: ValueHandle,
         reference: TypeReferenceHandle,
     ) -> Option<(
-        ExpressionHandle,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan,
         TypeReferenceHandle,
         Vec<checked_trees::CheckedUnitStructuralPathSegment>,
         arena::HandleSpan<checked_trees::CheckedScalarComputationHandle>,
     )> {
         let node = self.structural_values.nodes.get(value);
-        let (owner, path, projection_evaluations) = match &node.kind {
+        let (owner, path, projection_evaluations, logical_root_type_identity) = match &node.kind {
             // A noncopy selection retains its containing owner. A selected
             // copy owns an independent completed value, just as a whole-value
             // cast owns its checked memberships; using its source occurrence
@@ -234,9 +235,17 @@ impl Builder<'_, '_> {
                 path,
                 projection_evaluations,
                 copies_selected_value: false,
+                logical_root_type_identity,
                 ..
-            } if !path.is_empty() => (*source, path.clone(), *projection_evaluations),
-            _ => (value, Vec::new(), Default::default()),
+            } if !path.is_empty() => (
+                *source,
+                path.clone(),
+                *projection_evaluations,
+                logical_root_type_identity
+                    .is_valid()
+                    .then_some(*logical_root_type_identity),
+            ),
+            _ => (value, Vec::new(), Default::default(), None),
         };
         let owner_node = self.structural_values.nodes.get(owner);
         let expression = owner_node.expression;
@@ -269,7 +278,16 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        Some((expression, owner_reference, path, projection_evaluations))
+        Some((
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression,
+                value_dependency: Some(owner),
+                logical_root_type_identity,
+            },
+            owner_reference,
+            path,
+            projection_evaluations,
+        ))
     }
 
     /// Authenticate a completed handle before using the common ordinary root
@@ -749,11 +767,44 @@ impl Builder<'_, '_> {
                             .map(|shell| shell.referee)
                     });
                     let root_reference = root_reference?;
-                    source_value = self.structural_value(root, root_reference)?;
-                    // The anonymous backing is an independently admitted owner,
-                    // not a contained descriptor field. Publish the exact root
-                    // so its normal disposition can rejoin this retained graph.
-                    self.retained_argument_owner(source_value, root_reference)?;
+                    source_value = if let Some(receiver) = self
+                        .dispatch_receivers
+                        .get(&(root.arena_index(), root.generation()))
+                        .copied()
+                    {
+                        // A completed value and an existing place are different
+                        // producer roles, even when both have expression roots.
+                        // Consume the retained role, not another owned wrapper
+                        // around its non-executable alias.
+                        if !validation::declared_carriers_match(
+                            self.program,
+                            root_reference,
+                            receiver.type_reference,
+                        ) {
+                            return None;
+                        }
+                        receiver.value
+                    } else {
+                        let value = self.structural_value(root, root_reference)?;
+                        let kind = &self.structural_values.nodes.get(value).kind;
+                        if argument_needs_establishment(kind) {
+                            value
+                        } else if let ValueKind::Place(argument) = kind {
+                            // Ordinary stored sources need no second producer.
+                            // Keep any already recorded real value dependency.
+                            argument
+                                .source
+                                .structural_value_dependency()
+                                .unwrap_or_default()
+                        } else {
+                            return None;
+                        }
+                    };
+                    if source_value.is_valid() {
+                        // A real value keeps its exact producer and normal
+                        // disposition. An existing place needs no value birth.
+                        self.retained_argument_owner(source_value, root_reference)?;
+                    }
                 }
                 // Geometry can already know an ordinal from a call's result
                 // contract. Its authored evaluation remains a child even then.
@@ -777,6 +828,20 @@ impl Builder<'_, '_> {
             )?;
             let (mut source, storage, backing_type) =
                 (capture.source, capture.storage, capture.backing_type);
+            if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression: anchor,
+                ..
+            } = source.source
+                && self
+                    .dispatch_receivers
+                    .get(&(anchor.arena_index(), anchor.generation()))
+                    .is_some_and(|receiver| !receiver.value.is_valid())
+            {
+                // Existing-place aliases are already referent-presented. Bind
+                // their actual logical root type before catalog/path consumers;
+                // stored descriptor values retain their separate interpretation.
+                source.source = self.retained_dispatch_place_source(anchor, source.access)?;
+            }
             let projection_evaluations = if selectors.is_empty() {
                 Default::default()
             } else {
@@ -804,6 +869,11 @@ impl Builder<'_, '_> {
             self.statement_index,
             expression,
             expected,
+            |anchor| {
+                self.dispatch_receivers
+                    .get(&(anchor.arena_index(), anchor.generation()))
+                    .is_some_and(|receiver| !receiver.value.is_valid())
+            },
         ) {
             // Reading an already stored carrier copies that value, including
             // a shared view's captured extent. Its backing loan cannot replace
@@ -838,9 +908,13 @@ impl Builder<'_, '_> {
             // supply. The ordinary call planner retains the exact boundary,
             // body or dynamic route and its independent completion custody.
             if !value_predicates::structural_carriers_match(self.program, returned, expected)
-                || !self
-                    .call_result_types
-                    .admits(self.program, &self.carriers, returned)
+                || checked_structural_result_type(
+                    self.program,
+                    &mut ShapeCollector::new(self.program),
+                    returned,
+                    &[],
+                )
+                .is_none()
             {
                 return None;
             }
@@ -935,94 +1009,15 @@ impl Builder<'_, '_> {
             else {
                 return None;
             };
-            let subject = self.dispatch_subject(&dispatch)?;
-            let subject_type = match subject {
-                checked_trees::CheckedDispatchSubject::Scalar(value) => {
-                    self.push_scalar_root(
-                        CheckedScalarExpressionRole::StructuralValueSubject { expression },
-                        value,
-                    )?;
-                    Some(self.plans.nodes.get(value).primitive_type)
-                }
-                checked_trees::CheckedDispatchSubject::Structural { .. } => None,
-            };
-            let authored = self
-                .program
-                .expression_table
-                .match_arms(dispatch.arms)
-                .to_vec();
-            let mut arms = Vec::new();
-            let mut covered = false;
-            let mut boolean_coverage = [false; 2];
-            for (ordinal, arm) in authored.iter().enumerate() {
-                if subject_type.is_none()
-                    && self.structural_dispatch_arm_is_impossible(&dispatch, arm)
-                {
-                    continue;
-                }
-                let source_arm = dispatch.arms.handle_at(u32::try_from(ordinal).ok()?);
-                let mut equality_use = arena::Handle::invalid();
-                let pattern = if let Some(subject_type) = subject_type {
-                    match arm.pattern {
-                        MatchPattern::Wildcard => {
-                            covered = true;
-                            checked_trees::CheckedScalarDispatchPattern::Wildcard
-                        }
-                        MatchPattern::Value(pattern) => {
-                            if subject_type == PrimitiveType::Bool
-                                && let Some(value) =
-                                    self.program.expression_table.boolean_node(pattern)
-                            {
-                                if boolean_coverage[usize::from(*value)] {
-                                    continue;
-                                }
-                                boolean_coverage[usize::from(*value)] = true;
-                                covered = boolean_coverage == [true, true];
-                            }
-                            if matches!(subject_type, PrimitiveType::F32 | PrimitiveType::F64) {
-                                equality_use = self.comparison_use(
-                                    expression,
-                                    checked_trees::CheckedOperatorOccurrence::MatchEquality {
-                                        source_arm,
-                                    },
-                                )?;
-                            }
-                            let computation = self.expression(pattern, subject_type)?;
-                            self.plans.nodes.get_mut(computation).authored_root = pattern;
-                            self.push_scalar_root(
-                                CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
-                                computation,
-                            )?;
-                            checked_trees::CheckedScalarDispatchPattern::Value(computation)
-                        }
-                        MatchPattern::Destructure(_) => return None,
-                    }
-                } else {
-                    self.structural_dispatch_pattern(expression, &dispatch, &subject, arm.pattern)?
-                };
-                if let Some(computation) = pattern.computation()
-                    && subject_type.is_none()
-                {
-                    self.push_scalar_root(
-                        CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
-                        computation,
-                    )?;
-                }
-                let value = self.structural_value(arm.value, expected)?;
+            let (subject, prepared) = self.prepare_dispatch(expression, &dispatch)?;
+            let mut arms = Vec::with_capacity(prepared.len());
+            for arm in prepared {
                 arms.push(CheckedStructuralDispatchArm {
-                    source_arm,
-                    equality_use,
-                    pattern,
-                    value,
+                    source_arm: arm.source_arm,
+                    equality_use: arm.equality_use,
+                    pattern: arm.pattern,
+                    value: self.structural_value(arm.value, expected)?,
                 });
-                if matches!(arm.pattern, MatchPattern::Wildcard) || covered {
-                    break;
-                }
-            }
-            // Structural coverage was established by the common pattern
-            // checker, including case completeness and guarded-arm limits.
-            if (!covered && subject_type.is_some()) || arms.is_empty() {
-                return None;
             }
             ValueKind::Dispatch {
                 subject,

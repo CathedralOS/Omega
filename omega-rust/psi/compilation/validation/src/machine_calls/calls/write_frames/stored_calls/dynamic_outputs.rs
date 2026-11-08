@@ -206,54 +206,6 @@ fn data_may_carry_selector(
     carries
 }
 
-/// The checked entry of one proved implementation, when its public signature
-/// matches the slot's data parameters. A different row or a generic body is
-/// not this selector.
-pub(in crate::machine_calls::calls::write_frames) fn selected_realization_state(
-    program: &dyn crate::CheckingInput,
-    slot: &DynamicSlotSignature,
-    implementation: symbols::SymbolHandle,
-) -> Option<symbols::SymbolHandle> {
-    let conformance = program.conformance_by_symbol(implementation)?;
-    if !conformance.type_parameters.is_empty() {
-        return None;
-    }
-    let mut rows = conformance.rows.iter().filter(|row| {
-        row.requirement == slot.requirement && row.declaring_trait == slot.declaring_trait
-    });
-    let row = rows.next()?;
-    if rows.next().is_some() {
-        return None;
-    }
-    let machine = program.machine_by_symbol(row.realization_machine)?;
-    let state = program.state_in_machine(machine, row.realization_state)?;
-    if !machine.body_is_present
-        || !machine.supply_mode.is_checked_body()
-        || machine.target_family_interface
-        || program.machine_states(machine).first()?.symbol != state.symbol
-        || !program.machine_type_parameters(machine).is_empty()
-    {
-        return None;
-    }
-    let parameters = program.state_parameters(state);
-    let public = slot.data_parameters();
-    if parameters.len() != public.len()
-        || !parameters.iter().zip(public).all(|(private, public)| {
-            private.is_const == public.is_const
-                && private.is_mutable == public.is_mutable
-                && crate::declared_carriers_match(
-                    program,
-                    private.type_reference,
-                    public.type_reference,
-                )
-        })
-        || !crate::declared_carriers_match(program, state.return_type, slot.return_type)
-    {
-        return None;
-    }
-    Some(state.symbol)
-}
-
 /// The requirement's declared slot outputs in the slot's own formal namespace.
 /// An unknown selection may install any reference its declared lifetimes
 /// permit, so each output keeps only its lifetime debts: no supplier

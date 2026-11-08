@@ -1,14 +1,4 @@
-/*
-We project complete service meaning shared by provider and permission policy.
-
-Accepted service declarations are reviewed without inventing a provider or a
-closed generic calling application: a generic declaration publishes its open
-telescope and cannot borrow a concrete application's calling plan. Top-level
-requirements publish their enclosing namespace as owner, checked by schema
-replay rather than resolved by searching that spelling. Declaration and
-operator policies retain typed binder coordinates rather than the source binder
-names in the replay schema's diagnostic strings.
-*/
+//! Complete service meaning shared by provider and permission policy.
 
 mod authority;
 mod calling;
@@ -49,6 +39,8 @@ pub(crate) fn project(
     )
 }
 
+/// Review an accepted service declaration without inventing a provider or a
+/// closed generic calling application.
 pub(crate) fn project_declaration(
     projection: &mut SignatureProjection<'_>,
     service_schema: &ServiceSchema,
@@ -90,6 +82,8 @@ fn project_inner(
     }
     let identity = policy_provider_requirement_identity(compilation, declaration, requirement)?;
     let mut owner = nominal_identity(compilation, declaration.symbol())?;
+    // Top-level requirements publish their enclosing namespace as owner; it
+    // is checked by schema replay, not resolved by searching that spelling.
     if matches!(
         declaration,
         ProviderSchemaDeclaration::BoundaryRequirement(_)
@@ -109,6 +103,8 @@ fn project_inner(
             .trait_definition_by_symbol(schema.symbol())
             .is_some_and(|owner| !compilation.trait_type_parameters(owner).is_empty());
     let calling = if generic_declaration {
+        // A declaration publishes its open telescope. It has no supplying
+        // conformance and cannot borrow a concrete application's calling plan.
         if !service_schema
             .calling_for_requirement(method.requirement_identity)
             .is_empty()
@@ -140,6 +136,9 @@ fn project_inner(
             None,
         )?
     };
+    // Declaration and operator policies retain typed binder coordinates rather
+    // than the source binder names in the replay schema's diagnostic strings.
+    // The original strings were already checked above against the live schema.
     let normalized_signature_display =
         declaration_mode || matches!(declaration, ProviderSchemaDeclaration::BoundaryOperator(_));
     let parameter_type_identities = if normalized_signature_display {

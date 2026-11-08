@@ -1,7 +1,6 @@
-// Contract proposition projection modules: `application` projects a proposition
-// application, `binders` projects its binder arguments and evidence projections,
-// `endpoint` resolves its endpoint and signature, and `evidence` projects its
-// witness or proof-obligation evidence.
+//! Contract propositions: `application` projects one proposition,
+//! `binders` its binder arguments and evidence projection, `endpoint` its
+//! endpoint and signature, and `evidence` the evidence it carries.
 
 pub(in crate::capture) mod application;
 pub(in crate::capture) mod binders;

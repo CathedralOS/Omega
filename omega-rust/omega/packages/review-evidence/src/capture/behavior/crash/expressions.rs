@@ -1,16 +1,10 @@
-/*
-Closed projection of structural boolean and scalar crash expressions
-(`project_boolean_expression` and `project_scalar_expression`).
-
-We preserve semantic operations recursively, independently of source arrangement.
-Mathematical integer comparisons, erased parameters, private storage reads,
-byte-sequence predicates, unresolved constant applications, and implementation
-selectors have no public crash-predicate vocabulary and return `None` rather
-than erasing a requirement or exporting compiler-local handles. For
-`StructuralParameterIndexedRead`, consecutive leading runtime selectors become
-`inner_indexes` scalar expressions while selectors following static member
-steps require a public `PackageReviewRuntimeIndex` coordinate.
-*/
+//! Closed projection of structural crash expressions.
+//!
+//! Preserve semantic operations recursively, independently of their source
+//! arrangement. A collection observation retains its exact entry root and
+//! selectors, and conversions retain their policy; neither is interchangeable
+//! with an ordinary scalar parameter. Private storage roots have no public
+//! entry coordinate and reject rather than exporting compiler-local handles.
 
 use crate::record::{
     PackageReviewArithmeticDomain, PackageReviewBooleanExpression,
@@ -34,6 +28,9 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
     use checked_trees::CheckedBooleanExpression;
 
     Some(match expression {
+        // Review evidence has no mathematical integer vocabulary. Refuse the
+        // entire projection rather than erasing a requirement or reinterpreting
+        // its unbounded operations as finite scalar arithmetic.
         CheckedBooleanExpression::IntegerMathComparison { .. } => return None,
         CheckedBooleanExpression::ErasedParameter { .. } => return None,
         CheckedBooleanExpression::StorageRead { .. } => return None,
@@ -124,9 +121,12 @@ fn project_scalar_expression(
     use checked_trees::CheckedScalarExpression;
 
     Some(match expression {
+        // Review cannot serialize an unresolved source-owned application as a
+        // public crash value. Its exact target value must close first.
         CheckedScalarExpression::ConstantApplication { .. } => return None,
         CheckedScalarExpression::ErasedParameter { .. } => return None,
         CheckedScalarExpression::StorageRead { .. } => return None,
+        // A selector has no public crash-predicate vocabulary.
         CheckedScalarExpression::ImplementationSelection { .. } => return None,
         CheckedScalarExpression::StructuralSequenceLength { root, path } => {
             PackageReviewScalarExpression::StructuralParameterByteLength {
@@ -142,6 +142,9 @@ fn project_scalar_expression(
             primitive_type,
             ..
         } => {
+            // Public records retain the existing canonical vocabulary. Initial
+            // consecutive selectors are scalar expressions; selectors following
+            // members need a public coordinate. Never export source occurrences.
             let prefix_count = element_path
                 .iter()
                 .take_while(|step| matches!(step, CheckedScalarReadProjection::RuntimeIndex(_)))

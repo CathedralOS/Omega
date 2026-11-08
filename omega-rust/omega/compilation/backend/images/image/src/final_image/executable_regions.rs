@@ -31,12 +31,10 @@ pub struct FinalExecutableRegion {
     pub section_offset: usize,
     pub byte_count: usize,
     pub symbol: String,
-    /// Exact register writes and machine-state use derived from final bytes
-    /// when this region has a closed target/format-owned encoding. An entry
-    /// also retains its complete body/transport use and clobbers below.
+    /// Exact register/machine-state writes derived from final bytes when this
+    /// region has a closed format-owned encoding. Compiler functions retain
+    /// their composed evidence in the semantic boundary carrier instead.
     pub footprint: Option<calling_conventions::StateFootprintEvidence>,
-    /// Checked complete entry use/clobbers; absent for a region that is not an entry.
-    pub entry_effects: Option<calling_conventions::StateEffectsEvidence>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,8 +49,6 @@ pub struct PlacedExecutableRegion {
     pub byte_report_fingerprint: u64,
     pub symbol: String,
     pub footprint: Option<calling_conventions::StateFootprintEvidence>,
-    /// Checked complete entry use/clobbers; absent for a region that is not an entry.
-    pub entry_effects: Option<calling_conventions::StateEffectsEvidence>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -167,7 +163,6 @@ pub fn place_executable_extent(
             byte_report_fingerprint: byte_report_fingerprint(region_bytes),
             symbol: region.symbol,
             footprint: region.footprint,
-            entry_effects: region.entry_effects,
         });
     }
     if cursor < text_bytes.len() {
@@ -375,7 +370,7 @@ pub(crate) fn executable_inventory_digest(
     gaps: &[PlacedExecutableGap],
 ) -> PlacedExecutableRegionInventoryDigest {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.placed-executable-region-inventory.sha256.v2\0",
+        b"omega.placed-executable-region-inventory.sha256.v1\0",
     );
     digest.raw(&text_address.to_le_bytes());
     digest.raw(
@@ -401,13 +396,6 @@ pub(crate) fn executable_inventory_digest(
             Some(footprint) => {
                 digest.byte(1);
                 digest.raw(state_footprint_evidence_digest(footprint).as_bytes());
-            }
-            None => digest.byte(0),
-        }
-        match &region.entry_effects {
-            Some(effects) => {
-                digest.byte(1);
-                digest.raw(&state_effects_evidence_digest(effects));
             }
             None => digest.byte(0),
         }
@@ -440,20 +428,6 @@ pub(crate) fn state_footprint_evidence_digest(
     }
     digest.raw(&footprint.machine_state().bits().to_le_bytes());
     StateFootprintEvidenceDigest::from_digest(digest.finish())
-}
-
-fn state_effects_evidence_digest(effects: &calling_conventions::StateEffectsEvidence) -> [u8; 32] {
-    let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega.entry-state-effects.sha256.v1\0");
-    digest.raw(state_footprint_evidence_digest(effects.footprint()).as_bytes());
-    digest.u64(effects.registers_read().as_slice().len() as u64);
-    for register in effects.registers_read().as_slice() {
-        let (class, index) = register.wire_class_index();
-        digest.byte(class);
-        digest.byte(index);
-    }
-    digest.raw(&effects.clobbered_state().bits().to_le_bytes());
-    digest.finish()
 }
 
 pub(crate) fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
@@ -495,13 +469,6 @@ pub(crate) fn executable_inventory_report_fingerprint(
                     &mut hash,
                     &footprint.evidence_report_fingerprint().to_le_bytes(),
                 );
-            }
-            None => fingerprint_bytes(&mut hash, &[0]),
-        }
-        match &region.entry_effects {
-            Some(effects) => {
-                fingerprint_bytes(&mut hash, &[1]);
-                fingerprint_bytes(&mut hash, &state_effects_evidence_digest(effects));
             }
             None => fingerprint_bytes(&mut hash, &[0]),
         }

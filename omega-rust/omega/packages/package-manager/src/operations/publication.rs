@@ -1,4 +1,4 @@
-// Recoverable journaled publication (`PackageFileTransaction` and `publish_reviewed_package_change`) for the two accepted project files (`build.omg` and `omega.lock`).
+//! Recoverable publication of the two accepted project files.
 
 mod checked;
 mod directory;
@@ -10,6 +10,8 @@ pub(crate) use checked::publish_reviewed_package_change;
 pub(crate) use error::PackagePublicationError;
 pub(crate) use transaction::PackageFileTransaction;
 
+/// Bounded project-file and recovery-journal I/O. These are storage limits,
+/// not compiler policy or a claim about total allocator usage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackagePublicationLimits {
     pub maximum_file_bytes: usize,

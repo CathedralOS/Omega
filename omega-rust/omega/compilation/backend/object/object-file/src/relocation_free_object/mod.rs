@@ -20,7 +20,7 @@ use optimization_core::{
 use selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, WorkScheduleIdentity};
+use semantic_vocabulary::{BoundaryMachineId, FuelScheduleIdentity, MachineId, OperationId};
 use target::{NativeTarget, TargetWireIdentityError};
 use target_operations::MachineRegister;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
@@ -138,7 +138,7 @@ pub struct RelocationFreeObjectPlan {
     pub identity: RelocationFreeObjectPlanIdentity,
     pub source_text_section: TerminalRelocationFreeTextSectionIdentity,
     pub psi: TerminalPsiIdentity,
-    pub work_schedule: WorkScheduleIdentity,
+    pub fuel_schedule: FuelScheduleIdentity,
     pub selected: SelectedInstructionPlanIdentity,
     pub selections: OptimizationSelectionIdentity,
     pub target: NativeTarget,
@@ -227,7 +227,7 @@ pub enum RelocationFreeObjectDecodeError {
     TrailingBytes,
     InvalidUtf8,
     InvalidVocabulary(u16),
-    InvalidWorkSchedule,
+    InvalidFuelSchedule,
     InvalidMachine,
     InvalidSymbolId,
     InvalidBoundary,
@@ -248,7 +248,6 @@ pub enum RelocationFreeObjectDecodeError {
     UnknownImageFieldEncoding(u8),
     UnknownImageAddressReference(u8),
     InvalidPlace,
-    InvalidPrivateFunction,
     InvalidCallbackDestination,
     LengthOverflow,
     InvalidObject(RelocationFreeObjectError),
@@ -559,7 +558,7 @@ fn encode_plan_content(
     output.extend_from_slice(&object.source_text_section.bytes());
     enc!(&mut output => object.psi.vocabulary_marker.get().to_le_bytes());
     output.extend_from_slice(object.psi.program_fingerprint.as_bytes());
-    crate::codec_bytes::push_encoded(&mut output, object.work_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut output, object.fuel_schedule.marker().to_le_bytes());
     output.extend_from_slice(&object.selected.bytes());
     output.extend_from_slice(&object.selections.bytes());
     output.extend_from_slice(&object.target.wire_identity_bytes());
@@ -628,10 +627,6 @@ fn decode_image_address(
     let block = SelectedBlockId(cursor.u32()?);
     let instruction = SelectedInstructionId(cursor.u32()?);
     let reference = match cursor.byte()? {
-        4 => selected_instructions::SelectedImageAddressReference::PrivateFunction {
-            identity: function_identity::MachineFunctionIdentity::from_bytes(cursor.array()?)
-                .ok_or(RelocationFreeObjectDecodeError::InvalidPrivateFunction)?,
-        },
         3 => selected_instructions::SelectedImageAddressReference::RetainedEntryStorageStart,
         0 => selected_instructions::SelectedImageAddressReference::ByteLiteral {
             operation: OperationId::new(cursor.u64()?)
@@ -782,9 +777,9 @@ fn decode_plan_content(
         vocabulary_marker,
         program_fingerprint: SemanticFingerprint::from_bytes(cursor.array()?),
     };
-    let work = cursor.u32()?;
-    let work_schedule = WorkScheduleIdentity::new(work)
-        .ok_or(RelocationFreeObjectDecodeError::InvalidWorkSchedule)?;
+    let fuel = cursor.u32()?;
+    let fuel_schedule = FuelScheduleIdentity::new(fuel)
+        .ok_or(RelocationFreeObjectDecodeError::InvalidFuelSchedule)?;
     let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
     let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
     let target = NativeTarget::from_wire_identity_bytes(&cursor.array()?)?;
@@ -887,7 +882,7 @@ fn decode_plan_content(
         identity,
         source_text_section,
         psi,
-        work_schedule,
+        fuel_schedule,
         selected,
         selections,
         target,
@@ -1103,7 +1098,7 @@ fn decode_callback_placements(
 #[cfg(test)]
 mod tests {
     use super::{
-        BoundaryMachineId, CONTAINER_VERSION, MachineId, NativeTarget,
+        BoundaryMachineId, CONTAINER_VERSION, FuelScheduleIdentity, MachineId, NativeTarget,
         NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState,
         ObjectLocalSymbolId, OperationId, OptimizationSelectionIdentity,
         PlacedNormalizedForeignCallResolution, RelocationFreeFunctionSymbol,
@@ -1114,7 +1109,7 @@ mod tests {
         RelocationFreeObjectSymbolRole, RelocationFreeObjectTextSection,
         RelocationFreeObjectUnresolvedForeignCall, SelectedBlockId, SelectedInstructionId,
         SelectedInstructionPlanIdentity, SemanticFingerprint, TerminalPsiIdentity,
-        TerminalRelocationFreeTextSectionIdentity, VocabularyMarker, WorkScheduleIdentity,
+        TerminalRelocationFreeTextSectionIdentity, VocabularyMarker,
         canonical_normalized_foreign_import_symbol_name, canonical_private_machine_symbol_name,
         decode_relocation_free_object, encode_relocation_free_object,
         validate_relocation_free_object,
@@ -1132,7 +1127,7 @@ mod tests {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([4; 32]),
             },
-            work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
             selected: SelectedInstructionPlanIdentity::from_bytes([5; 32]),
             selections: OptimizationSelectionIdentity::from_bytes([6; 32]),
             target: NativeTarget::linux_arm64(),

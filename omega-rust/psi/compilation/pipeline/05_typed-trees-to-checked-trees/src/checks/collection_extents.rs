@@ -23,7 +23,7 @@ pub(crate) fn from_captured_value(
     invocation: &[FlowConstraintRef],
 ) -> Option<usize> {
     let mut extent = None;
-    for captured in captured_value_places(program, flow.view(), value)? {
+    for captured in captured_value_places(program, flow, value)? {
         let current = from_live_loans(
             program,
             value.operand.state_symbol,

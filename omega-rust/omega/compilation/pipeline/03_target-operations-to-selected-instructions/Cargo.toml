@@ -9,8 +9,6 @@ name = "target_operations_to_selected_instructions"
 path = "src/lib.rs"
 
 [dependencies]
-installation-evidence = { path = "../../backend/runtime/installation-evidence" }
-provider-admission = { path = "../../realization/provider-admission" }
 language-core = { path = "../../../../psi/foundation/language-core" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 runtime-abi = { path = "../../backend/runtime/runtime-abi" }

@@ -1,5 +1,3 @@
-// Bounded recovery for dangerous authorities, authority slack, and semantic dependencies in policy baselines.
-
 use super::super::identity::nominal;
 use super::Error;
 use crate::encoding::recovery::policy::reader::Reader;

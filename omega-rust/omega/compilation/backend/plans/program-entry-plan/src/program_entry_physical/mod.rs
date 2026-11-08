@@ -23,8 +23,6 @@ fn process_entry_state_plan(initial_regime: MachineRegime) -> StatePlan {
             MachineState::GeneralRegisters,
             MachineState::VectorRegisters,
             MachineState::Flags,
-            MachineState::InstructionPointer,
-            MachineState::StackPointer,
         ]),
         stack: EntryStack::ProviderSelected,
         preemption: Preemption::NotApplicable,

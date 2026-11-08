@@ -466,7 +466,7 @@ pub(super) fn validate(
     };
     case_source(function, *source)?;
     if !node.provenance.is_empty()
-        || !node.work.is_empty()
+        || !node.fuel.is_empty()
         || !node.definitions.is_empty()
         || cases.len() != node.successors.len()
     {
@@ -479,11 +479,11 @@ pub(super) fn validate(
             || edge.structural_bindings != case.structural_bindings
             || edge.cleanup_actions != case.cleanup_actions
             || edge.provenance != [PsiProvenance::Edge(case.psi_edge)]
-            || edge.work.is_empty()
+            || edge.fuel.is_empty()
             || edge
-                .work
+                .fuel
                 .iter()
-                .any(|work| work.site != PsiProvenance::Edge(case.psi_edge))
+                .any(|fuel| fuel.site != PsiProvenance::Edge(case.psi_edge))
         {
             return Err(LegalizationError::custody());
         }

@@ -1,5 +1,4 @@
-// Policy projection for non-trait public declarations (data definitions,
-// domains, conformances, and operators) with source-owned static telescopes.
+//! Non-trait public declaration policy with source-owned static telescopes.
 
 use super::{signatures, values};
 use crate::capture::PackageReviewInput;

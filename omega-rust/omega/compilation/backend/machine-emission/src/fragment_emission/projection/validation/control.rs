@@ -33,36 +33,21 @@ pub(super) fn check(
             instruction.kind,
             SelectedInstructionKind::InvokeNoNormal { .. }
         ) {
-            let (terminal, owner) = match &block.terminator {
-                SelectedTerminator::InvokeNoNormal {
-                    instruction,
-                    psi_edge,
-                } => (
-                    instruction,
-                    target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge),
-                ),
-                SelectedTerminator::OperationInvokeNoNormal {
-                    instruction,
-                    operation,
-                } => (
-                    instruction,
-                    target_operations::CallSiteOwner::Installation {
-                        operation: *operation,
-                        role: target_operations::InstallationCallRole::Work,
-                    },
-                ),
-                _ => return Err(ResolvedFragmentEmissionError::ArtifactMismatch),
+            let SelectedTerminator::InvokeNoNormal {
+                instruction: terminal,
+                psi_edge,
+            } = &block.terminator
+            else {
+                return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
             };
-            if terminal.id != instruction.id || row.owner != owner {
+            if terminal.id != instruction.id
+                || row.owner != target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge)
+            {
                 return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
             }
         } else if matches!(
             row.owner,
             target_operations::CallSiteOwner::InvokeNoNormal(_)
-                | target_operations::CallSiteOwner::Installation {
-                    role: target_operations::InstallationCallRole::Work,
-                    ..
-                }
         ) {
             return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
         }
@@ -88,10 +73,6 @@ pub(super) fn check(
     }
     let (terminal, predicate, successors) = match &block.terminator {
         SelectedTerminator::InvokeNoNormal {
-            instruction: terminal,
-            ..
-        }
-        | SelectedTerminator::OperationInvokeNoNormal {
             instruction: terminal,
             ..
         } => {
@@ -213,7 +194,7 @@ fn successor(
         actual.role == source.role
             && actual.psi_edge == source.psi_edge
             && (actual.role == selected_instructions::SelectedSuccessorRole::Semantic
-                || actual.work.is_empty())
+                || actual.fuel.is_empty())
             && actual.block == source.block
             && actual.source_target == source.source_target
             && actual
@@ -221,7 +202,7 @@ fn successor(
                 .iter()
                 .copied()
                 .eq(source.bindings.iter().map(|binding| binding.semantic))
-            && actual.work == source.work,
+            && actual.fuel == source.fuel,
     )
 }
 
@@ -241,7 +222,7 @@ mod tests {
             block: SelectedBlockId(2),
             source_target: BlockId::new(3).unwrap(),
             bindings: Vec::new(),
-            work: Vec::new(),
+            fuel: Vec::new(),
         };
         let mut actual = FunctionFragmentSuccessorProvenance {
             role: source.role,
@@ -249,7 +230,7 @@ mod tests {
             block: source.block,
             source_target: source.source_target,
             bindings: Vec::new(),
-            work: Vec::new(),
+            fuel: Vec::new(),
         };
         successor(&source, &actual).unwrap();
         actual.role = SelectedSuccessorRole::Semantic;

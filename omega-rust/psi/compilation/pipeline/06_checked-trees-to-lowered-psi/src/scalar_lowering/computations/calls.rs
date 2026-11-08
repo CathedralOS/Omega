@@ -312,14 +312,19 @@ impl Expansion<'_> {
                             "computed call is missing its structural actual",
                         ))?;
                 if let CheckedScalarComputationStructuralArgument::Place(argument) = argument
-                    && matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. })
+                    && argument.source.structural_value_dependency().is_some()
                 {
-                    let slot = self.produced_values.iter().find(|slot| {
-                        Some(slot.source_call) == source_call && slot.argument_ordinal == Some(structural_ordinal)
-                    }).ok_or(LoweringError::Unsupported(
-                        "computed value has no reserved argument home",
-                    ))?;
-                    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } = argument.source
+                    let slot = self
+                        .produced_values
+                        .iter()
+                        .find(|slot| {
+                            Some(slot.source_call) == source_call
+                                && slot.argument_ordinal == Some(structural_ordinal)
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "computed value has no reserved argument home",
+                        ))?;
+                    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression, .. } = argument.source
                         && self.checked.facts.executable_bindings.expression(expression).is_saved()
                         && !self.established_values.iter().any(|value| matches!(value,
                             EstablishedValue::Produced { root } if *root == slot.root))

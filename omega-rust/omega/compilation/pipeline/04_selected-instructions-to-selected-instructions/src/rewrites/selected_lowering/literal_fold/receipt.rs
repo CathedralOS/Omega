@@ -20,7 +20,7 @@ pub(crate) fn admit_literal_fold(
         allocator_availability: plan.allocator_availability,
         machine_effect_catalog: plan.machine_effect_catalog,
         optimization_unit: plan.optimization_unit,
-        work_schedule: plan.work_schedule,
+        fuel_schedule: plan.fuel_schedule,
         transformed_selected,
         policy: plan.policy,
         usage: plan.usage,

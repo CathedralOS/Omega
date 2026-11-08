@@ -13,6 +13,7 @@
 //! only identical membership and authority present in every covered arm survive.
 //! This publication transports authorized provenance, never establishes it.
 use crate::flow::expression::Execution;
+mod owned_cases;
 use crate::flow::expression::value_observations::OwnedValueObservation;
 use crate::flow::state_values::qualifications::CarriedPredicate;
 use arena::HandleSpan;
@@ -59,11 +60,10 @@ impl Execution<'_, '_, '_> {
             self.state,
             dispatch.subject,
         );
-        let subject_operand = if structural.is_some()
+        let mut subject = if structural.is_some()
             && subject_type.is_some_and(|reference| self.is_view_type(reference))
         {
             self.evaluated_place(dispatch.subject, contexts, constraints)
-                .capture
         } else {
             self.evaluated_operand_as(
                 dispatch.subject,
@@ -71,13 +71,23 @@ impl Execution<'_, '_, '_> {
                 contexts,
                 constraints,
             )
-            .capture
         };
         let outer_captures = self.match_subjects.len();
         if dispatch.capture.is_valid() {
+            let anchor = self
+                .program
+                .expression_table
+                .value_capture(dispatch.capture)
+                .value_anchor;
+            // Patterns and their effects have not run. This exact saved value
+            // retains its producer's complete owned fact roster, including
+            // conditional field qualifications, before later source writes.
+            self.publish_owned_capture(anchor, &mut subject, contexts, constraints);
             self.match_subjects
-                .push((dispatch.capture, subject_operand));
+                .push((dispatch.capture, subject.capture));
         }
+        let subject_operand = subject.capture;
+        let mut owned_subject = self.owned_case_subject(&subject_operand);
         let subject_writes = self.operand_writes.len();
         let mut joined = None;
         let mut completed_writes = Vec::new();
@@ -104,14 +114,17 @@ impl Execution<'_, '_, '_> {
                 evaluation_inputs.push(subject_operand);
             }
             let mut covered = matches!(arm.pattern, MatchPattern::Wildcard);
-            if let Some(reference) = structural
-                && let Some(case) = structural_match_pattern_case(
+            let selected_case = structural.and_then(|_| {
+                structural_match_pattern_case(
                     self.program,
                     self.machine,
                     self.state,
                     &dispatch,
                     arm.pattern,
                 )
+            });
+            if let Some(reference) = structural
+                && let Some(case) = selected_case
                 && structural_match_pattern_is_total(self.program, arm.pattern)
             {
                 crate::shared::collections::push_unique(&mut case_coverage, case);
@@ -181,10 +194,9 @@ impl Execution<'_, '_, '_> {
             // Arm writes are absent on the fallthrough path. Retain their union
             // only after all alternatives, for later enclosing operands.
             let branch_prefix = self.write_prefix();
-            if !matches!(arm.pattern, MatchPattern::Destructure(_))
-                && self
-                    .changed_operand_sources(&[(dispatch.subject, subject_writes)])
-                    .is_empty()
+            if self
+                .changed_operand_sources(&[(dispatch.subject, subject_writes)])
+                .is_empty()
                 && let Ok(ordinal) = u32::try_from(ordinal)
             {
                 let source_arm = dispatch.arms.handle_at(ordinal);
@@ -216,6 +228,19 @@ impl Execution<'_, '_, '_> {
                         branch_constraints,
                     );
                 }
+            }
+            if let Some(owned_subject) = &mut owned_subject
+                && let Some(case) = selected_case
+                && let Ok(ordinal) = u32::try_from(ordinal)
+            {
+                self.retain_owned_case_selection(
+                    expression,
+                    dispatch.arms.handle_at(ordinal),
+                    &subject_operand,
+                    owned_subject,
+                    case,
+                    structural_match_pattern_is_total(self.program, arm.pattern),
+                );
             }
             let completed = self.evaluated_operand_as(
                 arm.value,

@@ -1,6 +1,3 @@
-// Contract cast expression projection across value and reference-recast forms,
-// arithmetic domains, and optional indexed semantic domains.
-
 use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::{ContractProjectionContext, reviewed_package};
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};

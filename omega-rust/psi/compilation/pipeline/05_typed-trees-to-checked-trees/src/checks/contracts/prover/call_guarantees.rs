@@ -55,11 +55,11 @@ struct Invocation<'program> {
 }
 
 fn invocation_fact<'facts>(
-    facts: checked_trees::CheckFactsRef<'facts>,
+    facts: &'facts checked_trees::CheckFacts,
     caller: &FlowStateFact,
     invocation: &Invocation<'_>,
 ) -> Option<&'facts checked_trees::FlowCallFact> {
-    let mut calls = crate::flow::call_flows(facts.flow.control, caller.calls)
+    let mut calls = crate::flow::call_flows(&facts.flow.control, caller.calls)
         .iter()
         .filter(|call| {
             call.statement_index == invocation.statement && call.call_ordinal == invocation.ordinal
@@ -102,7 +102,7 @@ pub(in crate::checks) fn proves_current(
     };
     let guarantees = available(
         program,
-        facts.view(),
+        facts,
         caller,
         GuaranteeUse::StatementEntry(statement),
         contexts,
@@ -140,7 +140,7 @@ pub(crate) fn current_predicates(
     contexts: &[facts::FactContextHandle],
     frames: &validation::CallFrameResolver<'_>,
 ) -> Vec<BoundPredicate> {
-    available(program, facts.view(), caller, use_point, contexts, frames)
+    available(program, facts, caller, use_point, contexts, frames)
         .into_iter()
         .filter_map(|guarantee| {
             let invocation = &guarantee.invocation;
@@ -209,7 +209,7 @@ pub(crate) fn current_predicates(
                 if crate::flow::operand_binds_stable_copy(
                     program,
                     parameters[position].type_reference,
-                ) && let Some(call) = invocation_fact(facts.view(), caller, invocation)
+                ) && let Some(call) = invocation_fact(facts, caller, invocation)
                     && let Some(actual) = actual_at(program, caller, call, position, projection)
                     && let Some(capture) = captured_operand(program, facts, caller, call, &actual)
                     && let Some(values) = captured_values(program, facts, caller, call, &actual)
@@ -382,7 +382,7 @@ pub(in crate::checks::contracts) fn proves(
     let Some(frames) = frames else {
         return false;
     };
-    if !stable_predicate_inputs(program, facts.view(), caller, &required, expression)
+    if !stable_predicate_inputs(program, facts, caller, &required, expression)
         || !builtin_predicate(program, operators, &required, expression)
     {
         return false;
@@ -390,7 +390,7 @@ pub(in crate::checks::contracts) fn proves(
     let mut arithmetic_hypotheses = Vec::new();
     let exact = available(
         program,
-        facts.view(),
+        facts,
         caller,
         // These are the exact call-entry contexts after its operands, not
         // statement entry. Context membership excludes this call's own and
@@ -615,7 +615,7 @@ fn capture_preserved(
 /// The observer supplies value versions, never a replay of the callee body.
 pub(in crate::checks) fn guarantee_scalar<'facts>(
     program: &dyn validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'facts>,
+    facts: &'facts checked_trees::CheckFacts,
     caller: &FlowStateFact,
     call: &FlowCallFact,
     expression: ExpressionHandle,
@@ -670,8 +670,8 @@ pub(in crate::checks) fn guarantee_scalar<'facts>(
             let stable = stable_predicate_inputs(program, facts, caller, &supplied, occurrence);
             let preserved = capture_preserved(
                 program,
-                facts.operators,
-                facts.borrow,
+                &facts.operators,
+                &facts.borrow,
                 machine,
                 &supplied,
                 occurrence,
@@ -713,7 +713,7 @@ pub(in crate::checks) fn guarantee_scalar<'facts>(
 /// their existing guarantee judgments.
 pub(super) fn guarantee_input<'facts>(
     program: &dyn validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'facts>,
+    facts: &'facts checked_trees::CheckFacts,
     caller: &FlowStateFact,
     call: &FlowCallFact,
     expression: ExpressionHandle,
@@ -741,7 +741,7 @@ pub(super) fn guarantee_input<'facts>(
 }
 fn captured_actual_operand<'facts>(
     program: &dyn validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'facts>,
+    facts: &'facts checked_trees::CheckFacts,
     caller: &FlowStateFact,
     call: &FlowCallFact,
     actual: ExpressionHandle,
@@ -769,9 +769,9 @@ fn captured_actual_operand<'facts>(
     place.segments.extend_from_slice(path);
     if !operands.all(|other| {
         if post_state {
-            crate::flow::operand_bindings_agree(program, facts.flow, operand, other, &place)
+            crate::flow::operand_bindings_agree(program, &facts.flow, operand, other, &place)
         } else {
-            crate::flow::operand_observations_agree(program, facts.flow, operand, other, &place)
+            crate::flow::operand_observations_agree(program, &facts.flow, operand, other, &place)
         }
     }) {
         return None;
@@ -857,7 +857,7 @@ fn ordinary_arguments(
 /// only admission to the exact-value vocabulary, not an effect exemption.
 fn stable_predicate_inputs(
     program: &dyn ::validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &checked_trees::CheckFacts,
     caller: &FlowStateFact,
     invocation: &Invocation<'_>,
     expression: ExpressionHandle,
@@ -865,7 +865,7 @@ fn stable_predicate_inputs(
     if !ordinary_arguments(program, invocation) {
         return false;
     }
-    if let Some(reads) = logical_formal_reads(program, facts.operators, invocation, expression) {
+    if let Some(reads) = logical_formal_reads(program, &facts.operators, invocation, expression) {
         let parameters = invocation.callable.parameters(program);
         let arguments = validation::call_site_argument_expressions(program, &invocation.site);
         return reads.iter().all(|place| {
@@ -972,7 +972,7 @@ fn logical_formal_reads(
 
 fn stable_captured_projection(
     program: &dyn ::validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &checked_trees::CheckFacts,
     caller: &FlowStateFact,
     invocation: &Invocation<'_>,
     position: usize,
@@ -983,7 +983,7 @@ fn stable_captured_projection(
         return false;
     };
     let Some((operands, receiver_offset)) =
-        crate::flow::captured_call_operands(program, facts.flow, caller, call)
+        crate::flow::captured_call_operands(program, &facts.flow, caller, call)
     else {
         return false;
     };

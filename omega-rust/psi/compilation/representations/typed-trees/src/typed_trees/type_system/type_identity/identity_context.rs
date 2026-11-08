@@ -908,10 +908,16 @@ pub(crate) fn normalize_index_expression(
             } else {
                 SymbolHandle::invalid()
             };
-            if let Some(identity) = substitution::index(program, symbol, &fallback, context) {
-                return identity;
+            let identity =
+                substitution::index(program, symbol, &fallback, context).unwrap_or_else(|| {
+                    substitution::index_name(program, symbol, fallback.as_str(), context)
+                });
+            if program.pattern_component(expression) == Some(language_core::PatternComponent::Case)
+            {
+                compound(IndexForm::CaseComponent, [identity])
+            } else {
+                identity
             }
-            substitution::index_name(program, symbol, fallback.as_str(), context)
         }
         ExpressionNode::Binary(binary) => {
             if open_index_operation_selection(program, expression).is_none() {

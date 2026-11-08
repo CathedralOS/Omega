@@ -92,7 +92,7 @@ pub(super) fn live_contexts_prove_boolean_expression(
 ) -> bool {
     live_scalar_value(
         program,
-        facts.view(),
+        facts,
         state,
         statement_index,
         contexts,
@@ -186,7 +186,7 @@ fn current_bound_boolean_is_proven(
 
 fn live_scalar_value(
     program: &dyn validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &checked_trees::CheckFacts,
     state: &typed_trees::state::State,
     statement_index: usize,
     contexts: &[facts::FactContextHandle],
@@ -195,7 +195,7 @@ fn live_scalar_value(
 ) -> Option<ScalarValue> {
     let selected = crate::values::lower_unit_scalar_argument(
         program,
-        facts.operators,
+        &facts.operators,
         state,
         statement_index,
         expression,

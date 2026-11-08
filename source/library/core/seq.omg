@@ -170,7 +170,7 @@ terminates by s
 // nat's add_succ_law + add_zero_right, plus the inductive hypothesis.
 // Landing this lemma required the state-values simplifier hardening
 // (boolean depth budget + distribution size gate + the helper-expansion
-// work budget): the backend used to crash, then hang, expanding the
+// fuel budget): the backend used to crash, then hang, expanding the
 // proof machine's recursion. Lean analog: `List.length_reverse`.
 machine length_reverse(s: Seq<u64>) -> Nat
 terminates by s

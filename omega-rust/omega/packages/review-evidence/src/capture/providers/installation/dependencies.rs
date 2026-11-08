@@ -1,10 +1,4 @@
-/*
-We ground selected installation rows in checked dependencies rather than mutual
-claims.
-
-An explicit work stack avoids consuming the host stack on long installed
-chains; entries retain their next child and shared completed nodes are reused.
-*/
+//! Ground selected installation rows in checked dependencies, not mutual claims.
 
 use crate::capture::{PackageReviewInput, behavior::project_installation_reaches};
 use diagnostics::Diagnostic;
@@ -83,6 +77,8 @@ fn rejected(reason: &str) -> Vec<Diagnostic> {
 }
 
 fn validate_grounded_rows(rows: &[Vec<usize>]) -> Result<(), &'static str> {
+    // Explicit work stack avoids consuming the host stack on a long installed
+    // chain. Entries retain their next child; shared completed nodes are reused.
     let mut visiting = vec![false; rows.len()];
     let mut complete = vec![false; rows.len()];
     for root in 0..rows.len() {

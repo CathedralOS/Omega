@@ -143,7 +143,7 @@ pub(super) fn validate(
                 edge.target = patch.target;
                 edge.bindings = composed.clone();
                 edge.provenance.extend_from_slice(&outgoing_edge.provenance);
-                edge.work.extend_from_slice(&outgoing_edge.work);
+                edge.fuel.extend_from_slice(&outgoing_edge.fuel);
                 node.definitions =
                     expected_definitions(&node.operation, location.block, location.node);
                 node.uses = expected_uses(&node.operation, location.block, location.node);

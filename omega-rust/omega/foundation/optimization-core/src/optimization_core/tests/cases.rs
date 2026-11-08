@@ -1,7 +1,3 @@
-// Unit tests for `Optimization` tag contiguity, `OptimizationSelections`
-// canonical sorting and wire round-trips, and phase/Psi/post-Terminal
-// projections.
-
 use super::super::{
     Optimization, OptimizationExecutionPhase, OptimizationSelections,
     PostTerminalOptimizationSelections, SelectionDecodeError,
@@ -10,6 +6,8 @@ use std::collections::BTreeSet;
 
 #[test]
 fn authoritative_vocabulary_has_contiguous_tags_and_unique_nonempty_names() {
+    // The descriptor macro generates both the enum and `ALL`; this test
+    // protects the stable tag sequence and the generated build view.
     let mut case_names = BTreeSet::new();
     for (index, optimization) in Optimization::ALL.into_iter().enumerate() {
         assert_eq!(usize::from(optimization as u8), index + 1);

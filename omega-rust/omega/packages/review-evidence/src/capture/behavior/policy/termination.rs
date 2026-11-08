@@ -1,8 +1,3 @@
-// Checked and declared callable termination policy projection. Checked lowering
-// preserves the authored interface while replacing the typed plan summary with
-// whole-graph progress analysis and resolving the private witness view, so the
-// realized contract envelope owns the retained implementation summary.
-
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::{
@@ -58,6 +53,11 @@ fn checked_plan<'a>(
     )?;
     if envelope.machine != machine.symbol
         || fact.plan.checked_summary != envelope.checked_termination
+        // Checked lowering preserves the authored interface, but replaces the
+        // typed plan's summary with whole-graph progress analysis and resolves
+        // the private witness view. Those implementation fields cannot be
+        // compared with their pre-check values. The exact checked envelope
+        // above is the owner of the retained implementation summary.
         || machine.termination_plan.interface != fact.plan.interface
         || compilation
             .machine_states(machine)

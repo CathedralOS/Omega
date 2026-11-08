@@ -1,9 +1,10 @@
-// We hold transport-erased custody for one declared immutable package source.
-// Persistent sources retain a sealed physical root, while an ordinary
-// compilation root retains its complete acquisition inventory so transport
-// erasure never drops the captured bytes or forces loading or `Build` to reopen
-// a changed checkout. Optional storage cache coordinates select retained
-// resolver lanes only and are ignored by equality and semantic equivalence.
+//! Transport-erased custody for one declared immutable package source.
+//!
+//! Persistent sources retain a sealed physical root. An ordinary compilation
+//! root retains its complete acquisition inventory instead: the root spelling
+//! only routes consumers through that closed namespace. Keeping the capture
+//! here prevents transport erasure from dropping the bytes and forcing loading
+//! or Build to reopen a changed checkout.
 
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
@@ -18,6 +19,8 @@ use package_source::LocalSourceLimits;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+/// Immutable source bound to its executed or accepted recorded package metadata.
+/// Historical metadata never replaces resolver authentication of the bytes.
 #[derive(Debug, Clone)]
 pub(crate) struct PackageSourceCustody {
     key: PackageKey,
@@ -30,13 +33,26 @@ pub(crate) struct PackageSourceCustody {
     selection_evidence: PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
     dependency_projections: DependencyProjections,
-    checked_source_cache_dir: Option<PathBuf>, // Storage location only; ignored by equality and semantic equivalence
-    compiled_review_cache_dir: Option<PathBuf>, // Storage location only; ignored by equality and semantic equivalence
+    /// Retained resolver lane directory that may persist this custody's
+    /// canonical source index. It is a storage location, not source
+    /// identity, so equality and semantic equivalence ignore it.
+    checked_source_cache_dir: Option<PathBuf>,
+    /// Retained resolver lane directory that may persist this custody's
+    /// compiled review records. A storage location, not source identity —
+    /// equality and semantic equivalence ignore it.
+    compiled_review_cache_dir: Option<PathBuf>,
 }
 
+/// Name of the lane child holding persistent checked-source indexes beneath
+/// a retained resolver storage lane.
 pub(crate) const CHECKED_SOURCE_CACHE_LANE: &str = "checked-source-cache";
+
+/// Name of the lane child holding persistent compiled-review records beneath
+/// a retained resolver storage lane.
 pub(crate) const COMPILED_REVIEW_CACHE_LANE: &str = "compiled-review-cache";
 
+/// Optional storage coordinates minted from the current resolver's retained
+/// lanes. These select storage only, never source or compilation authority.
 #[derive(Debug, Clone)]
 pub(super) struct SourceCacheDirectories {
     checked_source: PathBuf,
@@ -124,20 +140,28 @@ impl PackageSourceCustody {
         self.captured_source.as_ref()
     }
 
+    /// Attach the retained lane directory offered to the checked source
+    /// cache during compiler-input preparation.
     pub(crate) fn with_checked_source_cache_dir(mut self, directory: PathBuf) -> Self {
         self.checked_source_cache_dir = Some(directory);
         self
     }
 
+    /// Retained directory offered to the checked source cache, when
+    /// resolution supplied one.
     pub(crate) fn checked_source_cache_dir(&self) -> Option<&Path> {
         self.checked_source_cache_dir.as_deref()
     }
 
+    /// Attach the retained lane directory offered to the compiled review
+    /// cache during dependency compilation.
     pub(crate) fn with_compiled_review_cache_dir(mut self, directory: PathBuf) -> Self {
         self.compiled_review_cache_dir = Some(directory);
         self
     }
 
+    /// Retained directory offered to the compiled review cache, when
+    /// resolution supplied one.
     pub(crate) fn compiled_review_cache_dir(&self) -> Option<&Path> {
         self.compiled_review_cache_dir.as_deref()
     }
@@ -174,6 +198,7 @@ impl PackageSourceCustody {
         self.source_limits
     }
 
+    /// Authored requests for one purpose scope, in requester-local order.
     pub fn dependency_requests(&self, purpose: DependencyPurpose) -> &[DependencySourceRequest] {
         self.dependency_projections.requests(purpose)
     }

@@ -1,4 +1,4 @@
-// Compare executed inspection sources and fresh compiler findings against a target's accepted lock baseline.
+//! Compare executed inspection sources and compiler findings to accepted policy.
 
 use super::{PackageInspectionError, failure};
 use crate::build_session::PackageBuildSession;
@@ -14,6 +14,7 @@ use crate::review::{
 };
 use target::TargetProfile;
 
+/// An executed source closure bound to the inspection's original project.
 pub struct PackageInspectionSources {
     pub(super) closure: ResolvedPackageSourceClosure,
     pub(super) identity: std::sync::Arc<super::InspectionIdentity>,

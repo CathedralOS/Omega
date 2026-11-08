@@ -12,7 +12,7 @@ use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{
     LiveRangeIdentity, LiveRangePlan, LivenessIdentity, SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 
 /// Derive block-local live-range fragments and virtual-register interference
 /// from an exact selected CFG and validated liveness facts.
@@ -63,7 +63,7 @@ copy_receipt! {
         pub(crate) selected: SelectedInstructionPlanIdentity,
         pub(crate) liveness: LivenessIdentity,
         pub(crate) optimization_unit: OptimizationUnitIdentity,
-        pub(crate) work_schedule: WorkScheduleIdentity,
+        pub(crate) fuel_schedule: FuelScheduleIdentity,
         pub(crate) virtual_register_count: usize,
         pub(crate) virtual_fragment_count: usize,
     }

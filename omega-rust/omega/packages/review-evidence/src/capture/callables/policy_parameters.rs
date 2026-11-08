@@ -1,7 +1,4 @@
-// Scope-preserving static telescopes for complete callable policy. The lexical
-// telescope accepted during source formation retains resolved symbols for owner
-// operands rather than inferring them from type text or replacing them with
-// method-local binders that share a spelling.
+//! Scope-preserving static telescopes for complete callable policy.
 
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::signature::instantiate_static_parameters;
@@ -12,6 +9,9 @@ use crate::record::PackagePolicyTypeParameter;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
+/// The complete lexical telescope already accepted during source formation.
+/// Owner operands retain their resolved symbols; they are not inferred from
+/// type text or replaced by method-local binders with the same spelling.
 pub(super) struct CallableParameters {
     pub binders: Vec<(SymbolHandle, String)>,
     pub lifetime_parameters: Vec<typed_trees::name::Identifier>,

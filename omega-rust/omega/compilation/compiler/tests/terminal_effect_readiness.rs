@@ -1,16 +1,16 @@
 //! Real checked suspension sites park before host invocation, not by replaying
-//! source or pretending scheduling-work-budget exhaustion is provider readiness.
+//! source or pretending scheduling-fuel exhaustion is provider readiness.
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
 #[path = "support/build_sequence.rs"]
 mod build_sequence;
 
-use psi_work::WorkMeter;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
+use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalImportAdapter,
@@ -307,7 +307,7 @@ fn synchronous_host_computation_retains_the_invocation_without_guest_suspension(
                 )
                 .unwrap();
         }
-        let mut meter = WorkMeter::unbounded();
+        let mut meter = TerminalFuelMeter::unbounded();
         let pending = instance
             .invoke(&mut meter)
             .expect("executor pause, not a guest suspension");
@@ -509,7 +509,7 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
             let observations = Arc::new(Mutex::new(Vec::new()));
             assert!(
                 matches!(
-                    instance.invoke(&mut WorkMeter::unbounded()),
+                    instance.invoke(&mut TerminalFuelMeter::unbounded()),
                     Err(terminal_interpreter::TerminalInstanceError::UnboundImports { .. })
                 ),
                 "ordinary host imports still bind before any effect"
@@ -578,14 +578,14 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
                 )
                 .unwrap()
             };
-            let mut meter = WorkMeter::with_budget(0);
+            let mut meter = TerminalFuelMeter::with_allowance(0);
             assert!(matches!(
                 instance.invoke(&mut meter).unwrap(),
                 TerminalExecutionStatus::SponsorExhausted(_)
             ));
             assert!(
                 instance.bind_component(make_binding()).is_err(),
-                "work-budget exhaustion is not a checked readiness crossing"
+                "fuel exhaustion is not a checked readiness crossing"
             );
             meter.replenish(100_000).unwrap();
             if entry == "component_premature_entry" {
@@ -808,7 +808,7 @@ fn readiness_preserves_nested_continuation_and_rejects_unchecked_suspension() {
                     )
                     .unwrap();
             }
-            let mut meter = WorkMeter::unbounded();
+            let mut meter = TerminalFuelMeter::unbounded();
             if machine == "synchronous_entry" {
                 let refusal = instance.invoke(&mut meter).unwrap_err();
                 assert!(
@@ -953,7 +953,7 @@ impl TerminalEffectHandler for ParkingScheduler {
 /// Every step of the fused nested-machine cycle in
 /// `samples/cli/facts/nested_machine_invocation/suspending_cycle` really parks:
 /// the activation stops at the checked `Scheduler::advance` crossing, waiting
-/// charges no work, and resumption continues the same call. The program's own
+/// charges no fuel, and resumption continues the same call. The program's own
 /// oracle (`full == 15000150000 && empty == 7`, else Trap) then holds exactly
 /// as it does with the inline scheduler that never parks.
 #[test]
@@ -1020,7 +1020,7 @@ fn readiness_parks_every_step_of_a_fused_suspending_cycle() {
             )
             .unwrap();
     }
-    let mut meter = WorkMeter::unbounded();
+    let mut meter = TerminalFuelMeter::unbounded();
     let mut awaiting = 0u64;
     let mut previous_awaiting = false;
     let completed = loop {

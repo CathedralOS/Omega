@@ -129,30 +129,6 @@ impl FlowDescriptorObservationTable {
         self.rows.adopt_additional_pages(other.rows);
         self.rebuild_index();
     }
-
-    pub fn share_pages(&mut self) {
-        self.rows.share_pages();
-    }
-
-    pub fn latest_generation(&self) -> u32 {
-        self.rows.latest_generation()
-    }
-
-    pub fn current_generation(&self) -> u32 {
-        self.rows.current_generation()
-    }
-
-    /// The rows' pages from `generation` up, as `PagedArenaSet::take_pages_from`;
-    /// both sides rebuild their context index from the rows they keep.
-    pub fn take_pages_from(&mut self, generation: u32, restored_current: u32) -> Self {
-        let mut taken = Self {
-            rows: self.rows.take_pages_from(generation, restored_current),
-            by_context: Vec::new(),
-        };
-        self.rebuild_index();
-        taken.rebuild_index();
-        taken
-    }
 }
 
 #[cfg(test)]

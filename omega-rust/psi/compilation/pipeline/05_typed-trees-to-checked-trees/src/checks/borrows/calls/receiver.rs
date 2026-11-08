@@ -13,7 +13,7 @@ use super::super::statements::local_jump;
 use super::super::{access_sources, aliases, place_access};
 mod footprint;
 
-pub(super) use footprint::explicit_carried_data_access;
+pub(super) use footprint::explicit_jump_data_access;
 pub(in crate::checks::borrows) use footprint::{
     ReceiverSummaries, check_receiver_footprint_against_argument_loans,
 };

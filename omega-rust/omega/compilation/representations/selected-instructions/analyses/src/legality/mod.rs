@@ -23,7 +23,7 @@ use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 use selected_instructions::SelectedInstructionPlanIdentity;
 use selected_instructions::SelectedProgram;
 use selected_instructions::StagedOptimizedCustodyCore;
-use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
+use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use terminal_psi::TerminalPsiIdentity;
 
 pub fn stage_optimized_allocation_legality(

@@ -1,6 +1,3 @@
-// `CoreContractDecodeError`: closed wire-decode failure vocabulary for rule,
-// analysis, budget, and verdict contract encodings.
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CoreContractDecodeError {
     WrongLength { expected: usize, actual: usize },

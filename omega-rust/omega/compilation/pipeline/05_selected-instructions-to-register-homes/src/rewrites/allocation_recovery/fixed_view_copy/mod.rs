@@ -79,7 +79,7 @@ copy_receipt! {
         pub(crate) source_evidence: FixedViewCopySourceEvidence,
         pub(crate) transformed_selected: SelectedInstructionPlanIdentity,
         pub(crate) optimization_unit: optimization_core::OptimizationUnitIdentity,
-        pub(crate) work_schedule: semantic_vocabulary::WorkScheduleIdentity,
+        pub(crate) fuel_schedule: semantic_vocabulary::FuelScheduleIdentity,
         pub(crate) policy: FixedViewCopyPolicy,
         pub(crate) usage: OptimizationWorkUsage,
         pub(crate) function_count: usize,

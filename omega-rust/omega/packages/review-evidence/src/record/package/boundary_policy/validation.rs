@@ -1,6 +1,3 @@
-// Structural validation for `PackagePolicyBoundaryApplications` against the
-// package's selected provider plans.
-
 use crate::record::PackagePolicyBoundaryApplicationRealization;
 use crate::record::PackagePolicyBoundaryApplications;
 use crate::record::PackagePolicyBoundaryRealization;

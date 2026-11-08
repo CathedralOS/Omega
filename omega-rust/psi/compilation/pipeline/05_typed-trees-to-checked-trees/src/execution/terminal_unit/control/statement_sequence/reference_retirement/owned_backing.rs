@@ -304,7 +304,9 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn prepare_
                 owner: CheckedUnitStructuralArgumentPlan {
                     projection_evaluations: Default::default(),
                     source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        value_dependency: None,
                         expression,
+                        logical_root_type_identity: None,
                     },
                     path: Vec::new(),
                     type_identity: shapes.add_type(owner.row.disposed_type, &[], &[])?,

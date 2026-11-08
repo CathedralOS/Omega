@@ -12,7 +12,7 @@ use crate::{
 use arena::{Arena, HandleSpan};
 use optimization_core::OptimizationUnitIdentity;
 use register_model::{RegisterClassId, RegisterOperandAccess, RegisterUnitId, RegisterViewId};
-use semantic_vocabulary::{BlockId, EdgeId, MachineId, WorkScheduleIdentity};
+use semantic_vocabulary::{BlockId, EdgeId, FuelScheduleIdentity, MachineId};
 use target::NativeTarget;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -24,7 +24,7 @@ crate::identity::sha256_identity!(LivenessIdentity);
 pub struct LivenessPlan {
     pub selected: SelectedInstructionPlanIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
-    pub work_schedule: WorkScheduleIdentity,
+    pub fuel_schedule: FuelScheduleIdentity,
     pub target: NativeTarget,
     /// One row per selected function, in plan order. Rows are shared between
     /// the successive plans runtime-spill recovery analyzes: a step that

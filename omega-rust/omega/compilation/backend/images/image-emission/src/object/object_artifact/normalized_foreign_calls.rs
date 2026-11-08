@@ -443,7 +443,7 @@ pub fn durable_home_offsets(
     let mut producers = Vec::new();
     for contract in &function.calls {
         if let Some(placement) = &contract.call.result_placement
-            && let target_operations::CallSiteOwner::Operation(operation) = contract.owner
+            && let Some(operation) = contract.owner.operation()
         {
             producers.push((contract.instruction, operation, placement.shape.byte_size));
         }
@@ -1559,7 +1559,7 @@ where
 }
 
 /// Allocation's pure regeneration keeps the original scalar type and source
-/// value on its fresh result. It cannot claim another operation's work or
+/// value on its fresh result. It cannot claim another operation's fuel or
 /// stand in for a computed home, reference, different literal or register.
 fn rematerializes_argument(
     instruction: &selected_instructions::SelectedInstruction,
@@ -1599,7 +1599,7 @@ fn rematerializes_argument(
         && instruction.provenance.operations.is_empty()
         && instruction.provenance.edges.is_empty()
         && instruction.provenance.obligations.is_empty()
-        && instruction.provenance.work.is_empty()
+        && instruction.provenance.fuel.is_empty()
         && instruction.provenance.values.as_slice() == [source_value]
 }
 
@@ -1612,9 +1612,10 @@ pub fn scalar_call_result_producer(
     function: &selected_instructions::SelectedFunction,
     home: &target_operations::TargetUnitScalarHomeRequirement,
 ) -> bool {
-    let mut internal = function.calls.iter().filter(|contract| {
-        contract.owner == target_operations::CallSiteOwner::Operation(home.defining_operation)
-    });
+    let mut internal = function
+        .calls
+        .iter()
+        .filter(|contract| contract.owner.operation() == Some(home.defining_operation));
     let mut foreign = function
         .normalized_foreign_calls
         .iter()
@@ -1675,7 +1676,7 @@ pub(crate) fn image_foreign_calls_match_object(
 
 /// Exact operation or terminal-edge source custody, with disjoint namespaces.
 /// Selection may prepend zero-storage establishment charges to the next
-/// emitted instruction. Those operation identities remain real source/work
+/// emitted instruction. Those operation identities remain real source/fuel
 /// custody, not owners of its foreign invocation: a returning call is the last
 /// operation, while a completion owns the single explicit edge. The retained
 /// call record and source graph establish the owner; this query does not infer
@@ -1689,10 +1690,10 @@ pub fn foreign_invocation_provenance_matches(
         semantic_vocabulary::InvocationSite::Operation(operation) => {
             provenance.operations.last() == Some(&operation)
                 && provenance.edges.is_empty()
-                && provenance.work_settles_only_claimed_sites()
+                && provenance.fuel_settles_only_claimed_sites()
         }
         semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
-            provenance.edges.as_slice() == [edge] && provenance.work_settles_only_claimed_sites()
+            provenance.edges.as_slice() == [edge] && provenance.fuel_settles_only_claimed_sites()
         }
     }
 }

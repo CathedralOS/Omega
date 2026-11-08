@@ -37,8 +37,8 @@ evaluated_binding_digest!(EvaluatedBindingMaterializationDigest);
 pub struct EvaluatedBindingUsage {
     usage_schema_version: u32,
     step_schedule_marker: u32,
-    work_units: u64,
-    work_budget: u64,
+    fuel_units: u64,
+    fuel_ceiling: u64,
     build_log_bytes: u64,
     filesystem_operation_attempts: u64,
     peak_live_cells: u64,
@@ -53,8 +53,8 @@ impl EvaluatedBindingUsage {
     pub fn from_evaluator(
         usage_schema_version: u32,
         step_schedule_marker: u32,
-        work_units: u64,
-        work_budget: u64,
+        fuel_units: u64,
+        fuel_ceiling: u64,
         build_log_bytes: u64,
         filesystem_operation_attempts: u64,
         peak_live_cells: u64,
@@ -71,8 +71,8 @@ impl EvaluatedBindingUsage {
         Ok(Self {
             usage_schema_version,
             step_schedule_marker,
-            work_units,
-            work_budget,
+            fuel_units,
+            fuel_ceiling,
             build_log_bytes,
             filesystem_operation_attempts,
             peak_live_cells,
@@ -90,12 +90,12 @@ impl EvaluatedBindingUsage {
         self.step_schedule_marker
     }
 
-    pub const fn work_units(self) -> u64 {
-        self.work_units
+    pub const fn fuel_units(self) -> u64 {
+        self.fuel_units
     }
 
-    pub const fn work_budget(self) -> u64 {
-        self.work_budget
+    pub const fn fuel_ceiling(self) -> u64 {
+        self.fuel_ceiling
     }
 
     pub const fn build_log_bytes(self) -> u64 {
@@ -134,7 +134,7 @@ pub struct BuildNativeBindingOrigin {
     pub requirement_identity: terminal_psi::TerminalIdentityIndex,
     pub source_occurrence_digest: [u8; 32],
     pub terminal_code: terminal_psi::TerminalPsiIdentity,
-    pub work_schedule: u32,
+    pub fuel_schedule: u32,
     pub storage_schedule: u32,
     pub observation_digest: [u8; 32],
 }
@@ -155,7 +155,7 @@ impl BuildNativeBindingOrigin {
         };
         if self.source_occurrence_digest == [0; 32]
             || self.terminal_code.program_fingerprint.as_bytes() == &[0; 32]
-            || self.work_schedule == 0
+            || self.fuel_schedule == 0
             || self.storage_schedule == 0
             || self.observation_digest == [0; 32]
         {
@@ -172,7 +172,7 @@ impl BuildNativeBindingOrigin {
         digest.raw(&self.source_occurrence_digest);
         digest.raw(&self.terminal_code.vocabulary_marker.get().to_le_bytes());
         digest.raw(self.terminal_code.program_fingerprint.as_bytes());
-        digest.raw(&self.work_schedule.to_le_bytes());
+        digest.raw(&self.fuel_schedule.to_le_bytes());
         digest.raw(&self.storage_schedule.to_le_bytes());
         digest.raw(&self.observation_digest);
     }
@@ -374,8 +374,8 @@ fn receipt_identity_digest(
     let usage = evaluation_usage;
     digest.raw(&usage.usage_schema_version.to_le_bytes());
     digest.raw(&usage.step_schedule_marker.to_le_bytes());
-    digest.raw(&usage.work_units.to_le_bytes());
-    digest.raw(&usage.work_budget.to_le_bytes());
+    digest.raw(&usage.fuel_units.to_le_bytes());
+    digest.raw(&usage.fuel_ceiling.to_le_bytes());
     digest.raw(&usage.build_log_bytes.to_le_bytes());
     digest.raw(&usage.filesystem_operation_attempts.to_le_bytes());
     digest.raw(&usage.peak_live_cells.to_le_bytes());

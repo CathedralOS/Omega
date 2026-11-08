@@ -1,7 +1,3 @@
-// Contract proposition application projection across generic proposition-parameter
-// endpoints, primitive/witness proposition endpoints, and cycle-checked transparent
-// proposition expansions.
-
 use crate::capture::SourceDeclarationInput;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;

@@ -10,8 +10,6 @@ use arena::{Arena, HandleSpan};
 use target::NativeTarget;
 mod callback_admission;
 mod callback_catalog;
-mod callback_slot;
-pub use callback_slot::callback_destination_slot;
 mod callback_placements;
 pub use callback_placements::{PrivateCallbackPlacements, encode_private_callback_placements};
 mod identity;

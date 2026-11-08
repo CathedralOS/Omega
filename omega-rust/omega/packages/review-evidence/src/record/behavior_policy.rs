@@ -1,8 +1,4 @@
-// Callable behavior meaning without implementation locations or proof receipts.
-//
-// `PackagePolicyInferredCrash::Unknown` indicates the checked local dependency
-// graph did not yield a closed summary; `Complete` records a conservative,
-// complete cause set rather than proof that each cause occurs.
+//! Callable behavior meaning without implementation locations or proof receipts.
 
 use super::{
     PackagePolicyServiceProgressRoute, PackageReviewBooleanExpression,
@@ -65,7 +61,9 @@ impl PackagePolicyCrashRoute {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackagePolicyInferredCrash {
+    /// The checked local dependency graph did not yield a closed summary.
     Unknown,
+    /// A conservative, complete cause set, not proof that each cause occurs.
     Complete {
         causes: Vec<PackageReviewCrashCause>,
     },

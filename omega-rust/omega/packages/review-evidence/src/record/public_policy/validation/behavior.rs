@@ -1,5 +1,3 @@
-// Public API operational behavior, crash route, reach, invocation, and termination validation.
-
 use super::{Result, Scope};
 use crate::record::PackagePolicyCrashGuard;
 use crate::record::PackagePolicyCrashRoute;

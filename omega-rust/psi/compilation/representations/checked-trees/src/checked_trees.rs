@@ -20,14 +20,8 @@ pub use flow::CheckedCallOrigin;
 pub mod keyed_rows;
 pub mod operators;
 pub mod proof;
-pub(crate) mod shifted_rows;
 pub mod statement;
 pub mod values;
-pub mod views;
-pub use views::{
-    CheckFactsRef, CheckFactsWalk, ContentProjectionFactsRef, ContentProjectionFactsWalk,
-    FlowFactsRef, FlowFactsWalk, QualificationFactsRef, QualificationFactsWalk,
-};
 
 pub use keyed_rows::{DurableRows, KeyedRows};
 
@@ -97,12 +91,11 @@ pub use facts::{
     CheckedAcceptedTemplateIdentity, CheckedAccessViewInput, CheckedBodyCrashSummary,
     CheckedBoundaryAdapterDispatch, CheckedCallableHeader, CheckedCallbackResourceReceipt,
     CheckedCrashCallSite, CheckedCrashOperatorSite, CheckedCrashSite, CheckedEntryResourceEnvelope,
-    CheckedFactCallProjection, CheckedInstalledInterruptRegistration,
-    CheckedMachineContractEnvelopeIdentity, CheckedMachineContractRefinement,
-    CheckedMachineResourceEnvelopes, CheckedMachineSpecializationIdentity,
-    CheckedNominalMachineUse, CheckedProofRankingRelation, CheckedProofRecursiveCallSite,
-    CheckedProofRecursiveComponent, CheckedProofRecursiveEdge, CheckedProofRecursiveMember,
-    CheckedProofRecursiveTransitionLane, CheckedProviderCandidate,
+    CheckedFactCallProjection, CheckedMachineContractEnvelopeIdentity,
+    CheckedMachineContractRefinement, CheckedMachineResourceEnvelopes,
+    CheckedMachineSpecializationIdentity, CheckedNominalMachineUse, CheckedProofRankingRelation,
+    CheckedProofRecursiveCallSite, CheckedProofRecursiveComponent, CheckedProofRecursiveEdge,
+    CheckedProofRecursiveMember, CheckedProofRecursiveTransitionLane, CheckedProviderCandidate,
     CheckedProviderCandidateDeclaration, CheckedProviderClosedRequirement,
     CheckedProviderClosedRequirements, CheckedProviderInstanceDeclaration,
     CheckedProviderInstancePublication, CheckedProviderInstanceRequirement,
@@ -117,18 +110,17 @@ pub use facts::{
     ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
     ContentPartitionInputClaimBinding, ContentPartitionPlaceSubstitution,
     ContentPartitionResultRewrite, ContentPartitionReturnFact, ContentProjectionFacts,
-    ContentWalkRows, CrashCallSiteLocation, CrashCause, CrashContractCapsule, CrashInterface,
-    CrashPlan, CrashPredicateExpression, CrashPredicateIdentity, CrashRouteBucket,
-    CrashRouteBucketId, CrashRouteGuard, CrashSiteLocation, DataCarryFact,
-    DeclaredCallableContract, DeclaredContractClause, DeclaredContractFact, DeclaredContractKind,
-    DeclaredContractParameter, DeclaredContractStructure, DeclaredProgressPremise,
-    DeclaredTermination, DomainDependencyFact, DomainDependencyPathFact, DomainFacts,
-    DynamicConformanceFacts, DynamicConformanceRowFact, DynamicConformanceRowSource,
-    DynamicSelectionFact, IndexCompatibilityDischarge, IndexCompatibilityFact,
-    IndexCompatibilityFacts, MachineActivationCarryFact, MachineBlockingFact,
-    MachineContractCommitment, MachineContractIdentity, MachineContractPlan, MachineContractPlans,
-    MachineMutationFact, MachineQualifications, MachineServiceReachRows, MachineSuspensionFact,
-    MachineSynchronousInvocationFact, MachineTerminationFact, MutationFacts,
+    CrashCallSiteLocation, CrashCause, CrashContractCapsule, CrashInterface, CrashPlan,
+    CrashPredicateExpression, CrashPredicateIdentity, CrashRouteBucket, CrashRouteBucketId,
+    CrashRouteGuard, CrashSiteLocation, DataCarryFact, DeclaredCallableContract,
+    DeclaredContractClause, DeclaredContractFact, DeclaredContractKind, DeclaredContractParameter,
+    DeclaredContractStructure, DeclaredProgressPremise, DeclaredTermination, DomainDependencyFact,
+    DomainDependencyPathFact, DomainFacts, DynamicConformanceFacts, DynamicConformanceRowFact,
+    DynamicConformanceRowSource, DynamicSelectionFact, IndexCompatibilityDischarge,
+    IndexCompatibilityFact, IndexCompatibilityFacts, MachineActivationCarryFact,
+    MachineBlockingFact, MachineContractCommitment, MachineContractIdentity, MachineContractPlan,
+    MachineContractPlans, MachineMutationFact, MachineQualifications, MachineServiceReachRows,
+    MachineSuspensionFact, MachineSynchronousInvocationFact, MachineTerminationFact, MutationFacts,
     NominalMachineUseFacts, NominalMachineUseSite, OperatorSiteLocation, PerformedIntegerWrite,
     QualificationFacts, RealizedMachineContractEnvelope, ReferenceCustodyFacts,
     ReferenceCustodyRow, RequirementCallSpecializationFacts, ResolvedCarrierType,
@@ -188,6 +180,9 @@ pub use proof::{
 };
 pub use values::{
     CheckedArrayConstructionSource, CheckedBooleanExpression, CheckedByteSequenceOperand,
+    CheckedCompletionArm, CheckedCompletionComparison, CheckedCompletionExpression,
+    CheckedCompletionExpressionHandle, CheckedCompletionExpressionKind, CheckedCompletionPlans,
+    CheckedCompletionRefusal, CheckedCompletionRefusalReason, CheckedCompletionRoot,
     CheckedDispatchSubject, CheckedElementViewRegion, CheckedEntryIndexBound,
     CheckedEntryIndexSelector, CheckedErasedProofParameterPlan, CheckedIeeeFloatComparisonKind,
     CheckedIntegerBinaryKind, CheckedIntegerComparisonKind, CheckedIntegerMathExpression,

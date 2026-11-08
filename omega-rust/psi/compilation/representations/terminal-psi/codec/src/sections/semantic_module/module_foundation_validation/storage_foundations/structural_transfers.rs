@@ -6,18 +6,18 @@ use super::*;
 use terminal_semantics::descriptor_results::{
     DescriptorAnalysis, DescriptorMachine, current_payload_contract,
     current_selected_payload_contract, descriptor_contents_query, payload_memberships,
-    terminal_graph_from, terminal_payload_contract,
+    terminal_graph, terminal_payload_contract,
 };
 use terminal_semantics::{canonical_static_projection, is_copyable_carrier};
 
-/// Reuse each body's callable closure while checking its transfers. Bodies
-/// outside that closure cannot change the payload history being checked.
-/// Build it lazily so earlier malformed operations keep their diagnostics.
+/// Prepare the unchanged module's descriptor graph once while validating its
+/// transfers. Keep the first preparation at the original query point so an
+/// earlier malformed operation still reports the same error.
 pub(in crate::sections::semantic_module::module_foundation_validation) struct StructuralTransferInputs<
     'a,
 > {
     module: &'a TerminalModule,
-    descriptors: Option<(semantic_vocabulary::MachineId, Vec<DescriptorMachine>)>,
+    descriptors: Option<Vec<DescriptorMachine>>,
 }
 
 impl<'a> StructuralTransferInputs<'a> {
@@ -30,15 +30,9 @@ impl<'a> StructuralTransferInputs<'a> {
         }
     }
 
-    fn descriptors(&mut self, machine: semantic_vocabulary::MachineId) -> &[DescriptorMachine] {
-        if self
-            .descriptors
-            .as_ref()
-            .is_none_or(|(owner, _)| *owner != machine)
-        {
-            self.descriptors = Some((machine, terminal_graph_from(self.module, [machine])));
-        }
-        &self.descriptors.as_ref().expect("prepared body closure").1
+    fn descriptors(&mut self) -> &[DescriptorMachine] {
+        self.descriptors
+            .get_or_insert_with(|| terminal_graph(self.module))
     }
 }
 
@@ -116,9 +110,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         .ok_or(CodecError::MalformedStructuralFoundation(
             "owned transfer position is absent",
         ))?;
-    // Match the producer's query scope: this body and every callable dependency.
-    // An unrelated retained body cannot erase the queried payload history.
-    let graph = inputs.descriptors(machine.id);
+    let graph = inputs.descriptors();
     let contract = current_selected_payload_contract(
         &module.structural_types,
         &module.structural_domains,
@@ -228,9 +220,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         let OperationKind::StructuralLeafCopy { source, path } = &operation.kind else {
             return malformed("case leaf copy does not authenticate memberships");
         };
-        // The module validator still checks every body. This query needs the
-        // complete invocation closure of the body that performs the copy.
-        let descriptors = inputs.descriptors(machine.id);
+        let descriptors = inputs.descriptors();
         let mut analysis = DescriptorAnalysis::new(&module.structural_types, descriptors);
         let mut history_failures = Vec::new();
         let mut query_phase = "root";

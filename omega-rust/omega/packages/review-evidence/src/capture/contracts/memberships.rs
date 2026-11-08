@@ -1,7 +1,7 @@
-// Declaration-membership guard rejecting indexed domain membership clauses until a
-// canonical package-review application record represents them; we never collapse an
-// indexed proof clause to its family merely because parameter identities are also
-// retained.
+//! Public membership records currently name a declaration, not an application.
+//! Qualified parameter types have their own exact indexed identity and do not
+//! pass through this clause projection. Never collapse an indexed proof clause
+//! to its family merely because those parameter identities are also retained.
 
 use diagnostics::Diagnostic;
 use typed_trees::domain::ProofMembershipFact;

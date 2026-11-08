@@ -149,9 +149,7 @@ fn slot_region(
     slot: FrameStorageSlotId,
 ) -> Result<(u64, u32, u64, bool), Error> {
     match slot {
-        FrameStorageSlotId::ActivationBase | FrameStorageSlotId::Incoming { .. } => {
-            Err(Error::ArtifactMismatch)
-        }
+        FrameStorageSlotId::Incoming { .. } => Err(Error::ArtifactMismatch),
         FrameStorageSlotId::Outgoing(id) => {
             let entry = unique(&function.outgoing_arguments, |entry| entry.id == id)?;
             Ok((
@@ -351,13 +349,6 @@ pub(super) fn resolve(
     let frame_alignment_bytes = frame_address_alignment(function, frame, symbolic)?;
     let displacement = match symbolic {
         Address::FrameAddress {
-            slot: FrameStorageSlotId::ActivationBase,
-            byte_offset: 0,
-        } => {
-            function_geometry(function, frame)?;
-            0
-        }
-        Address::FrameAddress {
             slot:
                 FrameStorageSlotId::Incoming {
                     abi_stack_byte_offset,
@@ -461,16 +452,6 @@ pub(super) fn validate_address(
         return Err(Error::ArtifactMismatch);
     }
     match symbolic {
-        Address::FrameAddress {
-            slot: FrameStorageSlotId::ActivationBase,
-            byte_offset: 0,
-        } => {
-            function_geometry(function, frame)?;
-            if candidate.displacement != 0 || candidate.frame_alignment_bytes != 1 {
-                return Err(Error::ArtifactMismatch);
-            }
-            Ok(())
-        }
         Address::FrameAddress {
             slot:
                 FrameStorageSlotId::Incoming {

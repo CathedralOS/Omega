@@ -575,7 +575,7 @@ impl CurrentScalarValues<'_> {
             // recursion. Its entry atom is never the caller's current field
             // merely because the declaration and formal symbol are equal.
             if let ScopedArithmeticBinder::Occurrence(occurrence) = binding.binder
-                && length_occurrence(self.program, callee, state, occurrence, &lengths).is_none()
+                && length_occurrence(self.program, occurrence, &lengths).is_none()
                 && scalar_field_occurrence(
                     self.occurrence_at(self.program, callee, state, &lengths),
                     occurrence,

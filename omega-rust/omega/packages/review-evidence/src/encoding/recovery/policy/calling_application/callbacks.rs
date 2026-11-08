@@ -1,5 +1,3 @@
-// Bounded recovery for calling-plan callback binders, demands, materializations, and layouts.
-
 use super::{Error, Reader, nominal, type_identity};
 use crate::encoding::recovery::policy::conformance;
 use crate::record::{

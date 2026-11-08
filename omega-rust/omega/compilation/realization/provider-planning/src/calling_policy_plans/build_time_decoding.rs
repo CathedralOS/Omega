@@ -1,8 +1,5 @@
-// We decode build-time values (`BuildTimeValue`) produced by calling-policy
-// evaluation into normalized `calling_conventions` structures (`BoundaryPlanResult`,
-// `BoundaryEntryPlan`, `CallPlan`, `StatePlan`, and `NativePlace`), enforcing
-// the capacity ceilings each decoded counted array observes and reinterpreting
-// `BuildTimeValue::Int` carriers as exact `u64` bits where required.
+//! Decoding build-time values into calling-plan structures, with the
+//! capacity ceilings each decoded array observes.
 
 use build_time_evaluation::BuildTimeValue;
 use calling_conventions::{
@@ -520,6 +517,8 @@ pub(crate) fn field<'a>(
 
 pub(crate) fn uint(value: &BuildTimeValue, context: &str) -> Result<u64, String> {
     match value {
+        // Build-time integers retain the declared u64 value's exact bits in
+        // the evaluator's i64 carrier.
         BuildTimeValue::Int(value) => Ok(*value as u64),
         other => Err(format!("{context} is not an integer: {other:?}")),
     }

@@ -367,14 +367,14 @@ impl TrappingShape {
     }
 
     /// The encoded surface shared by the catalog and the footprint: the row's
-    /// operand custody, a condition-flags clobber, and the fall-through-or-trap
+    /// operand custody, an RFLAGS clobber, and the fall-through-or-trap
     /// control of the inline UD2 with no memory or stack effect.
     pub(crate) fn encoded_effects(self) -> MachineEncodedEffects {
         let (reads, writes) = self.operand_reads_and_writes();
         let mut encoded = MachineEncodedEffects::fallthrough_v1(reads, writes);
         encoded.implicit_unit_clobbers = crate::x86_64_physical_register_model()
-            .view_named("condition_flags")
-            .expect("canonical x86-64 model declares condition flags")
+            .view_named("rflags")
+            .expect("canonical x86-64 model declares rflags")
             .units
             .clone();
         encoded.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;

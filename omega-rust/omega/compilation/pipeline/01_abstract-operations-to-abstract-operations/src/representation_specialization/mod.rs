@@ -30,7 +30,7 @@
 //! observation site. The traversal "observe
 //! the proven case" specializes into `BooleanConstant` at the same node: the
 //! result keeps its value identity, the node keeps its
-//! `PsiProvenance::Operation` custody and work settlement, and successors,
+//! `PsiProvenance::Operation` custody and fuel settlement, and successors,
 //! definitions, uses, and ownership events are unchanged.
 //!
 //! Memberships on places whose position resolves to no establishment and

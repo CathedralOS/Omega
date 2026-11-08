@@ -112,7 +112,6 @@ fn executable_extent_uses_resolved_bytes_and_preserves_placement_refusals() {
         byte_count: 2,
         symbol: "resolved".to_owned(),
         footprint: None,
-        entry_effects: None,
     };
     let inventory = place_executable_extent(&text, vec![region.clone()], 0x4000).unwrap();
     assert_eq!(inventory.text_byte_count, 6);

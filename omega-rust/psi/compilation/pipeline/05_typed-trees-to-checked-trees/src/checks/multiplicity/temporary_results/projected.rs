@@ -3,7 +3,7 @@
 //! cleanup. The original owner, rather than the projected argument, dies here.
 use super::owners::{TemporaryConsumption, TemporaryOwner};
 use super::{
-    FlowPermissionEventFact, Multiplicity, PermissionAccess, PermissionClaimIdentity,
+    CheckFacts, FlowPermissionEventFact, Multiplicity, PermissionAccess, PermissionClaimIdentity,
     PermissionEventKind, PermissionProvenance, SymbolHandle,
 };
 use language_semantics::PermissionEventSource;
@@ -11,7 +11,7 @@ use language_semantics::PermissionEventSource;
 #[allow(clippy::too_many_arguments)]
 pub(in crate::checks::multiplicity) fn append_cleanup(
     program: &dyn validation::CheckingInput,
-    facts: &mut checked_trees::CheckFactsWalk<'_>,
+    facts: &mut CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     consumer: PermissionEventSource,
@@ -35,7 +35,7 @@ pub(in crate::checks::multiplicity) fn append_cleanup(
         }
         retired.push(retire_owner(
             program,
-            facts.flow.ownership,
+            &mut facts.flow.ownership,
             machine,
             state,
             ProjectedConsumer {

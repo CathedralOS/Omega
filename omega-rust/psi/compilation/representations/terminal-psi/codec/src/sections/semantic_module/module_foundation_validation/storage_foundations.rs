@@ -361,29 +361,19 @@ pub(super) fn validate_establish_reference(
 /// reference can reach another machine's descriptor producer, so per-machine
 /// early replay is not an untrusted-module admission boundary.
 pub(super) fn validate_reference_memberships(module: &TerminalModule) -> Result<(), CodecError> {
-    let querying_machines = module
-        .machines
-        .iter()
-        .filter(|machine| {
-            machine.operations().any(|operation| {
-                matches!(&operation.kind, OperationKind::EstablishReference { .. })
-            })
-        })
-        .collect::<Vec<_>>();
-    if querying_machines.is_empty() {
+    if !module.machines.iter().any(|machine| {
+        machine
+            .operations()
+            .any(|operation| matches!(&operation.kind, OperationKind::EstablishReference { .. }))
+    }) {
         return Ok(());
     }
-    // Keep every reference query and all its callable dependencies in one
-    // analysis, after the full module's operation foundations have passed.
-    let graph = terminal_semantics::descriptor_results::terminal_graph_from(
-        module,
-        querying_machines.iter().map(|machine| machine.id),
-    );
+    let graph = terminal_semantics::descriptor_results::terminal_graph(module);
     let mut analysis = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
         &module.structural_types,
         &graph,
     );
-    for machine in querying_machines {
+    for machine in &module.machines {
         for block in &machine.blocks {
             for (ordinal, operation) in block.operations.iter().enumerate() {
                 if !matches!(&operation.kind, OperationKind::EstablishReference { .. }) {

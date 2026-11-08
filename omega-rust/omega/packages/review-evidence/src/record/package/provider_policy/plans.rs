@@ -1,5 +1,3 @@
-// Selected provider plan and family containers for a package and target profile.
-
 use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackagePolicyProviderFamily, PackagePolicyProviderRow, PackagePolicyServiceMethod,

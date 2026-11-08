@@ -1,9 +1,8 @@
 use super::{
-    BaselineDecisionLog, OptimizationIdentityBundle, OptimizationPassManifestRecord,
-    OptimizationSelections, OptimizationUnitIdentity, OptimizationWorkBudget,
-    OptimizationWorkUsage, OptimizedAbstractPlanProjectionIdentity,
+    BaselineDecisionLog, FuelScheduleIdentity, OptimizationIdentityBundle,
+    OptimizationPassManifestRecord, OptimizationSelections, OptimizationUnitIdentity,
+    OptimizationWorkBudget, OptimizationWorkUsage, OptimizedAbstractPlanProjectionIdentity,
     PrePhysicalOptimizationManifestIdentity, PsiTransformationLedger, TerminalPsiIdentity,
-    WorkScheduleIdentity,
 };
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizationManifestStage {
@@ -39,7 +38,7 @@ pub struct PrePhysicalOptimizationManifest {
     pub stage: OptimizationManifestStage,
     pub physical_data: PhysicalOptimizationDataStatus,
     pub psi: TerminalPsiIdentity,
-    pub work_schedule: WorkScheduleIdentity,
+    pub fuel_schedule: FuelScheduleIdentity,
     pub initial_unit: OptimizationUnitIdentity,
     pub final_unit: OptimizationUnitIdentity,
     pub projection: OptimizedAbstractPlanProjectionIdentity,
@@ -71,7 +70,7 @@ pub enum PrePhysicalOptimizationManifestDecodeError {
     UnknownStage(u8),
     UnknownPhysicalStatus(u8),
     UnsupportedVocabulary(u16),
-    InvalidWorkSchedule,
+    InvalidFuelSchedule,
     LengthOverflow,
     InvalidSelections,
     InvalidWorkBudget,

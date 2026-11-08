@@ -1,6 +1,9 @@
-// Public dynamic-slot metadata projection (`project_requirement_slot_metadata`)
-// for trait requirements, verifying that returned-borrow origins and structural
-// parameter qualification preconditions match across all selector applications.
+//! Public dynamic-slot metadata for one trait requirement.
+//!
+//! Returned-borrow origins and structural qualification preconditions are
+//! records on the checked slot. Review copies one shared roster and rejects
+//! a slot that dropped its declared origin or a roster that changes across
+//! selector applications of the same requirement.
 
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;

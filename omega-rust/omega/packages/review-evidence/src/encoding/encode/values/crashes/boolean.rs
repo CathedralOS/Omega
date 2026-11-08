@@ -1,6 +1,4 @@
-// Structural Boolean expression encoding with shared binary tags and named text fields.
-// `ieee_float_comparison_row` maps each IEEE float comparison kind to its persisted tag and authored spelling so structural and scalar comparison arms read one roster.
-
+//! Structural Boolean expressions share binary tags and named text fields.
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::values::crashes::Encoder;
 use crate::encoding::encode::values::crashes::encode_primitive_type;
@@ -117,6 +115,8 @@ fn encode_boolean_node(
     Ok(())
 }
 
+/// One row per IEEE float comparison kind: the persisted tag and the authored
+/// spelling, so the structural and scalar comparison arms read one roster.
 const fn ieee_float_comparison_row(
     kind: PackageReviewIeeeFloatComparisonKind,
 ) -> (u8, &'static str) {

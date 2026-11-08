@@ -121,7 +121,7 @@ pub(crate) fn value_origin_at_call(
 /// evaluation. Call consumers must retain the call-prefix preservation check.
 pub(crate) fn value_origin_before_statement(
     program: &dyn ::validation::CheckingInput,
-    flow: checked_trees::FlowFactsRef<'_>,
+    flow: &FlowFacts,
     machine: &Machine,
     state: &FlowStateFact,
     statement_index: usize,
@@ -201,7 +201,7 @@ where
         place,
         frames,
         observation,
-        Some(flow.view()),
+        Some(flow),
         resolve,
         rebase,
     )
@@ -212,7 +212,7 @@ where
 /// an earlier unknown callee write prevents tracing back to machine entry.
 pub(crate) fn value_origin_matches_call_return(
     program: &dyn validation::CheckingInput,
-    flow: checked_trees::FlowFactsRef<'_>,
+    flow: &FlowFacts,
     machine: &Machine,
     state: &FlowStateFact,
     statement: usize,
@@ -270,7 +270,7 @@ pub(crate) fn trace_value_origin_before_statement<Resolve, Rebase>(
     place: CanonicalPlace,
     frames: &validation::CallFrameResolver<'_>,
     observation: ValueObservation,
-    flow: Option<checked_trees::FlowFactsRef<'_>>,
+    flow: Option<&FlowFacts>,
     resolve: Resolve,
     rebase: Rebase,
 ) -> Option<CanonicalPlace>
@@ -302,7 +302,7 @@ fn trace_value_origin_observing<Resolve, Rebase, Observe>(
     mut place: CanonicalPlace,
     frames: &validation::CallFrameResolver<'_>,
     observation: ValueObservation,
-    flow: Option<checked_trees::FlowFactsRef<'_>>,
+    flow: Option<&FlowFacts>,
     resolve: Resolve,
     rebase: Rebase,
     mut observe: Observe,
@@ -676,7 +676,7 @@ fn preserve_statement_effects(
     statement: &StatementNode,
     frames: &validation::CallFrameResolver<'_>,
     observation: ValueObservation,
-    flow: Option<checked_trees::FlowFactsRef<'_>>,
+    flow: Option<&FlowFacts>,
     frontier: OriginFrontier,
 ) -> Option<()> {
     if let Some(flow) = flow {
@@ -702,10 +702,10 @@ fn preserve_statement_effects(
         };
         let stable = match observation {
             ValueObservation::Contents => {
-                entry_origin_is_stable(program, flow.control, writes, unknown, place)
+                entry_origin_is_stable(program, &flow.control, writes, unknown, place)
             }
             ValueObservation::Binding => {
-                binding_origin_is_stable(program, flow.control, writes, unknown, place)
+                binding_origin_is_stable(program, &flow.control, writes, unknown, place)
             }
         };
         return stable.then_some(());

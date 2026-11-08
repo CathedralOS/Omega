@@ -1,5 +1,3 @@
-// Canonical text rendering and field/record scope framing for `PackagePolicyBaseline`.
-
 use super::{Encoder, PackageReviewEncodingError};
 use crate::record::PackagePolicyBaseline;
 
@@ -12,11 +10,15 @@ pub(in crate::encoding) use writer::Writer;
 pub(in crate::encoding) const MAXIMUM_TEXT_BYTES: usize = 32 * 1024 * 1024;
 
 impl PackagePolicyBaseline {
+    /// Complete named comparison meaning, not a receipt of review or acceptance.
     pub fn canonical_text(&self) -> Result<String, PackageReviewEncodingError> {
         self.canonical_text_with_element_count()
             .map(|(text, _)| text)
     }
 
+    /// Return the same text and the aggregate sequence/recursive-entry charge
+    /// from its single encoding traversal. Enclosing documents can account for
+    /// multiple baselines without resetting their element ceiling.
     pub(crate) fn canonical_text_with_element_count(
         &self,
     ) -> Result<(String, usize), PackageReviewEncodingError> {

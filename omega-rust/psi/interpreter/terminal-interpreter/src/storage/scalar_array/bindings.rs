@@ -178,7 +178,7 @@ mod tests {
         let sponsor = BuildEvaluationSponsor::new_with_measurement(
             BuildEvaluationSponsorLimits::new(100, 8, 2, 2, 2, 100, 100, 100).unwrap(),
             EvaluationMeasurementIdentity::TerminalPsi {
-                work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+                fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
                 storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
             },
         )

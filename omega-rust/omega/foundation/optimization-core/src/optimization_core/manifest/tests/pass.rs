@@ -1,5 +1,4 @@
-// Unit tests for `OptimizationPassManifestRecord` ordered-rule validation,
-// unscheduled-rule rejection, and wire round-trips.
+//! Pass-v1 ordered-rule and publication validation.
 
 use super::super::{
     InvalidOptimizationManifestRecord, OptimizationPassManifestRecord, OptimizationWorkUsage,

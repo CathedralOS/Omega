@@ -1,4 +1,4 @@
-// Total receipt-free row projection (`canonical_rows_with_limits`, `acceptance_rows_with_limits`, and runtime/restricted-build row encoders) under a shared sizing and emission budget.
+//! Total receipt-free row projection under one sizing and emission budget.
 
 use crate::record::{
     PackagePolicyBaseline, PackagePolicyRow, PackagePolicyRowKind, PackagePolicyRowLimits,
@@ -18,12 +18,16 @@ impl PackagePolicyBaseline {
         &self,
         limits: PackagePolicyRowLimits,
     ) -> Result<(Vec<PackagePolicyRow>, PackagePolicyRowUsage), PackageReviewEncodingError> {
+        // Public construction and recovery already validate the private typed
+        // fields. Do not repeat unbudgeted association scans before row sizing.
         let limits = limits.bounded();
         let count = assembly::count(self)?;
         let mut builder = Builder::new(self.package, self.target, count, limits, false)?;
         assembly::project(&mut builder, self)?;
         builder.finish()
     }
+    /// Project only explicit acceptance obligations. Rebuildable API, provider,
+    /// representation and dependency descriptions remain in the fresh audit.
     pub fn acceptance_rows_with_limits(
         &self,
         limits: PackagePolicyRowLimits,
@@ -36,6 +40,9 @@ impl PackagePolicyBaseline {
 }
 
 impl PackagePolicyTerminalPermissions {
+    /// Project only supplied terminal permissions with the same canonical
+    /// meaning and bounded encoding as whole-policy acceptance. Service schemas
+    /// remain checked input, not additional acceptance obligations.
     pub fn acceptance_rows_with_limits(
         &self,
         limits: PackagePolicyRowLimits,
@@ -51,6 +58,15 @@ impl PackagePolicyTerminalPermissions {
     }
 }
 
+/// Render one restricted build-host request as its acceptance row's canonical
+/// text for the given checked occurrence — the same retained meaning a
+/// whole-policy projection emits under kind `restricted_build_request`.
+///
+/// The row's ordinal joins its coordinate key, not this text: the retained
+/// meaning compares request content only, so a grant issued under the
+/// accepted policy matches the identical request wherever issue order lands.
+/// The join this serves — an occurrence's own build effect waiting on
+/// retained consent — is granted or refused by this one meaning.
 pub fn restricted_build_request_acceptance_text(
     package: PackageKeyIdentity,
     target: target::TargetProfile,
@@ -98,6 +114,8 @@ fn rejected(message: &'static str) -> PackageReviewEncodingError {
     PackageReviewEncodingError::new(message)
 }
 
+/// Runtime consent compares only requested permissions and explicit assumed
+/// contracts. Full package review uses the same row encoders for these meanings.
 pub(crate) fn runtime_permission_rows(
     package: PackageKeyIdentity,
     target: target::TargetProfile,

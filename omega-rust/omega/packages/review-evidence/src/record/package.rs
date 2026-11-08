@@ -1,5 +1,6 @@
-// Package-level review records: boundary applications, callables, providers,
-// and terminal permission policies.
+//! Package-level review records: the package itself, its source, callables
+//! and providers, and the boundary, callable, provider and terminal
+//! permission policies it publishes.
 
 mod boundary_policy;
 pub(in crate::record) mod callable_policy;
@@ -15,6 +16,7 @@ pub(crate) use callable_policy::{
     PackagePolicyServiceReachDependency,
 };
 #[allow(clippy::module_inception)]
+// This file groups record modules; `package` holds the package record itself.
 mod provider_policy;
 pub(crate) use provider_policy::validate_native_service_method;
 mod providers;

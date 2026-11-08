@@ -618,13 +618,13 @@ pub fn byte_sequence_source_predicates(
         module: &TerminalModule,
         machine: &TerminalMachine,
         source: PlaceId,
-        work: usize,
+        fuel: usize,
         memo: &mut Vec<(PlaceId, Option<ByteSequencePredicateSet>)>,
     ) -> Option<ByteSequencePredicateSet> {
         if let Some((_, result)) = memo.iter().find(|(place, _)| *place == source) {
             return *result;
         }
-        let work = work.checked_sub(1)?;
+        let fuel = fuel.checked_sub(1)?;
         let place = machine.structural_place(source)?;
         // Mark an in-progress replay before following children. A malformed
         // cycle contributes no predicates, and shared subgraphs replay once.
@@ -699,7 +699,7 @@ pub fn byte_sequence_source_predicates(
                     // source access and dominance remain use-site obligations.
                     return Some(
                         if backing.path.is_empty() {
-                            source_predicates(module, machine, backing.place, work, memo)?
+                            source_predicates(module, machine, backing.place, fuel, memo)?
                         } else {
                             let (root, access) = byte_field_root(machine, backing.place)?;
                             if access == StructuralAccess::WriteOnlyBorrow
@@ -727,7 +727,7 @@ pub fn byte_sequence_source_predicates(
                     })
                 {
                     let captured = if path.is_empty() {
-                        source_predicates(module, machine, *backing, work, memo)?
+                        source_predicates(module, machine, *backing, fuel, memo)?
                     } else {
                         let (root, access) = byte_field_root(machine, *backing)?;
                         if access == StructuralAccess::WriteOnlyBorrow {
@@ -756,7 +756,7 @@ pub fn byte_sequence_source_predicates(
                 {
                     return byte_owned_result_predicates(module, machine, source);
                 }
-                let mut resolve = |source| source_predicates(module, machine, source, work, memo);
+                let mut resolve = |source| source_predicates(module, machine, source, fuel, memo);
                 Some(
                     concatenation_operand_predicates(module, machine, left, &mut resolve)?
                         .concatenation(concatenation_operand_predicates(
@@ -951,181 +951,36 @@ pub fn machine_scalar_constant_origin(
     machine: &terminal_psi::TerminalMachine,
     value: semantic_vocabulary::ValueId,
 ) -> Option<ScalarConstantOrigin> {
-    scalar_constant_origin_with(
-        machine,
-        machine
-            .operations()
-            .find_map(|operation| integer_constant(operation, value)),
-        || {
-            machine.blocks.iter().find_map(|block| {
-                block
-                    .parameters
-                    .iter()
-                    .position(|parameter| parameter.id == value)
-                    .map(|ordinal| (block.id, ordinal))
-            })
-        },
-    )
-}
-
-fn integer_constant(
-    operation: &Operation,
-    value: semantic_vocabulary::ValueId,
-) -> Option<(
-    semantic_vocabulary::ScalarType,
-    semantic_vocabulary::IntegerValue,
-)> {
-    let result = operation.result.scalar_ref()?;
-    let terminal_psi::OperationKind::IntegerConstant { value: literal } = operation.kind else {
-        return None;
-    };
-    (result.id == value).then_some((result.scalar_type, literal))
-}
-
-/// The shared body of both origin lookups. `literal` is the first integer
-/// constant defining `value` in operation order; `parameter` names the first
-/// block, in block order, that declares `value` and its first ordinal there.
-fn scalar_constant_origin_with(
-    machine: &terminal_psi::TerminalMachine,
-    literal: Option<(
-        semantic_vocabulary::ScalarType,
-        semantic_vocabulary::IntegerValue,
-    )>,
-    parameter: impl FnOnce() -> Option<(semantic_vocabulary::BlockId, usize)>,
-) -> Option<ScalarConstantOrigin> {
-    if let Some((scalar_type, literal)) = literal {
+    use terminal_psi::OperationKind;
+    if let Some((scalar_type, literal)) = machine.operations().find_map(|operation| {
+        let result = operation.result.scalar_ref()?;
+        let OperationKind::IntegerConstant { value: literal } = operation.kind else {
+            return None;
+        };
+        (result.id == value).then_some((result.scalar_type, literal))
+    }) {
         return Some(ScalarConstantOrigin::Literal(scalar_type, literal));
     }
-    let (owner, ordinal) = parameter()?;
+    let (owner, ordinal) = machine.blocks.iter().find_map(|block| {
+        block
+            .parameters
+            .iter()
+            .position(|parameter| parameter.id == value)
+            .map(|ordinal| (block.id, ordinal))
+    })?;
     if owner == machine.entry {
         return None;
     }
-    let incoming = machine
-        .blocks
-        .iter()
-        .flat_map(crate::control_graph::forwarded_bindings)
-        .filter(|binding| binding.target == owner)
-        .map(|binding| binding.arguments);
-    incoming_scalar_origin(incoming, ordinal)
-}
-
-/// The incoming operand at `ordinal` of every binding into one block, in
-/// predecessor order. A structural-case edge forwards no scalar roster
-/// (`None`) and so gives no constant evidence; neither does a binding too
-/// short to reach `ordinal`. Either one makes the whole origin unknown.
-fn incoming_scalar_origin<'block>(
-    bindings: impl Iterator<Item = Option<&'block [semantic_vocabulary::ValueId]>>,
-    ordinal: usize,
-) -> Option<ScalarConstantOrigin> {
     let mut incoming = Vec::new();
-    for arguments in bindings {
-        incoming.push(*arguments?.get(ordinal)?);
-    }
-    Some(ScalarConstantOrigin::Incoming(incoming))
-}
-
-/// One machine's scalar definitions and block parameters, sorted by value
-/// identity so each lookup is a binary search instead of a scan of every
-/// operation. Descriptor adaptation asks for many values of the same machine,
-/// and core's Build program alone has hundreds of selection calls per machine.
-///
-/// The sort is stable over operation order and over (block order, ordinal),
-/// so the first entry of each run is exactly what the linear `find` in
-/// [`machine_scalar_constant_origin`] would return, even if one identity were
-/// declared twice. Built per machine within one adaptation; nothing outlives it.
-///
-/// `incoming` holds every forwarded binding of the machine keyed by target
-/// block. A block-parameter origin used to scan every block for edges into its
-/// owner on each query; the stable sort keeps (block order, successor order)
-/// within one target, so the binding sequence is the one that scan visited.
-pub struct MachineScalarIndex<'machine> {
-    machine: &'machine terminal_psi::TerminalMachine,
-    definitions: Vec<(semantic_vocabulary::ValueId, &'machine Operation)>,
-    parameters: Vec<(
-        semantic_vocabulary::ValueId,
-        semantic_vocabulary::BlockId,
-        usize,
-    )>,
-    incoming: Vec<(
-        semantic_vocabulary::BlockId,
-        Option<&'machine [semantic_vocabulary::ValueId]>,
-    )>,
-}
-
-impl<'machine> MachineScalarIndex<'machine> {
-    pub fn new(machine: &'machine terminal_psi::TerminalMachine) -> Self {
-        let mut definitions: Vec<_> = machine
-            .operations()
-            .filter_map(|operation| Some((operation.result.scalar_ref()?.id, operation)))
-            .collect();
-        definitions.sort_by_key(|(value, _)| *value);
-        let mut parameters: Vec<_> = machine
-            .blocks
-            .iter()
-            .flat_map(|block| {
-                block
-                    .parameters
-                    .iter()
-                    .enumerate()
-                    .map(|(ordinal, parameter)| (parameter.id, block.id, ordinal))
-            })
-            .collect();
-        parameters.sort_by_key(|(value, _, _)| *value);
-        let mut incoming: Vec<_> = machine
-            .blocks
-            .iter()
-            .flat_map(crate::control_graph::forwarded_bindings)
-            .map(|binding| (binding.target, binding.arguments))
-            .collect();
-        incoming.sort_by_key(|(target, _)| *target);
-        Self {
-            machine,
-            definitions,
-            parameters,
-            incoming,
-        }
-    }
-
-    pub fn machine(&self) -> &'machine terminal_psi::TerminalMachine {
-        self.machine
-    }
-
-    /// Every operation whose scalar result is `value`, in operation order.
-    pub fn definitions(
-        &self,
-        value: semantic_vocabulary::ValueId,
-    ) -> impl Iterator<Item = &'machine Operation> + '_ {
-        let start = self.definitions.partition_point(|(id, _)| *id < value);
-        self.definitions[start..]
-            .iter()
-            .take_while(move |(id, _)| *id == value)
-            .map(|(_, operation)| *operation)
-    }
-
-    /// [`machine_scalar_constant_origin`] through this index.
-    pub fn constant_origin(
-        &self,
-        value: semantic_vocabulary::ValueId,
-    ) -> Option<ScalarConstantOrigin> {
-        if let Some((scalar_type, literal)) = self
-            .definitions(value)
-            .find_map(|operation| integer_constant(operation, value))
-        {
-            return Some(ScalarConstantOrigin::Literal(scalar_type, literal));
-        }
-        let start = self.parameters.partition_point(|(id, _, _)| *id < value);
-        let (_, owner, ordinal) = *self
-            .parameters
-            .get(start)
-            .filter(|(id, _, _)| *id == value)?;
-        if owner == self.machine.entry {
+    for block in &machine.blocks {
+        if crate::control_graph::reaches_by_case(block, owner) {
             return None;
         }
-        let start = self.incoming.partition_point(|(target, _)| *target < owner);
-        let bindings = self.incoming[start..]
-            .iter()
-            .take_while(|(target, _)| *target == owner)
-            .map(|(_, arguments)| *arguments);
-        incoming_scalar_origin(bindings, ordinal)
+        for binding in crate::control_graph::forwarded_bindings(block) {
+            if binding.target == owner {
+                incoming.push(*binding.arguments?.get(ordinal)?);
+            }
+        }
     }
+    Some(ScalarConstantOrigin::Incoming(incoming))
 }

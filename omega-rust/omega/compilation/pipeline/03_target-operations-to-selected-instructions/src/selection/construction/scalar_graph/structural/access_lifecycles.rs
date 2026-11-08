@@ -155,10 +155,7 @@ pub(super) fn emit(
         owner_field.shape,
     )?;
     let owner_home = ImageHome {
-        storage: fragmented_scalar::StorageAccess::Place {
-            indices: &[],
-            byte_offset: 0,
-        },
+        storage: fragmented_scalar::StorageAccess::Place(&[]),
         place: result.place,
         pointer: result_pointer,
         byte_offset: owner_field.byte_offset,
@@ -182,10 +179,7 @@ pub(super) fn emit(
     let projected =
         super::leaf_copy::project_operand(source, row, builder, profile, profile_indices)?;
     let profile_home = ImageHome {
-        storage: fragmented_scalar::StorageAccess::Place {
-            indices: projected.indices,
-            byte_offset: 0,
-        },
+        storage: fragmented_scalar::StorageAccess::Place(projected.indices),
         place: profile.place,
         pointer: projected
             .pointer
@@ -238,10 +232,7 @@ pub(super) fn emit(
             byte_offset: 0,
         },
         ImageHome {
-            storage: fragmented_scalar::StorageAccess::Place {
-                indices: &[],
-                byte_offset: 0,
-            },
+            storage: fragmented_scalar::StorageAccess::Place(&[]),
             place: result.place,
             pointer: result_pointer,
             byte_offset: value_field.byte_offset,
@@ -599,10 +590,7 @@ fn decode_scalar(
         builder,
         row,
         ImageHome {
-            storage: fragmented_scalar::StorageAccess::Place {
-                indices: &[],
-                byte_offset: 0,
-            },
+            storage: fragmented_scalar::StorageAccess::Place(&[]),
             place: owner,
             pointer: backing,
             byte_offset: 0,

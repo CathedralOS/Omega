@@ -1,6 +1,4 @@
-// Public trait policy projection (`project` and `project_requirement`), pairing
-// declared trait static parameters with policy-owned behavioral signatures,
-// crash routes, contracts, and termination guarantees.
+//! Exact public trait requirements with policy-owned behavioral signatures.
 
 use super::{rejected, signatures, values};
 use crate::capture::PackageReviewInput;
@@ -30,6 +28,7 @@ pub(super) fn project(
             let source = projected.declaration;
             let row = projected.row;
             let parameters = compilation.trait_type_parameters(source);
+            // The declared statics only, as in `project_public_traits`.
             let (binders, type_parameters) = signatures::parameters(
                 &mut signatures,
                 parameters,

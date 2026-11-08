@@ -1,4 +1,4 @@
-// Inverse of the complete structural signature vocabulary without receipts.
+//! Inverse of the complete structural signature vocabulary, without receipts.
 
 use super::Error;
 use super::identity::{nominal, type_identity};

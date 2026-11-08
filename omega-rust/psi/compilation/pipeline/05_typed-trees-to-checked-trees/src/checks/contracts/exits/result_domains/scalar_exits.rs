@@ -118,7 +118,7 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
         let transported = subject.iter().chain(returned_value.iter()).any(|subject| {
             exact_scalar_membership(
                 program,
-                facts.view(),
+                facts,
                 &contexts,
                 subject,
                 domain_symbol,
@@ -404,7 +404,7 @@ fn integer_result_leaf(
 
 pub(crate) fn exact_scalar_membership(
     program: &dyn ::validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     contexts: &[FactContextHandle],
     subject: &CanonicalPlace,
     domain_symbol: symbols::SymbolHandle,
@@ -431,7 +431,7 @@ pub(crate) fn exact_scalar_membership(
                         && instance == semantic_domain
                         && canonical_place_from_semantic_place(
                             program,
-                            facts.semantic,
+                            &facts.semantic,
                             facts.semantic.places.get(place),
                         )
                         .is_some_and(|candidate| {

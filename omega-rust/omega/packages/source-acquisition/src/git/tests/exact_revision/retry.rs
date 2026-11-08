@@ -1,7 +1,3 @@
-// Retry and cache-recovery tests for Git resolution across cold full-ID fetch
-// failures, cold selector discovery failures, incomplete exact caches, and
-// symlinked cache entries.
-
 use super::super::{GIT_CACHE_REPOSITORY, PathBuf};
 use super::{
     Fixture, GIT_CACHE_METADATA, GitExactRevisionAcquisition, LocalSourceLimits, ResolvedGitSource,

@@ -1,25 +1,4 @@
-/*
-Bounded, symlink-safe record persistence under retained directory custody
-(`RecordFileRoot`, `RootRecordRead`, `RecordFileLimits`, `RecordFileError`).
-
-We restrict record operations to single-component relative filenames beneath an
-open `CapabilityDirectory`, refusing symlinks and non-regular files on every
-read, creation, replacement, and removal. Every read or staged write verifies
-that the open file handle and the directory pathname still denote the same
-regular file identity (`dev`/`ino` on Unix, `volume_serial_number`/`file_index`
-on Windows) and replays the exact expected bytes before and after publication.
-
-Publication modes:
-- `write_new` / `write_new_in`: stages and fsyncs a temporary record, links it
-  into place with `hard_link` so an occupied destination fails with
-  `DestinationExists`, unlinks the stage, syncs the parent directories, and
-  re-verifies identity.
-- `replace_existing` and `RootRecordRead::replace` / `replace_in`: stages and
-  fsyncs replacement bytes, verifies the observed record is still current,
-  atomically renames the stage over the destination, syncs directories, and
-  replays the open stage handle. Post-publication verification failures return
-  `PublishedButUnconfirmed` so callers know the mutation has already occurred.
-*/
+//! Bounded, symlink-safe record persistence under retained directory custody.
 
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::fs::{
@@ -97,6 +76,8 @@ impl RecordFileRoot {
         })
     }
 
+    /// Read a record if its pathname exists. Symlinks and invalid destinations
+    /// remain errors, including dangling symlinks. No lock is acquired.
     pub fn read_optional(
         &self,
         relative_path: &Path,
@@ -145,6 +126,8 @@ impl RecordFileRoot {
         self.write_new_in(relative_path, bytes, limits, self)
     }
 
+    /// Publish a new record from a synchronized stage beneath `staging`.
+    /// Cross-device hard-link errors propagate without a copy fallback.
     pub fn write_new_in(
         &self,
         relative_path: &Path,
@@ -179,6 +162,13 @@ impl RecordFileRoot {
         confirmation.map_err(unconfirmed_at(&display_path))
     }
 
+    /// Atomically replace one existing regular file beneath this exact root.
+    ///
+    /// The synchronized stage remains open across the handle-relative rename,
+    /// allowing the published pathname to be checked against the exact bytes
+    /// and file identity that were prepared. This is suitable for
+    /// resolver-owned mutable control files; immutable records continue to use
+    /// [`Self::write_new`].
     pub fn replace_existing(
         &self,
         relative_path: &Path,
@@ -234,11 +224,21 @@ impl RootRecordRead<'_> {
         &self.bytes
     }
 
+    /// Replace the observed record, preserving its captured file permissions.
+    ///
+    /// Old bytes and pathname identity are checked after staging and immediately
+    /// before atomic rename. Callers serialize journal operations; this does not
+    /// acquire a lock or provide filesystem compare-and-swap against an editor
+    /// between the check and rename. A confirmation failure after rename returns
+    /// `PublishedButUnconfirmed` because the replacement has already occurred.
     pub fn replace(self, proposed: &[u8], limits: RecordFileLimits) -> Result<(), RecordFileError> {
         let root = self.root;
         self.replace_in(proposed, limits, root)
     }
 
+    /// Replace the observed record using a synchronized stage beneath `staging`.
+    /// Uses the checks and permission preservation of [`Self::replace`].
+    /// Cross-device rename errors propagate without a copy fallback.
     pub fn replace_in(
         mut self,
         proposed: &[u8],
@@ -257,6 +257,12 @@ impl RootRecordRead<'_> {
         )
     }
 
+    /// Unlink the observed record after checking its bytes and pathname identity.
+    ///
+    /// Callers serialize journal operations; the check and unlink are not a
+    /// filesystem compare-and-swap. Directory synchronization uses the same
+    /// platform contract as replacement. If it fails after unlink, the result is
+    /// `PublishedButUnconfirmed` and the record has already been removed.
     pub fn remove(mut self, limits: RecordFileLimits) -> Result<(), RecordFileError> {
         self.verify_current(limits)?;
         self.root
@@ -316,9 +322,9 @@ fn same_capability_file_identity(left: &Metadata, right: &Metadata) -> bool {
 
 #[cfg(windows)]
 fn same_capability_file_identity(left: &Metadata, right: &Metadata) -> bool {
-    // @Hack: cap-std exposes volume_serial_number/file_index only when its
-    // nightly feature probe passes; cap-fs-ext's dev/ino wrappers panic when
-    // backing identity is absent, so we import _WindowsByHandle for Option-valued access.
+    // cap-std exposes these methods only when its nightly feature probe passes.
+    // The compatibility extension preserves Option-valued identity; cap-fs-ext's
+    // dev/ino convenience methods instead panic when backing identity is absent.
     use cap_primitives::fs::_WindowsByHandle;
 
     matches!(

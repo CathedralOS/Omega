@@ -1,12 +1,12 @@
 //! Source-produced mutable boundary calls retain receiver identity and stored
-//! view lifetimes across host effects and work-budget pauses. This provision supplies
+//! view lifetimes across host effects and fuel pauses. This provision supplies
 //! an observation sink, not a replacement Build evaluator.
 use super::mutable_boundary as boundary;
 use super::terminal_provision;
 
-use psi_work::WorkMeter;
 use semantic_vocabulary::IntegerValue;
 use terminal_codec::CanonicalTerminalArtifact;
+use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalScalarValue,
     TerminalStorageObservationError, TerminalStorageObservationValue, TerminalStructuralInputs,
@@ -114,7 +114,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
             },
         )
         .unwrap();
-    let mut meter = WorkMeter::with_budget(0);
+    let mut meter = TerminalFuelMeter::with_allowance(0);
     // Small replenishments stop inside the real activation; completed host
     // calls must not be replayed when the same continuation resumes.
     let mut saw_effect_pause = false;
@@ -166,7 +166,9 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
             },
         )
         .unwrap();
-    let error = instance.invoke(&mut WorkMeter::unbounded()).unwrap_err();
+    let error = instance
+        .invoke(&mut TerminalFuelMeter::unbounded())
+        .unwrap_err();
     assert!(format!("{error:?}").contains("not the original Build"));
     assert_eq!(
         instance.observe_borrowed_entry(0, &identifier_path),

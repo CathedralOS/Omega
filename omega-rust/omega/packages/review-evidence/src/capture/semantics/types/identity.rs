@@ -1,20 +1,3 @@
-/*
-We compute canonical package-review runtime and signature type identities.
-
-Public signature identity layers erased borrow-region relationships over the
-ordinary package-qualified runtime type identity. General structural type
-identity intentionally erases these tags, but package compatibility cannot
-because changing which input owns an output loan changes the callable contract
-without changing layout or monomorphization.
-
-When normalizing types in projection-local scratch trees, the scratch trees
-retain the input's symbol and source identities without carrying proof facts or
-selected-execution authority; source commitments are borrowed from the original
-compilation rather than regenerated from temporary type nodes. A const-argument
-root is permitted only after the caller establishes its exact declared const
-telescope slot.
-*/
-
 use super::lifetimes::review_lifetime_topology_with_substitutions;
 use super::validation::{missing_exact_toolchain_type_owner, validate_package_type_identity_input};
 use crate::capture::SourceDeclarationInput;
@@ -61,6 +44,11 @@ pub(crate) fn review_type_identity_with_binders_and_substitutions(
     })
 }
 
+/// Public signature identity layers erased borrow-region relationships over
+/// the ordinary package-qualified runtime type identity. General structural
+/// type identity intentionally erases these tags; package compatibility may
+/// not, because changing which input owns an output loan changes the callable
+/// contract without changing layout or monomorphization.
 pub(crate) fn review_signature_type_identity_with_binders(
     compilation: &SourceDeclarationInput<'_>,
     type_reference: typed_trees::types::TypeReferenceHandle,
@@ -99,6 +87,12 @@ pub(crate) fn review_signature_type_identity_with_binders_and_substitutions_and_
     )
 }
 
+/// Normalize types in either the checked input or projection-local trees.
+/// Scratch trees retain the input's symbol/source identities; they do not carry
+/// proof facts or selected-execution authority. Source commitments are borrowed
+/// from the original compilation, never regenerated from temporary type nodes.
+/// A const-argument root is permitted only after the caller establishes its
+/// exact declared const telescope slot.
 pub(crate) fn signature_type_identity(
     compilation: &SourceDeclarationInput<'_>,
     program: &dyn ::validation::CheckingInput,

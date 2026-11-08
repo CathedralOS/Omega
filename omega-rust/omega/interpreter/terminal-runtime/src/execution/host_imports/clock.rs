@@ -1,28 +1,26 @@
-/*
-We model explicit snapshot or live host time for admitted Darwin, Linux, and
-Windows clock and sleep calls.
-
-Admission selects a complete locator or target/syscall pair and validates the
-retained declaration and evaluated ABI. Checked calibration, wait splitting, and
-retries stay in guest code. All selected slots share one supplied clock;
-snapshot reads do not advance it and finite waits advance its elapsed and Unix
-time, whereas live supply reads the executing OS and finite waits consume real
-time. Signed and unsigned 32-bit clock IDs share native word interpretation
-without changing either declaration or admitting other widths; negative signed
-IDs retain their bits so Linux descriptor-backed clocks still require their
-unavailable custody model. Native placement and authenticated loans select
-timespec storage rather than record names or host pointers, and read-only
-requests receive no writeback.
-
-CPU accounting, signals, and descriptor readiness remain unsupported because a
-private snapshot cannot establish native latency or interruption equivalence.
-Darwin nanosleep uses this same signal-free timespec wait, and its invalid
-request path rejects rather than borrowing Linux's raw error convention because
-it depends on libc errno state. Windows kernel32 time reads one 64-bit word
-through a scalar loan (performance counter in modeled nanoseconds with its
-matching frequency, or FILETIME 100-nanosecond intervals since 1601), and
-Sleep waits finite milliseconds while rejecting INFINITE.
-*/
+//! Explicit snapshot or live host time for admitted Darwin/Linux/Windows calls.
+//!
+//! Admission selects a complete locator or target/syscall and validates the
+//! retained declaration and evaluated ABI. This is an explicit host embedding
+//! choice, not proof of foreign behavior. Checked calibration, wait splitting
+//! and retries stay in guest code. All selected slots share one supplied clock;
+//! snapshot reads do not advance it and finite waits advance its elapsed/Unix
+//! time. Live supply reads the executing OS and finite waits consume real time.
+//! Signed and unsigned 32-bit clock IDs share native word interpretation without
+//! changing either declaration or admitting other widths.
+//! Native placement and authenticated loans select timespec storage, never
+//! record names or host pointers. Read-only requests receive no writeback.
+//!
+//! CPU accounting, signals and descriptor readiness remain unsupported. A
+//! private snapshot cannot establish native latency or interruption equivalence.
+//! Unsupported operations reject before changing time.
+//! Darwin nanosleep uses this same signal-free timespec wait. Its invalid-request
+//! path depends on libc errno state, which this snapshot does not provision;
+//! reject that path rather than borrowing Linux's raw error convention.
+//! Windows kernel32 time reads one 64-bit word through a scalar loan: the
+//! performance counter in modeled nanoseconds with its matching frequency, and
+//! the FILETIME count of 100-nanosecond intervals since 1601. `Sleep` waits
+//! finite milliseconds; `INFINITE` needs an indefinite-wait model.
 
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -44,12 +42,16 @@ mod admission;
 mod timespec;
 mod windows;
 
+/// An invocation's explicitly supplied elapsed and epoch origins. This licenses
+/// private modeled time, not access to live host clocks or native equivalence.
 #[derive(Clone, Copy)]
 pub struct TerminalClockSnapshot {
     pub monotonic_nanoseconds: u64,
     pub unix_nanoseconds: u64,
 }
 
+/// A receiving choice between private modeled time and the actual host clocks.
+/// Host waits consume real elapsed time; snapshots advance only their own model.
 #[derive(Clone, Copy)]
 pub enum TerminalClockEnvironment {
     Snapshot(TerminalClockSnapshot),
@@ -89,6 +91,11 @@ impl TerminalClockSnapshot {
         namespace: ClockNamespace,
         selector: u128,
     ) -> Result<u64, TerminalEffectRejection> {
+        // Clock IDs belong to the selected platform, not the executing host.
+        // Darwin SDK _time.h and Linux uapi/linux/time.h define different
+        // monotonic IDs. Only realtime and the ordinary monotonic family are
+        // admitted on Linux; CPU, alarm, dynamic and coarse clocks need models
+        // beyond this nanosecond domain.
         namespace.validate_selector(selector)?;
         Ok(if selector == 0 {
             self.unix_nanoseconds
@@ -110,6 +117,8 @@ impl TerminalClockSnapshot {
         })
     }
 
+    /// Capture the host epoch once. Guest waits then advance only this private
+    /// domain, never sleep the host.
     pub fn capture_host_epoch() -> Result<Self, TerminalRuntimeError> {
         let elapsed = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| {
             TerminalRuntimeError::InvalidProvision("host clock precedes the Unix epoch")
@@ -135,6 +144,8 @@ impl TerminalClockEnvironment {
         match self {
             Self::Snapshot(snapshot) => snapshot.reading(namespace, selector),
             Self::Host => {
+                // Validate the same supported clock family before observing
+                // the OS. CPU, descriptor and alarm clocks need other custody.
                 namespace.validate_selector(selector)?;
                 read_host_clock_nanoseconds(selector as u32).map_err(|error| {
                     TerminalEffectRejection::new(format!("host clock observation: {error}"))
@@ -179,6 +190,8 @@ pub(super) struct ClockImport {
 }
 
 impl ClockImport {
+    /// Absence means no exact implementation is offered. A matching offer with
+    /// an incompatible declaration is an error, not another adapter's fallback.
     pub(super) fn admit(
         program: &TerminalProgram,
         declaration: &BoundaryMachineDeclaration,
@@ -233,6 +246,10 @@ impl ClockImport {
     }
 }
 
+/// Retain the authored logical carrier while interpreting its native 32-bit
+/// clock ID. Negative signed IDs retain their bits: Linux uses negative IDs
+/// for descriptor-backed clocks, which still need their unavailable custody
+/// model. Neither numerical normalization nor ABI compatibility licenses one.
 fn selector(
     arguments: &[TerminalScalarValue],
     signature: &TerminalImportSignature,
@@ -288,6 +305,7 @@ fn wait(
         .lock()
         .map_err(|_| TerminalEffectRejection::new("clock snapshot lock is poisoned"))?;
     let result = status_result(signature, 0)?;
+    // Result formation precedes either a private update or a real wait.
     clock.wait(nanoseconds)?;
     Ok(result)
 }
@@ -419,6 +437,10 @@ impl TerminalEffectHandler for ClockImport {
                 else {
                     return Err(invalid());
                 };
+                // XNU poll_nocancel and Linux fs/select.c consume unsigned-int
+                // nfds, even when the authored ABI passes u64. At zero count
+                // neither implementation accesses fds: requiring null would
+                // invent a native precondition. No pointer is dereferenced here.
                 if *count & u128::from(u32::MAX) != 0 || *milliseconds < 0 {
                     return Err(TerminalEffectRejection::new(
                         "poll requires descriptor custody or an indefinite-wait model",

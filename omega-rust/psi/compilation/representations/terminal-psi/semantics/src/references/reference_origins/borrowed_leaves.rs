@@ -10,7 +10,6 @@ use terminal_psi::{
 };
 
 pub enum BorrowedResultLeafKind {
-    /// The pointed-to type, used to check the supplying storage endpoint.
     Reference(StructuralTypeId),
     View,
 }
@@ -91,8 +90,8 @@ impl<'types, I: Iterator<Item = &'types StructuralTypeDeclaration> + Clone>
             return Err("dynamic result has an ambiguous structural type");
         }
         match &declaration.shape {
-            StructuralTypeShape::Reference { access, referent } => {
-                return self.push(path, *access, BorrowedResultLeafKind::Reference(*referent));
+            StructuralTypeShape::Reference { access, .. } => {
+                return self.push(path, *access, BorrowedResultLeafKind::Reference(root));
             }
             StructuralTypeShape::ElementView { access, .. }
             | StructuralTypeShape::ByteSequence(

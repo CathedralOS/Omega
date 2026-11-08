@@ -1,4 +1,4 @@
-// Bounded, source-independent recovery of complete representation policy.
+//! Bounded, source-independent recovery of complete representation policy.
 
 pub(in crate::encoding::recovery) mod availability;
 

@@ -32,14 +32,14 @@ use crate::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
 };
-use optimization_unit::{OwnershipEvent, PsiProvenance, WorkSettlement};
+use optimization_unit::{FuelSettlement, OwnershipEvent, PsiProvenance};
 use register_model::{
     RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
     RegisterUnitId, TargetRegisterEnvironmentIdentity,
 };
 use semantic_vocabulary::{
-    ClaimId, EdgeId, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, StructuralTypeId,
-    ValueId, WorkScheduleIdentity,
+    ClaimId, EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, ObligationId, OperationId,
+    PlaceId, StructuralTypeId, ValueId,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -79,5 +79,5 @@ const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
 // Version 43 retains single-attempt atomic forms and their separate outcome output.
 // Earlier decoders must not interpret a single attempt as strong compare-exchange.
 // Version 44 combines those atomic outcomes with fixed-width descriptor writes.
-// Atomic retry work, installed termination and activation-base forms.
-const VERSION: u32 = 49;
+// Baseline AArch64 fetch/swap and strong compare-exchange retain retry work.
+const VERSION: u32 = 47;

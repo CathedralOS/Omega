@@ -15,7 +15,7 @@ const SAMPLE: Sample = Sample {
     evidence: Evidence::Adjacent,
     frozen: Some(FrozenCases {
         directory: "build/validation-terminal",
-        work: 10_000_000,
+        fuel: 10_000_000,
         cases: Cases::ExpectedFiles,
     }),
 };

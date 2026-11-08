@@ -1,20 +1,24 @@
-// We capture source declaration details needed to generate direct boundary calls
-// and placed memory accesses (`CapturedProviderRows`) while keeping each
-// operation paired with its original candidate (`ProviderPlanCandidate`).
-// Direct-call identity errors are reported when attaching Calling details
-// (`attach_physical_rows`), while intrinsic and exit-process declaration errors
-// wait until after `ProgramEntry` checks (`finish_row_declarations`).
+//! Save source details needed to generate calls and memory accesses. Keep each
+//! operation associated with its original implementation, then attach target
+//! calling details without looking up declarations in source again.
+//!
+//! Save declaration errors too, so later steps report them in the same order.
 
 use crate::DerivedProviderPlan;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 
+/// Calling details are attached. Saved declaration errors wait until after
+/// program-entry checks, preserving which error is reported first.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeferredProviderRows {
     direct: Vec<Option<DirectBoundaryInput>>,
     declarations: Result<RowDeclarations, Diagnostic>,
 }
 
+/// Keep checked declarations with the implementation they describe.
+/// Report direct-call identity errors when attaching calling details;
+/// report declaration errors later, after program-entry checks.
 pub(crate) struct CapturedProviderRows {
     direct: Result<Vec<Option<DirectBoundaryDeclaration>>, Vec<Diagnostic>>,
     declarations: Result<RowDeclarations, Diagnostic>,
@@ -36,6 +40,8 @@ struct DirectBoundaryDeclaration {
     intrinsic: bool,
 }
 
+/// Declaration facts are produced once from the finalized checked snapshot.
+/// Both selected review and direct completion borrow these same original rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedProviderRows {
     placed: Result<Option<crate::SealedAccessor>, Diagnostic>,
@@ -54,6 +60,8 @@ pub struct ProviderRowDeclarations {
     pub exit_process: crate::intrinsic_declarations::ExitProcessDeclaration,
 }
 
+/// Keep a possible implementation together with the declarations for its
+/// individual operations, so later code does not have to find them in source.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPlanCandidate<Rows = PreparedProviderRows> {
     source: DerivedProviderPlan,
@@ -65,6 +73,8 @@ impl<Rows> ProviderPlanCandidate<Rows> {
         &self.source.plan
     }
 
+    /// Borrow the producer's original row, without truncating a copied plan or
+    /// rebuilding its source associations under projected callable identities.
     pub fn direct_source(
         &self,
         input: &DirectBoundaryInput,
@@ -91,6 +101,7 @@ impl ProviderPlanCandidate {
         })
     }
 
+    /// Rejoin exact producer provenance, never a first same-name candidate.
     pub fn matches_selection(&self, selected: &crate::SelectedProviderReviewProvenance) -> bool {
         self.plan() == &selected.plan && self.source.provenance == selected.provider
     }
@@ -143,6 +154,9 @@ pub struct DirectBoundarySource<'a> {
     pub realization: symbols::SymbolHandle,
 }
 
+/// Prepared declaration/physical facts are separate from catalog/host admission.
+/// Unsupported execution and deferred shape errors are settled only when the
+/// original target and ownership gates demand them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DirectBoundaryMechanism {
     Intrinsic,
@@ -160,6 +174,9 @@ pub struct DirectBoundaryInput {
 }
 
 impl DirectBoundaryInput {
+    /// Project the final callable plan only after its execution has been settled.
+    /// The original satisfied schema remains separate from that projection and
+    /// from any independently accepted public plan.
     pub fn finish(
         &self,
         original: &ProviderPlan,
@@ -191,6 +208,9 @@ impl DirectBoundaryInput {
             ));
         };
         method.requirement_identity = declaration.identities.intern(&self.callable_identity);
+        // Calling belongs to the original public declaration. The synthetic
+        // callable route is authenticated against that separately retained
+        // schema; it must not relabel an authored calling application.
         plan.schema.calling_applications.clear();
         if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut execution {
             binding.trait_name = self.callable_identity.clone();
@@ -227,6 +247,9 @@ fn capture_direct_declarations(
         ) {
             continue;
         }
+        // The leaf machine is the row's realized declaration: an authored row
+        // names it directly; a build-owned native binding names it through
+        // the bodyless declaration satisfying the bound requirement.
         let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
         let Some(machine) = (match source.provenance.row_realizations.get(row_index) {
             Some(crate::ProviderRowRealization::Authored(symbol)) => {
@@ -282,6 +305,8 @@ fn capture_direct_declarations(
             )]);
         }
         let intrinsic = matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. });
+        // Invocation-local intrinsic declarations remain private. Foreign leaves
+        // must have the same hermetic owner as the published boundary catalog.
         let declaration_identity = match typed.normalized_hermetic_symbol_identity(machine.symbol) {
             Ok(identity) => identity,
             Err(_) if intrinsic => format!(
@@ -418,6 +443,9 @@ fn capture_row_declarations(
 }
 
 impl ProviderPlanCandidate<DeferredProviderRows> {
+    /// Report saved declaration errors after program-entry checks, then combine
+    /// declarations with calling details. Attaching calling plans preserved
+    /// the operation order, so the two lists still match by position.
     pub(crate) fn finish_row_declarations(self) -> Result<ProviderPlanCandidate, Diagnostic> {
         let Self { source, rows } = self;
         let declarations = rows.declarations?;

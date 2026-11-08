@@ -28,8 +28,8 @@ pub use returned_loans::{TerminalReturnedLoan, TerminalReturnedLoanError};
 
 use std::collections::BTreeMap;
 
-use psi_work::WorkMeter;
 use semantic_vocabulary::BoundaryMachineId;
+use terminal_fuel::TerminalFuelMeter;
 
 use crate::boundary::effects::byte_buffers::TerminalBoundaryByteBuffer;
 use crate::boundary::effects::results::TerminalEffectResult;
@@ -190,7 +190,7 @@ impl std::error::Error for TerminalInstanceError {}
 /// Why an instance cannot close now.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalInstanceCloseError {
-    /// The entry activation is still live: it paused on work or a suspension
+    /// The entry activation is still live: it paused on fuel or a suspension
     /// boundary with custody outstanding. The caller may keep driving the
     /// instance or abandon it by dropping it; a live activation is not
     /// silently discarded by `close`.
@@ -255,7 +255,7 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
     }
 
     /// Install the host's actual-storage resolver before entry. It supplies no
-    /// source qualifications and cannot replace a resolver during a work-budget pause.
+    /// source qualifications and cannot replace a resolver during a fuel pause.
     pub fn bind_storage_resolver(
         &mut self,
         resolver: std::rc::Rc<dyn crate::TerminalProviderStorageResolver + 'host>,
@@ -490,15 +490,15 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
     }
 
     /// Drive the entry invocation until it completes, crashes, or pauses on
-    /// the work meter or an explicitly checked host-readiness crossing.
+    /// the fuel meter or an explicitly checked host-readiness crossing.
     ///
     /// Ordinary demanded imports must be established before the first guest
     /// operation. An explicitly deferred component may remain pending, but
-    /// calling it before admitted installation fails. Both work and checked
+    /// calling it before admitted installation fails. Both fuel and checked
     /// readiness pauses preserve the same invocation and committed effects.
     pub fn invoke(
         &mut self,
-        meter: &mut WorkMeter,
+        meter: &mut TerminalFuelMeter,
     ) -> Result<TerminalExecutionStatus, TerminalInstanceError> {
         if self.closed {
             return Err(TerminalInstanceError::Closed);
@@ -567,7 +567,7 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
             .take_returned_provider_storage(path)
     }
 
-    /// Producing activations that still own their invocation, including work
+    /// Producing activations that still own their invocation, including fuel
     /// pauses. This observation grants no entry, adapter or completion custody.
     pub fn active_component_invocation_count(&self) -> usize {
         self.components

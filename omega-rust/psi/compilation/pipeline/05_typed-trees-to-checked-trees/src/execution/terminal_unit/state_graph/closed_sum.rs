@@ -440,6 +440,24 @@ pub(super) fn build(
                             statement_ordinal: ordinal,
                             primitive_type: *primitive_type,
                         }
+                    } else if *result == checked_trees::CheckedControlResultPlan::Unit {
+                        checked_trees::CheckedConditionalReturnArm::Completion(
+                            super::unit_completions::build(
+                                program,
+                                facts,
+                                scalar_callees,
+                                shapes,
+                                machine,
+                                state,
+                                structural,
+                                entry_claims,
+                                edge_calls.local_results,
+                                operations,
+                                ordinal,
+                                *expression,
+                                trace,
+                            )?,
+                        )
                     } else {
                         let (operation, operand_calls) = returns::return_value_operation(
                             program,

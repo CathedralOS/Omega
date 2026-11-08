@@ -1,9 +1,4 @@
-// Stable public-data evidence.
-//
-// `PackageReviewDataKind::Quotient` records the carrier family plus relation
-// declaration; the proof implementation that licensed formation is not API
-// identity. `PackageReviewDataProperties` carries declaration multiplicity and
-// movement policy without retaining a typed-tree declaration node.
+//! Stable public-data evidence.
 
 use super::{
     contracts::PackageReviewContractFact,
@@ -32,6 +27,9 @@ pub enum PackageReviewDataMember {
     },
 }
 
+/// Closed semantic form of one public data declaration. Quotient identity is
+/// the carrier family plus relation declaration; the proof implementation that
+/// licensed formation is intentionally not API identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageReviewDataKind {
     Ordinary,
@@ -41,6 +39,9 @@ pub enum PackageReviewDataKind {
     },
 }
 
+/// Closed package-evidence carrier for declaration multiplicity and movement
+/// policy. The language semantics remain explicit without retaining a typed-
+/// tree declaration node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewDataProperties {
     pub(crate) multiplicity: language_semantics::Multiplicity,

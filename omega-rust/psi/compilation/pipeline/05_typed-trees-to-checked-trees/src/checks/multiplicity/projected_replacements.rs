@@ -13,7 +13,7 @@ use super::linear_obligations::type_reference_is_reference;
 use crate::checks::type_multiplicity;
 use crate::published::places::place_at;
 use checked_trees::{
-    ContextualCleanupDisposition, ContextualCleanupFacts, FlowPermissionEventFact,
+    CheckFacts, ContextualCleanupDisposition, ContextualCleanupFacts, FlowPermissionEventFact,
 };
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
@@ -28,7 +28,7 @@ use typed_trees::types::TypeReferenceNode;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_replacement(
     program: &dyn ::validation::CheckingInput,
-    facts: &mut checked_trees::CheckFactsWalk<'_>,
+    facts: &mut CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
@@ -151,7 +151,7 @@ pub(super) fn append_replacement(
 #[allow(clippy::too_many_arguments)]
 fn append_place_replacement(
     program: &dyn ::validation::CheckingInput,
-    facts: &mut checked_trees::CheckFactsWalk<'_>,
+    facts: &mut CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
@@ -326,7 +326,7 @@ fn append_place_replacement(
 #[allow(clippy::too_many_arguments)]
 fn append_descriptor_death(
     program: &dyn validation::CheckingInput,
-    facts: &mut checked_trees::CheckFactsWalk<'_>,
+    facts: &mut CheckFacts,
     cleanup: &mut ContextualCleanupFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -340,7 +340,7 @@ fn append_descriptor_death(
     if let Some(parameter) = program.state_parameter_by_symbol(declaration, symbol) {
         if !validation::reference_result_custody::stored_carrier_ingress_is_complete(
             program,
-            facts.view(),
+            facts,
             machine,
             state,
             symbol,
@@ -394,7 +394,7 @@ fn append_descriptor_death(
     // Absence of an exclusion does not establish a sum payload. Prove every
     // containing tag at the actual pre-store point, not at statement entry.
     {
-        let evidence = crate::flow::CleanupCaseEvidence::new(program, facts.view(), &disposition)?;
+        let evidence = crate::flow::CleanupCaseEvidence::new(program, facts, &disposition)?;
         if evidence.reachability(&place.segments)? != validation::CleanupCaseReachability::Selected
         {
             return None;
@@ -409,8 +409,8 @@ fn append_descriptor_death(
             if crate::checks::storage_path_compatibility(
                 program,
                 crate::checks::StorageSelectorFacts {
-                    flow: facts.flow.view(),
-                    semantic: facts.semantic,
+                    flow: &facts.flow,
+                    semantic: &facts.semantic,
                 },
                 &place.segments,
                 excluded,
@@ -423,7 +423,7 @@ fn append_descriptor_death(
                 .is_some_and(|(state, contexts)| {
                     crate::checks::captured_storage_paths_are_disjoint(
                         program,
-                        facts.view(),
+                        facts,
                         state,
                         contexts,
                         &place.segments,

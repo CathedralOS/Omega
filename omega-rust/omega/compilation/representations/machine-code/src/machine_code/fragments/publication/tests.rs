@@ -1,12 +1,11 @@
 use super::{
-    FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifest,
+    FuelScheduleIdentity, FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifest,
     FunctionFragmentEmissionManifestDecodeError, FunctionFragmentEmissionManifestIdentity,
     FunctionFragmentEmissionStage, FunctionFragmentEmissionStatistics,
     FunctionFragmentEmissionUnavailableData,
     FunctionRelativeOptimizationRealizationManifestIdentity, NativeTarget,
     OptimizationSelectionIdentity, PostAllocationOptimizationManifestIdentity,
     SelectedFormEncodingIdentity, TerminalPsiIdentity, WholeFunctionExitContractIdentity,
-    WorkScheduleIdentity,
 };
 #[test]
 fn prior_wire_versions_with_route_taxonomy_reject() {
@@ -34,7 +33,7 @@ fn record() -> FunctionFragmentEmissionManifest {
             vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
             program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([3; 32]),
         },
-        work_schedule: WorkScheduleIdentity::new(4).unwrap(),
+        fuel_schedule: FuelScheduleIdentity::new(4).unwrap(),
         selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([5; 32]),
         post_allocation_manifest: PostAllocationOptimizationManifestIdentity::from_bytes([6; 32]),
         post_allocation_machine: physical_instructions::PostAllocationMachineIdentity::from_bytes(
@@ -52,7 +51,7 @@ fn record() -> FunctionFragmentEmissionManifest {
             zero_byte_instruction_spans: 4,
             bytes: 5,
             resolved_conditional_branches: 6,
-            logical_work_settlements: 7,
+            logical_fuel_settlements: 7,
             unresolved_internal_machine_fixups: 12,
         },
         section_placement: unavailable,

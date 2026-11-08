@@ -3,90 +3,15 @@
 //! runtime ABI's default scalar storage, never from pointer width or debug names.
 
 mod body_footprint;
-pub use body_footprint::NativeBodyCpuState;
 
 use std::sync::Arc;
 
 use crate::{FunctionFragmentObjectArtifactError as Error, ObjectArtifact, PrivateFunctionObject};
-use calling_conventions::{BoundaryEntryPlan, ValueClass};
+use calling_conventions::{BoundaryEntryPlan, EntryControl, ValueClass};
 use function_identity::MachineFunctionIdentity;
 use machine_emission::native_entry_bridge::{
-    InstalledInterruptEntryPlan, NativeEntryBridgeRequest, NativeEntryParameter,
-    emit_installed_interrupt_entry_bridge, emit_native_entry_bridge,
+    NativeEntryBridgeRequest, NativeEntryParameter, emit_native_entry_bridge,
 };
-
-/// Observe the unchanged ordinary body namespace through the same collector
-/// used by callable entry checking. This returns no CPU-state permission.
-pub fn observe_native_body_cpu_state(
-    body: &ObjectArtifact,
-    preemption: calling_conventions::Preemption,
-) -> Result<NativeBodyCpuState, Error> {
-    body_footprint::collect(
-        body.composition_source.as_deref().unwrap_or(body),
-        preemption,
-    )
-}
-
-/// Observe one retained function and its complete callee/frame closure.
-/// The root must exist in this object's checked native layout. This returns
-/// effects for that scope only, without changing the object's admitted entry.
-pub fn observe_native_function_cpu_state(
-    body: &ObjectArtifact,
-    entry: semantic_vocabulary::MachineId,
-    preemption: calling_conventions::Preemption,
-) -> Result<NativeBodyCpuState, Error> {
-    body_footprint::collect_from(
-        body.composition_source.as_deref().unwrap_or(body),
-        entry,
-        preemption,
-    )
-}
-
-/// Read an input constant at an exact original-body instruction occurrence.
-/// This is inspection data, not an allocation or execution permission.
-pub fn observe_native_constant_operand(
-    body: &ObjectArtifact,
-    machine: semantic_vocabulary::MachineId,
-    instruction: selected_instructions::SelectedInstructionId,
-    operand: u16,
-) -> Result<Option<u64>, Error> {
-    let body = body.composition_source.as_deref().unwrap_or(body);
-    let replay = body.fragment_replay.as_ref().ok_or(Error::Mismatch(
-        "constant operand requires retained native source",
-    ))?;
-    crate::object::function_fragments::selected_constant_operand(
-        &replay.0,
-        machine,
-        instruction,
-        operand,
-    )
-}
-
-/// A checked entry remains a checked entry when its ABI needs no adapter bytes.
-/// Keep that result beside the optional bridge rather than representing an alias
-/// as the absence of state and body correspondence evidence.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CallableEntryTransport {
-    pub(crate) bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
-    pub(crate) effects: calling_conventions::StateEffectsEvidence,
-    pub(crate) inbound: BoundaryEntryPlan,
-    pub(crate) ordinals: Vec<u32>,
-    source_psi: terminal_psi::TerminalPsiIdentity,
-    entry: semantic_vocabulary::MachineId,
-}
-
-pub(crate) fn validate_callable_transport(
-    body: &ObjectArtifact,
-    transport: &CallableEntryTransport,
-) -> Result<(), Error> {
-    let expected = create_callable_entry_transport(body, &transport.inbound, &transport.ordinals)?;
-    if expected != *transport {
-        return Err(Error::Mismatch(
-            "callable entry transport belongs to another body, ABI or state promise",
-        ));
-    }
-    Ok(())
-}
 
 /// Bind a caller-scoped private identity to its unchanged body and native entry.
 /// The ordinal roster is in internal lane order, after the nominal formal join.
@@ -96,48 +21,11 @@ pub fn create_private_function_object(
     inbound: &BoundaryEntryPlan,
     inbound_ordinals: &[u32],
 ) -> Result<PrivateFunctionObject, Error> {
-    let transport = create_callable_entry_transport(&body, inbound, inbound_ordinals)?;
+    let entry_bridge = create_callable_entry_transport(&body, inbound, inbound_ordinals)?;
     Ok(PrivateFunctionObject {
         identity,
         body,
-        entry_bridge: transport.bridge,
-        entry_effects: transport.effects,
-        inbound: inbound.clone(),
-        inbound_ordinals: inbound_ordinals.to_vec(),
-    })
-}
-
-/// Bind an explicitly admitted installed arrival to its ordinary handler body.
-/// The plan retains the exact arrival protocol and stack domain. It grants no
-/// ordinary callback the privilege or retained roots of an installed arrival.
-pub fn create_installed_private_function_object(
-    identity: MachineFunctionIdentity,
-    body: Arc<ObjectArtifact>,
-    inbound: &BoundaryEntryPlan,
-    inbound_ordinals: &[u32],
-    installed_plan: InstalledInterruptEntryPlan,
-) -> Result<PrivateFunctionObject, Error> {
-    let execution = body.installed_entry_execution().ok_or(Error::Mismatch(
-        "installed private entry has no retained execution domain",
-    ))?;
-    if execution.entry().callback_function != identity
-        || execution.entry().entry().inbound() != inbound
-        || execution.entry().entry().inbound_ordinals() != inbound_ordinals
-    {
-        return Err(Error::Mismatch(
-            "installed private entry changed its execution domain",
-        ));
-    }
-    let request = native_entry_request(&body, inbound, inbound_ordinals)?;
-    let bridge = emit_installed_interrupt_entry_bridge(request, installed_plan)
-        .map_err(Error::NativeEntryBridge)?;
-    Ok(PrivateFunctionObject {
-        identity,
-        body,
-        entry_effects: bridge.complete_effects().clone(),
-        entry_bridge: Some(bridge),
-        inbound: inbound.clone(),
-        inbound_ordinals: inbound_ordinals.to_vec(),
+        entry_bridge,
     })
 }
 
@@ -148,31 +36,15 @@ pub fn create_callable_entry_transport(
     body: &ObjectArtifact,
     inbound: &BoundaryEntryPlan,
     inbound_ordinals: &[u32],
-) -> Result<CallableEntryTransport, Error> {
-    if body.installed_entry_execution().is_some() {
-        return Err(Error::Mismatch(
-            "a privileged installed body cannot become an ordinary callable entry",
-        ));
-    }
+) -> Result<Option<machine_emission::native_entry_bridge::NativeEntryBridge>, Error> {
     let request = native_entry_request(body, inbound, inbound_ordinals)?;
-    let (bridge, effects) = if identity_transport(&request) {
-        let effects = request
-            .checked_complete_effects(&calling_conventions::StateEffectsEvidence::empty())
-            .map_err(Error::NativeEntryBridge)?;
-        (None, effects)
+    if identity_transport(&request) {
+        Ok(None)
     } else {
-        let bridge = emit_native_entry_bridge(request).map_err(Error::NativeEntryBridge)?;
-        let effects = bridge.complete_effects().clone();
-        (Some(bridge), effects)
-    };
-    Ok(CallableEntryTransport {
-        bridge,
-        effects,
-        inbound: inbound.clone(),
-        ordinals: inbound_ordinals.to_vec(),
-        source_psi: body.psi(),
-        entry: body.entry(),
-    })
+        emit_native_entry_bridge(request)
+            .map(Some)
+            .map_err(Error::NativeEntryBridge)
+    }
 }
 
 /// Resolve the native transport against the unchanged ordinary body. Image
@@ -269,9 +141,12 @@ pub(crate) fn native_entry_request(
         target: body.target,
         internal: internal.clone(),
         inbound: inbound.clone(),
-        body_footprint: Some(
-            body_footprint::collect(body, inbound.state.preemption)?.into_effects(),
-        ),
+        body_footprint: match inbound.call.entry_control {
+            EntryControl::InterruptReturn => {
+                Some(body_footprint::collect(body, inbound.state.preemption)?)
+            }
+            _ => None,
+        },
         parameters,
     })
 }
@@ -303,30 +178,22 @@ fn identity_transport(request: &NativeEntryBridgeRequest) -> bool {
 pub(crate) fn validate_entry_transport(
     private: &crate::ObjectCompilerPrivateFunction,
 ) -> Result<(), Error> {
-    // An alias still promises an external ABI. Reconstruct its transport too,
-    // so removing an adapter cannot bypass the retained calling recipe.
-    let installed = private
-        .entry_bridge
-        .as_ref()
-        .and_then(|bridge| bridge.installed_interrupt());
-    let expected = match installed {
-        Some(plan) => create_installed_private_function_object(
-            private.identity,
-            Arc::clone(&private.body),
-            &private.inbound,
-            &private.inbound_ordinals,
-            plan,
-        )?,
-        None => create_private_function_object(
-            private.identity,
-            Arc::clone(&private.body),
-            &private.inbound,
-            &private.inbound_ordinals,
-        )?,
+    let Some(bridge) = &private.entry_bridge else {
+        return Ok(());
     };
-    if expected.entry_bridge != private.entry_bridge
-        || expected.entry_effects != private.entry_effects
-    {
+    let request = bridge.request();
+    let ordinals = request
+        .parameters
+        .iter()
+        .map(|(_, parameter)| parameter.inbound_ordinal)
+        .collect::<Vec<_>>();
+    let expected = create_private_function_object(
+        private.identity,
+        Arc::clone(&private.body),
+        &request.inbound,
+        &ordinals,
+    )?;
+    if expected.entry_bridge.as_ref() != Some(bridge) {
         return Err(Error::Mismatch(
             "private native entry differs from ordinary body transport",
         ));

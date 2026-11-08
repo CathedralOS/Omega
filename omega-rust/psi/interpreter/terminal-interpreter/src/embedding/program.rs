@@ -942,7 +942,7 @@ impl<'artifact> TerminalProgram<'artifact> {
 /// allocated. Installation must already be admitted against this program.
 /// The optional Terminal account currently owns byte payload reservations;
 /// it does not certify runtime-row or result accounting. Supply the same account
-/// to the work meter when both resource axes share an invocation.
+/// to the fuel meter when both resource axes share an invocation.
 #[derive(Default)]
 pub struct TerminalInstantiation<'input> {
     pub scalar_arguments: &'input [TerminalScalarValue],

@@ -1,6 +1,3 @@
-// Bounded recovery for selected-provider service methods, entry/result claims, and carry policies.
-// Interned route identities in `method` rebuild from the same canonical texts they encoded; mint order is record-local and never part of the persisted bytes.
-
 use super::{Error, Reader, nominal};
 use crate::encoding::recovery::policy::calling_application;
 use crate::record::PackagePolicyServiceMethod;
@@ -16,6 +13,8 @@ use language_semantics::{
 pub(in crate::encoding::recovery) fn method(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyServiceMethod, Error> {
+    // Interned route identities rebuild from the same canonical texts they
+    // encoded; the mint order is record-local and never part of the bytes.
     let mut identities = effects::provider_plan::ProviderIdentityTable::default();
     Ok(PackagePolicyServiceMethod {
         name: reader.string()?,

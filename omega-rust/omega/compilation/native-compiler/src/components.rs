@@ -1,8 +1,4 @@
-// Independent component image preparation, emission, and receiver-call custody.
-// `prepare_components` admits each component's native calls against the
-// receiver artifact and prepares callable execution + scalar completion demand;
-// `emit_components` emits shared component images and verifies that the emitted
-// export roster matches the admitted call roster 1-for-1.
+//! Component image production and its exact receiver-call/runtime custody.
 
 use crate::realization::{ComponentExportImage, ComponentExportRequest, ComponentNativeCall};
 use diagnostics::Diagnostic;
@@ -15,6 +11,9 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 };
 use terminal_psi_to_abstract_operations::{AdmittedNativeComponentCall, ComponentNativeInputs};
 
+/// One independently selected component and its complete receiving plan.
+/// Package acceptance is separate from the receiver policy on the root request.
+/// These inputs select work; the emitted image must still pass native admission.
 pub struct ComponentCompilation<'input> {
     pub input: ComponentNativeInputs<'input>,
     pub plan: &'input ProviderPlan,
@@ -68,6 +67,8 @@ pub(crate) fn prepare_components<'input>(
     Ok(prepared)
 }
 
+/// Keep each emitted export beside its exact call and selecting plan. Root
+/// realization borrows these owners; successful publication consumes them.
 pub(crate) struct EmittedComponent<'input> {
     image: ComponentExportImage<'input>,
     call: AdmittedNativeComponentCall<'input>,
@@ -117,6 +118,8 @@ pub(crate) fn emit_components<'input>(
                 imports: &[],
             },
         )?;
+        // Check before pairing: a shorter roster must not silently truncate
+        // either side, nor borrow another component's export to fill the gap.
         if exports.len() != calls.len() {
             return Err(vec![Diagnostic::error(
                 "component export image and import selection rosters differ",

@@ -1,12 +1,8 @@
-// Target-body availability and reached direct calls over prepared declarations.
-// Absence is negative evidence, not a realizability certificate; entry reach
-// additionally follows selected authored providers, and neither operation walks
-// source or infers implicit operator, cleanup, or dynamic edges.
-//
-// reject_reached_inert_calls visits direct callees before selected authored
-// realizations while preserving state and edge order, duplicates, and stable
-// caller-position diagnostic ordering; explicit_body keeps explicit member
-// references exact rather than using the Product/Build provider-eligibility rule.
+//! Target-body availability and reached direct calls over prepared declarations.
+//!
+//! Absence is negative evidence, not a realizability certificate. Entry reach
+//! additionally follows selected authored providers. Neither operation walks
+//! source or infers implicit operator, cleanup or dynamic edges.
 
 use diagnostics::Diagnostic;
 use language_semantics::direct_calls::{DependencyScope, DirectCallDeclarations};
@@ -62,6 +58,8 @@ impl<'graph, Declaration: Eq + std::hash::Hash> DirectTargetBodyAbsences<'graph,
     }
 }
 
+/// Visit direct callees before selected authored realizations; preserve state
+/// and edge order, duplicates, and stable caller-position diagnostic ordering.
 pub fn reject_reached_inert_calls<Declaration: Eq + std::hash::Hash>(
     graph: &DirectCallDeclarations<Declaration>,
     target: &str,
@@ -141,6 +139,8 @@ fn family_body<Declaration>(
         .machine
 }
 
+/// Explicit member references stay exact. This is deliberately not the
+/// Product/Build provider-eligibility rule below.
 fn explicit_body<Declaration>(
     graph: &DirectCallDeclarations<Declaration>,
     position: usize,

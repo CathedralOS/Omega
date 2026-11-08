@@ -112,7 +112,7 @@ fn effects(id: u32, kind: SelectedInstructionKind, declared: bool) -> Instructio
             values: vec![],
             edges: vec![],
             obligations: vec![],
-            work: vec![],
+            fuel: vec![],
         },
         alternatives,
     }

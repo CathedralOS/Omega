@@ -1,20 +1,32 @@
-/*
-We execute a produced Terminal program under an explicit isolated host root
-(`execute`, `execute_sliced`).
-
-The native producer retains its admitted entry and provider provisions
-(`TerminalRuntimeProvisions`). Reference execution consumes those exact records
-without rebuilding source or re-running Build. They identify what to establish;
-we create the actual zero-initialized private entry RAM backing and explicitly
-supplied host bindings (`host_imports`).
-
-Containing-domain exit (`TerminalDomainExitDelegation`), host filesystem access
-(`TerminalFilesystemDelegation`), and package-owned native service reach
-(`TerminalNativeServiceDelegation`) require explicit receiving choices; none is
-inferred from a provider name, reach declaration, or artifact possession.
-Guest storage never escapes, no placed host loans are admitted, and host
-standard output/error is copied into `TerminalRuntimeObservation`.
-*/
+//! Execute the produced Terminal program under an explicit isolated host root.
+//!
+//! The native producer retains its admitted entry and provider provisions.
+//! Reference execution consumes those exact records without rebuilding source
+//! or rerunning Build. They identify what to establish; this owner creates the
+//! actual zero backing and explicitly supplied host bindings. Containing-domain exit
+//! requires a separate explicit host delegation; its default is absent even
+//! when entry or provider provisions are present. Guest storage never escapes,
+//! no placed host loans are admitted, and host output is copied into an
+//! observation. A separate filesystem delegation can perform persistent effects
+//! in the host namespace; private domain death does not undo those effects.
+//! These are explicit receiving choices, not
+//! permissions inferred from a provider name or from a reach declaration.
+//! Selected numeric imports reuse exact shared IEEE semantics, including directed
+//! rounding and integer conversion. Their trapping responses still require the
+//! core's published same-cause guard under the actual invocation snapshot.
+//! Selected hosted byte imports consume an explicit finite replay stream;
+//! absence is not fabricated EOF. Scalar sum completions retain actual case
+//! payloads, so checked line readers execute their own byte-by-byte loop.
+//! Descriptor adapters join complete admitted locator/ABI rows: MSVCRT reads
+//! and writes use captured integer loans, while Darwin writes also accept the
+//! exact readonly byte-view descriptor. Counts cannot widen the loan's extent.
+//! Linux read/write syscalls use those same captured loans and native placement;
+//! raw kernel errors are not guessed from libc or host replay errors.
+//! Slots share finite input and independent ordered stdout/stderr captures;
+//! checked Console wrappers still run in Psi.
+//! Exact Darwin imports and Linux clock syscalls consume an explicit clock
+//! environment shared across slots. Snapshots retain private simulated waits;
+//! live host observations remain coherent with real filesystem timestamps.
 
 mod components;
 mod entry;
@@ -24,6 +36,11 @@ mod native_code_layouts;
 
 pub use host_imports::clock::{TerminalClockEnvironment, TerminalClockSnapshot};
 
+/// A trusted embedding choice, not a permission inferred from guest metadata.
+/// The default supplies no exit authority. A standalone sponsor may explicitly
+/// delegate death of this invocation's private simulated containing domain;
+/// the core still seals each grant to the actual instance and exact demand.
+/// This never delegates death of the embedding host or a sibling domain.
 #[derive(Clone, Copy, Default)]
 pub enum TerminalDomainExitDelegation {
     #[default]
@@ -31,6 +48,8 @@ pub enum TerminalDomainExitDelegation {
     IsolatedContainingDomain,
 }
 
+/// Explicit access to this host's filesystem namespace. Naming filesystem
+/// effects or selecting a native provider does not supply this authority.
 #[derive(Clone, Copy, Default)]
 pub enum TerminalFilesystemDelegation {
     #[default]
@@ -38,6 +57,12 @@ pub enum TerminalFilesystemDelegation {
     HostNamespace,
 }
 
+/// Explicit acceptance that the private native sponsor performs the declared
+/// package-owned service reach of admitted native imports on this matching
+/// host, as native execution of the same product does. Reach grants no
+/// capability, so this names the host's consent rather than a reach-derived
+/// grant. Toolchain-owned services keep their own modeled supplies; this never
+/// substitutes for filesystem, clock, input or exit delegation.
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub enum TerminalNativeServiceDelegation {
     #[default]
@@ -53,32 +78,61 @@ use terminal_interpreter::{
 };
 
 pub struct TerminalRuntimeRequest<'program> {
-    pub native_image: Option<&'program native_artifact::NativeArtifact>, // Optional completed image for code-layout metadata inspection.
-    pub entry: Option<&'program terminal_psi::CheckedProgramEntryTerminalReceipt>, // Optional retained entry from the Build companion.
-    pub native_provider: Option<std::process::Command>, // Optional isolated native sponsor worker command.
+    /// An explicit completed image to inspect; no image means no native geometry.
+    /// This supplies metadata only, never code installation or access authority.
+    pub native_image: Option<&'program native_artifact::NativeArtifact>,
+    /// An explicit retained entry from this artifact's Build companion. This
+    /// selects code only; entry storage and host authority remain independent.
+    /// Without it, native provisions select their entry or the artifact default
+    /// is used. An explicit entry must agree with any supplied native provisions.
+    pub entry: Option<&'program terminal_psi::CheckedProgramEntryTerminalReceipt>,
+    /// Explicit private native sponsor. Its executable must dispatch the
+    /// runtime worker hook before normal arguments. None admits no native C
+    /// execution. This worker supplies no standard stream or external service
+    /// authority on its own; filesystem access and package-owned service reach
+    /// need their separate delegations.
+    pub native_provider: Option<std::process::Command>,
     pub native_services: TerminalNativeServiceDelegation,
     pub filesystem: TerminalFilesystemDelegation,
     pub x86_flags: Option<terminal_interpreter::TerminalX86FlagsEnvironment>,
     pub memory_ordering: Option<terminal_interpreter::TerminalMemoryOrderingEnvironment>,
     pub artifact: &'program terminal_codec::CanonicalTerminalArtifact,
-    pub target: Option<&'program str>, // Exact deployment tag admitted by this invocation.
+    /// Exact deployment tag admitted by this invocation. Absence permits only
+    /// execution scopes that do not demand a portable target-family head.
+    pub target: Option<&'program str>,
     pub provisions: Option<&'program TerminalRuntimeProvisions>,
-    pub provider_proposal: Option<&'program backend_plan::TerminalTargetProviderProposal>, // Checked candidate selection from the Build companion.
-    pub work_budget: u64,
+    /// Explicit receiving-root choice from the Build companion. It supplies
+    /// checked candidate selection only, never entry backing or host authority.
+    pub provider_proposal: Option<&'program backend_plan::TerminalTargetProviderProposal>,
+    pub fuel_allowance: u64,
+    /// Explicit host acceptance of domain death through the driver's private
+    /// storage and buffered crossings. Binding establishment, reach, provider
+    /// selection and artifact possession supply none of this permission.
     pub domain_exit: TerminalDomainExitDelegation,
-    pub standard_input: Option<Box<dyn std::io::Read + Send + 'program>>, // Explicit finite replay stream; `None` supplies no stdin capability.
+    /// Explicit finite replay stream. A zero read establishes exhaustion of
+    /// this snapshot, never a temporarily empty live pipe. Absence supplies no
+    /// stdin capability; input-demanding imports reject before guest effects.
+    pub standard_input: Option<Box<dyn std::io::Read + Send + 'program>>,
+    /// Explicit clock supply. Absence supplies no clock capability. A snapshot
+    /// remains private modeled time; Host observes the actual matching host.
     pub clock: Option<TerminalClockEnvironment>,
 }
 
+/// The exact semantic outcome and preceding buffered output. An external exit
+/// retains its full i32 argument; physical status presentation belongs to the
+/// consumer's host contract, not this reference execution.
 pub struct TerminalRuntimeObservation {
     pub status: TerminalExecutionStatus,
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
     pub private_entry_ram: Vec<(u32, Vec<u8>)>,
     pub effects: Vec<terminal_interpreter::TerminalEffect>,
-    pub work_usage: psi_work::WorkUsage, // Logical work consumed, including independently executing children.
-    pub work_suspensions: u64,           // Work pauses resumed by this sponsor.
-    pub component_suspensions: u64, // Pauses where a producing child still owned its invocation.
+    /// Actual logical work, including independently executing children.
+    pub fuel_usage: terminal_fuel::TerminalFuelUsage,
+    /// Fuel pauses resumed by this sponsor, never replayed invocations.
+    pub fuel_suspensions: u64,
+    /// Pauses at which a real producing child still owns its invocation.
+    pub component_suspensions: u64,
 }
 
 #[derive(Debug)]
@@ -95,9 +149,13 @@ pub enum TerminalRuntimeError {
     Execution(TerminalInstanceError),
 }
 
+/// Raised after guest execution, when the private native sponsor retires.
 const NATIVE_PROVIDER_RETIREMENT: &str = "native-provider-retirement";
 
 impl TerminalRuntimeError {
+    /// Unsupported execution can surface at admission, instantiation or runtime.
+    /// Keep those unavailable comparisons distinct from malformed artifacts and
+    /// missing custody, which are failures rather than unsupported execution.
     pub fn comparison_unavailable(&self) -> bool {
         let interpretation = match self {
             Self::MissingProvision { .. } => return true,
@@ -115,6 +173,11 @@ impl TerminalRuntimeError {
         )
     }
 
+    /// Standalone Terminal execution (`omega run --engine terminal`) may call
+    /// a refusal unavailability only when no guest instruction has run. Every
+    /// error raised by or after `invoke` follows guest effects: execution
+    /// errors and native-provider retirement. Earlier admission, installation,
+    /// instantiation and host-binding refusals precede the first instruction.
     pub fn unavailable_before_guest_effects(&self) -> bool {
         match self {
             Self::Execution(_) => false,
@@ -155,12 +218,19 @@ impl std::fmt::Display for TerminalRuntimeError {
 
 impl std::error::Error for TerminalRuntimeError {}
 
+/// Establish this driver's actual host root before invoking any guest effect.
+/// Absence of retained provisions permits only a genuinely input/import-free
+/// Terminal program; it never enables synthetic context or host bindings.
 pub fn execute(
     request: TerminalRuntimeRequest<'_>,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
     execute_sliced(request, std::num::NonZeroU64::MAX)
 }
 
+/// Execute the same admitted root with a bounded sponsor scheduling quantum.
+/// The driver owns every invocation and its observed outcome. Replenishment
+/// keeps the same meter and instance, never exceeds the request's total fuel
+/// allowance, and grants no new host binding or result-producing callback.
 pub fn execute_sliced(
     request: TerminalRuntimeRequest<'_>,
     quantum: std::num::NonZeroU64,
@@ -246,6 +316,9 @@ pub fn execute_sliced(
         .map_err(|error| {
             TerminalRuntimeError::Requirements(TerminalInterpretError::TargetLayoutSelection(error))
         })?;
+    // These are this native request's admitted external settlements, not every
+    // boundary with a retained checked alternative. Completion authority is
+    // established separately below, never selected as a normal import.
     let mut host_imports = Vec::new();
     if let Some(provisions) = request.provisions {
         for provision in provisions.host() {
@@ -255,6 +328,9 @@ pub fn execute_sliced(
             {
                 continue;
             }
+            // Access observations and lifecycles execute inside Psi. Native
+            // realizations are not host replacements for those primitives;
+            // their original backing, profile and loan checks still apply.
             if host_imports::executes_internally(&program, provision) {
                 continue;
             }
@@ -385,6 +461,11 @@ pub fn execute_sliced(
                 .map_err(TerminalRuntimeError::ComponentBinding)?;
         }
     }
+    // Service occurrences and containing-domain authority are independent.
+    // This host explicitly accepted domain death above. All guest storage is
+    // private, outputs are buffered, and placed host loans are refused. The
+    // core grants exact instance/slot custody under those crossing premises;
+    // a Binding roster, Console reach or selected exit provider cannot grant it.
     for demand in &requirements.external_completions {
         let admission = TerminalProcessExitAdmission::admit_isolated_simulated_domain(
             &instance,
@@ -395,24 +476,24 @@ pub fn execute_sliced(
             .bind_external_completion(demand.boundary, admission)
             .map_err(TerminalRuntimeError::Binding)?;
     }
-    let first_quantum = request.work_budget.min(quantum.get());
-    let mut remaining = request.work_budget - first_quantum;
-    let mut work = psi_work::WorkMeter::with_budget(first_quantum);
-    let mut work_suspensions = 0u64;
+    let first_quantum = request.fuel_allowance.min(quantum.get());
+    let mut remaining = request.fuel_allowance - first_quantum;
+    let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(first_quantum);
+    let mut fuel_suspensions = 0u64;
     let mut component_suspensions = 0u64;
     let status = loop {
         let status = instance
-            .invoke(&mut work)
+            .invoke(&mut fuel)
             .map_err(TerminalRuntimeError::Execution)?;
         if !matches!(status, TerminalExecutionStatus::SponsorExhausted(_)) || remaining == 0 {
             break status;
         }
-        work_suspensions += 1;
+        fuel_suspensions += 1;
         component_suspensions += u64::from(instance.active_component_invocation_count() != 0);
         let additional = remaining.min(quantum.get());
         remaining -= additional;
-        work.replenish(additional).map_err(|_| {
-            TerminalRuntimeError::InvalidProvision("sponsor work replenishment overflows")
+        fuel.replenish(additional).map_err(|_| {
+            TerminalRuntimeError::InvalidProvision("sponsor fuel replenishment overflows")
         })?;
     };
     let stdout = output.stdout.snapshot()?;
@@ -423,8 +504,8 @@ pub fn execute_sliced(
     let effects = instance.effects().to_vec();
     host.finish_native_provider()?;
     Ok(TerminalRuntimeObservation {
-        work_usage: work.into_usage(),
-        work_suspensions,
+        fuel_usage: fuel.into_usage(),
+        fuel_suspensions,
         component_suspensions,
         effects,
         private_entry_ram,
@@ -434,6 +515,8 @@ pub fn execute_sliced(
     })
 }
 
+/// Observe this host's flags image for an explicitly selected x86 environment.
+/// Cross-architecture sponsors must supply their own modeled processor state.
 pub fn capture_host_x86_flags(
     target: &str,
 ) -> Result<Option<terminal_interpreter::TerminalX86FlagsEnvironment>, TerminalRuntimeError> {
@@ -448,6 +531,8 @@ pub fn capture_host_x86_flags(
         .map_err(TerminalRuntimeError::Requirements)
 }
 
+/// Rejoin portable layout inputs to the receiving compiler target catalogue.
+/// A retained artifact cannot choose the pointer geometry used to validate it.
 fn layout_target_facts(
     name: &str,
 ) -> Result<

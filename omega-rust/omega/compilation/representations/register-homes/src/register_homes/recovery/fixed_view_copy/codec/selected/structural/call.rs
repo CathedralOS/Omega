@@ -30,14 +30,6 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
 
             crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
         }
-        target_operations::CallSiteOwner::Installation { operation, role } => {
-            bytes.push(4);
-            crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
-            bytes.push(match role {
-                target_operations::InstallationCallRole::Validate => 0,
-                target_operations::InstallationCallRole::Work => 1,
-            });
-        }
         target_operations::CallSiteOwner::CleanupAction {
             edge,
             action_ordinal,
@@ -136,14 +128,6 @@ pub(super) fn decode_call(
             cursor,
             semantic_vocabulary::EdgeId::new,
         )?),
-        4 => target_operations::CallSiteOwner::Installation {
-            operation: decode_id(cursor, OperationId::new)?,
-            role: match cursor.byte()? {
-                0 => target_operations::InstallationCallRole::Validate,
-                1 => target_operations::InstallationCallRole::Work,
-                tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-            },
-        },
         1 => target_operations::CallSiteOwner::CleanupAction {
             edge: decode_id(cursor, EdgeId::new)?,
             action_ordinal: cursor.u32()?,

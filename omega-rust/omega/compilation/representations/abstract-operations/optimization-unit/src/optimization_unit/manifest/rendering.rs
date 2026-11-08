@@ -150,7 +150,7 @@ impl PrePhysicalOptimizationManifest {
             });
         writeln!(
             output,
-            "provenance/work records: transformations={}, realized={}, proven-unreachable={}, proven-unreachable-sources={}",
+            "provenance/fuel records: transformations={}, realized={}, proven-unreachable={}, proven-unreachable-sources={}",
             self.transformation_ledger.records().len(),
             realized,
             proven_unreachable,
@@ -228,20 +228,20 @@ fn render_provenance_rewrite(output: &mut String, rewrite: &ProvenanceRewrite) {
     for source in &rewrite.sources {
         writeln!(output, "    source: {}", render_provenance(*source)).unwrap();
     }
-    for work in &rewrite.work {
+    for fuel in &rewrite.fuel {
         match rewrite.disposition {
             ProvenanceDisposition::RealizedAt(_) => writeln!(
                 output,
-                "    source-scheduled-work: {} units={} runtime-charge={}",
-                render_provenance(work.site),
-                work.units,
-                work.units,
+                "    source-scheduled-fuel: {} units={} runtime-charge={}",
+                render_provenance(fuel.site),
+                fuel.units,
+                fuel.units,
             ),
             ProvenanceDisposition::ProvenUnreachableAt(_) => writeln!(
                 output,
-                "    source-scheduled-work: {} units={} runtime-charge=none reason=proven-unreachable",
-                render_provenance(work.site),
-                work.units,
+                "    source-scheduled-fuel: {} units={} runtime-charge=none reason=proven-unreachable",
+                render_provenance(fuel.site),
+                fuel.units,
             ),
         }
         .unwrap();

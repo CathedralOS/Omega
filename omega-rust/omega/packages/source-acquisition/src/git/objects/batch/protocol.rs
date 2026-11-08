@@ -1,6 +1,4 @@
-// Exact `git cat-file --batch` request encoding, response byte-ceiling
-// calculation (`git_batch_output_limit`), and zero-copy `Arc<Vec<u8>>` slice
-// assignment (`assign_git_batch_output`) with symlink target validation.
+//! Exact request encoding, response bounds, and blob assignment.
 
 use std::sync::Arc;
 

@@ -147,7 +147,7 @@ language limit. Its
 [ranked-cycle validation](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/validation/context/mod.rs)
 reconstructs component/ranking evidence. Only authenticated guard-zero and
 decrement-one relocation to the canonical preheader suffix may normalize the
-otherwise frozen component; provenance and work settlements remain unchanged.
+otherwise frozen component; provenance and fuel settlements remain unchanged.
 The separate ranked-rewrite join must still authorize and validate application.
 Analysis custody alone is neither execution nor general loop-motion authority.
 

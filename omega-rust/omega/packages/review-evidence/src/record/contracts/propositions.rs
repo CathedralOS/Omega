@@ -1,7 +1,3 @@
-// Public proposition declarations, binders, evidence interfaces, and
-// applications (`PackageReviewPropositionShape` and
-// `PackageReviewPropositionApplication`).
-
 use crate::record::PackageReviewContractExpression;
 use crate::record::PackageReviewContractFact;
 use crate::record::PackageReviewContractKind;

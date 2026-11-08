@@ -1,6 +1,6 @@
 //! Source-independent analysis of a Terminal machine's control graph:
 //! successors, cyclic components, dominators, feedback edges, and the
-//! topology identities of control cycles. Producers, the optimizer, work
+//! topology identities of control cycles. Producers, the optimizer, fuel
 //! certification and the verifier all read the same derivation.
 
 use std::collections::{BTreeMap, BTreeSet};

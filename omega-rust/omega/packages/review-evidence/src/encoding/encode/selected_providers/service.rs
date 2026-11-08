@@ -1,5 +1,3 @@
-// Canonical encoding for provider service methods, entry/result claims, termination premises, and calling applications.
-
 use super::{Encoder, PackageReviewEncodingError, encode_nominal};
 use crate::encoding::encode::{
     calling::encode_application, values::providers::encode_carry_policy,

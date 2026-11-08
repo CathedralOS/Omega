@@ -1,10 +1,4 @@
-// Opaque final provenance observation for one local-source resolution.
-//
-// `issue_local_source_resolution_observation` hashes the domain tag, schema
-// version, snapshot and custody policies, requested/canonical/publication/
-// snapshot roots, file and byte counts, content identity, limits, and custody
-// identity. On Windows, `hash_path` length-frames the UTF-16 wide unit count as
-// a canonical little-endian `u64` before hashing each unit.
+//! Opaque final observation for one local-source resolution.
 
 use std::path::Path;
 
@@ -77,6 +71,7 @@ fn hash_path(hasher: &mut crate::digest_encoder::DomainDigestEncoder, path: &Pat
         use std::os::windows::ffi::OsStrExt;
         hash_field(hasher, b"windows-path");
         let units = path.as_os_str().encode_wide().collect::<Vec<_>>();
+        // Observation identities length-frame this canonical u64 count.
         hash_u64(
             hasher,
             u64::try_from(units.len()).expect("compiler-owned source ceilings fit canonical u64"),

@@ -1,7 +1,4 @@
-// Receipt-free boundary-application policy projection retaining open demands and
-// closed selected relationships. Plan coordinates come from the selected-provider
-// policy produced by this capture so service signatures and provider checks are not
-// rebuilt a second time.
+//! D29 compiler associations normalized without reconstruction receipts.
 
 mod demands;
 mod realizations;
@@ -12,6 +9,10 @@ use crate::record::PackagePolicyBoundaryApplications;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
+/// Retain exact open demands and closed selected relationships, not coverage.
+/// Plan coordinates come from the selected-provider policy produced by this
+/// capture. Rebuilding that policy here would duplicate every service signature
+/// and provider check merely to recover the same canonical ordering.
 pub(crate) fn project_checked_boundary_application_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     package: PackageKeyIdentity,

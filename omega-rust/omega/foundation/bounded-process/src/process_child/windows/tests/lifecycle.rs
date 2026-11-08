@@ -1,6 +1,3 @@
-// Tests verifying that `WindowsJobChild` reaches `JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO`
-// on both normal exit and forced job termination.
-
 use std::process::{Command, Stdio};
 use std::time::Duration;
 

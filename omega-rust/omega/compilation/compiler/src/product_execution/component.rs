@@ -1,9 +1,4 @@
-// We publish a dependency's checked component (`ComponentPublication`) for an
-// independent consumer. The compiler batches portable Terminal production across
-// component requests; before publishing the canonical component description or
-// admitting the product to the disk cache, we complete all scalar proof
-// conditions and declaration task obligations (`complete_conditions`) and derive
-// exported boundary calling applications from the produced Terminal artifact.
+//! Publish a dependency's checked component for an independent consumer.
 
 use super::CompilationProductError;
 use crate::CheckedCompilation;
@@ -17,6 +12,9 @@ use diagnostics::Diagnostic;
 use native_compiler::TerminalApplication;
 use package_compilation::IndependentComponentDescription;
 
+/// The compiler batches portable production; this owner retains only the
+/// component's checked custody and its distinct publication policy. Review
+/// descriptions do not become root reports or acquire new execution authority.
 pub(crate) struct ComponentPublication {
     checked: CheckedCompilation,
     timings: CompileTimings,
@@ -37,6 +35,8 @@ impl ComponentPublication {
         }
         let selections = optimization_core::OptimizationRollback::default()
             .settle(&checked.build().config.settings.optimizations);
+        // Export ABI applications are derived from this same Product's
+        // canonical declaration catalog after portable publication.
         let exported_calling_applications = Vec::new();
         let timings = std::mem::take(checked.timings_mut());
         Ok(Self {
@@ -61,6 +61,10 @@ impl ComponentPublication {
         produced: TerminalApplication,
     ) -> Result<IndependentComponentProduct, CompilationProductError> {
         let mut accounting = self.checked.source_completion_accounting().clone();
+        // Application production retains the full declaration graph and every
+        // evaluation entry, including obligations outside executable reach.
+        // Complete those conditions before describing or caching the component;
+        // a separate rootless production would repeat the same Psi work.
         let completed = self.complete_conditions(&produced, &mut accounting);
         if let Err(diagnostics) = completed {
             return Err(CompilationProductError::ProductionAttempt {
@@ -155,7 +159,7 @@ impl ComponentPublication {
             &self.exported_calling_applications,
         )?;
         let accepted_permissions =
-            super::accepted_terminal_authority_permission_policy(&self.checked)?;
+            super::native_inputs::accepted_terminal_authority_permission_policy(&self.checked)?;
         let native_inputs = self.retain_native_inputs.then(|| {
             native_compiler::retain_native_derivation_inputs(
                 &produced.receipt,
@@ -163,7 +167,6 @@ impl ComponentPublication {
                 &produced.provider_proposals,
                 &request,
                 &accepted_permissions,
-                &[],
             )
         });
         let retained = produced.prepare(request)?;
@@ -177,6 +180,26 @@ impl ComponentPublication {
     }
 }
 
+/// Publish the canonical component description of one dependency compiled as
+/// its own component, ready to attach to a consuming root's target inputs
+/// through `PackageCompilationInputs::with_independent_component_descriptions`.
+///
+/// This is the producer half of the verified-description contract
+/// (wiki/spec/build/component_publication.md#verified-component-descriptions).
+/// The description is published from the dependency's own retained Terminal
+/// product: the embedded canonical artifact, the selected provider-plan facts
+/// that compilation settled, and any build-bound progress manifest. Both
+/// coordinates the carrier binds beside the bytes come from that compilation
+/// rather than from a caller assertion or from the description itself â€” the
+/// package identity is the dependency's own checked package custody, and the
+/// expected subject is the Terminal Psi identity observed on the module this
+/// compilation produced.
+///
+/// Nothing here verifies the result. The description is unverified bytes
+/// until the consuming build re-verifies them under its own admission
+/// profile, and a root whose `Independent` selection reaches no published
+/// description still rejects at the component-closure fence rather than
+/// compiling as a fused edge.
 fn describe_component(
     checked: &CheckedCompilation,
     retained: &compilation_products::RetainedTerminalArtifact,
@@ -187,6 +210,11 @@ fn describe_component(
         )]
     })?;
     let artifact = retained.artifact();
+    // A Psi component capsule has no native realization yet, so it publishes
+    // no emitter-derived stack demand and no bound realization identity. The
+    // description's own producer owns which rows that omits; nothing is
+    // invented here to stand in for them. NativeComponentProduct publishes a
+    // separate native description once image emission supplies those facts.
     let (expected_subject, description) = publish_component_description(ComponentDescriptionFacts {
         artifact,
         selected_provider_plans: checked.execution().plans(),

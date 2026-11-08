@@ -321,12 +321,6 @@ pub fn prepare_typed_trees(
     let signature_type_start = program.type_reference_table.type_reference_count();
     crate::monomorphization::instantiate_dynamic_slots(&mut program)?;
     crate::monomorphization::instantiate_requirement_applications(&mut program)?;
-    // Rebuild copied request applications after the final requirement instances
-    // exist. Each new provider body follows ordinary source specialization.
-    while crate::monomorphization::prepare_installed_interrupts(&mut program)? {
-        specialize_machine_calls(&mut program, !request.admits_pending_inputs)?;
-        crate::monomorphization::instantiate_requirement_applications(&mut program)?;
-    }
     // The public signatures above own newly instantiated carrier occurrences.
     // Complete their field views just as for source types, without revisiting
     // the unchanged source roster or electing a private realization's fields.

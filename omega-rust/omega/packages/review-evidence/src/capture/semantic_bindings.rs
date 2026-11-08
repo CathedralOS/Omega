@@ -1,21 +1,8 @@
-/*
-Projection of semantic-binding review candidates from checked source, service
-reaches, and provider plans (`candidate_service_bindings`,
-`candidate_target_entry_binding`, and `candidate_hosted_exit_bindings`).
-
-We nominate exact schema bindings while checked symbols and provider plans are
-still live:
-1. `candidate_service_bindings` inspects `consumer`'s public, boundary, and
-   selected build machines plus root `ProgramEntry` service requirements to
-   nominate at most one `(package, path)` candidate per canonical host boundary
-   (`FilesystemHost`, `TimeHost`).
-2. `candidate_target_entry_binding` nominates `owner`'s boundary trait matching
-   `target.program_entry_slot()` without granting entry authority.
-3. `candidate_hosted_exit_bindings` inspects `selected_provider_provenance` for
-   `Console` (`exit_process` required, `write_byte`/`read_byte` optional) and
-   `ProcessExit` (`exit_process` only), binding each terminal-authority
-   permission row to the schema digest and requirement identity.
-*/
+//! Project semantic-binding proposals while checked source and provider facts exist.
+//!
+//! These are exact schema nominations, not permission grants or accepted inputs.
+//! Package review scopes proposals to consumers and makes policy decisions; it
+//! must not interpret checked symbols, reaches or provider plans itself.
 
 use crate::record::SemanticBindingReviewCandidate;
 use compilation_products::CheckedCompilation;
@@ -29,6 +16,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::BTreeSet;
 use symbols::SymbolHandle;
 
+/// Projection failures without resolver or consumer-policy ownership.
 #[derive(Debug, Clone)]
 pub enum SemanticBindingProjectionError {
     Ambiguous {
@@ -43,6 +31,17 @@ pub enum SemanticBindingProjectionError {
     },
 }
 
+/// The terminal-authority permission rows for the hosted leaves of one
+/// nominated provider schema: process termination for the
+/// exact `exit_process` requirement, process output for `write_byte` and
+/// process input for `read_byte`. Each class is the one the compiler's own
+/// mechanism classification assigns to that hosted leaf. The readable names
+/// only select the schema methods, as the binding candidate itself does; each
+/// row binds the schema digest and requirement identity, so a lookalike
+/// schema cannot reuse an accepted row. The exit leaf is the nomination
+/// itself and must be present exactly once; the byte leaves are proposed only
+/// when a Console provider declares their external rows. The separate
+/// ProcessExit role proposes only termination, never console I/O authority.
 fn candidate_hosted_exit_permissions(
     provider: &ProviderPlan,
     role: AcceptedSemanticBindingRole,
@@ -85,6 +84,13 @@ fn candidate_hosted_exit_permissions(
     Some(permissions)
 }
 
+/// Nominate exact package-owned requirement surfaces that the consumer's
+/// checked API actually reaches. Readable names guide this confined candidate
+/// pass only; the returned row binds exact package ownership, nominal path, and
+/// normalized schema and must be consumed by the compiler on the final pass.
+///
+/// Each canonical host boundary path has its own semantic role; every
+/// referenced path may nominate at most one (package, path) candidate.
 pub fn candidate_service_bindings(
     checked: &CheckedCompilation,
     consumer: PackageKeyIdentity,
@@ -107,6 +113,9 @@ pub fn candidate_service_bindings(
                     .flatten()
             })
             .collect::<BTreeSet<_>>();
+        // A root-bound ProgramEntry is not a package callable, so its own
+        // checked service reach nominates through the entry's service
+        // requirements instead of callable reaches.
         for requirement in checked.execution().program_entry_service_requirements() {
             let definitions = checked
                 .traits()
@@ -155,6 +164,10 @@ pub fn candidate_service_bindings(
     Ok(bindings)
 }
 
+/// A checked dependency can nominate its target entry schema before an
+/// application is checked. The proposal grants no entry authority: the
+/// application's bound compilation must replay the exact package/schema and
+/// calling pair, and the resulting review still requires consumer acceptance.
 pub fn candidate_target_entry_binding(
     checked: &CheckedCompilation,
     owner: PackageKeyIdentity,
@@ -203,6 +216,9 @@ pub fn candidate_target_entry_binding(
     )))
 }
 
+/// Binding nomination consumes symbol-backed checked facts, not their audit
+/// rendering. Keep the public/boundary/build surface and exact invocation
+/// edges distinct from transitive reach; neither can stand in for the other.
 fn checked_callable_service_references(
     checked: &CheckedCompilation,
     consumer: PackageKeyIdentity,
@@ -285,6 +301,10 @@ fn checked_callable_service_references(
     Ok(services)
 }
 
+/// Retain hosted proposals while the checked provider plans still exist.
+/// Permissions remain proposals for the subsequent policy decision. The
+/// consumer-scoping step removes them from dependency and build-host inputs,
+/// including candidates recovered from the package-local review cache.
 pub fn candidate_hosted_exit_bindings(
     checked: &CheckedCompilation,
 ) -> Result<Vec<SemanticBindingReviewCandidate>, SemanticBindingProjectionError> {

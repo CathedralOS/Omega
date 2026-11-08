@@ -1,5 +1,3 @@
-// Bounded canonical text writer supporting allocation-free measurement, exact preallocation, and in-place verification against borrowed expected bytes.
-
 use super::{HEADER, MAXIMUM_MARKUP_DEPTH, label};
 use crate::encoding::PackageReviewEncodingError as Error;
 use std::fmt::{self, Write};
@@ -11,6 +9,8 @@ struct Scope {
     has_scalar: bool,
 }
 
+/// Verification borrows the original text and compares each emitted byte. It
+/// does not allocate a second expanded text buffer alongside recovered policy.
 pub(in crate::encoding) struct Writer<'text> {
     output: String,
     expected: Option<&'text [u8]>,

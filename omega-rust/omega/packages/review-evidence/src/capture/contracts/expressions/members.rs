@@ -1,11 +1,3 @@
-// Contract member-expression and collection-measure (`len` / `capacity`) projection.
-// Standing collection measures keep their authored member spelling, checked intrinsic,
-// and diagnostic description bound together. Reserved `result` roots rejoin their
-// exact postcondition owner (`Machine`, `MachineState`, or `StateSignature`), whole-data
-// predicate binders rejoin `predicate_subject_symbol`, and member-path prefix
-// recovery matches operand storage-dependency places in order so indexed reads like
-// `packet.bytes[0]` still project their `packet.bytes` receiver prefix.
-
 use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
@@ -28,6 +20,10 @@ pub(crate) struct AuthoredMember {
     pub(crate) field: SymbolHandle,
 }
 
+/// A compiler-owned standing measure selected by authored member syntax on a
+/// fixed array or slice receiver. The authored member spelling, its exact
+/// checked intrinsic, and the diagnostic description stay bound together so
+/// contract projection cannot project one under the other's selection row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CollectionMeasure {
     Length,
@@ -246,6 +242,10 @@ pub(crate) fn contract_member_path_root(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<facts::PlaceRoot> {
     if let Some((owner, _)) = reserved_result_owner(compilation.checking_input, expression) {
+        // The result has no parameter symbol. Rejoin the exact authored
+        // postcondition owner before matching its retained semantic place rows.
+        // A public trait requirement owns its `result` through the signature
+        // symbol: the review context carries it as `StateSignature`.
         return (match context.owner {
             ContractProofFactOwner::Machine { machine_symbol }
             | ContractProofFactOwner::MachineState { machine_symbol, .. } => {
@@ -335,6 +335,8 @@ pub(crate) fn is_data_subject_field_expression(
     })
 }
 
+/// The whole-data predicate binder is declaration-owned, not a spelling of a
+/// receiver. Rejoin its exact resolved symbol before projecting a public fact.
 pub(crate) fn data_predicate_subject(
     compilation: &SourceDeclarationInput<'_>,
     data_symbol: SymbolHandle,
@@ -398,6 +400,10 @@ pub(crate) fn checked_contract_member_path(
 ) -> Result<Vec<(Option<SymbolHandle>, SymbolHandle)>, Vec<Diagnostic>> {
     use facts::FactPayload;
 
+    // Definition facts, like machine facts, retain complete operand reads.
+    // An indexed operand's dependency expression is not its member receiver.
+    // Join within this exact owner/fact by root and checked member identities;
+    // requiring expression equality here would discard that receiver's proof.
     if let Some(domain_symbol) = context.domain_symbol {
         return select_checked_dependency_member(
             compilation,
@@ -440,6 +446,11 @@ pub(crate) fn checked_contract_member_path(
 
     let (point, origin) = points::contract_point(compilation, context, checked_fact)?;
     let mut candidates = Vec::new();
+    // A requires row's own place is the whole proposition. Operand places live
+    // on storage-dependency rows of that fact, so a write to any operand
+    // retires the assumption without turning each operand into a proposition.
+    // Member projection joins an operand place; the proposition place is the
+    // comparison and usually has an expression root.
     let mut contract_subjects = Vec::new();
     let mut dependency_places = Vec::new();
     for (handle, semantic_fact) in compilation.facts.semantic.facts.iter() {
@@ -567,6 +578,11 @@ fn select_checked_dependency_member(
     Ok(selected.clone())
 }
 
+/// Recover the member expression's prefix of a checked storage dependency.
+/// `packet.bytes[0]` reads the indexed place, not the whole array, but review
+/// still projects its `packet.bytes` receiver before projecting the index.
+/// Require every requested field/case identity in order; a later index or
+/// member neither replaces that prefix nor adds another copy of its identity.
 fn checked_member_prefix(
     compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,

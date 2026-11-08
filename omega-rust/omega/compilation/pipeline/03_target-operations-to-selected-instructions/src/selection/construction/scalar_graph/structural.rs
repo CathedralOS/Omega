@@ -31,13 +31,9 @@ mod byte_field_store;
 mod byte_view_field_store;
 mod byte_views;
 mod descriptor_operands;
-mod interrupt_installation;
-mod interrupt_installation_calls;
-mod interrupt_installation_guards;
 mod leaf_copy;
 mod literals;
 mod local_storage;
-mod static_interrupts;
 
 pub(super) fn establish_atomic_outcome(
     source: &LegalizedScalarFunction,
@@ -309,11 +305,6 @@ pub(super) fn operation(
     use LegalizedScalarInstructionKind as Kind;
     dispatch_kind!(
         row,
-        Kind::InstallStaticInterrupt { .. },
-        interrupt_installation::emit(function, source, row, builder)
-    );
-    dispatch_kind!(
-        row,
         Kind::IeeeFloatClassify { .. },
         ieee_float_classify::establish(source, builder, row)
     );
@@ -356,11 +347,6 @@ pub(super) fn operation(
         row,
         Kind::EstablishRecord { .. },
         record::establish(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::StaticInterrupt { .. },
-        static_interrupts::emit(source, row, builder)
     );
     dispatch_kind!(
         row,
@@ -462,7 +448,7 @@ pub(super) fn operation(
             || row.operation != settlement.operation
             || row.effect != settlement.effect
             || row.ownership != settlement.ownership
-            || row.work != settlement.work
+            || row.fuel != settlement.fuel
         {
             return Err(invalid());
         }
@@ -511,9 +497,9 @@ pub(super) fn provenance(
 }
 
 /// Provenance for an instruction emitted from one legalized row that names the
-/// values it consumes or produces. The row's operation and the work that
+/// values it consumes or produces. The row's operation and the fuel that
 /// operation settles travel with those values; an emission site states the
-/// values and never re-lists the operation and work fields beside them.
+/// values and never re-lists the operation and fuel fields beside them.
 pub(super) fn operation_provenance(
     row: &LegalizedScalarInstruction,
     values: Vec<ValueId>,
@@ -521,13 +507,13 @@ pub(super) fn operation_provenance(
     SelectedInstructionProvenance {
         operations: vec![row.operation],
         values,
-        work: row.work.clone(),
+        fuel: row.fuel.clone(),
         ..Default::default()
     }
 }
 
 /// Provenance for an instruction that discharges obligations the row already
-/// names. Work stays off: only the row's one work-settling instruction states
+/// names. Fuel stays off: only the row's one fuel-settling instruction states
 /// the settlement, so every other emission records just its values and the
 /// obligations it carries.
 pub(super) fn obligation_provenance(

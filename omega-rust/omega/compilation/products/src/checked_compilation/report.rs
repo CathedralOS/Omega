@@ -1,11 +1,14 @@
-// Admit the requested stop and construct every route's product report.
-// `ProductReportPlan` retains the requested stop and settles optimization
-// choices once before shared Terminal work; `prepare` refuses incompatible
-// Build or release-rollback requests (checking completed-file custody before
-// proof/rollback eligibility on producing stops) and captures application
-// metadata, completed build outputs, and timing snapshots into a one-use
-// `CompileReportSettlement` before the stage sequence consumes the checked
-// record.
+//! Admit the requested stop and construct every route's product report.
+//!
+//! One plan owns both halves: `ProductReportPlan` retains the requested stop and
+//! settles optimization choices once. After installation, `prepare` refuses an
+//! incompatible request before application completion, and the settlement it hands
+//! back is the only way the Terminal and native stage sequences turn their
+//! produced artifact into a report. Check and artifact-only builds finish
+//! inside the admission itself. Nothing downstream re-admits the stop or
+//! re-decorates the report: application metadata, completed build outputs and
+//! timing snapshot are all captured here, before the stage sequence consumes
+//! the checked record.
 
 use super::CheckedCompilation;
 use crate::{
@@ -22,6 +25,8 @@ use package_compilation::BuildObservationIdentity;
 use std::path::PathBuf;
 use target::NativeApplicationMetadata;
 
+/// Product admission chooses which stage sequence remains, or returns the
+/// completed report when the requested stop needs no artifact lowering.
 pub enum CheckedProductReport {
     Complete(CompileReport),
     Terminal {
@@ -35,6 +40,8 @@ pub enum CheckedProductReport {
     },
 }
 
+/// A product's output and production inputs are one request. In particular,
+/// a native request cannot be paired with a Terminal-only report settlement.
 pub enum ProductReportRequest {
     Check,
     Terminal(OptimizationRollback),
@@ -59,6 +66,9 @@ impl ProductReportRequest {
     }
 }
 
+/// Planning grants no authority. It fixes the output and effective optimization
+/// choices before shared Terminal work; admission still consumes the installed
+/// checked product and its exact permissions at the existing boundary.
 pub struct ProductReportPlan {
     root_path: PathBuf,
     requested: ProductReportRequest,
@@ -94,6 +104,8 @@ impl ProductReportPlan {
     }
 }
 
+/// One-use report construction retained independently of artifact production.
+/// This grants no proof, package acceptance or receiver authority.
 pub struct CompileReportSettlement {
     source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     expected_kind: CompileOutputKind,
@@ -106,6 +118,10 @@ pub struct CompileReportSettlement {
 }
 
 impl ProductReportPlan {
+    /// Settle completed files, refuse incompatible Build and release-rollback
+    /// requests, and capture the report companions before completing the
+    /// Terminal application or realizing native output. The caller has resolved the
+    /// root's trust grants.
     pub fn prepare(
         self,
         checked: &CheckedCompilation,
@@ -117,6 +133,9 @@ impl ProductReportPlan {
         } = self;
         let requested = product.kind();
         let rollback = product.rollback();
+        // A rollback naming stages this stop never executes refuses here, for
+        // every route, before application completion or native publication
+        // (wiki/spec/build/optimizations.md#release-rollback-and-promotion).
         requested
             .validate_optimization_rollback(&rollback)
             .map_err(|error| vec![error])?;
@@ -125,6 +144,7 @@ impl ProductReportPlan {
         if requested == RequestedCompileProduct::Check {
             requested
                 .admit_build_requirements(checked.build_admission().artifact_only(), &rollback)?;
+            // A check never acquires completed output files.
             return CompileReport::check_only(root_path, source_file_count)
                 .map(|report| {
                     CheckedProductReport::Complete(
@@ -137,6 +157,8 @@ impl ProductReportPlan {
                 })
                 .map_err(diagnostics);
         }
+        // Preserve the checked route's refusal order: completed-file custody
+        // precedes evaluated proof/rollback eligibility for producing stops.
         let build_outputs = checked.build().completed_outputs()?;
         let artifact_only = checked.build_admission().artifact_only();
         requested.admit_build_requirements(artifact_only, &rollback)?;
@@ -191,17 +213,24 @@ impl ProductReportPlan {
 }
 
 impl CompileReportSettlement {
+    /// Completion attempts append their actual charges directly to the report
+    /// owner, including partial evaluation before a refusal.
     pub fn source_completion_accounting_mut(
         &mut self,
     ) -> &mut build_time_evaluation::SourceCompletionAccounting {
         &mut self.source_completion_accounting
     }
 
+    /// Production legs that extend the checked record's ladder after this
+    /// settlement's snapshot replace it, so the finished report carries the
+    /// post-production row set.
     pub fn with_timings(mut self, timings: Vec<PhaseTiming>) -> Self {
         self.timings = timings;
         self
     }
 
+    /// Assemble the admitted Terminal product with the source subject captured
+    /// before lowering and the exact effective rollback receipt.
     pub fn finish_terminal(
         self,
         artifact: RetainedTerminalArtifact,
@@ -217,6 +246,9 @@ impl CompileReportSettlement {
         self.finish(report)
     }
 
+    /// Settle a native request that stopped after runtime admission as the
+    /// Terminal product it executes, carrying the admitted provisions. The
+    /// request was admitted as native; it never produces native output.
     pub fn finish_terminal_runtime(
         mut self,
         artifact: RetainedTerminalArtifact,
@@ -240,6 +272,9 @@ impl CompileReportSettlement {
         self.finish(report)
     }
 
+    /// Assemble the admitted retained-native product with this compilation's
+    /// application metadata. A dynamically linked ELF output keeps its own
+    /// report variant, so it never satisfies direct-image custody.
     pub fn finish_native(
         self,
         artifact: native_artifact::RequestedNativeArtifact,
@@ -256,6 +291,9 @@ impl CompileReportSettlement {
         self.finish(report)
     }
 
+    /// Rejoin companions only after the admitted primary product succeeds.
+    /// Existing report constructors and attachment replay still validate all
+    /// artifact, rollback and build-observation custody.
     pub fn finish(self, report: CompileReport) -> Result<CompileReport, Vec<Diagnostic>> {
         if report.output_kind() != self.expected_kind {
             return Err(diagnostics(

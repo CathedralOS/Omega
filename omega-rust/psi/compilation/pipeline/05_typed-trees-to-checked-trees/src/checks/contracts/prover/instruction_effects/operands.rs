@@ -5,7 +5,7 @@ use super::super::call_guarantees::{arithmetic, callable::Callable};
 use super::{QueryArgument, QueryArguments};
 use crate::published::places::place_at;
 use crate::values::applied_projection_segments;
-use checked_trees::{FlowOperandFact, FlowStateFact};
+use checked_trees::{CheckFacts, FlowOperandFact, FlowStateFact};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::PrimitiveType;
 use validation::{CanonicalPlace, ScopedArithmeticValue, StrictArithmeticImplicationJudgment};
@@ -26,7 +26,7 @@ enum CaptureFrontier<'facts> {
 #[derive(Clone, Copy)]
 struct Values<'scope> {
     program: &'scope dyn validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'scope>,
+    facts: &'scope CheckFacts,
     flow: &'scope FlowStateFact,
     state: &'scope typed_trees::state::State,
     statement: usize,
@@ -76,7 +76,11 @@ impl<'scope> Values<'scope> {
                     )?;
                     if !observations.all(|other| {
                         crate::flow::operand_observations_agree(
-                            program, facts.flow, first, other, &place,
+                            program,
+                            &facts.flow,
+                            first,
+                            other,
+                            &place,
                         )
                     }) {
                         return None;
@@ -93,7 +97,10 @@ impl<'scope> Values<'scope> {
                         projection,
                     )?;
                     if !crate::flow::operand_entry_origin_is_stable(
-                        program, facts.flow, operand, &place,
+                        program,
+                        &facts.flow,
+                        operand,
+                        &place,
                     ) {
                         return None;
                     }
@@ -112,7 +119,7 @@ impl<'scope> Values<'scope> {
                 .semantic_constraint_contexts(observed.constraints)
                 .collect::<Vec<_>>();
             let origin =
-                crate::flow::operand_entry_origin_is_stable(program, facts.flow, observed, &place)
+                crate::flow::operand_entry_origin_is_stable(program, &facts.flow, observed, &place)
                     .then(|| {
                         arithmetic::value_origin(
                             program,
@@ -202,13 +209,13 @@ impl<'scope> Values<'scope> {
                 if capture.primitive != primitive {
                     continue;
                 }
-                let query_preserves = crate::flow::call_flows(facts.flow.control, flow.calls)
+                let query_preserves = crate::flow::call_flows(&facts.flow.control, flow.calls)
                     .iter()
                     .filter(|call| call.statement_index == statement)
                     .all(|call| {
                         crate::flow::entry_origin_is_stable(
                             program,
-                            facts.flow.control,
+                            &facts.flow.control,
                             call.normal_return_writes,
                             !call.normal_return_writes_complete,
                             &place,
@@ -219,7 +226,7 @@ impl<'scope> Values<'scope> {
                         CaptureFrontier::Operand(operand) => {
                             crate::flow::operand_observation_before_statement_agrees(
                                 program,
-                                facts.flow,
+                                &facts.flow,
                                 operand,
                                 state.symbol,
                                 statement,
@@ -228,7 +235,12 @@ impl<'scope> Values<'scope> {
                         }
                         CaptureFrontier::NormalReturn(call) => {
                             crate::flow::call_return_before_statement_agrees(
-                                program, facts.flow, flow, call, statement, &place,
+                                program,
+                                &facts.flow,
+                                flow,
+                                call,
+                                statement,
+                                &place,
                             )
                         }
                     };
@@ -236,7 +248,7 @@ impl<'scope> Values<'scope> {
                     CaptureFrontier::NormalReturn(call) => {
                         crate::flow::value_origin_matches_call_return(
                             program,
-                            facts.flow,
+                            &facts.flow,
                             machine,
                             flow,
                             statement,
@@ -302,7 +314,7 @@ impl<'scope> Values<'scope> {
 }
 pub(super) fn operand_matches(
     program: &dyn validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     flow: &FlowStateFact,
     state: &typed_trees::state::State,
     statement: usize,
@@ -342,7 +354,7 @@ pub(super) fn operand_matches(
 
 pub(super) fn guarantee_matches(
     program: &dyn validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     flow: &FlowStateFact,
     state: &typed_trees::state::State,
     statement: usize,
@@ -396,7 +408,7 @@ pub(super) fn guarantee_matches(
 
 pub(super) fn guarantee_value_matches(
     program: &dyn validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     flow: &FlowStateFact,
     state: &typed_trees::state::State,
     statement: usize,
@@ -462,7 +474,7 @@ pub(super) fn guarantee_value_matches(
                             .collect::<Vec<_>>();
                         let scalar = super::super::scalar_value_at_place(
                             program,
-                            facts.semantic,
+                            &facts.semantic,
                             returned_contexts
                                 .iter()
                                 .map(|context| facts.semantic.contexts.get(*context)),
@@ -511,7 +523,7 @@ pub(super) fn guarantee_value_matches(
 
 fn post_binding_preserved(
     program: &dyn validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     operand: &FlowOperandFact,
     state: symbols::SymbolHandle,
     statement: usize,
@@ -590,7 +602,12 @@ fn post_binding_preserved(
         fresh()
     };
     crate::flow::operand_binding_before_statement_agrees(
-        program, facts.flow, operand, state, statement, &binding,
+        program,
+        &facts.flow,
+        operand,
+        state,
+        statement,
+        &binding,
     )
 }
 fn value_place(
@@ -615,7 +632,7 @@ fn value_place(
 }
 fn known_integer(
     program: &dyn validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     state: &typed_trees::state::State,
     statement: usize,
     contexts: &[facts::FactContextHandle],
@@ -627,7 +644,7 @@ fn known_integer(
         let place = value_place(program, state.symbol, statement, expression, projection)?;
         return match super::super::scalar_value_at_place(
             program,
-            facts.semantic,
+            &facts.semantic,
             contexts
                 .iter()
                 .map(|context| facts.semantic.contexts.get(*context)),

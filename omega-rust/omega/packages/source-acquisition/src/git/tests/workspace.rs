@@ -1,7 +1,3 @@
-// Git workspace member projection tests verifying that selected member
-// resolution authenticates root and member declarations without materializing
-// unrelated repository payloads.
-
 use super::{
     GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionPlanner,
     GitWorkspaceSelection, LocalSourceLimits, SourceRelativePath, create_git_source,

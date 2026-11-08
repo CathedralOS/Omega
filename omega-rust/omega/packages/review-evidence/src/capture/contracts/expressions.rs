@@ -1,7 +1,8 @@
-// Contract expression projection modules for names, members and their aliases, calls,
-// casts, constructors, operators, atomic loads, case membership, layout queries,
-// static arguments, and target telescopes, with `projection` owning shared value,
-// operator, call, and member dispatch and `evidence` owning call evidence arguments.
+//! Contract expressions, one file per expression form -- names, members and
+//! their aliases, calls, casts, constructors, operators, atomic loads, case
+//! membership, static arguments and target telescopes -- with `projection` the
+//! shared value, operator, call and member projections and `evidence` the call
+//! evidence.
 
 pub(in crate::capture) mod atomic_loads;
 pub(in crate::capture) mod calls;

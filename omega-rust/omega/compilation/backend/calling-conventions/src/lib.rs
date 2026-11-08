@@ -21,8 +21,6 @@ mod boundary_application;
 mod boundary_values;
 mod callback_materializations;
 mod host_operations;
-mod interrupt_gate;
-pub use interrupt_gate::{InterruptGateAddress, interrupt_gate_address};
 mod hosts;
 mod plans;
 mod structural_shapes;
@@ -39,8 +37,7 @@ pub use boundary_application::{
     BoundaryNativeParameterShape, BoundaryOpaqueApplication, BoundarySignatureGeometry,
     CallbackDataGeometry, CallbackInlineFieldGeometry, CallbackSlotGeometry, NativeCallProjection,
     NativeParameterTelescope, PrivateCallbackPlacements, TerminalCallingTelescope,
-    callback_destination_slot, encode_private_callback_placements,
-    validate_fresh_native_parameter_identity,
+    encode_private_callback_placements, validate_fresh_native_parameter_identity,
 };
 pub use boundary_values::{
     BoundaryValueClass, BoundaryValueField, BoundaryValueGraph, BoundaryValueShape,
@@ -59,12 +56,11 @@ pub use hosts::darwin::{DARWIN_LIBOBJC_PATH, darwin_import_library};
 pub use hosts::windows::windows_import_library;
 pub use plans::{
     BoundaryEntryPlan, BoundaryPlanResult, CallPlan, CallSignature, CallingPolicy,
-    CallingPolicyRejection, EntryControl, EntryStack, GeneratedEntryControl,
-    GeneratedEntryEvidence, GeneratedEntryInstruction, IndirectPointerLocation, MachineRegime,
+    CallingPolicyRejection, EntryControl, EntryStack, IndirectPointerLocation, MachineRegime,
     MachineRegister, MachineState, MachineStateSet, PlanDiagnostic, Preemption, RegisterSet,
-    StateEffectsEvidence, StateFootprintEvidence, StatePlan, SystemVEightbyteClass,
-    ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValuePlacement, ValueShape,
-    byte_size_at_offset_zero, encode_state_plan_identity, evaluate_call_plan,
-    evaluate_ordinary_boundary_entry_plan, gpr_code, validate_boundary_entry_plan,
+    StateFootprintEvidence, StatePlan, SystemVEightbyteClass, ValidatedBoundaryEntryPlan,
+    ValueClass, ValueLocation, ValuePlacement, ValueShape, byte_size_at_offset_zero,
+    encode_state_plan_identity, evaluate_call_plan, evaluate_ordinary_boundary_entry_plan,
+    gpr_code, validate_boundary_entry_plan,
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
 };

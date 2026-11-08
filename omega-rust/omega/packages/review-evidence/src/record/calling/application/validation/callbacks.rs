@@ -1,9 +1,3 @@
-// Validates callback binders, demands, materializations, and disjoint layout
-// geometry for `PackagePolicyCallingPlan`.
-//
-// Recovered catalogs are bounded by `BOUNDARY_CALLBACK_CAPACITY` before
-// checking callback correspondences.
-
 use language_semantics::callback_declarations::BOUNDARY_CALLBACK_CAPACITY;
 
 use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin};
@@ -15,6 +9,8 @@ use crate::record::{
 
 pub(super) fn validate(policy: &PackagePolicyCallingPlan) -> Result<(), &'static str> {
     let callbacks = &policy.callbacks;
+    // Bound recovered catalogs by the same capacity as authored calling plans
+    // before examining their callback correspondences.
     if callbacks.binders.len() > BOUNDARY_CALLBACK_CAPACITY
         || callbacks.demands.len() > BOUNDARY_CALLBACK_CAPACITY
         || callbacks.materializations.len() > BOUNDARY_CALLBACK_CAPACITY

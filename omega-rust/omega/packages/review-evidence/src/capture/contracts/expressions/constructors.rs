@@ -1,7 +1,3 @@
-// Contract struct/variant constructor expression projection, verifying that the data
-// declaration, optional variant case, and sorted field assignments rejoin their
-// checked declarations without exposing private package data on public interfaces.
-
 use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::{ContractProjectionContext, reviewed_package};
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};

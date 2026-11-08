@@ -28,7 +28,7 @@ pub(crate) fn same_closed_scalar_observation(
         && input.effect == output.effect
         && input.ownership == output.ownership
         && input.provenance == output.provenance
-        && input.work == output.work
+        && input.fuel == output.fuel
         && input.crash == output.crash
         && input.suspension == output.suspension
         && input.events == output.events

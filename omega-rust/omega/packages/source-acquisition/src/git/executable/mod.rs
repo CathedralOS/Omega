@@ -1,5 +1,4 @@
-// Primary Git executable selection, launchability validation, and per-resolution
-// execution budgets.
+//! Git executable selection and concrete execution budgets.
 
 pub(crate) mod budget;
 pub(crate) mod executor;

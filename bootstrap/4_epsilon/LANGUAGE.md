@@ -810,7 +810,7 @@ The Delta-written Epsilon evaluator implements the two judgments from section
 1. It checks one exact Epsilon source closure before execution and then runs the
 accepted program over one sealed stdin byte sequence. Divergence is represented
 by actual nontermination of the evaluator, not by a returned staging value or a
-work limit.
+fuel limit.
 
 The final physical request and observation envelope remains open until the
 evaluator executes every Epsilon construct and Console effect. That envelope

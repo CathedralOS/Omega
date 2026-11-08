@@ -119,7 +119,6 @@ macro_rules! machine_semantic_kinds {
 
 machine_semantic_kinds! {
     { fixed Crash },
-    { fixed PrivilegedCrash },
     { fixed CopyBytes },
     { fixed BitwiseAndI64 },
     { fixed BitwiseXorI64 },
@@ -241,10 +240,6 @@ machine_semantic_kinds! {
     { fixed InvokeNoNormal },
     { fixed TaskRegisterActivate },
     { fixed TaskRegisterRead },
-    { fixed InstalledInterruptCpuCheck },
-    { fixed InstalledInterruptTaskCommit },
-    { fixed InstalledInterruptTablePublication },
-
     { fixed CodeSegmentReload },
     { fixed DataSegmentReload },
     { fixed SegmentSelectorRead },
@@ -327,10 +322,6 @@ pub enum MachineAlternativeFamily {
     GlobalDescriptorTableStore,
     TaskRegisterActivate,
     TaskRegisterRead,
-    InstalledInterruptCpuCheck,
-    InstalledInterruptTaskCommit,
-    InstalledInterruptTablePublication,
-
     CodeSegmentReload,
     DataSegmentReload,
     SegmentSelectorRead,
@@ -351,7 +342,6 @@ pub enum MachineAlternativeFamily {
     AtomicAccess(AtomicForm),
     AccessorScalarAccess(AccessorScalarForm),
     Crash,
-    PrivilegedCrash,
     CopyBytes,
     BitwiseAndI64,
     BitwiseXorI64,
@@ -455,12 +445,6 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::GlobalDescriptorTableStore => Self::GlobalDescriptorTableStore,
             MachineSemanticKind::TaskRegisterActivate => Self::TaskRegisterActivate,
             MachineSemanticKind::TaskRegisterRead => Self::TaskRegisterRead,
-            MachineSemanticKind::InstalledInterruptCpuCheck => Self::InstalledInterruptCpuCheck,
-            MachineSemanticKind::InstalledInterruptTaskCommit => Self::InstalledInterruptTaskCommit,
-            MachineSemanticKind::InstalledInterruptTablePublication => {
-                Self::InstalledInterruptTablePublication
-            }
-
             MachineSemanticKind::CodeSegmentReload => Self::CodeSegmentReload,
             MachineSemanticKind::DataSegmentReload => Self::DataSegmentReload,
             MachineSemanticKind::SegmentSelectorRead => Self::SegmentSelectorRead,
@@ -480,7 +464,6 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::CallAggregate => Self::CallAggregate,
             MachineSemanticKind::ReturnAggregate => Self::ReturnAggregate,
             MachineSemanticKind::Crash => Self::Crash,
-            MachineSemanticKind::PrivilegedCrash => Self::PrivilegedCrash,
             MachineSemanticKind::HostedExitProcessI32 => Self::HostedExitProcessI32,
             MachineSemanticKind::LoadPacked3 => Self::LoadPacked3,
             MachineSemanticKind::LoadPacked5 => Self::LoadPacked5,
@@ -662,10 +645,6 @@ pub enum MachineMemoryEffect {
     HostedWriteByteV1,
     /// Checked GDTR association, scratch write and conditional locked TSS descriptor update.
     TaskRegisterActivationV1,
-    InstalledInterruptCpuCheckV1,
-    InstalledInterruptTaskCommitV1,
-    InstalledInterruptTablePublicationV1,
-
     /// Snapshot GDTR, inspect the borrowed descriptor and conditionally set its accessed bit.
     SegmentDescriptorReloadV1,
     WritePointerV1,
@@ -838,21 +817,6 @@ impl MachineEncodedEffects {
         }
     }
 
-    /// A permanent CPL0 stop preserves storage and prevents normal continuation.
-    pub fn privileged_stop_v1(
-        program_counter: &[register_model::RegisterUnitId],
-        control_flags: &[register_model::RegisterUnitId],
-    ) -> Self {
-        Self {
-            implicit_unit_uses: program_counter.to_vec(),
-            implicit_unit_defs: program_counter.to_vec(),
-            implicit_unit_clobbers: control_flags.to_vec(),
-            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            control: MachineEncodedControlEffect::PrivilegedStopV1,
-            ..Self::fallthrough_v1(Vec::new(), Vec::new())
-        }
-    }
-
     /// A float result-policy form's effect row: the ISA's scratch clobbers
     /// plus a trap/control pair when the form traps.
     pub fn float_result_policy_v1(
@@ -956,28 +920,6 @@ pub enum MachineEncodedMemoryEffect {
         scratch_pointer_operand: u16,
         stack_pointer: RegisterViewId,
     },
-    /// Pure GDT/TSS observation. The selected instruction retains the exact
-    /// GDT extent; STR supplies the checked selector. Scratch writes ten bytes and PUSHFQ uses eight.
-    InstalledInterruptCpuCheckV1 {
-        table_pointer_operand: u16,
-        task_pointer_operand: u16,
-        scratch_pointer_operand: u16,
-        stack_pointer: RegisterViewId,
-    },
-    /// Same exact geometry and current-TR selector, additionally clearing the verified busy bit and
-    /// performing LTR. The selected commit has no normal refusal continuation.
-    InstalledInterruptTaskCommitV1 {
-        table_pointer_operand: u16,
-        task_pointer_operand: u16,
-        scratch_pointer_operand: u16,
-        stack_pointer: RegisterViewId,
-    },
-    /// Write exactly ten descriptor bytes then load IDTR. The table extent is
-    /// the receiving-validated instruction's retained table_bytes constant.
-    InstalledInterruptTablePublicationV1 {
-        table_pointer_operand: u16,
-        scratch_pointer_operand: u16,
-    },
     /// Reads an eight-byte descriptor and conditionally sets its accessed bit.
     /// The ten-byte GDTR snapshot is caller-owned scratch. The sealed code
     /// continuation uses sixteen stack bytes; data reload uses eight for flags.
@@ -1065,11 +1007,6 @@ pub enum MachineEncodedControlEffect {
     /// Falls through to the next instruction, or stops at an inline
     /// architectural trap; no other control transfer leaves the form.
     FallThroughOrTrapV1,
-    /// Falls through after success, or stops in a privileged halt loop.
-    /// It cannot return from the failed path or raise an intentional fault.
-    FallThroughOrStopV1,
-    /// CLI followed by a permanent HLT loop. Requires an admitted CPL0 domain.
-    PrivilegedStopV1,
     HostedExitOrTrapV1,
     HostedReadReturnOrTrapV1,
     HostedWriteReturnOrTrapV1,

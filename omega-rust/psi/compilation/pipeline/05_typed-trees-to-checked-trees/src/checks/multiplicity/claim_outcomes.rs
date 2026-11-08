@@ -25,7 +25,7 @@ use crate::flow::expressions;
 use crate::published::places::place_at;
 use arena::HandleSpan;
 use checked_trees::{
-    FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
+    CheckFacts, FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
     FlowPermissionEventFact,
 };
 use language_semantics::{
@@ -38,9 +38,8 @@ use typed_trees::statement::StatementNode;
 /// Invocation correspondence is an input to permission preparation, not a
 /// correction to custody after cleanup has already observed it. Only a changed
 /// summary actually read by recording schedules another preparation iteration.
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub(crate) struct ClaimOutcomePreparation {
-    /// Any new read of these maps on the walk's path must call `note_map_read`.
     maps: Vec<CheckedClaimOutcomeMap>,
     dependencies: Vec<SymbolHandle>,
     joins: joins::CallJoinPreparation,
@@ -52,65 +51,6 @@ impl ClaimOutcomePreparation {
     pub(crate) fn begin(&mut self) {
         self.dependencies.clear();
         self.joins.begin();
-    }
-
-    /// A copy for one worker's run of states. `resolve` reads only the
-    /// previous iteration's maps and join bindings and appends what it
-    /// consulted, so the copy carries those and starts with nothing consulted.
-    pub(crate) fn fork_for_walk(&self) -> Self {
-        Self {
-            maps: self.maps.clone(),
-            dependencies: Vec::new(),
-            joins: self.joins.fork_for_walk(),
-            revisions: self.revisions,
-            revision_limit: self.revision_limit,
-        }
-    }
-
-    /// Hand over what this worker consulted since the last call, as a value
-    /// `absorb_walk` takes, and keep the summaries for its next state.
-    pub(crate) fn take_consulted(&mut self) -> Self {
-        Self {
-            maps: Vec::new(),
-            dependencies: std::mem::take(&mut self.dependencies),
-            joins: self.joins.take_consulted(),
-            revisions: self.revisions,
-            revision_limit: self.revision_limit,
-        }
-    }
-
-    /// Whether every summary one state's walk read under `previous` reads
-    /// the same here: each claim-outcome map in `map_reads` (see
-    /// `record_map_reads`), and the join binding of each receiver in
-    /// `consulted`. A missing map or binding compares like any other value.
-    pub(crate) fn reads_unchanged(
-        &self,
-        previous: &Self,
-        map_reads: &[SymbolHandle],
-        consulted: &Self,
-    ) -> bool {
-        map_reads.iter().all(|state| {
-            self.maps.iter().find(|map| map.state_symbol == *state)
-                == previous.maps.iter().find(|map| map.state_symbol == *state)
-        }) && self
-            .joins
-            .receivers_unchanged(&previous.joins, &consulted.joins)
-    }
-
-    /// Record what a worker consulted after what is recorded here, in the
-    /// first-consulted order a single walk over the same states would keep.
-    pub(crate) fn absorb_walk(&mut self, fork: Self) {
-        let Self {
-            maps: _,
-            dependencies,
-            joins,
-            revisions: _,
-            revision_limit: _,
-        } = fork;
-        for dependency in dependencies {
-            push_unique(&mut self.dependencies, dependency);
-        }
-        self.joins.absorb_walk(joins);
     }
 
     pub(crate) fn update(
@@ -157,7 +97,6 @@ impl ClaimOutcomePreparation {
             return;
         };
         push_unique(&mut self.dependencies, target.symbol);
-        note_map_read(target.symbol);
         if let Some(map) = self
             .maps
             .iter()
@@ -184,40 +123,6 @@ impl ClaimOutcomePreparation {
         // Forward inputs first; only still-local receiving occurrences join.
         self.joins.resolve(segments, expression, event);
     }
-}
-
-// Every claim-outcome map one state's permission walk looks up, by target
-// state, while `record_map_reads` runs that walk on this thread. Lookups
-// outside it (deriving the maps themselves) record nothing.
-//
-// `resolve` records the target it consults directly, but the source
-// resolution beneath it also looks up maps of other calls in the same
-// state. A state may skip its next walk only if none of the maps it read
-// changed, so every lookup on its path notes here. The walk of one state
-// runs on one thread from start to finish, and nothing on this path
-// spawns work, so a thread-local sees exactly that state's lookups.
-std::thread_local! {
-    static MAP_READS: std::cell::RefCell<Option<Vec<SymbolHandle>>> =
-        const { std::cell::RefCell::new(None) };
-}
-
-fn note_map_read(state: SymbolHandle) {
-    MAP_READS.with(|reads| {
-        if let Some(reads) = reads.borrow_mut().as_mut() {
-            push_unique(reads, state);
-        }
-    });
-}
-
-/// Run `walk` and return what it produced together with every claim-outcome
-/// map it looked up on this thread, in first-read order.
-pub(crate) fn record_map_reads<R>(walk: impl FnOnce() -> R) -> (R, Vec<SymbolHandle>) {
-    let outer = MAP_READS.with(|reads| reads.replace(Some(Vec::new())));
-    let result = walk();
-    let recorded = MAP_READS
-        .with(|reads| reads.replace(outer))
-        .unwrap_or_default();
-    (result, recorded)
 }
 
 pub(crate) fn derive_checked_claim_outcome_maps(
@@ -1335,7 +1240,6 @@ fn resolve_claim_outcome_source(
             let Some(target) = validation::call_target_state(program, call.target_symbol) else {
                 continue;
             };
-            note_map_read(target.symbol);
             let Some(map) = maps.iter().find(|map| map.state_symbol == target.symbol) else {
                 continue;
             };
@@ -1515,7 +1419,6 @@ fn call_result_origin_rewrite(
         return None;
     };
     let target_state = validation::call_target_state(program, call.target_symbol)?;
-    note_map_read(target_state.symbol);
     let map = maps
         .iter()
         .find(|map| map.state_symbol == target_state.symbol)?;
@@ -1630,7 +1533,7 @@ fn rewrite_claim_origin(
 }
 
 pub(crate) fn publish_claim_outcome_maps(
-    facts: &mut checked_trees::CheckFactsWalk<'_>,
+    facts: &mut CheckFacts,
     maps: Vec<CheckedClaimOutcomeMap>,
 ) {
     facts.flow.ownership.claim_outcome_entries = Default::default();

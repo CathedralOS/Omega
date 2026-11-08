@@ -1,21 +1,4 @@
-/*
-We project exact compiler-intrinsic boundary applications and reconcile them
-against selected provider plans.
-
-Specialized machine instances are projected by the specialized checked-body
-path because their plans bind the authored template slot and their token
-selections resolve to the instance. Build applications have their own checked
-instance and execution profile and are reviewed by callable policy rather than
-Product provider plans. The authored selection ledger names what the use
-resolved to: a named call selects the requirement's callable entry state,
-while a token use's `Operator` occurrence selects the operator declaration
-itself (or the specialized machine instance when the requirement is a member
-generated inside one). Implicit `Match` equality retains its parser-owned arm
-extent and operator occurrence even when the requirement is authored as a
-token-bearing machine. A target that selects no provider for a requirement has
-no realization of the application to attest unless a selected plan binds the
-requirement without rejoining the use.
-*/
+//! Exact compiler-intrinsic application and selected-plan reconciliation.
 
 use super::{
     StagedRealization, authored_application_source_span, canonical_source_span_location,
@@ -55,6 +38,10 @@ pub(super) fn project(
         if !application.arguments.is_empty() {
             continue;
         }
+        // A specialized machine instance is projected by the specialized
+        // checked-body path — its plan binds the authored template slot and
+        // its token selections resolve to the instance, both of which the
+        // exact intrinsic join cannot see.
         if compilation
             .typed
             .symbols
@@ -70,6 +57,10 @@ pub(super) fn project(
             }
             _ => continue,
         };
+        // This projection describes the selected Product realization. Build
+        // applications have their own checked instance and execution profile;
+        // the Product's provider plans cannot attest those executions. Build
+        // callable policy remains reviewed by capture/callables/policy.rs.
         let source_span = compilation.typed.expression_table.source_span(expression);
         if compilation
             .typed
@@ -90,6 +81,9 @@ pub(super) fn project(
                 uses.len(),
             ))]);
         };
+        // The authored selection ledger names what the use resolved to: a named
+        // call selects the requirement's callable entry state, while a token
+        // use's `Operator` occurrence selects the operator declaration itself.
         let selection_target = match actual_use.kind {
             CheckedOperatorAuthoredUseKind::Named => IntrinsicRequirement::by_symbol(
                 compilation.checking_input,
@@ -100,6 +94,8 @@ pub(super) fn project(
             }),
             CheckedOperatorAuthoredUseKind::FixedToken(_) => application.requirement_symbol,
         };
+        // A token use on a specialized machine member retains an `Operator`
+        // selection resolved to the machine instance, not the member.
         let alternate_target = match actual_use.kind {
             CheckedOperatorAuthoredUseKind::FixedToken(_) => {
                 specialized_machine_of_member(compilation, application.requirement_symbol)
@@ -131,6 +127,9 @@ pub(super) fn project(
                         "implicit application lost its authored Match",
                     )]);
                 };
+                // operands() has established exact generation and membership in
+                // this arm span. The arm owns an authored extent even when its
+                // operand is a call whose expression extent is not retained.
                 let ordinal = source_arm
                     .arena_index()
                     .checked_sub(dispatch.arms.start().arena_index())
@@ -161,6 +160,9 @@ pub(super) fn project(
         let location = canonical_source_span_location(
             compilation,
             if let Some(pattern_span) = implicit_source_span {
+                // The arm is authored; the implicit equality token is not.
+                // Retain its parser-owned extent rather than inventing a binary
+                // selection occurrence at the surrounding Match expression.
                 let root_span = compilation.typed.expression_table.source_span(expression);
                 if pattern_span.source_id != root_span.source_id
                     || pattern_span.span.start < root_span.span.start
@@ -186,6 +188,9 @@ pub(super) fn project(
         if location.owner != PackageReviewSourceLocationOwner::Package(package) {
             continue;
         }
+        // The selected plan joins the use by requirement identity. A
+        // specialized machine instance binds the same slot its authored
+        // template requirement binds — the instance carries no own schema.
         let joined = provider_planning::selected_use_plan(
             compilation.program,
             source::DependencyScope::Product,
@@ -215,6 +220,14 @@ pub(super) fn project(
                 .map(|retained| (plan, retained))
         });
         let Some((plan, retained)) = joined else {
+            // A target that selects no provider for this requirement has no
+            // realization of the application to attest: std's float code
+            // checked for `uefi_x86_64`, which supplies no float provider. A
+            // product that reaches such an application fails its own
+            // realization; the portable package does not
+            // (wiki/spec/build/configuration.md#multi-target-compilation). A
+            // selected plan that binds the requirement but does not rejoin
+            // this use is still inconsistent custody.
             if !selects_requirement_provider(
                 compilation,
                 selected_plans,
@@ -278,6 +291,9 @@ pub(super) fn project(
                 "actual boundary application at expression {expression:?} selects compiler intrinsic `{}`, but no closed execution identity exists",
                 plan.name,
             ))?;
+        // The demand names a boundary operator or a top-level boundary
+        // requirement; the review row keys on the same overload coordinate
+        // for either species.
         let requirement_identity = IntrinsicRequirement::by_symbol(
             compilation.checking_input,
             application.requirement_symbol,
@@ -333,6 +349,9 @@ fn authored_use_kind(
         compilation.typed.symbols.authored_origin(requirement),
     )
     .or_else(|| {
+        // A requirement member of a specialized machine instance: the token's
+        // `Operator` selection resolves to the instance itself and its token
+        // spelling lives on the authored template.
         let machine = specialized_machine_of_member(compilation, requirement)?;
         token_authored_use_kind(
             compilation,
@@ -344,6 +363,10 @@ fn authored_use_kind(
     .unwrap_or(CheckedOperatorAuthoredUseKind::Named)
 }
 
+/// When `requirement` is a member generated inside a specialized machine
+/// instance, returns that instance: the symbol a token-authored `Operator`
+/// selection resolves to. Named uses and declared (non-generated) parents
+/// return `None` so ordinary custody stays exact.
 fn specialized_machine_of_member(
     compilation: &PackageReviewInput<'_>,
     requirement: symbols::SymbolHandle,
@@ -356,6 +379,9 @@ fn specialized_machine_of_member(
     }
 }
 
+/// Whether this target selects any provider plan binding `requirement` or the
+/// authored requirement a specialized member came from, the same two
+/// identities the use join tries.
 fn selects_requirement_provider(
     compilation: &PackageReviewInput<'_>,
     selected_plans: &[effects::provider_plan::ProviderPlan],
@@ -374,6 +400,9 @@ fn exact_application_uses(
     site: CheckedBoundaryOperatorApplicationUseSite,
     requirement: symbols::SymbolHandle,
 ) -> Vec<ExactApplicationUse> {
+    // Implicit Match equality keeps its operator occurrence even when the
+    // requirement is authored as a token-bearing machine. Rejoin its exact
+    // declaration view, not just the legacy operator declaration collection.
     let operator =
         typed_trees::operator::declaration_by_symbol(compilation.checking_input, requirement);
     compilation

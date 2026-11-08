@@ -33,7 +33,7 @@ pub fn compute(
         register_environment: legality.receipt().register_environment(),
         allocator_availability: legality.receipt().allocator_availability(),
         optimization_unit: ranges.receipt().optimization_unit(),
-        work_schedule: ranges.receipt().work_schedule(),
+        fuel_schedule: ranges.receipt().fuel_schedule(),
         policy,
         budget,
         usage,

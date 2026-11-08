@@ -1,5 +1,3 @@
-// Bounded binary, text, and membership-observer encoder for package-review evidence and policy components.
-
 use super::PackageReviewEncodingError;
 use semantic_vocabulary::PackageKeyIdentity;
 
@@ -50,6 +48,8 @@ impl<'text> Encoder<'text> {
         }
     }
 
+    /// Canonical wire bytes for one policy row: the four-megabyte policy
+    /// ceiling, magic + version header, the module's payload writer, finish.
     pub(crate) fn policy_bytes<T>(
         magic: &[u8],
         version: u16,
@@ -63,6 +63,8 @@ impl<'text> Encoder<'text> {
         encoder.finish()
     }
 
+    /// Recovery has already charged this exact verification buffer. Reserve it
+    /// once, and cap every later append at that length so no growth can occur.
     pub(super) fn policy_preallocated(
         expected_length: usize,
     ) -> Result<Self, PackageReviewEncodingError> {
@@ -81,6 +83,8 @@ impl<'text> Encoder<'text> {
         Ok(encoder)
     }
 
+    /// Only policy components use these structural limits. Ordinary review
+    /// serialization keeps its existing behavior and byte representation.
     pub(crate) fn nested<T>(
         &mut self,
         encode: impl FnOnce(&mut Self) -> Result<T, PackageReviewEncodingError>,
@@ -203,6 +207,11 @@ impl<'text> Encoder<'text> {
         self.check()
     }
 
+    /// One field whose payload an existing writer already owns: the same field
+    /// framing, in the writer's own canonical order, so a caller states the
+    /// value and its writer instead of restating the wrapper closure. A writer
+    /// that reports a failure and one that cannot are the same statement here:
+    /// the field's own check reports either.
     pub(crate) fn field_by<T, R: FieldPayload>(
         &mut self,
         name: &'static str,
@@ -212,6 +221,9 @@ impl<'text> Encoder<'text> {
         self.field(name, |encoder| encode(encoder, value).field_payload())
     }
 
+    /// One field whose payload is one optional value: the field's framing and the
+    /// option's own some/none framing, with the present value's writer stated at
+    /// the field instead of inside a wrapper closure.
     pub(crate) fn option_field<T: ?Sized>(
         &mut self,
         name: &'static str,
@@ -221,6 +233,9 @@ impl<'text> Encoder<'text> {
         self.field(name, |encoder| encoder.option(value, encode_value))
     }
 
+    /// One field whose payload is one sequence: the field's framing and the
+    /// sequence's own count framing, with the element's writer stated at the
+    /// field instead of inside a wrapper closure.
     pub(crate) fn sequence_field<T>(
         &mut self,
         name: &'static str,
@@ -264,6 +279,9 @@ impl<'text> Encoder<'text> {
     }
 }
 
+/// A field's payload writer either reports a failure or cannot: `field_by`
+/// states both forms with one call, so no call site restates the wrapper that
+/// turned a total writer into a field payload.
 pub(crate) trait FieldPayload {
     fn field_payload(self) -> Result<(), PackageReviewEncodingError>;
 }
@@ -280,8 +298,14 @@ impl FieldPayload for Result<(), PackageReviewEncodingError> {
     }
 }
 
+/// The `canonical_bytes` constructor every inert-policy component restates:
+/// bounded canonical bytes through the shared component envelope with the
+/// component's own magic, version, and payload writer. The record carries no
+/// acceptance decision, evaluation receipt, or executable authority.
 macro_rules! encode_canonical_component {
     ($magic:expr, $version:expr, $policy:expr $(,)?) => {
+        /// Canonical component bytes: magic, version, this component's payload
+        /// writer, and the shared four-megabyte policy ceiling.
         pub fn canonical_bytes(
             &self,
         ) -> Result<Vec<u8>, crate::encoding::PackageReviewEncodingError> {

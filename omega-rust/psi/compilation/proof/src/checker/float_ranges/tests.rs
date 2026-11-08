@@ -370,7 +370,6 @@ fn reaching_float_store_checks_sibling_argument_effects() {
             machine_arguments: Box::default(),
             quotient_operation: None,
             private_layout_operation: None,
-            installed_interrupt_operation: None,
             arguments: mutating_arguments,
             evidence_arguments: Box::default(),
             operational_acknowledgement: Default::default(),

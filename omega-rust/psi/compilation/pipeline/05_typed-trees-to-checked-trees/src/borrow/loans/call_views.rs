@@ -58,11 +58,6 @@ pub(super) fn call_view_return_source(
     program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> ViewReturnSource {
-    if let Some(relation) =
-        validation::borrow_contracts::installed_context_lifetime_source(program, target_symbol)
-    {
-        return relation;
-    }
     let Some((parameters, return_type, _)) = call_view_signature(program, target_symbol) else {
         return ViewReturnSource::NotApplicable;
     };
@@ -80,7 +75,6 @@ pub(in crate::borrow) struct CallViewReturnContract<'program> {
     substitution_scope_starts: Vec<usize>,
     requirement_signature: Option<&'program typed_trees::signature::StateSignature>,
     argument_owner: SymbolHandle,
-    target: SymbolHandle,
 }
 
 impl CallViewReturnContract<'_> {
@@ -115,11 +109,6 @@ impl CallViewReturnContract<'_> {
         &self,
         program: &dyn ::validation::CheckingInput,
     ) -> ViewReturnSource {
-        if let Some(relation) =
-            validation::borrow_contracts::installed_context_lifetime_source(program, self.target)
-        {
-            return relation;
-        }
         if let Some(signature) = self.requirement_signature {
             return validation::borrow_contracts::resolve_applied_signature_view_return_source(
                 program,
@@ -253,7 +242,6 @@ pub(in crate::borrow) fn call_view_return_contract<'program>(
         substitution_scope_starts,
         requirement_signature,
         argument_owner: caller.symbol,
-        target: call.target_symbol,
     })
 }
 

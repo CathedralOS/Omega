@@ -1,5 +1,3 @@
-// Length-delimited ASCII record and section framing (`Writer` and `Reader`) for package lock serialization.
-
 use super::super::PackageLockError as Error;
 use std::fmt::{self, Write};
 
@@ -72,6 +70,7 @@ impl<'text> Reader<'text> {
         Self { remaining }
     }
 
+    /// Consume the next complete record.
     pub(super) fn line(&mut self) -> Result<&'text str, Error> {
         let (line, remaining) = self
             .remaining

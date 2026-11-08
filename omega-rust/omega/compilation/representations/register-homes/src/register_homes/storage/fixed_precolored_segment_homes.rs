@@ -6,7 +6,7 @@ pub use identity::fixed_precolored_segment_home_plan_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{LiveRangeIdentity, VirtualRegisterId};
-use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
+use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target::NativeTarget;
 
 use crate::{
@@ -39,7 +39,7 @@ pub struct FixedPrecoloredSegmentHomePlan {
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
-    pub work_schedule: WorkScheduleIdentity,
+    pub fuel_schedule: FuelScheduleIdentity,
     pub target: NativeTarget,
     pub policy: FixedPrecoloredSegmentHomePolicy,
     pub budget: OptimizationWorkBudget,

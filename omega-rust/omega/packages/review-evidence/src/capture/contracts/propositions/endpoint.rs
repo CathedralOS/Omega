@@ -1,5 +1,3 @@
-// Primitive and witness proposition endpoint and signature projection.
-
 use crate::capture::SourceDeclarationInput;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;

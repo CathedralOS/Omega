@@ -6,7 +6,7 @@ pub use identity::fixed_precolored_interval_plan_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{SelectedBlockId, VirtualRegisterId};
-use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
+use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 
 use crate::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 use selected_instructions::{LiveRangeIdentity, LiveRangePoint, VirtualFixedConstraintSite};
@@ -27,7 +27,7 @@ pub struct FixedPrecoloredIntervalPlan {
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
-    pub work_schedule: WorkScheduleIdentity,
+    pub fuel_schedule: FuelScheduleIdentity,
     pub policy: FixedPrecoloredIntervalPolicy,
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,

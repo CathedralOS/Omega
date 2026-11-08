@@ -1,8 +1,9 @@
-// Exact physical component call inputs borrowed from separately emitted images.
-// `ComponentNativeCall::join` verifies that the emitted export image, admitted
-// call, and provider plan agree on artifact, subject, candidate, boundary,
-// target, calling application commitment, and stack demand before admitting the
-// same-stack contribution and producing a `NativeProviderSettlement`.
+//! Exact physical component call inputs borrowed from separately emitted images.
+//!
+//! A producer's checked body and entry bridge determine the actual same-stack
+//! contribution. Compact execution reports describe this retained join; they
+//! cannot select an image or grant an installed address/era. The complete
+//! image remains borrowed until native realization consumes the settlement.
 
 use diagnostics::Diagnostic;
 use installation_evidence::ProviderExecutionEvidence;
@@ -158,31 +159,28 @@ impl<'input> ComponentNativeCall<'input> {
     }
 }
 
+// Report projections are deliberately non-authoritative. Native realization
+// also consumes the retained full plan, cross-artifact call, image and strong
+// commitment; collisions cannot substitute those inputs.
 fn compact_report(digest: &[u8; 32]) -> u64 {
     u64::from_le_bytes(digest[..8].try_into().expect("fixed digest width")).max(1)
 }
-
 impl ProviderExecutionEvidence for ComponentNativeCall<'_> {
     fn requirement_identity(&self) -> &str {
         &self.call.application().requirement_identity
     }
-
     fn provider_plan_report_identity(&self) -> u64 {
         self.plan.report_fingerprint()
     }
-
     fn provider_execution_report_identity(&self) -> u64 {
         compact_report(&self.commitment)
     }
-
     fn provider_execution_report_fingerprint(&self) -> u64 {
         compact_report(&self.commitment)
     }
-
     fn normalized_root_report_identity(&self) -> u64 {
         self.plan.report_fingerprint()
     }
-
     fn boundary_contract_report_fingerprint(&self) -> u64 {
         self.call.application().report_fingerprint
     }

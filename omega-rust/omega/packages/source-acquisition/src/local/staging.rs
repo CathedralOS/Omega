@@ -1,12 +1,4 @@
-// Candidate snapshot staging for proposed single-file local source edits
-// without modifying the live project checkout.
-//
-// `stage_local_source_replacement_in_lane` captures the current live package,
-// verifies that `relative_path` names an existing regular file whose SHA-256
-// matches `expected_sha256`, substitutes `replacement` within the byte budget,
-// rehashes the exact tree using `SourceIdentityHasher` (preserving entry order
-// and executable bits so landing the edit produces the identical content pin),
-// and publishes the candidate snapshot into the retained storage lane.
+//! Proposed local source edits, without changing the live project.
 
 use std::path::{Path, PathBuf};
 
@@ -24,6 +16,10 @@ use crate::tree::capture::{
 };
 use crate::tree::identity::SourceIdentityHasher;
 
+/// A proposed immutable tree and the live source version it would replace.
+///
+/// Its package lineage remains the original local path. It is not an
+/// observation that the proposed bytes already exist in the live project.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedLocalSnapshot {
     requested_root: PathBuf,
@@ -68,12 +64,16 @@ impl StagedLocalSnapshot {
         &self.replacement_sha256
     }
 
+    /// Detect edits since staging before the caller publishes project files.
+    /// Publication still needs its own immediate file checks and recovery.
     pub fn verify_live_source_unchanged(&self) -> Result<(), SourceResolveError> {
         verify_requested_local_root(&self.requested_root, &self.original.root)?;
         verify_live_source_unchanged(&self.original, self.limits)
     }
 }
 
+/// Replace one existing regular source file in an immutable candidate snapshot.
+/// The expected SHA-256 is over the old file bytes, not its source-tree digest.
 pub fn stage_local_source_replacement_in_lane(
     root: &Path,
     relative_path: &SourceRelativePath,
@@ -148,6 +148,8 @@ fn replace_file(
     proposed.extend_from_slice(replacement);
     *bytes = proposed;
 
+    // Entry order and executable bits are unchanged. Use the same exact-tree
+    // encoding as normal capture, so landing these bytes yields the same pin.
     let mut identity = SourceIdentityHasher::new(captured.entries.len());
     for entry in &captured.entries {
         match &entry.kind {

@@ -15,7 +15,7 @@ pub(super) fn check(
     let layout = &program.layout;
     require(
         fragments.psi == selected.psi
-            && fragments.work_schedule == selected.work_schedule
+            && fragments.fuel_schedule == selected.fuel_schedule
             && fragments.selected == layout.selected
             && layout.selected == program.machine.selected
             && fragments.target == selected.target

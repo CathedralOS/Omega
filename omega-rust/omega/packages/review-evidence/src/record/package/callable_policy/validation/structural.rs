@@ -1,4 +1,4 @@
-// Validation that public runtime requirements reference entry parameters and never private locals.
+//! Public runtime requirements contain entry parameters, never private locals.
 use crate::record::PackageReviewBooleanExpression;
 use crate::record::PackageReviewPrimitiveType;
 use crate::record::PackageReviewRuntimeIndex;

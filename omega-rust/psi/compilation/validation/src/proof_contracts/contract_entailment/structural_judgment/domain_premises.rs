@@ -321,32 +321,6 @@ impl StructuralJudge<'_> {
             // Only the original admitted value supplies its default predicate;
             // the guard's fresh pattern view does not establish a new value.
             self.intake_admitted_value_predicates(subject_type, admitted_subject.clone());
-            // The selected payload belongs to this admitted value. Its own
-            // record predicates follow the same completed-value intake as a
-            // common field, rather than being lost at the case boundary.
-            for field in program.data_payload_fields(variant) {
-                let path = [
-                    facts::PlaceSegment::Case {
-                        variant: variant.symbol,
-                    },
-                    facts::PlaceSegment::Field {
-                        symbol: field.symbol,
-                    },
-                ];
-                let Some(reference) =
-                    crate::project_type_reference_from_segments(program, subject_type, &path)
-                else {
-                    continue;
-                };
-                if crate::reference_shell(program, reference).is_some() {
-                    continue;
-                }
-                let Some((_, value)) = fields.iter().find(|(name, _)| name == field.name.as_str())
-                else {
-                    continue;
-                };
-                self.intake_admitted_value_predicates(reference, value.clone());
-            }
         }
         if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
             eprintln!(

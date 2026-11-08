@@ -3,7 +3,7 @@
 [lib.rs](src/lib.rs) enters mandatory target legalization and instruction
 selection. Input is the complete admitted target-operation
 custody and exact validated target register environment; output is the admitted
-current selected program with semantic, target, projection, work and constraint
+current selected program with semantic, target, projection, fuel and constraint
 identities. Raw selected data or a detached content hash is not selection authority.
 
 ## Target setup is not a program stage
@@ -42,13 +42,13 @@ structural returns have no second function roster. Natural-ranked cycles retain
 their ordinary proof obligations on that same route. Older unsigned-countdown
 native custody rejects rather than bypassing verification.
 
-Each instruction retains operation, obligation, value, definition and work
+Each instruction retains operation, obligation, value, definition and fuel
 provenance. Successor bindings preserve semantic identities and explicit register
-transport, with exact edge, polarity, target and taken-edge work. Fixed views are
+transport, with exact edge, polarity, target and taken-edge fuel. Fixed views are
 constraints, not assigned homes. ISA-owned RFLAGS/RIP or NZCV/PC effects do not
 become fictional source values. Compiler condition tests, copies and address
 work do not invent Psi operations or logical charges. Returns retain their exact
-Unit/scalar/aggregate role, complete result constraints, and edge work.
+Unit/scalar/aggregate role, complete result constraints, and edge fuel.
 
 Unsigned 64-bit saturation retains its arithmetic policy on this graph. Exact
 division and remainder accept fixed 8/16/32/64-bit signed and unsigned carriers,
@@ -57,14 +57,14 @@ quotient, including rejection of signed `MIN % -1`. Normalized operands use the
 existing Exact signed division instructions except for full-width unsigned
 operands, which retain their unsigned realization. x86-64 zero/sign high-half
 preparation retains explicit scratch constraints and adds no source operation or
-work charge.
+fuel charge.
 
 Integer arithmetic copies each fixed source `Use` into an instruction-local value,
 according to the selected target constraint row. A reused source value therefore
 keeps its flexible range across intervening calls, and equal source operands can
 reach distinct required views without a source-equality special case. The copies
 retain source identity and definition custody; the arithmetic instruction keeps
-its original operation, definedness obligations and work. Instruction-local
+its original operation, definedness obligations and fuel. Instruction-local
 scratch, including unsigned division's explicit zero high half, keeps its
 existing lineage and fixed constraints. Scratch definitions,
 early clobbers and physical-home checks remain explicit downstream constraints.
@@ -152,7 +152,7 @@ tag. [Array input](src/selection/scalar_array_input.rs) reconstructs the declare
 dimensions and leaf carrier; constructor selection writes each row-major leaf at
 its exact width. [Aggregate results](src/selection/aggregate_result_input.rs)
 joins both array and sum homes to their retained calling plans. Independent replay
-checks every store, result fragment, and the single constructor work charge.
+checks every store, result fragment, and the single constructor fuel charge.
 Owned arguments load those same homes or copy captured incoming fragments;
 returning an incoming array retains its parameter identity. Each argument joins
 its exact producer, place, type, and destination ABI, including mixed borrowed
@@ -178,7 +178,7 @@ load results, and scratch distinct; ordinary definition interference also keeps
 dead scratch separate from the result. Selection and physical replay retain the
 exact width and scratch identity instead of borrowing a hidden fixed register.
 Empty arrays retain their complete type and `Some(empty)` ABI placement but have
-no payload slot, address, register, or memory access. Constructor operation/work
+no payload slot, address, register, or memory access. Constructor operation/fuel
 provenance prefixes the next instruction in the same block, including a terminator;
 independent replay reconstructs that ordered prefix. Empty-result calls and returns
 reuse physical Unit instructions without changing their structural contracts.
@@ -200,7 +200,7 @@ Boolean carrier remains distinct from the integer carrier sharing its ABI shape.
 Multi-case dispatch uses ordinary comparisons and explicitly identified
 `CaseDispatch` continuation blocks. An unsuccessful comparison has taken no
 semantic edge and charges none; the chosen edge carries its exact case payload,
-destination, and once-only work through the ordinary edge bridge. Constructors,
+destination, and once-only fuel through the ordinary edge bridge. Constructors,
 calls and returns preserve declaration identity rather than inferring a field
 from its name. These paths share allocation, frame, encoding and publication;
 independent selection replay checks their complete instruction and storage roster.
@@ -217,7 +217,7 @@ them into destination-associated transfer registers. Distinct arrivals need not
 share their original homes; parallel swaps do not overwrite unread arguments.
 Ordinary liveness, allocation and encoding own these copies. Independent replay
 checks the expansion and contracts it back to the source graph, with the authored
-edge and its work retained once; the final implementation jump carries lineage,
+edge and its fuel retained once; the final implementation jump carries lineage,
 not a second semantic transition. No source block or operation is fabricated.
 
 Owned arrivals use ordinary storage, ABI and cleanup contracts even when their
@@ -240,7 +240,7 @@ descriptors, and complete owned values before any destination replacement.
 Whole-value copies use existing loads and stores, including narrow final chunks;
 they introduce no case-specific instruction. Independent replay checks every
 snapshot, address, store, and memory record against the semantic binding and
-destination layout. The chosen edge retains its single work and ownership
+destination layout. The chosen edge retains its single fuel and ownership
 transition; its implementation continuation adds neither.
 
 Target-input correspondence also checks `StructuralCase` terminators in
@@ -252,19 +252,19 @@ instructions. Used integer payloads load only in the chosen edge's implementatio
 block, before destination binding; unused payloads retain semantic metadata
 without a load or bridge. Structural observations have no fabricated source
 value or definition site. The semantic edge alone retains no-code affine cleanup
-and work; its implementation continuation retains payload lineage and register
-transport, with empty cleanup and work. Independent selection and bridge replay
+and fuel; its implementation continuation retains payload lineage and register
+transport, with empty cleanup and fuel. Independent selection and bridge replay
 restore the exact legalized case, including its destination-owned definition.
 Returning blocks retain exact no-code discards of their own affine byte-read
 results. Current-unit ownership replay reconstructs each live frontier; target
-and legalized replay preserve its ordered actions, return edge, and work. A
+and legalized replay preserve its ordered actions, return edge, and fuel. A
 function-wide result roster cannot substitute for branch-local ownership.
 Non-scalar case layouts and executable or residual return cleanup remain separate
 admission limits; no new ISA case opcode or physical route is introduced.
 Comparison value materialization uses the existing instruction sequence: a
 comparison establishes flags and the immediately following condition materializer
 defines the Boolean value. Independent replay checks condition, operands, result,
-flags, and the single source-operation work charge. Branch-only folding requires
+flags, and the single source-operation fuel charge. Branch-only folding requires
 exclusive consumption of the complete predicate suffix, including successor
 arguments; a shared value retains its ordinary register definition.
 Boolean equality retains Boolean operand types through comparison and independent
@@ -283,7 +283,7 @@ scheduling; layout itself grants no termination authority.
 Physical scalar demand begins at retained instruction operands, branch conditions,
 and return values, then follows incoming edge bindings. Closed cycles of unused
 bindings require no registers or copies. This omits no instruction, call,
-semantic binding, or work charge. Construction prepares demand once with a backward
+semantic binding, or fuel charge. Construction prepares demand once with a backward
 worklist; independent replay follows each declared value forward to an observer.
 Explicit expected-set tests cover unused cycles, live multi-edge chains, swaps,
 and retained instructions whose results are unused.
@@ -306,7 +306,7 @@ Indexed mutable-view writes load the original backing pointer, form the checked
 byte address with `ByteViewAddress`, and use the ordinary one-byte `Store`.
 The write footprint retains the exact destination, index, byte, current length,
 obligation and accepted fact. Independent replay checks the complete sequence;
-only the store carries the source operation's work. Descriptor words and bytes
+only the store carries the source operation's fuel. Descriptor words and bytes
 outside the selected element remain unchanged. Mutable subslices remain separate
 realization work.
 
@@ -317,7 +317,7 @@ displaced-byte read is needed. Current-IR validation requires an exact same-fiel
 live-length observation that stays fresh across every arrival and backedge;
 capacity alone cannot authorize an index. Immutable Terminal replay retains the
 authored field and operands, while selection replay reconstructs the offset,
-single-byte footprint and committing work charge. Whole-field replacement still
+single-byte footprint and committing fuel charge. Whole-field replacement still
 copies only live source bytes before publishing length through the existing
 `CopyBytes` route. Source/native and hostile replay coverage lives in
 `compiler/tests/byte_field_replacement/`.
@@ -329,7 +329,7 @@ scalar-result calls remain excluded. Selection stages only a two-word local
 descriptor containing the original backing pointer and exact static length.
 Existing frame stores/addressing and call transport carry that descriptor,
 including outgoing stack pointers. No backing bytes are copied, and preparing
-the descriptor adds no logical work charge. Repeated calls retain the original
+the descriptor adds no logical fuel charge. Repeated calls retain the original
 root pointer. Image and installation custody rejoin the semantic path, array
 metadata and selected/frame replay; descriptor shape alone is not authority.
 The `mutable_writes::fixed_arrays` native tests cover whole arrays, nested fields,
@@ -347,7 +347,7 @@ Straight-line Unit field stores through mutable or write-only parameters retain
 the original incoming pointer. IEEE binary32/binary64, Boolean, and 8-, 16-, 32-, and 64-bit integer
 stores carry the exact destination declaration, carrier path, scalar field and
 typed SSA source. Input-only layout replay reconstructs the offset and width;
-selection emits one pointer store with a write footprint and the source work
+selection emits one pointer store with a write footprint and the source fuel
 charge, without loading the destination. Independent replay checks the pointer,
 value, write extent and charge before accepting the selected program.
 
@@ -383,7 +383,7 @@ fixed-width signed/unsigned integers, and IEEE binary32/binary64. Narrow loads
 zero-extend the raw payload into the GPR carrier. Signed narrow reads then
 restore the sign using the same normalization as incoming ABI values, before
 comparisons or other consumers observe the fresh result. Only the load charges
-the authored read's work; normalization neither widens the memory access nor
+the authored read's fuel; normalization neither widens the memory access nor
 changes the scalar type. IEEE loads preserve payload bits without floating-point arithmetic.
 Materialized Boolean reads retain their exact scalar home across stores, calls,
 and branches. A branch tests the fresh read's Boolean carrier using the ordinary
@@ -391,7 +391,7 @@ zero comparison; it does not substitute the initializer or a previous observatio
 Definition availability, readable access, and source/home identity remain checked
 independently of the comparison-only predicate suffix rules.
 Construction and replay retain AddressLocal, WritePlace and ReadPlace records,
-exact scalar demand, work, and the incoming parameter roster. Local storage does
+exact scalar demand, fuel, and the incoming parameter roster. Local storage does
 not add an ABI parameter or a synthetic aggregate.
 
 The ordinary control graph also composes Boolean and fixed-integer primitive
@@ -428,7 +428,7 @@ complete GPR from their exact fixed-width type before comparisons or forwarding.
 `selection/scalar_call_abi.rs` selects the width and signedness; independent entry
 and call replay requires that exact operation. This normalizes unspecified ABI
 bits, not the source type or mathematical value, and charges no additional Psi
-work. Already-admitted exact casts normalize their destination carrier without
+fuel. Already-admitted exact casts normalize their destination carrier without
 changing proof or conversion admission. Replay rejects substituted widths, ABI
 offsets, argument homes, and source identities, including when a borrowed pointer follows the
 stack-passed scalars.
@@ -440,7 +440,7 @@ Exact add with fabricated no-overflow evidence. Sub-64-bit results pass through
 the same carrier normalization before their SSA definition becomes available.
 The raw sum stays private; later comparisons, stores, and calls consume only
 the normalized value. Independent selection replay checks that sequence and
-charges the source operation's work once, on the add. Target replay also rejects
+charges the source operation's fuel once, on the add. Target replay also rejects
 re-evaluation of an earlier expression in place of its established result home.
 Borrowed record parameters retain their pointer ABI when a function returns a
 scalar; field read/write permission is checked at the operation, not inferred
@@ -481,7 +481,7 @@ geometry `B + R <= Bound` and view geometry `O + L <= R` imply
 `2^64` therefore becomes zero pointer bits with zero length, not an overflow
 proof or permission to read address zero. Other empty views need not form a
 dereference either. The original bounds and backing remain the access authority;
-this address calculation introduces no Psi operation or additional work charge.
+this address calculation introduces no Psi operation or additional fuel charge.
 See [extent endpoints](../../../../../wiki/spec/resources/extents.md#conservation-and-loans).
 
 The admitted Linux `write_byte(i32)` boundary retains its exact SSA input and
@@ -499,7 +499,7 @@ Hosted `exit_process(i32)` uses the ordinary Unit scalar graph rather than an
 isolated literal-only target operation. Its last boundary node becomes an explicit
 process-exit terminator on Linux x86-64/AArch64 and macOS AArch64. The source's
 following empty Unit return remains nominal custody: its edge is retained, but
-its work is not charged as executed work and no native return or epilogue is
+its fuel is not charged as executed work and no native return or epilogue is
 emitted. The terminal reads the original runtime i32 carrier, needs no scratch,
 and traps if the kernel returns. Source, target, builtin, operand, and complete
 exit span are independently replayed through publication.

@@ -184,10 +184,8 @@ impl AccessorPrimitive {
     ) -> Result<AccessorTarget, Diagnostic> {
         let invalid = |reason: &str| {
             Diagnostic::error(format!(
-                "accessor {} application for `{}` with value `{}`: {reason}",
-                self.operation(),
-                program.display_type_reference(accessor),
-                program.display_type_reference(value),
+                "accessor {} application: {reason}",
+                self.operation()
             ))
         };
         let accessor_symbol = program.type_reference_table.type_symbol(accessor);

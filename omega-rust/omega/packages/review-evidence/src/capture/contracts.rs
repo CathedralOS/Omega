@@ -1,6 +1,4 @@
-// Public contract projection grouped by contract surface: evidence terms,
-// contract expressions, static facts, mathematical calls, memberships, and
-// propositions.
+//! Public contract projection grouped by the reviewed contract surface.
 
 mod evidence;
 pub(super) mod expressions;

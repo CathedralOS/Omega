@@ -1636,6 +1636,20 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     *completion = captured.completion;
                     let source = self.context.control.operands.insert(captured);
                     *backing = source;
+                    if !self.is_view_type(captured.type_reference)
+                        && validation::reference_shell(self.program, captured.type_reference)
+                            .is_none()
+                        && self.program.type_multiplicity(captured.type_reference)
+                            != language_semantics::Multiplicity::Unrestricted
+                    {
+                        // This noncopy saved subject observes the same owned
+                        // home as its actual captured supplier. The empty
+                        // projection carries that role, not a fresh snapshot
+                        // or permission to follow a stored reference.
+                        *address_projection = Some(
+                            checked_trees::FlowOperandAddressProjection::Place(HandleSpan::empty()),
+                        );
+                    }
                     if self.is_view_type(captured.type_reference)
                         || self.program.type_multiplicity(captured.type_reference)
                             == language_semantics::Multiplicity::Unrestricted

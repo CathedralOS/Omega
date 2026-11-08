@@ -1,7 +1,3 @@
-// External-binding projection for one checked external realization leaf, verifying
-// that the leaf carries either an exact binding-table identity or an evaluated-via
-// row without mixing legacy and evaluated supply carriers.
-
 use super::super::external_supply::{project_evaluated_binding, project_external_binding};
 use super::rejected;
 use crate::capture::PackageReviewInput;

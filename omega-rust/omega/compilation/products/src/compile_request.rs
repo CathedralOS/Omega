@@ -1,160 +1,25 @@
-/*
-Compilation requests, target-local checking inputs, and native product policies.
+//! One invocation owns source, Build staging and policy; targets select realizations.
 
-One invocation owns shared source inputs, Build staging, and policy while
-targets select realizations. `CompileRequest::validate_for_execution` validates
-target destinations, optimization rollback eligibility, package input custody,
-and installation-assumption target partitioning before any frontend or Build
-work runs.
-*/
-
-/*
-`CheckedCompileRequest` and `CheckedExecutionRequest` admit target-local
-checking and Build execution inputs without carrying native publication
-authority. `NativeProductRequest` carries the two independent authority axes
-for native realization: `terminal_authority_policy` (the receiving authority's
-explicit mechanism-classification table) and
-`terminal_authority_permission_policy` (the optional receiver-admission claim,
-which defaults to `None` so ordinary production never fabricates a receiving
-permission policy).
-*/
-
-use crate::RetainedCompilationChecks;
+use self::options::CompileOptions;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationRollback;
 use package_compilation::build_execution::BuildSnapshotRequest;
 use package_compilation::{
-    BuildExecutionInputs, PackageCompilationInputs, PackageCompilationSourceInputs,
-    PackageCompilationTargetInputs,
+    PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
 };
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use target::TargetProfile;
-pub use terminal_installation::PrivateEntryRamInitialization;
 pub use terminal_psi_to_abstract_operations::provider_admission::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, current_terminal_authority_policy,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompileOptions {
-    pub root_path: PathBuf,
-    pub build_dir: Option<PathBuf>,
-    pub target_name: Option<String>,
-}
-
-impl CompileOptions {
-    pub fn build_dir(&self) -> PathBuf {
-        self.build_dir.clone().unwrap_or_else(|| {
-            self.root_path
-                .parent()
-                .map(|parent| parent.join("build"))
-                .unwrap_or_else(|| PathBuf::from("build"))
-        })
-    }
-
-    pub fn retain_build_dir(&mut self) -> PathBuf {
-        let build_dir = self.build_dir();
-        self.build_dir = Some(build_dir.clone());
-        build_dir
-    }
-}
-
-pub struct CheckedCompileRequest {
-    pub root_path: PathBuf,
-    pub target_name: Option<String>, // None preserves targetless semantic checking
-    pub package_inputs: Option<PackageCompilationInputs>,
-    pub source_capture: Option<package_compilation::CapturedLocalSource>, // mutually exclusive with a supplied package graph
-    pub build: BuildExecutionInputs,
-    pub optimization_rollback: OptimizationRollback,
-    pub collect_timings: bool,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct SettledCheckReuse {
-    pub prior: RetainedCompilationChecks,
-    pub retain: bool,
-}
-
-impl CheckedCompileRequest {
-    pub fn new(root_path: &Path, target_name: Option<&str>) -> Self {
-        Self {
-            root_path: root_path.to_owned(),
-            target_name: target_name.map(str::to_owned),
-            package_inputs: None,
-            source_capture: None,
-            build: BuildExecutionInputs::default(),
-            optimization_rollback: OptimizationRollback::default(),
-            collect_timings: false,
-        }
-    }
-}
-
-pub struct CheckedExecutionRequest<'request> {
-    pub selected_target_profile: Option<TargetProfile>,
-    pub package_inputs: Option<&'request PackageCompilationInputs>,
-    pub build: BuildExecutionInputs,
-    pub optimization_rollback: OptimizationRollback,
-    pub settled_check_reuse: SettledCheckReuse,
-}
-
-impl CheckedExecutionRequest<'_> {
-    pub fn admit_package_inputs(&self) -> Result<(), Vec<Diagnostic>> {
-        let Some(inputs) = self.package_inputs else {
-            return Ok(());
-        };
-        inputs.validate_execution_context(self.selected_target_profile, self.build.profile)
-    }
-}
-
-#[derive(Clone)]
-pub struct NativeProductRequest {
-    pub retain_native_inputs: bool,
-    pub installation_assumptions: Vec<crate::InstallationEnvironmentAssumption>,
-    pub image: NativeImageDemand,
-    pub private_entry_ram: Vec<PrivateEntryRamInitialization>,
-    pub terminal_authority_policy: TerminalAuthorityPolicy,
-    pub terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
-    pub optimization_rollback: OptimizationRollback,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum NativeImageDemand {
-    #[default]
-    Emit,
-    RuntimeAdmissionOnly,
-}
-
-pub fn validate_installation_assumption_targets(
-    rows: &[crate::InstallationEnvironmentAssumption],
-    targets: &[TargetProfile],
-) -> Result<(), String> {
-    for row in rows {
-        row.validate_description()?;
-        if !targets.contains(&row.profile()) {
-            return Err(format!(
-                "installation assumption names unrequested target {}",
-                row.profile().target_name()
-            ));
-        }
-    }
-    Ok(())
-}
-
-pub fn partition_installation_assumptions(
-    rows: Vec<crate::InstallationEnvironmentAssumption>,
-    targets: &[TargetProfile],
-) -> Result<Vec<Vec<crate::InstallationEnvironmentAssumption>>, String> {
-    validate_installation_assumption_targets(&rows, targets)?;
-    let mut groups = vec![Vec::new(); targets.len()];
-    for row in rows {
-        let position = targets
-            .iter()
-            .position(|target| *target == row.profile())
-            .ok_or("installation assumption lost its validated target")?;
-        groups[position].push(row);
-    }
-    Ok(groups)
-}
+mod checked;
+mod native;
+pub use checked::{CheckedCompileRequest, CheckedExecutionRequest, SettledCheckReuse};
+pub mod options;
+pub use native::{NativeImageDemand, NativeProductRequest};
+pub use terminal_installation::PrivateEntryRamInitialization;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequestedCompileProduct {
@@ -164,6 +29,14 @@ pub enum RequestedCompileProduct {
 }
 
 impl RequestedCompileProduct {
+    /// Refuse rollback rules belonging to stages this requested stop never
+    /// executes. Request admission applies it before source acquisition -- the
+    /// standalone route in `validate_for_execution`, the project route in the
+    /// CLI's product dispatch -- so an invalid overlay rejects before frontend
+    /// work or auxiliary output, and `ProductReportPlan::prepare`
+    /// applies it again as the product-owned boundary every directly
+    /// constructed route crosses
+    /// (wiki/spec/build/optimizations.md#release-rollback-and-promotion).
     pub fn validate_optimization_rollback(
         self,
         rollback: &OptimizationRollback,
@@ -194,6 +67,10 @@ impl RequestedCompileProduct {
         }
     }
 
+    /// Admit evaluated Build requirements before dispatching product production.
+    /// This checks eligibility only; it establishes no artifact or receiving
+    /// authority. Only product admission calls it: a production leg never
+    /// re-admits the stop its settlement already allowed.
     pub(crate) fn admit_build_requirements(
         self,
         artifact_only: bool,
@@ -208,12 +85,16 @@ impl RequestedCompileProduct {
     }
 }
 
+/// Input shared by every selected target. It cannot disagree between children.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SharedCompileInputs {
     pub root_path: PathBuf,
     pub build_directory: PathBuf,
     pub requested_product: RequestedCompileProduct,
+    /// Collect per-stage measurements into every checked record's timing
+    /// accumulator; the report carries the recorded ladder.
     pub timings: bool,
+
     pub package_sources: Option<Arc<PackageCompilationSourceInputs>>,
 }
 
@@ -222,13 +103,19 @@ struct RequestedDestination {
     target_name: Option<String>,
 }
 
+/// Invocation policy is supplied once, before execution records are expanded.
+/// Per-target Build/provider settlement still belongs to the producing stages.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CompilePolicy {
     native_image: NativeImageDemand,
     private_entry_ram: Vec<PrivateEntryRamInitialization>,
-    installation_assumptions: Vec<crate::InstallationEnvironmentAssumption>,
     pub(super) build_snapshot: Option<BuildSnapshotRequest>,
     terminal_authority_policy: TerminalAuthorityPolicy,
+    /// The receiver-admission axis, supplied only by an explicit
+    /// `with_terminal_authority_permission_policy` call. `None` means this
+    /// production makes no receiver-admission claim: accepted package
+    /// permissions are never projected into receiver rows, and the emitted
+    /// artifact cannot satisfy an explicit admission replay.
     pub(super) terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     package_target_inputs: PackageCompilationTargetInputs,
     pub(super) optimization_rollback: OptimizationRollback,
@@ -239,9 +126,11 @@ impl Default for CompilePolicy {
         Self {
             native_image: NativeImageDemand::Emit,
             private_entry_ram: Vec::new(),
-            installation_assumptions: Vec::new(),
             build_snapshot: None,
             terminal_authority_policy: current_terminal_authority_policy(),
+            // Ordinary production supplies no receiving permission policy: the
+            // receiver-admission axis is claimed only by an explicit setter
+            // call, never by defaulting to an empty or fabricated policy.
             terminal_authority_permission_policy: None,
             package_target_inputs: PackageCompilationTargetInputs::default(),
             optimization_rollback: OptimizationRollback::default(),
@@ -249,6 +138,8 @@ impl Default for CompilePolicy {
     }
 }
 
+/// One production invocation, including the one-target case. This Rust-host
+/// request is not a canonical OCREQ frame and grants no bootstrap authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileRequest {
     shared: SharedCompileInputs,
@@ -257,6 +148,10 @@ pub struct CompileRequest {
 }
 
 impl CompileRequest {
+    /// Create one checking configuration. An absent target remains target-neutral
+    /// for checking/Terminal production; native production resolves it to the
+    /// host's catalogued profile, or rejects with a diagnostic on a host that
+    /// owns none.
     pub fn new(options: CompileOptions) -> Self {
         let build_directory = options.build_dir();
         Self {
@@ -265,6 +160,7 @@ impl CompileRequest {
                 build_directory,
                 requested_product: RequestedCompileProduct::Check,
                 timings: false,
+
                 package_sources: None,
             },
             policy: CompilePolicy::default(),
@@ -274,6 +170,10 @@ impl CompileRequest {
         }
     }
 
+    /// Compile one source root under one Build activation into selected targets.
+    /// Build staging belongs to this invocation, not to a realized target.
+    /// Artifact publication chooses its own per-target directories afterward.
+    /// Empty, duplicate and targetless multi-target requests reject before effects.
     pub fn for_targets(
         root_path: PathBuf,
         build_directory: PathBuf,
@@ -292,44 +192,14 @@ impl CompileRequest {
             .collect();
         request
     }
-
+    /// Stop native production after runtime admission instead of emitting an
+    /// image; see [`NativeImageDemand`].
     pub fn with_native_image_demand(mut self, demand: NativeImageDemand) -> Self {
         self.policy.native_image = demand;
         self
     }
 
-    pub fn with_installation_assumptions(
-        mut self,
-        inputs: Vec<crate::InstallationEnvironmentAssumption>,
-    ) -> Self {
-        self.policy.installation_assumptions = inputs;
-        self
-    }
-
-    pub fn with_bootstrap_assumptions(
-        mut self,
-        inputs: Vec<crate::BootstrapEnvironmentAssumption>,
-    ) -> Self {
-        self.policy.installation_assumptions.extend(
-            inputs
-                .into_iter()
-                .map(crate::InstallationEnvironmentAssumption::Bootstrap),
-        );
-        self
-    }
-
-    pub fn with_interrupt_delivery_assumptions(
-        mut self,
-        inputs: Vec<crate::X86InterruptDeliveryAssumption>,
-    ) -> Self {
-        self.policy.installation_assumptions.extend(
-            inputs
-                .into_iter()
-                .map(crate::InstallationEnvironmentAssumption::InterruptDelivery),
-        );
-        self
-    }
-
+    /// Explicitly sponsor fresh private typed entry RAM; default supply is absent.
     pub fn with_private_entry_ram(mut self, inputs: Vec<PrivateEntryRamInitialization>) -> Self {
         self.policy.private_entry_ram = inputs;
         self
@@ -340,11 +210,16 @@ impl CompileRequest {
         self
     }
 
+    /// Supply one capture intent to the invocation.
+    /// Each target checks its own custody; the admitted invocation executes Build
+    /// once. This grants neither output sponsorship nor publication authority.
     pub fn with_build_snapshot(mut self, snapshot: BuildSnapshotRequest) -> Self {
         self.policy.build_snapshot = Some(snapshot);
         self
     }
 
+    /// Supply the package's sources and accepted input policy once. Each
+    /// target independently admits the resulting package custody.
     pub fn with_package_inputs(mut self, inputs: PackageCompilationInputs) -> Self {
         let (source, target) = inputs.into_parts();
         self.shared.package_sources = Some(source);
@@ -352,16 +227,18 @@ impl CompileRequest {
         self
     }
 
+    /// Apply a common receiving mechanism-classification policy to every
+    /// selected target. Missing demanded rows still reject during authority review.
     pub fn with_terminal_authority_policy(mut self, policy: TerminalAuthorityPolicy) -> Self {
         self.policy.terminal_authority_policy = policy;
         self
     }
-
     pub fn with_optimization_rollback(mut self, rollback: OptimizationRollback) -> Self {
         self.policy.optimization_rollback = rollback;
         self
     }
 
+    /// Record per-stage timings on every produced report.
     pub fn with_timings(mut self, timings: bool) -> Self {
         self.shared.timings = timings;
         self
@@ -375,16 +252,7 @@ impl CompileRequest {
         }
         let multiple = self.destinations.len() > 1;
         let shared = Arc::new(self.shared);
-        let mut policy = self.policy;
-        let installation_assumptions = std::mem::take(&mut policy.installation_assumptions);
-        if !installation_assumptions.is_empty()
-            && shared.requested_product != RequestedCompileProduct::NativeArtifact
-        {
-            return Err(vec![Diagnostic::error(
-                "installation assumptions require a native product",
-            )]);
-        }
-        let policy = Arc::new(policy);
+        let policy = Arc::new(self.policy);
         let mut targets = Vec::<ValidatedTargetCompilation>::with_capacity(self.destinations.len());
         let mut diagnostics = Vec::new();
         for mut destination in self.destinations {
@@ -467,29 +335,12 @@ impl CompileRequest {
             };
             targets.push(ValidatedTargetCompilation {
                 policy: policy.clone(),
-                installation_assumptions: Vec::new(),
                 package_inputs,
                 profile,
             });
         }
         if !diagnostics.is_empty() {
             return Err(diagnostics);
-        }
-        let profiles = targets
-            .iter()
-            .filter_map(|target| target.profile)
-            .collect::<Vec<_>>();
-        let groups = partition_installation_assumptions(installation_assumptions, &profiles)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let mut groups = groups.into_iter();
-        for target in &mut targets {
-            if target.profile.is_some() {
-                target.installation_assumptions = groups.next().ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "installation assumption partition lost a target",
-                    )]
-                })?;
-            }
         }
         targets.sort_by_key(|target| {
             target.profile.and_then(|profile| {
@@ -509,15 +360,16 @@ pub struct ValidatedCompileRequest {
 }
 
 impl ValidatedCompileRequest {
+    /// Consume validated configuration without transferring compilation or publication authority.
     pub fn into_parts(self) -> (Arc<SharedCompileInputs>, Vec<ValidatedTargetCompilation>) {
         (self.shared, self.targets)
     }
 }
 
+/// One admitted execution of the shared invocation, not another public request.
 #[derive(Debug)]
 pub struct ValidatedTargetCompilation {
     policy: Arc<CompilePolicy>,
-    installation_assumptions: Vec<crate::InstallationEnvironmentAssumption>,
     package_inputs: Option<PackageCompilationInputs>,
     profile: Option<TargetProfile>,
 }
@@ -526,44 +378,22 @@ impl ValidatedTargetCompilation {
     pub const fn profile(&self) -> Option<TargetProfile> {
         self.profile
     }
-
     pub fn build_snapshot(&self) -> Option<&BuildSnapshotRequest> {
         self.policy.build_snapshot.as_ref()
     }
-
     pub fn optimization_rollback(&self) -> &OptimizationRollback {
         &self.policy.optimization_rollback
     }
-
     pub fn package_inputs(&self) -> Option<&PackageCompilationInputs> {
         self.package_inputs.as_ref()
     }
 
-    pub fn checked_execution<'request>(
-        &'request self,
-        build_directory: &Path,
-    ) -> CheckedExecutionRequest<'request> {
-        let package_inputs = self.package_inputs();
-        CheckedExecutionRequest {
-            selected_target_profile: self.profile(),
-            package_inputs,
-            build: BuildExecutionInputs {
-                directory: Some(build_directory.to_path_buf()),
-                snapshot: self.build_snapshot().cloned(),
-                ..BuildExecutionInputs::default()
-            }
-            .resolve_compilation_defaults(package_inputs),
-            optimization_rollback: self.optimization_rollback().clone(),
-            settled_check_reuse: SettledCheckReuse::default(),
-        }
-    }
-
+    /// Release this target's native product request; the shared invocation
+    /// keeps only what native production needs.
     pub fn into_native_product_request(self) -> NativeProductRequest {
         NativeProductRequest {
-            retain_native_inputs: false,
             image: self.policy.native_image,
             private_entry_ram: self.policy.private_entry_ram.clone(),
-            installation_assumptions: self.installation_assumptions,
             terminal_authority_policy: self.policy.terminal_authority_policy.clone(),
             terminal_authority_permission_policy: self
                 .policy

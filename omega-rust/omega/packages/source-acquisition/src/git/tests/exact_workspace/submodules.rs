@@ -1,7 +1,3 @@
-// Submodule rejection tests for exact-revision Git workspace projection,
-// verifying that `.gitmodules` manifests or gitlinks inside the selected member
-// reject even when root-level gitlinks remain inert.
-
 use super::super::{GitCommitId, GitTreeId, run_test_git, run_test_git_with_input};
 use super::{
     Fixture, GitExactRevisionAcquisition, GitWorkspaceProjectionError, Planner, SourceResolveError,

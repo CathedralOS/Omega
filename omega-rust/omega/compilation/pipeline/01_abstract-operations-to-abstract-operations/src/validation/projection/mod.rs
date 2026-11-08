@@ -9,7 +9,7 @@ use optimization_core::{
     OptimizedAbstractPlanProjectionIdentity, TransformationLedgerIdentity,
 };
 use optimization_unit::{PsiOptimizationUnit, PsiTransformationLedger};
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 use terminal_psi::TerminalPsiIdentity;
 
 /// Seal the projection receipt of a run this compile produced. The ledger
@@ -24,7 +24,7 @@ pub(crate) fn seal_optimized_abstract_plan_projection(
 ) -> ValidatedOptimizedAbstractPlanProjection {
     ValidatedOptimizedAbstractPlanProjection {
         psi: final_unit.psi,
-        work_schedule: final_unit.work_schedule,
+        fuel_schedule: final_unit.fuel_schedule,
         initial_unit: ledger.input(),
         final_unit: final_unit.identity,
         selections: selections.identity(),
@@ -45,7 +45,7 @@ pub(crate) fn seal_optimized_abstract_plan_projection(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ValidatedOptimizedAbstractPlanProjection {
     psi: TerminalPsiIdentity,
-    work_schedule: WorkScheduleIdentity,
+    fuel_schedule: FuelScheduleIdentity,
     initial_unit: OptimizationUnitIdentity,
     final_unit: OptimizationUnitIdentity,
     /// Complete source-visible suite requested by the root build.
@@ -62,8 +62,8 @@ impl ValidatedOptimizedAbstractPlanProjection {
         self.psi
     }
 
-    pub const fn work_schedule(self) -> WorkScheduleIdentity {
-        self.work_schedule
+    pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
+        self.fuel_schedule
     }
 
     pub const fn initial_unit(self) -> OptimizationUnitIdentity {
@@ -105,7 +105,7 @@ impl ValidatedOptimizedAbstractPlanProjection {
             self.psi.vocabulary_marker.get().to_le_bytes(),
         );
         canonical.extend_from_slice(self.psi.program_fingerprint.as_bytes());
-        crate::codec_bytes::push_encoded(&mut canonical, self.work_schedule.marker().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, self.fuel_schedule.marker().to_le_bytes());
         canonical.extend_from_slice(&self.initial_unit.bytes());
         canonical.extend_from_slice(&self.final_unit.bytes());
         canonical.extend_from_slice(&self.selections.bytes());

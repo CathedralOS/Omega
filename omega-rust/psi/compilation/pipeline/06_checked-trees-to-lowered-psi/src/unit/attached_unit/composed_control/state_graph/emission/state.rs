@@ -213,13 +213,6 @@ impl StateGraphEmission<'_, '_> {
             )?,
             produced_values: self.produced_values.clone(),
             observations: prepare(checked, &self.owners, &mut self.catalogs.next_place)?,
-            call_views: crate::scalar_lowering::computations::call_views::prepare(
-                identities,
-                checked,
-                &self.owners,
-                &self.catalogs.structural_types,
-                &mut self.catalogs.next_place,
-            )?,
             subslices: crate::scalar_lowering::computations::subslices::prepare(
                 identities,
                 checked,
@@ -267,14 +260,7 @@ impl StateGraphEmission<'_, '_> {
             state_parameters
                 .iter()
                 .filter(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned)
-                .map(|parameter| parameter.place)
-                // These hidden owners are block parameters too. A later edge
-                // forwards their recorded homes just like authored parameters.
-                .chain(
-                    self.captured_loans
-                        .declarations(position)
-                        .map(|parameter| parameter.place),
-                ),
+                .map(|parameter| parameter.place),
             &entry_names,
         )?;
         // A `&`-primitive state parameter arrives by edge argument: its
@@ -1138,6 +1124,35 @@ impl StateGraphEmission<'_, '_> {
             )
         };
         let terminator = match &state.terminator {
+            CheckedComposedUnitControlTerminatorPlan::CompleteExpression { completion } => {
+                // This branch owns emission; no optional staged edge is joined
+                // back to its source terminator after preparation.
+                let edge = self.completion_expression(
+                    identities,
+                    position,
+                    state_parameters,
+                    values.clone(),
+                    &[],
+                    &[],
+                    &[],
+                    completion,
+                    &mut evaluation,
+                    &mut next_value,
+                    &mut next_block,
+                    &mut next_edge,
+                    &mut operations,
+                    &sequence,
+                )?;
+                Terminator::Jump {
+                    edge: edge.edge,
+                    target: edge.target,
+                    arguments: edge.arguments,
+                    structural_arguments: edge.structural_arguments,
+                    erased_arguments: edge.erased_arguments,
+                    erased_proof_arguments: edge.erased_proof_arguments,
+                    cleanup_actions: edge.cleanup_actions,
+                }
+            }
             CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal { .. }
             | CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal => {
                 return unsupported("nonreturning state lost its evaluated invocation");
@@ -1507,7 +1522,13 @@ impl StateGraphEmission<'_, '_> {
             });
         }
         sequence.finish_state(checked, state)?;
-        let dispatches = condition.is_some() || branch_guard.is_some() || prepared_cases.is_some();
+        let dispatches = condition.is_some()
+            || branch_guard.is_some()
+            || prepared_cases.is_some()
+            || matches!(
+                state.terminator,
+                CheckedComposedUnitControlTerminatorPlan::CompleteExpression { .. }
+            );
         self.seal_state(
             identities,
             position,

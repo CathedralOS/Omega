@@ -1,6 +1,3 @@
-// Unit tests verifying that cache custody traversal rejects symlink or
-// directory identity replacements and externally writable local snapshot lanes.
-
 use super::{
     CacheCustodyKind, LocalSourceLimits, SourceResolveError, SourceResolver,
     external_local_storage_lane, open_absolute_directory_nofollow, open_cache_custody_directory,

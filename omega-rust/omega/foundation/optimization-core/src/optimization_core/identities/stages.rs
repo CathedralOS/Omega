@@ -1,6 +1,3 @@
-// Domain-separated identities for stage-level optimization manifests,
-// completions, projections, and boundary/operator occurrences.
-
 canonical_identity!(
     PrePhysicalOptimizationManifestIdentity,
     b"omega.pre-physical-optimization-manifest-identity.v2\0"

@@ -1,8 +1,9 @@
-// We partition a batch of `PreparedPackageBuild` items into equal-product-source
-// cohorts (`select_build_batch`), check each cohort's source once, adopt
-// shared Terminal publications across equal publication inputs, and capture
-// each target's declarations in parallel with shared calling-program
-// publication (`capture_beside_publication`) before restoring caller order.
+//! Complete source cohorts once, then settle each admitted target separately.
+//!
+//! Grouping is explicit work partitioning for this batch, not a lookup into a
+//! historical cache. Every member has already supplied its own Build consent.
+//! Equal source input includes pending evaluation and declaration authority;
+//! equality of configuration or a common source path alone is insufficient.
 
 use super::CompilationSession;
 use super::PreparedProductTarget;
@@ -17,6 +18,8 @@ impl CompilationSession {
     ) -> Vec<(Owner, SelectedCompileOutcome)> {
         let mut outcomes = Vec::with_capacity(builds.len());
         let mut applications = Vec::with_capacity(builds.len());
+        // The first checked source per distinct publication input owns the
+        // invocation's portable code; equal siblings adopt its slots.
         let mut canonical_sources: Vec<compilation_products::CheckedProductSource> = Vec::new();
         let mut groups: Vec<Vec<(usize, Owner, PreparedPackageBuild)>> = Vec::new();
         for (position, (owner, build)) in builds.into_iter().enumerate() {
@@ -81,6 +84,8 @@ impl CompilationSession {
                     for (position, owner, member) in members {
                         let (_, target, inputs, _, prepared) = member.into_continuation();
                         let mut application = source.clone();
+                        // The program and source custody are common; admission,
+                        // accounting and Build receipts belong to this member.
                         application.admission = prepared.built.admission;
                         let observed = match source
                             .computed_build_config
@@ -133,6 +138,9 @@ impl CompilationSession {
                 }
             }
         }
+        // Different source-admission groups can adopt the same publication.
+        // Finish the complete Source roster before any selected child starts
+        // Calling or publishes code, not merely the first group's members.
         for (position, owner, source, target, inputs) in applications {
             let prepared = capture_beside_publication(&source, target, &inputs);
             outcomes.push((
@@ -141,6 +149,8 @@ impl CompilationSession {
                 crate::execution_settlement::select_product_target(&source, prepared),
             ));
         }
+        // Cohorts finish together; restore the authored request order before
+        // attaching component products. The owner never separates from its result.
         outcomes.sort_unstable_by_key(|(position, _, _)| *position);
         let mut selected = Vec::with_capacity(outcomes.len());
         for (_, owner, mut outcome) in outcomes {
@@ -151,6 +161,13 @@ impl CompilationSession {
     }
 }
 
+/// Capture a target's declarations while the shared Product code publishes.
+///
+/// Both only read the checked source, and settlement would publish the code
+/// right after the capture anyway, so the two run together. Publication's
+/// result stays in the source's retained calling program and is consumed at
+/// the same settlement step as before, so a capture refusal still wins and
+/// diagnostics keep their order. Its timing rows join the target's own.
 fn capture_beside_publication(
     source: &compilation_products::CheckedProductSource,
     target: target::TargetProfile,
@@ -164,6 +181,7 @@ fn capture_beside_publication(
     let capture = || PreparedProductTarget::capture(source, Some(target), Some(inputs));
     let prepared = std::thread::scope(|scope| {
         let publish = super::checking::compile_thread::spawn_compile_worker(scope, || {
+            // The result is retained in the source; settlement reads it there.
             let _ = crate::terminal::retain_calling_program(source, &mut publication);
         });
         let prepared = capture();

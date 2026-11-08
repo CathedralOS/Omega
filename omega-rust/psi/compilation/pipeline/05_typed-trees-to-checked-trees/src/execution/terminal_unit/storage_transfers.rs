@@ -264,7 +264,7 @@ fn query_for_storage<'a>(
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
             *root == PlaceRoot::Symbol(*symbol)
         }
-        CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
+        CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression, .. } => {
             *root == PlaceRoot::Expression(*expression)
         }
         _ => false,
@@ -624,7 +624,7 @@ impl Query<'_> {
         if self.belongs(argument) {
             return Some(self.leaf(argument.path.clone(), receiver.destination(&[])));
         }
-        let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
+        let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression, .. } =
             argument.source
         else {
             return Some(Transfers::default());

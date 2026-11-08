@@ -1,10 +1,3 @@
-// Test-only constructor that builds a validated `BuildStagedOutputTree` from
-// explicit in-memory entries without touching the host filesystem.
-//
-// Entries must use canonical root-relative paths and list every parent
-// directory before its children; sibling order is normalized by sorting into
-// canonical byte order before computing the tree commitment.
-
 use super::BuildStagedOutputTree;
 use crate::materialization::{retained_native_path, validate_retained_tree};
 use crate::portable_paths::{canonical_symlink_target, reserve_path_bytes};
@@ -16,6 +9,12 @@ use diagnostics::Diagnostic;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+/// Explicit content for one canonical output namespace entry.
+///
+/// These values are not staged-tree authority. The constructor below validates
+/// the complete namespace and issues the private [`BuildStagedOutputTree`]
+/// carrier. Symbolic links carry only their exact link path and target
+/// spelling; construction grants them no filesystem authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OutputTreeEntry<'entry> {
     Directory {
@@ -72,6 +71,14 @@ enum NamespaceEntryKind {
     SymbolicLink,
 }
 
+/// Construct a complete output tree without accessing the host filesystem.
+///
+/// Entries use canonical root-relative paths. Every nested entry must follow
+/// its exact parent directory in the entry sequence; no directory is inferred.
+/// Siblings may appear in any order because the issued tree is sorted into
+/// canonical path order. Any exact path collision, including a directory/file
+/// collision, rejects. Entry, aggregate path, per-file, and unique-content byte
+/// ceilings are the same limits used by physical staged-output capture.
 pub(crate) fn from_entries(
     entries: &[OutputTreeEntry<'_>],
 ) -> Result<BuildStagedOutputTree, Vec<Diagnostic>> {

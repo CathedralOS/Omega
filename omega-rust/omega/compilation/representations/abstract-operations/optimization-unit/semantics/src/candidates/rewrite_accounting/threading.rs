@@ -110,13 +110,13 @@ pub(crate) fn reconstruct_linear_thread_accounting(
             predecessor_site,
             output_site,
             &predecessor_edge.provenance,
-            &predecessor_edge.work,
+            &predecessor_edge.fuel,
         ),
         provenance_realized_at(
             empty_site,
             output_site,
             &empty_edge.provenance,
-            &empty_edge.work,
+            &empty_edge.fuel,
         ),
     ];
     effect_audit(
@@ -160,12 +160,12 @@ pub(crate) fn reconstruct_path_thread_accounting(
                     machine: function.machine,
                     edge: edge.psi_edge,
                 };
-                realized.push(realized_at_own_site(site, &edge.provenance, &edge.work));
+                realized.push(realized_at_own_site(site, &edge.provenance, &edge.fuel));
                 realized.push(provenance_realized_at(
                     outgoing_site,
                     site,
                     &outgoing.provenance,
-                    &outgoing.work,
+                    &outgoing.fuel,
                 ));
             }
         }

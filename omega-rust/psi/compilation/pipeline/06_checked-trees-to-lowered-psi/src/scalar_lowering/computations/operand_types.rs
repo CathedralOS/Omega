@@ -53,10 +53,7 @@ pub(crate) fn type_requirements(
                         // its stored identity (a `[T]` view keeps its access
                         // ceiling). Keep both in the catalog even when no
                         // signature or local names the owner's storage type.
-                        if matches!(
-                            subject.source,
-                            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
-                        ) {
+                        if subject.source.structural_value_dependency().is_some() {
                             let owner = crate::expression_preparation::computation_graph::produced_value_root(
                                 checked, source_call.statement().ok_or(LoweringError::Unsupported("declaration call has no structural producer custody"))?, subject,
                             )?;

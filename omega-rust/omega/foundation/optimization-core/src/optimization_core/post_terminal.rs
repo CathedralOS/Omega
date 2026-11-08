@@ -1,27 +1,27 @@
-// Post-Terminal optimization selection vocabulary (`PostTerminalOptimizationSelections`)
-// and projection (`PostTerminalOptimizationSelectionProjection`).
-//
-// Sealed Terminal Psi artifacts have already executed `CheckedTrees` and `Psi`
-// optimizations prior to publication, so post-Terminal lowering accepts only
-// phases where `is_post_terminal()` holds while retaining `complete_selection`
-// and `complete_selections` for compiler-private custody verification.
-
 use super::{Optimization, OptimizationSelectionIdentity, OptimizationSelections};
 use std::fmt;
 
+/// Canonical selection vocabulary accepted after sealed Terminal Psi.
+///
+/// Earlier-phase names are unrepresentable at the native-lowering API rather
+/// than accepted through the global build vocabulary and rejected later.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PostTerminalOptimizationSelections {
-    pub(super) selected: OptimizationSelections, // Canonical subset restricted to post-Terminal phases.
+    pub(super) selected: OptimizationSelections,
 }
 
+/// Omega-owned projection containing only phases that execute after Terminal
+/// Psi has been published.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PostTerminalOptimizationSelectionProjection {
-    pub(super) complete_selection: OptimizationSelectionIdentity, // Digest of the full authored selection.
-    pub(super) complete_selections: OptimizationSelections, // Full authored selection retained for custody checks.
-    pub(super) selected: PostTerminalOptimizationSelections, // Post-Terminal phase subset consumed by native lowering.
+    pub(super) complete_selection: OptimizationSelectionIdentity,
+    pub(super) complete_selections: OptimizationSelections,
+    pub(super) selected: PostTerminalOptimizationSelections,
 }
 
 impl PostTerminalOptimizationSelectionProjection {
+    /// Retain the complete authored input for compiler-private recovery. The
+    /// phase subset alone cannot reconstruct the original selection identity.
     pub const fn complete_selections(&self) -> &OptimizationSelections {
         &self.complete_selections
     }

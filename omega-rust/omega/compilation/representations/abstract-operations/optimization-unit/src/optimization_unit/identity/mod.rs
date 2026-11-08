@@ -33,11 +33,11 @@ use terminal_psi::{
 };
 
 use crate::{
-    AcceptedObligationFact, EffectLink, OptimizationEdge, OptimizationFact, OptimizationNode,
-    OwnershipEvent, OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
-    ProofQuestion, ProofQuestionAdmissionKind, ProofQuestionClass, ProofQuestionOwner,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinition,
-    ValueDefinitionSite, ValueUse, WorkSettlement,
+    AcceptedObligationFact, EffectLink, FuelSettlement, OptimizationEdge, OptimizationFact,
+    OptimizationNode, OwnershipEvent, OwnershipFrontierFact, OwnershipFrontierSite,
+    OwnershipFrontierSnapshot, ProofQuestion, ProofQuestionAdmissionKind, ProofQuestionClass,
+    ProofQuestionOwner, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+    ValueDefinition, ValueDefinitionSite, ValueUse,
 };
 
 mod carrier_encoding;

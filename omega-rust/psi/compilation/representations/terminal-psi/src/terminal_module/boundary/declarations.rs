@@ -307,45 +307,12 @@ pub enum CheckedBoundaryExecution {
     /// Consume a live zero-cell run and return its existing vacant backing.
     /// This is a core custody operation, never a host-supplied completion.
     EmptyRunRelease,
-    StaticInterruptInstall,
-    StaticInterruptContext,
-    StaticInterruptBeginCompletion,
-    StaticInterruptFinishCompletion,
 }
 
 impl CheckedBoundaryExecution {
-    pub const fn static_interrupt_operation(
-        self,
-    ) -> Option<language_core::static_interrupts::StaticInterruptOperation> {
-        use language_core::static_interrupts::StaticInterruptOperation;
-        match self {
-            Self::StaticInterruptInstall => Some(StaticInterruptOperation::Install),
-            Self::StaticInterruptContext => Some(StaticInterruptOperation::Context),
-            Self::StaticInterruptBeginCompletion => Some(StaticInterruptOperation::BeginCompletion),
-            Self::StaticInterruptFinishCompletion => {
-                Some(StaticInterruptOperation::FinishCompletion)
-            }
-            Self::Provider
-            | Self::EmptyRunRelease
-            | Self::AccessInitialize
-            | Self::AccessMoveOut
-            | Self::AccessRelocate
-            | Self::AccessView => None,
-        }
-    }
-
-    pub const fn compiler_owned(self) -> bool {
-        !matches!(self, Self::Provider)
-    }
-
     pub const fn placement_operation(self) -> Option<crate::TerminalAccessLifecycleOperation> {
         match self {
-            Self::Provider
-            | Self::EmptyRunRelease
-            | Self::StaticInterruptInstall
-            | Self::StaticInterruptContext
-            | Self::StaticInterruptBeginCompletion
-            | Self::StaticInterruptFinishCompletion => None,
+            Self::Provider | Self::EmptyRunRelease => None,
             Self::AccessInitialize => Some(crate::TerminalAccessLifecycleOperation::Initialize),
             Self::AccessMoveOut => Some(crate::TerminalAccessLifecycleOperation::MoveOut),
             Self::AccessRelocate => Some(crate::TerminalAccessLifecycleOperation::Relocate),

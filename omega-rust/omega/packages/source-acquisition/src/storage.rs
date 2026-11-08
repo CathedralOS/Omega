@@ -1,5 +1,4 @@
-// Retained private directory custody (`RetainedStorageRoot` and
-// `RetainedStorageLane`) beneath `<cache_base>/CathedralOS/Omega/source/v1`.
+//! Retained private directory custody for ordinary source acquisition.
 
 use super::SourceResolveError;
 use super::custody::publication::{create_private_cache_directory, retain_private_cache_directory};
@@ -11,6 +10,7 @@ use std::path::{Path, PathBuf};
 
 const STORAGE_COMPONENTS: &[&str] = &["CathedralOS", "Omega", "source", "v1"];
 
+/// Retained directory custody for the resolver's private source root.
 #[derive(Debug)]
 pub(crate) struct RetainedStorageRoot {
     path: PathBuf,

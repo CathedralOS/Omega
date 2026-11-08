@@ -1,20 +1,8 @@
-/*
-Package command admission, staging, review reconciliation, and publication (`install`, `update`, `--resume`, and `--discard-review`).
-
-`PackageCommandTransaction` holds the project file transaction lock and review-file root
-across application-driven Build execution and target review passes. `prepare` stages the
-proposed `build.omg` edit into a private snapshot and retains any recovered proposal's
-exact root build-input selection so `--resume` never silently widens back to the full
-package inventory.
-*/
-
-/*
-`PreparedPackageCommand::complete` verifies that every requested target returned a review
-bound to this exact command admission before writing `proposal` or decision documents.
-When any required policy change remains unresolved or rejected, accepted project files
-stay untouched (`ReviewRequired`); once all changes are accepted, the build session closes
-before `publish_reviewed_package_change` commits `build.omg` and `omega.lock`.
-*/
+//! Package command admission and publication around application-owned work.
+//!
+//! [`PackageCommandTransaction`] retains file custody while application Build
+//! reviews the admitted target requests. Completing the command joins all
+//! findings before writing decisions or publishing the accepted pair.
 
 mod change_decisions;
 mod planning;
@@ -50,6 +38,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use target::TargetProfile;
 
+/// Keep the publication lock and review-file root alive across compiler work.
+/// No compiler work or resource grant is created by opening this transaction.
 pub struct PackageCommandTransaction {
     transaction: PackageFileTransaction,
     files: RecordFileRoot,
@@ -72,6 +62,8 @@ impl PackageCommandTransaction {
         })
     }
 
+    /// Stage one install/update/resume before executing its Build. The returned
+    /// preparation retains transaction custody across source discovery and review.
     pub fn prepare<'workspace, 'storage>(
         &'workspace mut self,
         command: PackageCommand,
@@ -195,6 +187,9 @@ impl PackageCommandTransaction {
             replacement,
             updates,
         } = plan;
+        // Resuming repeats fresh capture and checking, but it must not silently
+        // fall back to the complete package inventory. Proposal data retains the
+        // caller's selection, not a completed build or an acceptance grant.
         let build_inputs = recovered
             .as_ref()
             .map_or(build_inputs, |proposal| proposal.build_inputs.clone());
@@ -297,6 +292,8 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
         }
     }
 
+    /// Join only this staged candidate's executed graph. Saved proposals retain
+    /// their exact source graph; a fresh execution cannot silently replace it.
     pub fn complete_source_resolution(
         self,
         resolved: ResolvedBuildSources,
@@ -368,6 +365,9 @@ impl CommandStorage<'_> {
     }
 }
 
+/// An admitted command with source and file custody retained through review.
+/// Private fields prevent callers from replacing its accepted baseline or
+/// proposal while compiler work is in flight.
 pub struct PackageCommandPreparation<'workspace, 'storage> {
     identity: Arc<CommandReviewIdentity>,
     transaction: &'workspace mut PackageFileTransaction,
@@ -396,6 +396,8 @@ pub struct PreparedPackageCommand<'workspace, 'storage> {
     proposal: Option<PendingPackageChange>,
 }
 
+/// One target's exact review inputs. This is work to perform, not a policy
+/// decision or permission to publish a lock.
 pub struct PackageCommandReviewRequest<'request> {
     identity: &'request Arc<CommandReviewIdentity>,
     source_closure: &'request ResolvedPackageSourceClosure,
@@ -404,14 +406,21 @@ pub struct PackageCommandReviewRequest<'request> {
     build_snapshot: Option<&'request package_compilation::BuildSnapshotRequest>,
 }
 
+/// Compiler findings joined to the admitted candidate's policy baseline.
 pub struct PackageCommandReview {
     identity: Arc<CommandReviewIdentity>,
     review: PackageChangeReview,
 }
 
+/// In-process identity of this exact admission, including its baseline and
+/// selected inputs. Review receipts share this owner, not a reconstructed key
+/// that could accidentally omit part of the command's policy context.
 struct CommandReviewIdentity;
 
 impl PackageCommandReviewRequest<'_> {
+    /// Run the existing review policy passes for this admitted target. The
+    /// application's work loop owns when to request each target; discovery,
+    /// comparison and the lower-level occurrence loop remain package-owned.
     pub fn review(
         self,
         session: &mut PackageBuildSession,
@@ -457,6 +466,10 @@ impl PreparedPackageCommand<'_, '_> {
             })
     }
 
+    /// Reconcile the complete requested roster before touching decision files.
+    /// Missing, reordered, duplicate or another command's findings cannot publish.
+    /// Pending review leaves the invocation sponsor open; acceptance closes
+    /// staging before the accepted project files change.
     pub fn complete(
         self,
         reviews: Vec<PackageCommandReview>,
@@ -523,6 +536,8 @@ impl PreparedPackageCommand<'_, '_> {
             acquisition,
         )?);
         if let Some(text) = proposal_text {
+            // Publish the proposal only after every target's findings are present.
+            // It is review state, never the accepted pair's commit intent.
             write_proposal(files, &text)?;
             pending_file = read(files, PROPOSAL)?;
         }
@@ -544,6 +559,8 @@ impl PreparedPackageCommand<'_, '_> {
             .iter()
             .zip(choices.resolutions.iter())
             .collect::<Vec<_>>();
+        // No authored execution follows this point. Refuse cleanup failure before
+        // accepted files change, rather than discovering it after publication.
         session.close().map_err(failure)?;
         let published = publish_reviewed_package_change(
             transaction,
@@ -571,6 +588,8 @@ impl PreparedPackageCommand<'_, '_> {
     }
 }
 
+/// Recover publication state and discard a pending proposal without acquiring
+/// resolver storage or a Build session.
 pub fn discard_package_review(
     project_root: &Path,
 ) -> Result<PackageCommandOutcome, PackageCommandError> {
@@ -630,7 +649,8 @@ pub enum PackageCommand {
         source: String,
         revision: Option<String>,
         alias: Option<String>,
-        package: Option<String>, // declared Git workspace package name; absence selects the root
+        /// Declared Git workspace package name; absence selects the root.
+        package: Option<String>,
     },
     Update {
         packages: Vec<String>,
@@ -645,9 +665,14 @@ pub enum PackageCommand {
 #[derive(Debug, Clone)]
 pub struct PackageCommandOptions {
     pub project_root: PathBuf,
-    pub targets: Vec<TargetProfile>, // explicit targets augment every previously accepted target
-    pub offline: bool, // use cached recorded Git pins only; never fetch or refresh a selector
-    pub build_inputs: Option<package_compilation::BuildSourceCaptureRequest>, // root-only immutable input selection for a new install/update
+    /// Explicit targets augment every previously accepted target. Empty uses
+    /// existing targets, or the compiler's default target on first admission.
+    pub targets: Vec<TargetProfile>,
+    /// Use cached recorded Git pins only; never fetch or refresh a selector.
+    pub offline: bool,
+    /// Root-only immutable input selection for a new install/update. Resume
+    /// uses the pending proposal's selection; it cannot override it.
+    pub build_inputs: Option<package_compilation::BuildSourceCaptureRequest>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

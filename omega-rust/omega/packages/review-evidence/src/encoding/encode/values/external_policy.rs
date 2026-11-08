@@ -1,6 +1,4 @@
-// Canonical receipt-free external-supply policy encoding, independent of review rows.
-// Enclosing privately constructed baselines validate `validated_value` inputs before encoding.
-// Tag `0` on external bindings carried the retired string-backed import row; recovery rejects it by name and no policy produces it again.
+//! Canonical receipt-free external-supply policy, independent of review rows.
 
 mod locator;
 mod signatures;
@@ -31,6 +29,7 @@ pub(in crate::encoding::encode) fn policy(
     validated_value(encoder, supply)
 }
 
+/// An enclosing, privately constructed baseline already validated this value.
 pub(in crate::encoding::encode) fn validated_value(
     encoder: &mut Encoder,
     supply: &PackagePolicyExternalExecutableSupply,
@@ -44,6 +43,8 @@ pub(in crate::encoding::encode) fn validated_value(
     encoder.field_by("signature", &supply.signature, signatures::signature)?;
     encoder.field_by("requirement", &supply.requirement, signatures::requirement)?;
     encoder.field("binding", |encoder| {
+        // Tag 0 carried the retired string-backed import row; recovery
+        // rejects it by name and no policy produces it again.
         match &supply.binding {
             PackagePolicyExternalBinding::Syscall { number } => {
                 encoder.tag("syscall", 1);

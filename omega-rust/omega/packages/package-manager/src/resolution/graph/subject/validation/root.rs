@@ -1,8 +1,3 @@
-// We project and validate canonical root source requests, ensuring the closure
-// root is not a workspace catalog and that its Git, workspace-member, or
-// external-local request agrees with the selected source identity and package
-// navigation.
-
 use super::super::usage::Budget;
 use super::super::{
     CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubjectError,

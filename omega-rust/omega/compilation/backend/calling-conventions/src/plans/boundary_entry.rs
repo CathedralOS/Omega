@@ -79,9 +79,9 @@ impl ValidatedBoundaryEntryPlan {
 
 /// Concrete state policy for ordinary call/return entries, including hosted
 /// process roots and firmware handoffs. No interrupted activation exists, so
-/// the entry stub owes no save/restore; its transitive state ceiling includes
-/// the ABI's ordinary volatile registers and condition flags, plus the stack
-/// and instruction-pointer use of real frame/call/return transport.
+/// the entry stub owes no save/restore; its transitive state ceiling is exactly
+/// the machine-state classes touched by the ABI's ordinary volatile registers
+/// plus its caller-volatile condition flags.
 pub fn evaluate_ordinary_boundary_entry_plan(
     policy: CallingPolicy,
     signature: &CallSignature,
@@ -100,12 +100,8 @@ fn evaluate_ordinary_boundary_entry_plan_from_call(
     call: CallPlan,
     signature: &CallSignature,
 ) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
-    let permitted_transitive_use =
-        machine_state_for_registers(&call.ordinary_clobbers).union(MachineStateSet::new([
-            MachineState::Flags,
-            MachineState::InstructionPointer,
-            MachineState::StackPointer,
-        ]));
+    let permitted_transitive_use = machine_state_for_registers(&call.ordinary_clobbers)
+        .union(MachineStateSet::new([MachineState::Flags]));
     let initial_regime = match call.policy.architecture() {
         Architecture::X86_64 => MachineRegime::X86Long64,
         Architecture::Aarch64 => MachineRegime::Aarch64A64 { exception_level: 0 },

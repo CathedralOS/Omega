@@ -1,6 +1,3 @@
-// Public proposition declaration projection (`project_public_propositions`)
-// covering primitive, witness, and transparent proposition bodies.
-
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::facts::ContractProjectionContext;

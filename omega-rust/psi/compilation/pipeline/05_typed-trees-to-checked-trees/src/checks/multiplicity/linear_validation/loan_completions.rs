@@ -5,7 +5,7 @@
 //! actual stored case guards select its live subset during execution.
 
 use super::super::linear_obligations::{ClaimIdentityAllocator, LinearPlace};
-use checked_trees::{FlowCallFact, FlowLoanCompletionFact, FlowPermissionEventFact};
+use checked_trees::{CheckFacts, FlowCallFact, FlowLoanCompletionFact, FlowPermissionEventFact};
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
 };
@@ -13,7 +13,7 @@ use symbols::SymbolHandle;
 
 pub(crate) fn regions_for_calls(
     program: &dyn validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     calls: &[FlowCallFact],
@@ -56,7 +56,7 @@ pub(crate) fn regions_for_calls(
                 program,
                 machine,
                 state,
-                Some(facts.borrow),
+                Some(&facts.borrow),
                 &borrowed,
                 frames,
             )
@@ -74,7 +74,7 @@ pub(crate) fn regions_for_calls(
                 program,
                 machine,
                 state,
-                facts.borrow,
+                &facts.borrow,
                 &borrowed,
                 summaries,
                 frames,
@@ -150,7 +150,7 @@ pub(crate) fn regions_for_calls(
 
 pub(crate) fn restore(
     program: &dyn validation::CheckingInput,
-    facts: &mut checked_trees::CheckFactsWalk<'_>,
+    facts: &mut CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     source: PermissionEventSource,

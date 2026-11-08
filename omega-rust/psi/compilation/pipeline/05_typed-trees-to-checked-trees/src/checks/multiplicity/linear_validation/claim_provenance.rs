@@ -9,6 +9,7 @@ use crate::checks::multiplicity::type_multiplicity::{
 };
 use crate::flow::{assignment_preserves_reference_binding, expressions};
 use crate::shared::collections::push_unique;
+use checked_trees::CheckFacts;
 use checked_trees::FlowPermissionEvaluation;
 use facts::PlaceRoot;
 use facts::PlaceSegment;
@@ -56,7 +57,7 @@ pub(crate) fn completed_statement_values(
 /// without rediscovering an initializer or replaying its expression.
 pub(crate) fn completed_receiving_values(
     program: &dyn ::validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,

@@ -494,6 +494,12 @@ pub(crate) fn lower_unit_closure(
                 reason,
                 gap: None,
             },
+            LoweringError::InvalidArgumentProjection(mut failure) => {
+                failure
+                    .machine
+                    .get_or_insert_with(|| checked.symbols.display_path(plan.machine, "::"));
+                LoweringError::InvalidArgumentProjection(failure)
+            }
             error => error,
         };
         let parameters = &signature.parameters;
@@ -704,7 +710,6 @@ pub(crate) fn lower_unit_closure(
             indexed_theorems,
             mathematical_carriers,
             callback_applications: Vec::new(),
-            installed_interrupt_registrations: Vec::new(),
             boundary_application_candidates: Vec::new(),
             boundary_application_demands: Vec::new(),
             scalar_qualifications,

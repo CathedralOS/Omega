@@ -1,9 +1,8 @@
-// Construction and validation of `PackageCompilationInputs`: canonicalizes
-// physical source roots, mounts captured source namespaces into
-// `SourceFileSystem`, enforces snake_case package names and aliases, rejects
-// non-root build dependencies, overlapping roots, unreachable packages, and
-// dependency cycles, and revalidates root/toolchain disjointness before
-// compilation.
+//! Reconcile package bindings and mount their acquired source namespaces.
+//!
+//! Invalid roots, names, aliases, edges and cycles reject at construction.
+//! Captured roots are mounted lexically without reopening the checkout;
+//! physical adapters retain their own source-root validity checks.
 
 use super::dependency_graph::dependency_cycle;
 use super::{
@@ -50,6 +49,9 @@ impl PackageCompilationInputs {
                     name: package.canonical_name.clone(),
                 });
             }
+            // Acquired bytes may belong to any package. Only the selected root
+            // exposes their metadata through this invocation's Build::Source.
+            // Explicit root metadata on a foreign binding still refuses above.
             let canonical_source_metadata = if package.identity == root {
                 package.canonical_source_metadata().cloned()
             } else {
@@ -137,6 +139,10 @@ impl PackageCompilationInputs {
             let aliases = match dependency.purpose {
                 DependencyPurpose::Product => &mut requester.dependencies,
                 DependencyPurpose::Build => {
+                    // Only this compilation's root executes a build entry:
+                    // dependency build files never join the program, so a
+                    // non-root build edge would name authority no source here
+                    // could exercise. Reject it rather than retain a lie.
                     if dependency.requester != root {
                         errors.push(PackageCompilationInputError::NonRootBuildDependency {
                             requester: dependency.requester,
@@ -159,6 +165,11 @@ impl PackageCompilationInputs {
         }
 
         if canonical_packages.contains_key(&root) {
+            // The root's build entry may import build-scope packages, so its
+            // build edges reach those snapshots and their product closures.
+            // Every other package contributes product edges only: a
+            // dependency's build context resolves in its own compilation,
+            // where it is the root.
             let mut reachable = BTreeSet::new();
             let mut pending = vec![root];
             while let Some(identity) = pending.pop() {
@@ -216,6 +227,8 @@ impl PackageCompilationInputs {
         }
     }
 
+    /// Construct an ordinary package compilation explicitly. Application
+    /// roots must use [`Self::new`] with their retained authored role.
     pub fn new_package(
         root: PackageKeyIdentity,
         packages: Vec<PackageSourceBinding>,
@@ -301,8 +314,17 @@ pub(super) fn append_overlapping_source_roots(
 ) {
     let mut overlaps = Vec::new();
     for (root, identity) in roots {
+        // Canonical roots are absolute. Path ancestors preserve component and
+        // platform-prefix semantics without confusing `a` with sibling `a-b`.
+        // Only actual ancestor roots can overlap; disjoint pairs are not visited.
         for ancestor in root.ancestors().skip(1) {
             if let Some((ancestor_root, ancestor_identity)) = roots.get_key_value(ancestor) {
+                // In-memory acquisition retains the authored routing roots. A
+                // dependency may live inside its requester's directory, but
+                // mounting it must not replace any captured observation. The
+                // exact subtree comparison includes absent entries, link data
+                // and executable flags. Physical or differing roots still
+                // overlap ambiguously and reject below.
                 if let (Some(parent), Some(child)) = (
                     packages[ancestor_identity].captured_source.as_ref(),
                     packages[identity].captured_source.as_ref(),
@@ -318,6 +340,7 @@ pub(super) fn append_overlapping_source_roots(
             }
         }
     }
+    // Keep the prior pairwise diagnostic order, independent of discovery order.
     overlaps.sort_unstable_by_key(|(first, second, _, _)| (*first, *second));
     errors.extend(
         overlaps
@@ -333,6 +356,7 @@ pub(super) fn append_overlapping_source_roots(
     );
 }
 
+/// A nested mount must preserve every captured observation, including absence.
 fn captured_subtree_matches(
     parent: &source::CapturedSourceTree,
     relative: &Path,

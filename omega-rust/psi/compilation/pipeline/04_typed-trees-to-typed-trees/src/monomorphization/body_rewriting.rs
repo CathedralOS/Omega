@@ -395,6 +395,7 @@ fn realize_operand(program: &mut TypedTrees, plan: OperandPlan) -> ExpressionHan
             let capture = expressions_of_mut(program).insert_call_operand_capture(source, owner);
             let receiver = expressions_of_mut(program).insert(ExpressionNode::SavedSubject(
                 TableSavedSubject {
+                    component: Default::default(),
                     capture,
                     pattern_head: ExpressionHandle::invalid(),
                 },

@@ -4,6 +4,7 @@ use crate::checks::multiplicity::linear_obligations::type_reference_is_reference
 use crate::checks::multiplicity::linear_validation::event_statement_index;
 use crate::checks::multiplicity::linear_validation::permission_source;
 use crate::checks::type_multiplicity;
+use checked_trees::CheckFacts;
 use checked_trees::FlowPermissionEventFact;
 use language_semantics::Multiplicity;
 use language_semantics::PermissionAccess;
@@ -16,7 +17,7 @@ use typed_trees::types::TypeReferenceNode;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_transfer(
     program: &dyn ::validation::CheckingInput,
-    _facts: checked_trees::CheckFactsRef<'_>,
+    _facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     event: &crate::flow::DiscoveredMoveEvent,

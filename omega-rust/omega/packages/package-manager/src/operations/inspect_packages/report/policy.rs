@@ -1,4 +1,4 @@
-// Summary rendering of typed compiler policy findings for `omega packages`, leaving canonical policy syntax to `package-evidence`.
+//! Summary of typed findings. Evidence alone owns canonical policy syntax.
 
 use super::{CanonicalSourceClosureSubject, Name, Output};
 use package_evidence::record::{
@@ -120,6 +120,7 @@ pub(super) fn render(
     )?;
     for supply in policy.external_supplies() {
         writeln!(output, "    external {}", names.name(supply.callable()))?;
+        // The typed binding retains exact destinations; Debug escapes its strings.
         writeln!(output, "    binding {:?}", supply.binding())?;
     }
     names.providers(output, policy.selected_providers())?;

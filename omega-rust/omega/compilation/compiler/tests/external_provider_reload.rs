@@ -113,7 +113,6 @@ fn reload(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTermina
         proposal.target_provider_proposals(),
         &request,
         &permissions,
-        &[],
     )
     .expect("persist native derivation inputs");
     let artifact = Arc::new(
@@ -124,10 +123,9 @@ fn reload(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTermina
     drop(selection);
     drop(checked);
     drop(session);
-    let (recovered, recovered_permissions, installation_assumptions) =
+    let (recovered, recovered_permissions) =
         terminal_psi_to_abstract_operations::recover_native_derivation_inputs(artifact, &bytes)
             .expect("recover native inputs without source");
-    assert!(installation_assumptions.is_empty());
     assert_eq!(recovered_permissions, permissions);
     assert_eq!(recovered, retained);
     let proposal = recovered.native_realization_proposal().unwrap();

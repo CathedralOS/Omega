@@ -101,16 +101,10 @@ impl Execution<'_, '_, '_> {
                 ) else {
                     return Vec::new();
                 };
-                let selectors = self.known_dynamic_selectors(parameters, inputs);
-                let effects = if selectors.is_empty() {
-                    self.context
-                        .stored_reference_effects(machine, state, &indices)
-                } else {
-                    self.context.stored_reference_effects_for_selectors(
-                        machine, state, &indices, &selectors,
-                    )
-                };
-                let Some(effects) = effects else {
+                let Some(effects) = self
+                    .context
+                    .stored_reference_effects(machine, state, &indices)
+                else {
                     return Vec::new();
                 };
                 (parameters, effects)

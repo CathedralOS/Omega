@@ -119,13 +119,10 @@ pub(super) fn check(
                                 &source_row.provenance.edges,
                             )?;
                         }
-                        target_operations::CallSiteOwner::Installation { operation, .. }
-                            if source_row.provenance.operations.as_slice() == [operation]
-                                && source_row.provenance.edges.is_empty() => {}
                         target_operations::CallSiteOwner::CleanupAction { edge, .. }
                             if source_row.provenance.operations.is_empty()
                                 && source_row.provenance.edges.as_slice() == [edge]
-                                && source_row.provenance.work.is_empty() => {}
+                                && source_row.provenance.fuel.is_empty() => {}
                         _ => return Err(TextPlacementError::SourceShapeMismatch),
                     }
                     let candidate = resolutions

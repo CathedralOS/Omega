@@ -39,8 +39,7 @@ pub(super) fn result(
                 callee,
                 ..
             } if installed_boundary.is_none()
-                && contract.owner
-                    == target_operations::CallSiteOwner::Operation(*psi_operation)
+                && Some(*psi_operation) == contract.owner.operation()
                 && source::call_target_matches(*callee, contract.call.target) =>
             {
                 Some(*result)
@@ -51,8 +50,7 @@ pub(super) fn result(
                 boundary,
                 ..
             } if installed_boundary == Some(*boundary)
-                && contract.owner
-                    == target_operations::CallSiteOwner::Operation(*psi_operation) =>
+                && Some(*psi_operation) == contract.owner.operation() =>
             {
                 Some(*result)
             }

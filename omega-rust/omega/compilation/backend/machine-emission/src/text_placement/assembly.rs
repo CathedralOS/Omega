@@ -51,7 +51,7 @@ fn manifest(
         source_realization: source_manifest.source_realization,
         selections: source_manifest.selections,
         psi: source_manifest.psi,
-        work_schedule: source_manifest.work_schedule,
+        fuel_schedule: source_manifest.fuel_schedule,
         selected: source_manifest.selected,
         post_allocation_manifest: source_manifest.post_allocation_manifest,
         post_allocation_machine: source_manifest.post_allocation_machine,

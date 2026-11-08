@@ -1,5 +1,3 @@
-// Canonical encoding for contract static arguments (types, generic binders, constants, machines, and conformances).
-
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::values::expressions::Encoder;
 use crate::encoding::encode::values::expressions::encode_type_identity;

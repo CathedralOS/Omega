@@ -1,8 +1,8 @@
-// We sequence the two Build activations (`State::Defaults` followed by
-// `State::Root`) for a single source request (`SourceBuild`). The captured
-// bundled `core` companion completes its default provider inventory first in an
-// isolated `SourcePreparation` before `advance` prepares the root application
-// or package Build invocation with those `CompletedProviderDefaults`.
+//! Sequential Build activations for one source request.
+//!
+//! The captured core companion returns its own completed default inventory before
+//! the application companion is prepared. Both use the same admitted invocation
+//! and application executor; supplier completion cannot replace root authority.
 
 use super::{
     ProductQueries, build_continuation, prepare_build_source_invocation, prepare_checked_source,
@@ -12,6 +12,8 @@ use diagnostics::Diagnostic;
 use package_compilation::{CompletedProviderDefaults, PackageCompilationInputs};
 use std::path::Path;
 
+/// An actual activation return either prepares the next companion or completes
+/// this source's Build sequence. The final return remains paired with its owner.
 pub enum BuildAdvance {
     Continue,
     Complete(Result<Option<build_settings::ReturnedBuild>, CompileFailure>),
@@ -47,6 +49,7 @@ enum State {
         invocation: Box<build_continuation::BuildSourceInvocation>,
         defaults: CompletedProviderDefaults,
     },
+    // A refused advancement consumes its activation; it cannot be replayed.
     Refused,
 }
 
@@ -60,6 +63,9 @@ impl SourceBuild {
         child.admit_package_inputs()?;
         let core_root = package_compilation::source_imports::bundled_core_root()?;
         let capture = package_compilation::capture_anonymous_compilation_source(&core_root)?;
+        // The supplier is an independent source invocation. Its coordinates and
+        // retained frontends must not include the requesting application's
+        // earlier declarations; completed choices rejoin by captured anchors.
         let core_source = prepare_checked_source(
             &core_root,
             None,

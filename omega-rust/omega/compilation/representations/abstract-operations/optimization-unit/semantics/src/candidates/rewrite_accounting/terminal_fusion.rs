@@ -32,15 +32,15 @@ pub(crate) fn reconstruct_shared_terminal_fusion_accounting(
             input_edge,
             output_clone,
             &incoming.provenance,
-            &incoming.work,
+            &incoming.fuel,
         ),
         provenance_realized_at(
             input_terminal,
             output_clone,
             &terminal.provenance,
-            &terminal.work,
+            &terminal.fuel,
         ),
-        realized_at_own_site(input_terminal, &terminal.provenance, &terminal.work),
+        realized_at_own_site(input_terminal, &terminal.provenance, &terminal.fuel),
     ];
     canonicalize_provenance(&mut provenance);
     let mut blocks = vec![patch.predecessor.block, patch.target];

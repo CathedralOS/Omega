@@ -1,5 +1,4 @@
-// Callable surface review, boundary operator/requirement projection, checked
-// realization, and external supply capture.
+//! Callable review, checked realization, and external supply.
 
 mod boundary_operators;
 mod boundary_requirements;

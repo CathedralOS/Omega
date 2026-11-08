@@ -1,5 +1,4 @@
-// Bounded length-framed encoding and recovery for exact accepted compilation inputs.
-// Every retained string during recovery is a disjoint slice of the input section, so the entire section length is charged against the owned-byte budget upfront before charging each vector allocation.
+//! Bounded, exact accepted compilation inputs, separate from review snapshots.
 
 use super::{
     MAXIMUM_POLICY_TEXT_BYTES,
@@ -84,6 +83,8 @@ pub(super) fn read(
     context: PackageCheckedContext,
     budget: &mut Budget,
 ) -> Result<AcceptedPackageCompilation, Error> {
+    // Every retained string is a disjoint slice of this input. Charge the
+    // entire input before retaining strings, then charge every vector below.
     budget.owned(text.len())?;
     let mut reader = Reader::new(text);
     let compiler = digest(reader.field("compiler")?).map_err(|_| Error::CompilerIdentity)?;
@@ -247,6 +248,8 @@ mod tests {
         )
     }
 
+    /// A compilation record names exactly one occurrence: a different package,
+    /// purpose, target or execution profile must refuse to decode it.
     fn refuses_occurrence(text: &str, key: PackageKeyIdentity, context: PackageCheckedContext) {
         let mut budget = Budget::new(PackageLockRecoveryLimits::default());
         assert_eq!(
@@ -323,7 +326,7 @@ mod tests {
     fn compilation_decode_counts_and_storage_are_aggregate_and_bounded() {
         let text = write(&sample(), package(), context()).unwrap();
         let mut limits = PackageLockRecoveryLimits {
-            maximum_policy_elements: 4,
+            maximum_policy_elements: 4, // two bindings, one permission, one class
             ..Default::default()
         };
         let mut budget = Budget::new(limits);

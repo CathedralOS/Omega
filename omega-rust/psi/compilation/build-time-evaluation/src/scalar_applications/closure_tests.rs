@@ -109,7 +109,7 @@ fn scalar_closure_does_not_admit_unchecked_entries_as_roots_or_callees() {
         &mut observations,
         "macos_arm64",
         &[application(7)],
-        &mut WorkMeter::unbounded(),
+        &mut TerminalFuelMeter::unbounded(),
     )
     .err()
     .expect("a helper's false prerequisite must refuse before it runs");
@@ -299,7 +299,7 @@ fn scalar_closure_supplies_resolved_extent_to_ordinary_entry_storage() {
         if count == 16 {
             let result = instance
                 .unwrap()
-                .invoke(&mut WorkMeter::unbounded())
+                .invoke(&mut TerminalFuelMeter::unbounded())
                 .unwrap();
             assert!(
                 matches!(result, TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(value)) if value == integer(24))
@@ -335,7 +335,7 @@ fn scalar_closure_admits_ordinary_execution_after_complete_checking() {
             &mut observations,
             target,
             &[application(5)],
-            &mut WorkMeter::unbounded(),
+            &mut TerminalFuelMeter::unbounded(),
         )
         .unwrap();
         let mut closure = ScalarApplicationClosure::new(artifact.view(), target);
@@ -407,7 +407,9 @@ fn scalar_closure_admits_ordinary_execution_after_complete_checking() {
                     ..Default::default()
                 })
                 .unwrap();
-            let result = instance.invoke(&mut WorkMeter::unbounded()).unwrap();
+            let result = instance
+                .invoke(&mut TerminalFuelMeter::unbounded())
+                .unwrap();
             assert!(
                 matches!(result, TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(value)) if value == integer(24))
             );
@@ -520,7 +522,7 @@ fn scalar_closure_refuses_false_debt_and_does_not_drop_evaluated_entry_condition
             &mut observations,
             "macos_arm64",
             &[application(5)],
-            &mut WorkMeter::unbounded(),
+            &mut TerminalFuelMeter::unbounded(),
         )
         .err()
         .expect("the completed entry's false result predicate must reject");

@@ -66,7 +66,7 @@ impl<'facts> PreparedDescriptorLoadSlots<'facts> {
 
     pub fn for_state(
         program: &dyn crate::CheckingInput,
-        facts: checked_trees::CheckFactsRef<'facts>,
+        facts: &'facts CheckFacts,
         state: &checked_trees::FlowStateFact,
     ) -> Self {
         let slots = facts
@@ -107,7 +107,7 @@ impl<'facts> PreparedDescriptorLoadSlots<'facts> {
                 .activations
                 .span_or_empty(state.borrow_activations)
             {
-                let Some((identity, _)) = matching_load(facts.view(), state, activation) else {
+                let Some((identity, _)) = matching_load(facts, state, activation) else {
                     continue;
                 };
                 let Some(slot) = slot_index(identity).and_then(|index| activations.get_mut(index))
@@ -147,7 +147,7 @@ impl<'facts> PreparedDescriptorLoadSlots<'facts> {
                         return Err("the incoming pointer has no actual load activation");
                     }
                 };
-                completed_slot(program, facts.view(), state, expression, activation)
+                completed_slot(program, facts, state, expression, activation)
             })();
             slots[index] = Some(PreparedSlot { identity, answer });
         }
@@ -190,7 +190,7 @@ impl<'facts> PreparedDescriptorLoadSlots<'facts> {
 // rebuild a source on lookup. No global incoming rows or arena capacity are read.
 fn state_slots(
     program: &dyn crate::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     state: &checked_trees::FlowStateFact,
 ) -> Vec<PreparedSlot> {
     let mut activations = facts
@@ -220,7 +220,7 @@ fn state_slots(
 }
 
 fn matching_load(
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     state: &checked_trees::FlowStateFact,
     activation: &FlowBorrowActivationFact,
 ) -> Option<(
@@ -246,7 +246,7 @@ fn matching_load(
 
 fn completed_slot(
     program: &dyn crate::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     state: &checked_trees::FlowStateFact,
     expression: typed_trees::expression::ExpressionHandle,
     activation: &FlowBorrowActivationFact,

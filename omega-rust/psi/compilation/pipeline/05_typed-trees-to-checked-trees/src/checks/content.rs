@@ -558,19 +558,21 @@ pub(crate) fn prepare_retained_content_custody(
     Ok(facts.qualifications.content)
 }
 
-/// The retained borrow custodies the declarations admit, or every diagnostic.
-/// It only reads the facts; the caller publishes the rows, and clears them on
-/// failure.
 pub(crate) fn check_retained_content_custody(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-) -> Result<Vec<checked_trees::RetainedBorrowCustodyFact>, Vec<Diagnostic>> {
+    facts: &mut CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     call_ancestry::check_used_calls(program, facts, &mut diagnostics);
     call_results::check_call_result_qualifications(program, facts, &mut diagnostics);
     if facts.qualifications.content.plans.is_empty() {
+        facts
+            .qualifications
+            .content
+            .retained_borrow_custodies
+            .clear();
         return if diagnostics.is_empty() {
-            Ok(Vec::new())
+            Ok(())
         } else {
             Err(diagnostics)
         };
@@ -646,8 +648,14 @@ pub(crate) fn check_retained_content_custody(
     if diagnostics.is_empty() {
         // Repeat the declaration judgment with the admitted retention frontier:
         // a retained input can no longer masquerade as independent owned supply.
-        Ok(retained_borrow_custodies)
+        facts.qualifications.content.retained_borrow_custodies = retained_borrow_custodies;
+        Ok(())
     } else {
+        facts
+            .qualifications
+            .content
+            .retained_borrow_custodies
+            .clear();
         Err(diagnostics)
     }
 }

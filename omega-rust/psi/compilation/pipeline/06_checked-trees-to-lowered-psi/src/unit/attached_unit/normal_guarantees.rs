@@ -60,21 +60,24 @@ pub(crate) fn lower(
     // established the complete normal-return contract.
     // Returning execution restores the declared domain of every exclusive
     // loan: the declaration predicate roster's restored rows follow the
-    // authored guarantees as the same kind of obligation. Checking derived
-    // them once from the entry parameters' declared storage and carries them
-    // on the contract plan; they are not read from a package.
+    // authored guarantees as the same kind of obligation, rederived from the
+    // entry parameters' declared storage rather than read from a package.
     let guarantees = contracts::projected_guarantees(contract.closed_scalar_values.ensures())
         .cloned()
         .collect::<Vec<_>>();
-    let restored_guarantees = contract
-        .restored_declaration_predicates
-        .iter()
-        .map(|predicate| {
-            Some(checked_trees::ClosedScalarContractValue::Predicate(
-                predicate.clone(),
-            ))
-        })
-        .collect::<Vec<_>>();
+    let restored_guarantees = validation::machine_declaration_predicates(
+        &checked.typed,
+        &checked.facts.operators,
+        source,
+    )
+    .into_iter()
+    .filter(|row| row.restored_on_return)
+    .map(|row| {
+        Some(checked_trees::ClosedScalarContractValue::Predicate(
+            row.predicate,
+        ))
+    })
+    .collect::<Vec<_>>();
     let mut namespace = parameters.to_vec();
     namespace.extend(result.scalar());
     // The result observation has a distinct structural identity; returning an

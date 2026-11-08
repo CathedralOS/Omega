@@ -1,4 +1,4 @@
-// Target-independent source signature of a selected service application.
+//! Target-independent source signature of a selected service application.
 
 use crate::record::accessors::field_projection_accessors;
 use crate::record::package::callable_policy::validation::signature::Scope;

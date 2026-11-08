@@ -1,9 +1,10 @@
-// We choose semantic helpers over the shared Terminal invocation graph for
-// calling-policy evaluation (`CallingPolicyProviderInputs`). Calling uses
-// neutral contracts because its ABI result does not yet exist; the ordinary
-// canonical selector closes exact invocation demand through selected providers
-// (`BuildOverride` or `TargetDefault`) without retaining Source body
-// substitutions or a second helper-selection map.
+//! Choose semantic helpers over the shared Terminal invocation graph.
+//!
+//! Calling uses neutral contracts: its ABI result does not yet exist. The
+//! ordinary canonical selector closes exact invocation demand through selected
+//! providers. Invocation admission consumes the same canonical selected graph;
+//! no Source body substitutions or second helper-selection map are retained.
+//! Neutral commitments never become final native calling identities.
 
 use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
@@ -18,6 +19,8 @@ pub struct CallingPolicyProviderInputs<'program> {
     pub exact_toolchain_sources: &'program [(source::SourceId, [u8; 32])],
 }
 
+/// Close each profile's neutral candidates once. Results remain descriptive and
+/// target-local; neither unused candidates nor unsupported siblings fail publication.
 pub(super) fn prepare(
     services: ServiceCatalog<'_>,
     inputs: &CallingPolicyProviderInputs<'_>,
@@ -64,6 +67,8 @@ fn prepare_target(
     .map(|prepared| prepared.without_correspondence())
 }
 
+/// Choose helpers from the owned candidates using actual canonical invocation
+/// demand, never the Product choice whose ABI these policies are still computing.
 pub(super) fn select(
     target: target::TargetProfile,
     declarations: &[terminal_psi::ProofDeclarationId],
