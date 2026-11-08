@@ -1,5 +1,7 @@
-//! Retry a whole value after applying an admitted Id at a child root. The
-//! parent can then use its existing bound before unrelated value details unfold.
+//! Apply shallow established Id substitutions before unfolding compound values.
+//! Each unchanged context is traversed once, with a retry only after a change.
+
+use std::collections::VecDeque;
 
 use super::super::super::structural_terms;
 use super::{
@@ -9,131 +11,125 @@ use super::{
 
 struct ContextStep {
     changed: Option<StructuralTerm>,
-    reached: bool,
+    descend: bool,
 }
 
 impl StructuralJudge<'_> {
     pub(super) fn rewrite_identity_context(
         &self,
-        value: StructuralTerm,
+        mut value: StructuralTerm,
         depth: usize,
         remaining: &mut usize,
         substitutions: &mut IdentitySubstitutions<'_>,
     ) -> Result<StructuralTerm, &'static str> {
-        substitutions.work.rewrite_calls += 1;
-        substitutions.work.max_rewrite_depth = substitutions.work.max_rewrite_depth.max(depth);
         if substitutions.rows.is_empty() {
             return Ok(value);
         }
-        if depth >= 32 {
-            return Err("the contextual Id substitution exceeds the query depth bound");
-        }
-        // Visit the same shallow frontier across all siblings before opening
-        // a deeper compound value. A change always retries the outer context.
-        for frontier in 0..(32 - depth) {
-            substitutions.work.frontier_passes[frontier] += 1;
-            let step =
-                self.identity_context_step(&value, depth, frontier, remaining, substitutions)?;
-            if let Some(next) = step.changed {
-                if next.same_resolution_payload(&value) {
-                    return Ok(value);
-                }
-                return self.rewrite_identity_context(next, depth + 1, remaining, substitutions);
+        loop {
+            let Some((path, next)) =
+                self.identity_context_change(&value, depth, remaining, substitutions)?
+            else {
+                return Ok(value);
+            };
+            let next = Self::replace_identity_context(value.clone(), &path, next, remaining)?;
+            if next.same_resolution_payload(&value) {
+                return Ok(value);
             }
-            if !step.reached {
-                break;
-            }
+            // A rewrite changes this context, not its structural nesting.
+            // Every retry still spends the same finite query allowance.
+            value = next;
         }
-        Ok(value)
     }
 
-    fn identity_context_root_step(
+    fn identity_context_change(
         &self,
         value: &StructuralTerm,
         depth: usize,
         remaining: &mut usize,
         substitutions: &mut IdentitySubstitutions<'_>,
-    ) -> Result<Option<StructuralTerm>, &'static str> {
-        substitutions.work.root_visits += 1;
-        if depth >= 32 {
-            return Err("the contextual Id substitution exceeds the query depth bound");
+    ) -> Result<Option<(Vec<usize>, StructuralTerm)>, &'static str> {
+        let step = self.identity_context_step(value, depth, remaining, substitutions)?;
+        if let Some(next) = step.changed {
+            return Ok(Some((Vec::new(), next)));
         }
-        spend_component_work(remaining)?;
-        if let Some(observed) = self.identity_content_observation(value) {
-            let changed = !observed.same_resolution_payload(value);
-            substitutions.work.observation_changes += usize::from(changed);
-            return Ok(changed.then_some(observed));
+        let mut pending = VecDeque::new();
+        if step.descend {
+            pending.push_back((value, Vec::new(), depth));
         }
-        let owned = structural_terms::owned_observation_type(self.program, value).is_some();
-        if !matches!(
-            value,
-            StructuralTerm::Application { .. } | StructuralTerm::Constructor { .. }
-        ) && !owned
-        {
-            return Ok(None);
+        // Queue parents rather than every unvisited child. A wide value does
+        // not allocate a queue beyond the nodes actually admitted for descent.
+        while let Some((parent, path, parent_depth)) = pending.pop_front() {
+            let mut index = 0;
+            while let Some(child) = Self::identity_context_child(parent, index) {
+                let step =
+                    self.identity_context_step(child, parent_depth + 1, remaining, substitutions)?;
+                if step.changed.is_some() || step.descend {
+                    let mut child_path = path.clone();
+                    child_path.push(index);
+                    if let Some(next) = step.changed {
+                        return Ok(Some((child_path, next)));
+                    }
+                    pending.push_back((child, child_path, parent_depth + 1));
+                }
+                index += 1;
+            }
         }
-        if !self.identity_value_is_available(value) {
-            return Ok(None);
-        }
-        let Some(component) = substitutions.replacement(self, value, depth, remaining)? else {
-            return Ok(None);
-        };
-        let target = substitutions.normalized[component]
-            .as_ref()
-            .unwrap_or(substitutions.rows[component].values[1]);
-        // Keep an existing owned view of the chosen representation. Returning
-        // its raw RHS could otherwise alternate with declared-field wrappers.
-        substitutions.work.view_matches += 1;
-        if matches!(
-            self.identity_representation_correspondence(
-                value.clone(),
-                target.clone(),
-                depth + 1,
-                remaining,
-            ),
-            StructuralJudgment::Proven
-        ) {
-            substitutions.work.preserved_views += 1;
-            return Ok(None);
-        }
-        // This is an established endpoint, not a completed normal form. Let
-        // the parent retry before resolving it; do not populate the cache.
-        substitutions.work.raw_changes += 1;
-        Ok(Some(target.clone()))
+        Ok(None)
     }
 
     fn identity_context_step(
         &self,
         value: &StructuralTerm,
         depth: usize,
-        frontier: usize,
         remaining: &mut usize,
         substitutions: &mut IdentitySubstitutions<'_>,
     ) -> Result<ContextStep, &'static str> {
-        substitutions.work.context_visits += 1;
-        substitutions.work.max_node_depth = substitutions.work.max_node_depth.max(depth);
-        if frontier == 0 {
-            return self
-                .identity_context_root_step(value, depth, remaining, substitutions)
-                .map(|changed| ContextStep {
-                    changed,
-                    reached: true,
-                });
-        }
         if depth >= 32 {
             return Err("the contextual Id substitution exceeds the query depth bound");
         }
         spend_component_work(remaining)?;
         if let Some(observed) = self.identity_content_observation(value) {
             let changed = !observed.same_resolution_payload(value);
-            substitutions.work.observation_changes += usize::from(changed);
             return Ok(ContextStep {
                 changed: changed.then_some(observed),
-                reached: false,
+                descend: false,
             });
         }
+        let owned = structural_terms::owned_observation_type(self.program, value).is_some();
+        if (matches!(
+            value,
+            StructuralTerm::Application { .. } | StructuralTerm::Constructor { .. }
+        ) || owned)
+            && self.identity_value_is_available(value)
+            && let Some(component) = substitutions.replacement(self, value, depth, remaining)?
+        {
+            let target = substitutions.normalized[component]
+                .as_ref()
+                .unwrap_or(substitutions.rows[component].values[1]);
+            // Preserve an equivalent owned view rather than alternating it
+            // with the raw endpoint retained by the evidence producer.
+            if !matches!(
+                self.identity_representation_correspondence(
+                    value.clone(),
+                    target.clone(),
+                    depth + 1,
+                    remaining,
+                ),
+                StructuralJudgment::Proven
+            ) {
+                return Ok(ContextStep {
+                    changed: Some(target.clone()),
+                    descend: false,
+                });
+            }
+        }
         let prepared = match value {
-            StructuralTerm::Application { .. } => value.clone(),
+            StructuralTerm::Application { .. } => {
+                return Ok(ContextStep {
+                    changed: None,
+                    descend: true,
+                });
+            }
             StructuralTerm::Constructor {
                 identity,
                 data,
@@ -146,7 +142,7 @@ impl StructuralJudge<'_> {
                     }
                     return Ok(ContextStep {
                         changed: None,
-                        reached: false,
+                        descend: false,
                     });
                 }
                 let observed = self
@@ -163,48 +159,64 @@ impl StructuralJudge<'_> {
                         .collect(),
                 }
             }
-            StructuralTerm::ObservedValue { .. }
-                if structural_terms::owned_observation_type(self.program, value).is_some() =>
-            {
-                value.clone()
+            StructuralTerm::ObservedValue { .. } if owned => {
+                return Ok(ContextStep {
+                    changed: None,
+                    descend: true,
+                });
             }
-            // Captures, reference descriptors and content have their own
-            // custody. No contextual walk opens those values.
+            // Captures, reference descriptors and canonical content remain
+            // leaves under their existing observation and custody owners.
             _ => {
                 return Ok(ContextStep {
                     changed: None,
-                    reached: false,
+                    descend: false,
                 });
             }
         };
-        if !prepared.same_resolution_payload(value) {
-            substitutions.work.observation_changes += 1;
-            return Ok(ContextStep {
-                changed: Some(prepared),
-                reached: true,
-            });
+        let changed = !prepared.same_resolution_payload(value);
+        Ok(ContextStep {
+            changed: changed.then_some(prepared),
+            descend: !changed,
+        })
+    }
+
+    fn identity_context_child(value: &StructuralTerm, index: usize) -> Option<&StructuralTerm> {
+        match value {
+            StructuralTerm::Application { arguments, .. } => arguments.get(index),
+            StructuralTerm::Constructor { fields, .. } => fields.get(index).map(|(_, value)| value),
+            StructuralTerm::ObservedValue { value, .. } if index == 0 => Some(value),
+            _ => None,
         }
-        let mut changed = false;
-        let mut reached = false;
-        let next = Self::map_identity_context_children(prepared, |child| {
-            if changed {
+    }
+
+    fn replace_identity_context(
+        value: StructuralTerm,
+        path: &[usize],
+        replacement: StructuralTerm,
+        remaining: &mut usize,
+    ) -> Result<StructuralTerm, &'static str> {
+        let Some((&selected, rest)) = path.split_first() else {
+            return Ok(replacement);
+        };
+        spend_component_work(remaining)?;
+        let mut replacement = Some(replacement);
+        let mut index = 0;
+        let result = Self::map_identity_context_children(value, |child| {
+            let current = index;
+            index += 1;
+            if current != selected {
                 return Ok(None);
             }
-            let step = self.identity_context_step(
-                child,
-                depth + 1,
-                frontier - 1,
-                remaining,
-                substitutions,
-            )?;
-            reached |= step.reached;
-            changed = step.changed.is_some();
-            Ok(step.changed)
+            let next = replacement
+                .take()
+                .ok_or("the contextual Id path repeats a selected child")?;
+            Self::replace_identity_context(child.clone(), rest, next, remaining).map(Some)
         })?;
-        Ok(ContextStep {
-            changed: changed.then_some(next),
-            reached,
-        })
+        if replacement.is_some() {
+            return Err("the contextual Id path no longer names its observed child");
+        }
+        Ok(result)
     }
 
     fn map_identity_context_children(
