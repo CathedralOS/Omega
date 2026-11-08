@@ -173,8 +173,10 @@ A callback whose contract permits suspension requires `suspend apply<Callback>`.
 An unrelated suspending operation inside `apply` would also keep it suspending.
 Blocking follows the same substitution rule independently.
 
-The generic body must satisfy borrow and invariant rules for its full callback
-bound. Specialization does not excuse a borrow that was invalid in that body.
+The generic body still satisfies ordinary borrow and invariant rules at the call.
+When it keeps a resource across a callback, its suspension permission follows
+the [conditional carry rule](chapter_18_concurrency.md#keep-a-resource-across-a-callback):
+a synchronous selection needs no permission to cross a park; a suspending one does.
 Redundant markers remain allowed, including the template's `suspend F(value)`.
 See [forwarding callback contracts](chapter_13_generics.md#forwarding-a-callback-contract)
 for composing wrappers.

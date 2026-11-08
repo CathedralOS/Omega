@@ -1523,6 +1523,24 @@ must update the reach schema, wire-field tables, commitments and codecs together
 with exact round-trip and refusal coverage. Source omission alone cannot recover
 an absent dependency from a previously published interface.
 
+### Conditional suspension-carry summaries
+
+An exported generic operational contract retains its
+[conditional carry rows](../language/effects.md#conditional-suspension-carry).
+Each row identifies the enclosing application and exact crossing, the symbolic
+live subject or claim, its scoped provenance, the required suspension permission,
+and the normalized suspension-dependency expression. Expressions use the existing
+fixed Boolean contributions and exact callback projections; they may name several
+binders. Forwarding retains substitutions for subjects as well as conditions.
+
+These rows participate in canonical interface identity and dependency checking.
+A decoder cannot interpret a missing row as permission. Closed applications
+discharge or satisfy their obligations before lowering, while ordinary call and
+outcome obligations remain enforced. Runtime callable types and installation-bound
+service rows gain no new form. The [implementation plan](../../drafts/designs/conditional_callback_carry.md#implementation)
+owns the coordinated schema, wire-table and codec update; it must verify that
+closed suspension call plans preserve the specialized live frontier and policies.
+
 ## Module declaration tables
 
 The counted module tables that precede the machine roster carry the module's

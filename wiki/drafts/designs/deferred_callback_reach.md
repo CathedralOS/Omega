@@ -35,6 +35,8 @@ and `dropped by`. Delete it when implementation and acceptance are complete.
 - Runtime machine-value types keep finite ceilings; their omitted reach remains
   empty. Suspension/blocking bounds, public declarations and dependency rules
   are unchanged, as are termination, proof admission, custody and crashes.
+  [Conditional callback carry](conditional_callback_carry.md) separately extends
+  suspension-permission checking; it does not widen service reach or other axes.
 - Changing an inferred published row can invalidate ceilings, proof contexts
   and installation policy. Record the interface change even when all current
   concrete selections happen to remain service-free.

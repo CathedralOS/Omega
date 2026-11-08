@@ -131,6 +131,32 @@ A record combines the requirements of its live fields. Moving the record or
 putting it inside another value preserves them. The [carry reference](../spec/resources/carry.md)
 explains declarations and permissions for resource authors.
 
+## Keep a resource across a callback
+
+One helper can retain a resource while calling synchronous or suspending code:
+
+```omega
+public machine around<T, machine F>(held: T) -> T
+requires machine F() suspends;
+suspends
+{
+    suspend F();
+    held
+}
+```
+
+Returning `held` keeps it live across F. The compiler records the condition:
+if F can suspend, held must permit suspension. A synchronous selection therefore
+accepts a suspension-forbidden guard. A suspending selection needs a resource
+that can cross a park; otherwise the application rejects, naming the resource
+and callback. The `suspend` marker stays valid in either case.
+
+The helper still satisfies ordinary ownership, borrowing and invariant rules
+at the call. Other carry requirements, such as staying on the same CPU or thread,
+keep their usual checks. An independent suspending call needs suspension
+permission regardless of F. See [conditional carry](../spec/language/effects.md#conditional-suspension-carry)
+for the contract and forwarding rules.
+
 ## Cancel a task
 
 `Task::request_cancel(&task)` asks for cancellation and leaves the task handle

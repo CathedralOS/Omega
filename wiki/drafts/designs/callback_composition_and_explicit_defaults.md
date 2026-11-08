@@ -35,9 +35,10 @@ inspection. The normalized identity retains exact origin requirements and
 substitutions. A generic's authored contract cannot be silently strengthened
 to make an invalid body pass.
 
-No conditional carry checking is added. Ordinary loans can cross suspension
-with the required preservation evidence, but a synchronous specialization does
-not excuse a generic body that violates its upper-bound carry or window rules.
+The later [conditional callback carry](conditional_callback_carry.md) decision
+lets a generic retain suspension-permission obligations guarded by the call's
+callback dependency. Ordinary borrowing, window and outcome checks still apply;
+only the permission to cross a park receives this conditional treatment.
 
 Niche layouts, error-propagation shorthand, loop syntax, anonymous machines and
 captures receive no design change. The invalid-payload-niche prohibition stays
@@ -56,7 +57,7 @@ in force. Existing some packages and machine values retain their contracts.
 | Missing origins | Reject a bare callback invocation without a contract, a forwarding cycle with no origin, implementation search and attempts to invoke identity-only binders. |
 | Public effects | Require suspension/blocking ceilings covering the abstract body. Specialize those axes independently; retain fixed contributions. Service reach may be inferred. |
 | Markers | Require markers covering body upper bounds and substituted caller envelopes; reject missing markers and permit redundant ones under [conservative acknowledgements](../../spec/language/effects.md#call-site-acknowledgements). |
-| Safety and evaluation | Preserve upper-bound carry, windows, termination and outcome checks. Admit evaluation only when the specialized contract meets all existing evaluation conditions. |
+| Safety and evaluation | Apply conditional suspension carry; preserve ordinary borrowing, windows, other carry axes, termination and outcomes. Evaluation keeps its existing admission conditions. |
 | Representation | Carry requirement/dependency identities through checked artifacts and specialization; lower the specialized operational envelope in both interpreter and native paths. |
 | Evolution | Retain summaries without private-source lookup; invalidate dependent artifacts when their originating requirement, forwarding use or fixed operational contribution changes. |
 
