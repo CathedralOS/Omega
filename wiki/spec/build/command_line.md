@@ -29,6 +29,9 @@ These forms show routing, not an exhaustive restatement of existing options.
 Package install/update retain their acquisition, review, resume and discard
 forms. Package audit retains project targets, details, offline and Build-input
 options. Inspection retains both source-machine and artifact forms.
+`omega --check` with no root inside a workspace checks every declared member
+as a [validation subject](validation_subjects.md). `--verify` withholds trust
+acceptance and re-verifies; it does not widen the subject set.
 
 The locator audit examines a package source, not editable program text.
 `--kind` selects locator inspection. A locator requires that selector;

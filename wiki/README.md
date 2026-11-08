@@ -101,6 +101,7 @@ The [command-line contract](spec/build/command_line.md) owns public spellings.
   [requirement-based test groups](spec/build/testing.md),
   [selected-product behavior exclusions](spec/build/behavior_exclusions.md),
   [optimization selection and validation](spec/build/optimizations.md),
+  [validation subjects](spec/build/validation_subjects.md),
   [target slots and entry roots](spec/build/entry_roots.md),
   [UEFI entry and handoff](spec/build/uefi_entry.md),
   [installed external roots](spec/build/external_roots.md),

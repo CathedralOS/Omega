@@ -53,7 +53,11 @@ review. On a mismatch it rejects, names the package and `omega packages update`,
 does not run an inline audit or rewrite acceptance.
 
 Full-package review and its discovery/bound passes belong only to explicit
-review, acceptance, and update workflows. Dependency product checking instead
+review, acceptance, and update workflows. Admitting, updating or auditing a
+revision validates its complete declared inventory as a
+[validation subject](../build/validation_subjects.md), unused declarations
+included; an invalid declaration there is a validation failure, not a
+discretionary acceptance choice. Dependency product checking instead
 loads the modules selected by the consumer's `use` items and their transitive
 imports, not the dependency's authored package root. This changes review
 orchestration, not language validity: ordinary source, proof, representation,
