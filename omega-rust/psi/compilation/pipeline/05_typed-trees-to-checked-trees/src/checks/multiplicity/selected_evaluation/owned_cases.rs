@@ -45,144 +45,148 @@ impl OwnedCaseSelections {
         else {
             return Self { arms };
         };
-        let statements = state.statements;
-        if control.statements.span(statements).is_none() {
+        let Some(statements) = control.statements.span(state.statements) else {
+            return Self { arms };
+        };
+        // The state records execution order, not source ordinals. Locate the
+        // unique original statement before reading its published selections.
+        let mut matching = state
+            .statements
+            .handles()
+            .zip(statements)
+            .filter(|(_, statement)| statement.statement_index == site.statement);
+        let Some((statement_handle, statement)) = matching.next() else {
+            return Self { arms };
+        };
+        if matching.next().is_some() {
             return Self { arms };
         }
-        let mut visited = BTreeSet::new();
-        for branch in occurrences.iter().flat_map(|occurrence| &occurrence.route) {
-            let expression = branch.expression();
-            if !expression.is_valid()
-                || !branch.source_arm().is_valid()
-                || !visited.insert((expression.arena_index(), expression.generation()))
+        let Some(selections) = control
+            .owned_case_selections
+            .span(statement.owned_case_selections)
+        else {
+            return Self { arms };
+        };
+        let visited = occurrences
+            .iter()
+            .flat_map(|occurrence| &occurrence.route)
+            .filter(|branch| branch.expression().is_valid() && branch.source_arm().is_valid())
+            .map(|branch| {
+                let expression = branch.expression();
+                (expression.arena_index(), expression.generation())
+            })
+            .collect::<BTreeSet<_>>();
+        // Group only this statement's actual rows once. The stable sort keeps
+        // their producing order within each expression, as the old grouping did.
+        let mut rows = statement
+            .owned_case_selections
+            .handles()
+            .zip(selections)
+            .filter_map(|(handle, row)| {
+                (row.statement == statement_handle
+                    && visited
+                        .contains(&(row.expression.arena_index(), row.expression.generation())))
+                .then_some(handle)
+            })
+            .collect::<Vec<_>>();
+        rows.sort_by_key(|handle| {
+            let row = control.owned_case_selections.get(*handle);
+            (row.expression.arena_index(), row.expression.generation())
+        });
+        let mut owner: Option<PreparedOwner> = None;
+        let mut current_expression = None;
+        for handle in rows {
+            let row = *control.owned_case_selections.get(handle);
+            if row.machine_symbol != site.machine
+                || row.state_symbol != site.state
+                || row.statement_index != site.statement
+                || row.evaluation != site.evaluation
             {
                 continue;
             }
-            control.with_owned_case_selections(expression, |rows| {
-                let mut owner: Option<PreparedOwner> = None;
-                for &handle in rows {
-                    let row = *control.owned_case_selections.get(handle);
-                    if row.machine_symbol != site.machine
-                        || row.state_symbol != site.state
-                        || row.statement_index != site.statement
-                        || row.evaluation != site.evaluation
-                    {
-                        continue;
-                    }
-                    let Some(offset) = row
-                        .statement
-                        .arena_index()
-                        .checked_sub(statements.start().arena_index())
-                    else {
-                        continue;
-                    };
-                    if statements.handles().nth(offset as usize) != Some(row.statement) {
-                        continue;
-                    }
-                    let statement = control.statements.get(row.statement);
-                    if statement.statement_index != site.statement {
-                        continue;
-                    }
-                    if control
-                        .owned_case_selections
-                        .span(statement.owned_case_selections)
-                        .is_none()
-                    {
-                        continue;
-                    }
-                    let Some(offset) = handle
-                        .arena_index()
-                        .checked_sub(statement.owned_case_selections.start().arena_index())
-                    else {
-                        continue;
-                    };
-                    if statement
-                        .owned_case_selections
-                        .handles()
-                        .nth(offset as usize)
-                        != Some(handle)
-                    {
-                        continue;
-                    }
-                    let key = (
-                        expression.arena_index(),
-                        expression.generation(),
-                        row.source_arm.arena_index(),
-                        row.source_arm.generation(),
-                    );
-                    let selected = (|| {
-                        if !control.operands.is_valid(row.subject)
-                            || !control.storage_snapshots.is_valid(row.captured_storage)
-                            || !control.storage_snapshots.is_valid(row.selected_storage)
-                        {
-                            return None;
-                        }
-                        let subject = control.operands.get(row.subject);
-                        if subject.state_symbol != site.state
-                            || subject.statement_index != site.statement
-                            || subject.evaluation != site.evaluation
-                        {
-                            return None;
-                        }
-                        let cases = match &owner {
-                            Some(prepared)
-                                if prepared.root == row.root && prepared.path == row.path =>
-                            {
-                                Arc::clone(&prepared.cases)
-                            }
-                            _ => {
-                                let path = control.operand_referent_segments.span(row.path)?;
-                                let place = validation::CanonicalPlace {
-                                    root: row.root,
-                                    segments: path.to_vec(),
-                                };
-                                let paths = RemainingCustody::owned_case_paths(
-                                    program,
-                                    site.state,
-                                    site.statement,
-                                    &place,
-                                )?;
-                                let by_variant = paths
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(ordinal, (variant, _))| {
-                                        ((variant.arena_index(), variant.generation()), ordinal)
-                                    })
-                                    .collect();
-                                let cases = Arc::new(PreparedCases { paths, by_variant });
-                                owner = Some(PreparedOwner {
-                                    root: row.root,
-                                    path: row.path,
-                                    cases: Arc::clone(&cases),
-                                });
-                                cases
-                            }
-                        };
-                        let selected = *cases
-                            .by_variant
-                            .get(&(row.variant.arena_index(), row.variant.generation()))?;
-                        Some(Selection {
-                            row,
-                            cases,
-                            selected,
-                        })
-                    })();
-                    arms.entry(key)
-                        .and_modify(|previous: &mut Option<Selection>| {
-                            let identical = previous.as_ref().zip(selected.as_ref()).is_some_and(
-                                |(left, right)| {
-                                    left.row == right.row
-                                        && left.selected == right.selected
-                                        && Arc::ptr_eq(&left.cases, &right.cases)
-                                },
-                            );
-                            if !identical {
-                                *previous = None;
-                            }
-                        })
-                        .or_insert(selected);
+            let expression = row.expression;
+            let expression_key = (expression.arena_index(), expression.generation());
+            if current_expression != Some(expression_key) {
+                owner = None;
+                current_expression = Some(expression_key);
+            }
+            let key = (
+                expression.arena_index(),
+                expression.generation(),
+                row.source_arm.arena_index(),
+                row.source_arm.generation(),
+            );
+            let selected = (|| {
+                if !control.operands.is_valid(row.subject)
+                    || !control.storage_snapshots.is_valid(row.captured_storage)
+                    || !control.storage_snapshots.is_valid(row.selected_storage)
+                {
+                    return None;
                 }
-            });
+                let subject = control.operands.get(row.subject);
+                if subject.state_symbol != site.state
+                    || subject.statement_index != site.statement
+                    || subject.evaluation != site.evaluation
+                {
+                    return None;
+                }
+                let cases = match &owner {
+                    Some(prepared) if prepared.root == row.root && prepared.path == row.path => {
+                        Arc::clone(&prepared.cases)
+                    }
+                    _ => {
+                        let path = control.operand_referent_segments.span(row.path)?;
+                        let place = validation::CanonicalPlace {
+                            root: row.root,
+                            segments: path.to_vec(),
+                        };
+                        let paths = RemainingCustody::owned_case_paths(
+                            program,
+                            site.state,
+                            site.statement,
+                            &place,
+                        )?;
+                        let by_variant = paths
+                            .iter()
+                            .enumerate()
+                            .map(|(ordinal, (variant, _))| {
+                                ((variant.arena_index(), variant.generation()), ordinal)
+                            })
+                            .collect();
+                        let cases = Arc::new(PreparedCases { paths, by_variant });
+                        owner = Some(PreparedOwner {
+                            root: row.root,
+                            path: row.path,
+                            cases: Arc::clone(&cases),
+                        });
+                        cases
+                    }
+                };
+                let selected = *cases
+                    .by_variant
+                    .get(&(row.variant.arena_index(), row.variant.generation()))?;
+                Some(Selection {
+                    row,
+                    cases,
+                    selected,
+                })
+            })();
+            arms.entry(key)
+                .and_modify(|previous: &mut Option<Selection>| {
+                    let identical =
+                        previous
+                            .as_ref()
+                            .zip(selected.as_ref())
+                            .is_some_and(|(left, right)| {
+                                left.row == right.row
+                                    && left.selected == right.selected
+                                    && Arc::ptr_eq(&left.cases, &right.cases)
+                            });
+                    if !identical {
+                        *previous = None;
+                    }
+                })
+                .or_insert(selected);
         }
         Self { arms }
     }
