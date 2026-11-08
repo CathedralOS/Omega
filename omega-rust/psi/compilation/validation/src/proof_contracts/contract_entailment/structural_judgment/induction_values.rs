@@ -1,7 +1,6 @@
-//! A licensed inductive application denotes its own returned value. Ordinary
-//! declaration independence still withholds circular specification imports.
-//! Only the induction owner, after proving the actual entry requirements and
-//! licensing descent, may publish these exact application observations.
+//! Recursive proof results remain available when using the induction hypothesis.
+//! Register only the exact recursive call after its entry requirements and
+//! decrease have been checked; ordinary circular specification imports stay refused.
 
 use super::{StructuralJudge, StructuralTerm};
 use std::sync::Arc;
@@ -61,7 +60,9 @@ impl StructuralJudge<'_> {
             .ok_or("the induction owner has no entry state")?;
         if *target != entry.symbol || arguments.len() != self.program.state_parameters(entry).len()
         {
-            return Err("the induction application does not preserve its exact entry telescope");
+            return Err(
+                "the induction application does not preserve its entry state and argument count",
+            );
         }
         if !result_type.is_valid()
             || !crate::value_custody::type_references::type_references_match(
@@ -70,7 +71,9 @@ impl StructuralJudge<'_> {
                 entry.return_type,
             )
         {
-            return Err("the induction result does not preserve its declared carrier and policy");
+            return Err(
+                "the induction result does not preserve its declared result type and access policy",
+            );
         }
         if !arguments
             .iter()
