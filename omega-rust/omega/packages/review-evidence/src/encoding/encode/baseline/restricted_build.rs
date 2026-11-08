@@ -1,4 +1,9 @@
-// Canonical encoding for restricted build-host requests in grant order, retaining captured-inventory presence without binding volatile source entry counts.
+//! Restricted build-host request meaning, in grant order.
+//!
+//! The captured-inventory presence flag is retained; the inventory's entry
+//! counts and identity are not — they bind source content, and folding them
+//! into the row would demand fresh acceptance on every source edit even when
+//! the requested authority is unchanged.
 
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
@@ -11,6 +16,8 @@ use crate::record::PackagePolicyRestrictedBuildOperation;
 use crate::record::PackagePolicyRestrictedBuildRequest;
 use target::TargetProfile;
 
+/// The operation's closed-vocabulary spelling and tag; the row key reuses it
+/// so a request's identity and its retained value agree.
 pub(in crate::encoding::encode) fn operation(
     operation: PackagePolicyRestrictedBuildOperation,
 ) -> (&'static str, u8) {
@@ -108,7 +115,7 @@ fn evaluation_sponsor_limits(
     limits: &PackagePolicyEvaluationSponsorLimits,
 ) -> Result<(), PackageReviewEncodingError> {
     for (name, value) in [
-        ("work_budget", limits.work_budget),
+        ("maximum_fuel_units", limits.maximum_fuel_units),
         ("maximum_build_log_bytes", limits.maximum_build_log_bytes),
         (
             "maximum_filesystem_operation_attempts",

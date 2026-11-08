@@ -1,7 +1,6 @@
-// Contract call target declaration lookup. Runtime machines and mathematical
-// functions follow distinct application rules, so we preserve the declaration kind
-// and return every declaration matching the target symbol so callers can reject
-// missing or duplicate declarations instead of choosing one by traversal order.
+//! Review needs the parameters of the exact function a contract calls.
+//! Machines and mathematical functions have different application rules; keep
+//! the declaration kind so each uses its own checker.
 
 use crate::capture::SourceDeclarationInput;
 use symbols::SymbolHandle;
@@ -15,6 +14,8 @@ pub(crate) enum ContractCallDeclaration<'a> {
     Mathematical(&'a typed_trees::mathematical::MathematicalDefinition),
 }
 
+/// Find every declaration with this exact symbol. The caller rejects missing
+/// or duplicate declarations instead of choosing one by traversal order.
 pub(crate) fn contract_call_target_declarations<'a>(
     compilation: &'a SourceDeclarationInput<'_>,
     target: SymbolHandle,

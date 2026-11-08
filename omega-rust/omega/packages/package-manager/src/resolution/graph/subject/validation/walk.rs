@@ -1,6 +1,4 @@
-// We validate that a canonical source-closure subject forms one closed,
-// reachable, acyclic graph using an iterative exact-key DFS where each package
-// enters the stack at most once.
+//! Iterative exact-key DFS: each package enters the stack once.
 
 use super::super::{
     CanonicalDependencySourceSelection, CanonicalSourceClosureSubjectError as Error, usage::Budget,

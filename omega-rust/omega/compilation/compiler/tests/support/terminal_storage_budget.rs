@@ -1,13 +1,13 @@
 //! Authored source helpers declare an exact live-cell peak and result oracle.
 //! Execute with that ceiling and one cell less, through ordinary public
-//! instantiation and work-budget pauses. No synthesized IR or private storage access.
+//! instantiation and fuel pauses. No synthesized IR or private storage access.
 use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationAccountingError,
     EvaluationMeasurementIdentity, EvaluationResource, TerminalStorageScheduleIdentity,
 };
-use psi_work::WorkMeter;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_codec::CanonicalTerminalArtifact;
+use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstanceCloseError,
     TerminalInstanceError, TerminalInstantiation, TerminalInterpretError, TerminalProgram,
@@ -80,7 +80,7 @@ fn observe_program(
         });
     }
     let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
     };
     for ceiling in [peak, short] {
@@ -104,7 +104,8 @@ fn observe_program(
                 ..Default::default()
             })
             .map_err(describe)?;
-        let mut meter = WorkMeter::with_invocation(account.clone(), Some(0)).map_err(describe)?;
+        let mut meter =
+            TerminalFuelMeter::with_invocation(account.clone(), Some(0)).map_err(describe)?;
         let result = loop {
             match instance.invoke(&mut meter) {
                 Ok(TerminalExecutionStatus::SponsorExhausted(_)) => {
@@ -174,7 +175,7 @@ fn observe_program(
             }
             if !matches!(
                 cause,
-                TerminalInterpretError::Storage(EvaluationAccountingError::BudgetExhausted(
+                TerminalInterpretError::Storage(EvaluationAccountingError::AllowanceExhausted(
                     EvaluationResource::LiveStorage
                 ))
             ) {

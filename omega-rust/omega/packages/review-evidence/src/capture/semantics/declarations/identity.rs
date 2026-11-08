@@ -1,12 +1,3 @@
-/*
-We compute nominal declaration identities and evaluated-binding producer
-callable identities.
-
-Custody is the sole owner of the retained evaluated-binding identity table, so
-an absent row yields an empty string rather than re-deriving from the receipt's
-ordinal.
-*/
-
 use super::ownership::nominal_owner_from_symbols;
 use crate::capture::{PackageReviewInput, SourceDeclarationInput};
 use crate::record::PackageReviewNominalIdentity;
@@ -39,6 +30,9 @@ pub(crate) fn nominal_identity_from_symbols(
     Ok(PackageReviewNominalIdentity { owner, path })
 }
 
+/// The reviewed producer's exact callable identity text. Custody is the only
+/// owner of the retained identity table, so an absent row is empty, never a
+/// re-derivation from the receipt's ordinal.
 pub(crate) fn producer_callable_identity(
     compilation: &PackageReviewInput<'_>,
     receipt: &effects::provider_plan::EvaluatedBindingReceipt,

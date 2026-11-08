@@ -1,15 +1,14 @@
-// Write `program.oterm` and `native.identity.txt` to the build directory when `omega run --keep` is set, before publication consumes the retained native program.
-//
-// We write only the compact `program.identity()` line rather than debug-dumping
-// the full native evidence graph, which can expand a small executable into
-// gigabytes of text. A `--engine terminal` run has no native program, so it
-// writes only `program.oterm`.
+//! Retain replay evidence before publication consumes its native product.
+//!
+//! Write the actual canonical product and a compact native identity. Debugging
+//! the full native evidence graph here can expand a small image into gigabytes.
 
 use super::RunError;
 use compiler::CompileReport;
 use std::path::Path;
 
 pub(super) fn retain(report: &CompileReport, directory: &Path) -> Result<(), RunError> {
+    // A Terminal-only run has no native identity to record.
     if report.retained_native_program().is_none()
         && let Some(artifact) = report.artifact()
     {

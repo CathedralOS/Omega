@@ -1,5 +1,3 @@
-// Bounded recovery for representation targets and boundary shape graphs in calling plans.
-
 use super::{Error, Reader};
 use crate::record::{
     PackageReviewBoundaryShape, PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,

@@ -28,7 +28,6 @@ pub struct ElfSharedComponentImage {
     image: FinalImage,
     exports: Vec<ElfComponentExport>,
     contents: Vec<u8>,
-    final_text_bytes: Vec<u8>,
 }
 
 impl ElfSharedComponentImage {
@@ -37,10 +36,6 @@ impl ElfSharedComponentImage {
     }
     pub fn exports(&self) -> &[ElfComponentExport] {
         &self.exports
-    }
-    /// Exact relocated text retained by the format owner for target replay.
-    pub fn final_text_bytes(&self) -> &[u8] {
-        &self.final_text_bytes
     }
     pub fn contents(&self) -> &[u8] {
         &self.contents
@@ -69,11 +64,10 @@ pub fn emit_elf_shared_component(
     exports: Vec<ElfComponentExport>,
 ) -> Result<ElfSharedComponentImage, Box<ElfSharedComponentEmissionError>> {
     match contents::emit(&image, &exports) {
-        Ok((contents, final_text_bytes)) => Ok(ElfSharedComponentImage {
+        Ok(contents) => Ok(ElfSharedComponentImage {
             image,
             exports,
             contents,
-            final_text_bytes,
         }),
         Err(diagnostic) => Err(Box::new(ElfSharedComponentEmissionError {
             image,

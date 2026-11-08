@@ -1,26 +1,6 @@
-/*
-Retained staged-output tree, domain-separated commitment, and generated-source /
-completed-output subset selection.
-
-We represent a captured build-output tree as canonical slash-separated relative
-paths sorted in unsigned byte order, paired with directory, regular-file
-(`Arc<[u8]>` + executable flag), or relative-symlink payloads. No physical host
-root, inode, timestamp, or hard-link topology enters the retained tree.
-
-Commitment rules (`OMEGA-BUILD-STAGED-OUTPUT-TREE\0`, schema v2):
-- Entries are hashed in strict canonical path order.
-- Unique file bytes (`file_bytes`) are deduplicated by `(content_digest,
-  content_length)` and bounded by `MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES` (256 MiB),
-  while total entries are bounded by `MAX_STAGED_OUTPUT_ENTRIES` (4,096) and path
-  bytes by `MAX_STAGED_OUTPUT_PATH_BYTES` (16 MiB).
-- `from_retained_parts` sorts decoded rows, rejects duplicate or non-canonical
-  paths, recomputes the commitment, and fails closed if it disagrees with the
-  recorded commitment.
-- `select_included_sources` enforces that every `.omg` file in the staged tree
-  has an explicit `BuildOutput::include_source` handoff, forbids reserved
-  discovery names (`build.omg`, `main.omg`) and executable `.omg` files, and
-  recomputes each generated source's content digest.
-*/
+//! The staged output tree: the retained entries a build wrote, the
+//! canonical commitment over them, the sealed entry views, and the
+//! selection of generated sources from retained content.
 
 use crate::capture::{StagedOutputEntry, StagedOutputEntryKind};
 use crate::materialization::materialize_retained_tree;
@@ -51,6 +31,7 @@ pub(crate) const MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES: u64 = 256 * 1024 * 1024;
 
 pub(crate) const MAX_STAGED_OUTPUT_PATH_BYTES: usize = 16 * 1024 * 1024;
 
+/// Compiler-issued identity of the complete canonical staged content tree.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BuildStagedOutputTreeCommitment {
     digest: [u8; 32],
@@ -59,6 +40,9 @@ pub struct BuildStagedOutputTreeCommitment {
 }
 
 impl BuildStagedOutputTreeCommitment {
+    /// A commitment recovered from a persisted record. The value is trusted
+    /// for nothing until decoded rows reproduce it through
+    /// `from_retained_parts`.
     #[doc(hidden)]
     pub const fn from_retained_parts(digest: [u8; 32], entry_count: u64, file_bytes: u64) -> Self {
         Self {
@@ -81,12 +65,26 @@ impl BuildStagedOutputTreeCommitment {
     }
 }
 
+/// Compiler-owned retained content of a successfully captured sponsored
+/// staged-output tree.
+///
+/// The fields are private so package-controlled data cannot construct a tree
+/// that impersonates compiler capture. This carrier contains canonical
+/// root-relative paths, file bytes, executable/ordinary mode, empty
+/// directories, and relative symlink spelling. It deliberately contains no
+/// physical root, ambient metadata, inode identity, or public hard-link
+/// topology. Materialization reproduces and re-inspects this content; it is
+/// not a build-operation transcript, a generated-source handoff, or a receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildStagedOutputTree {
     pub(crate) commitment: BuildStagedOutputTreeCommitment,
     pub(crate) entries: Vec<RetainedStagedOutputEntry>,
 }
 
+/// Exact regular Omega source retained from one explicit successful
+/// `BuildOutput::include_source` handoff. This value is produced only by
+/// matching the interpreter's Output-rooted coordinate against sponsored
+/// staged-tree custody.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PackageGeneratedSource {
     relative_path: Vec<u8>,
@@ -95,6 +93,8 @@ pub struct PackageGeneratedSource {
 }
 
 impl PackageGeneratedSource {
+    /// One retained generated source recovered from a persisted record. The
+    /// digest is recomputed over the supplied bytes, never carried.
     #[doc(hidden)]
     pub fn from_retained_parts(relative_path: Vec<u8>, bytes: Arc<[u8]>) -> Self {
         let digest: [u8; 32] = crate::digest_encoder::content_identity(bytes.as_ref());
@@ -118,6 +118,10 @@ impl PackageGeneratedSource {
     }
 }
 
+/// Owned kind of one staged-output entry supplied to
+/// [`BuildStagedOutputTree::from_retained_parts`]. Persisted review records
+/// decode into this shape; construction re-derives the commitment rather than
+/// trusting the stored one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BuildStagedOutputEntryInput {
     Directory,
@@ -126,6 +130,10 @@ pub enum BuildStagedOutputEntryInput {
 }
 
 impl BuildStagedOutputTree {
+    /// Rebuild a retained tree from persisted entries. The commitment is
+    /// recomputed over the decoded rows and must equal `expected_commitment`;
+    /// a record whose rows do not reproduce it was never written by this
+    /// commitment scheme and fails closed.
     #[doc(hidden)]
     pub fn from_retained_parts(
         expected_commitment: &BuildStagedOutputTreeCommitment,
@@ -196,6 +204,11 @@ impl BuildStagedOutputTree {
         self.commitment.file_bytes()
     }
 
+    /// Materialize this retained canonical tree into an existing empty
+    /// concrete directory.
+    ///
+    /// Success returns the same compiler-issued commitment. Any invalid
+    /// retained shape, unsuitable destination, or write failure rejects.
     pub fn materialize_into(
         &self,
         destination: impl AsRef<Path>,
@@ -203,6 +216,10 @@ impl BuildStagedOutputTree {
         materialize_retained_tree(self, destination.as_ref())
     }
 
+    /// Directly enumerate the retained sealed entries in canonical
+    /// unsigned-byte order. A staging tree includes scratch and generated
+    /// sources; product owners must select the completed-output roster before
+    /// publishing files.
     pub fn entries(&self) -> impl ExactSizeIterator<Item = BuildStagedOutputEntry<'_>> {
         self.entries.iter().map(|entry| {
             let kind = match &entry.kind {
@@ -226,11 +243,21 @@ impl BuildStagedOutputTree {
         })
     }
 
+    /// Look up one sealed entry by its canonical slash-separated relative
+    /// path. The lookup is exact: no component is normalized, resolved, or
+    /// followed as a link.
     pub fn sealed_entry(&self, relative_path: &[u8]) -> Option<BuildStagedOutputEntry<'_>> {
         self.entries()
             .find(|entry| entry.relative_path == relative_path)
     }
 
+    /// Retain exactly the requested ordinary files and their ancestor directories.
+    ///
+    /// Paths match exactly without normalization or link traversal. Missing,
+    /// duplicate, directory, symbolic-link, and executable file requests reject;
+    /// executable admission belongs to a separate product operation. The result
+    /// shares immutable file bytes with this tree and has its own canonical
+    /// commitment, independent of request order. An empty roster selects nothing.
     pub fn select_files(&self, relative_paths: &[&[u8]]) -> Result<Self, Vec<Diagnostic>> {
         if relative_paths.len() > self.entries.len() {
             return Err(diagnostics(
@@ -307,6 +334,8 @@ impl BuildStagedOutputTree {
     }
 }
 
+/// Logical kind view of one sealed staged-output entry. File bytes are the
+/// retained sealed content; symlink targets are inert captured spellings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildStagedOutputEntryKind<'a> {
     Directory,
@@ -314,6 +343,8 @@ pub enum BuildStagedOutputEntryKind<'a> {
     Symlink { target: &'a [u8] },
 }
 
+/// Borrowed view of one sealed staged-output entry and its canonical
+/// relative path.
 #[derive(Debug, Clone, Copy)]
 pub struct BuildStagedOutputEntry<'a> {
     relative_path: &'a [u8],
@@ -330,6 +361,7 @@ impl<'a> BuildStagedOutputEntry<'a> {
     }
 }
 
+/// Failure to validate or materialize a retained staged-output tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildStagedOutputMaterializationError {
     pub(crate) message: String,

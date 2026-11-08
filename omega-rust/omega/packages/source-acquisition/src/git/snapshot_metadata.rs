@@ -1,5 +1,4 @@
-// Binary wire encoding and fail-closed parser (`GitSnapshotMetadata`) for
-// authenticated Git snapshot metadata records (`GIT_SNAPSHOT_POLICY`).
+//! Canonical metadata for authenticated Git snapshots.
 
 use crate::SourceResolveError;
 use crate::error::cache_invalid;

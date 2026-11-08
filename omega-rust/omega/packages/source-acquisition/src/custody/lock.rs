@@ -1,14 +1,4 @@
-/*
-Per-entry cache lock acquisition and path-identity verification (`CacheEntryLock`
-and `CacheLockBudget`).
-
-`open_verified_cache_lock` opens or creates the lock file beneath its retained
-parent via `open_or_create_lock_file` (tolerating cold-key creation races on
-macOS without following symbolic links) and proves the opened handle matches
-the regular, private file currently named by the parent. `Drop` unlocks the
-file without unlinking the inode so concurrent waiters never lock a displaced
-inode while newcomers lock a replacement.
-*/
+//! Filesystem custody shared by local snapshots and Git cache entries.
 
 use super::platform::{
     same_capability_file_identity, verify_capability_cache_node_owner_and_mode,
@@ -27,6 +17,10 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+/// Deadline and resource budget consulted while a cache lock is contended.
+///
+/// Custody owns lock behavior; acquisition adapters supply their own budget
+/// without making custody depend on Git execution machinery.
 pub(crate) trait CacheLockBudget {
     fn verify_cache_lock_budget(&self) -> Result<(), SourceResolveError>;
     fn remaining_cache_lock_time(&self) -> Result<Duration, SourceResolveError>;
@@ -76,7 +70,7 @@ impl CacheEntryLock {
         Ok(file)
     }
 
-    #[cfg(all(test, unix))]
+    #[cfg(test)]
     pub(crate) fn acquire(path: &Path) -> Result<Self, SourceResolveError> {
         let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::Git, path)?;
         file.lock().at(path)?;
@@ -273,6 +267,16 @@ impl CacheEntryLock {
     }
 }
 
+/// Open or create the lock file beneath its retained parent, then prove the
+/// open handle is the regular, private file the parent currently names.
+///
+/// Several compiler processes routinely reach one cold cache key together, so
+/// creation must tolerate losing the race to create the lock file.
+/// `open_or_create_lock_file` creates exclusively and reopens an existing file
+/// instead of issuing one open-or-create, which on macOS fails the losing
+/// contender with `ENOENT` (see its documentation). Neither open follows a
+/// final symbolic link, and every identity, owner, mode, and ACL check below
+/// still applies to whichever contender created the file.
 fn open_verified_cache_lock(
     kind: CacheCustodyKind,
     path: &Path,
@@ -421,6 +425,8 @@ pub(crate) fn verify_cache_lock_path_identity_for_test(
 
 impl Drop for CacheEntryLock {
     fn drop(&mut self) {
+        // Keep the inode in place: unlinking a lock file lets a waiter lock the old inode while a
+        // newcomer locks a replacement. Closing this handle releases the advisory lock safely.
         let _ = self.file.unlock();
     }
 }

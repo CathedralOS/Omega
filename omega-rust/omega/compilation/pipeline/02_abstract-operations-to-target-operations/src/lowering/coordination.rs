@@ -113,35 +113,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         &settlements_by_boundary,
         &installed_by_call,
         &boundary_calls,
-    )
-    .inspect_err(|error| {
-        if std::env::var_os("OMEGA_TRACE_NATIVE_BOUNDARY").is_some()
-            && let LoweringError::MissingBoundarySettlement(boundary) = error
-            && let Some(declaration) = boundary_machines.get(boundary)
-        {
-            let installations = verified_input.map(|input| input.module().installed_interrupt_registrations.iter()
-                .filter(|registration| registration.installer == *boundary)
-                .map(|registration| (registration.operation, registration.registrar_application.as_str(), registration.callbacks.len()))
-                .collect::<Vec<_>>());
-            eprintln!("checked interrupt installation records: {installations:?}");
-            if let Some(input) = verified_input {
-                let module = input.module();
-                for registration in module.installed_interrupt_registrations.iter().filter(|registration| registration.installer == *boundary) {
-                    let helpers = module.callback_applications.iter().filter(|application| application.registrar == registration.operation)
-                        .map(|application| (application.static_machine_ordinal, application.entry_admitted, application.requirement.as_str(), &application.body)).collect::<Vec<_>>();
-                    eprintln!("installed operation helper selections: {helpers:?}");
-                    eprintln!("installed registrar ABI: {:?}", module.calling_abi_identity(registration.registrar_boundary));
-                }
-            }
-
-            eprintln!(
-                "unsettled native boundary: id={boundary:?} identity={:?} execution={:?} calls={:?}",
-                plan.identities.text(declaration.identity),
-                declaration.declaration.as_ref().map(|callable| &callable.execution),
-                boundary_calls.keys().filter(|key| key.2 == *boundary).collect::<Vec<_>>(),
-            );
-        }
-    })?;
+    )?;
     let borrowed_reference_sources = super::control_flow::references::borrowed_source_catalog(
         &functions_by_machine,
         &structural_types,
@@ -183,7 +155,6 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
                     &settlements_by_boundary,
                     &installed_by_call,
                     &native_callbacks_by_operation,
-                    verified_input.map(|input| input.installed_interrupts()),
                 ).inspect_err(|error| {
                     if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
                         && matches!(error, LoweringError::InvalidStructuralValueInput { reason, .. }

@@ -225,12 +225,7 @@ fn reaching_store_proves_comparison(
     if depth >= 16
         || current_operand.state_symbol != state.state_symbol
         || !matches!(place.root, facts::PlaceRoot::Symbol(_))
-        || !crate::flow::operand_entry_origin_is_stable(
-            program,
-            flow.view(),
-            current_operand,
-            place,
-        )
+        || !crate::flow::operand_entry_origin_is_stable(program, flow, current_operand, place)
     {
         return false;
     }
@@ -394,7 +389,7 @@ fn stored_operand_proves_comparison(
             source_place.extend_segments(&projection.remaining);
             if crate::flow::operand_observations_agree(
                 program,
-                flow.view(),
+                flow,
                 child,
                 invocation_operand,
                 &source_place,
@@ -448,7 +443,7 @@ fn place_selectors_agree(
     }
     reads.into_iter().all(|read| {
         place_at(program, state_symbol, first.statement_index, read).is_some_and(|place| {
-            crate::flow::operand_observations_agree(program, flow.view(), first, second, &place)
+            crate::flow::operand_observations_agree(program, flow, first, second, &place)
         })
     })
 }

@@ -1,11 +1,4 @@
-// Receipt-free callback relationships within one exact calling application.
-//
-// Native positions in `PackagePolicyCallbackDestination` are relative to the
-// containing policy's authored native telescope, and field destinations index
-// into the canonical layout catalog retaining the complete named path.
-// `PackagePolicyCallbackLayoutApplication` records the authored layout policy
-// and target geometry (`Policy<Schema>`), not its evaluator machine or
-// generated concrete data name.
+//! Receipt-free callback relationships within one exact calling application.
 
 use crate::record::{
     PackagePolicyClosedConformanceApplication, PackageReviewNominalIdentity,
@@ -28,6 +21,9 @@ pub(crate) struct PackagePolicyCallbackBinder {
     pub(crate) requirement: PackageReviewNominalIdentity,
 }
 
+/// Native positions are relative to the containing policy's authored native
+/// telescope. Field destinations reference this component's canonical layout
+/// catalog; the catalog retains the complete named path, never compact IDs.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackagePolicyCallbackDestination {
     Parameter {
@@ -64,6 +60,9 @@ pub(crate) struct PackagePolicyCallbackLayout {
     pub(crate) composed_placements: Vec<layout_plans::LayoutPlacementReport>,
 }
 
+/// Exact supported layout application `Policy<Schema>` and target geometry.
+/// The policy declaration is authored selection; its evaluator machine and
+/// generated concrete data name are implementation details, not this identity.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PackagePolicyCallbackLayoutApplication {
     pub(crate) policy: Option<PackageReviewNominalIdentity>,

@@ -1,9 +1,9 @@
-// We track monotone owned-storage accounting shared across all source-closure
-// recovery phases, charging both retained payload allocations and discarded
-// scratch buffers.
+//! Monotone owned-storage accounting shared by all source recovery phases.
 
 use super::CanonicalSourceClosureSubjectError as Error;
 
+/// Owned payload/storage charged during recovery, including discarded scratch.
+/// This is resource accounting only, not a source or acceptance assertion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct CanonicalSourceClosureSubjectRecoveryUsage {
     pub(super) owned_bytes: usize,

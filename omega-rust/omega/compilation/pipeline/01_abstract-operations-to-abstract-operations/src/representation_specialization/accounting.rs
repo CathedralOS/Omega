@@ -11,7 +11,7 @@ use super::{
 };
 
 /// The exact node custody a plan's folded observations carry: each folded
-/// site retains the membership's own provenance and work settlement, realized
+/// site retains the membership's own provenance and fuel settlement, realized
 /// at the same node. `None` when a row's site does not name a node of
 /// `input_function`.
 pub(crate) fn provenance_rows(
@@ -29,7 +29,7 @@ pub(crate) fn provenance_rows(
             input: site,
             disposition: ProvenanceDisposition::RealizedAt(site),
             sources: node.provenance.clone(),
-            work: node.work.clone(),
+            fuel: node.fuel.clone(),
         });
     }
     rows.sort_by_key(ProvenanceRewrite::canonical_sort_key);

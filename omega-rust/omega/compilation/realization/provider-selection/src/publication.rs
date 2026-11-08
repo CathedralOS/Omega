@@ -1,31 +1,10 @@
-/*
-Canonical Build companion selection against the emitted Terminal demand catalog.
-
-We read only canonical declarations, never typed trees or deferred source work.
-Opaque producer correspondence travels unchanged to the caller and is discarded
-at publication rather than interpreted as source addresses. Nominal owner and
-callable overload remain separate from application identity, and receiving
-artifact admission remains independent of this descriptive choice.
-*/
-
-/*
-PreparedTargetChoices grows actual application demand to a fixed point through
-exact selected providers:
-- Product selection includes authored deployment roots and explicit choices,
-  whereas an invocation demands only its executable call closure so unrelated
-  Product bindings remain available choices rather than extra invocation roots.
-- Parent choice relevance uses the same complete receiver application that the
-  whole plan supplies, with the exact nominal join preceding export-key
-  comparison.
-- Selected operations that emit scalar comparisons rather than BoundaryCall
-  instructions still retain their exact application demand in
-  boundary_application_demands; we consume that canonical roster in the
-  reachable body closure rather than inferring provider demand from instruction
-  shape.
-- Intermediate fixed-point choices discover calls rather than final evidence;
-  once the fixed point stabilizes, we admit the complete selection once,
-  including all independent component edges.
-*/
+//! Select canonical Build companions against the emitted Terminal demand catalog.
+//!
+//! Selection reads only canonical declarations, never typed trees or deferred
+//! source work. Opaque producer correspondence travels unchanged to the caller;
+//! publication discards it instead of interpreting source addresses.
+//! Nominal owner and callable overload remain separate from application identity.
+//! Receiving artifact admission remains independent of this descriptive choice.
 
 use crate::{ProviderCandidate, ProviderDeclaration};
 use diagnostics::Diagnostic;
@@ -55,7 +34,8 @@ pub struct PreparedProviderCandidate<Owner = ()> {
         Result<PreparedProviderRealizations<Owner>, Vec<Diagnostic>>,
     >,
     pub schema_owner: String,
-    pub inherited_owners: Vec<String>, // inherited coverage does not itself demand a descendant's root slot
+    /// Inherited coverage does not itself demand a descendant's root slot.
+    pub inherited_owners: Vec<String>,
     pub explicitly_selected: bool,
 }
 
@@ -76,6 +56,9 @@ impl<Owner> PreparedProviderCandidate<Owner> {
         let Ok(CanonicalProviderDeclaration::Trait(owner)) = &identity.declaration else {
             return false;
         };
+        // Parent choice relevance uses the same complete receiver application
+        // the whole plan supplies. The exact nominal join precedes export-key
+        // comparison; a display path cannot invent another receiver owner.
         self.inherited_owners.contains(owner)
             && self
                 .choice
@@ -108,17 +91,26 @@ pub struct PreparedTargetChoices<Owner = (), Origin = ()> {
     pub independent_components: Vec<std::sync::Arc<component_description::VerifiedComponent>>,
 }
 
+/// Product selection includes authored deployment roots and explicit choices.
+/// A compiler invocation demands only its executable call closure: unrelated
+/// Product bindings remain available choices, never extra invocation roots.
 #[derive(Clone, Copy)]
 pub enum ProviderApplicationDemand<'roots> {
     Product(Option<&'roots [terminal_psi::ProofDeclarationId]>),
     Invocation(&'roots [terminal_psi::ProofDeclarationId]),
 }
 
+/// The whole canonical choice and its exact original candidate/declaration
+/// correspondence. Consumers attach review metadata; they never select again.
 pub struct SelectedTargetProviders<Owner, Origin> {
     pub selection: backend_plan::TerminalTargetProviderSelection,
     pub facts: effects::SelectedProviderPlanFacts,
-    pub demanded_plans: Vec<effects::provider_plan::ProviderPlan>, // fixed point's required candidate schemas, independent of which whole map wins
-    pub invoked_declarations: Vec<terminal_psi::ProofDeclarationId>, // exact calls reached by this demand after the provider fixed point
+    /// The fixed point's required candidate schemas, independently of which
+    /// whole map wins. Later review must not demand dormant source uses.
+    pub demanded_plans: Vec<effects::provider_plan::ProviderPlan>,
+    /// Exact calls reached by this demand after the provider fixed point.
+    /// These declaration coordinates describe demand, never invocation authority.
+    pub invoked_declarations: Vec<terminal_psi::ProofDeclarationId>,
     pub choices: Vec<crate::SelectedProvider<CanonicalProviderDeclaration, Owner, Origin>>,
 }
 
@@ -140,6 +132,9 @@ pub struct SelectedTargetProviderPublication {
 }
 
 impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
+    /// Save additional checks with each possible implementation. Selection
+    /// carries them back to the caller only for implementations it chooses.
+    /// Keep existing declaration errors in place for the same later decision.
     pub fn map_owner<Mapped>(
         self,
         mut map: impl FnMut(&effects::provider_plan::ProviderPlan, Owner) -> Mapped,
@@ -179,6 +174,8 @@ impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
         }
     }
 
+    /// Publication carries only canonical declarations. Original producer
+    /// addresses are for the caller's review, not another selection input.
     pub fn without_correspondence(self) -> PreparedTargetChoices {
         let choices = self.map_owner(|_, _| ());
         let declarations =
@@ -234,6 +231,8 @@ impl PreparedTargetProviderPublication {
             .into_iter()
             .map(|(target, prepared)| {
                 let mut application_roots = self.deployed.then(Vec::new);
+                // Declaring a Build row retains a choice, not a request to
+                // realize its backend. The operation owns the actual cohort.
                 let application_required = realization_scopes.contains(&target);
                 let selection = prepared
                     .and_then(|choice| {
@@ -304,6 +303,7 @@ impl PreparedTargetProviderPublication {
 }
 
 impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
+    /// Exact canonical entry roots for this target, independent of selection.
     pub fn close_application_roots(
         &self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
@@ -315,6 +315,9 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
             .map_err(|reason| vec![Diagnostic::error(reason)])
     }
 
+    /// Grow actual application demand through exact selected providers. Catalog
+    /// retention alone never applies a requirement on an unrelated target.
+    /// Each demanded schema still selects and admits its complete provider.
     pub fn select(
         self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
@@ -338,6 +341,9 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
             let (defaults, overrides) = match demand {
                 ProviderApplicationDemand::Product(_) => (&self.defaults[..], &self.overrides[..]),
                 ProviderApplicationDemand::Invocation(_) => {
+                    // Keep invalid choices for every demanded schema too. A
+                    // missing requested provider is a refusal, not permission
+                    // to fall back to another available implementation.
                     let relevant = |choice: &&ProviderDeclaration<
                         CanonicalProviderDeclaration,
                         Origin,
@@ -365,6 +371,8 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
             let selected = crate::choose(candidates, self.profile, defaults, overrides)?;
             let proposed = describe_selection(&selected, artifact, assumed_bindings)?;
             if proposed == previous {
+                // Intermediate choices discover calls, not evidence. Admit the
+                // complete fixed point once, including all independent edges.
                 let (facts, selected) = crate::admit(
                     selected,
                     self.independent_components.iter().map(AsRef::as_ref),
@@ -442,6 +450,9 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                 roots.push(body);
             }
         }
+        // Assumptions retain their exact required/supplied requirement edge.
+        // This discovers supply demand; final installation still owes the
+        // original checked contracts, authority and complete alias admission.
         let plans = effects::SelectedProviderPlanFacts::from_selected_plans(
             selected.plans.iter().map(|row| row.plan.clone()).collect(),
         )
@@ -485,6 +496,13 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
             })
             .filter_map(|boundary| module.identities.text(boundary.owner.identity()))
             .collect::<Vec<_>>();
+        // A selected operation need not remain a BoundaryCall instruction:
+        // comparisons retain their exact application beside the emitted scalar
+        // operation. Consume that canonical roster in the same reachable body
+        // closure, rather than inferring provider demand from instruction shape.
+        // Merely retaining an application in a dormant target body grants no
+        // demand on this target. Provider bodies join this walk at the next
+        // fixed-point iteration, just as their ordinary calls do.
         let mut applications = module
             .boundary_application_demands
             .iter()
@@ -533,6 +551,9 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                             .any(|owner| invoked_owners.binary_search(&owner.as_str()).is_ok())
                 }
             };
+            // Merely declaring an unused descendant cannot create another
+            // demanded slot. Only an authored whole map may supply an invoked
+            // ancestor without an invocation of its own root requirement.
             *demanded |= root_invoked || authored_map_demanded;
         }
         Ok(calls)
@@ -565,6 +586,8 @@ fn describe_selection<Owner, Origin>(
     Ok(selection)
 }
 
+/// Rejoin exact prepared declarations to this immutable artifact, retaining
+/// overloads and refusing both missing and competing executable coordinates.
 fn close_application_roots(
     roots: &[CanonicalProviderDeclaration],
     artifact: terminal_codec::TerminalArtifactView<'_>,
@@ -576,6 +599,9 @@ fn close_application_roots(
         let CanonicalProviderDeclaration::Machine { owner, callable } = root else {
             return Err("Build application root is not an exact ordinary machine".into());
         };
+        // Declaration checking publishes application owners without requiring
+        // their executable bodies. These canonical proof coordinates retain the
+        // exact checked declaration; they grant no supplier or entry authority.
         let mut matches = scope
             .declarations
             .storage_slice()

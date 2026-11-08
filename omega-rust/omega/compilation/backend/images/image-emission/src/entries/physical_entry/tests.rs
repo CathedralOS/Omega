@@ -9,7 +9,7 @@ use machine_emission::native_entry_bridge::{
 #[test]
 fn retained_suffix_includes_alignment_after_nonempty_program_bss() {
     for existing in [0, 1, 15, 16, 17, 255, 4097] {
-        let partitions = super::PhysicalEntryPartitions::derive(existing, 16, 131_073, 131_072)
+        let partitions = super::PhysicalEntryPartitions::derive(existing, 16, 131_073)
             .expect("bounded partition geometry");
         assert_eq!(partitions.retained_start_offset, existing);
         assert!(partitions.retained_start_offset <= partitions.saved_state_offset);
@@ -24,30 +24,9 @@ fn retained_suffix_includes_alignment_after_nonempty_program_bss() {
             assert!(aligned.is_multiple_of(16));
         }
     }
-    assert!(super::PhysicalEntryPartitions::derive(u64::MAX, 16, 128, 131_072).is_err());
-    assert!(super::PhysicalEntryPartitions::derive(17, 3, 128, 131_072).is_err());
-    assert!(super::PhysicalEntryPartitions::derive(17, 16, u64::MAX, 131_072).is_err());
-}
-
-#[test]
-fn private_stack_realizes_target_floor_and_larger_checked_demand() {
-    let target = target::TargetSemantics::close_guaranteed_entry_stack::<target::UefiX86_64>(
-        target::TargetProfile::UefiX64,
-    )
-    .unwrap();
-    let floor = target.guaranteed_available_bytes();
-    for (demand, expected) in [
-        (0, floor),
-        (4096, floor),
-        (floor, floor),
-        (floor + 1, floor + 16),
-    ] {
-        let partitions = super::PhysicalEntryPartitions::derive(17, 16, demand, floor).unwrap();
-        assert_eq!(partitions.stack_byte_count, expected);
-        assert_eq!(partitions.end_offset - partitions.stack_offset, expected);
-        assert!(partitions.saved_state_offset + 24 <= partitions.stack_offset);
-    }
-    assert!(super::PhysicalEntryPartitions::derive(17, 16, 0, u64::MAX).is_err());
+    assert!(super::PhysicalEntryPartitions::derive(u64::MAX, 16, 128).is_err());
+    assert!(super::PhysicalEntryPartitions::derive(17, 3, 128).is_err());
+    assert!(super::PhysicalEntryPartitions::derive(17, 16, u64::MAX).is_err());
 }
 
 #[test]
@@ -71,18 +50,11 @@ fn private_stack_prefix_copies_abi_stack_arguments_and_preserves_return() {
             target: target::NativeTarget::uefi_x64(),
             internal: plan.plan().call.clone(),
             inbound: plan.plan().clone(),
-            body_footprint: Some(calling_conventions::StateEffectsEvidence::empty()),
+            body_footprint: None,
             parameters,
         })
         .unwrap();
         let wrapper = super::stack_switch::emit(&bridge).unwrap();
-        assert_eq!(wrapper.incoming.bytes_below_entry_rsp, 0);
-        assert_eq!(wrapper.incoming.caller_alignment, 16);
-        assert_eq!(wrapper.incoming.caller_rsp_bias, 8);
-        assert_eq!(
-            wrapper.incoming.readable_bytes_from_entry_rsp,
-            if parameter_count == 6 { 56 } else { 8 },
-        );
         let instructions = Decoder::new(64, &wrapper.bytes, DecoderOptions::NONE)
             .into_iter()
             .take_while(|instruction| instruction.mnemonic() != Mnemonic::Ret)
@@ -116,23 +88,6 @@ fn private_stack_prefix_copies_abi_stack_arguments_and_preserves_return() {
                 vec![]
             }
         );
-        assert!(
-            copies
-                .iter()
-                .all(|offset| offset + 8 <= wrapper.incoming.readable_bytes_from_entry_rsp)
-        );
-        let switch = instructions
-            .iter()
-            .position(|instruction| {
-                instruction.mnemonic() == Mnemonic::Lea
-                    && instruction.op0_register() == Register::RSP
-            })
-            .unwrap();
-        assert!(instructions[..switch].iter().all(|instruction| !matches!(
-            instruction.mnemonic(),
-            Mnemonic::Push | Mnemonic::Call
-        ) && instruction.memory_base()
-            != Register::RSP));
         assert_eq!(
             wrapper.outgoing_frame_bytes,
             if parameter_count == 6 { 48 } else { 32 }

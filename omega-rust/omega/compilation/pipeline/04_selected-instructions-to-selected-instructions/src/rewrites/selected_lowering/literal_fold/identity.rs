@@ -21,7 +21,7 @@ pub(crate) fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Ve
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.extend_from_slice(&plan.machine_effect_catalog.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    push_encoded(&mut bytes, plan.work_schedule.marker().to_le_bytes());
+    push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
     push_encoded(&mut bytes, plan.policy.canonical_bits().to_le_bytes());
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());

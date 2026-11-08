@@ -1,19 +1,23 @@
-/*
-No-follow traversal, symlink policy validation, and closing drift sweeps for
-source trees.
-
-Per-member checks (bounded file reads and each entry's initial no-follow
-observation) cover the window up to that member's inspection. Before a
-directory's visit returns, `close_captured_directory` re-lists its members
-(including policy-excluded names such as `.git`, root `build`, and root
-`omega.lock` matched case-insensitively) and re-observes each captured entry and
-the directory's own metadata so member additions, removals, replacements, or
-retargetings during sibling traversal reject with `LocalSourceChanged`. After
-the deepest close returns, `verify_captured_tree` re-observes every captured
-member's identity first (preventing a directory swapped for a symlink from
-redirecting re-opened listings) and then re-verifies every visited directory's
-metadata and member set from the retained root handle.
-*/
+//! No-follow traversal and policy validation for source trees.
+//!
+//! Per-member checks (the bounded file read and each entry's first no-follow
+//! observation) cover the window up to that member's own inspection. Before a
+//! directory's visit returns, `close_captured_directory` re-lists its members
+//! and re-observes each captured entry, so a member added, removed, replaced
+//! or retargeted while its siblings were being processed still rejects. The
+//! directory's own identity metadata participates on both sides, which also
+//! rejects member churn that restores the same listing, while excluded policy
+//! names keep counting toward membership: the capture premise is a quiescent
+//! tree, not merely a quiescent captured subset. Ancestor directories apply
+//! the same close sweep, so a replaced child directory cannot hide behind a
+//! retained handle. After the deepest close returns,
+//! `verify_captured_tree` re-observes every visited directory's member set
+//! and every captured member once more before publication, so a mutation
+//! landing in an already-closed subtree — or at the root after its own close
+//! — still rejects at capture time rather than waiting for the resolver's
+//! later live-tree comparison. The sweeps narrow drift detection to the
+//! capture window; a mutation racing the final sweep itself remains the
+//! boundary of the quiescent-tree premise.
 
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
@@ -30,17 +34,25 @@ use crate::tree::filesystem::{
     read_capability_file_bounded, require_unchanged_entry,
 };
 
+/// One visited directory's opening record, retained for the final whole-tree
+/// sweep: the member set listed at open plus the directory's own identity
+/// metadata, both re-verified after the traversal completes.
 pub(super) struct CapturedDirectoryObservation {
     relative_path: PathBuf,
     metadata: cap_std::fs::Metadata,
     listed_names: Vec<OsString>,
 }
 
+/// One captured member's first no-follow observation, keyed by its
+/// root-relative path so the final sweep can re-observe it from the retained
+/// root handle after every directory's own close has run.
 pub(super) struct CapturedMemberObservation {
     relative_path: PathBuf,
     metadata: cap_std::fs::Metadata,
 }
 
+/// The tree-wide observation record a traversal accumulates for
+/// `verify_captured_tree`'s closing sweep.
 #[derive(Default)]
 pub(super) struct CapturedTreeObservations {
     directories: Vec<CapturedDirectoryObservation>,
@@ -184,6 +196,14 @@ pub(super) fn visit_directory(
     Ok(())
 }
 
+/// Close one captured directory: the member set must still be exactly the
+/// set listed at open — including names the policy excludes from capture,
+/// since the isolation premise covers a quiescent tree, not a quiescent
+/// captured subset — and every captured entry must still answer at its first
+/// identity. An entry created or removed mid-visit changes the member set
+/// (and usually the directory's own clocks); one replaced or retargeted in
+/// place is caught by the identity compare. `NotFound` on the recheck is
+/// drift, not an I/O failure, so it reports the same `LocalSourceChanged`.
 fn close_captured_directory(
     directory: &CapabilityDirectory,
     display_dir: &Path,
@@ -217,6 +237,17 @@ fn close_captured_directory(
     Ok(())
 }
 
+/// The whole-tree counterpart of `close_captured_directory`, run once after
+/// the traversal completes: every directory already re-verified itself before
+/// its own visit returned, but a member created, removed, replaced or
+/// retargeted inside a subtree after that subtree closed is invisible to its
+/// parent's close. Re-observe every visited directory's member set and every
+/// captured member's identity here so drift landing anywhere in the tree
+/// during the capture window still rejects before publication. The per-member
+/// re-observation runs first — each directory entry's own kind and identity
+/// must still match before its handle is re-opened for the listing compare,
+/// so a directory swapped for a link cannot redirect the listing under the
+/// retained root capability.
 pub(super) fn verify_captured_tree(
     root_directory: &CapabilityDirectory,
     root: &Path,
@@ -258,6 +289,10 @@ pub(super) fn verify_captured_tree(
     Ok(())
 }
 
+/// Re-open a visited directory under the retained root, no-follow at every
+/// component: a vanishing or re-kinded component is drift, not an I/O
+/// failure, so it reports the same `LocalSourceChanged` the per-directory
+/// close uses.
 fn open_observed_directory(
     root_directory: &CapabilityDirectory,
     relative_path: &Path,
@@ -281,6 +316,10 @@ fn open_observed_directory(
     Ok(opened)
 }
 
+/// Names the capture policy leaves out; identical for the opening listing and
+/// the closing membership recheck is not required because the close compares
+/// raw membership — an excluded member appearing or vanishing mid-traversal
+/// is still drift under the quiescent-tree premise and rejects.
 pub(crate) fn excluded_from_capture(
     policy: SourceTreePolicy,
     logical_dir: &Path,
@@ -345,6 +384,8 @@ fn read_and_validate_symlink_target(
 }
 
 fn is_root_control_file(name: &OsStr) -> bool {
+    // The package lock is not a package source input. Reserve case variants
+    // too so the rule agrees on case-folding filesystems.
     name.as_encoded_bytes().eq_ignore_ascii_case(b"omega.lock")
 }
 
@@ -471,10 +512,18 @@ mod close_tests {
     #[cfg(unix)]
     #[test]
     fn member_rewritten_in_place_with_restored_observations_rejects() {
+        // A same-inode rewrite restoring every compared indicator — type,
+        // length, permissions and the recorded modification time — still
+        // moves the kernel-managed change time, so the closing entry
+        // comparison rejects it. Editing a member's bytes does not move its
+        // parent's clock, so only the per-entry recheck can see this drift.
         use std::io::Write;
 
         let fixture = DirectoryFixture::new("close-in-place", &["a.omg", "b.omg"]);
         let observation = fixture.observe();
+        // Kernel change time moves only when the edit lands in a later
+        // filesystem timestamp tick; coarse-clock hosts quantize metadata
+        // timestamps to jiffies, so the mutation has to wait out a tick.
         std::thread::sleep(std::time::Duration::from_millis(50));
         let member = fixture.root.join("b.omg");
         let recorded = fixture
@@ -501,6 +550,10 @@ mod close_tests {
         ));
     }
 
+    /// The link-retarget and in-place-restore rejection legs above depend on
+    /// unix symlink spelling and kernel change time; neither exists on this
+    /// host. Record the absent coverage explicitly rather than letting a
+    /// non-unix run drop it silently.
     #[cfg(not(unix))]
     #[test]
     fn unix_close_recheck_legs_recorded_as_unavailable_on_this_host() {
@@ -533,6 +586,8 @@ mod tree_tests {
     }
 
     impl TreeFixture {
+        /// Builds `root/` with `a.omg` at the top level and
+        /// `sub/{b.omg,nested/c.omg}` beneath it.
         fn new(name: &str) -> Self {
             let root = temp_root(name);
             std::fs::create_dir_all(root.join("sub/nested")).expect("create nested fixture");
@@ -548,6 +603,9 @@ mod tree_tests {
             }
         }
 
+        /// Mirrors `visit_directory`'s accumulation: every visited directory's
+        /// opening metadata and member listing, and every member's first
+        /// no-follow observation, in traversal order.
         fn observe(&self) -> CapturedTreeObservations {
             let mut observations = CapturedTreeObservations::default();
             Self::observe_directory(&self.root_directory, Path::new(""), &mut observations);

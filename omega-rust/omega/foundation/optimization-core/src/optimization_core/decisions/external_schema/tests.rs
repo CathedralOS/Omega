@@ -1,6 +1,3 @@
-// Unit tests for external decision schema v2 canonicalization, wire round-trips,
-// version gating, and tamper rejection.
-
 use super::{
     ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionContext,
     ExternalDecisionLog, ExternalDecisionPoint, ExternalDecisionSchemaError,

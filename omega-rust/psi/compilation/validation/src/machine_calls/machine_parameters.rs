@@ -31,9 +31,6 @@ use callable_shape::validate_selected_callable_effects;
 use callable_shape::validate_selected_callable_shape;
 pub(crate) use callable_shape::validate_trait_callable_parameter_refinement;
 pub(crate) use contract_facts::validate_callable_contract_refinement;
-mod installed_interrupts;
-pub use installed_interrupts::PreparedInstalledInterruptRegistration;
-
 use nominal_admission::validate_nominal_machine_selection;
 use type_refinement::TypeBinding;
 
@@ -137,9 +134,6 @@ pub struct ValidatedRequirementCallSpecialization {
 /// checked-fact publication, not this carrier, establishes full admission.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PreparedStaticMachineSelections {
-    /// Registrar selections belong to their installation request, separately
-    /// from the installation operation's own generic machine arguments.
-    pub installed_interrupt_registrations: Vec<PreparedInstalledInterruptRegistration>,
     pub crash_refinements: Vec<StaticMachineContractObligation>,
     /// ENT4: exact nominal satisfaction selected for each admitted static
     /// machine argument.
@@ -378,16 +372,6 @@ pub(crate) fn form_static_machine_selections(
                 diagnostics,
                 &mut selections,
             );
-            if let Some(request) = &call.installed_interrupt_operation {
-                installed_interrupts::form(
-                    program,
-                    &index,
-                    ValidatedNominalMachineUseSite::Expression(handle),
-                    request,
-                    diagnostics,
-                    &mut selections,
-                );
-            }
         }
     }
 
@@ -431,16 +415,6 @@ pub(crate) fn form_static_machine_selections(
                         diagnostics,
                         &mut selections,
                     );
-                    if let Some(request) = &call.installed_interrupt_operation {
-                        installed_interrupts::form(
-                            program,
-                            &index,
-                            ValidatedNominalMachineUseSite::Statement(statement_handle),
-                            request,
-                            diagnostics,
-                            &mut selections,
-                        );
-                    }
                 }
             }
         }
@@ -524,22 +498,6 @@ fn is_machine_selection_symbol(program: &dyn crate::CheckingInput, symbol: Symbo
         )
 }
 
-fn source_call_target(
-    program: &dyn crate::CheckingInput,
-    site: ValidatedNominalMachineUseSite,
-) -> Option<SymbolHandle> {
-    match site {
-        ValidatedNominalMachineUseSite::Expression(handle) => expression_table(program)
-            .call_node(handle)
-            .map(|call| call.target_symbol),
-        ValidatedNominalMachineUseSite::Statement(handle) => program
-            .statement_table
-            .statement(handle)
-            .as_call()
-            .map(|call| call.target_symbol),
-    }
-}
-
 fn validate_call_selection(
     program: &dyn crate::CheckingInput,
     index: &MachineStateIndex,
@@ -555,7 +513,6 @@ fn validate_call_selection(
         target_symbol,
         target_name,
         arguments,
-        selected_target: source_call_target(program, site).unwrap_or(target_symbol),
         application: match site {
             ValidatedNominalMachineUseSite::Expression(handle) => {
                 program.expression_table.call_node(handle).map_or(
@@ -593,9 +550,6 @@ fn validate_call_selection(
 struct CallSelection<'call> {
     site: ValidatedNominalMachineUseSite,
     target_symbol: SymbolHandle,
-    /// The closed callable whose signature this subject must satisfy. The
-    /// enclosing diagnostic occurrence can belong to a different operation.
-    selected_target: SymbolHandle,
     target_name: &'call str,
     arguments: &'call [StaticMachineArgument],
     application: typed_trees::static_applications::StaticMachineApplicationHandle,
@@ -612,17 +566,25 @@ fn form_call_selection(
     let CallSelection {
         site,
         target_symbol,
-        selected_target,
         target_name,
         arguments,
         application,
-        ..
     } = call;
     // Registration remains the authored declaration. The same occurrence's
     // executable target supplies a closed requirement's substituted contract;
     // equal local tuples from another trait application cannot supply it.
-    let closed_requirement = program
-        .closed_requirement_application(selected_target)
+    let source_target = match site {
+        ValidatedNominalMachineUseSite::Expression(handle) => expression_table(program)
+            .call_node(handle)
+            .map(|call| call.target_symbol),
+        ValidatedNominalMachineUseSite::Statement(handle) => program
+            .statement_table
+            .statement(handle)
+            .as_call()
+            .map(|call| call.target_symbol),
+    };
+    let closed_requirement = source_target
+        .and_then(|target| program.closed_requirement_application(target))
         .filter(|closed| closed.template == target_symbol);
     let registration_requirement_trait = closed_requirement
         .map(|closed| closed.declaring_trait)

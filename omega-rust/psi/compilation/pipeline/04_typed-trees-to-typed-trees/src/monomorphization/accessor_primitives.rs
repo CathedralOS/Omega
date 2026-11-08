@@ -27,24 +27,7 @@ pub(super) fn select_calls(
             &candidates[selection.candidate_index],
             selection,
         );
-        let selected = select(None, program, &candidate).map_err(|diagnostics| {
-            diagnostics
-                .into_iter()
-                .map(|diagnostic| match selection.site {
-                    super::CallSite::Expression(expression) => diagnostic
-                        .with_source_span(super::expressions_of(program).source_span(expression)),
-                    super::CallSite::Statement(statement) => {
-                        match program.statement_table.statement(statement) {
-                            typed_trees::statement::StatementNode::Call(call) => {
-                                diagnostic.with_source_span(call.source_span)
-                            }
-                            _ => diagnostic,
-                        }
-                    }
-                })
-                .collect::<Vec<_>>()
-        })?;
-        let Some(states) = selected else {
+        let Some(states) = select(None, program, &candidate)? else {
             continue;
         };
         let Some((_, entry)) = states

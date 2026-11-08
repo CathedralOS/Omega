@@ -951,7 +951,7 @@ pub enum OperationKind {
         crash_continuations: Vec<CrashRouteBucket>,
         /// Canonical proof-only selections from exact outcome-specific callee
         /// rows. Each is valid only beneath its matching result-case refinement
-        /// and has no runtime representation or work cost.
+        /// and has no runtime representation or fuel cost.
         selected_evidence: Vec<OutcomeSpecificCallEvidence>,
     },
     /// Invoke one in-module structural-result machine with independently

@@ -1,26 +1,23 @@
-// Prepare native work before the application completes its scalar demand.
-// `prepare` binds explicit platform installation assumptions to the retained
-// artifact and proposal, prepares independent component calls, admits private
-// entry RAM initializers against target layouts, and constructs the root and
-// component `NativeScalarCompletion` demands.
+//! Choose native work before the application completes its scalar demand.
 
 use crate::{NativeCompileRequest, NativeScalarCompletion};
 use diagnostics::Diagnostic;
 use image_emission::ExecutableImageEmissionRequest;
-use installation_evidence::InstallationEnvironmentAssumption;
 use terminal_installation::admit_target_layouts;
 use terminal_psi_to_abstract_operations::{PreparedNativeWork, RetainedTerminalArtifact};
 
 pub struct PreparedNativeCompilation<'input> {
     pub(crate) retained: &'input RetainedTerminalArtifact,
     pub(crate) request: NativeCompileRequest<'input>,
-    pub(crate) recovery: ExecutableImageEmissionRequest,
+    pub(crate) recovery: image_emission::ExecutableImageEmissionRequest,
     pub(crate) work: PreparedNativeWork<'input>,
     pub(crate) scalars: NativeScalarCompletion<'input>,
     pub(crate) components: Vec<crate::components::PreparedComponent<'input>>,
 }
 
 impl<'input> PreparedNativeCompilation<'input> {
+    /// Each artifact/proposal group is completed once, including every
+    /// authored condition even when its explicit native value demand is empty.
     pub fn scalar_completions(
         &mut self,
     ) -> impl Iterator<Item = &mut NativeScalarCompletion<'input>> {
@@ -33,7 +30,7 @@ impl<'input> PreparedNativeCompilation<'input> {
             .filter(|completion| completion.is_required())
     }
 
-    pub fn into_image_request(self) -> ExecutableImageEmissionRequest {
+    pub fn into_image_request(self) -> image_emission::ExecutableImageEmissionRequest {
         self.recovery
     }
 }
@@ -45,11 +42,6 @@ pub fn prepare<'input>(
     let recovery = request.image_request.clone();
     let result = (|| {
         let (artifact, proposal) = request.prepare_terminal(retained)?;
-        validate_installation_environment_inputs(
-            artifact,
-            proposal,
-            request.installation_assumptions,
-        )?;
         let components =
             crate::components::prepare_components(request.components, artifact.view())?;
         let selections = terminal_installation::admit_target_machine_selections(
@@ -114,54 +106,4 @@ pub fn prepare<'input>(
         }),
         Err(diagnostics) => Err((recovery, diagnostics)),
     }
-}
-
-fn validate_installation_environment_inputs(
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    proposal: &terminal_psi_to_abstract_operations::TerminalNativeRealizationProposal,
-    assumptions: &[InstallationEnvironmentAssumption],
-) -> Result<(), Vec<Diagnostic>> {
-    let fail = |reason: &str| {
-        vec![Diagnostic::error(format!(
-            "installation environment assumption: {reason}"
-        ))]
-    };
-    let module = artifact.semantic_module();
-    let mut bootstrap = semantic_vocabulary::IdSet::default();
-    let mut delivery = semantic_vocabulary::IdSet::default();
-    for assumption in assumptions {
-        assumption.validate_description().map_err(fail)?;
-        if assumption.psi() != artifact.view().identity()
-            || assumption.profile() != proposal.target_profile()
-        {
-            return Err(fail("program or target differs from the reviewed interval"));
-        }
-        let entry = proposal.program_entry().checked_entry().terminal_entry();
-        if assumption.entry() != entry
-            && !proposal
-                .occurrences()
-                .callbacks
-                .iter()
-                .any(|row| row.callback_thunk_artifact().entry() == assumption.entry())
-        {
-            return Err(fail(
-                "entry is neither the selected program entry nor an advertised private entry",
-            ));
-        }
-        if !module
-            .installed_interrupt_registrations
-            .iter()
-            .any(|row| row.operation == assumption.installation())
-        {
-            return Err(fail("interval names no retained interrupt installation"));
-        }
-        let operations = match assumption {
-            InstallationEnvironmentAssumption::Bootstrap(_) => &mut bootstrap,
-            InstallationEnvironmentAssumption::InterruptDelivery(_) => &mut delivery,
-        };
-        if !operations.insert(assumption.installation()) {
-            return Err(fail("installation repeats one kind of platform assumption"));
-        }
-    }
-    Ok(())
 }

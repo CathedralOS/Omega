@@ -308,12 +308,7 @@ pub(crate) fn call_argument_substitution<'program>(
             program,
             target_parameters,
             flow,
-            operands: crate::flow::captured_call_operands(
-                program,
-                flow.view(),
-                state_flow,
-                call_flow,
-            ),
+            operands: crate::flow::captured_call_operands(program, flow, state_flow, call_flow),
             machine: state_flow.machine_symbol,
             state: caller_state,
             before_statement,
@@ -438,7 +433,7 @@ impl StructuralArgumentSubstitution<'_> {
                 return None;
             };
         place.segments.extend_from_slice(suffix);
-        crate::flow::operand_entry_origin_is_stable(self.program, self.flow.view(), epoch, &place)
+        crate::flow::operand_entry_origin_is_stable(self.program, self.flow, epoch, &place)
             .then_some(place)
     }
 

@@ -29,7 +29,6 @@ pub struct MachoSharedComponentImage {
     image: FinalImage,
     exports: Vec<MachoComponentExport>,
     contents: Vec<u8>,
-    final_text_bytes: Vec<u8>,
 }
 
 impl MachoSharedComponentImage {
@@ -38,10 +37,6 @@ impl MachoSharedComponentImage {
     }
     pub fn exports(&self) -> &[MachoComponentExport] {
         &self.exports
-    }
-    /// Exact relocated text retained by the format owner for target replay.
-    pub fn final_text_bytes(&self) -> &[u8] {
-        &self.final_text_bytes
     }
     pub fn contents(&self) -> &[u8] {
         &self.contents
@@ -155,14 +150,13 @@ pub fn emit_macho_shared_component(
         let install_name =
             MachoDylib::from_install_name(format!("@rpath/lib{label}.dylib").into_bytes());
         emit_macho_container_contents(image.clone(), &label, isa, Some(&install_name), &exports)
-            .map(|emitted| (emitted.bytes, emitted.image.memory.text))
+            .map(|emitted| emitted.bytes)
     })();
     match result {
-        Ok((contents, final_text_bytes)) => Ok(MachoSharedComponentImage {
+        Ok(contents) => Ok(MachoSharedComponentImage {
             image,
             exports,
             contents,
-            final_text_bytes,
         }),
         Err(diagnostic) => Err(Box::new(MachoSharedComponentEmissionError {
             image,

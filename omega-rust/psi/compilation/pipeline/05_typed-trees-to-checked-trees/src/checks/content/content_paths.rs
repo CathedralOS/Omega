@@ -149,10 +149,7 @@ impl ClaimBindings {
     }
 
     /// Publish the recorded rows, interning each subject's segments once.
-    pub(super) fn publish(
-        self,
-        facts: &mut checked_trees::CheckFactsWalk<'_>,
-    ) -> HandleSpan<ContentBodyClaimBinding> {
+    pub(super) fn publish(self, facts: &mut CheckFacts) -> HandleSpan<ContentBodyClaimBinding> {
         let rows = self
             .rows
             .into_iter()
@@ -189,7 +186,7 @@ pub(crate) fn unique_entry_claim_identity(
     input_path: &[PlaceSegment],
 ) -> Option<PermissionClaimIdentity> {
     entry_claim_identity(
-        facts.view(),
+        facts,
         state_symbol,
         parameter_symbol,
         input_path,
@@ -206,7 +203,7 @@ pub(crate) fn unique_entry_claim_identity(
 /// supplies its event prefix because the final permission arena is not yet
 /// published; neither consumer reconstructs identity from carrier geometry.
 pub(super) fn entry_claim_identity<'event>(
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
     input_path: &[PlaceSegment],
@@ -525,10 +522,10 @@ pub(crate) fn preserves_entry_observation(
     observed: CanonicalPlace,
     expected: &CanonicalPlace,
 ) -> bool {
-    crate::flow::operand_entry_origin_is_stable(program, facts.flow.view(), operand, &observed)
+    crate::flow::operand_entry_origin_is_stable(program, &facts.flow, operand, &observed)
         && crate::flow::value_origin_before_statement(
             program,
-            facts.flow.view(),
+            &facts.flow,
             machine,
             state,
             operand.statement_index,

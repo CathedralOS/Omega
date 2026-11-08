@@ -1,14 +1,9 @@
-/*
-We join semantic loans to native byte placement (`CapturedStorage`,
-`PointerOutputPlan`) without inventing backing bytes.
-
-Output (`StorageTransfer::Observe`) observes only covered prefixes. Input
-(`StorageTransfer::ReplacePrefix`) uses private staging memory whose zeroed
-holes are not semantic values: completion (`stage`) decodes a cell only when
-every byte was supplied by the read or retained from valid entry contents. This
-permits complete case replacement, including initially inactive payloads,
-without publishing unread padding or manufactured data.
-*/
+//! Join semantic loans to native placement without inventing backing bytes.
+//! Output observes only covered prefixes. Input uses private staging memory;
+//! its zeroed holes are not semantic values: completion decodes a cell only
+//! when every byte was supplied by the read or retained from valid entry
+//! contents. This permits complete case replacement, including initially
+//! inactive payloads, without publishing unread padding or manufactured data.
 
 pub(super) mod geometry;
 
@@ -40,6 +35,11 @@ pub(super) struct CapturedStorage<'layout> {
     primitive_byte_root: bool,
 }
 
+/// Exact native root-word output geometry. Scalar descriptors additionally
+/// retain a disjoint codec lane; address-only semantic completion authenticates
+/// it against the old and new captured endpoints. This plan names only semantic paths
+/// and overlap guards; the selected host pointer is never decoded as a scalar
+/// or exposed as a guest address. Trailing disjoint storage remains untouched.
 pub(super) struct PointerOutputPlan {
     selected: Vec<Path>,
     overlaps: Vec<Vec<Path>>,
@@ -133,6 +133,8 @@ impl PointerOutputPlan {
         Ok(Self { selected, overlaps })
     }
 
+    /// Validate the actual active overlay before C writes its root word. Any
+    /// other active scalar, tag or opaque region touched by that write refuses.
     pub fn validate(
         &self,
         buffer: &terminal_interpreter::TerminalBoundaryStructuralBuffer,
@@ -175,6 +177,9 @@ impl<'layout> CapturedStorage<'layout> {
             Some(layout) => geometry::expand(layout)?,
             None => Vec::new(),
         };
+        // Terminal canonical order sorts each declaration's fields by identity.
+        // Lexical paths therefore place tags before descendants and mixed common
+        // fields before payloads, matching semantic capture without dense IDs.
         cells.sort_by(|left, right| left.path.cmp(&right.path));
         if cells.windows(2).any(|pair| pair[0].path == pair[1].path) {
             return Err(invalid_operands());
@@ -301,6 +306,8 @@ impl<'layout> CapturedStorage<'layout> {
         })
     }
 
+    /// A native C-string reader may see only the fully captured prefix through
+    /// its first NUL. Zero-filled staging holes are not initialized terminators.
     pub fn terminated_prefix(&self) -> Result<&[u8], TerminalEffectRejection> {
         let end = self
             .bytes
@@ -319,6 +326,9 @@ impl<'layout> CapturedStorage<'layout> {
         Ok(&self.bytes[..end])
     }
 
+    /// Translate a returned host-staging offset back to exactly one captured
+    /// byte cell. This is semantic geometry, not a guest pointer conversion;
+    /// padding, wide scalar interiors and inactive overlays have no endpoint.
     pub fn byte_path_at(&self, offset: usize) -> Result<Vec<Path>, TerminalEffectRejection> {
         if self.primitive_byte_root && offset == 0 {
             return Ok(Vec::new());
@@ -337,6 +347,8 @@ impl<'layout> CapturedStorage<'layout> {
         Ok(path)
     }
 
+    /// The returned count grants initialization only to the supplied prefix.
+    /// A short read retains valid old bytes; unread inactive bytes stay absent.
     pub fn stage(
         &self,
         buffers: &mut [TerminalBoundaryStorageBuffer],
@@ -377,6 +389,10 @@ impl<'layout> CapturedStorage<'layout> {
                 .checked_add(size)
                 .ok_or_else(invalid_operands)?;
             if !covered_range(&covered, cell.byte_offset, end) {
+                // Non-scalar authority (e.g. shared atomic residents) is not a
+                // field supplied by a native layout. Mutable snapshots capture
+                // all ordinary/atomic leaves; a newly selected case must have
+                // complete bytes rather than inheriting an inactive zero fill.
                 return Err(TerminalEffectRejection::new(
                     "new active case has bytes neither supplied nor validly retained",
                 ));

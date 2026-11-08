@@ -1,5 +1,5 @@
-// We execute exact admitted C abs calls over one signed 32-bit int word,
-// preserving owned record envelopes and their typed payload claim transfers.
+//! An exact admitted C abs call over one signed int word. Owned record
+//! envelopes retain their typed payload and ordinary boundary claim transfer.
 
 use super::super::TerminalRuntimeError;
 use calling_conventions::{BoundaryCallingApplication, CallSignature, ValueShape};
@@ -213,6 +213,8 @@ impl TerminalEffectHandler for IntegerAbsoluteImport {
                 "abs payload is not a valid signed C int",
             ));
         }
+        // IntegerValue records mathematical sign independently of its carrier;
+        // a positive literal in a signed field may use the unsigned variant.
         let value = match value {
             IntegerValue::Signed(value) => i32::try_from(value).ok(),
             IntegerValue::Unsigned(value) => i32::try_from(value).ok(),

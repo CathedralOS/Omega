@@ -1,7 +1,4 @@
-// Staged Git workspace session tests verifying that catalog inventory and
-// member declaration inspection pin exact objects without materializing
-// unselected repository payloads or following submodule gitlinks.
-
+//! Staged catalog reads must pin source without materializing a whole repository.
 use super::{
     create_git_source, fixture_storage, local_git_request, make_tree_owner_writable, run_test_git,
     run_test_git_with_input, temp_root,
@@ -207,6 +204,7 @@ fn staged_workspace_pins_catalog_and_materializes_only_selected_payloads() {
     let session = fixture.open();
     let commit = session.commit().to_owned();
     assert_eq!(session.root_declaration().bytes(), b"root catalog\n");
+    // Move the authored selector while Build is inspecting the catalog.
     std::fs::write(
         fixture.repository.join("second/lib.omg"),
         b"changed source\n",
@@ -217,6 +215,8 @@ fn staged_workspace_pins_catalog_and_materializes_only_selected_payloads() {
         &fixture.repository,
         ["commit", "--quiet", "-m", "move HEAD"],
     );
+    // A separate operation advances the shared selector cache as well. The
+    // suspended session and an explicit reuse pin must still select old bytes.
     assert_ne!(fixture.open().commit(), commit);
     let reopened = GitWorkspaceSession::open(
         &fixture.storage,

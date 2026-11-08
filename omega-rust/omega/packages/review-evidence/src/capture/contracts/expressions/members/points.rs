@@ -1,5 +1,4 @@
-// Contract program-point resolution following the checked precondition's entry
-// state scope when projecting machine contract member paths.
+//! Declaration projection follows the checked precondition's entry scope.
 
 use crate::capture::EvidenceOption;
 use crate::capture::SourceDeclarationInput;

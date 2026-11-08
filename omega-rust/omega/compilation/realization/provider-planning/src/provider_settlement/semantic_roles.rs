@@ -1,9 +1,7 @@
-// We capture and validate semantic completion-role declarations for package
-// review. A program's exit API (`Console`) must belong to the package that
-// declares it and use an implementation that actually reaches an external exit
-// leaf. We save the declared `CompletionIdentity` before publishing Terminal Psi
-// and compare it against the selected provider realization without reopening
-// source.
+//! A program's exit API must belong to the package that declares it and use an
+//! implementation that actually exits. Save the declared identity before
+//! publishing Terminal Psi, then compare it with the selected implementation
+//! without reading source again.
 
 use crate::provider_planning::trait_name_text;
 use crate::{ProviderPlanProvenance, ProviderSchemaDeclaration, SelectedProviderReviewProvenance};
@@ -13,6 +11,8 @@ use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderPlan;
 use symbols::SymbolHandle;
 
+/// Identify the exact declared exit promise. Human-readable paths are useful
+/// in diagnostics, but cannot distinguish declarations from different packages.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CompletionIdentity {
     package: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -95,6 +95,9 @@ impl PreparedCompletionRoles {
         }
     }
 
+    /// Confirm that each selected exit API has the implementation its package
+    /// declared. A hosted exit API that this target does not select needs no
+    /// implementation here, as in a library also built for firmware.
     pub(crate) fn validate(
         &self,
         selected: &[(

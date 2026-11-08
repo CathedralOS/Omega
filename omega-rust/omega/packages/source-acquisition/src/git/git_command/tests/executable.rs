@@ -1,6 +1,3 @@
-// Unix unit tests verifying Git executable launchability checks and
-// whole-resolution launch, wall-clock timeout, and cumulative output budgets.
-
 #![cfg(unix)]
 
 use super::super::GitCommandCapture;

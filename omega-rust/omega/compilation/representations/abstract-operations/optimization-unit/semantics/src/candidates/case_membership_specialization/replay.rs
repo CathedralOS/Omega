@@ -218,7 +218,7 @@ fn folded_node(
     Ok(OptimizationNode {
         operation,
         provenance: node.provenance.clone(),
-        work: node.work.clone(),
+        fuel: node.fuel.clone(),
         effect: node.effect,
         definitions: node.definitions.clone(),
         uses: node.uses.clone(),
@@ -228,7 +228,7 @@ fn folded_node(
 }
 
 /// The exact node custody the folded observations carry: each folded site
-/// retains the membership's own provenance and work settlement, realized at
+/// retains the membership's own provenance and fuel settlement, realized at
 /// the same node.
 fn accepted_provenance(
     function: &PsiOptimizationFunction,
@@ -238,7 +238,7 @@ fn accepted_provenance(
     for row in rows {
         let node = candidate_node(candidate_block(function, row.site.block)?, row.site.node)?;
         let site = PsiRealizationSite::Node(row.site);
-        provenance.push(realized_at_own_site(site, &node.provenance, &node.work));
+        provenance.push(realized_at_own_site(site, &node.provenance, &node.fuel));
     }
     canonicalize_provenance(&mut provenance);
     Ok(provenance)

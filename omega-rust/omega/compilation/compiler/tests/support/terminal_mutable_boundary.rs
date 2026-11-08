@@ -1,5 +1,5 @@
 //! Structural paths a mutable-boundary provision reaches into: the record
-//! fields a source-produced Build call retains across host effects and work
+//! fields a source-produced Build call retains across host effects and fuel
 //! pauses.
 
 use semantic_vocabulary::CanonicalStructuralPathSegment as Path;

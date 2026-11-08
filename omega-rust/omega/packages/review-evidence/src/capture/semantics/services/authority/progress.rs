@@ -1,5 +1,4 @@
-// Exact progress-profile subjects and owner-authored establishment routes for service authority.
-
+//! Exact progress-profile subjects and owner-authored establishment routes.
 use super::Diagnostic;
 use crate::capture::PackageReviewInput;
 use crate::capture::nominal_identity;

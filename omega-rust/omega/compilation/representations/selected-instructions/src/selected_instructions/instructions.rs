@@ -81,11 +81,6 @@ impl SelectedCallTarget {
 /// Materializing their numeric address grants no access to their storage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedImageAddressReference {
-    /// The linker supplies this exact private entry after composing its body.
-    /// Its numeric address does not authorize a callback or installed arrival.
-    PrivateFunction {
-        identity: function_identity::MachineFunctionIdentity,
-    },
     NativeCodeLayout {
         machine: MachineId,
     },
@@ -103,10 +98,6 @@ pub enum SelectedImageAddressReference {
 impl SelectedImageAddressReference {
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
         match self {
-            Self::PrivateFunction { identity } => {
-                bytes.push(4);
-                crate::codec_bytes::push_encoded(bytes, identity.to_bytes());
-            }
             Self::RetainedEntryStorageStart => bytes.push(3),
             Self::ByteLiteral { operation, place } => {
                 bytes.push(0);
@@ -135,20 +126,6 @@ pub enum SelectedInstructionKind {
     /// read, its observed result. The catalog fixes the ISA and operand roles.
     RegisterAccess {
         operation: terminal_psi::RegisterOperation,
-    },
-    /// Pure CPU/GDT/TSS check; descriptor scratch is ten bytes and flags use
-    /// eight temporary stack bytes. Geometry is fixed by installation admission.
-    InstalledInterruptCpuCheck {
-        gdt_bytes: u32,
-    },
-    /// Reload the exact admitted task descriptor. Any failed recheck traps;
-    /// there is no false return after the installation commits to publication.
-    InstalledInterruptTaskCommit {
-        gdt_bytes: u32,
-    },
-    /// Write the ten-byte descriptor scratch and publish the exact table by LIDT.
-    InstalledInterruptTablePublication {
-        table_bytes: u32,
     },
     /// Exact x86 OUT DX, AL envelope with immediate semantic operands.
     /// RAX, RDX, R10 and R11 are clobbered; no RAM or flags are changed.
@@ -182,8 +159,6 @@ pub enum SelectedInstructionKind {
     },
     /// Unconditional trap realizing the exact semantic Crash terminator.
     Crash,
-    /// Nonreturning CPL0 stop, usable only in an admitted installed-entry body.
-    PrivilegedCrash,
     /// Copy exactly count bytes between disjoint valid ranges. Inputs 0/1/2
     /// are preserved source/destination/count; 3/4 are early-clobber scratch.
     /// Count zero accesses neither pointer. Flags are clobbered.

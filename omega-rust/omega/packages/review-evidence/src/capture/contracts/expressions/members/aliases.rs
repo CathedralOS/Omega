@@ -1,5 +1,4 @@
-// Attached-field alias verification rejoining resolver-seeded machine field aliases
-// to their exact attached data declarations and source spans.
+//! Rejoin resolver-seeded attached field aliases to their exact declarations.
 
 use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;

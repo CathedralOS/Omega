@@ -1,12 +1,11 @@
 //! Transformation-ledger decoding and canonical reconstruction.
 
 use super::super::{
-    BlockId, EdgeId, MachineId, NodeLocation, OperationId, OptimizationCandidateIdentity,
-    OptimizationRuleIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
-    ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody, PsiProvenance,
-    PsiRealizationSite, PsiTransformationLedger, PsiTransformationLedgerDecodeError,
+    BlockId, EdgeId, FuelScheduleIdentity, FuelSettlement, MachineId, NodeLocation, OperationId,
+    OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
+    OptimizationValidatorIdentity, ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody,
+    PsiProvenance, PsiRealizationSite, PsiTransformationLedger, PsiTransformationLedgerDecodeError,
     PsiTransformationRecord, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker,
-    WorkScheduleIdentity, WorkSettlement,
 };
 use super::LEDGER_MAGIC;
 use crate::cursor::Cursor;
@@ -21,8 +20,8 @@ impl PsiTransformationLedger {
             PsiTransformationLedgerDecodeError::UnsupportedVocabulary(vocabulary),
         )?;
         let program_fingerprint = SemanticFingerprint::from_bytes(cursor.array()?);
-        let work_schedule = WorkScheduleIdentity::new(cursor.u32()?)
-            .ok_or(PsiTransformationLedgerDecodeError::InvalidWorkSchedule)?;
+        let fuel_schedule = FuelScheduleIdentity::new(cursor.u32()?)
+            .ok_or(PsiTransformationLedgerDecodeError::InvalidFuelSchedule)?;
         let input = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let output = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let record_count = cursor.length()?;
@@ -63,10 +62,10 @@ impl PsiTransformationLedger {
                 for _ in 0..source_count {
                     sources.push(decode_provenance(&mut cursor)?);
                 }
-                let work_count = cursor.length()?;
-                let mut work = Vec::with_capacity(work_count.min(cursor.remaining()));
-                for _ in 0..work_count {
-                    work.push(WorkSettlement {
+                let fuel_count = cursor.length()?;
+                let mut fuel = Vec::with_capacity(fuel_count.min(cursor.remaining()));
+                for _ in 0..fuel_count {
+                    fuel.push(FuelSettlement {
                         site: decode_provenance(&mut cursor)?,
                         units: cursor.u64()?,
                     });
@@ -75,7 +74,7 @@ impl PsiTransformationLedger {
                     input,
                     disposition,
                     sources,
-                    work,
+                    fuel,
                 });
             }
             records.push(PsiTransformationRecord {
@@ -96,7 +95,7 @@ impl PsiTransformationLedger {
                 vocabulary_marker,
                 program_fingerprint,
             },
-            work_schedule,
+            fuel_schedule,
             input,
             output,
             records,

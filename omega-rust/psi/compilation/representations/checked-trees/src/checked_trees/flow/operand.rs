@@ -462,6 +462,29 @@ pub struct FlowOperandAlternative {
     pub value: Handle<FlowOperandFact>,
 }
 
+/// One checked case decision on the unchanged owned home of a completed
+/// subject. The statement owns these rows in evaluation order. They introduce
+/// no transfer or disposal; cleanup still meets the actual branch outcomes.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct FlowOwnedCaseSelection {
+    pub machine_symbol: symbols::SymbolHandle,
+    pub state_symbol: symbols::SymbolHandle,
+    pub statement_index: usize,
+    pub statement: Handle<super::FlowStatementFact>,
+    pub expression: ExpressionHandle,
+    pub source_arm: Handle<typed_trees::expression::TableMatchArm>,
+    pub evaluation: super::FlowPermissionEvaluation,
+    pub subject: Handle<FlowOperandFact>,
+    pub root: facts::PlaceRoot,
+    pub path: HandleSpan<facts::PlaceSegment>,
+    pub variant: symbols::SymbolHandle,
+    /// Only a total case pattern's failure excludes that case. A failed guard
+    /// or payload equality may still have observed the same active case.
+    pub miss_excludes_case: bool,
+    pub captured_storage: Handle<super::FlowStorageSnapshot>,
+    pub selected_storage: Handle<super::FlowStorageSnapshot>,
+}
+
 /// One authored child installed at its resolved destination in a completed
 /// record, case, or array. Rows are in evaluation order; paths name declaration
 /// identities and are stored in `FlowControlFacts::operand_child_paths`.

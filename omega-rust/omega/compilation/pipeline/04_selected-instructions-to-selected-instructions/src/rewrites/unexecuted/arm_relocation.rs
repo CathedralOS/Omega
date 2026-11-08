@@ -42,7 +42,7 @@
 //! stream a member that ran an extra time on that path, and a head
 //! terminator that is not a two-successor conditional branch is the
 //! single-edge family's case or no relocation at all. The crossed edges
-//! must be plain semantic successors: case custody, work, and structural
+//! must be plain semantic successors: case custody, fuel, and structural
 //! transfers are boundary effects the move does not cross.
 //!
 //! Between the member's old position and its new one lie only the crossed

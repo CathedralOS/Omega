@@ -13,7 +13,6 @@ mod scalar_coordinates;
 mod source_places;
 mod write_coordinates;
 pub use scalar_coordinates::ScalarStorageCoordinate;
-pub(super) use scalar_coordinates::retained_view_predecessor;
 pub(super) use write_coordinates::project_write_path;
 
 pub(super) use source_places::FrameSourcePlace;

@@ -1,22 +1,21 @@
-// `OptimizationWorkBudget`: 5-axis nonzero work ceilings calibrated per
-// `OPTIMIZATION_REFERENCE_EXTENT` (`1 << 16` input units).
-//
-// `for_extent` scales every axis by `extent.div_ceil(OPTIMIZATION_REFERENCE_EXTENT).max(1)`
-// so linear-time passes that fit within their calibrated budget at the
-// reference extent scale linearly to arbitrarily large functions and programs,
-// while superlinear behavior still deterministically exhausts the budget.
-
 use super::CoreContractDecodeError;
 
+/// The input extent one budget's ceilings are calibrated for, in the units a
+/// pass measures its input by — blocks, instructions, operands and writes. A
+/// pass over a larger input receives the ceilings once per started reference
+/// extent (`OptimizationWorkBudget::for_extent`).
 pub const OPTIMIZATION_REFERENCE_EXTENT: u64 = 1 << 16;
 
+/// Hard ceilings for one named pass group. All axes are explicit and nonzero;
+/// exhaustion is a deterministic pass failure, never permission to publish a
+/// partial candidate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct OptimizationWorkBudget {
-    pub(crate) rule_evaluations: u64, // Maximum rule predicate evaluations per reference extent.
-    pub(crate) candidates: u64, // Maximum candidate rewrites constructed per reference extent.
-    pub(crate) validation_steps: u64, // Maximum validator steps executed per reference extent.
-    pub(crate) commits: u64,    // Maximum accepted rewrites committed per reference extent.
-    pub(crate) iterations: u64, // Maximum pass fixpoint iterations per reference extent.
+    pub(crate) rule_evaluations: u64,
+    pub(crate) candidates: u64,
+    pub(crate) validation_steps: u64,
+    pub(crate) commits: u64,
+    pub(crate) iterations: u64,
 }
 
 crate::record_views! {
@@ -59,6 +58,15 @@ impl OptimizationWorkBudget {
         Ok(budget)
     }
 
+    /// The ceilings for one pass over an input of `extent` units — one
+    /// function's or one program's blocks, instructions, operands and
+    /// writes: every axis is granted once per started
+    /// `OPTIMIZATION_REFERENCE_EXTENT` of the input, and an input within the
+    /// reference extent keeps the ceilings unchanged. Work that is linear in
+    /// the input and fits the ceilings at the reference extent fits them at
+    /// every extent, while work superlinear in the input still exhausts them.
+    /// A fixed ceiling on linear work instead capped the size of every
+    /// program or function a required pass could process.
     pub fn for_extent(self, extent: u64) -> Self {
         let multiple = extent.div_ceil(OPTIMIZATION_REFERENCE_EXTENT).max(1);
         Self {

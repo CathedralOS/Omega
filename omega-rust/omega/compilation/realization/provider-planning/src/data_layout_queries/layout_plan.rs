@@ -1,23 +1,18 @@
-/*
-We define the layout-plan vocabulary: `LayoutPlan` and the `TypeLayoutDescriptor`,
-`FieldLayout`, `BitFieldLayout`, `StoredIntegerLayout`, `RepeatedFieldLayout`,
-`DataShape`, `DataLayout`, and target-closed callback demand records it carries.
-
-`TypeLayoutDescriptor::BoundedByteBuffer` represents an owned, variable-fill
-bounded byte buffer (`[u8; N] in <text-domain>`) laid out inline as
-`{ len, [element; capacity] }` so the text carrier survives after the text
-domain is stripped. `DataShape::Enum` places the `i32` case tag at constant
-offset 0 for every case-bearing value (pure sums and mixed shapes alike),
-followed by common fields and then the shared-base payload overlay, so tag-only
-equality compares the first `ENUM_TAG_BYTES` without consulting a layout plan
-and zero initialization remains valid.
-*/
+//! The layout-plan vocabulary: `LayoutPlan` and the descriptors, field
+//! layouts, shapes, and target-closed callback demands it carries.
+//!
+//! `builder.rs` produces a `LayoutPlan` from typed declarations;
+//! `packing` and `sizing` read or project these types. Layout never
+//! authorizes an access; it only fixes where a value's bytes live.
 
 use arena::{Arena, HandleSpan};
 use checked_trees::typed_trees::name::Identifier;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 
+/// Size (and alignment) of the i32 case tag that prefixes every enum-shaped
+/// data value. Comparing an enum value against a case constant compares ONLY
+/// this prefix (tag-only equality); payload bytes never participate.
 pub(crate) const ENUM_TAG_BYTES: usize = runtime_abi::CASE_TAG_BYTE_SIZE as usize;
 
 pub use layout::TypeLayout;
@@ -40,6 +35,15 @@ pub enum TypeLayoutDescriptor {
         element_type: Box<TypeLayoutDescriptor>,
         length: usize,
     },
+    /// An owned, variable-fill bounded byte buffer: `[u8; N]` carrying a runtime
+    /// `len <= N`. Laid out as `{ len, [element; capacity] }` INLINE -- a value,
+    /// NOT a `{ptr,len}` descriptor: the length is an explicit leading word and
+    /// the bytes follow inline, so reads view it as `{ &bytes, len }` and writes
+    /// copy content in + set `len`. Distinct from `FixedArray` (always-full, no
+    /// len word) and from `Slice`/`Reference` (borrowed `{ptr,len}`). Produced for
+    /// a `[u8; N] in <text-domain>` field -- the owned text carrier (#66) -- since
+    /// the text domain is stripped before the backend descriptor, so the carrier
+    /// needs its own variant to survive.
     BoundedByteBuffer {
         element_type: Box<TypeLayoutDescriptor>,
         capacity: usize,
@@ -47,6 +51,8 @@ pub enum TypeLayoutDescriptor {
     Slice {
         element_type: Box<TypeLayoutDescriptor>,
     },
+    /// A `dyn Trait<Args>` selector: one reference to the selected
+    /// implementation's table. The trait arguments do not change its layout.
     DynamicTrait {
         symbol: SymbolHandle,
         name: Identifier,
@@ -60,6 +66,7 @@ pub enum TypeLayoutDescriptor {
 }
 
 impl TypeLayoutDescriptor {
+    /// An inline named carrier; references and descriptor backings are not hops.
     pub fn inline_data_symbol(&self) -> Option<SymbolHandle> {
         match self {
             Self::Named { symbol, .. } => Some(*symbol),
@@ -79,7 +86,6 @@ impl TypeLayoutDescriptor {
             _ => None,
         }
     }
-
     pub fn element_type(&self) -> Option<&Self> {
         match self {
             Self::Constrained { base_type, .. } => base_type.element_type(),
@@ -119,7 +125,8 @@ impl Default for FieldLayout {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BitFieldFragment {
-    pub container_byte_offset: usize, // byte offset relative to the containing record
+    /// Byte offset relative to the containing record.
+    pub container_byte_offset: usize,
     pub container_width_bits: u16,
     pub destination_lsb: u16,
     pub source_lsb: u16,
@@ -132,6 +139,10 @@ pub struct BitFieldLayout {
     pub fragments: Vec<BitFieldFragment>,
 }
 
+/// Physical integer encoding selected by a validated plan-laid layout. The
+/// field's ordinary `FieldLayout` continues to describe its semantic carrier;
+/// storage consumers must use this record for the exact load width and
+/// extension rule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StoredIntegerLayout {
     pub field: SymbolHandle,
@@ -140,6 +151,9 @@ pub struct StoredIntegerLayout {
     pub write_is_total: bool,
 }
 
+/// Physical spacing between consecutive elements of one plan-laid outer
+/// fixed-array field. The field's ordinary layout retains the semantic array
+/// width; only indexing that outer array consumes this stride.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RepeatedFieldLayout {
     pub field: SymbolHandle,
@@ -150,7 +164,10 @@ pub struct RepeatedFieldLayout {
 pub struct VariantLayout {
     pub symbol: SymbolHandle,
     pub name: Identifier,
-    pub fields: HandleSpan<FieldLayout>, // absolute offsets within the tag-prefixed enum value
+    /// Payload field layouts for this case. Offsets are ABSOLUTE within the
+    /// enum value (the tag-prefixed overlay: tag at 0, every case's payload
+    /// packed from the shared payload base offset). Empty for payload-less cases.
+    pub fields: HandleSpan<FieldLayout>,
 }
 
 impl Default for VariantLayout {
@@ -165,6 +182,19 @@ impl Default for VariantLayout {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataShape {
+    /// Case-bearing data: pure sums AND mixed shapes (common fields + cases).
+    ///
+    /// Layout (owned HERE, decided once): the i32 tag sits at offset 0 for
+    /// EVERY case-bearing value, the common fields pack immediately after the
+    /// tag, and every case's payload fields overlay each other from a shared
+    /// base after the common fields. Tag-first (rather than common-fields-
+    /// first) is deliberate: the backend's tag-only compares and writes treat
+    /// "the first `ENUM_TAG_BYTES` of the value" as the tag WITHOUT consulting
+    /// the layout plan, so the tag offset must stay the universal constant 0.
+    /// Common-field offsets are still case-independent constants, and ZII
+    /// holds: a zeroed value is tag 0 (the first case) with zeroed common
+    /// fields and zeroed payload. Pure sums have an empty `common_fields`
+    /// span and degenerate to the historical tag-plus-overlay layout.
     Enum {
         common_fields: HandleSpan<FieldLayout>,
         variants: HandleSpan<VariantLayout>,
@@ -201,9 +231,17 @@ impl Default for DataLayout {
     }
 }
 
+/// One semantic-field-free callback destination after the selected target has
+/// supplied its function-pointer extent and alignment. The canonical strings
+/// remain audit provenance; outbound plan validation consumes only the nominal
+/// layout/slot/requirement identities and never the physical offset as an
+/// authored calling-plan coordinate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetClosedPrivateCallbackDemand {
     pub data_symbol: SymbolHandle,
+    /// Portable named application and substituted roles retained by Psi.
+    /// Source reach/review keep the resolved telescope at the producer; native
+    /// geometry never owns that tree. Compact reports do not replace custody.
     pub slot_application: language_semantics::callback_declarations::PrivateCallbackSlotSelection,
     pub slot_identity: Arc<str>,
     pub layout_subject_identity: Arc<str>,
@@ -216,6 +254,7 @@ pub struct TargetClosedPrivateCallbackDemand {
     pub alignment: usize,
 }
 
+/// Exact target-closed data layout, retaining any authored policy selection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetClosedDataLayoutIdentity {
     pub data_symbol: SymbolHandle,

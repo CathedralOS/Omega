@@ -1,12 +1,3 @@
-// Windows Job Object creation, extended resource limit configuration, and
-// completion port association.
-//
-// We configure every child job with `KILL_ON_JOB_CLOSE`,
-// `DIE_ON_UNHANDLED_EXCEPTION`, active-process caps, per-process and per-job
-// commit caps, and aggregate user-mode CPU time limits, then associate an I/O
-// completion port keyed by the job handle so `lifecycle.rs` can observe both
-// limit notifications and `JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO`.
-
 use std::ffi::c_void;
 use std::io;
 use std::mem::size_of;

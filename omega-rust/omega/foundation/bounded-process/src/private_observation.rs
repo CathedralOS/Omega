@@ -1,15 +1,9 @@
-// Unix private child runtime observation lane (`FD 3`), separate from guest
-// standard streams.
-//
-// `prepare_private_observation` creates an anonymous `UnixStream::pair()`,
-// marks ambient parent descriptors close-on-exec, and installs an
-// async-signal-safe `pre_exec` hook that duplicates the writer endpoint onto
-// descriptor `3` and clears `FD_CLOEXEC` on `3` in the child. A background
-// reader thread drains the parent endpoint under an exact `expected_bytes`
-// roster, polling with a 100ms wake interval while `WouldBlock` persists so
-// that once `completed` is signaled after child exit (or on `Drop`), the reader
-// drains any buffered bytes and retires even if an unproved descendant leaked
-// descriptor `3`.
+//! A private child's runtime observation lane, separate from guest streams.
+//!
+//! FD 3 names this fresh socket only in the child. The parent retains the other
+//! endpoint, drains concurrently under a bounded byte count, and closes its
+//! write endpoint after child completion. Unexpected bytes, a missing observer,
+//! or an escaped writer cannot produce an accepted exact observation roster.
 
 use std::io::{self, Read};
 use std::os::fd::AsRawFd;
@@ -21,12 +15,15 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
+/// Prepared private lane, retired after the caller's own bounded child loop.
+/// Dropping it also wakes the reader; it never extends a child's deadline.
 pub struct PrivateObservationCapture {
-    completed: Arc<AtomicBool>, // Signals child completion to wake the reader loop.
-    captured: Option<std::thread::JoinHandle<io::Result<Vec<u8>>>>, // Background reader thread verifying the exact byte roster.
+    completed: Arc<AtomicBool>,
+    captured: Option<std::thread::JoinHandle<io::Result<Vec<u8>>>>,
 }
 
 impl PrivateObservationCapture {
+    // Unix exec already binds the inherited descriptor to this child.
     pub fn bind_child(&self, _process_id: u32) {}
 
     pub fn finish(mut self) -> io::Result<Vec<u8>> {
@@ -61,6 +58,8 @@ pub fn prepare_private_observation(
     let reader_completed = Arc::clone(&completed);
     let writer_descriptor = writer.as_raw_fd();
     super::process_child::descriptors::mark_ambient_close_on_exec(command)?;
+    // The closure performs only async-signal-safe descriptor operations after
+    // fork. Captured ownership keeps the source descriptor valid through exec.
     unsafe {
         command.pre_exec(move || {
             let _keep_alive = &writer;
@@ -90,6 +89,9 @@ pub fn prepare_private_observation(
                     bytes.extend_from_slice(&buffer[..count]);
                 }
                 Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                    // Once the actual child has completed, all of its successful
+                    // writes are already in this socket. Drain them, then retire
+                    // the reader even if an unproved descendant leaked a writer.
                     if reader_completed.load(Ordering::Acquire) {
                         break;
                     }
@@ -98,6 +100,9 @@ pub fn prepare_private_observation(
                         events: libc::POLLIN,
                         revents: 0,
                     };
+                    // Poll only borrows this owned descriptor and stack record.
+                    // The short wake interval observes actual process completion;
+                    // it imposes no independent body execution timeout.
                     let result = unsafe { libc::poll(&mut descriptor, 1, 100) };
                     if result < 0 {
                         let error = io::Error::last_os_error();
@@ -132,6 +137,7 @@ pub fn capture_private_observation(
     let output = command.output();
     drop(command);
     let observation = capture.finish();
+    // Retire the lane even after a failed spawn, preserving the actual error.
     Ok((output?, observation?))
 }
 

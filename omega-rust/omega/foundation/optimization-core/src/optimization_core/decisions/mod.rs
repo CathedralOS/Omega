@@ -1,8 +1,4 @@
-// Canonical optimization decision records (`baseline` and `external_schema`).
-//
-// Neither module executes candidate selection policy; they record and validate
-// the canonical wire and identity representations of already-validated
-// candidate sets and chosen actions.
+//! Canonical optimization decision records; no executable candidate policy.
 
 mod baseline;
 mod external_schema;

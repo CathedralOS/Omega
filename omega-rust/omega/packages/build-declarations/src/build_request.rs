@@ -1,7 +1,7 @@
-// Evaluated project requests produced by `Build` execution before package
-// resolution or final Build settlement. These values request work without
-// granting acquisition, execution, or publication authority, and keep Product
-// and Build dependency alias scopes separate.
+//! Evaluated project requests, before package resolution or final Build join.
+//!
+//! These values request work; they grant no acquisition, execution or publication
+//! authority. Product and Build dependencies retain separate alias scopes.
 
 use crate::{DependencyPurpose, ProjectName, WorkspaceMemberPath};
 
@@ -24,6 +24,7 @@ pub enum BuildDependencySource {
     Git {
         repository: String,
         revision: String,
-        package: Option<ProjectName>, // None selects the repository root; Some selects a named workspace member.
+        /// None selects the repository root; Some selects its named member.
+        package: Option<ProjectName>,
     },
 }

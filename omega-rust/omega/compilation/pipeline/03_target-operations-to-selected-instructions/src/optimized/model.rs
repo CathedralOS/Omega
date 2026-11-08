@@ -4,7 +4,7 @@ use optimization_core::{
     PrePhysicalOptimizationManifestIdentity,
 };
 use selected_instructions::SelectedInstructionPlanIdentity;
-use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
+use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use terminal_psi::TerminalPsiIdentity;
 
 use crate::{LegalizationError, SelectedInstructionError, ValidatedSelectedInstructions};
@@ -39,7 +39,7 @@ impl StagedOptimizedSelectedInstructions {
             plan: self.selected.shared_plan(),
             identity: receipt.identity(),
             optimization_unit: receipt.optimization_unit(),
-            work_schedule: receipt.work_schedule(),
+            fuel_schedule: receipt.fuel_schedule(),
         }
     }
 

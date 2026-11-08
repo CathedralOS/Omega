@@ -1,9 +1,16 @@
-// We implement Windows kernel32 time exports (QueryPerformanceCounter,
-// QueryPerformanceFrequency, GetSystemTimePreciseAsFileTime, and Sleep) over
-// the shared clock environment. Counter and frequency write one signed 64-bit
-// word at 10^9 Hz and return a nonzero BOOL; FILETIME writes 100-nanosecond
-// intervals since 1601-01-01 UTC; and Sleep waits finite milliseconds while
-// rejecting INFINITE (0xFFFFFFFF).
+//! Windows kernel32 time over the shared clock environment.
+//!
+//! `QueryPerformanceCounter` and `QueryPerformanceFrequency` write one signed
+//! 64-bit word and return a nonzero `BOOL`. The model counts nanoseconds, so its
+//! frequency is exactly 10^9; only counter differences divided by that
+//! frequency carry meaning, as Microsoft documents for the native pair.
+//! `GetSystemTimePreciseAsFileTime` writes the FILETIME word: 100-nanosecond
+//! intervals since 1601-01-01 UTC, the Unix epoch plus 11644473600 seconds.
+//! `Sleep` waits finite milliseconds; `INFINITE` (0xFFFFFFFF) has no
+//! completion in this model and rejects before changing time.
+//!
+//! Each word reaches the guest through its scalar loan's authenticated capture
+//! and staged replacement; no host pointer or invented backing is used.
 
 use std::sync::{Arc, Mutex};
 
@@ -18,6 +25,8 @@ use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape
 use super::super::borrowed_storage::{CapturedStorage, StorageTransfer};
 use super::{ClockImplementation, ClockNamespace, TerminalClockEnvironment, TerminalRuntimeError};
 
+/// The model's monotonic selector inside the Windows namespace. Realtime is the
+/// shared zero selector.
 pub(super) const MONOTONIC: u128 = 1;
 const REALTIME: u128 = 0;
 
@@ -42,6 +51,7 @@ impl WindowsWord {
     }
 }
 
+/// Offer the four kernel32 exports by their exact normalized locators.
 pub(super) fn select(
     locator: &NormalizedForeignLocator,
 ) -> Result<Option<(ClockNamespace, ClockImplementation)>, TerminalRuntimeError> {
@@ -77,6 +87,7 @@ pub(super) fn select(
     Ok(None)
 }
 
+/// One unrestricted mutable loan of exactly the word's primitive carrier.
 pub(super) fn word_loan_valid(
     program: &TerminalProgram,
     signature: &TerminalImportSignature,
@@ -148,6 +159,7 @@ pub(super) fn write_word(
             .ok_or_else(|| TerminalEffectRejection::new("FILETIME exceeds u64"))?
             .to_le_bytes(),
     };
+    // A successful read returns a nonzero BOOL; FILETIME has no result.
     let result = super::status_result(signature, 1)?;
     storage
         .bytes
@@ -158,6 +170,7 @@ pub(super) fn write_word(
     Ok(result)
 }
 
+/// The finite wait of one `Sleep` request.
 pub(super) fn sleep_nanoseconds(milliseconds: u128) -> Result<u64, TerminalEffectRejection> {
     if milliseconds == INFINITE {
         return Err(TerminalEffectRejection::new(

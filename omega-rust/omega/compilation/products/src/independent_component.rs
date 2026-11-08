@@ -1,32 +1,24 @@
-/*
-Completed independent component products and their `OMGCMP01` retention codec.
+//! Completed component products beside their descriptive publication.
+//!
+//! Package review needs serialized descriptions, while executable composition
+//! also needs the exact canonical artifact and completed native proposal that
+//! produced them. Keep those products together before their source continuation
+//! leaves the compiler invocation. A native consumer receives these source-free
+//! products, never a callback that reopens the dependency's source or Build.
+//!
+//! This carrier is not an installation, entry capability, or replacement era.
+//! Receiving provider, representation, resource and physical admission remain
+//! independent joins at the actual composition edge.
 
-Package review consumes serialized component descriptions, while executable
-composition also requires the exact canonical Terminal artifact and completed
-native proposal that produced them. `IndependentComponentProduct` couples those
-outputs before their source continuation leaves the compiler invocation, and
-`SelectedIndependentComponent` binds a verified component to its receiving
-provider plan without reopening the dependency's source or Build.
-*/
-
-/*
-`encode_retained` and `recover_retained` serialize and recover a coupled
-component through `component_description` and
-`terminal_psi_to_abstract_operations::recover_native_derivation_inputs`,
-rejecting any record that exceeds `MAX_BYTES` (128 MiB) or attempts to carry
-application installation assumptions.
-*/
+use std::sync::Arc;
 
 use package_compilation::IndependentComponentDescription;
-use semantic_vocabulary::PackageKeyIdentity;
-use std::sync::Arc;
-use terminal_psi_to_abstract_operations::{
-    RetainedComponentNativeInputs, RetainedTerminalArtifact,
-};
+use terminal_psi_to_abstract_operations::RetainedComponentNativeInputs;
+use terminal_psi_to_abstract_operations::RetainedTerminalArtifact;
+mod retention;
 
-const MAGIC: &[u8; 8] = b"OMGCMP01";
-const MAX_BYTES: usize = 128 * 1024 * 1024;
-
+/// One selected component's completed producing join. This invocation-local
+/// record is not serialized and conveys no receiver installation authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedIndependentComponent {
     input: RetainedComponentNativeInputs,
@@ -98,10 +90,12 @@ impl PartialEq for IndependentComponentProduct {
             && self.accepted_package_permissions == other.accepted_package_permissions
     }
 }
-
 impl Eq for IndependentComponentProduct {}
 
 impl IndependentComponentProduct {
+    /// Couple the two outputs of one component compilation. Subject equality
+    /// checks this relationship only; it supplies no verification verdict or
+    /// permission to execute the enclosed product.
     pub fn new(
         description: IndependentComponentDescription,
         retained: RetainedTerminalArtifact,
@@ -122,11 +116,16 @@ impl IndependentComponentProduct {
         &self.description
     }
 
+    /// Optional storage belongs to this publication, separately from semantic
+    /// product equality. A capture failure preserves its reason and never
+    /// changes the fresh in-process compilation's result.
     pub fn with_native_derivation_inputs(mut self, inputs: Result<Vec<u8>, String>) -> Self {
         self.native_derivation_inputs = Some(inputs.map(Arc::from));
         self
     }
 
+    /// Acceptance acquired from this dependency's checked package custody,
+    /// independently of the native proposal's own retained permission claims.
     pub const fn accepted_package_permissions(
         &self,
     ) -> &terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy
@@ -136,102 +135,5 @@ impl IndependentComponentProduct {
 
     pub fn retained(&self) -> &RetainedTerminalArtifact {
         &self.retained
-    }
-
-    pub fn encode_retained(&self) -> Result<Option<Vec<u8>>, String> {
-        let Some(inputs) = &self.native_derivation_inputs else {
-            return Ok(None);
-        };
-        let inputs = inputs.as_ref().map_err(Clone::clone)?;
-        let description = self.description.description();
-        let size = MAGIC.len() + 32 + 16;
-        let size = size
-            .checked_add(description.len())
-            .and_then(|size| size.checked_add(inputs.len()))
-            .filter(|size| *size <= MAX_BYTES)
-            .ok_or("component retention record exceeds its byte bound")?;
-        let mut bytes = Vec::with_capacity(size);
-        bytes.extend_from_slice(MAGIC);
-        bytes.extend_from_slice(&self.description.package().digest());
-        bytes.extend_from_slice(&(description.len() as u64).to_le_bytes());
-        bytes.extend_from_slice(description);
-        bytes.extend_from_slice(&(inputs.len() as u64).to_le_bytes());
-        bytes.extend_from_slice(inputs);
-        Ok(Some(bytes))
-    }
-
-    pub fn recover_retained(package: PackageKeyIdentity, bytes: &[u8]) -> Result<Self, String> {
-        if bytes.len() > MAX_BYTES {
-            return Err("component retention record exceeds its byte bound".to_owned());
-        }
-        let mut reader = Reader { bytes, position: 0 };
-        if reader.take(MAGIC.len())? != MAGIC || reader.take(32)? != package.digest() {
-            return Err("component retention schema or package identity differs".to_owned());
-        }
-        let description_bytes = reader.section()?;
-        let native_inputs = reader.section()?;
-        if reader.position != bytes.len() {
-            return Err("component retention has trailing bytes".to_owned());
-        }
-        let (_, artifact) =
-            component_description::decode_component_description_with_artifact(description_bytes)
-                .map_err(|reason| format!("retained component description: {reason:?}"))?;
-        let description = IndependentComponentDescription::new(
-            package,
-            artifact.view().identity(),
-            description_bytes.to_vec(),
-        );
-        let (retained, permissions, installation_assumptions) =
-            terminal_psi_to_abstract_operations::recover_native_derivation_inputs(
-                Arc::new(artifact),
-                native_inputs,
-            )
-            .map_err(|diagnostics| {
-                diagnostics
-                    .into_iter()
-                    .map(|diagnostic| diagnostic.message)
-                    .collect::<Vec<_>>()
-                    .join("; ")
-            })?;
-        if !installation_assumptions.is_empty() {
-            return Err(
-                "component inputs cannot accept application installation conditions".into(),
-            );
-        }
-        Self::new(description, retained, permissions)
-            .map_err(str::to_owned)
-            .map(|product| product.with_native_derivation_inputs(Ok(native_inputs.to_vec())))
-    }
-}
-
-struct Reader<'bytes> {
-    bytes: &'bytes [u8],
-    position: usize,
-}
-
-impl<'bytes> Reader<'bytes> {
-    fn take(&mut self, length: usize) -> Result<&'bytes [u8], String> {
-        let end = self
-            .position
-            .checked_add(length)
-            .ok_or("component retention length overflow")?;
-        let slice = self
-            .bytes
-            .get(self.position..end)
-            .ok_or("truncated component retention record")?;
-        self.position = end;
-        Ok(slice)
-    }
-
-    fn section(&mut self) -> Result<&'bytes [u8], String> {
-        let length = u64::from_le_bytes(
-            self.take(8)?
-                .try_into()
-                .map_err(|reason| format!("component retention section width: {reason}"))?,
-        );
-        self.take(
-            usize::try_from(length)
-                .map_err(|reason| format!("component retention section length: {reason}"))?,
-        )
     }
 }

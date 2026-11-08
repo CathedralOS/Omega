@@ -1,12 +1,13 @@
 //! Canonical optimization-unit, fact, ownership, and CFG custody walk.
 
 use super::{
-    AbstractFunctionResult, AcceptedObligationFact, EffectLink, OptimizationEdge, OptimizationFact,
-    OptimizationNode, OptimizationUnitIdentity, OwnershipEvent, OwnershipFrontierFact,
-    OwnershipFrontierSite, OwnershipFrontierSnapshot, ProofQuestion, ProofQuestionAdmissionKind,
-    ProofQuestionClass, ProofQuestionOwner, PsiOptimizationFunction, PsiOptimizationUnit,
-    PsiProvenance, PsiSemanticId, ServiceDeclaration, StructuralResultDeclaration,
-    TerminalRootServiceReach, ValueDefinition, ValueDefinitionSite, ValueUse, WorkSettlement,
+    AbstractFunctionResult, AcceptedObligationFact, EffectLink, FuelSettlement, OptimizationEdge,
+    OptimizationFact, OptimizationNode, OptimizationUnitIdentity, OwnershipEvent,
+    OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot, ProofQuestion,
+    ProofQuestionAdmissionKind, ProofQuestionClass, ProofQuestionOwner, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiProvenance, PsiSemanticId, ServiceDeclaration,
+    StructuralResultDeclaration, TerminalRootServiceReach, ValueDefinition, ValueDefinitionSite,
+    ValueUse,
 };
 use crate::optimization_unit::identity::carrier_encoding::{
     encode_abstract_result, encode_access, encode_binding, encode_ids, encode_integer_value,
@@ -39,7 +40,7 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
     bytes.bytes(UNIT_IDENTITY_DOMAIN);
     bytes.u16(unit.psi.vocabulary_marker.get());
     bytes.bytes(unit.psi.program_fingerprint.as_bytes());
-    bytes.u32(unit.work_schedule.marker());
+    bytes.u32(unit.fuel_schedule.marker());
     bytes.id(unit.entry);
     bytes.slice(&unit.structural_types, encode_structural_type);
     bytes.slice(unit.structural_types.referents(), |bytes, referent| {
@@ -523,7 +524,7 @@ fn encode_node(bytes: &mut CanonicalBytes, node: &OptimizationNode) {
     bytes.slice(&node.provenance, |bytes, provenance| {
         encode_provenance(bytes, *provenance)
     });
-    bytes.slice(&node.work, encode_work);
+    bytes.slice(&node.fuel, encode_fuel);
     encode_effect(bytes, node.effect);
     bytes.slice(&node.definitions, encode_definition);
     bytes.slice(&node.uses, encode_use);
@@ -544,9 +545,9 @@ fn encode_provenance(bytes: &mut CanonicalBytes, provenance: PsiProvenance) {
     }
 }
 
-fn encode_work(bytes: &mut CanonicalBytes, work: &WorkSettlement) {
-    encode_provenance(bytes, work.site);
-    bytes.u64(work.units);
+fn encode_fuel(bytes: &mut CanonicalBytes, fuel: &FuelSettlement) {
+    encode_provenance(bytes, fuel.site);
+    bytes.u64(fuel.units);
 }
 
 fn encode_effect(bytes: &mut CanonicalBytes, effect: EffectLink) {
@@ -590,7 +591,7 @@ fn encode_edge(bytes: &mut CanonicalBytes, edge: &OptimizationEdge) {
     bytes.slice(&edge.provenance, |bytes, provenance| {
         encode_provenance(bytes, *provenance)
     });
-    bytes.slice(&edge.work, encode_work);
+    bytes.slice(&edge.fuel, encode_fuel);
 }
 
 fn encode_ownership(bytes: &mut CanonicalBytes, event: &OwnershipEvent) {

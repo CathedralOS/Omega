@@ -1,4 +1,4 @@
-// Calling-policy target validation delegating to `PackageReviewRepresentationTarget`.
+//! Calling policies use the shared representation target invariant.
 
 pub(super) fn validate(
     target: crate::record::PackageReviewRepresentationTarget,

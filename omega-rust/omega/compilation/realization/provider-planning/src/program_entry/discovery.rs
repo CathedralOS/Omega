@@ -1,10 +1,7 @@
-// We resolve package-review entry proposals using the consumer's checked Build
-// selection. This is nomination only: ordinary compilation still requires the
-// exact accepted binding, and review recompiles under that binding before it
-// offers an acceptance decision. Entry schemas are disambiguated only through
-// an explicit selection of their physical requirement; same-spelled requirements
-// in unrelated packages do not match, and two schemas inheriting the selected
-// requirement still reject.
+//! Resolve package-review entry proposals using the consumer's checked Build
+//! selection. This is nomination only: ordinary compilation still requires the
+//! exact accepted binding, and review recompiles under that binding before it
+//! offers an acceptance decision.
 
 use super::{RootBinding, selected_program_entry_machine};
 use crate::{ProviderSelection, ProviderSelectionSubject};
@@ -13,6 +10,9 @@ use checked_trees::typed_trees::service_declarations::{ProviderSchemaDeclaration
 use diagnostics::Diagnostic;
 use package_compilation::{AcceptedSemanticBinding, PackageCompilationInputs};
 
+/// Disambiguate entry schemas only through an explicit selection of their
+/// physical requirement. Same-spelled requirements in unrelated packages do
+/// not match; two schemas inheriting the selected requirement still reject.
 pub fn discover_explicit_entry_binding(
     services: ServiceCatalog<'_>,
     root_bindings: &[RootBinding],
@@ -82,6 +82,8 @@ pub fn discover_explicit_entry_binding(
                 "explicit physical-entry provider selection matches multiple package-owned `{schema_name}` schemas; package review requires one exact schema"
             ))]);
         }
+        // Calling applications are checked during the following selection;
+        // entry-role schema identity deliberately excludes those target rows.
         let prepared = services
             .declaration(ProviderSchemaDeclaration::BoundaryTrait(definition.symbol))
             .ok_or_else(|| vec![Diagnostic::error("selected entry schema cannot be reified")])?;

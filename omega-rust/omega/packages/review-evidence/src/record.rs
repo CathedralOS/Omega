@@ -1,13 +1,7 @@
-/*
-Stable, inert review evidence vocabulary and canonical policy-row model emitted
-by compiler-owned projection.
-
-This module owns the value shapes (`PackageReviewEvidence`,
-`PackagePolicyBaseline`, `PackagePolicyRow`, and all domain, contract, callable,
-provider, and representation records) together with their structural invariant
-validators. It never inspects live compiler state, encodes persistence bytes, or
-grants package admission.
-*/
+//! Stable, inert evidence vocabulary emitted by compiler-owned projection.
+//!
+//! This module owns the review shapes and canonical-row model. It does not
+//! inspect compiler state, encode persistence bytes, or make admission policy.
 
 mod accessors;
 mod authority;

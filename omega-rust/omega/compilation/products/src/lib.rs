@@ -1,39 +1,31 @@
 #![forbid(unsafe_code)]
 
-/*
-Compilation requests, retained stage products, content-addressed identities, and
-publication receipts across the Psi-to-Omega boundary.
-
-`compile_request` admits target destinations, invocation policy, and product
-eligibility without executing a compiler phase. `compile_outcomes` retains
-every target result in coordinator order and classifies each as the compiler
-request's `Complete`, `Reject`, or `Incomplete` outcome. `prepared_source`
-retains parsed and typed frontend checkpoints and selects reuse without
-invoking assembly, resolution, typing, or Build evaluation. `prepared_build`
-and `evaluated_build` retain completed typed Build continuations, normalized
-settings, and observation summaries without depending on the evaluator.
-`checked_compilation` seals whole checked stage products against package source
-custody, supplies their target projections, and reconstructs explicit trust
-obligations through `trust_model`.
-*/
-
-/*
-`CompileReport` records which payload a compilation produced and validates its
-custody joins over payload-specific variants rather than optional fields. Report
-construction belongs to `CompileReportSettlement`, while output path selection
-and atomic filesystem installation belong exclusively to
-`publication::publish_compilation`. Native evidence and image receipt
-construction remain with `native_artifact`, and filesystem staging mechanics
-remain with `platform_custody`.
-*/
-
-pub use terminal_psi_to_abstract_operations::{
-    BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
-    InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
-};
-pub use terminal_psi_to_abstract_operations::{
-    decode_installation_assumptions, encode_installation_assumptions,
-};
+//! Compilation requests, retained products, identities, and publication receipts.
+//!
+//! `compile_request` admits target destinations, invocation policy and product eligibility
+//! without executing a compiler phase. `compile_outcomes` retains every result,
+//! classifies each as the compiler request's `Complete`, `Reject` or
+//! `Incomplete` outcome, and binds its batch commitment; the compiler owns the
+//! target execution loop.
+//! `prepared_source` retains exact parsed/typed work and selects reuse without
+//! invoking assembly, resolution, typing or Build execution.
+//! `prepared_build` retains completed typed Build continuations by exact inputs;
+//! the coordinator runs cache misses and each target's subsequent checking.
+//! `evaluated_build` retains Build settings and observation results without
+//! depending on their evaluator. `checked_compilation` seals whole checked
+//! stage products against package source custody, supplies their projections and
+//! requests explicit trust settlement from `trust_model`;
+//! it does not execute stages or confer package/native admission.
+//!
+//! `CompileReport` records which payload a compilation produced and validates
+//! its custody joins. It does not choose output paths or install files;
+//! `crate::publication::publish_compilation` owns that operation.
+//!
+//! `package_compilation` retains and publishes completed build files;
+//! the Terminal entry stage retains the portable artifact and native proposal;
+//! production and batch manifests commit their exact subjects. Native evidence
+//! and image receipt construction remain with `native_artifact`; filesystem
+//! mechanics remain with `platform_custody`.
 
 mod checked_compilation;
 mod compilation_products;
@@ -41,11 +33,13 @@ mod compile_outcomes;
 pub mod compile_request;
 mod evaluated_build;
 mod independent_component;
+mod native_product;
 mod package_build;
 mod prepared_build;
 pub use prepared_build::ProductSourceIdentity;
 mod prepared_source;
 pub mod publication;
+mod retained_native_program;
 mod terminal_publication;
 pub use terminal_publication::ProductTerminalPublication;
 
@@ -53,17 +47,15 @@ pub use checked_compilation::{
     CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, CompileReportSettlement,
     ProductReportPlan, ProductReportRequest, RetainedCompilationChecks,
 };
-pub use compilation_products::{
-    CompileOutputKind, CompileReport, PendingNativeProduct, RetainedNativeProgram,
-    RetainedNativeProgramIdentity,
-};
+pub use compilation_products::{CompileOutputKind, CompileReport};
 pub use compile_outcomes::{
     CheckedCompileOutcome, CompileFailure, CompileOutcomes, CompileTargetOutcome,
     CompilerRequestOutcome,
 };
+pub use compile_request::options::CompileOptions;
 pub use compile_request::{
-    CheckedCompileRequest, CheckedExecutionRequest, CompileOptions, CompileRequest,
-    NativeImageDemand, NativeProductRequest, RequestedCompileProduct, SettledCheckReuse,
+    CheckedCompileRequest, CheckedExecutionRequest, CompileRequest, NativeImageDemand,
+    NativeProductRequest, RequestedCompileProduct, SettledCheckReuse,
 };
 pub use evaluated_build::{
     BuildAdmission, BuildConfig, ComputedBuildConfig, EvaluatedBuild,
@@ -71,7 +63,6 @@ pub use evaluated_build::{
     ServiceAuditRegistration,
 };
 pub use independent_component::{IndependentComponentProduct, SelectedIndependentComponent};
-pub use native_artifact::NativeArtifact as RetainedNativeArtifact;
 pub use native_artifact::{
     ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
     NativePublicationCertificateDigest, NativePublicationEvidenceDigest,
@@ -79,6 +70,7 @@ pub use native_artifact::{
 };
 pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationComponent};
 pub use native_artifact::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
+pub use native_product::PendingNativeProduct;
 pub use optimization_core::OptimizationRollbackReceipt;
 pub use package_build::PreparedPackageBuild;
 pub use package_compilation::RetainedBuildOutputs;
@@ -90,10 +82,17 @@ pub use prepared_source::{
     DeferredProductCompilation, PreparationFork, PreparedCheckedSource, PreparedSourceFrontier,
     SourcePreparation, TypedCompilationFrontier,
 };
-pub use terminal_installation::PrivateEntryRamInitialization;
+pub use retained_native_program::{RetainedNativeProgram, RetainedNativeProgramIdentity};
 pub use terminal_psi_to_abstract_operations::{
     RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
     TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,
     TerminalIntegerComparisonOccurrenceProposal, TerminalNativeBoundaryApplications,
     TerminalNativeOccurrences, TerminalNativeProviders, TerminalNativeRealizationProposal,
 };
+
+/// Complete non-clonable Terminal-Psi native artifact retained before output
+/// publication. The compatibility name remains while callers migrate from the
+/// former legacy `EmissionPlan + EmittedProgram` payload.
+pub use native_artifact::NativeArtifact as RetainedNativeArtifact;
+
+pub use terminal_installation::PrivateEntryRamInitialization;

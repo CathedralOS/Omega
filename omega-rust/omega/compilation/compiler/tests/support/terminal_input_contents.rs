@@ -5,11 +5,11 @@ use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
     TerminalStorageScheduleIdentity,
 };
-use psi_work::WorkMeter;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Path, IntegerSign, IntegerType, IntegerValue, ScalarType,
 };
 use terminal_codec::CanonicalTerminalArtifact;
+use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalBoundaryStorageValue, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalInstantiation, TerminalProgram, TerminalScalarValue, TerminalStorageContents,
@@ -203,7 +203,7 @@ pub(super) fn observe(
                 _ => {}
             }
             let intended = if mutation == "storage-limit" {
-                "BudgetExhausted(LiveStorage)"
+                "AllowanceExhausted(LiveStorage)"
             } else if mutation == "unknown-case" {
                 "describe complete entry contents"
             } else {
@@ -263,7 +263,7 @@ fn reject(
 
 fn measurement() -> EvaluationMeasurementIdentity {
     EvaluationMeasurementIdentity::TerminalPsi {
-        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
     }
 }
@@ -298,12 +298,12 @@ fn execute(
             ..Default::default()
         })
         .map_err(describe)?;
-    let mut meter = WorkMeter::with_invocation(account, Some(0)).map_err(describe)?;
+    let mut meter = TerminalFuelMeter::with_invocation(account, Some(0)).map_err(describe)?;
     if !matches!(
         instance.invoke(&mut meter).map_err(describe)?,
         TerminalExecutionStatus::SponsorExhausted(_)
     ) {
-        return Err("input execution ignored work-budget pause".into());
+        return Err("input execution ignored fuel pause".into());
     }
     meter.replenish(1_000_000).map_err(describe)?;
     let result = instance.invoke(&mut meter).map_err(describe)?;

@@ -197,19 +197,13 @@ pub(crate) fn emit_dynamic_elf_image(
         })?;
     let prepared =
         crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
-    let mut image = image::build_final_image(FinalImageInput {
+    let image = image::build_final_image(FinalImageInput {
         target: artifact.target(),
         object: prepared.object,
         relocations: prepared.relocations,
         text_bytes: prepared.text_bytes,
         data_bytes: artifact.data_bytes(),
     });
-    crate::image::entry_effects::attach(artifact, &mut image, prepared.entry_shim.as_ref())
-        .map_err(|diagnostic| {
-            Box::new(DynamicElfOrchestrationError::HostedEntryPreparation(
-                diagnostic,
-            ))
-        })?;
     let admitted = emit_elf_dynamic_executable(image, interpreter)
         .map_err(|error| Box::new(DynamicElfOrchestrationError::Elf(error)))?;
     // The writer was handed the image built just above from this prepared
@@ -297,11 +291,6 @@ fn derive_output(
         text_bytes: prepared.text_bytes,
         data_bytes: artifact.data_bytes(),
     });
-    crate::image::entry_effects::attach(
-        artifact,
-        &mut replayed_image,
-        prepared.entry_shim.as_ref(),
-    )?;
     let symbol_digest = final_image_symbol_digest(&replayed_image);
     // The writer relocates `.text` and `.data` at its own load layout; the
     // terminal validation has already bound both final byte sets to the

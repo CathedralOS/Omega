@@ -391,7 +391,7 @@ mod tests {
         MachineAlternativeFamily, MachineAlternativeKey, SelectedBlockId, SelectedInstructionId,
         SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
     };
-    use semantic_vocabulary::{EdgeId, MachineId, WorkScheduleIdentity};
+    use semantic_vocabulary::{EdgeId, FuelScheduleIdentity, MachineId};
     use target::NativeTarget;
     use target_operations::TerminalPsiProvenance;
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
@@ -452,7 +452,7 @@ mod tests {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([3; 32]),
             },
-            work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
             selected: SelectedInstructionPlanIdentity::from_canonical_bytes(b"selected"),
             target: NativeTarget::linux_x64(),
             entry: machine,

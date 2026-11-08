@@ -1,11 +1,6 @@
-// We derive whole named-provider plans (`DerivedProviderPlan`) from checked
-// source applications (`prepared_named_provider_applications`). Declaration-level
-// public regions remain universal; captured applications own their complete
-// closed telescope. Foreign or build-owned member rows join against the
-// candidate inventory (`candidates`), preserving `BuildNative` realization
-// custody under the map's provider identity so review and boundary discovery
-// rejoin the package-evaluated binding.
-
+//! Derive whole named-provider plans from checked source applications.
+//! Declaration-level public regions stay universal. Captured applications own
+//! their complete closed telescope; no body or slot name reconstructs it.
 use super::requirement_identities::exact_satisfied_requirement_identity;
 use super::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderRowRealization, ProviderSchemaDeclaration,
@@ -102,6 +97,8 @@ pub(super) fn derive(
                 row_accessors: Vec::new(),
             };
             for row in rows {
+                // The row binds the entry of the machine resolution named; a
+                // family head's entry stands for every member's.
                 let Some(named) = typed.machine_by_symbol(row.realization_machine) else {
                     if debug {
                         eprintln!("[named]   skip: row machine unresolved");
@@ -183,6 +180,9 @@ pub(super) fn derive(
                         ProviderRowRealization::Authored(machine.symbol),
                     )
                 } else {
+                    // Foreign candidates belong to the selected target member,
+                    // while the authored map can name its portable family head.
+                    // Join the resolved identity, just as checked adapters do.
                     let mut matched = Vec::new();
                     for candidate in candidates {
                         for (index, binding) in candidate.plan.rows.iter().enumerate() {
@@ -191,6 +191,9 @@ pub(super) fn derive(
                                     Some(ProviderRowRealization::Authored(symbol)) => {
                                         *symbol == machine.symbol
                                     }
+                                    // A build-owned row names no authored leaf:
+                                    // it matches when this member's resolved
+                                    // declaration satisfies the bound requirement.
                                     Some(ProviderRowRealization::BuildNative(origin)) => {
                                         origin.requirement == row.requirement
                                             && typed.machine_trait_conformances(machine).iter().any(
@@ -247,6 +250,10 @@ pub(super) fn derive(
                     admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                     binding,
                 });
+                // The joined row keeps its own realization custody: a
+                // build-owned leaf stays `BuildNative` under the map's
+                // provider identity so review and boundary discovery rejoin
+                // the package-evaluated binding, not an authored `via`.
                 match realization {
                     ProviderRowRealization::BuildNative(native) => {
                         provenance.row_requirements.push(row.requirement);

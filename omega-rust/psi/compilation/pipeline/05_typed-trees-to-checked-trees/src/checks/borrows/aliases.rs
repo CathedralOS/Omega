@@ -33,7 +33,7 @@ impl ResolvedAlias {
         handle: Handle<BorrowLoanFact>,
     ) -> bool {
         self.lineage.iter().any(|ancestor| {
-            same_descriptor(facts.view(), loan_occurrences, *ancestor, handle)
+            same_descriptor(facts, loan_occurrences, *ancestor, handle)
                 || retains_lifetime_dependency(facts, loan_occurrences, *ancestor, handle)
         })
     }
@@ -42,7 +42,7 @@ impl ResolvedAlias {
 /// Alternatives belong to an exact descriptor occurrence, never merely to
 /// equal backing geometry. Wildcard paths may describe coexisting slots.
 pub(in crate::checks::borrows) fn same_descriptor(
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     loan_occurrences: &LoanOccurrences<'_>,
     left: Handle<BorrowLoanFact>,
     right: Handle<BorrowLoanFact>,
@@ -92,11 +92,11 @@ fn retains_lifetime_dependency(
         && (!matches!(descriptor.root, facts::PlaceRoot::InvocationOutput(_))
             || descriptor.incoming_reference.is_valid())
         && debt.lineage == BorrowLoanLineage::LifetimeDependency
-        && same_carrier_occurrence(facts.view(), loan_occurrences, descriptor, debt)
+        && same_carrier_occurrence(facts, loan_occurrences, descriptor, debt)
 }
 
 fn same_carrier_occurrence(
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     loan_occurrences: &LoanOccurrences<'_>,
     left: &BorrowLoanFact,
     right: &BorrowLoanFact,
@@ -113,13 +113,13 @@ fn same_carrier_occurrence(
 /// occurrence. The completed source identifies the slot; expression-owned
 /// temporary homes remain independent of the input's field path.
 fn same_resolved_descriptor_load(
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     loan_occurrences: &LoanOccurrences<'_>,
     left: &BorrowLoanFact,
     right: &BorrowLoanFact,
 ) -> bool {
-    if !is_descriptor_load(facts.borrow, left)
-        || !is_descriptor_load(facts.borrow, right)
+    if !is_descriptor_load(&facts.borrow, left)
+        || !is_descriptor_load(&facts.borrow, right)
         || left.owner_symbol != right.owner_symbol
         || left.statement_index != right.statement_index
         || left.established_by_call != right.established_by_call
@@ -162,7 +162,7 @@ pub(in crate::checks::borrows) fn formation_preserves_loan(
     active: Handle<BorrowLoanFact>,
 ) -> bool {
     lineage.iter().any(|ancestor| {
-        same_descriptor(facts.view(), loan_occurrences, *ancestor, active)
+        same_descriptor(facts, loan_occurrences, *ancestor, active)
             || retains_lifetime_dependency(facts, loan_occurrences, *ancestor, active)
             || retains_lifetime_dependency(facts, loan_occurrences, active, *ancestor)
             || exclusive_carrier_cases(program, &facts.borrow, state, *ancestor, active)
@@ -257,7 +257,7 @@ pub(in crate::checks::borrows) fn resolve_places(
 ) -> Option<Vec<ResolvedPlace>> {
     resolve_places_with_loans(
         program,
-        facts.view(),
+        facts,
         loan_occurrences,
         state_flow,
         facts.flow.borrow_loan_constraints(entry_constraints),
@@ -269,7 +269,7 @@ pub(in crate::checks::borrows) fn resolve_places(
 /// flow cut or the shared statement replay cursor. No geometry selects a loan.
 pub(in crate::checks::borrows) fn resolve_places_with_loans(
     program: &dyn ::validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     loan_occurrences: &LoanOccurrences<'_>,
     state_flow: &FlowStateFact,
     loans: impl Iterator<Item = Handle<BorrowLoanFact>>,
@@ -315,7 +315,7 @@ pub(in crate::checks::borrows) fn resolve_descriptor_places(
 ) -> Option<Vec<ResolvedPlace>> {
     resolve_descriptor_places_with_loans(
         program,
-        facts.view(),
+        facts,
         loan_occurrences,
         state_flow,
         facts.flow.borrow_loan_constraints(entry_constraints),
@@ -326,7 +326,7 @@ pub(in crate::checks::borrows) fn resolve_descriptor_places(
 
 fn resolve_descriptor_places_with_loans(
     program: &dyn ::validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     loan_occurrences: &LoanOccurrences<'_>,
     state_flow: &FlowStateFact,
     loans: impl Iterator<Item = Handle<BorrowLoanFact>>,

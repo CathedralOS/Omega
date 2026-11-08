@@ -475,6 +475,14 @@ fn check_array_literal_elements_for_shape(
         return;
     }
     for element in element_handles {
+        crate::value_custody::pattern_components::report_delivery(
+            program,
+            *element,
+            element_type,
+            Some(language_core::PatternComponent::Fields),
+            "array literal element",
+            diagnostics,
+        );
         crate::proof_contracts::domain_weakening::validate_implicit_domain_weakening(
             program,
             machine,

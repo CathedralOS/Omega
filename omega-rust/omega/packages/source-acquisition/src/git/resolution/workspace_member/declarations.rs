@@ -1,6 +1,4 @@
-// Authenticated root (`build.omg`) and member (`<member>/build.omg`)
-// declaration opening (`open_root`, `open_members`) under bounded member-count
-// and byte budgets without reading unrelated repository blobs.
+//! Open exact catalog declarations without charging unrelated repository payloads.
 
 use crate::error::{too_many_bytes, too_many_files};
 use crate::git::cache::repository::VerifiedGitRepository;

@@ -53,9 +53,7 @@ pub(crate) fn effects(form: AtomicForm) -> MachineEncodedEffects {
         )
     };
     if writes_rflags(form.operation) {
-        effects
-            .implicit_unit_clobbers
-            .extend(units("condition_flags"));
+        effects.implicit_unit_clobbers.extend(units("rflags"));
     }
     if matches!(
         form.operation,

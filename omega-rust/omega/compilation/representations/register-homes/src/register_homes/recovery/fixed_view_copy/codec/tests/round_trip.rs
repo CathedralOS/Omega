@@ -143,7 +143,7 @@ fn artifact_round_trips_every_policy_and_full_transformed_custody() {
         assert_eq!(
             decoded.transformed.functions[0].blocks[0].instructions[0]
                 .provenance
-                .work[0]
+                .fuel[0]
                 .units,
             7
         );
@@ -173,7 +173,6 @@ fn artifact_current_retains_segment_home_evidence_and_rejects_older_authority() 
         with_stale_version(&plan, 44),
         with_stale_version(&plan, 45),
         with_stale_version(&plan, 46),
-        with_stale_version(&plan, 93),
     ] {
         let version = u32::from_le_bytes(encoded[8..12].try_into().unwrap());
         assert_eq!(

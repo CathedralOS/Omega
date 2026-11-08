@@ -50,7 +50,7 @@ pub(in crate::checks::borrows) fn resolve(
 ) -> Option<ResolvedAlias> {
     let mut sources = resolve_all(
         program,
-        facts.view(),
+        facts,
         loan_occurrences,
         state,
         statement,
@@ -63,7 +63,7 @@ pub(in crate::checks::borrows) fn resolve(
 /// lineage. The complete roster is required for writes through a selection.
 pub(in crate::checks::borrows) fn resolve_all(
     program: &dyn ::validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement: &FlowStatementFact,
@@ -135,7 +135,7 @@ pub(in crate::checks::borrows) fn resolve_all(
 /// A root that is not a local reference resolves to itself without lineage.
 pub(in crate::checks::borrows) fn resolve_captured_all(
     program: &dyn ::validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
@@ -155,7 +155,7 @@ pub(in crate::checks::borrows) fn resolve_captured_all(
 
 pub(in crate::checks::borrows) fn resolve_captured_with_loans(
     program: &dyn ::validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
@@ -247,7 +247,7 @@ pub(in crate::checks::borrows) fn metadata_storage(
 
 pub(super) fn retain_captured_lineage(
     program: &dyn ::validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
@@ -380,7 +380,7 @@ pub(super) fn retain_captured_lineage(
 /// invocation generation instead has its own actual post-call constraint cut;
 /// the caller above already required that loan in the descriptor's capture.
 fn completed_call_established_loan(
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     state: &FlowStateFact,
     handle: arena::Handle<checked_trees::BorrowLoanFact>,
 ) -> bool {
@@ -399,7 +399,7 @@ fn completed_call_established_loan(
             .completed_reference_loans
             .handles()
             .any(|candidate| candidate == handle)
-        && crate::flow::call_flows(facts.flow.control, state.calls)
+        && crate::flow::call_flows(&facts.flow.control, state.calls)
             .iter()
             .any(|actual| {
                 actual.statement_index == loan.statement_index

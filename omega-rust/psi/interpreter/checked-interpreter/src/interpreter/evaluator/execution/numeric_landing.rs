@@ -268,7 +268,7 @@ impl Evaluator<'_> {
             )
             && let Some(bits) = literal.bits_u64()
         {
-            // Preserve source-expression work accounting even though the
+            // Preserve source-expression fuel accounting even though the
             // exact calculation is shared with compile-time landing.
             let mut pending = vec![expression];
             while let Some(expression) = pending.pop() {

@@ -1,10 +1,16 @@
-// We enforce source-level ownership and operation-ordering boundaries across
-// crates that legitimately depend on lower stage owners (`psi_compiler`,
-// `provider_planning`, `selected_dispatch`, `compilation_products`). Crate-level
-// dependency direction is checked separately by `mbx xtask check-boundary`;
-// these tests verify that coordinator modules do not call internal stage
-// operations out of order or reopen source representations after publication.
+//! Source guards for ownership and ordering rules that have no structural form
+//! yet.
+//!
+//! Dependency direction between owners is not checked here. It lives in
+//! `tools/check_native_boundary.py`, which reads `cargo metadata`, so a wrong
+//! import stops resolving instead of relying on a spelling. What remains is
+//! module discipline inside crates that legitimately depend on the owner
+//! (a coordinator must not call an operation Psi owns), plus the order and
+//! count of operations in a sequence. Each needs a crate split, a narrower
+//! visibility, or an instrumented run before the text search can go.
 
+/// Assert every `source` omits each listed token, naming the owner that must
+/// not spell it.
 fn assert_absent(sources: &[&str], complaint: &str, tokens: &[&str]) {
     for source in sources {
         for token in tokens {
@@ -13,6 +19,7 @@ fn assert_absent(sources: &[&str], complaint: &str, tokens: &[&str]) {
     }
 }
 
+/// Assert the operations first appear in `source` in the listed order.
 fn assert_in_order(source: &str, owner: &str, operations: &[&str]) {
     let mut previous = None;
     for operation in operations {
@@ -193,7 +200,7 @@ fn package_review_retains_products_not_checked_compiler_state() {
             include_str!(
                 "../../../packages/package-manager/src/review/candidate/passes/occurrences.rs"
             ),
-            include_str!("../../../packages/package-manager/src/review/candidate/passes.rs"),
+            include_str!("../../../packages/package-manager/src/review/candidate/passes/policy.rs"),
             include_str!("../../../packages/package-manager/src/review/candidate/review_cache.rs"),
         ],
         "package review interprets",
@@ -323,7 +330,7 @@ fn issuer_identities_precede_occurrence_production() {
 
 #[test]
 fn native_provider_handoff_borrows_closed_source_associations() {
-    let projection = include_str!("../../products/src/checked_compilation.rs");
+    let projection = include_str!("../../products/src/checked_compilation/terminal.rs");
     assert_absent(
         &[projection],
         "native handoff reopens",
@@ -425,6 +432,8 @@ fn terminal_calling_activation_uses_only_canonical_geometry() {
 
 #[test]
 fn native_telescope_construction_is_shared_by_canonical_replay_and_projection() {
+    // Callback preparation copies the canonical replay's telescope instead of
+    // closing its own, so only these two owners construct one.
     let replay = include_str!(
         "../../backend/calling-conventions/src/boundary_application/terminal_telescope.rs"
     );
@@ -529,6 +538,7 @@ fn terminal_consumers_call_psi_without_a_product_wrapper() {
         "inspection requests Terminal production:",
         &["TerminalProductionRequest", ".produce("],
     );
+    // One product production attempt per first lowering leg.
     let observations = include_str!("observations.rs");
     assert_eq!(
         observations.matches("record_terminal_production()").count(),

@@ -1,26 +1,15 @@
-/*
-
-Publish completed compiler outputs into each target's admitted build directory.
-
-The compiler produces an in-memory `CompilationOutput`. Choosing an output path
-and writing artifact files to disk belongs to `orchestration::publication`:
-- `Check`, `Terminal`, `Inspection`, `NativeDestination::Retained`, and
-  `NativeDestination::RuntimeAdmission` write no files and return
-  `executable_path: None`.
-- `NativeDestination::Published` writes the native executable (or macOS `.app`
-  bundle) and any declared build outputs into the target's admitted canonical
-  directory via `publish_compilation`.
-- `publish_native_artifact` is used by `omega run` after Terminal Psi comparison
-  finishes to publish a `RetainedNativeArtifact` into the temporary probe
-  directory before spawning the native child process.
-
-*/
+//! Application-owned publication of compiler outputs.
+//!
+//! The compiler stops at an in-memory semantic product. Choosing a path and
+//! making bytes visible is command/product policy, not compilation.
 
 use crate::{BuildError, BuildOutcome, NativeDestination, ProjectProduct, TargetBuildOutcome};
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use compiler::CompilationOutput;
 use std::path::{Path, PathBuf};
 
+/// Preserve every target's outcome. Checks, inspections and retained requests publish
+/// no bytes; published products use their own admitted canonical directory.
 pub(crate) fn publish_products(
     work: Vec<crate::project::build_directory::TargetWork>,
     mut reports: Vec<(target::TargetProfile, Result<CompilationOutput, BuildError>)>,

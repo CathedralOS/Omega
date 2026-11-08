@@ -272,11 +272,7 @@ fn conversion_control_replay_binds_local_branches_aliasing_and_effects() {
     let physical =
         register_model::validate_physical_register_model(crate::x86_64_physical_register_model())
             .unwrap();
-    let flags = &physical
-        .model()
-        .view_named("condition_flags")
-        .unwrap()
-        .units;
+    let flags = &physical.model().view_named("rflags").unwrap().units;
     for operation in [
         Operation::FromInteger(IeeeFloatIntegerCarrier::U64),
         Operation::TruncateToInteger {

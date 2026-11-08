@@ -1,13 +1,3 @@
-// `WindowsJobChild`: lifecycle owner for a child process and its Windows Job
-// Object.
-//
-// `try_wait` returns `Some(ExitStatus)` only after both the primary child
-// process has exited (`primary_status.is_some()`) and the job's completion port
-// has delivered `JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO`
-// (`active_processes_zero == true`), guaranteeing no descendant processes
-// outlive the wait. Dropping `WindowsJobChild` terminates the job and reaps
-// the primary process handle.
-
 use std::io;
 use std::os::windows::process::CommandExt;
 use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, ExitStatus};
@@ -41,13 +31,14 @@ pub(super) enum JobLimitEvent {
     AggregateCpu,
 }
 
+/// A bounded child owned by a compiler-created Windows Job Object.
 #[derive(Debug)]
 pub(crate) struct WindowsJobChild {
-    child: Child,                       // Primary child process handle.
-    job: KernelHandle, // Compiler-created Windows Job Object owning the process tree.
-    completion_port: KernelHandle, // I/O completion port receiving job notifications.
-    primary_status: Option<ExitStatus>, // Latched exit status of the primary child once reaped.
-    active_processes_zero: bool, // True once `JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO` arrives.
+    child: Child,
+    job: KernelHandle,
+    completion_port: KernelHandle,
+    primary_status: Option<ExitStatus>,
+    active_processes_zero: bool,
     #[cfg(test)]
     pub(super) limit_events: Vec<JobLimitEvent>,
 }

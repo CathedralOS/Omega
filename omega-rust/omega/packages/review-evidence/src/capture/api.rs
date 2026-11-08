@@ -1,6 +1,6 @@
-// Public API projection for declared conformances, constants, data types,
-// domains, operators, propositions, and traits, each captured from its checked
-// declaration owner and assembled by `policy`.
+//! Public API projection: the declared conformances, constants, data,
+//! domains, operators, propositions and traits a package exposes, each
+//! captured from its exact checked declaration owner and policed by `policy`.
 
 pub(super) mod conformances;
 pub(super) mod constants;

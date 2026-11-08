@@ -1,15 +1,13 @@
-// We provide source-selection adapters for early and reference consumers.
-// Complete Product boundary policy belongs to `provider-selection`; these
-// adapters locate checked uses of boundary operators, trait methods, or
-// receiver-free top-level requirements (`selected_use_plan`,
-// `selected_requirement_plan`), prepare build-time provider bodies
-// (`prepare_selected_build_time_provider_body`), and project already-checked
-// operator body candidates (`selected_checked_operator_body`).
+//! Source selection adapters for early and reference consumers.
+//! Complete Product boundary policy belongs to provider-selection; these
+//! adapters only locate source uses or borrow an exact checked body payload.
 
 use crate::provider_planning::trait_name_text;
 use checked_trees::typed_trees::TypedTrees;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 
+/// Retain one exact selected checked occurrence for shared semantic admission.
+/// Provider planning owns the whole-map choice; this does not select a body.
 pub fn prepare_selected_build_time_provider_body(
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     target: target::TargetProfile,
@@ -41,6 +39,15 @@ pub fn prepare_selected_build_time_provider_body(
     .map_err(diagnostics::Diagnostic::error)
 }
 
+/// The selected ProviderPlan serving one checked use of a boundary operator
+/// or receiver-free top-level requirement, with its index in `plans`.
+/// Checked uses carry no selection: each target joins its own selected plans
+/// here by requirement identity (slot and declaring package) in the caller's
+/// dependency purpose, after
+/// `bind_selected_provider_plan_facts` rejected ambiguous or malformed plans.
+/// A use inside a pruned target-sibling body has no provider, and a checked
+/// adapter never serves a generic template's use (its concrete clones are
+/// served instead).
 pub fn selected_use_plan<'a>(
     typed: &checked_trees::typed_trees::TypedTrees,
     scope: source::DependencyScope,
@@ -71,6 +78,9 @@ pub fn selected_use_plan<'a>(
     Some((index, plan))
 }
 
+/// The one selected ProviderPlan whose schema binds `requirement` — a boundary
+/// operator, trait-method or top-level requirement — in its exact
+/// declaring package and dependency purpose, with its index in `plans`.
 pub fn selected_requirement_plan<'a>(
     context: crate::ProviderPlanningContext<'_>,
     plans: &'a [ProviderPlan],
@@ -166,6 +176,9 @@ pub(crate) fn provider_type_symbol(
     )
 }
 
+/// Project the exact demand's already checked bodies into source-free choice.
+/// Neither admission nor checked dispatch may reconstruct this roster from
+/// typed specialization or satisfaction rows.
 pub fn selected_checked_operator_body<'checked>(
     facts: &'checked checked_trees::CheckFacts,
     application: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
@@ -178,6 +191,8 @@ pub fn selected_checked_operator_body<'checked>(
     provider_selection::select_checked_body(plan, candidates)
 }
 
+/// Read the declaration that owns the recorded provider relation. Ordinary
+/// map members have no attached data and do not infer ownership from a path.
 pub(crate) fn provider_type_path(
     typed: &TypedTrees,
     machine: &checked_trees::typed_trees::machine::Machine,

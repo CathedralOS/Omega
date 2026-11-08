@@ -520,37 +520,30 @@ fn expression_symbol_trace(
                 members.joined_path()
             )
         }
-        ExpressionNode::Call(call) => {
-            let mut identity = format!(
-                "call:{:?}:{}:{:?}:{:?}:{:?}:{:?}:[{}]:({})",
-                call.target_symbol,
-                call.machine_arguments
-                    .iter()
-                    .map(static_argument_identity)
-                    .collect::<Vec<_>>()
-                    .join(","),
-                call.quotient_operation,
-                call.private_layout_operation,
-                call.evidence_arguments,
-                call.operational_acknowledgement,
-                if call.receiver.is_valid() {
-                    trace(call.receiver)
-                } else {
-                    Default::default()
-                },
-                expression_table(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .map(|argument| trace(*argument))
-                    .collect::<Vec<_>>()
-                    .join(","),
-            );
-            if let Some(request) = &call.installed_interrupt_operation {
-                use std::fmt::Write as _;
-                let _ = write!(identity, ":installed-interrupt:{request:?}");
-            }
-            identity
-        }
+        ExpressionNode::Call(call) => format!(
+            "call:{:?}:{}:{:?}:{:?}:{:?}:{:?}:[{}]:({})",
+            call.target_symbol,
+            call.machine_arguments
+                .iter()
+                .map(static_argument_identity)
+                .collect::<Vec<_>>()
+                .join(","),
+            call.quotient_operation,
+            call.private_layout_operation,
+            call.evidence_arguments,
+            call.operational_acknowledgement,
+            if call.receiver.is_valid() {
+                trace(call.receiver)
+            } else {
+                Default::default()
+            },
+            expression_table(program)
+                .expression_handles(call.arguments)
+                .iter()
+                .map(|argument| trace(*argument))
+                .collect::<Vec<_>>()
+                .join(","),
+        ),
         ExpressionNode::ArrayLiteral(values_span) => array_trace(
             expression_table(program)
                 .expression_handles(*values_span)

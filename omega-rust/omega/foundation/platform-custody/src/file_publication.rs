@@ -1,29 +1,38 @@
-// Staging, ordered installation, and exact-byte replay of output files.
-//
-// Callers stage all members of a related output set (such as an artifact and
-// its proof companion) beside their destinations and replay each staged file's
-// bytes before installing any member. If installation or post-install replay
-// fails partway through, `install_staged_files` unlinks the members already
-// installed by this attempt so new artifact bytes never sit beside an older
-// companion; untouched destinations remain intact, and overwritten destinations
-// are not restored.
-//
-// `StagedFile` owns `bytes: Vec<u8>` so a staged set can outlive the scopes
-// that produced each member's byte slice. The staging filename
-// (`.<name>.<pid>.tmp`) is process-scoped, so callers must serialize
-// publication to any shared destination path.
+//! Staging, ordered installation and exact-byte replay of output files.
+//!
+//! Callers choose destinations and stage every member before installation.
+//! Failure removes newly installed members and reports cleanup failures; it
+//! does not restore overwritten files or provide a multi-file transaction.
+//! This is separate from capability-relative, custody-checked record writes.
+//! It neither selects compiler products nor interprets proof companions.
 
+/// Publish a single non-executable file, such as a completed build output.
+/// Artifact/proof pairs use the staged-set entrance so both files are ready
+/// before installation starts.
 pub fn publish_exact_file_bytes(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
     let product = stage_exact_bytes(path, bytes, false)?;
     install_staged_files(std::slice::from_ref(&product))
 }
 
+/// One file written and replayed beside its destination, not yet
+/// visible there.
+///
+/// Stage all members of a related set before installing any of them, so a
+/// staging failure leaves their previous destinations untouched. Dropping a
+/// staged file may leave staging residue; this is not a rollback transaction.
 pub struct StagedFile {
     staged: std::path::PathBuf,
     destination: std::path::PathBuf,
-    bytes: Vec<u8>, // Owned for post-install replay after producer buffers drop.
+    /// Retained for the post-install replay. Owned rather than borrowed so a
+    /// staged set can outlive the scopes that produced each member's bytes.
+    bytes: Vec<u8>,
 }
 
+/// Write `bytes` beside `path` and replay them, without making them visible
+/// at `path`.
+///
+/// Callers must serialize publication to each destination: the staging name
+/// is process-scoped, not unique to concurrent attempts.
 pub fn stage_exact_bytes(
     path: &std::path::Path,
     bytes: &[u8],
@@ -70,6 +79,13 @@ fn replay_installed_product(product: &StagedFile) -> Result<(), String> {
     Ok(())
 }
 
+/// Install and replay a fully staged set in its supplied order.
+///
+/// Staging completes before installation starts. On installation or replay
+/// failure, remove the members this attempt installed so new artifact bytes
+/// cannot remain beside a previous companion. Untouched destinations survive;
+/// replaced files are not restored. Cleanup failures accompany the original
+/// error, and no receipt may be issued for this attempt.
 pub fn install_staged_files(products: &[StagedFile]) -> Result<(), String> {
     let mut installed_count = 0;
     for product in products {
@@ -94,6 +110,10 @@ pub fn install_staged_files(products: &[StagedFile]) -> Result<(), String> {
     Ok(())
 }
 
+/// Install the staged file at its destination. Unix `rename` replaces an
+/// existing file atomically; platforms whose rename refuses an occupied
+/// destination remove it first. Either way the staged bytes were already
+/// replayed, and on Unix the prior output survives a failed rename.
 #[cfg(unix)]
 fn install_staged(staged: &std::path::Path, path: &std::path::Path) -> Result<(), String> {
     std::fs::rename(staged, path)
@@ -110,6 +130,7 @@ fn install_staged(staged: &std::path::Path, path: &std::path::Path) -> Result<()
         .map_err(|error| format!("failed to publish {}: {error}", path.display()))
 }
 
+/// Set Unix executable permissions to 0755; other hosts need no mode change.
 #[cfg(unix)]
 pub fn make_executable(path: &std::path::Path) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
@@ -118,6 +139,7 @@ pub fn make_executable(path: &std::path::Path) -> Result<(), String> {
         .map_err(|error| format!("failed to make {} executable: {error}", path.display()))
 }
 
+/// Set Unix executable permissions to 0755; other hosts need no mode change.
 #[cfg(not(unix))]
 pub fn make_executable(_path: &std::path::Path) -> Result<(), String> {
     Ok(())

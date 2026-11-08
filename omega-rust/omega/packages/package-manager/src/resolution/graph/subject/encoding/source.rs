@@ -1,5 +1,4 @@
-// We encode canonical package keys, source lineages, and immutable source
-// resolutions after validating byte-limit invariants.
+//! Canonical package key, source lineage, and immutable resolution encoding.
 
 use super::super::CanonicalSourceClosureSubjectError;
 use super::super::validation::{validate_package_key, validate_source_lineage};

@@ -1,18 +1,12 @@
-// Value types for captured local sources, published local snapshots, and
-// resolution observations.
-//
-// `CapturedLocalSource` holds an invocation-owned in-memory source tree; its
-// `requested_root` is preserved for provenance and routing only, never as
-// permission to reopen the live checkout. `LocalSourceResolutionObservation` is
-// issued exclusively by the resolver to bind the caller's request spelling,
-// canonical live root, immutable publication, limits, custody identity, and
-// final exact-tree rehash. `ResolvedLocalSnapshot` pairs that observation with
-// the published snapshot root and normalized tree identity.
+//! Local-source request, publication, and resolution observations.
 
 use crate::tree::ResolvedSourceTree;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+/// Invocation-owned immutable local source. The root is a routing spelling,
+/// never permission to reopen the checkout after acquisition. Persistence is
+/// a separate operation for transaction and review custody.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapturedLocalSource {
     pub(crate) requested_root: PathBuf,
@@ -39,6 +33,12 @@ pub use crate::tree::{
     ResolvedLocalSource, VerifiedPackageSourceEntry, VerifiedPackageSourceEntryKind,
 };
 
+/// Compact canonical identity of one locally successful source resolution.
+///
+/// The resolver is the only issuer. The observation binds the caller's exact
+/// request, its canonical live source, immutable publication, source limits,
+/// snapshot custody, and the final exact-tree rehash. It records successful
+/// source resolution; package review and lock admission remain separate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalSourceResolutionObservation {
     pub(super) schema_version: u32,
@@ -55,12 +55,17 @@ impl LocalSourceResolutionObservation {
         &self.identity
     }
 
+    /// Custody identity recorded for the published snapshot.
+    ///
+    /// The field feeds the resolver's observation digest; this accessor exists
+    /// so tests can compare two resolutions of the same live tree.
     #[cfg(test)]
     pub(crate) fn custody_identity(&self) -> &str {
         &self.custody_identity
     }
 }
 
+/// A resolver-owned immutable copy of a requested local source tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedLocalSnapshot {
     requested_root: PathBuf,

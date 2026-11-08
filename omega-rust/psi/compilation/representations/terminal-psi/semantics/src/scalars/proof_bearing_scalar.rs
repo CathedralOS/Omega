@@ -20,8 +20,8 @@ use terminal_psi::{Operation, OperationKind};
 
 use crate::{
     OperationSemanticError, ScalarLeafCrashPolicy, ScalarLeafDenotation, ScalarLeafFactShape,
-    ScalarLeafFrontierPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape, ScalarLeafResultShape,
-    ScalarLeafSchema, ScalarLeafWorkPolicy,
+    ScalarLeafFrontierPolicy, ScalarLeafFuelPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape,
+    ScalarLeafResultShape, ScalarLeafSchema,
 };
 
 mod canonical_goal;
@@ -154,7 +154,7 @@ const fn proof_bearing_scalar_leaf(
         goal,
         fact: ScalarLeafFactShape::ResultEquation,
         crash: ScalarLeafCrashPolicy::CrashesUnlessGoal,
-        work: ScalarLeafWorkPolicy::ConsumeOne,
+        fuel: ScalarLeafFuelPolicy::ConsumeOne,
         frontier: ScalarLeafFrontierPolicy::PreserveLocal,
     }
 }
@@ -530,7 +530,7 @@ pub fn proof_bearing_scalar_leaf_semantics(
     if canonical_goal.shape() != row.schema.goal
         || row.schema.fact != ScalarLeafFactShape::ResultEquation
         || row.schema.crash != ScalarLeafCrashPolicy::CrashesUnlessGoal
-        || row.schema.work != ScalarLeafWorkPolicy::ConsumeOne
+        || row.schema.fuel != ScalarLeafFuelPolicy::ConsumeOne
         || row.schema.frontier != ScalarLeafFrontierPolicy::PreserveLocal
     {
         return Err(OperationSemanticError::ProofBearingScalarSchemaMismatch(

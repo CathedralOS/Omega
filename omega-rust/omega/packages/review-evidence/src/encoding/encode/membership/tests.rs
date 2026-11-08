@@ -1,4 +1,5 @@
-// Unit tests for membership descent over rendered identity text, limit exhaustion, const operands, and malformed-identity excerpts.
+//! Membership descent over rendered identity text: which failure each kind of
+//! rejection reports, and what a malformed identity leaves behind for the report.
 
 use super::visitor::Visitor;
 use super::{
@@ -32,6 +33,7 @@ fn framed(label: &str, children: &[&str]) -> String {
     identity
 }
 
+/// A name atom's payload: the four characters the atom grammar reserves are escaped.
 fn escaped(text: &str) -> String {
     text.chars()
         .flat_map(|character| {
@@ -41,6 +43,7 @@ fn escaped(text: &str) -> String {
         .collect()
 }
 
+/// A conformance callable whose one parameter is `parameter`.
 fn callable(parameter: &str) -> String {
     let parameter = framed("parameter", &[parameter, "false:false"]);
     framed(
@@ -101,12 +104,14 @@ fn exhausting_a_limit_is_not_reported_as_malformed() {
         few_nodes.type_identity(&identity),
         Err(Error::IdentityNodeLimitExceeded)
     );
+    // A name atom with escapes is decoded into an owned buffer the byte limit charges.
     let decoded = format!("generic(name({}),{})", escaped(&nominal()), nominal());
     let mut few_bytes = visitor(Limits::new(8, 1 << 20, 128), true);
     assert_eq!(
         few_bytes.type_identity(&decoded),
         Err(Error::OwnedBytesLimitExceeded)
     );
+    // None of the three rejected an identity as unreadable, so none leaves one to report.
     for exhausted in [&mut shallow, &mut few_nodes] {
         assert_eq!(exhausted.unreadable_identity(), None);
     }
@@ -117,6 +122,8 @@ fn exhausting_a_limit_is_not_reported_as_malformed() {
 fn limits_inside_a_framed_name_keep_their_own_report() {
     let callable = callable(&nominal());
     let tight = Limits::new(1 << 20, 4, 128);
+    // The callable's parameter reaches the identity grammar from the framing, and the
+    // framed name reaches the framing from inside the grammar as an embedded name.
     assert_eq!(
         visitor(tight, true).nominal_path(&callable),
         Err(Error::IdentityNodeLimitExceeded)
@@ -129,6 +136,10 @@ fn limits_inside_a_framed_name_keep_their_own_report() {
     );
 }
 
+/// std's `linux_x86_64` bindings return `ForeignBinding<9, 8, 9>`: a generic whose operands
+/// are const indices, so its runtime identity names integers rather than types and its
+/// topology marks each operand a const expression. A std-only `omega update --resume`
+/// stopped on `MalformedIdentity` while the identity grammar read generic operands as types.
 #[test]
 fn a_signature_returning_a_generic_with_const_operands_is_readable() {
     let runtime = format!(
@@ -140,6 +151,7 @@ fn a_signature_returning_a_generic_with_const_operands_is_readable() {
     assert_eq!(accepting.type_identity(&signature), Ok(()));
     assert_eq!(accepting.type_identity(&runtime), Ok(()));
     assert_eq!(accepting.unreadable_identity(), None);
+    // A package-owned generic keeps its owner visible to the source-graph check.
     let owned = format!(
         r"generic(name(nominal\(package-owner\(32:{OWNER}\)\,path\(Window\)\)),{},integer(4))",
         nominal()
@@ -151,6 +163,11 @@ fn a_signature_returning_a_generic_with_const_operands_is_readable() {
     );
 }
 
+/// Identities as std renders them for `ForeignBinding<50, 18, 0>` and `FixedVec<T, N>`:
+/// generic applications whose operands are const indices, framed the two ways a lock
+/// sees them (a conformance callable's result type and a public signature type). A
+/// std-only `omega update --resume` stopped on `MalformedIdentity` at the first of
+/// these while the identity grammar read every generic operand as a type.
 const STD: &str = "9bc43b1779c3ad076eaf4d547d76025beac9cb005957e9c0f39cff1121519d4f";
 const STD_FOREIGN_BINDING_CALLABLE: &str = r#"20:conformance-callable19:appkit_load_binding177:named-callable(path(nominal\(package-owner\(32:9bc43b1779c3ad076eaf4d547d76025beac9cb005957e9c0f39cff1121519d4f\)\,path\(appkit_load_binding\)\)),parameters(),result-dispatch())19:appkit_load_binding7:machine224:11:result-type206:14:signature-type178:generic(name(nominal\(toolchain-source-owner\(32:9ced29a4dddb319ba059ac16618d7e595ebb8d643d3a3b9f51c56245361ce613\)\,path\(ForeignBinding\)\)),integer(50),integer(18),integer(0))5:named"#;
 const STD_FIXED_VEC_SIGNATURE: &str = r#"14:signature-type196:generic(name(nominal\(toolchain-source-owner\(32:6ec9951bfbb8a2f30edae4b9e6cd09fc324f6bde87f5e557df4a72997cc3fc16\)\,path\(FixedVec\)\)),named(name(type-parameter:1)),const-name(type-parameter:2))23:7:generic5:named5:named"#;
@@ -169,6 +186,9 @@ fn std_identities_with_const_operands_are_readable() {
     assert_eq!(accepting.unreadable_identity(), None);
 }
 
+/// A derived declaration is named by the generic application that produced it. That
+/// application's owners are package owners like any other: they used to read as
+/// binder text, which membership never searched.
 #[test]
 fn a_derived_declaration_names_owners_the_source_graph_must_contain() {
     let origin = format!("generic(name({}),{})", escaped(&nominal()), nominal());
@@ -193,6 +213,8 @@ fn a_zero_package_owner_is_malformed() {
 
 #[test]
 fn a_rejected_identity_reports_the_text_the_grammar_stopped_on() {
+    // `ref` takes one operand. A second is a region, which only an application-scoped
+    // rendering carries, so the grammar refuses it where its comma stands.
     let identity = format!("ref({},elided-region)", nominal());
     let mut rejecting = visitor(roomy(), true);
     assert_eq!(
@@ -229,6 +251,7 @@ fn the_innermost_rejected_identity_is_the_one_reported() {
 
 #[test]
 fn a_framing_rejection_reports_the_framed_text() {
+    // The signature framing names its tag and then ends: no runtime identity to read.
     let truncated = framed("signature-type", &[]);
     let mut rejecting = visitor(roomy(), true);
     assert_eq!(

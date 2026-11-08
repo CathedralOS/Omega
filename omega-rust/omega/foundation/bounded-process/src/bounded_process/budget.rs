@@ -1,10 +1,3 @@
-// Lock-free atomic output byte budget (`BoundedCaptureBudget`) shared across
-// stdout and stderr capture workers.
-//
-// `charge` uses a CAS loop (`compare_exchange_weak`) so an attempted read that
-// would push `observed` past `ceiling` fails closed without incrementing the
-// shared counter.
-
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 

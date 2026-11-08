@@ -68,9 +68,6 @@ fn keys() -> SelectedConstraintKeys {
             global_descriptor_table: Some(instruction(906)),
             task_register_activate: Some(instruction(907)),
             task_register_read: Some(instruction(908)),
-            installed_interrupt_cpu_check: Some(instruction(912)),
-            installed_interrupt_task_commit: Some(instruction(913)),
-            installed_interrupt_table_publication: Some(instruction(914)),
             code_segment_reload: Some(instruction(909)),
             data_segment_reload: Some(instruction(910)),
             segment_selector_read: Some(instruction(911)),
@@ -87,7 +84,6 @@ fn keys() -> SelectedConstraintKeys {
             atomic_compare_exchange_once: Some(instruction(59)),
             atomic_bitwise_update: Some(instruction(58)),
             crash: instruction(780),
-            privileged_crash: Some(instruction(915)),
             copy_bytes: Some(instruction(40)),
             zero_bytes: Some(instruction(60)),
             scan_byte_sequence: Some(instruction(41)),
@@ -772,7 +768,7 @@ macro_rules! row {
 /// [`MachineSemanticKind::ALL`]. These bytes are the identity of an
 /// alternative in every catalog, program, physical-instruction and
 /// machine-code artifact, so this table changing is always a defect.
-const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 148] = [
+const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 144] = [
     (MachineAlternativeFamily::InterruptControl, 256),
     (MachineAlternativeFamily::MemoryFence, 257),
     (MachineAlternativeFamily::InvokeNoNormal, 258),
@@ -795,13 +791,6 @@ const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 148] = [
     (MachineAlternativeFamily::ControlRegisterWrite, 255),
     (MachineAlternativeFamily::AtomicFence, 238),
     (MachineAlternativeFamily::Crash, 111),
-    (MachineAlternativeFamily::InstalledInterruptCpuCheck, 266),
-    (MachineAlternativeFamily::InstalledInterruptTaskCommit, 267),
-    (
-        MachineAlternativeFamily::InstalledInterruptTablePublication,
-        268,
-    ),
-    (MachineAlternativeFamily::PrivilegedCrash, 269),
     (MachineAlternativeFamily::CopyBytes, 59),
     (MachineAlternativeFamily::BitwiseAndI64, 51),
     (MachineAlternativeFamily::BitwiseXorI64, 52),
@@ -1271,7 +1260,7 @@ fn encoded_trap_behavior_identity_bytes_are_pinned() {
 
 #[test]
 fn encoded_control_effect_identity_bytes_are_pinned() {
-    let cases: [(MachineEncodedControlEffect, &[u8]); 15] = [
+    let cases: [(MachineEncodedControlEffect, &[u8]); 13] = [
         (MachineEncodedControlEffect::FallThroughV1, &[0]),
         row!(MachineEncodedControlEffect::ConditionalRelativeBranchV1 => &[1]),
         row!(MachineEncodedControlEffect::ReturnFromActivationStackV1 => &[2]),
@@ -1288,8 +1277,6 @@ fn encoded_control_effect_identity_bytes_are_pinned() {
         (MachineEncodedControlEffect::HostedReadReturnOrTrapV1, &[8]),
         (MachineEncodedControlEffect::CrashV1, &[9]),
         (MachineEncodedControlEffect::FallThroughOrTrapV1, &[10]),
-        (MachineEncodedControlEffect::FallThroughOrStopV1, &[15]),
-        (MachineEncodedControlEffect::PrivilegedStopV1, &[16]),
         (MachineEncodedControlEffect::SupervisorCallV1, &[11]),
         (MachineEncodedControlEffect::AtomicRetryUntilCommitV1, &[12]),
     ];

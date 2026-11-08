@@ -280,27 +280,6 @@ pub(super) fn check_indexed_access(
     ) {
         return extent_result;
     }
-    // Flow already completed this selector before the store RHS or later
-    // siblings. Consume that exact value, including bounds delivered by every
-    // incoming call, rather than reconstructing an entry expression.
-    if let Some(length) = length
-        && spelling == OperatorSpelling::Index
-        && let Some((calls, operators)) = facts.checked_calls.zip(facts.checked_operators)
-        && let Some(bounds) = calls.captured_fixed_index_bounds(
-            program,
-            operators,
-            facts.statement_index,
-            expression,
-            length,
-        )
-        && bounds.minimum >= numerics::bignum::BigInt::from_u64(0)
-        && u64::try_from(length)
-            .is_ok_and(|length| bounds.maximum < numerics::bignum::BigInt::from_u64(length))
-    {
-        diagnostics.truncate(diagnostic_count);
-        obligations.truncate(obligation_count);
-        return BoundsCheckResult::ProvenScalar;
-    }
     // Both elements and windows consume the same ordered value/guarantee
     // owner as call requirements. Run it only when the inexpensive complete
     // extent judgment above could not close the bounds; a second independent

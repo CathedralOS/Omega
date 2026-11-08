@@ -26,8 +26,6 @@ mod dynamic_image_controls;
 mod host_provisions;
 #[path = "indexed_family_controls.rs"]
 mod indexed_family_controls;
-#[path = "invocation_value_controls.rs"]
-mod invocation_value_controls;
 #[path = "mathematical_actuals.rs"]
 mod mathematical_actuals;
 #[path = "native_layout_controls.rs"]
@@ -69,7 +67,6 @@ enum InspectionControls<'selection> {
     ScalarIssuer,
     ResultClaims,
     OwnershipClaims,
-    InvocationValues,
     OptimizationCatalog,
 }
 
@@ -188,15 +185,12 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "ownership-claim-controls"] => {
                 (*machine, false, Some(InspectionControls::OwnershipClaims))
             }
-            [machine, "invocation-value-controls"] => {
-                (*machine, false, Some(InspectionControls::InvocationValues))
-            }
             [machine, "indexed-family-controls"] => {
                 (*machine, false, Some(InspectionControls::IndexedFamily))
             }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `indexed-family-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls`, `ownership-claim-controls`, `invocation-value-controls`, `result-claim-controls`, `optimization-catalog-controls` or `dynamic-image-controls`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `indexed-family-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls`, `ownership-claim-controls`, `result-claim-controls`, `optimization-catalog-controls` or `dynamic-image-controls`"
                 ));
             }
         };
@@ -414,9 +408,6 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                     optimization_catalog_controls::inspect(&decoded)?
                 }
                 InspectionControls::OwnershipClaims => ownership_claim_controls::inspect(&decoded)?,
-                InspectionControls::InvocationValues => {
-                    invocation_value_controls::inspect(&decoded)?
-                }
                 InspectionControls::ClosedReach => closed_reach_controls::inspect(&decoded)?,
                 InspectionControls::ClosedReachCaptures => {
                     closed_reach_controls::inspect_captures(&decoded)?

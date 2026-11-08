@@ -1,9 +1,15 @@
-// We derive satisfies plans, top-level requirement plans, boundary operator
-// plans, and sealed-accessor plans with their provenance (`derive_provider_plans`).
-// Plans belong to authored satisfaction declarations rather than specialized
-// instances (`is_authored_provider_machine`), and any candidate plan whose row
-// realizations reach a known absent target body (`DirectTargetBodyAbsences`) is
-// filtered out as a whole map.
+//! Deriving satisfies plans, top-level requirement plans and boundary
+//! operator plans with their provenance.
+//!
+//! Provider paths use the same complete nominal projection as Build selection
+//! and Terminal candidate emission. They do not replace declaration custody:
+//! grouping/provenance retain exact provider symbols, packages and normalized
+//! callable identities, which independent replay must still rejoin.
+//!
+//! Plans belong to authored satisfaction declarations, not the executable
+//! instances specialization mints from them. All requirement schema kinds use
+//! that ownership rule; the closed-requirement roster retains and joins every
+//! executable tuple separately, without inflating original schema coverage.
 
 use crate::provider_planning::provenance_replay::requirement_identities::{
     exact_installed_external_binding_identity, exact_satisfied_requirement_identity,
@@ -34,11 +40,18 @@ pub(crate) fn derive_provider_plans(
     let context = services.context();
     let typed = context.typed;
     let mut plans: Vec<DerivedProviderPlan> = Vec::new();
+    // The package's `Build::bind` rows already own a realization for their
+    // requirements. A `boundary machine` satisfies declaration naming one of
+    // them derives no row of its own: the build-owned row is the one
+    // realization, and its provenance is what boundary discovery rejoins.
     let native_row_requirements: Vec<SymbolHandle> = native_bindings
         .iter()
         .filter(|plan| plan.plan.target == selected_target.unwrap_or_default())
         .flat_map(|plan| plan.provenance.row_requirements.iter().copied())
         .collect();
+    // Typed trees retain every authored body and its conformances. This
+    // transitional settlement derives only the requested realization's rows;
+    // semantic declaration queries must never perform that selection for us.
     for machine in typed.machines() {
         if !is_authored_provider_machine(typed, machine)
             || !crate::target_machines::realizes_machine(context, machine, selected_target)
@@ -57,8 +70,16 @@ pub(crate) fn derive_provider_plans(
                 )
                 .is_some()
             {
+                // Exact boundary-operator requirements use one overloaded
+                // signature per provider slot; derive them below rather than
+                // manufacturing an empty boundary-trait schema here.
                 continue;
             }
+            // A bodyless leaf carries `via`; a CHECKED ADAPTER is an
+            // ordinary machine with a body and a requirement-named
+            // satisfies edge (no via). Both contribute rows; whole-trait
+            // conformances (no requirement) are the trait system's
+            // ordinary business and derive nothing here.
             let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
             };
@@ -86,6 +107,11 @@ pub(crate) fn derive_provider_plans(
                     (language_semantics::MachineSupplyMode::CheckedBody, None)
                         if machine.body_is_present && !clause.via_expression.is_valid() =>
                     {
+                        // A CHECKED ADAPTER derives a plan row only over a
+                        // BOUNDARY trait (a service schema). A plain trait's
+                        // conformance -- including its service-reach ceiling -- is the
+                        // existing trait machinery's business (the decision-20
+                        // admission fixtures pin it) and derives nothing here.
                         let is_boundary_trait = typed.traits().iter().any(|definition| {
                             definition.is_boundary && definition.symbol == clause.symbol
                         });
@@ -102,7 +128,7 @@ pub(crate) fn derive_provider_plans(
                             clause,
                             selected_target,
                         ) else {
-                            continue;
+                            continue; // refused elsewhere (via rungs)
                         };
                         (binding, None)
                     }
@@ -168,6 +194,8 @@ pub(crate) fn derive_provider_plans(
         selected_target,
         evaluated_bindings,
     ));
+    // Named maps join member realizations against every candidate row that
+    // owns one: authored conformance rows and build-owned native rows alike.
     let mut join_candidates = plans.clone();
     join_candidates.extend(native_bindings.iter().cloned());
     let named = super::named_provider_plans::derive(
@@ -183,6 +211,11 @@ pub(crate) fn derive_provider_plans(
     }
     plans.extend(named);
     derive_accessor_plans(services, selected_target, &mut plans)?;
+    // Coverage includes the selected target's direct body closure, not only
+    // the portable adapter's own declaration. Keep every authored source body,
+    // but exclude a whole map when one of its rows reaches a known absent
+    // target body. Completion, provider dependencies and admission remain
+    // separate obligations on the candidates that selection actually chooses.
     let absent = provider_selection::DirectTargetBodyAbsences::derive(
         body_declarations,
         selected_target
@@ -240,6 +273,14 @@ fn derive_top_level_requirement_plans(
         for clause in checked_trees::typed_trees::provider_declarations::independent_satisfactions(
             typed, machine,
         ) {
+            // The authored satisfies edge names the requirement declaration
+            // the provider claims: for a generic token-machine template the
+            // row retains that authored template identity because provider
+            // plans are selected before specialization settles the closed
+            // applications. The selected-requirement specialization roster
+            // is the exact join to each closed instance Terminal Psi mints;
+            // derivation neither aliases the closed requirement to its
+            // template nor trusts an equal runtime signature.
             let Some(requirement) = typed.machines().iter().find(|candidate| {
                 candidate.symbol == clause.symbol
                     && clause.requirement_symbol == candidate.symbol
@@ -316,6 +357,12 @@ fn derive_top_level_requirement_plans(
     plans
 }
 
+/// The boundary schema under which an exact requirement edge is installed:
+/// the edge's own boundary trait, with no whole-trait application. A root that
+/// inherits the requirement and adds `Calling<C>` is installed through a named
+/// implementation of that root, whose plan `derive_named_provider_plans`
+/// derives from its explicit rows; an exact edge never claims a descendant
+/// schema on behalf of the data that owns its machine.
 fn provider_plan_schema_target(
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
@@ -357,6 +404,9 @@ fn derive_boundary_operator_plans(
             else {
                 continue;
             };
+            // A token-bearing requirement has a signature view for overload
+            // matching, not a second provider slot. Its machine declaration
+            // owns the schema and provenance in derive_top_level_requirement_plans.
             if typed.machine(operator.symbol).is_some() {
                 continue;
             }
@@ -374,7 +424,7 @@ fn derive_boundary_operator_plans(
                         clause,
                         selected_target,
                     ) else {
-                        continue;
+                        continue; // invalid via/body combinations are refused elsewhere
                     };
                     binding
                 }
@@ -427,8 +477,15 @@ fn derive_boundary_operator_plans(
     plans
 }
 
+/// A provider row binding whose checked-adapter identity still needs to be
+/// interned into its owning plan's table. Rows reach their plan after the
+/// draft is built, so canonical identity text rides along until the push
+/// site resolves it against `plan.identities`.
 enum DraftRowBinding {
+    /// A binding that carries no plan-local identities.
     Bound(ProviderBinding),
+    /// The canonical machine identity text a checked-adapter binding interns
+    /// into the owning plan's `identities`.
     CheckedAdapter {
         machine_identity: String,
         machine_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -436,6 +493,7 @@ enum DraftRowBinding {
 }
 
 impl DraftRowBinding {
+    /// The row binding with any deferred identity interned into `identities`.
     fn resolve(&self, identities: &mut ProviderIdentityTable) -> ProviderBinding {
         match self {
             Self::Bound(binding) => binding.clone(),
@@ -450,6 +508,9 @@ impl DraftRowBinding {
     }
 }
 
+/// Specialization preserves satisfaction edges for checking the concrete body,
+/// but does not author another provider declaration. Select the template once;
+/// exact specialization receipts join its closed bodies after plan selection.
 fn is_authored_provider_machine(
     typed: &checked_trees::typed_trees::TypedTrees,
     machine: &checked_trees::typed_trees::machine::Machine,
@@ -460,6 +521,8 @@ fn is_authored_provider_machine(
         .any(|receipt| receipt.instance == machine.symbol)
 }
 
+/// The checked-adapter provider binding a machine supplies through its own
+/// checked body: the machine's callable identity plus its package identity.
 fn checked_adapter_draft(
     typed: &checked_trees::typed_trees::TypedTrees,
     machine: &checked_trees::typed_trees::machine::Machine,
@@ -472,6 +535,9 @@ fn checked_adapter_draft(
     }
 }
 
+/// The provider binding an exact evaluated via-binding row supplies for a
+/// machine's `via` conformance clause: the evaluated table's recorded
+/// binding when the row exists.
 fn evaluated_via_binding(
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
     machine: &checked_trees::typed_trees::machine::Machine,
@@ -488,6 +554,11 @@ fn evaluated_via_binding(
     Some(row.evaluated().provider_binding())
 }
 
+/// The row binding an external-realization conformance installs: the exact
+/// external identity an authored binding retains, or — for a leaf `via`
+/// machine — the binding evaluation recorded for the selected target. Both
+/// rungs fill the same authored provider slot; every other shape derives
+/// nothing here.
 fn external_realization_row_binding(
     typed: &checked_trees::typed_trees::TypedTrees,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
@@ -524,6 +595,9 @@ fn external_realization_row_binding(
         clause.name.as_str(),
         clause.requirement.as_ref().map_or("", |name| name.as_str()),
     )?;
+    // A table binding names the record its leaf borrows first. A leaf without
+    // a readable table borrow leaves the name empty, and plan validation
+    // rejects the row before layout realization reads the table.
     let dispatch_table = match binding {
         language_semantics::ExternalBindingIdentity::VtableField { .. }
         | language_semantics::ExternalBindingIdentity::TableFunction { .. } => {
@@ -547,6 +621,12 @@ fn external_realization_row_binding(
     )))
 }
 
+/// The position of the derived plan keyed by its name, provider and origin
+/// package identities, schema declaration and provider symbol — inserting the
+/// empty plan when absent.
+#[allow(clippy::too_many_arguments)]
+/// Mint one row's exact requirement identity into the plan's identity table.
+/// The table is append-only, so rows pushed earlier keep resolving.
 fn mint_plan_row_identity(
     plan: &mut ProviderPlan,
     requirement_identity: &str,
@@ -554,7 +634,6 @@ fn mint_plan_row_identity(
     plan.identities.intern(requirement_identity)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn derived_plan_position(
     plans: &mut Vec<DerivedProviderPlan>,
     plan_name: String,
@@ -604,6 +683,8 @@ fn derived_plan_position(
         })
 }
 
+/// Compiler-owned semantic primitives use the same candidate plan/selection
+/// route as authored providers, with a separate exact declaration-custody role.
 fn derive_accessor_plans(
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     selected_target: Option<&str>,

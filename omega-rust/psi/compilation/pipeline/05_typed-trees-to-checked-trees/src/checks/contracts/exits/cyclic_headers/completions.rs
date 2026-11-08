@@ -1,16 +1,15 @@
 //! Prove a completion property from all of its actual result producers.
 //!
 //! A terminal invocation forwards its result unchanged. Following these edges
-//! can cross machine boundaries or revisit a cycle without assuming that
-//! terminal callee's postcondition. Every finite normal completion must reach a
-//! value producer; each producer must independently establish the property. Unknown
+//! can cross machine boundaries or revisit a cycle without citing any callee's
+//! postcondition. Every finite normal completion must reach a value producer;
+//! each producer must independently establish the requested property. Unknown
 //! dispatch, missing flow and an unproved producer refuse the whole closure.
 //!
-//! Result-only properties need no input substitution. Current exclusive
-//! referents follow the call's exact storage correspondence, with the complete
-//! projected goal retained at each node. Entry snapshots remain separate. This
-//! traversal grants no recursive citation, termination, argument admission or
-//! reference authority.
+//! A result-only property has no invocation inputs to substitute at a foreign
+//! entry. Input-dependent properties stay within the activation whose admitted
+//! header invariants retain those input snapshots. This traversal does not grant
+//! recursive citation, termination, argument admission or reference authority.
 
 use super::super::super::return_values::exit_return_call_in_state;
 use super::{
@@ -32,8 +31,6 @@ use validation::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticValue,
 };
-
-mod referents;
 
 pub(super) fn proves(
     program: &dyn validation::CheckingInput,
@@ -73,44 +70,21 @@ pub(super) fn proves(
                 ExpressionNode::Name(_)
             ) || is_result_reference(program, machine, *expression)
         });
-    let mut remaining = super::demands::TRANSPORT_WORK;
-    let referent_goal =
-        referents::ReferentGoal::new(program, facts, machine, *guarantee, &mut remaining);
-    let frames = referent_goal
-        .as_ref()
-        .and_then(|_| validation::CallFrameResolver::new(program));
     // This answer is cached for every exit carrying this contract. Include
     // every body of the owner, even one unreachable from its entry; a proved
     // entry closure must not discharge a separately checked invalid body.
     let mut pending = program
         .machine_states(machine)
         .iter()
-        .enumerate()
-        .map(|(index, state)| {
-            (
-                owner,
-                state.symbol,
-                referent_goal
-                    .as_ref()
-                    .map(|goal| goal.initial[index].clone()),
-            )
-        })
+        .map(|state| (owner, state.symbol))
         .collect::<Vec<_>>();
-    let mut visited = std::collections::HashSet::new();
+    let mut visited = Vec::new();
     let mut observed_return = false;
-    while let Some((machine_symbol, state_symbol, subjects)) = pending.pop() {
-        let work = subjects.as_ref().map_or(Some(1usize), |subjects| {
-            subjects.iter().try_fold(1usize, |work, subject| {
-                work.checked_add(subject.segments.len().checked_add(1)?)
-            })
-        });
-        let Some(left) = work.and_then(|work| remaining.checked_sub(work)) else {
-            return false;
-        };
-        remaining = left;
-        if !visited.insert((machine_symbol, state_symbol, subjects.clone())) {
+    while let Some((machine_symbol, state_symbol)) = pending.pop() {
+        if visited.contains(&(machine_symbol, state_symbol)) {
             continue;
         }
+        visited.push((machine_symbol, state_symbol));
         let Some((current_machine, state)) = program.state_flow_site(machine_symbol, state_symbol)
         else {
             return false;
@@ -119,15 +93,9 @@ pub(super) fn proves(
             return false;
         };
         let mut outgoing_found = false;
-        for outgoing in facts
-            .flow
-            .control
-            .outgoing
-            .span_or_empty(state_flow.outgoing)
-        {
-            if super::demands::charge(&mut remaining).is_none() {
-                return false;
-            }
+        for (_, outgoing) in facts.flow.control.outgoing.iter().filter(|(_, outgoing)| {
+            outgoing.machine_symbol == machine_symbol && outgoing.state_symbol == state_symbol
+        }) {
             outgoing_found = true;
             if let Some(StatementNode::Transition(transition)) = program
                 .statement_table
@@ -146,53 +114,9 @@ pub(super) fn proves(
                 && let Some(destination) =
                     validation::activation_target_state_index(program, current_machine, path.symbol)
             {
-                let next_subjects = if referent_goal.is_some() {
-                    let Some(frames) = &frames else {
-                        return false;
-                    };
-                    let mut calls = facts
-                        .flow
-                        .control
-                        .calls
-                        .span_or_empty(state_flow.calls)
-                        .iter()
-                        .filter(|call| {
-                            call.statement_index == outgoing.statement_index
-                                && validation::transition_call_target(
-                                    program,
-                                    current_machine,
-                                    state,
-                                    call.statement_index,
-                                    call.call_ordinal,
-                                ) == Some(outgoing.transition_target)
-                        });
-                    let Some(call) = calls.next() else {
-                        return false;
-                    };
-                    if calls.next().is_some() {
-                        return false;
-                    }
-                    let Some(subjects) = subjects.as_deref().and_then(|subjects| {
-                        referents::ReferentGoal::forward(
-                            program,
-                            frames,
-                            current_machine,
-                            state,
-                            call,
-                            subjects,
-                            &mut remaining,
-                        )
-                    }) else {
-                        return false;
-                    };
-                    Some(subjects)
-                } else {
-                    None
-                };
                 pending.push((
                     machine_symbol,
                     program.machine_states(current_machine)[destination].symbol,
-                    next_subjects,
                 ));
                 continue;
             }
@@ -220,42 +144,18 @@ pub(super) fn proves(
                 let Some(callee_entry) = program.machine_states(callee).first() else {
                     return false;
                 };
-                if call.target_symbol != callee_entry.symbol {
+                if call.target_symbol != callee_entry.symbol
+                    || (!result_only && callee.symbol != owner)
+                    || fixed_integer(program, entry.return_type).is_none()
+                    || fixed_integer(program, entry.return_type)
+                        != fixed_integer(program, callee_entry.return_type)
+                {
                     return false;
                 }
-                let next_subjects = if referent_goal.is_some() {
-                    let Some(frames) = &frames else {
-                        return false;
-                    };
-                    let Some(subjects) = subjects.as_deref().and_then(|subjects| {
-                        referents::ReferentGoal::forward(
-                            program,
-                            frames,
-                            current_machine,
-                            state,
-                            call,
-                            subjects,
-                            &mut remaining,
-                        )
-                    }) else {
-                        return false;
-                    };
-                    Some(subjects)
-                } else {
-                    if (!result_only && callee.symbol != owner)
-                        || fixed_integer(program, entry.return_type).is_none()
-                        || fixed_integer(program, entry.return_type)
-                            != fixed_integer(program, callee_entry.return_type)
-                    {
-                        return false;
-                    }
-                    None
-                };
-                pending.push((callee.symbol, callee_entry.symbol, next_subjects));
+                pending.push((callee.symbol, callee_entry.symbol));
                 continue;
             }
-            if referent_goal.is_none()
-                && machine_symbol == owner
+            if machine_symbol == owner
                 && admitted.contains(&AdmittedGuarantee {
                     state_symbol,
                     statement_index: exit.statement_index,
@@ -266,26 +166,17 @@ pub(super) fn proves(
                 observed_return = true;
                 continue;
             }
-            let proven = if let Some(goal) = &referent_goal {
-                frames
-                    .as_ref()
-                    .zip(subjects.as_deref())
-                    .is_some_and(|(frames, subjects)| {
-                        goal.proves_leaf(program, frames, current_machine, state, exit, subjects)
-                    })
-            } else {
-                result_only
-                    && proves_value(
-                        program,
-                        facts,
-                        owner,
-                        *guarantee,
-                        current_machine,
-                        state,
-                        exit,
-                    )
-            };
-            if !proven {
+            if !result_only
+                || !proves_value(
+                    program,
+                    facts,
+                    owner,
+                    *guarantee,
+                    current_machine,
+                    state,
+                    exit,
+                )
+            {
                 return false;
             }
             observed_return = true;

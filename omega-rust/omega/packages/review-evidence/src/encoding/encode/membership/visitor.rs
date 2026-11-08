@@ -1,5 +1,3 @@
-// Bounded package-owner visitor bridging `Observer` and `TypeIdentityPackageOwnerVisitor` while retaining the innermost unreadable identity excerpt.
-
 use super::{
     MalformedIdentityExcerpt, Observer, PackagePolicyMembershipError as Error,
     PackagePolicyMembershipLimits as Limits, PackagePolicyMembershipUsage as Usage,
@@ -33,6 +31,7 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Visitor<Contains> {
     pub(super) fn usage(&self) -> Usage {
         self.usage
     }
+    /// The text the first rejected identity stopped on, once a descent failed.
     pub(super) fn unreadable_identity(&mut self) -> Option<MalformedIdentityExcerpt> {
         self.unreadable.take()
     }
@@ -61,11 +60,16 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Visitor<Contains> {
 
     pub(super) fn runtime(&mut self, identity: &str) -> Result<(), Error> {
         visit_type_identity_package_owners(identity, self).map_err(|error| {
+            // A refusal by one of this visitor's callbacks was recorded when it
+            // crossed `bridge`, with the limit or package that caused it. That
+            // record is the answer; the grammar's own error only names the class.
             if let Some(failure) = self.failure {
                 return failure;
             }
             match error {
                 TypeIdentityVisitError::AllocationFailed => Error::AllocationFailed,
+                // A production the grammar refuses is as unreadable to a retained
+                // policy as one it does not know; the excerpt shows where it stands.
                 TypeIdentityVisitError::MalformedIdentity
                 | TypeIdentityVisitError::UnsupportedEmbeddedName
                 | TypeIdentityVisitError::Unadmitted(_) => {
@@ -74,12 +78,17 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Visitor<Contains> {
                     });
                     Error::MalformedIdentity
                 }
+                // Only `bridge` produces these, and it records the failure first, so
+                // neither arrives unrecorded. Neither is a malformed identity.
                 TypeIdentityVisitError::ResourceLimitExceeded
                 | TypeIdentityVisitError::UnknownPackage => Error::InvalidPolicy,
             }
         })
     }
 
+    /// Keep the text of the innermost identity that failed to read. Failures
+    /// unwind from the point of rejection, so the first boundary to record one
+    /// is the one nearest to it and outer boundaries leave it alone.
     fn keep_unreadable(
         &mut self,
         field: &'static str,

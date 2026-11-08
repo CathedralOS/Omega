@@ -1,8 +1,9 @@
-// We read and write Darwin and Linux timespecs using their 16-byte native
-// geometry (two signed 64-bit words) over authenticated, aligned contiguous
-// backing. Captured codecs and restrictions govern commit validity while larger
-// loans retain their suffix, and invalid Darwin nanosleep requests reject
-// rather than borrowing Linux's -EINVAL without a hosted errno model.
+//! Darwin and Linux timespecs use native geometry, not semantic field order.
+//! The supported 64-bit platforms occupy two signed 64-bit words. Any authenticated,
+//! aligned contiguous backing covering those 16 bytes can receive the write;
+//! captured codecs and restrictions still decide whether it can commit. A
+//! larger loan keeps its suffix. Accessed padding, pointers and invented storage reject
+//! through the common borrowed-storage capture rather than acquiring values.
 
 use std::sync::{Arc, Mutex};
 
@@ -95,6 +96,8 @@ pub(super) fn read(
         .get_mut(8..16)
         .ok_or_else(invalid)?
         .copy_from_slice(&nanoseconds.to_le_bytes());
+    // No clock mutation and no writeback until the complete replacement has
+    // passed captured codecs/restrictions and the core authenticates endpoints.
     storage.stage(buffers, 16)?;
     Ok(result)
 }
@@ -156,11 +159,16 @@ pub(super) fn sleep(
             .map_err(|_| invalid())?,
     );
     if seconds < 0 || !(0..1_000_000_000).contains(&nanoseconds) {
+        // A raw Linux error has no libc state to establish. Darwin's error
+        // path sets errno and applies libc's internal conversions, neither of
+        // which is licensed by an elapsed/epoch snapshot. Returning Linux's
+        // -EINVAL there, or guessing a C error without its model, is not replay.
         if matches!(namespace, ClockNamespace::Darwin) {
             return Err(TerminalEffectRejection::new(
                 "Darwin nanosleep error requires a hosted errno model",
             ));
         }
+        // Invalid requests advance no clock and modify neither carrier.
         return super::status_result(signature, -22);
     }
     let duration = u64::try_from(seconds)
@@ -174,5 +182,10 @@ pub(super) fn sleep(
         .ok_or_else(|| {
             TerminalEffectRejection::new("nanosleep duration exceeds modeled nanoseconds")
         })?;
+    // Linux kernel/time/hrtimer.c and Apple Libc gen/nanosleep.c write the
+    // remainder on interruption, not success. This signal-free model completes
+    // without accessing it, even if its numerical carrier is nonzero. Requiring null or
+    // manufacturing remainder backing would invent permission/preconditions.
+    // The borrowed request is read only; no replacements are staged.
     super::wait(clock, signature, duration)
 }

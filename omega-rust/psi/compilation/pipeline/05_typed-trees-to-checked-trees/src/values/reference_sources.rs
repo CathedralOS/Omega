@@ -168,6 +168,26 @@ pub(crate) fn capture_source(
             }
         }
     };
+    if matches!(place.root, facts::PlaceRoot::Expression(_)) && !place.segments.is_empty() {
+        // A completed expression stores its reference descriptor. Projection
+        // begins by crossing that exact carrier, before any case or field.
+        // A whole reference slot keeps the endpoint loop below instead, so
+        // borrowing a descriptor never becomes borrowing its referent.
+        let root_reference = validation::canonical_place_type_reference(
+            program,
+            state.symbol,
+            statement_index,
+            &validation::CanonicalPlace {
+                root: place.root,
+                segments: Vec::new(),
+            },
+        )?;
+        let mut prefix = calls::stored_reference_prefix(program, root_reference, |supplied| {
+            access_can_supply(supplied.into(), access)
+        })?;
+        prefix.append(&mut path);
+        path = prefix;
+    }
     // An exclusive reference cannot erase a field's receiving restriction,
     // and an atomic cell cannot become ordinary scalar storage. Shared scalar
     // loans can attenuate to the declared carrier while retaining their exact
@@ -274,7 +294,11 @@ pub(crate) fn capture_source(
         // The value owner must establish this producer before lending it.
         // Its captured path and storage interpretation are otherwise the same
         // as a named home's; source spelling does not select another planner.
-        facts::PlaceRoot::Expression(expression) => SourcePlan::StructuralExpression { expression },
+        facts::PlaceRoot::Expression(expression) => SourcePlan::StructuralExpression {
+            value_dependency: None,
+            expression,
+            logical_root_type_identity: None,
+        },
         facts::PlaceRoot::Symbol(root) => {
             if let Some(parameter) = program.state_parameter_by_symbol(state, root) {
                 if parameter.is_const || parameter.relevance.is_erased() {

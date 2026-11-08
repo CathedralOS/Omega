@@ -1,5 +1,4 @@
-// Complete-policy decision capture without candidate-only package indices.
-// Removed packages, root roles, and replacements refer to comparison subjects; `capture_policy` enforces the representation byte ceiling at capture as well as persistence.
+//! Complete-policy history: capture project choices without candidate indices.
 
 mod text;
 pub(super) use text::{HEADER, encode, recover};
@@ -15,6 +14,10 @@ use crate::review::{
 };
 
 impl HistoricalPackagePolicyDecisions {
+    /// Retain the exact completed choices and both source associations. Removed
+    /// packages, root roles, and replacements refer to comparison subjects, not
+    /// candidate-only package indices. A rejection is preserved, not published.
+    /// No source/IR replay or proof-of-review stage is needed here.
     pub(crate) fn capture_policy(
         source: &CanonicalSourceClosureSubject,
         changes: &PackagePolicyChangeSet,
@@ -59,6 +62,7 @@ impl HistoricalPackagePolicyDecisions {
             comparison: Some(resolution.comparison().digest()),
             decisions,
         };
+        // Enforce the same representation ceiling at capture and persistence.
         encode(&history, limits)?;
         Ok(history)
     }

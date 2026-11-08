@@ -1,6 +1,5 @@
-// Splices `BuildTarget` cases, canonical target constants, and the checked
-// `build_selection_target` protocol conversion into the toolchain Build prelude
-// from `ProductTarget::ALL`.
+//! Generate ordinary target values and their checked protocol conversion from
+//! the same catalog used by executed Build rows. No source prefix is involved.
 
 use language_semantics::declaration_selection::ProductTarget;
 use std::fmt::Write;

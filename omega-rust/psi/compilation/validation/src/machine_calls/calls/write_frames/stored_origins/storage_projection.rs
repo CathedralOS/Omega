@@ -45,11 +45,11 @@ impl<'program> StorageProjectionCursor<'program> {
 
     fn normalize(&mut self) -> Option<TypeReferenceHandle> {
         (self.reference, self.scope) = self.scopes.head(self.program, self.reference, self.scope);
-        let carrier = self
+        self.reference = self
             .program
             .type_reference_table
             .unconstrained_type_reference(self.reference);
-        carrier.is_valid().then_some(carrier)
+        self.reference.is_valid().then_some(self.reference)
     }
 
     pub(in crate::machine_calls::calls::write_frames) fn reference_access(
@@ -81,9 +81,11 @@ impl<'program> StorageProjectionCursor<'program> {
         &mut self,
         segment: &PlaceSegment,
     ) -> Option<()> {
-        let reference = self.normalize()?;
+        self.normalize()?;
         match (
-            self.program.type_reference_table.type_reference(reference),
+            self.program
+                .type_reference_table
+                .type_reference(self.reference),
             segment,
         ) {
             (
@@ -225,47 +227,6 @@ impl<'program> StorageProjectionCursor<'program> {
             return None;
         };
         (start <= end && end <= *extent).then_some(())
-    }
-
-    /// A final window receives an array of its selected width, not the whole
-    /// backing collection. Compare its complete element declaration in the
-    /// supplying scope; geometry supplies neither a descriptor nor access.
-    pub(in crate::machine_calls::calls::write_frames) fn has_declared_window_type(
-        mut self,
-        start: usize,
-        end: usize,
-        receiving: TypeReferenceHandle,
-    ) -> bool {
-        if !self
-            .program
-            .type_reference_table
-            .contains_type_reference(receiving)
-        {
-            return false;
-        }
-        let (collection, scope) = self.scopes.head(self.program, self.reference, self.scope);
-        let Some(element) = crate::value_custody::places::collection_element_type_reference(
-            self.program,
-            collection,
-        ) else {
-            return false;
-        };
-        if self.validate_fixed_window(start, end).is_none() {
-            return false;
-        }
-        let TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(length),
-        } = self.program.type_reference_table.type_reference(receiving)
-        else {
-            return false;
-        };
-        let selected = self.scopes.type_identity(self.program, element, scope);
-        let received = self.program.normalized_type_identity(*element_type);
-        end.checked_sub(start) == Some(*length)
-            && selected.is_valid()
-            && received.is_valid()
-            && selected == received
     }
 
     /// Geometry may inspect an unqualified carrier, but the final selected

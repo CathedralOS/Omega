@@ -1,6 +1,4 @@
-// Local snapshot identity metadata (`snapshot.identity`) encoding, parsing,
-// full published-snapshot verification (`verify_local_snapshot`), and bounded
-// routing-key inspection (`local_snapshot_content_identity`).
+//! Snapshot identity records and published-snapshot verification.
 
 use crate::SourceResolveError;
 use crate::custody::tree::{CacheCustodyKind, read_bounded_cache_record};
@@ -117,6 +115,7 @@ pub(crate) fn verify_local_snapshot(
     Ok(normalized)
 }
 
+/// Read only the bounded cache routing metadata, not a verified source result.
 pub(crate) fn local_snapshot_content_identity(
     publication: &Path,
 ) -> Result<String, SourceResolveError> {

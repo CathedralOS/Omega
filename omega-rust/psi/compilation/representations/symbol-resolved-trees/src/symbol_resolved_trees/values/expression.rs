@@ -996,6 +996,7 @@ pub struct MatchSubjectCapture {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableSavedSubject {
+    pub component: language_core::PatternComponent,
     pub capture: Handle<MatchSubjectCapture>,
     pub pattern_head: ExpressionHandle,
 }
@@ -1031,6 +1032,7 @@ pub struct TableDestructurePattern {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableMatchField {
+    pub component: language_core::PatternComponent,
     pub member: DiagnosticName,
     pub field_symbol: SymbolHandle,
     pub action: MatchFieldAction,

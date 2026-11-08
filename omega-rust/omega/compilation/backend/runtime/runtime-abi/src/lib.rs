@@ -20,7 +20,6 @@ pub use native_foreign_frame::{
 mod processor_flags;
 mod runtime_abi;
 mod scalar_reference;
-pub mod static_interrupts;
 mod windows_provider;
 
 pub use affine_transform::{HostAffineTransform, host_affine_transform};

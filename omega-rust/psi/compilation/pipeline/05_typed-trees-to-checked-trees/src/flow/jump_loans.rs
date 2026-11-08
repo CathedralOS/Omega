@@ -1,12 +1,10 @@
-//! Receiver footprints while each incoming argument loan remains carried.
+//! Receiver footprints under individually forwarded argument loans.
 //!
 //! Returning calls retain every incoming loan through the target's whole run.
-//! A terminal invocation forwards its actual carriers into the selected target.
-//! Only those carriers prolong the held footprint of each incoming loan. This
-//! does not retire caller storage or end loans before that invocation: those
-//! resource boundaries remain with their ordinary scope and completion owners.
-//! Each summary has one held footprint per incoming reference-bearing parameter,
-//! joined along exact formal/actual correspondence.
+//! A sibling-state jump instead closes the source scope: only the loans its
+//! actuals carry survive. Forwarding an independent reference must not prolong
+//! a dropped loan. Each summary therefore has one held footprint per incoming
+//! reference-bearing parameter, joined along formal/actual correspondence.
 //! This is a monotone relation over parameters, not a powerset of combinations.
 //!
 //! Parameter identity and structural places come from the existing call-place
@@ -22,7 +20,7 @@ use validation::find_state_in_machine;
 use crate::flow::mutation::{WritePlaceNamespace, instantiate_call_relative_places};
 use crate::flow::{
     canonical_place_segments_equal, canonical_place_segments_may_overlap,
-    family_data_binding_parameter, place_segment_has_unresolved_identity, terminal_invocation,
+    family_data_binding_parameter, local_jump, place_segment_has_unresolved_identity,
 };
 
 use checked_trees::BorrowCallFact;
@@ -68,7 +66,7 @@ fn loan_parameters<'program>(
 
 pub(super) enum TargetRun {
     Whole,
-    Forwarded(Vec<ParameterLoanSources>),
+    Jump(Vec<ParameterLoanSources>),
 }
 
 pub(super) struct ParameterLoanSources {
@@ -128,7 +126,7 @@ impl TargetRun {
         parameter: SymbolHandle,
         loan: &CanonicalPlace,
     ) -> bool {
-        let Self::Forwarded(parameters) = self else {
+        let Self::Jump(parameters) = self else {
             return true;
         };
         let Some(binding) = parameters
@@ -179,7 +177,7 @@ pub(super) fn target_run(
     state_symbol: SymbolHandle,
     call: &BorrowCallFact,
 ) -> TargetRun {
-    let Some(transfer) = terminal_invocation(program, machine_symbol, state_symbol, call) else {
+    let Some(transfer) = local_jump(program, machine_symbol, state_symbol, call) else {
         return TargetRun::Whole;
     };
     let target = transfer.target;
@@ -187,7 +185,7 @@ pub(super) fn target_run(
     let data_parameter =
         family_data_binding_parameter(program, machine_symbol, program.state_parameters(target))
             .map(|parameter| parameter.symbol);
-    TargetRun::Forwarded(
+    TargetRun::Jump(
         loan_parameters(program, target)
             .map(|parameter| {
                 let sources = instantiate_call_relative_places(

@@ -1,14 +1,28 @@
-// `record_views!`: generates read-only field accessors (and optional `const fn new`)
-// for encapsulated record structs from a single grouped field list.
-//
-// Accessor groups:
-// - `copied`: takes `self` by value on a `Copy` record and returns the field by value.
-// - `shared`: takes `&self` and returns a `Copy` field by value.
-// - `borrowed`: takes `&self` and returns `&T` to an owned field.
-// - `slice`: takes `&self` and returns `&[Element]` over an owned `Vec<Element>`.
-// Adding `new;` after `record $name;` also generates `pub const fn new(...)`
-// from the `copied` group when construction requires no runtime validation.
+//! Shared record-view expansion for encapsulated records: one row per exported
+//! field states the field and the type its accessor reads as, and the record's
+//! views — plus, in the `new;` form, its `const` constructor — are generated
+//! from that single row list.
 
+/// Expands one encapsulated record's exported views from its field rows, then
+/// leaves the rest of the record (validation in `new`, codecs) to its owner.
+///
+/// Rows are grouped by accessor form. `copied` rows take `self` by value on a
+/// `Copy` record; `shared` rows take `&self` and read a `Copy` field;
+/// `borrowed` rows take `&self` and read a reference to a field the record
+/// owns, so the row names the field's own type; `slice` rows name the element
+/// type of the record's own `Vec` and read it as a slice. The leading `new;`
+/// marker also generates the record's `const` constructor from the `copied`
+/// rows — valid where construction is a pure field restatement, so the marker
+/// stays off a record whose `new` validates.
+///
+/// `borrowed` is a row form rather than a fourth invocation so one record can
+/// export its `Copy` rows and its retained-evidence rows from a single list.
+///
+/// Rejected alternatives: one accessor macro per form (four invocations per
+/// record, each able to state a different field set), and generating the
+/// struct declaration from these rows (a `slice` row names the element type,
+/// not the record's own `Vec` carrier, so the declaration is not derivable
+/// from them).
 #[macro_export]
 macro_rules! record_views {
     (

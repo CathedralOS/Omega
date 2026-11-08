@@ -1,7 +1,3 @@
-// Contract-expression call evidence argument projection, verifying that each lane
-// binds a visible `Requires` evidence term whose instantiated proposition matches
-// the target callable's `Requires` parameter lane.
-
 use super::names::portable_ordinal;
 use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;

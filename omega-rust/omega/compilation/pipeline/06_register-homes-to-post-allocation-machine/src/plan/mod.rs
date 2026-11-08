@@ -92,7 +92,7 @@ pub enum PostAllocationMachineError {
     RegisterConstraintCatalogMismatch,
     PostAllocationManifestMismatch,
     OptimizationUnitMismatch,
-    WorkScheduleMismatch,
+    FuelScheduleMismatch,
     FunctionMismatch {
         function: usize,
     },

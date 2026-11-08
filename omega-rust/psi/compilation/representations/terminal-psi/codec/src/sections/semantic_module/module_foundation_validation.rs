@@ -16,7 +16,6 @@
 
 mod call_foundations;
 mod declaration_foundations;
-mod installed_interrupts;
 mod machine_foundations;
 mod native_layouts;
 mod proof_scope;
@@ -176,7 +175,6 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     validate_target_families(module)?;
     validate_boundary_application_operations(module)?;
     validate_callback_registrars(module)?;
-    installed_interrupts::validate(module)?;
     require_unique_nonempty_identities(
         module
             .structural_types
@@ -403,12 +401,6 @@ fn validate_callback_registrars(module: &TerminalModule) -> Result<(), CodecErro
     let mut registrars = module
         .callback_applications
         .iter()
-        .chain(
-            module
-                .installed_interrupt_registrations
-                .iter()
-                .flat_map(|registration| &registration.callbacks),
-        )
         .map(|application| application.registrar)
         .collect::<BTreeSet<_>>();
     if registrars.is_empty() {

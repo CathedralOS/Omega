@@ -1,5 +1,7 @@
-// Bounded `git cat-file --batch` blob transfer and `--batch-check` exact-object
-// availability probes, backed by private capability-verified request files.
+//! Bounded `cat-file --batch` transfer.
+//!
+//! Follow the operation from [`transfer`], through exact response handling in
+//! [`protocol`], to private request-file ownership in [`custody`].
 
 mod availability;
 mod custody;

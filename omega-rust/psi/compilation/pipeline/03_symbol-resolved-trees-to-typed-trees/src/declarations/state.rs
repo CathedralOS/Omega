@@ -231,7 +231,6 @@ fn proof_output_runtime_call(
                 .copied(),
         );
     Ok(typed::statement::TableCall {
-        installed_interrupt_operation: None,
         authored_machine_application: Default::default(),
         receiver_root_symbol,
         receiver_symbol,

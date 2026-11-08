@@ -1,5 +1,3 @@
-// Canonical hex digest labels and length-framed identity strings for semantic review projection.
-
 use crate::record::write_framed_identity;
 pub(crate) fn canonical_digest_label(kind: &str, digest: [u8; 32]) -> String {
     use std::fmt::Write as _;

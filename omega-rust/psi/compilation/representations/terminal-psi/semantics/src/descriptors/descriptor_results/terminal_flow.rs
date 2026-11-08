@@ -1428,7 +1428,7 @@ pub(super) fn adapt(
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CapturedBacking {
     StorageAddress,
-    DescriptorPayload,
+    ElementViewPayload,
     AccessInterpretation,
     /// An index selects bytes the sequence already names. The element has no
     /// structural declaration, and the sequence cell is not a pointer slot.
@@ -1466,32 +1466,28 @@ fn captured_storage_source(
         CapturedBacking::ByteWindow
     } else if plain_owned_shape(types.iter(), prefix_type) {
         CapturedBacking::StorageAddress
-    } else if is_descriptor(types.iter(), prefix_type) {
-        // Byte and element views retain their current backing, including prior
-        // slices. The indexed reference captures that backing and this exact
-        // selector occurrence, not the descriptor cell's address.
-        CapturedBacking::DescriptorPayload
+    } else if matches!(prefix_shape, StructuralTypeShape::ElementView { .. }) {
+        // A view index captures its current payload lineage, including any
+        // prior window. Reading the descriptor's established origins and
+        // appending this position-bound projection preserves both; capturing
+        // the descriptor cell as owned storage would lose that relationship.
+        CapturedBacking::ElementViewPayload
     } else if crate::access::access_view_plans::is_access_projection_shape(types, prefix_type) {
         CapturedBacking::AccessInterpretation
     } else {
         return None;
     };
-    if matches!(capture, CapturedBacking::ByteWindow)
-        && suffix.iter().any(|segment| {
+    if matches!(capture, CapturedBacking::ByteWindow) {
+        if suffix.iter().any(|segment| {
             !matches!(
                 segment,
                 StructuralPathSegment::RuntimeIndex { .. } | StructuralPathSegment::FixedIndex(_)
             )
-        })
-    {
-        return None;
-    }
-    // Both structural and inline primitive endpoints retain a complete typed
-    // projection. These queries do not grant access or establish bounds.
-    if crate::runtime_structural_path_tip(types.iter(), prefix_type, suffix).is_none()
-        && crate::primitive_projection_type(types.iter(), prefix_type, suffix).is_none()
-    {
-        return None;
+        }) {
+            return None;
+        }
+    } else {
+        crate::runtime_structural_path_tip(types.iter(), prefix_type, suffix)?;
     }
     Some((
         location,

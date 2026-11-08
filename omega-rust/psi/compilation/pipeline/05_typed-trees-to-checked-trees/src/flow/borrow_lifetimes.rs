@@ -176,51 +176,26 @@ pub(crate) fn filter_reassigned_borrow_loans(
     // the old occurrence. Classify the typed target before comparing owner paths.
     let mut writes_referent = false;
     if let Some(assignment) = statement.as_assignment() {
-        let reference =
-            validation::declared_place_type_raw(program, machine, Some(state), assignment.target);
-        if let Some(mut reference) = reference {
-            while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
-                program.type_reference_table.type_reference(reference)
-            {
-                reference = *base_type;
-            }
-            if matches!(
-                program.type_reference_table.type_reference(reference),
-                typed_trees::types::TypeReferenceNode::Reference { .. }
-            ) {
-                let Some(replacement) = call_frames.and_then(|frames| {
-                    frames.assignment_replaces_reference_binding(machine, statement)
-                }) else {
-                    return source;
-                };
-                writes_referent = !replacement;
-            }
-        } else {
-            // A window replaces its selected element homes, rather than a
-            // descriptor. Its receiving geometry need not have a standalone
-            // range-value type. The exact current destination above still
-            // owns which old loans the coverage check below may retire.
-            let window = validation::value_has_builtin_coordinates(
-                program,
-                machine,
-                state,
-                assignment.target,
-            )
-            .then(|| {
-                validation::array_window_shape(
-                    program,
-                    machine,
-                    state,
-                    assignment.target,
-                    &mut validation::ImmutableBoundLookup::new(program),
-                )
-            })
-            .flatten();
-            if !window
-                .is_some_and(|shape| shape.element_type.is_valid() && shape.length().is_some())
-            {
+        let Some(mut reference) =
+            validation::declared_place_type_raw(program, machine, Some(state), assignment.target)
+        else {
+            return source;
+        };
+        while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(reference)
+        {
+            reference = *base_type;
+        }
+        if matches!(
+            program.type_reference_table.type_reference(reference),
+            typed_trees::types::TypeReferenceNode::Reference { .. }
+        ) {
+            let Some(replacement) = call_frames.and_then(|frames| {
+                frames.assignment_replaces_reference_binding(machine, statement)
+            }) else {
                 return source;
-            }
+            };
+            writes_referent = !replacement;
         }
     }
 

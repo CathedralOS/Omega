@@ -1,9 +1,9 @@
-// Retained source and frontend products (`SourcePreparation`,
-// `TypedCompilationFrontier`, `DeferredProductCompilation`, and
-// `PreparedCheckedSource`). A child either reuses an exact typed frontier after
-// live package custody validation or receives the parsed sources and an
-// optional retention slot; publication into the slot occurs only after
-// preparation succeeds.
+//! Retained source and frontend products, without source loading or stage execution.
+//!
+//! A child either reuses an exact typed frontier after live custody validation,
+//! or receives the parsed sources and an optional retention slot. The coordinator
+//! owns package assembly while Psi owns resolution and typing; publication into
+//! the slot occurs only after preparation succeeds. Neither product grants authority.
 
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
@@ -14,12 +14,14 @@ use package_compilation::{PackageCompilationInputs, ProductSourceInputs, SourceA
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+/// One invocation owns source coordinates and canonical Psi frontend inputs.
+/// The coordinator borrows coordinates only during admission; no execution or
+/// semantic stage runs while the catalogue is locked.
 #[derive(Clone, Default)]
 pub struct SourcePreparation {
     catalogue: Arc<Mutex<source::SourceCatalogue>>,
     pub frontends: psi_compiler::SourceFrontends,
 }
-
 impl SourcePreparation {
     pub fn catalogue(
         &self,
@@ -29,6 +31,8 @@ impl SourcePreparation {
             .map_err(|_| vec![Diagnostic::error("source catalogue owner is poisoned")])
     }
 
+    /// A private copy for preparation that may be thrown away. Its admissions
+    /// stay invisible here unless [`Self::adopt`] accepts them.
     pub fn fork(&self) -> Result<PreparationFork, Vec<Diagnostic>> {
         let catalogue = self.catalogue()?;
         let frontends = self.frontends.retained_count()?;
@@ -41,6 +45,10 @@ impl SourcePreparation {
         })
     }
 
+    /// Take `fork`'s admissions as this preparation's own when nothing was
+    /// admitted here since the fork, so the result is the state sequential
+    /// preparation would have reached. Otherwise leave this one untouched and
+    /// return false. Admission only appends, so equal counts mean no admission.
     pub fn adopt(&self, fork: &PreparationFork) -> Result<bool, Vec<Diagnostic>> {
         let mut catalogue = self.catalogue()?;
         if (catalogue.len(), self.frontends.retained_count()?) != fork.from {
@@ -52,16 +60,25 @@ impl SourcePreparation {
     }
 }
 
+/// A [`SourcePreparation`] copy and the admission counts it was taken at.
 pub struct PreparationFork {
     from: (usize, usize),
     pub preparation: SourcePreparation,
 }
 
+/// Indexed declarations and completed Build-context bodies before admission.
+/// Product imports remain unopened under captured custody while the selected
+/// authored or compiler-default Build executes.
+/// This is a reusable compilation checkpoint, not a portable program form.
 #[derive(Clone)]
 pub struct TypedCompilationFrontier {
     pub preparation: SourcePreparation,
     pub source: psi_compiler::SourceContinuation,
+    /// Acquired source custody survives frontend preparation. Build uses the
+    /// same inventory before its executed declaration has a package owner.
     pub anonymous_source: Option<package_compilation::AnonymousSourceCapture>,
+    /// Product imports and declarations are prepared only after Build's join.
+    /// No checked identity or initial name-resolution context is rewritten.
     pub product_sources: Option<DeferredProductCompilation>,
     pub build_source: Option<package_compilation::BuildSourceSelection>,
     pub source_file_count: usize,
@@ -69,6 +86,8 @@ pub struct TypedCompilationFrontier {
     pub base_sources: Arc<source::SourceMap>,
 }
 
+/// Siblings of one captured Build prefix share its deferred Product preparation.
+/// Only the frontend is retained: Build returns, charges and selections are not.
 #[derive(Clone)]
 pub struct DeferredProductCompilation {
     sources: DeferredProductSources,
@@ -110,6 +129,7 @@ impl DeferredProductCompilation {
         self.sources.clone()
     }
 
+    /// Publish only successful preparation, never a partially typed judgment.
     pub fn retain(
         &self,
         inputs: ProductSourceInputs,
@@ -129,6 +149,9 @@ impl DeferredProductCompilation {
     }
 }
 
+/// Immutable parsing shared by exact checked children. Forks share storage;
+/// consuming the last checkpoint allows assembly to move the original arenas.
+/// Every child supplies its own policy and independently admits its custody.
 pub struct PreparedCheckedSource {
     preparation: SourcePreparation,
     source_checkpoint: ImmutableSourceParseCheckpoint,
@@ -137,12 +160,16 @@ pub struct PreparedCheckedSource {
     frontiers: Arc<Mutex<Vec<(SourceFrontierInputs, TypedCompilationFrontier)>>>,
 }
 
+/// A changed completed supplier must not reuse an earlier declaration view.
+/// Equal suppliers retain the original frontend coordinates instead of
+/// rebuilding them after Product preparation has extended the catalogue.
 #[derive(Clone, PartialEq, Eq)]
 struct SourceFrontierInputs {
     assembly: SourceAssemblyInputs,
     toolchain_defaults: Option<package_compilation::CompletedProviderDefaults>,
 }
 
+/// Reuse is a product-selection decision, not a hidden frontend execution path.
 pub enum PreparedSourceFrontier {
     Retained(TypedCompilationFrontier, CompileTimings),
     Pending {
@@ -152,6 +179,8 @@ pub enum PreparedSourceFrontier {
     },
 }
 
+/// One pending child's exact retention slot. No callback or compiler entrypoint
+/// is stored here; the coordinator supplies the completed frontend product.
 pub struct TypedFrontierRetention {
     inputs: SourceFrontierInputs,
     frontiers: Arc<Mutex<Vec<(SourceFrontierInputs, TypedCompilationFrontier)>>>,
@@ -161,7 +190,7 @@ impl PreparedCheckedSource {
     pub fn preparation(&self) -> SourcePreparation {
         self.preparation.clone()
     }
-
+    /// Fork only at a real sibling boundary, freezing shared source pages once.
     pub fn fork(&mut self) -> Self {
         Self {
             preparation: self.preparation.clone(),
@@ -186,6 +215,8 @@ impl PreparedCheckedSource {
         }
     }
 
+    /// A new default supplier changes the source inputs. Keep parsed pages,
+    /// but do not reuse a typed frontier prepared before these roots existed.
     pub fn with_toolchain_defaults(
         mut self,
         defaults: &package_compilation::CompletedProviderDefaults,
@@ -199,6 +230,9 @@ impl PreparedCheckedSource {
         self.source_checkpoint.admit_root(root_path)
     }
 
+    /// Select by the package owner's complete assembly inputs. Even an exact
+    /// hit revalidates live package custody before any Build effects can run.
+    /// The final consumer retains no new frontend copy for nonexistent siblings.
     pub fn into_frontier(
         self,
         package_inputs: Option<&PackageCompilationInputs>,
@@ -242,6 +276,7 @@ impl PreparedCheckedSource {
 }
 
 impl TypedFrontierRetention {
+    /// Retain only a successfully produced frontend under its exact input key.
     pub fn publish(self, frontier: &TypedCompilationFrontier) {
         let mut entries = self
             .frontiers

@@ -20,21 +20,15 @@
 //! and any re-entrant query while a machine's walks are being built, takes its
 //! solo walk unchanged.
 //!
-//! Batched visitors give equal `SharedChoiceReads`, the visitor properties the
-//! walker's own choices read, so each choice matches the visitor's solo walk.
-//! They also use the same judge, and each judges its observations from fresh
-//! query caches (`StructuralJudge::with_fresh_query_state`), so no member reads a cache
-//! entry another member made.
-//!
-//! A verdict is reused only for the exact stored machine and state it was
-//! proved on (`ptr::eq`). A verdict built inside a recursion query
-//! (`CheckingQuery`) reaches the outermost context only when its build read no
-//! recursion cut (`CutGuard`); otherwise it stays in that query's memos.
+//! Batched visitors share one state, sit outside transition targets and
+//! transition statements, and use the same judge. Those are the visitor
+//! properties the walker's own choices read (dead-local rejoins and leaving the
+//! state), so each choice matches the visitor's solo walk.
 
 use super::call_requirements::{
     PreparedRequirement, RequirementWalk, contains_case_premise, prepare_selected_value,
 };
-use super::structural_case_arms::{SharedChoiceReads, recognize_structural_case_arms_batched};
+use super::structural_case_arms::recognize_structural_case_arms_batched;
 use super::structural_judgment::StructuralJudge;
 use super::structural_prefix::StructuralPrefixVisitor;
 use crate::CheckingInput;
@@ -45,32 +39,15 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
+use typed_trees::statement::StatementNode;
 
-/// The call a requirement belongs to within its statement.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SiteCall {
-    Expression(ExpressionHandle),
-    /// A statement call has no expression; its table row is its identity in
-    /// the immutable statement table the verdict was proved on.
-    Statement(usize),
-}
+/// One proved requirement occurrence: caller state, statement, call expression
+/// (invalid for a statement call) and the exact required expression.
+type ProvenSite = (SymbolHandle, usize, ExpressionHandle, ExpressionHandle);
 
-/// One proved requirement occurrence: the exact stored caller state (by
-/// address), statement, call and required expression.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct ProvenSite {
-    state: SymbolHandle,
-    stored_state: usize,
-    statement_index: usize,
-    call: SiteCall,
-    required: ExpressionHandle,
-}
-
-/// Requirement sites a proof machine's shared walks proved, with the address
-/// of the stored machine row they were proved on.
+/// Requirement sites a proof machine's shared walks proved.
 #[derive(Debug, Default)]
 pub(crate) struct SharedProofWalks {
-    stored_machine: usize,
     proven: Vec<ProvenSite>,
 }
 
@@ -87,31 +64,19 @@ pub(super) fn proven(
     machine: &Machine,
     walk: &RequirementWalk<'_>,
 ) -> bool {
-    if shares_walk(program, walk).is_none() {
+    if !shares_walk(program, walk) {
         return false;
     }
-    if program.checking_memos().is_none() {
-        return false;
-    }
-    // Verdicts describe the stored machine row; any other row with this
-    // symbol (a specialization, a rewritten copy) walks alone.
-    if !program
-        .machine(machine.symbol)
-        .is_some_and(|stored| std::ptr::eq(stored, machine))
-    {
-        return false;
-    }
-    let Some(site) = proven_site(program, machine, walk) else {
+    let Some(memos) = program.checking_memos() else {
         return false;
     };
-    let existing = crate::frozen_program::readable_memos(program).find_map(|memos| {
-        memos
-            .shared_proof_walks
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(&machine.symbol)
-            .cloned()
-    });
+    let site = proven_site(walk);
+    let existing = memos
+        .shared_proof_walks
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(&machine.symbol)
+        .cloned();
     let shared = match existing {
         Some(shared) => shared,
         None => {
@@ -119,93 +84,65 @@ pub(super) fn proven(
                 return false;
             }
             BUILDING.with(|building| building.borrow_mut().push(machine.symbol));
-            let guard = crate::frozen_program::CutGuard::start(program);
             let built = Arc::new(build(program, machine));
             BUILDING.with(|building| building.borrow_mut().retain(|m| *m != machine.symbol));
-            // Another worker may have built the same verdicts meanwhile. Each
-            // build that reaches the outermost memos read no recursion cut and
-            // judged every member from fresh caches, so both are the same and
-            // the first is kept.
-            match guard.memos() {
-                Some(memos) => memos
-                    .shared_proof_walks
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .entry(machine.symbol)
-                    .or_insert(built)
-                    .clone(),
-                None => built,
-            }
+            // Another worker may have built the same verdicts meanwhile; both
+            // describe the same program, so the first one stored is kept.
+            memos
+                .shared_proof_walks
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .entry(machine.symbol)
+                .or_insert(built)
+                .clone()
         }
     };
-    shared.stored_machine == address(machine) && shared.proven.contains(&site)
+    shared.proven.contains(&site)
 }
 
-/// Members of one shared walk agree on all of these, so the walk's single judge
-/// and every choice it makes are those of each member's solo walk.
-type GroupKey = (SharedChoiceReads, bool, Vec<ExpressionHandle>);
-
-fn address<T>(row: &T) -> usize {
-    std::ptr::from_ref(row) as usize
-}
-
-/// The site key of `walk`'s requirement in the stored `machine`, or `None`
-/// when its state or call has no stored row to key on.
-fn proven_site(
-    program: &dyn CheckingInput,
-    machine: &Machine,
-    walk: &RequirementWalk<'_>,
-) -> Option<ProvenSite> {
+fn proven_site(walk: &RequirementWalk<'_>) -> ProvenSite {
     let requirement = &walk.requirement;
-    let stored_state = program.state_in_machine(machine, requirement.state)?;
-    let call = if requirement.call_expression.is_valid() {
-        SiteCall::Expression(requirement.call_expression)
-    } else {
-        match requirement.call_site? {
-            crate::CallSite::Statement(call) => SiteCall::Statement(address(call)),
-            _ => return None,
-        }
-    };
-    Some(ProvenSite {
-        state: requirement.state,
-        stored_state: address(stored_state),
-        statement_index: requirement.statement_index,
-        call,
-        required: requirement.expression,
-    })
+    (
+        requirement.state,
+        requirement.statement_index,
+        requirement.call_expression,
+        requirement.expression,
+    )
 }
 
 /// A requirement can join a shared walk when its solo check would take the
-/// proof caller's case-arm walk from machine entry and its site is local to
-/// its state. The result is the requirement's group: the walker's shared
-/// choice reads, the judge kind and the premises the judge is built from.
-fn shares_walk(program: &dyn CheckingInput, walk: &RequirementWalk<'_>) -> Option<GroupKey> {
-    if walk.runtime_values || walk.case_facts_only || walk.requirement.is_inherited() {
-        return None;
+/// proof caller's case-arm walk from machine entry and its site meets the
+/// batching rule in the module documentation.
+fn shares_walk(program: &dyn CheckingInput, walk: &RequirementWalk<'_>) -> bool {
+    let requirement = &walk.requirement;
+    if walk.runtime_values
+        || walk.case_facts_only
+        || requirement.is_inherited()
+        || requirement.in_transition_target
+    {
+        return false;
     }
-    let reads = SharedChoiceReads::of(program, &walk.requirement);
-    reads.local_site().then(|| {
-        (
-            reads,
-            contains_case_premise(program, walk.requirement.expression),
-            walk.requires.clone(),
-        )
-    })
+    program
+        .state_by_symbol(requirement.state)
+        .and_then(|state| {
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .get(requirement.statement_index)
+        })
+        .is_some_and(|statement| !matches!(statement, StatementNode::Transition(_)))
 }
 
-/// `machine` is the stored row `proven` checked.
 fn build(program: &dyn CheckingInput, machine: &Machine) -> SharedProofWalks {
-    let mut shared = SharedProofWalks {
-        stored_machine: address(machine),
-        proven: Vec::new(),
+    let mut shared = SharedProofWalks::default();
+    let Some(machine) = program.machine_by_symbol(machine.symbol) else {
+        return shared;
     };
     let classification = crate::proof_only_classification(program);
     if !classification.is_proof_machine(program, machine) {
         return shared;
     }
-    // Requirements by group, groups in caller-state order, members in
-    // statement order.
-    let mut groups: Vec<(GroupKey, Vec<RequirementWalk<'_>>)> = Vec::new();
+    let mut walks = Vec::new();
     for state in program.machine_states(machine) {
         let statement_count = program
             .statement_table
@@ -235,28 +172,46 @@ fn build(program: &dyn CheckingInput, machine: &Machine) -> SharedProofWalks {
                         expression,
                         false,
                         None,
-                    ) && let Some(key) = shares_walk(program, &walk)
+                    ) && shares_walk(program, &walk)
                     {
-                        match groups.iter_mut().find(|(group, _)| *group == key) {
-                            Some((_, members)) => members.push(*walk),
-                            None => groups.push((key, vec![*walk])),
-                        }
+                        walks.push(*walk);
                     }
                 }
             }
         }
     }
-    groups.sort_by_key(|(_, members)| {
+    // One walk per caller state and judge kind; a lone requirement gains
+    // nothing from sharing and keeps its solo walk.
+    walks.sort_by_key(|walk| {
         (
-            members[0].requirement.state.arena_index(),
-            contains_case_premise(program, members[0].requirement.expression),
+            walk.requirement.state.arena_index(),
+            contains_case_premise(program, walk.requirement.expression),
         )
     });
-    // A lone requirement gains nothing from sharing and keeps its solo walk.
-    for (_, members) in &mut groups {
-        if members.len() >= 2 {
-            walk_group(program, machine, &classification, members, &mut shared);
+    let mut start = 0;
+    while start < walks.len() {
+        let key = |walk: &RequirementWalk<'_>| {
+            (
+                walk.requirement.state,
+                contains_case_premise(program, walk.requirement.expression),
+            )
+        };
+        let group_key = key(&walks[start]);
+        let end = start
+            + walks[start..]
+                .iter()
+                .take_while(|walk| key(walk) == group_key)
+                .count();
+        if end - start >= 2 {
+            walk_group(
+                program,
+                machine,
+                &classification,
+                &mut walks[start..end],
+                &mut shared,
+            );
         }
+        start = end;
     }
     shared
 }
@@ -268,9 +223,6 @@ fn walk_group(
     group: &mut [RequirementWalk<'_>],
     shared: &mut SharedProofWalks,
 ) {
-    for walk in group.iter_mut() {
-        walk.requirement.isolated_judges = true;
-    }
     let requires = group[0].requires.clone();
     let judge = if contains_case_premise(program, group[0].requirement.expression) {
         StructuralJudge::from_case_requires(program, machine, &requires)
@@ -296,10 +248,8 @@ fn walk_group(
         return;
     }
     for walk in group.iter() {
-        if walk.requirement.has_positive_proof()
-            && let Some(site) = proven_site(program, machine, walk)
-        {
-            shared.proven.push(site);
+        if walk.requirement.has_positive_proof() {
+            shared.proven.push(proven_site(walk));
         }
     }
 }

@@ -29,7 +29,7 @@ pub struct CheckedMachineContractRefinement {
 ///
 /// All three axis fingerprints remain separate. Later target/backend stages
 /// must structurally rejoin this receipt before attaching independently
-/// derived stack, work, or machine-state evidence; this compact checked row
+/// derived stack, fuel, or machine-state evidence; this compact checked row
 /// alone grants no artifact, provisioning, or installation authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedCallbackResourceReceipt {

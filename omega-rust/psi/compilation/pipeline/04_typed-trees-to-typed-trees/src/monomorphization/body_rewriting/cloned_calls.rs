@@ -99,32 +99,19 @@ pub(crate) fn rewrite_cloned_calls(
     let static_argument_rewrites =
         forwarded_static_argument_rewrites(source.unwrap_or(program), candidate);
     macro_rules! substitute_application {
-        ($application:expr) => {{
-            let mut arguments = expressions_of(program)
-                .static_machine_application_arguments($application)
-                .to_vec();
+        ($application:expr) => {
             substitute_forwarded_machine_arguments(
-                expressions_of_mut(program),
-                &mut arguments,
+                expressions_of_mut(program).static_machine_application_arguments_mut($application),
                 &static_argument_rewrites,
                 &argument_rewrites,
             );
-            expressions_of_mut(program)
-                .static_machine_application_arguments_mut($application)
-                .clone_from_slice(&arguments);
-            let mut selected = expressions_of(program)
-                .static_machine_application_selected_machines($application)
-                .to_vec();
             substitute_forwarded_machine_arguments(
-                expressions_of_mut(program),
-                &mut selected,
+                expressions_of_mut(program)
+                    .static_machine_application_selected_machines_mut($application),
                 &static_argument_rewrites,
                 &argument_rewrites,
             );
-            expressions_of_mut(program)
-                .static_machine_application_selected_machines_mut($application)
-                .clone_from_slice(&selected);
-        }};
+        };
     }
     for (state_index, state) in program
         .machine_states
@@ -192,8 +179,7 @@ pub(crate) fn rewrite_cloned_calls(
                         .push_name_path_member(&mut members, name.clone());
                     (*symbol, members)
                 });
-            let StatementNode::Call(mut call) =
-                program.statement_table.statement(statement_handle).clone()
+            let StatementNode::Call(call) = program.statement_table.statement_mut(statement_handle)
             else {
                 unreachable!();
             };
@@ -222,16 +208,7 @@ pub(crate) fn rewrite_cloned_calls(
             // runtime receiver and the rewritten target owns every parameter as
             // an explicit argument. Clearing the receiver leaves the operand
             // roster exactly as authored.
-            for argument in call.request_static_arguments_mut() {
-                substitute_forwarded_machine_arguments(
-                    expressions_of_mut(program),
-                    std::slice::from_mut(argument),
-                    &static_argument_rewrites,
-                    &argument_rewrites,
-                );
-            }
             let erased_application = apply_evidence_dispatch_rewrite(
-                expressions_of_mut(program),
                 call.target_symbol,
                 &mut call.static_requirement_dispatch,
                 &mut call.machine_arguments,
@@ -249,8 +226,7 @@ pub(crate) fn rewrite_cloned_calls(
             );
             let mut application = call.authored_machine_application;
             let target = call.target.clone();
-            let applications = StaticArgumentCall::Statement(&call).applications();
-            *program.statement_table.statement_mut(statement_handle) = StatementNode::Call(call);
+            let applications = StaticArgumentCall::Statement(call).applications();
             for application in applications {
                 substitute_application!(application);
             }
@@ -329,14 +305,12 @@ pub(crate) fn rewrite_cloned_calls(
             _ => None,
         }
         .map(|(symbol, name)| insert_subject_name(expressions_of_mut(program), name, symbol));
-        let ExpressionNode::Call(mut call) = expressions_of(program).expression(handle).clone()
-        else {
+        let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle) else {
             continue;
         };
-        for argument in call.request_static_arguments_mut() {
+        if let Some(query) = &mut call.native_code_layout {
             substitute_forwarded_machine_arguments(
-                expressions_of_mut(program),
-                std::slice::from_mut(argument),
+                std::slice::from_mut(&mut query.operand),
                 &static_argument_rewrites,
                 &argument_rewrites,
             );
@@ -360,7 +334,6 @@ pub(crate) fn rewrite_cloned_calls(
             call.receiver = receiver;
         }
         let erased_application = apply_evidence_dispatch_rewrite(
-            expressions_of_mut(program),
             call.target_symbol,
             &mut call.static_requirement_dispatch,
             &mut call.machine_arguments,
@@ -374,8 +347,7 @@ pub(crate) fn rewrite_cloned_calls(
         );
         let mut application = call.authored_machine_application;
         let target = call.target.clone();
-        let applications = StaticArgumentCall::Expression(handle, &call).applications();
-        *expressions_of_mut(program).expression_mut(handle) = ExpressionNode::Call(call);
+        let applications = StaticArgumentCall::Expression(handle, call).applications();
         for application in applications {
             substitute_application!(application);
         }
@@ -502,7 +474,6 @@ pub(crate) fn rewrite_clone_transition_subjects(
 /// machine arguments in favor of cloned runtime arguments.
 #[allow(clippy::too_many_arguments)]
 fn apply_evidence_dispatch_rewrite(
-    expressions: &mut typed_trees::expression::ExpressionTable,
     target_symbol: SymbolHandle,
     static_requirement_dispatch: &mut Option<typed_trees::typed_trees::StaticRequirementDispatch>,
     machine_arguments: &mut Box<[StaticMachineArgument]>,
@@ -523,7 +494,6 @@ fn apply_evidence_dispatch_rewrite(
         // method's own invocation operands retain their independent telescope.
     }
     substitute_forwarded_machine_arguments(
-        expressions,
         machine_arguments,
         static_argument_rewrites,
         argument_rewrites,

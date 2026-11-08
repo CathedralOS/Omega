@@ -1,5 +1,4 @@
-// Unit tests for `OptimizationDecisionRecord` validator requirements, identity
-// binding, fact ordering, and tamper rejection.
+//! Decision-v5 validation, identity binding, and corruption rejection.
 
 use super::super::{InvalidOptimizationManifestRecord, OptimizationManifestDecodeError};
 use super::{

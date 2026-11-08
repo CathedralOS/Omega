@@ -35,11 +35,6 @@ macro_rules! failed_display {
     };
 }
 
-mod installed_interrupt_geometry;
-mod installed_interrupts;
-pub use installed_interrupt_geometry::InstalledInterruptOperandLayout;
-mod interrupt_installation;
-pub use installed_interrupts::PreparedInstalledInterruptHelpers;
 mod legalization;
 mod optimized;
 mod selection;

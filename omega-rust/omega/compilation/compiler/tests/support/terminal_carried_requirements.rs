@@ -2,12 +2,12 @@
 //! Inputs below are explicit trusted host values under the inspection entry's
 //! declared contract, as with the existing materialized-entry provision. This
 //! does not introduce guest evidence, native provisions or private registration.
-use psi_work::WorkMeter;
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
 };
 use terminal_codec::CanonicalTerminalArtifact;
+use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalEffectResult, TerminalExecutionResult, TerminalExecutionStatus, TerminalImportAdapter,
@@ -161,7 +161,9 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
         )
         .expect("exact public adapter signature");
     assert_eq!(
-        instance.invoke(&mut WorkMeter::unbounded()).unwrap(),
+        instance
+            .invoke(&mut TerminalFuelMeter::unbounded())
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(calls.load(Ordering::SeqCst), 1);

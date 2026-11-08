@@ -789,7 +789,7 @@ fn replay_operand_fit(
 fn populate_machine_operand_fits(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    guard: &crate::frozen_program::CutGuard<'_>,
+    memos: &crate::frozen_program::CheckingMemos,
 ) {
     let mut grouped: Vec<(&State, Vec<OperandFit>)> = Vec::new();
     for state in program.machine_states(machine) {
@@ -838,10 +838,6 @@ fn populate_machine_operand_fits(
         }
     }
     let accepted = observe_operand_fits_batch(program, machine, &mut grouped);
-    // Published only once the whole population is known to be cut-free.
-    let Some(memos) = guard.memos() else {
-        return;
-    };
     if let Ok(mut outcomes) = memos.operand_fit_outcomes.lock() {
         for ((_, fits), flags) in grouped.iter().zip(accepted) {
             for (fit, accepted) in fits.iter().zip(flags) {
@@ -960,30 +956,27 @@ fn observe_operand_fit_at_occurrence(
     } else {
         None
     };
-    if memos.is_some() {
+    if let Some(memos) = memos {
         let key = (machine.symbol, request.expression);
-        let lookup = || {
-            crate::frozen_program::readable_memos(program).find_map(|memos| {
-                memos
-                    .operand_fit_outcomes
-                    .lock()
-                    .ok()
-                    .and_then(|outcomes| outcomes.get(&key).cloned())
-            })
-        };
-        let mut cached = lookup();
-        let guard = crate::frozen_program::CutGuard::start(program);
+        let mut cached = memos
+            .operand_fit_outcomes
+            .lock()
+            .ok()
+            .and_then(|outcomes| outcomes.get(&key).cloned());
         if cached.is_none()
-            && !crate::frozen_program::readable_memos(program).any(|memos| {
-                memos
-                    .operand_fit_populated
-                    .lock()
-                    .is_ok_and(|populated| populated.contains_key(&machine.symbol))
-            })
+            && !memos
+                .operand_fit_populated
+                .lock()
+                .map(|populated| populated.contains_key(&machine.symbol))
+                .unwrap_or(false)
             && let Some(population) = CheckingQuery::operand_fit_population(program, machine.symbol)
         {
-            populate_machine_operand_fits(&population, machine, &guard);
-            cached = lookup();
+            populate_machine_operand_fits(&population, machine, memos);
+            cached = memos
+                .operand_fit_outcomes
+                .lock()
+                .ok()
+                .and_then(|outcomes| outcomes.get(&key).cloned());
         }
         if let Some(outcome) = cached {
             return outcome

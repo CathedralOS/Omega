@@ -1,11 +1,9 @@
-// Source routing (`ProductQueryInputs`, `ProductQueryDependency`) for a paused `Build`'s product queries.
-//
-// While a `Build` machine is paused at a product query, it may inspect its frozen
-// authored `Product` namespace alongside any already-settled `ProductQueryDependency`
-// graphs. Mounting those dependency graphs into `SourceStorage` verifies that all
-// shared packages agree on exact source custody (`require_same_shared_product_sources`)
-// and that no query dependency overrides an already-admitted product alias, without
-// settling the root `Build` or assigning a package identity to an unbound root capture.
+//! A query's issued Product dependencies, without an unfinished root owner.
+//!
+//! Dependency graphs already have their own source custody. Their aliases are
+//! local to this invocation; mounting them neither completes the root Build nor
+//! assigns a package identity to its captured source. Generated source and
+//! executable bodies are not query inputs.
 
 use super::bindings::{ImportOccurrence, ResolvedSourceImport, direct_source_import};
 use super::paths::{is_bundled_core_path, is_bundled_omega_path, resolve_reconciled_import};
@@ -150,6 +148,8 @@ mod tests {
     }
 }
 
+/// Source routing supplied to one paused query. No execution or final root
+/// declaration can be obtained from this value.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProductQueryInputs {
     original: Option<PackageCompilationInputs>,
@@ -300,6 +300,8 @@ impl ProductQueryInputs {
                     {
                         (root.to_path_buf(), 0)
                     } else if !authored.path.starts_with(storage.default_package_root()) {
+                        // Core and contract files have their own closed namespace;
+                        // neither may inherit the anonymous consumer's aliases.
                         let core = super::bundled_core_root()?;
                         if !authored.path.starts_with(&core) {
                             return Err(vec![Diagnostic::error(

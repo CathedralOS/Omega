@@ -90,9 +90,9 @@ pub(super) fn prepare_case_conditions(
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                 PlaceRoot::Symbol(*symbol)
             }
-            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
-                PlaceRoot::Expression(*expression)
-            }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression, ..
+            } => PlaceRoot::Expression(*expression),
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
                 let parameter = parameters.get(*parameter_index as usize)?;
                 PlaceRoot::Symbol(

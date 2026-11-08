@@ -1,9 +1,9 @@
-// Shared domain-tagged SHA-256 digest encoder (`DomainDigestEncoder`), unframed
-// content digest (`content_identity`), and lowercase hex renderer (`hex`).
-//
-// `raw` feeds fixed-width or self-delimiting bytes without a length prefix,
-// whereas `bytes` and `string` prefix a `u64` little-endian length so variable-
-// width fields cannot collide across boundaries.
+//! The shared domain-tagged SHA-256 digest encoder every provider-admission,
+//! plan, artifact and package identity shares. Methods length-frame where the
+//! protocol frames; `finish` yields the raw digest for each domain's newtype
+//! to wrap. Every crate that once carried a crate-local copy of this file now
+//! imports this one: the byte protocol is identical, so previously computed
+//! identities do not change.
 
 use sha2::{Digest, Sha256};
 
@@ -45,6 +45,8 @@ impl DomainDigestEncoder {
         self.0.update(value.to_le_bytes());
     }
 
+    /// Feeds bytes with no length frame — for callers whose protocol feeds
+    /// fixed-width or self-delimiting content.
     pub fn raw(&mut self, bytes: &[u8]) {
         self.0.update(bytes);
     }
@@ -79,6 +81,7 @@ impl DomainDigestEncoder {
         self.byte(u8::from(value));
     }
 
+    /// The single-content identity: u64 length, then the raw content.
     pub fn content(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
         let mut digest = Self::new(domain);
         digest.u64(bytes.len() as u64);
@@ -87,12 +90,14 @@ impl DomainDigestEncoder {
     }
 }
 
+/// Content digest with no domain frame — the `Sha256(content)` one-shot.
 pub fn content_identity(content: &[u8]) -> [u8; 32] {
     let mut digest = DomainDigestEncoder::new(b"");
     digest.raw(content);
     digest.finish()
 }
 
+/// Lowercase hex rendering of digest bytes for filenames and diagnostics.
 pub fn hex(bytes: &[u8]) -> String {
     const DIGITS: &[u8; 16] = b"0123456789abcdef";
     let mut text = String::with_capacity(bytes.len() * 2);

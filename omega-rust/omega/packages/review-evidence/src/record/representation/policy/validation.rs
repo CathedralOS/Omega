@@ -1,4 +1,4 @@
-// Offline association checks for representation availability, selections, and demands without compiler replay or source access.
+//! Offline association checks; no compiler replay or source access.
 
 use super::PackagePolicyRepresentation;
 use crate::record::validation::{ordered, ordered_by};
@@ -43,6 +43,8 @@ impl PackagePolicyRepresentation {
             crate::record::public_policy::validation::validate_conformance_shape(conformance)?;
             conformance.identity.validate_resolved()?;
             conformance.interface.trait_identity.validate_resolved()?;
+            // `OpaqueRepresentation<Opaque, Representation>` names both data
+            // types as ordinary arguments; the implementation has no subject.
             if conformance.identity.owner != PackageReviewNominalOwner::Package(self.package)
                 || conformance.interface.arguments.len() != 2
                 || !conformance.interface.lifetime_arguments.is_empty()

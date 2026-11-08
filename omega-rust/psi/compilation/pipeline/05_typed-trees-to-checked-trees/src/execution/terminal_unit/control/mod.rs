@@ -14,6 +14,7 @@ mod checked_machine;
 mod construction_trace;
 pub(super) mod reference_captures;
 pub(in crate::execution::terminal_unit) mod scalar_arrays;
+pub(in crate::execution::terminal_unit) mod selected_copies;
 pub(super) mod statement_sequence;
 pub(super) mod structural_operands;
 
@@ -21,14 +22,14 @@ pub(crate) use boundary_machine::{
     build_boundary_machine, build_dynamic_slot_plans, build_static_boundary_requirements,
 };
 pub(super) use call_occurrences::{
-    call_owns_statement_computations, completion_expression, outer_calls_in_prefix_traced,
-    terminal_invocation,
+    SelectedInvocationAccounting, call_owns_statement_computations, completion_expression,
+    outer_calls_in_prefix_traced, terminal_invocation,
 };
 pub(crate) use call_results::{
     bind_scalar_call_result, bind_structural_call_result, checked_structural_result_type,
 };
 pub(crate) use checked_machine::build_checked_machine_residual_parts;
-pub(crate) use construction_trace::LocalConstructionTrace;
+pub(crate) use construction_trace::{LocalConstructionTrace, ResultCustodyFailure};
 
 use super::{
     CheckFacts, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,

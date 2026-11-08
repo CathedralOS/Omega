@@ -1,16 +1,12 @@
-/*
-Capability-relative filesystem primitives shared by source adapters.
-
-A captured file must retain its identity, length, and change indicators across
-the bounded copy (`read_capability_file_bounded`), resolving its final metadata
-through the retained parent directory rather than the diagnostic path in case
-the parent was renamed. `require_unchanged_entry` compares file type, device/inode
-(or Windows volume serial number and file index from `_WindowsByHandle`, where a
-missing `None` from directory enumeration rejects fail-closed), length,
-permissions, modification time, and Unix kernel `ctime`. These host observations
-guard capture against concurrent drift; they never enter canonical source
-identity.
-*/
+//! Capability-relative filesystem primitives shared by source adapters.
+//!
+//! A captured file must retain its identity, length and change indicators across
+//! the bounded copy. These host observations only guard capture; they never enter
+//! canonical source identity. Per-file checks and the per-directory close recheck
+//! supplement capture's final recorded-member and directory recheck. They do
+//! not establish an atomic-tree snapshot or isolation from a process with the
+//! same authority. Invocation consumers retain the captured bytes; persistent
+//! publication has its own final live-tree and snapshot comparisons.
 
 use std::ffi::{OsStr, OsString};
 use std::io::Read;
@@ -109,6 +105,8 @@ pub(crate) fn read_capability_file_bounded(
     let metadata = file.metadata().at(display_path)?;
     let bytes = read_opened_file_bounded(&mut file, &metadata, display_path, remaining, limit)?;
     record_source_file_read("tree_capture", display_path, bytes.len() as u64);
+    // Resolve the final name through the retained parent, never the diagnostic
+    // path: the parent may have been renamed since acquisition.
     let final_entry = directory.symlink_metadata(name).at(display_path)?;
     require_unchanged_source_file(&metadata, &final_entry, display_path)?;
     Ok((bytes, capability_metadata_is_executable(&metadata)))
@@ -159,6 +157,9 @@ fn read_opened_file_bounded(
     Ok(bytes)
 }
 
+/// One directory member observed during traversal: the listing name and the
+/// no-follow metadata recorded when the entry was first inspected. Both come
+/// from `Dir::entries`/`Dir::symlink_metadata`, never `DirEntry::metadata`.
 pub(crate) struct CapturedEntryObservation {
     pub(crate) name: OsString,
     pub(crate) metadata: cap_std::fs::Metadata,
@@ -172,11 +173,22 @@ fn require_unchanged_source_file(
     require_unchanged_entry(initial, observed, display_path)
 }
 
+/// The directory-close counterpart of the per-file drift check: the member's
+/// type joins the compared indicators so a same-name replacement of a
+/// different kind cannot pass, and directories and links are covered as well
+/// as files. Change-time comparison only exists where the platform exposes a
+/// kernel-managed ctime; elsewhere a same-inode in-place edit that restores
+/// length, permissions and modification time is outside this guard's reach.
 pub(crate) fn require_unchanged_entry(
     initial: &cap_std::fs::Metadata,
     observed: &cap_std::fs::Metadata,
     display_path: &Path,
 ) -> Result<(), SourceResolveError> {
+    // Missing Windows by-handle identity is not evidence of equality.
+    // `from_just_metadata` preserves the volume serial number and file index
+    // when the source metadata carries them, so a `None` on either side comes
+    // from the observation itself — directory-enumeration metadata — and must
+    // reject rather than pass silently.
     #[cfg(not(windows))]
     let same_identity = cap_fs_ext::MetadataExt::dev(initial)
         == cap_fs_ext::MetadataExt::dev(observed)
@@ -233,7 +245,7 @@ pub(crate) fn is_executable(metadata: &std::fs::Metadata) -> bool {
 }
 
 #[cfg(not(unix))]
-#[allow(dead_code)]
+#[allow(dead_code)] // Kept for the existing source-internal cross-platform facade.
 pub(crate) fn is_executable(_metadata: &std::fs::Metadata) -> bool {
     false
 }
@@ -249,6 +261,7 @@ pub(crate) fn io_error(path: &Path, error: std::io::Error) -> SourceResolveError
     }
 }
 
+/// Attributes a failed host operation to the path the caller was working on.
 pub(crate) trait IoResultAt<T> {
     fn at(self, path: &Path) -> Result<T, SourceResolveError>;
 }

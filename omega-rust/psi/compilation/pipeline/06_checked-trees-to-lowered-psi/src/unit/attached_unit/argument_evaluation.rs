@@ -147,7 +147,6 @@ pub(crate) struct Evaluation {
     /// element operations.
     pub(crate) element_views:
         std::collections::BTreeMap<semantic_vocabulary::StructuralTypeId, Option<ScalarType>>,
-    pub(crate) call_views: Vec<crate::scalar_lowering::computations::call_views::Slot>,
     pub(crate) subslices: Vec<crate::scalar_lowering::computations::subslices::Slot>,
     pub(crate) observations: Vec<crate::scalar_lowering::computations::observations::Slot>,
     pub(crate) produced_values: Vec<crate::scalar_lowering::computations::produced_values::Slot>,
@@ -379,25 +378,44 @@ impl Evaluation {
         value: checked_trees::CheckedStructuralValueHandle,
         operations: &'operations OperationBuffer,
     ) -> Result<&'operations ComputedValueBinding, LoweringError> {
-        let binding = operations
+        let binding =
+            self.completed_value_binding(value, operations)?
+                .ok_or(LoweringError::Unsupported(
+                    "saved value has not completed in this execution frame",
+                ))?;
+        if !binding.argument.path.is_empty() || binding.argument.access != StructuralAccess::Owned {
+            return unsupported("saved value lost its whole produced name in this execution frame");
+        }
+        Ok(binding)
+    }
+
+    /// One exact producer's current physical name, without strengthening its
+    /// path or access. Absence means that producer has not completed; a retired
+    /// or out-of-frame name is an error, never permission to produce it again.
+    /// Consumers must independently authenticate their current source-root
+    /// association and retain ordinary operation/loan custody checks.
+    pub(crate) fn completed_value_binding<'operations>(
+        &self,
+        value: checked_trees::CheckedStructuralValueHandle,
+        operations: &'operations OperationBuffer,
+    ) -> Result<Option<&'operations ComputedValueBinding>, LoweringError> {
+        let Some(binding) = operations
             .computed_values
             .iter()
             .rev()
             .find(|(root, _)| *root == value)
             .map(|(_, binding)| binding)
-            .ok_or(LoweringError::Unsupported(
-                "saved value has not completed in this execution frame",
-            ))?;
-        if !binding.argument.path.is_empty()
-            || binding.argument.access != StructuralAccess::Owned
-            || self
-                .retired_structural_homes
-                .contains(&binding.argument.place)
+        else {
+            return Ok(None);
+        };
+        if self
+            .retired_structural_homes
+            .contains(&binding.argument.place)
             || self.current_claims.source(&binding.argument)?.is_none()
         {
             return unsupported("saved value lost its whole produced name in this execution frame");
         }
-        Ok(binding)
+        Ok(Some(binding))
     }
 
     /// The evaluation's scalar bindings extended with the storage, local,
@@ -475,7 +493,6 @@ impl Evaluation {
         .with_produced_values(&self.produced_values)
         .with_completed_values(self.completed_operand_scope.iter().copied())
         .with_literals(&self.literals)
-        .with_call_views(&self.call_views)
         .with_subslices(&self.subslices)
         .with_observations(&self.observations)
         .with_source_carriers(self.completed_carrier_inventory(operations)?)
@@ -537,6 +554,7 @@ impl Evaluation {
                     }
                     CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                         expression,
+                        ..
                     } => facts::PlaceRoot::Expression(expression),
                     _ => return unsupported("value storage source has no storage identity"),
                 };
@@ -609,6 +627,7 @@ impl Evaluation {
     ) -> Result<StructuralValueStorage, LoweringError> {
         if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
             expression,
+            ..
         } = *source
         {
             let root = facts::PlaceRoot::Expression(expression);
@@ -638,7 +657,7 @@ impl Evaluation {
         use checked_trees::CheckedUnitStructuralArgumentSourcePlan as Source;
         let root = match *source {
             Source::StructuralLocal { symbol } => Some(facts::PlaceRoot::Symbol(symbol)),
-            Source::StructuralExpression { expression } => {
+            Source::StructuralExpression { expression, .. } => {
                 Some(facts::PlaceRoot::Expression(expression))
             }
             _ => None,
@@ -808,7 +827,6 @@ impl Evaluation {
             element_views: self.element_views.clone(),
             produced_values: self.produced_values.clone(),
             literals: self.literals.clone(),
-            call_views: self.call_views.clone(),
             subslices: self.subslices.clone(),
             observations: self.observations.clone(),
             cases: self.cases.clone(),
@@ -1288,7 +1306,6 @@ impl Evaluation {
             element_views: std::collections::BTreeMap::new(),
             produced_values: Vec::new(),
             literals: Vec::new(),
-            call_views: Vec::new(),
             subslices: Vec::new(),
             observations: Vec::new(),
             cases: Vec::new(),

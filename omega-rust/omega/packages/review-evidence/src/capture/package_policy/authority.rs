@@ -1,5 +1,4 @@
-// Compiler-classified dangerous authority and service-reach ceiling slack projection
-// over normalized callable facts.
+//! Compiler-classified danger and ceiling slack over normalized callable facts.
 
 use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;

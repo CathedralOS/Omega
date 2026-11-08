@@ -146,7 +146,7 @@ pub(in crate::checks::contracts) fn captured_operand<'facts>(
     call: &FlowCallFact,
     actual: &Actual<'_>,
 ) -> Option<crate::flow::CapturedOperand<'facts>> {
-    let operands = crate::flow::captured_call_operands(program, facts.flow.view(), state, call)?.0;
+    let operands = crate::flow::captured_call_operands(program, &facts.flow, state, call)?.0;
     operands.get(actual.operand_position)?;
     crate::flow::CapturedOperand::recorded(
         &facts.flow.control,
@@ -168,7 +168,7 @@ pub(crate) fn captured_argument_expressions(
         return None;
     }
     let (operands, receiver_offset) =
-        crate::flow::captured_call_operands(program, facts.flow.view(), state, call)?;
+        crate::flow::captured_call_operands(program, &facts.flow, state, call)?;
     Some(
         operands[receiver_offset..]
             .iter()
@@ -184,7 +184,7 @@ pub(crate) fn captured_values<'facts>(
     call: &FlowCallFact,
     actual: &Actual<'_>,
 ) -> Option<Vec<crate::flow::CapturedValue<'facts>>> {
-    let operands = crate::flow::captured_call_operands(program, facts.flow.view(), state, call)?.0;
+    let operands = crate::flow::captured_call_operands(program, &facts.flow, state, call)?.0;
     operands.get(actual.operand_position)?;
     let operand = crate::flow::CapturedOperand::recorded(
         &facts.flow.control,
@@ -194,7 +194,7 @@ pub(crate) fn captured_values<'facts>(
     let epoch = operands.last()?;
     let values = crate::flow::captured_operand_values(
         program,
-        facts.flow.view(),
+        &facts.flow,
         &facts.semantic,
         state,
         operand,
@@ -568,7 +568,7 @@ pub(super) fn membership_evidence(
                     if captured.operand.referents.is_empty() {
                         return Vec::new();
                     }
-                    crate::flow::captured_value_places(program, facts.flow.view(), captured)
+                    crate::flow::captured_value_places(program, &facts.flow, captured)
                         .unwrap_or_default()
                         .into_iter()
                         .map(|place| place.projected)
@@ -652,8 +652,7 @@ fn current_actual(
         checked_trees::FlowOperandCompletion::Copied { .. }
             | checked_trees::FlowOperandCompletion::Selected(_)
     ) {
-        let places =
-            crate::flow::captured_observation_places(program, facts.flow.view(), captured)?;
+        let places = crate::flow::captured_observation_places(program, &facts.flow, captured)?;
         let [place] = places.as_slice() else {
             return None;
         };
@@ -1045,7 +1044,7 @@ fn proves_bound_predicate_mode<'program>(
                 if previous.place == binding.place
                     && !crate::flow::operand_observations_agree(
                         program,
-                        facts.flow.view(),
+                        &facts.flow,
                         previous_epoch,
                         epoch,
                         &binding.place,
@@ -1223,7 +1222,7 @@ pub(crate) fn entry_predicate(
                 &|place| {
                     crate::flow::operand_entry_origin_is_stable(
                         program,
-                        facts.flow.view(),
+                        &facts.flow,
                         capture,
                         place,
                     )
@@ -1248,7 +1247,7 @@ pub(crate) fn entry_predicate(
             captured.projection.expression,
         )?;
         place.extend_segments(&captured.projection.remaining);
-        crate::flow::operand_entry_origin_is_stable(program, facts.flow.view(), capture, &place)
+        crate::flow::operand_entry_origin_is_stable(program, &facts.flow, capture, &place)
             .then_some(())?;
         let (position, path) = entry_parameter_place_before_statement(
             program,

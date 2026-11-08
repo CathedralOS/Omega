@@ -1,6 +1,4 @@
-// Completed native `Build` choices (`PackagePolicyNativeBinding`), including
-// private and unused supplies.
-
+//! All completed native Build choices, including private and unused supplies.
 use crate::record::{
     PackagePolicyProviderBinding, PackagePolicyServiceMethod, PackageReviewNominalOwner,
 };

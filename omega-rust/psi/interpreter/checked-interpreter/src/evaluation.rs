@@ -21,7 +21,7 @@ pub const CURRENT_EVALUATION_SEMANTICS: EvaluationSemanticsIdentity =
 /// Identity of the deterministic evaluator-step schedule used before the
 /// canonical portable IR exists.
 ///
-/// This is deliberately distinct from canonical-IR `WorkScheduleIdentity`.
+/// This is deliberately distinct from canonical-IR `FuelScheduleIdentity`.
 /// Its marker names the current TypedTrees interpreter's accounting precursor and
 /// must not be used as an IR-derived fixed-work certificate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
@@ -57,13 +57,13 @@ pub const CURRENT_EVALUATION_USAGE_SCHEMA: EvaluationUsageSchemaIdentity =
 ///
 /// The fields are private so future attributed telemetry can extend this
 /// record without allowing callers to fabricate usage. The evaluated program
-/// cannot observe this record or its remaining sponsor budget.
+/// cannot observe this record or its remaining sponsor allowance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct EvaluationUsage {
     pub(crate) schema: EvaluationUsageSchemaIdentity,
     pub(crate) schedule: EvaluationStepScheduleIdentity,
-    pub(crate) work_units: u64,
-    pub(crate) work_budget: u64,
+    pub(crate) fuel_units: u64,
+    pub(crate) fuel_ceiling: u64,
     pub(crate) build_log_bytes: u64,
     pub(crate) filesystem_operation_attempts: u64,
     pub(crate) peak_live_cells: u64,
@@ -175,12 +175,12 @@ pub enum ExecutedBehaviorExclusionKind {
 }
 
 impl EvaluationUsage {
-    pub(crate) const fn empty(work_budget: u64) -> Self {
+    pub(crate) const fn empty(fuel_ceiling: u64) -> Self {
         Self {
             schema: CURRENT_EVALUATION_USAGE_SCHEMA,
             schedule: CURRENT_EVALUATION_STEP_SCHEDULE,
-            work_units: 0,
-            work_budget,
+            fuel_units: 0,
+            fuel_ceiling,
             build_log_bytes: 0,
             filesystem_operation_attempts: 0,
             peak_live_cells: 0,
@@ -198,13 +198,13 @@ impl EvaluationUsage {
         self.schema
     }
 
-    pub const fn work_units(self) -> u64 {
-        self.work_units
+    pub const fn fuel_units(self) -> u64 {
+        self.fuel_units
     }
 
-    /// Exact per-invocation evaluator work budget installed for this run.
-    pub const fn work_budget(self) -> u64 {
-        self.work_budget
+    /// Exact per-invocation evaluator fuel ceiling installed for this run.
+    pub const fn fuel_ceiling(self) -> u64 {
+        self.fuel_ceiling
     }
 
     /// Bytes emitted through the compiler-owned BuildLog facet.
@@ -242,12 +242,12 @@ impl EvaluationUsage {
     }
 
     pub(crate) fn charge_step(&mut self) -> Option<()> {
-        self.work_units = self.work_units.checked_add(1)?;
+        self.fuel_units = self.fuel_units.checked_add(1)?;
         Some(())
     }
 
-    pub(crate) fn set_work_budget(&mut self, work_budget: u64) {
-        self.work_budget = work_budget;
+    pub(crate) fn set_fuel_ceiling(&mut self, fuel_ceiling: u64) {
+        self.fuel_ceiling = fuel_ceiling;
     }
 
     pub(crate) fn charge_build_log_bytes(&mut self, bytes: u64) -> Option<()> {
@@ -378,7 +378,7 @@ pub struct InterpretOutcome {
     /// consumers expecting only ordinary completion stay fail-closed.
     pub crash_cause: Option<typed_trees::signature::CrashCause>,
     /// Deterministic work under the current evaluator-step schedule. This is a
-    /// precursor usage record, not canonical-IR work.
+    /// precursor usage record, not canonical-IR fuel.
     pub usage: EvaluationUsage,
 }
 

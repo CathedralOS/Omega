@@ -1,8 +1,8 @@
-// We encode source-free calling-policy input (`CallingPolicySignature`) into
-// fixed-capacity `BuildTimeValue` arrays and validate returned `BoundaryPlanResult`
-// placements against that same geometry. The same canonical geometry enters
-// policy execution and native application publication without retaining or
-// consulting source declaration correspondence.
+//! Source-free calling-policy input and exact returned-plan validation.
+//!
+//! The same canonical geometry enters policy execution and native application
+//! publication. Source declaration correspondence stays with preparation and
+//! package review; it is neither retained nor consulted by this protocol.
 
 use super::build_time_decoding::{
     CALLBACK_FIELD_PATH_CAPACITY, CALLBACK_MATERIALIZATION_CAPACITY, PARAMETER_CAPACITY,
@@ -17,6 +17,8 @@ use calling_conventions::{
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
 };
 
+/// Target geometry and callback obligations supplied to one policy activation.
+/// This is descriptive input, not provider selection or callback authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallingPolicySignature {
     pub target: target::NativeTarget,
@@ -53,6 +55,7 @@ macro_rules! row {
     };
 }
 
+/// The zero-valued case an absent optional boundary field decodes to.
 fn zero_case(variant: &str, field: &str) -> BuildTimeValue {
     case(variant, vec![(field.to_owned(), BuildTimeValue::Int(0))])
 }
@@ -63,6 +66,9 @@ pub fn encode_calling_policy_signature(
     let native_formals = signature.native_parameters()?;
     let binder_rows = signature.callback_binders()?;
     let demands = &signature.callbacks.demands;
+    // The fixed arrays and their explicit counts are one vocabulary contract.
+    // Refuse excess input before padding; truncating the arrays while retaining
+    // a larger count would violate the policy entry's checked invariants.
     for (label, count, capacity) in [
         (
             "parameters",

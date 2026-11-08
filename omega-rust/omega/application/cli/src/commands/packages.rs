@@ -1,29 +1,4 @@
-/*
-
-Console adapter for `omega install`, `omega update`, and `omega audit`.
-
-Package installation and update run inside a single retained `BuildSession` at
-`<project_root>/build/package-manager`. That session owns the temporary work
-directory and resource grant across every requested target and across any
-automatic review rounds triggered by `--dangerously-accept-all`. A subsequent
-CLI invocation creates its own session and resource grant.
-
-When `execute_package_command` returns `PackageCommandStatus::ReviewRequired`,
-the normal workflow prints the review file paths and exits with code 3 so the
-user can inspect the findings, edit `decision ... pending` lines to `accept`,
-and run `omega install --resume` or `omega update --resume`.
-
-When `--dangerously-accept-all` is passed, `accept_pending_decisions` performs
-that exact text edit in place (`decision <subject> pending` ->
-`decision <subject> accept`) and resumes the command. Before resuming, we clear
-`options.targets` and `options.build_inputs` because the saved review proposal
-already owns its target roster and build-input inventory; automatic acceptance
-only supplies review decisions. Because accepting one round of decisions can
-expose a transitive dependency closure with fresh findings, we repeat up to
-`ACCEPT_ALL_ROUNDS` (4) times before giving up, preventing an unsettled review
-from spinning forever.
-
-*/
+//! Install, update, and inspect package sources and accepted project policy.
 
 use crate::arguments::USAGE_ERROR_EXIT;
 use crate::arguments::audit::SourceArguments;
@@ -36,6 +11,8 @@ use package_manager::{
 use package_source::PrimaryGitChoices;
 use std::path::Path;
 
+/// A resume regenerates findings, so a changed closure can surface fresh
+/// pending decisions; bounded so a review that never settles cannot spin.
 const ACCEPT_ALL_ROUNDS: usize = 4;
 
 pub(crate) fn run(command: PackageCommand, mut options: PackageCommandOptions, accept_all: bool) {
@@ -56,8 +33,12 @@ pub(crate) fn run(command: PackageCommand, mut options: PackageCommandOptions, a
                     std::process::exit(1);
                 }
             };
+            // This owner spans all targets and automatic review rounds. A
+            // later user-issued command creates its own resource grant.
             let result = (|| -> Result<PackageCommandOutcome, PackageCommandError> {
                 let mut outcome = execute_package_command(command, options.clone(), &mut session)?;
+                // The saved proposal owns its target and input inventory.
+                // Automatic acceptance changes decisions, not resource grants.
                 options.targets.clear();
                 options.build_inputs = None;
                 let mut round = 0;
@@ -160,6 +141,8 @@ fn report(outcome: &PackageCommandOutcome) {
     }
 }
 
+/// Rewrite every `decision ... pending` line of one review document to
+/// `accept`, the same edit the document asks a reviewer to make by hand.
 fn accept_pending_decisions(path: &Path) -> Result<usize, PackageCommandError> {
     let text = std::fs::read_to_string(path)
         .map_err(|error| format!("failed to read review {}: {error}", path.display()))?;

@@ -1,14 +1,3 @@
-/*
-We project provider row bindings and their evaluated `via` or Build-origin
-receipts into package policy.
-
-A toolchain-settled row's binding comes from the settlement table: only
-positional syscalls exist there, and they carry no evaluated `via` receipt
-because no authored machine realized the row. For checked adapters, we prove
-which executable the row selected before replacing its private specialization
-name with the portable declaration and arguments.
-*/
-
 use super::realizations::ReviewedProviderRealization;
 use super::rejected;
 use crate::capture::PackageReviewInput;
@@ -33,6 +22,9 @@ pub(super) fn project(
 ) -> Result<PackagePolicyProviderBinding, Vec<Diagnostic>> {
     let realization = reviewed_realization.map_or_else(SymbolHandle::invalid, |value| value.symbol);
     if toolchain_settled {
+        // A toolchain-settled row's binding comes from the settlement table:
+        // only positional syscalls exist there, and they carry no evaluated
+        // `via` receipt because no authored machine realized the row.
         return match binding {
             ProviderBinding::Syscall { number } => Ok(PackagePolicyProviderBinding::Syscall {
                 number: *number,
@@ -115,6 +107,8 @@ pub(super) fn project(
         } => {
             let reviewed = reviewed_realization
                 .ok_or_else(|| rejected("checked adapter has no exact selected realization"))?;
+            // Prove which executable the row selected before replacing its
+            // private name with the portable declaration and arguments.
             if identities.text(*machine_identity) != reviewed.executable_callable
                 || *machine_package_identity
                     != compilation.symbols.symbol_package_identity(realization)

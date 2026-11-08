@@ -181,7 +181,6 @@ impl ExpressionTable {
                     machine_arguments: Box::default(),
                     quotient_operation: None,
                     private_layout_operation: None,
-                    installed_interrupt_operation: None,
                     layout_query: None,
                     native_code_layout: None,
                     build_selection: Default::default(),

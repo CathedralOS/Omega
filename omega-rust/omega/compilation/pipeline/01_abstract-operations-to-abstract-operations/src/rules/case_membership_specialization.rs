@@ -16,7 +16,7 @@ psi_rule_contract!(
     /// `Sum`/`Mixed` roster of exactly one case at the position the
     /// observation's path resolves to. Each folded node keeps its operation
     /// custody identity, result value, successors, definitions, uses, ownership
-    /// events, and work settlement; only the operation and the recomputed unit
+    /// events, and fuel settlement; only the operation and the recomputed unit
     /// identity differ. Machines holding an authenticated cyclic component stay
     /// frozen.
     CaseMembershipSpecializationRule,

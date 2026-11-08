@@ -40,10 +40,9 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 89 retains all private callback address placements.
 // Version 90 retains typed descriptor-table instructions.
 // Version 91 separates the occupied owner from its granted backing.
-// Version 98 retains installed-entry forms and both input observation and
-// result lifetimes alongside provider application roles. Earlier field orders
-// are incompatible with this combined saved plan.
-const VERSION: u32 = 98;
+// Version 96 combines input observation lifetimes with provider application roles.
+// Version 97 also retains input fact lifetimes on operation results.
+const VERSION: u32 = 97;
 const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;

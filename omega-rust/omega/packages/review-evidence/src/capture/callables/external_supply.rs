@@ -1,8 +1,3 @@
-// Evaluated and typed external-binding projection and provider-binding agreement
-// verification. Two authored strings are not a physical locator, so external bindings
-// project only from validated syscalls, intrinsics, dispatch-table slots/fields, or
-// evaluated-via import/syscall rows retained by provider custody.
-
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{nominal_identity, producer_callable_identity};
 use crate::record::{
@@ -81,6 +76,10 @@ fn project_evaluated_syscall(
     ))
 }
 
+/// Project one retained typed external-binding identity to its review row,
+/// validating the payload first. There is no string-backed import arm to
+/// reject any more: two authored strings are not a physical locator, and the
+/// typed identity that spelled them no longer exists.
 pub(super) fn project_external_binding(
     compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
@@ -138,6 +137,8 @@ pub(super) fn project_external_binding(
     }
 }
 
+/// The one evaluated-via row this machine's first trait conformance selects,
+/// if custody retained it.
 fn evaluated_row<'a>(
     compilation: &'a PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,

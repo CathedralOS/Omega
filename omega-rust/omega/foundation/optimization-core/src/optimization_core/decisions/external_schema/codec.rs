@@ -1,11 +1,3 @@
-// Strict wire codec (`OMGEXD\0\0` / `OMGEXP\0\0` v2) for `ExternalDecisionLog`
-// and `ExternalDecisionPoint`.
-//
-// `MINIMUM_CANDIDATE_WIDTH` (`32 + 8 + 8 + 4 = 52` bytes) bounds `cursor.counted`
-// pre-flight checks before allocating candidate feature vectors, and decoders
-// verify both canonical ordering on the wire and exact point/log identity
-// match.
-
 use super::identity::encode_context;
 use crate::cursor::Cursor;
 use crate::optimization_core::CountFrame;
@@ -30,6 +22,9 @@ use super::{
 const LOG_MAGIC: &[u8; 8] = b"OMGEXD\0\0";
 const POINT_MAGIC: &[u8; 8] = b"OMGEXP\0\0";
 pub(super) const VERSION: u32 = 2;
+/// Smallest encoded candidate feature row: the candidate identity, the signed
+/// structural cost, the analysis set and the consumed-fact count. Every term is
+/// the width the field's own encoder returns.
 pub(super) const MINIMUM_CANDIDATE_WIDTH: usize =
     IDENTITY_WIDTH + size_of::<i64>() + AnalysisSet::ENCODED_WIDTH + size_of::<u32>();
 

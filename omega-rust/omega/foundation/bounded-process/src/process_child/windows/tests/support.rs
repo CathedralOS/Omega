@@ -1,5 +1,3 @@
-// Shared helpers and subprocess launcher for Windows Job Object tests.
-
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};

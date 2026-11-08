@@ -1,5 +1,3 @@
-// Policy-row projections for terminal permissions and representation policy components.
-
 use super::super::declarations::encode_type_identity;
 use super::super::{
     calling, declarations::encode_representation_target, public_api, representation,

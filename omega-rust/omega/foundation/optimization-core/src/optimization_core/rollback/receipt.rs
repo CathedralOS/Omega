@@ -1,16 +1,20 @@
-// `OptimizationRollbackReceipt`: partitions `build_selected` into
-// `actually_disabled` (`build_selected ∩ requested_disabled`) and `effective`
-// (`build_selected \ requested_disabled`) while retaining `requested_disabled`
-// for release audit output.
+//! The three optimization sets a release rollback keeps apart: what the build
+//! selected, what a release asked to turn off, and the intersection that actually
+//! was removed before the selected stages executed.
 
 use crate::{Optimization, OptimizationSelections};
 
+/// Release-tooling custody for one subtractive exact-rule overlay.
+///
+/// The authored build selection remains intact. `requested_disabled` is the
+/// fleet/release request, `actually_disabled` is its intersection with this
+/// build, and `effective` is the only set allowed to enter artifact production.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizationRollbackReceipt {
-    build_selected: OptimizationSelections, // Original selection authored in `build.omg`.
-    requested_disabled: OptimizationSelections, // Exact rules requested to be disabled by the rollback overlay.
-    actually_disabled: OptimizationSelections, // Intersection of `build_selected` and `requested_disabled`.
-    effective: OptimizationSelections, // Remainder of `build_selected` after subtracting `requested_disabled`.
+    build_selected: OptimizationSelections,
+    requested_disabled: OptimizationSelections,
+    actually_disabled: OptimizationSelections,
+    effective: OptimizationSelections,
 }
 
 impl OptimizationRollbackReceipt {
@@ -48,6 +52,8 @@ impl OptimizationRollbackReceipt {
         &self.effective
     }
 
+    /// The constructor's invariant restated for the receipt tests: the exact
+    /// intersection and its remainder partition the build selection.
     #[cfg(test)]
     pub(crate) fn is_consistent(&self) -> bool {
         self.actually_disabled

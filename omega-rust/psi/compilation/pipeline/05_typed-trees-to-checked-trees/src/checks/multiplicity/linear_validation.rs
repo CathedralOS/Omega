@@ -61,7 +61,7 @@ fn unconsumed_linear_value_diagnostic(
 
 pub(crate) fn validate_linear_permission_events(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let join_failures =

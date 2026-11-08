@@ -8,13 +8,13 @@ use symbols::SymbolHandle;
 /// Exact downstream derivation still required for one checked resource axis.
 ///
 /// These are positive structural obligations, not zero-valued resource
-/// claims. Checked Psi has neither target stack closure nor a selected work
+/// claims. Checked Psi has neither target stack closure nor a selected fuel
 /// schedule/instruction footprint, so claiming a numeric realization here
 /// would promote backend or installation authority into the wrong stage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CheckedResourceDerivationObligation {
     TerminalAndTargetStackClosure,
-    TerminalControlAndWorkSchedule,
+    TerminalControlAndFuelSchedule,
     SelectedInstructionMachineStateFootprint,
 }
 
@@ -22,7 +22,7 @@ impl CheckedResourceDerivationObligation {
     const fn identity_tag(self) -> u8 {
         match self {
             Self::TerminalAndTargetStackClosure => 1,
-            Self::TerminalControlAndWorkSchedule => 2,
+            Self::TerminalControlAndFuelSchedule => 2,
             Self::SelectedInstructionMachineStateFootprint => 3,
         }
     }
@@ -150,7 +150,7 @@ impl CheckedEntryResourceEnvelope {
     ) -> Self {
         let [stack, logical_structural_work, machine_state] = [
             CheckedResourceDerivationObligation::TerminalAndTargetStackClosure,
-            CheckedResourceDerivationObligation::TerminalControlAndWorkSchedule,
+            CheckedResourceDerivationObligation::TerminalControlAndFuelSchedule,
             CheckedResourceDerivationObligation::SelectedInstructionMachineStateFootprint,
         ]
         .map(|obligation| {
@@ -217,7 +217,7 @@ impl CheckedEntryResourceEnvelope {
             ),
             (
                 &self.logical_structural_work,
-                CheckedResourceDerivationObligation::TerminalControlAndWorkSchedule,
+                CheckedResourceDerivationObligation::TerminalControlAndFuelSchedule,
             ),
             (
                 &self.machine_state,

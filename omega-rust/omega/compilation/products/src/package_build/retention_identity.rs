@@ -1,10 +1,10 @@
-// Canonical fresh Build output digest (`omega-native-product-build-outputs-v7\0`)
-// used to qualify a retained native component cache entry. The enclosing cache
-// key binds compiler/library, package sources, dependency contexts, snapshot,
-// and generated bundles; `BuildOutputIdentity` binds what the current Build
-// activation returned using content-addressed source coordinates and hermetic
-// symbol/callable identities rather than invocation-local arena or SourceId
-// numbers.
+//! Canonical fresh Build outputs used to qualify a retained native component.
+//!
+//! The enclosing cache key already binds compiler/library, complete package
+//! sources, dependency contexts, snapshot and generated bundles. This digest
+//! binds what the current activation actually returned, including source-issued
+//! requests whose Product declarations have not yet been admitted. It is only
+//! an equality key: none of its coordinates supplies declaration authority.
 
 use super::PreparedPackageBuild;
 use crate::{BuildAdmission, BuildConfig, ComputedBuildConfig};
@@ -22,6 +22,8 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 
 impl PreparedPackageBuild {
+    /// Exact semantic output of this freshly settled Build. Invocation-local
+    /// arena numbers, source numbers and execution telemetry never enter it.
     pub fn native_product_input_identity(&self) -> Result<[u8; 32], String> {
         let mut identity = BuildOutputIdentity {
             program: self.prepared.built.source.typed(),
@@ -43,7 +45,10 @@ impl PreparedPackageBuild {
 struct BuildOutputIdentity<'program> {
     program: &'program TypedTrees,
     digest: DomainDigestEncoder,
-    source_contents: HashMap<std::sync::Arc<str>, [u8; 32]>, // memoized content commitments keyed by immutable source text
+    // Construction scratch only. Retained declarations can come from distinct
+    // forests with equal numeric SourceIds, so use their immutable source text.
+    // Only the content commitment is written to the durable key.
+    source_contents: HashMap<std::sync::Arc<str>, [u8; 32]>,
 }
 
 impl BuildOutputIdentity<'_> {
@@ -96,6 +101,10 @@ impl BuildOutputIdentity<'_> {
             behavior_exclusion_requests,
             project_declaration,
             optimization_report_request,
+            // These are fresh execution receipts and supplier custody. The
+            // joined default choices are already bound by config below.
+            // The caller has already admitted/charged this activation; a cache
+            // hit must never replace its observations or sponsor accounting.
             evaluation_usage: _,
             observation_summary: _,
             toolchain_provider_defaults: _,
@@ -126,6 +135,8 @@ impl BuildOutputIdentity<'_> {
                     } = description;
                     self.digest.byte(symbol_kind_tag(declaration.kind()));
                     self.source_coordinate(declaration.source(), declaration.span())?;
+                    // Consume the producer-issued exact declaration join. A
+                    // display path or matching source span is never a fallback.
                     let selected = declaration
                         .rejoin(
                             &self.program.symbols,
@@ -200,6 +211,8 @@ impl BuildOutputIdentity<'_> {
         if let Some(symbol) = selected_build_machine_symbol {
             self.symbol(*symbol)?;
         }
+        // The enclosing key also retains each sealed handoff's dependency and
+        // activation custody. Preserve this returned roster and its order too.
         self.digest.len(generated_sources.len());
         for source in generated_sources {
             self.digest.bytes(source.relative_path());
@@ -461,6 +474,9 @@ impl BuildOutputIdentity<'_> {
         self.digest.u16(*subsystem);
         self.digest.bool(*freestanding);
         self.digest.bytes(&optimizations.encode());
+        // This is the source enum's value discriminant, not its memory layout
+        // or an invocation handle. The enclosing compiler identity pins this
+        // private vocabulary, including its discriminant assignments.
         self.digest.u32(*x86_deployment_claim as u32);
         let package_compilation::build_execution::build_value::PrivilegedServicesGrants {
             port_io,
@@ -468,6 +484,8 @@ impl BuildOutputIdentity<'_> {
         } = privileged_services;
         self.digest.bool(*port_io);
         self.digest.bool(*interrupt_table);
+        // The owner constructs explicit rows only by iterating this complete
+        // catalog, in this order. Do not collapse authored rows with defaults.
         self.digest
             .len(target::ELF_INTERPRETER_TARGET_PROFILES.len());
         for target in target::ELF_INTERPRETER_TARGET_PROFILES {
@@ -567,6 +585,9 @@ impl BuildOutputIdentity<'_> {
                 application,
             } = operand;
             self.digest.string(path);
+            // The authenticated source occurrence commits the complete authored
+            // recipe. Reached substitutions are committed separately above;
+            // invocation-local graph/source handles never enter this key.
             self.digest.bool(application.is_some());
             self.occurrence(*source_span)?;
         }
@@ -627,6 +648,8 @@ impl BuildOutputIdentity<'_> {
     }
 
     fn occurrence(&mut self, span: SourceSpan) -> Result<(), String> {
+        // Rejoin only through the producer's explicit SourceMap correspondence.
+        // Retained Build requests can precede anonymous-to-final Product sealing.
         let program = self.program;
         let span = program.symbols.rejoin_product_occurrence(span);
         let file = program
@@ -693,6 +716,8 @@ impl BuildOutputIdentity<'_> {
             .byte(symbol_kind_tag(self.program.symbols.get(symbol).kind));
         let occurrence = self.program.symbols.symbol_provenance_source_span(symbol);
         self.optional_occurrence(occurrence)?;
+        // A nominal machine name alone does not identify its overload/static
+        // application. Use the same canonical callable identity as admission.
         if let Some(machine) = self.program.machine(symbol) {
             self.digest.byte(1);
             let callable = self

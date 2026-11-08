@@ -1,7 +1,7 @@
 //! A dispatch retains one subject computation and its covered authored prefix.
 use super::{
-    Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
-    ExpressionNode, PrimitiveType,
+    Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind,
+    CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType,
 };
 use crate::flow::expressions;
 use crate::values::operator_is_builtin;
@@ -305,13 +305,6 @@ impl Builder<'_, '_> {
         if let Some(reference) =
             validation::structural_match_subject_type(self.program, machine, state, dispatch)
         {
-            // Dispatch always needs an evaluated subject node, including an
-            // existing place. Argument retention deliberately returns absence
-            // when direct storage transport needs no temporary; that is not a
-            // refusal to observe the same completed place in a match.
-            let value = self.structural_value(dispatch.subject, reference)?;
-            self.retained_argument_owner(value, reference)?;
-            self.retain_structural_value_root(value, reference)?;
             let alias = if dispatch.capture.is_valid() {
                 expressions(self.program)
                     .value_capture(dispatch.capture)
@@ -319,17 +312,63 @@ impl Builder<'_, '_> {
             } else {
                 ExpressionHandle::invalid()
             };
+            // A source-checked place is observed under its existing custody.
+            // Copy captures and stored descriptors keep their independent value
+            // producer; neither path can turn an affine referent into an owner.
+            if !self.uses_captured_dispatch_value(dispatch.subject)
+                && validation::reference_shell(self.program, reference).is_none()
+                && let Some(place) = self.canonical_place(dispatch.subject)
+            {
+                let place = if place.root.as_symbol().is_some() {
+                    Some(
+                        self.borrowed_leaf_argument(dispatch.subject, reference, dispatch.subject)?
+                            .0,
+                    )
+                } else {
+                    self.readable_case_subject(dispatch.subject, self.statement_index)
+                        .map(|(_, place)| place)
+                };
+                if let Some(place) = place {
+                    // Even a tag-only selection captures its endpoint once.
+                    // With no lexical binding the exact subject occurrence is
+                    // its private completed-expression name.
+                    let alias = if alias.is_valid() {
+                        alias
+                    } else {
+                        dispatch.subject
+                    };
+                    self.retain_dispatch_receiver(
+                        alias,
+                        checked_trees::CheckedStructuralValueHandle::invalid(),
+                        reference,
+                        place.access,
+                    )?;
+                    return Some(checked_trees::CheckedDispatchSubject::Structural {
+                        expression: dispatch.subject,
+                        value: checked_trees::CheckedStructuralValueHandle::invalid(),
+                        alias,
+                        place,
+                    });
+                }
+            }
+            let value = self.structural_value(dispatch.subject, reference)?;
+            self.retained_argument_owner(value, reference)?;
+            self.retain_structural_value_root(value, reference)?;
+            self.retain_dispatch_receiver(alias, value, reference, CheckedStructuralAccess::Owned)?;
             return Some(checked_trees::CheckedDispatchSubject::Structural {
+                expression: dispatch.subject,
                 value,
                 alias,
                 place: CheckedUnitStructuralArgumentPlan {
                     projection_evaluations: Default::default(),
                     source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        value_dependency: None,
                         expression: if alias.is_valid() {
                             alias
                         } else {
                             dispatch.subject
                         },
+                        logical_root_type_identity: None,
                     },
                     path: Vec::new(),
                     type_identity: validation::stored_structural_type_identity(
@@ -360,6 +399,35 @@ impl Builder<'_, '_> {
             self.expression(dispatch.subject, PrimitiveType::Bool)?
         };
         Some(checked_trees::CheckedDispatchSubject::Scalar(subject))
+    }
+
+    fn retain_dispatch_receiver(
+        &mut self,
+        alias: ExpressionHandle,
+        value: checked_trees::CheckedStructuralValueHandle,
+        type_reference: typed_trees::types::TypeReferenceHandle,
+        access: CheckedStructuralAccess,
+    ) -> Option<()> {
+        let receiver = super::builder::DispatchReceiver {
+            value,
+            type_reference,
+            access,
+        };
+        if !alias.is_valid() {
+            return Some(());
+        }
+        match self
+            .dispatch_receivers
+            .entry((alias.arena_index(), alias.generation()))
+        {
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(receiver);
+                Some(())
+            }
+            std::collections::btree_map::Entry::Occupied(entry) => {
+                (*entry.get() == receiver).then_some(())
+            }
+        }
     }
 
     fn structural_subject_dispatch(
@@ -505,6 +573,7 @@ impl Builder<'_, '_> {
         let checked_trees::CheckedDispatchSubject::Structural {
             place,
             value: receiver,
+            alias,
             ..
         } = subject
         else {
@@ -533,12 +602,132 @@ impl Builder<'_, '_> {
                     expression,
                     ExpressionHandle::invalid(),
                     *receiver,
-                    CheckedScalarComputationStructuralArgument::Place(place.clone()),
+                    CheckedScalarComputationStructuralArgument::Place(if receiver.is_valid() {
+                        place.clone()
+                    } else {
+                        CheckedUnitStructuralArgumentPlan {
+                            source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                                value_dependency: None,
+                                expression: *alias,
+                                logical_root_type_identity: None,
+                            },
+                            path: Vec::new(),
+                            projection_evaluations: Default::default(),
+                            type_identity: place.type_identity,
+                            access: place.access,
+                        }
+                    }),
                     case,
                 )
             }
             MatchPattern::Wildcard => return None,
         };
         Some(CheckedScalarDispatchPattern::Predicate(selected))
+    }
+}
+
+/// The comparison schedule is independent of the selected result's carrier.
+pub(super) struct PreparedDispatchArm {
+    pub(super) source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
+    pub(super) equality_use: arena::Handle<checked_trees::CheckedOperatorUseFact>,
+    pub(super) pattern: CheckedScalarDispatchPattern,
+    pub(super) value: ExpressionHandle,
+}
+
+impl Builder<'_, '_> {
+    pub(super) fn prepare_dispatch(
+        &mut self,
+        expression: ExpressionHandle,
+        dispatch: &TableMatchExpression,
+    ) -> Option<(
+        checked_trees::CheckedDispatchSubject,
+        Vec<PreparedDispatchArm>,
+    )> {
+        let subject = self.dispatch_subject(dispatch)?;
+        let subject_type = match subject {
+            checked_trees::CheckedDispatchSubject::Scalar(value) => {
+                self.push_scalar_root(
+                    CheckedScalarExpressionRole::StructuralValueSubject { expression },
+                    value,
+                )?;
+                Some(self.plans.nodes.get(value).primitive_type)
+            }
+            checked_trees::CheckedDispatchSubject::Structural { .. } => None,
+        };
+        let authored = self
+            .program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .to_vec();
+        let mut arms = Vec::new();
+        let mut covered = false;
+        let mut boolean_coverage = [false; 2];
+        for (ordinal, arm) in authored.iter().enumerate() {
+            if subject_type.is_none() && self.structural_dispatch_arm_is_impossible(dispatch, arm) {
+                continue;
+            }
+            let source_arm = dispatch.arms.handle_at(u32::try_from(ordinal).ok()?);
+            let mut equality_use = arena::Handle::invalid();
+            let pattern = if let Some(subject_type) = subject_type {
+                match arm.pattern {
+                    MatchPattern::Wildcard => {
+                        covered = true;
+                        checked_trees::CheckedScalarDispatchPattern::Wildcard
+                    }
+                    MatchPattern::Value(pattern) => {
+                        if subject_type == PrimitiveType::Bool
+                            && let Some(value) = self.program.expression_table.boolean_node(pattern)
+                        {
+                            if boolean_coverage[usize::from(*value)] {
+                                continue;
+                            }
+                            boolean_coverage[usize::from(*value)] = true;
+                            covered = boolean_coverage == [true, true];
+                        }
+                        if matches!(subject_type, PrimitiveType::F32 | PrimitiveType::F64) {
+                            equality_use = self.comparison_use(
+                                expression,
+                                checked_trees::CheckedOperatorOccurrence::MatchEquality {
+                                    source_arm,
+                                },
+                            )?;
+                        }
+                        let computation = self.expression(pattern, subject_type)?;
+                        self.plans.nodes.get_mut(computation).authored_root = pattern;
+                        self.push_scalar_root(
+                            CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
+                            computation,
+                        )?;
+                        checked_trees::CheckedScalarDispatchPattern::Value(computation)
+                    }
+                    MatchPattern::Destructure(_) => return None,
+                }
+            } else {
+                self.structural_dispatch_pattern(expression, dispatch, &subject, arm.pattern)?
+            };
+            if let Some(computation) = pattern.computation()
+                && subject_type.is_none()
+            {
+                self.push_scalar_root(
+                    CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
+                    computation,
+                )?;
+            }
+            arms.push(PreparedDispatchArm {
+                source_arm,
+                equality_use,
+                pattern,
+                value: arm.value,
+            });
+            if matches!(arm.pattern, MatchPattern::Wildcard) || covered {
+                break;
+            }
+        }
+        // Structural coverage was established by the common pattern
+        // checker, including case completeness and guarded-arm limits.
+        if (!covered && subject_type.is_some()) || arms.is_empty() {
+            return None;
+        }
+        Some((subject, arms))
     }
 }

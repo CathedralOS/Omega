@@ -35,7 +35,7 @@ fn seal_with_statistics(
         source_realization: source.identity,
         selections: source.selections,
         psi: fragments.psi,
-        work_schedule: fragments.work_schedule,
+        fuel_schedule: fragments.fuel_schedule,
         selected: fragments.selected,
         post_allocation_manifest: source.post_allocation_manifest,
         post_allocation_machine: source.post_allocation_machine,

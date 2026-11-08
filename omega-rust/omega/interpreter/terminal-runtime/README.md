@@ -4,7 +4,7 @@ Start at [execution.rs](src/execution.rs). This application owner consumes an
 already-produced canonical Terminal artifact, exact runtime provisions and an
 explicit host request. It admits the requested target and bindings, establishes
 private entry storage, installs host adapters and executes through the Psi
-interpreter. Work replenishment resumes that same instance.
+interpreter. Fuel replenishment resumes that same instance.
 
 The language engine remains in `psi/interpreter/terminal-interpreter`.
 Target-aware ABI/locator checks, finite input replay, buffered output, virtual

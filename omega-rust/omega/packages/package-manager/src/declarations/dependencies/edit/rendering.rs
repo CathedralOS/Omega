@@ -1,6 +1,3 @@
-// Canonical Omega statement rendering and source digesting for `build.omg` dependency rows.
-// Caller-controlled strings remain escaped bytes inside string literals so they cannot inject syntax, lines, comments, or review prose.
-
 use crate::declarations::dependencies::read::{
     DependencyPurpose, DependencySourceRequest, PackageSelection,
 };
@@ -8,6 +5,9 @@ use build_declarations::{BUILD_TYPE_NAME, DependencyOperation};
 
 use super::BUILDER_PARAMETER_NAME;
 
+/// Render one ordinary Omega statement for the row's authorized scope.
+/// Caller-controlled strings cannot add syntax, lines, comments, or review
+/// prose because they remain escaped bytes inside string literals.
 pub(crate) fn canonical_dependency_statement(
     purpose: DependencyPurpose,
     request: &DependencySourceRequest,

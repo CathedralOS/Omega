@@ -520,7 +520,6 @@ pub(super) fn emit_structural(
     // one operation; ordinary and nested operands register it here instead.
     register_binding: bool,
     frontier_before_call: &lowered_psi::LoweredSourceFrontierBindings,
-    reserved_place: Option<PlaceId>,
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
@@ -532,10 +531,7 @@ pub(super) fn emit_structural(
         return unsupported("structural call emission requires an owned result call");
     };
     let coordinate = &call.coordinate;
-    let place = match reserved_place {
-        Some(place) => place,
-        None => place_id(allocate_dense(next_place)?),
-    };
+    let place = place_id(allocate_dense(next_place)?);
     let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
     let returned = super::call_results::prepare(
         identities,

@@ -39,13 +39,6 @@ pub(super) fn collect_state_argument_facts_from_statement<'program>(
             // The callee's argument facts see the caller's seeded facts but
             // not the call's own write retirement — the transfer orders this
             // hook between the argument visits and `invalidate_call_writes`.
-            // A nested-machine call is that same handoff, so its field bounds
-            // move with the argument before the write frame retires them.
-            let target = super::family_transition_state(
-                self.context.program,
-                self.context.machine.symbol,
-                call.target_symbol,
-            );
             collect_state_argument_facts_for_call(
                 self.context.program,
                 self.context.machine,
@@ -56,8 +49,7 @@ pub(super) fn collect_state_argument_facts_from_statement<'program>(
                     .program
                     .statement_table
                     .expression_handles(call.arguments),
-                target.is_some(),
-                target,
+                false,
                 self.collected,
             );
         }
@@ -70,12 +62,12 @@ pub(super) fn collect_state_argument_facts_from_statement<'program>(
                 TransitionTargetNode::Named {
                     path, arguments, ..
                 } => {
-                    super::family_transition_state(
-                        program,
-                        self.context.machine.symbol,
-                        path.symbol,
-                    )
-                    .is_some()
+                    program
+                        .machine_states(self.context.machine)
+                        .get(1..)
+                        .is_some_and(|states| {
+                            states.iter().any(|state| state.symbol == path.symbol)
+                        })
                         || program
                             .statement_table
                             .expression_handles(*arguments)
@@ -84,11 +76,6 @@ pub(super) fn collect_state_argument_facts_from_statement<'program>(
                 }
                 TransitionTargetNode::Value(value) => {
                     expression_has_sink_effect(program, *value, false)
-                        || super::expression_has_internal_call(
-                            program,
-                            self.context.machine.symbol,
-                            *value,
-                        )
                 }
                 TransitionTargetNode::Terminal => false,
             }
@@ -132,10 +119,7 @@ fn collect_state_argument_facts_from_target(
             for argument in program.statement_table.expression_handles(*arguments) {
                 collect_state_argument_facts_from_expression(context, facts, *argument, collected);
             }
-            let Some(target_state) = program
-                .state_in_machine(machine, path.symbol)
-                .or_else(|| super::family_transition_state(program, machine.symbol, path.symbol))
-            else {
+            let Some(target_state) = program.state_in_machine(machine, path.symbol) else {
                 return;
             };
 
@@ -147,7 +131,6 @@ fn collect_state_argument_facts_from_target(
                 target_state.symbol,
                 program.statement_table.expression_handles(*arguments),
                 true,
-                Some(target_state),
                 collected,
             );
         }

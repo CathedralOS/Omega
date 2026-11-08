@@ -1,6 +1,9 @@
-// Declarative `Display` and `std::error::Error` macros (`invalid_error_display!`,
-// `fixed_error_display!`) for leaf validation and decode error types.
+//! Shared error-display expansions for the crate's leaf error enums: the
+//! rendered refusal and the `Error` impl are generated from the enum's own
+//! subject or sentence, so the enum stays the only place its variants live.
 
+/// Expands the `Display`/`Error` pair of a validation or decode error enum
+/// whose rendering is its own `Debug` under an `invalid <subject>` prefix.
 #[macro_export]
 macro_rules! invalid_error_display {
     ($error:ty, $subject:literal) => {
@@ -14,6 +17,8 @@ macro_rules! invalid_error_display {
     };
 }
 
+/// Expands the `Display`/`Error` pair of an error enum whose rendering is one
+/// fixed sentence, independent of the variant that carries it.
 #[macro_export]
 macro_rules! fixed_error_display {
     ($error:ty, $message:literal) => {

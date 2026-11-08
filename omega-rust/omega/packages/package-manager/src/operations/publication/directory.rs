@@ -1,5 +1,4 @@
-// Capability-handle custody (`ProjectDirectories`) for the canonical project root and its `build/package-manager` transaction state directory, verifying device/inode identity across operations.
-// On Unix, ambient and child directory handles are `O_PATH` descriptors on Linux that `fsync` rejects, so `synchronize` reopens `"."` for a writable-sync descriptor.
+//! Retain the project and its ignored transaction directory.
 
 use cap_fs_ext::{DirExt, MetadataExt};
 use cap_std::fs::Dir;
@@ -75,6 +74,9 @@ fn same_directory(left: &Dir, right: &Dir) -> Result<(), PackagePublicationError
 
 #[cfg(unix)]
 fn synchronize(directory: &Dir, path: &Path) -> Result<(), PackagePublicationError> {
+    // Ambient and child directory handles are `O_PATH` descriptors on Linux,
+    // which `fsync` rejects. Reopen "." for a writable-sync descriptor, the
+    // same route `record_file`'s `synchronize_directory` takes.
     directory
         .open(".")
         .map_err(|error| io_error(path, error))?

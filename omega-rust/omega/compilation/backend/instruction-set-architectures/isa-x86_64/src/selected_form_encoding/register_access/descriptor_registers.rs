@@ -7,24 +7,17 @@ use crate::selected_form_encoding::instruction_bytes::assemble_labeled_stream;
 use selected_instructions::{SegmentRegister, SegmentReload};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Label {
+enum Label {
     Refused,
     Resumed,
-    ActivationRefused,
-    ActivationDone,
     Done,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Step {
+enum Step {
     CodeSelector,
     Flags,
     StoreGdtr,
-    WriteDescriptorLimit,
-    WriteDescriptorBase,
-    LoadIdtr,
-    ClearVerifiedTaskBusyBit,
-    InvalidCommit,
     Selector(u8),
     Load {
         bits: u8,
@@ -70,7 +63,7 @@ pub(super) enum Step {
     End,
 }
 
-pub(super) fn activation() -> Vec<(Option<Label>, Step)> {
+fn activation() -> Vec<(Option<Label>, Step)> {
     use Step::*;
     let mut steps = Vec::new();
     let mut push = |step| steps.push((None, step));
@@ -326,7 +319,7 @@ fn segment_from_encoding(code: u8) -> Option<SegmentRegister> {
     })
 }
 
-pub(super) fn emit(bytes: &mut Vec<u8>, step: Step, patches: &mut Vec<(usize, Label)>) {
+fn emit(bytes: &mut Vec<u8>, step: Step, patches: &mut Vec<(usize, Label)>) {
     let rex = |wide: bool, reg: u8, base: u8| {
         0x40 | (u8::from(wide) << 3) | ((reg >> 3) << 2) | (base >> 3)
     };
@@ -366,12 +359,6 @@ pub(super) fn emit(bytes: &mut Vec<u8>, step: Step, patches: &mut Vec<(usize, La
         Step::CodeSelector => bytes.extend([0x8c, 0xc8]), // MOV EAX, CS zero-extends.
         Step::Flags => bytes.extend([0x9c, 0x58]),
         Step::StoreGdtr => bytes.extend([0x0f, 0x01, 0x01]),
-        Step::WriteDescriptorLimit => bytes.extend([0x66, 0x89, 0x01]), // AX -> [RCX]
-        Step::WriteDescriptorBase => bytes.extend([0x48, 0x89, 0x79, 0x02]), // RDI -> [RCX+2]
-        Step::LoadIdtr => bytes.extend([0x0f, 0x01, 0x19]),             // LIDT [RCX]
-        // The pure precheck retained this exact descriptor address in R9.
-        Step::ClearVerifiedTaskBusyBit => bytes.extend([0x41, 0x80, 0x61, 0x05, 0xfd]),
-        Step::InvalidCommit => bytes.extend(crate::PRIVILEGED_STOP_BYTES),
         Step::Selector(result) => bytes.extend([rex(false, result, 2), 0x0f, 0xb7, rr(result, 2)]),
         Step::Load {
             bits,
@@ -489,22 +476,6 @@ fn decode(bytes: &[u8], cursor: &mut usize) -> Option<(Step, Option<usize>)> {
         (Step::Flags, 2, None)
     } else if tail.starts_with(&[0x0f, 0x01, 0x01]) {
         (Step::StoreGdtr, 3, None)
-    } else if tail.starts_with(&[0x66, 0x89, 0x01]) {
-        (Step::WriteDescriptorLimit, 3, None)
-    } else if tail.starts_with(&[0x48, 0x89, 0x79, 0x02]) {
-        (Step::WriteDescriptorBase, 4, None)
-    } else if tail.starts_with(&[0x0f, 0x01, 0x19]) {
-        (Step::LoadIdtr, 3, None)
-    } else if tail.starts_with(&[0x41, 0x80, 0x61, 0x05, 0xfd]) {
-        (Step::ClearVerifiedTaskBusyBit, 5, None)
-    } else if tail.starts_with(&crate::PRIVILEGED_STOP_BYTES) {
-        (
-            Step::InvalidCommit,
-            crate::PRIVILEGED_STOP_BYTES.len(),
-            None,
-        )
-    } else if let Some(result) = decode_task_read(tail.get(..8).unwrap_or(&[])) {
-        (Step::ReadTask(result), 8, None)
     } else if tail.starts_with(&[0x0f, 0x00, 0xda]) {
         (Step::LoadTask, 3, None)
     } else if tail.first() == Some(&0xe9)
@@ -615,29 +586,28 @@ fn decode(bytes: &[u8], cursor: &mut usize) -> Option<(Step, Option<usize>)> {
     Some((step, target))
 }
 
-fn decode_task_read(bytes: &[u8]) -> Option<u8> {
-    let [rex, 0x0f, 0x00, modrm, mov_rex, 0x0f, 0xb7, mov_modrm] = bytes else {
-        return None;
-    };
-    let result = (modrm & 7) | ((rex & 1) << 3);
-    let source = (mov_modrm & 7) | ((mov_rex & 1) << 3);
-    let target = ((mov_modrm >> 3) & 7) | ((mov_rex & 4) << 1);
-    (result != 4
-        && *rex == 0x40 | (result >> 3)
-        && modrm & 0xf8 == 0xc8
-        && *mov_rex == 0x40 | ((result >> 3) << 2) | (result >> 3)
-        && mov_modrm >> 6 == 3
-        && source == result
-        && target == result)
-        .then_some(result)
-}
-
 pub(super) fn validate(operation: Operation, registers: &[u8], bytes: &[u8]) -> Option<()> {
     if operation == Operation::TaskRegisterRead {
         let [result] = registers else {
             return None;
         };
-        return (decode_task_read(bytes)? == *result).then_some(());
+        if *result >= 16 || *result == 4 || bytes.len() != 8 {
+            return None;
+        }
+        let [rex, 0x0f, 0x00, modrm, mov_rex, 0x0f, 0xb7, mov_modrm] = bytes else {
+            return None;
+        };
+        let observed = (modrm & 7) | ((rex & 1) << 3);
+        let source = (mov_modrm & 7) | ((mov_rex & 1) << 3);
+        let target = ((mov_modrm >> 3) & 7) | ((mov_rex & 4) << 1);
+        return (*rex == 0x40 | (*result >> 3)
+            && modrm & 0xf8 == 0xc8
+            && *mov_rex == 0x40 | ((*result >> 3) << 2) | (*result >> 3)
+            && mov_modrm >> 6 == 3
+            && observed == *result
+            && source == *result
+            && target == *result)
+            .then_some(());
     }
     if let Operation::SegmentRead(register) = operation {
         let [result] = registers else {
@@ -659,15 +629,10 @@ pub(super) fn validate(operation: Operation, registers: &[u8], bytes: &[u8]) -> 
         Operation::SegmentReload(kind) if registers == [7, 2, 1, 8, 0] => reload(kind),
         _ => return None,
     };
-    validate_stream(&steps, bytes)
-}
-
-/// Decode operands and all branch/continuation targets without re-encoding.
-pub(super) fn validate_stream(steps: &[(Option<Label>, Step)], bytes: &[u8]) -> Option<()> {
     let mut cursor = 0;
     let mut labels = Vec::new();
     let mut branches = Vec::new();
-    for &(label, expected) in steps {
+    for (label, expected) in steps {
         if let Some(label) = label {
             labels.push((label, cursor));
         }

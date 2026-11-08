@@ -1,4 +1,6 @@
-// Render per-target compiler policy review documents and recover user per-change decisions during `install`, `update`, and `--resume`.
+//! Render the compiler's review findings and load the project's exact
+//! per-change decisions in the install/update flow. The review itself is
+//! owned by `crate::review`; this is the console adapter over it.
 
 use super::state;
 use super::{PackageCommandError, failure};

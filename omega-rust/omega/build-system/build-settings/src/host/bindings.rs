@@ -1,20 +1,10 @@
-/*
-Build binding effects and provider readiness over ordinary Terminal imports.
-
-Source production supplies designated-operand custody beside the artifact. We
-share one `TerminalBuildBindingHost` across its prepare and commit import
-adapters within a single activation, never across builds. The interpreter owns
-each adapter while we retain the shared state behind an explicit mutex and take
-the completed selections after the sole activation returns.
-
-An activation authenticates its original compiler-issued receiver during
-preparation and mints a private activation ticket; commit consumes that exact
-ticket. Decoding the selected value differs between root entries, declarations,
-provider readiness pauses, and enum exclusions, whereas ticket authentication,
-retirement, and publication remain uniform. Neither an arbitrary integer nor a
-matching debug name grants selection authority, and committed records remain
-inert until the product owner resolves and admits them.
-*/
+//! Build binding effects over ordinary Terminal imports.
+//!
+//! Source production supplies designated-operand custody beside the artifact.
+//! An activation authenticates its original receiver before evaluating a
+//! delegated description; commit consumes the resulting private ticket. Neither
+//! an integer nor a matching debug name grants selection authority. Records
+//! remain inert until the product owner resolves and admits them.
 
 use crate::host::requests::build_facet;
 use language_semantics::declaration_selection::{
@@ -36,6 +26,10 @@ mod native_bindings;
 mod product_queries;
 pub use product_queries::{BuildProductDescription, BuildProductQuery};
 
+/// One activation shared by its prepare/commit imports, never across builds.
+/// The interpreter owns each adapter; the host retains this common state and
+/// takes completed requests after dropping those adapters. A lock makes that
+/// sharing explicit without granting either adapter mutable aliasing.
 pub struct TerminalBuildBindingHost {
     calls: Arc<[TerminalBuildBindingCall]>,
     queries: Arc<[psi_compiler::TerminalBuildQueryCall]>,
@@ -44,7 +38,7 @@ pub struct TerminalBuildBindingHost {
     declarations: Arc<[Arc<ProductDeclarationRequest>]>,
     native_formations: Arc<[NativeBindingFormation]>,
     original: TerminalStructuralValue,
-    state: Mutex<BindingState>, // Shared between prepare/commit adapters of one activation.
+    state: Mutex<BindingState>,
 }
 
 #[derive(Default)]
@@ -151,6 +145,7 @@ impl TerminalBuildBindingHost {
         Ok(state.awaiting_provider()?.cloned())
     }
 
+    /// Called only by the activation after every exact component slot was bound.
     pub(crate) fn has_installed_backing(
         &self,
         provider: &psi_compiler::ProducedBuildProvider,
@@ -210,6 +205,8 @@ impl TerminalBuildBindingHost {
             .take_executed()
     }
 
+    /// Retire committed selections after the sole activation has returned.
+    /// The activation owner prevents a second execution with these adapters.
     pub(crate) fn take_executed(&self) -> Result<Vec<ExecutedBuildSelection>, String> {
         lock_state(&self.state)?.take_executed()
     }
@@ -414,6 +411,8 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             }));
         }
 
+        // Every commit consumes one exact preparation. Decoding the selected
+        // value differs; authentication, retirement and publication do not.
         let description = match &call.request {
             BuildSelectionRequest::Entry(binding)
                 if binding.implementation == RootBindingOperand::Description =>

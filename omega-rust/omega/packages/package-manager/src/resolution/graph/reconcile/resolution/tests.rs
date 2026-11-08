@@ -1,6 +1,5 @@
-// We test source-closure graph state transitions, ceiling enforcement, adapter
-// failure context, and resumed role/alias/conflict/cycle checks using explicit
-// graph inputs.
+//! Graph-state tests, not compiler acceptance. The small source capture supplies
+//! materialization; declared names and dependency rows are explicit graph inputs.
 
 use super::*;
 use crate::declarations::PackageName;
@@ -82,6 +81,8 @@ fn suspended_requests_retain_scope_order_and_shared_custody() {
     assert_eq!(first.requester().key().name().as_str(), "root");
     assert_eq!(first.purpose, DependencyPurpose::Product);
     assert_eq!(first.dependency_index, 0);
+    // The selected declaration can be produced while the request independently
+    // owns the traversal; nothing re-enters a resolver callback to produce it.
     let shared = source("shared", &["leaf"], &[]);
     let second = request(first.complete::<String>(shared.clone()).unwrap());
     assert_eq!(second.purpose, DependencyPurpose::Build);

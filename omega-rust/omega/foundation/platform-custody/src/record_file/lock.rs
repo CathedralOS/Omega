@@ -1,14 +1,3 @@
-// Exclusive OS lock guard (`RecordFileLock`) for persistent record files
-// beneath a `RecordFileRoot`.
-//
-// `try_lock` opens or creates the lock file without truncation or symlink
-// following, verifies that the open descriptor and directory entry share the
-// same regular-file identity both before and after acquiring the non-blocking
-// OS lock, and returns `Ok(None)` on contention (`TryLockError::WouldBlock`).
-// `Drop` explicitly calls `file.unlock()` before closing the descriptor because
-// a concurrent child spawn could briefly inherit the open file description
-// prior to `CLOEXEC` and otherwise delay lock release.
-
 use super::{
     CapabilityDirectory, OsString, Path, PathBuf, RecordFileError, RecordFileRoot, io_at, io_error,
     single_file_name, verify_regular_identity,
@@ -16,6 +5,8 @@ use super::{
 use crate::lock_file::open_or_create_lock_file;
 use std::fs::{File, TryLockError};
 
+/// An exclusive OS lock on a persistent record file. Dropping the guard unlocks
+/// and closes the file; it never unlinks the pathname.
 pub struct RecordFileLock {
     directory: CapabilityDirectory,
     file: File,
@@ -24,6 +15,9 @@ pub struct RecordFileLock {
 }
 
 impl RecordFileRoot {
+    /// Open or create a stable lock file without truncation or symlink following.
+    /// Returns `None` only when the OS reports lock contention. The owned guard
+    /// retains its directory independently of this root.
     pub fn try_lock(
         &self,
         relative_path: &Path,
@@ -61,6 +55,7 @@ impl RecordFileRoot {
 }
 
 impl RecordFileLock {
+    /// Check that the pathname still denotes this locked regular file.
     pub fn verify_current(&self) -> Result<(), RecordFileError> {
         let metadata = cap_std::fs::Metadata::from_file(&self.file)
             .map_err(|error| io_error(&self.display_path, error))?;
@@ -75,6 +70,8 @@ impl RecordFileLock {
 
 impl Drop for RecordFileLock {
     fn drop(&mut self) {
+        // A concurrent process spawn can briefly inherit the open description
+        // before close-on-exec. Release our lock now, not on its last close.
         let _ = self.file.unlock();
     }
 }

@@ -1,15 +1,18 @@
-// We define `BoundaryOpaqueRepresentationUse` and `BoundaryOpaqueRepresentationMovement`
-// to track projected opaque representations used by value while materializing an
-// exact boundary signature. Symbol handles remain in-process compiler join
-// coordinates, and consumers must rejoin and replay the selection commitment
-// and exact un-interned shape-graph occurrence before using the movement.
-
+/// One projected opaque representation actually used by value while
+/// materializing an exact boundary signature.
+///
+/// The symbol handles are in-process compiler join coordinates. Downstream
+/// canonical evidence must rejoin them to package-qualified declarations; it
+/// must not encode arena identities. The compact report fingerprint remains
+/// compatibility data beside the authoritative closed-application commitment.
+/// This descriptive record is not authority: consumers must rejoin and replay
+/// its selection commitment and exact graph occurrence before using it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoundaryOpaqueRepresentationUse {
     pub opaque: symbols::SymbolHandle,
     pub conformance: symbols::SymbolHandle,
     pub carrier: symbols::SymbolHandle,
-    pub shape_root: u16, // exact structural occurrence node in the un-interned boundary shape graph
+    pub shape_root: u16,
     pub application_report_fingerprint: u64,
     pub conformance_application_commitment: [u8; 32],
     pub representation_schema_version: u16,
@@ -32,6 +35,10 @@ impl BoundaryOpaqueRepresentationUse {
         self.conformance
     }
 
+    /// Exact node where the selected carrier entered the materialized
+    /// boundary shape graph. Shape construction does not intern nodes, so this
+    /// coordinate identifies one structural occurrence rather than one merely
+    /// equal layout.
     pub const fn shape_root(&self) -> u16 {
         self.shape_root
     }
@@ -135,6 +142,8 @@ pub enum BoundaryOpaqueRepresentationPathElement {
     RecordField { ordinal: u16 },
 }
 
+/// Exact target movement assigned to one opaque occurrence by the
+/// replay-validated boundary entry plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryOpaqueRepresentationMovement {
     pub(super) role: BoundaryOpaqueRepresentationMovementRole,

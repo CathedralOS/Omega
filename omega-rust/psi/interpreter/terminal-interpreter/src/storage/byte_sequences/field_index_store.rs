@@ -35,7 +35,7 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-    /// Work has already been charged. Validate every operand and the current
+    /// Fuel has already been charged. Validate every operand and the current
     /// live extent before detaching shared backing or changing one byte.
     pub(crate) fn execute_structural_byte_sequence_field_byte_store(
         &mut self,

@@ -1,12 +1,3 @@
-/*
-We project generic conformance bounds on public declarations.
-
-The trait owns each argument's category. A const value is not a nominal
-structural type: we reify exact checked named constants through the same
-canonical-value projector used by selected conformance policy while borrowing
-source custody from the original checked input.
-*/
-
 use super::argument_type_reference;
 use crate::capture::SourceDeclarationInput;
 use crate::capture::semantics::declarations::nominal_identity;
@@ -63,6 +54,10 @@ pub(crate) fn project_conformance_bounds(
                 trait_definition.lifetime_parameters.len(),
             ))]);
         }
+        // The trait owns each argument's category. A const value is not a
+        // nominal structural type: reify exact checked named constants through
+        // the same canonical-value projector used by selected conformance
+        // policy. Borrow source custody from the original checked input.
         let parameters = compilation.trait_type_parameters(trait_definition);
         if parameters.len() != bound.arguments.len() {
             return Err(vec![Diagnostic::error(format!(

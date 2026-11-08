@@ -326,33 +326,6 @@ fn invocation_reference_effects(
     // keeps the requirement's declared outputs (dynamic_dispatch.md, source
     // eligibility: an unknown selection retains the requirement ceiling).
     if let Some(slot) = program.dynamic_slot_by_symbol(target) {
-        // A caller that already proved this selector uses that realization's
-        // checked stores. The requirement ceiling remains for every selector
-        // this walk has not narrowed.
-        if let Some(selector) = arguments
-            .first()
-            .copied()
-            .filter(|expression| expression.is_valid())
-            && let Some((parameter, path)) =
-                parameter_selector_place(program, caller_state, selector)
-            && crate::value_custody::places::binding_observations::binding_is_unchanged_value(
-                program,
-                caller_state,
-                parameter,
-            )
-            && let Some(implementation) = inference.known_dynamic_implementation(parameter, &path)
-            && let Some(realization) =
-                dynamic_outputs::selected_realization_state(program, slot, implementation)
-            && let Some(relative) = checked_alternatives::relative_effects(
-                program,
-                &[realization],
-                slot.data_parameters(),
-                symbols,
-                inference,
-            )
-        {
-            return transfer(parameters, relative);
-        }
         if !dynamic_outputs::caller_may_receive_selector(program, caller_state, slot)
             && let Some(relative) =
                 dynamic_outputs::relative_effects(program, slot, symbols, inference)
@@ -400,19 +373,6 @@ fn invocation_reference_effects(
     if body_parameters.len() != arguments.len() {
         trace_refusal("checked-callee-application");
         return None;
-    }
-    // A refused installation returns the original reference descriptors. Its
-    // writer changes only admitted private address bits; Validate receives a
-    // shared table view, and Work has no normal return. The exact operation
-    // still owes table geometry, retained backing and native admission before
-    // execution. This relation says nothing about scalar contents or authority.
-    if crate::compiler_operations::static_interrupt_declaration(program, callee)
-        .ok()?
-        .is_some_and(|declaration| {
-            declaration.preserves_parameter_descriptors() && declaration.entry == state.symbol
-        })
-    {
-        return Some(SlotRelationTransfer::complete(Vec::new()));
     }
     // Preserve main's template deferral without refusing a generic owner whose
     // runtime destination inventory is already complete and concrete.
@@ -693,42 +653,6 @@ fn complete_applied_output_transfer(
     } else {
         Some(SlotRelationTransfer::complete(effects))
     }
-}
-
-/// A selector spelled as a parameter, or as fields of a parameter. Anything
-/// else is not an entry path the caller can narrow.
-fn parameter_selector_place(
-    program: &dyn crate::CheckingInput,
-    state: &State,
-    expression: ExpressionHandle,
-) -> Option<(SymbolHandle, Vec<PlaceSegment>)> {
-    fn walk(
-        program: &dyn crate::CheckingInput,
-        expression: ExpressionHandle,
-        segments: &mut Vec<PlaceSegment>,
-    ) -> Option<SymbolHandle> {
-        match program.expression_table.expression(expression) {
-            typed_trees::expression::ExpressionNode::Name(name) => Some(name.symbol),
-            typed_trees::expression::ExpressionNode::Member(member) => {
-                segments.push(PlaceSegment::Field {
-                    symbol: member.member_symbol,
-                });
-                walk(program, member.receiver, segments)
-            }
-            _ => None,
-        }
-    }
-    let mut segments = Vec::new();
-    let symbol = walk(program, expression, &mut segments)?;
-    let parameters = program.state_parameters(state);
-    if !parameters
-        .iter()
-        .any(|parameter| parameter.symbol == symbol)
-    {
-        return None;
-    }
-    segments.reverse();
-    Some((symbol, segments))
 }
 
 fn path(program: &dyn crate::CheckingInput, source: &FrameSourcePlace) -> String {

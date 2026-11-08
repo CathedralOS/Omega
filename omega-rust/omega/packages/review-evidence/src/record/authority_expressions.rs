@@ -1,15 +1,4 @@
-// Closed structural runtime-requirement evidence used by crash review.
-//
-// Runtime indices project `CheckedRuntimeIndex` coordinates verbatim (scalar
-// parameter, assignment index step, program-point field read, or immutable
-// integer local). `StructuralParameterByteLength` measures live carrier extent
-// rather than capacity; `StructuralParameterIndexedRead` retains ordered
-// element selections and the final scalar projection so each index preserves
-// its own extent obligation; `RepresentationView` observes storage bits under
-// the target carrier without numeric conversion; float literals retain exact
-// IEEE interchange bits (format, signed zero, and NaN payload); and
-// `StructuralIdentity` records proof identity of whole values rather than an
-// executable field-by-field comparison.
+//! Closed structural runtime-requirement evidence used by crash review.
 
 use super::contracts::PackageReviewArithmeticDomain;
 
@@ -24,6 +13,10 @@ pub enum PackageReviewStructuralPredicatePathSegment {
     RuntimeIndex(PackageReviewRuntimeIndex),
 }
 
+/// The runtime coordinate one element-path selector evaluates to — the same
+/// vocabulary `CheckedRuntimeIndex` spells on carrier paths, projected
+/// verbatim: a scalar parameter, an assignment's indexed step, a
+/// program-point field read, or an immutable integer local.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageReviewRuntimeIndex {
     Parameter { position: u32 },
@@ -90,10 +83,15 @@ pub enum PackageReviewScalarExpression {
         path: Vec<PackageReviewStructuralPredicatePathSegment>,
         primitive_type: PackageReviewPrimitiveType,
     },
+    /// Live extent of the selected entry carrier, not its capacity. Element
+    /// views count elements; byte views and bounded byte fields count bytes.
     StructuralParameterByteLength {
         parameter_position: u32,
         path: Vec<PackageReviewStructuralPredicatePathSegment>,
     },
+    /// Ordered element selections and the final scalar projection. Retaining
+    /// each index separately preserves its own extent obligation; encoding
+    /// this evidence neither proves the bounds nor authorizes the read.
     StructuralParameterIndexedRead {
         parameter_position: u32,
         path: Vec<PackageReviewStructuralPredicatePathSegment>,
@@ -122,11 +120,14 @@ pub enum PackageReviewScalarExpression {
         operand: Box<PackageReviewScalarExpression>,
         range: PackageReviewIntegerRange,
     },
+    /// Observe the operand's storage bits under the target carrier. This is
+    /// distinct from numeric conversion; the operand retains its own type.
     RepresentationView {
         primitive_type: PackageReviewPrimitiveType,
         operand: Box<PackageReviewScalarExpression>,
     },
     Boolean(Box<PackageReviewBooleanExpression>),
+    /// IEEE interchange bits, retaining format, signed zero and NaN payload.
     Float32Literal(u32),
     Float64Literal(u64),
 }
@@ -169,6 +170,8 @@ pub enum PackageReviewBooleanExpression {
         left: PackageReviewStructuralParameterField,
         right: PackageReviewStructuralParameterField,
     },
+    /// Proof identity of whole values, typed by the enclosing entry telescope.
+    /// This is not a request to execute a field or element comparison.
     StructuralIdentity {
         left: PackageReviewStructuralParameterField,
         right: PackageReviewStructuralParameterField,

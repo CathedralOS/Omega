@@ -32,7 +32,7 @@ impl TerminalExecution<'_> {
         Ok((cell, capacity))
     }
 
-    /// Dispatch charges work first. Validate and snapshot the complete source
+    /// Dispatch charges fuel first. Validate and snapshot the complete source
     /// before replacing either live bytes or length; no failure partially writes.
     pub(crate) fn execute_structural_byte_sequence_field_store(
         &mut self,
@@ -129,7 +129,7 @@ impl TerminalExecution<'_> {
         }
     }
 
-    /// Dispatch charges work first. The verifier admitted a readable shared
+    /// Dispatch charges fuel first. The verifier admitted a readable shared
     /// descriptor source, whose immutable bytes the slot now shares: the
     /// descriptor is replaced whole and the disaccess view's backing is left
     /// untouched. A field slot lives below its record's current home; the

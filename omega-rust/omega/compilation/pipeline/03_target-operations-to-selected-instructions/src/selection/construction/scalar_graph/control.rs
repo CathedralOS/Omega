@@ -64,28 +64,25 @@ pub(super) fn build(
             cause,
             site_guard,
             frontier_lower_bound,
-            work,
+            fuel,
             ..
-        } => {
-            let (kind, key) = builder.crash_form()?;
-            Ok(SelectedTerminator::Crash {
-                instruction: terminal(
-                    builder,
-                    kind,
-                    key,
-                    &[],
-                    SelectedInstructionProvenance {
-                        edges: vec![*psi_edge],
-                        work: work.clone(),
-                        ..Default::default()
-                    },
-                )?,
-                psi_edge: *psi_edge,
-                cause: *cause,
-                site_guard: site_guard.clone(),
-                frontier_lower_bound: frontier_lower_bound.clone(),
-            })
-        }
+        } => Ok(SelectedTerminator::Crash {
+            instruction: terminal(
+                builder,
+                SelectedInstructionKind::Crash,
+                keys.crash,
+                &[],
+                SelectedInstructionProvenance {
+                    edges: vec![*psi_edge],
+                    fuel: fuel.clone(),
+                    ..Default::default()
+                },
+            )?,
+            psi_edge: *psi_edge,
+            cause: *cause,
+            site_guard: site_guard.clone(),
+            frontier_lower_bound: frontier_lower_bound.clone(),
+        }),
         LegalizedScalarTerminator::StructuralCase { .. } => {
             super::structural_case::build(source, block, order, builder)
         }
@@ -174,7 +171,7 @@ pub(super) fn build(
                 SelectedInstructionProvenance {
                     values,
                     edges: vec![returned.edge],
-                    work: returned.work.clone(),
+                    fuel: returned.fuel.clone(),
                     ..Default::default()
                 },
             )?;
@@ -275,9 +272,9 @@ pub(super) fn build(
                         )
                         .collect()
                 },
-                work: not_rows
+                fuel: not_rows
                     .iter()
-                    .flat_map(|row| row.work.iter().copied())
+                    .flat_map(|row| row.fuel.iter().copied())
                     .collect(),
                 ..Default::default()
             };
@@ -451,7 +448,7 @@ pub(super) fn successor(
                 })
             })
             .collect::<Result<Vec<_>, SelectedInstructionError>>()?,
-        work: next.work.clone(),
+        fuel: next.fuel.clone(),
     };
     let preparation = builder.instructions[preparation_start..].to_vec();
     if !preparation.is_empty() {

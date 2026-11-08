@@ -155,7 +155,7 @@ fn normal_call_disposes_backing(
             };
             cleanup_actions.iter().any(|action| {
                 let expression = match *action.source() {
-                    SourcePlan::StructuralExpression { expression } => expression,
+                    SourcePlan::StructuralExpression { expression, .. } => expression,
                     SourcePlan::StructuralResult { binding_ordinal } => {
                         let Some((_, owner)) = results
                             .iter()

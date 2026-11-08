@@ -44,9 +44,6 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
-    if matches!(owner, target_operations::CallSiteOwner::Installation { .. }) {
-        return Err(LegalizationError::custody());
-    }
     let declaration = crate::legalization::scalar_graph_input::call_signature::parameter(
         callee,
         position,

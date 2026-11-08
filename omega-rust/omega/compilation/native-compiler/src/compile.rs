@@ -1,8 +1,7 @@
-// Compile retained Terminal (`compile`) or stop after runtime admission for
-// Terminal-only execution (`admit_runtime`). Every artifact/proposal group must
-// complete its scalar demand before lowering starts; on any failure, the
-// recoverable `ExecutableImageEmissionRequest` is returned alongside the
-// diagnostics.
+//! Compile retained Terminal: prepare inputs, admit providers, then realize.
+//!
+//! The representation transformations are sequenced in `pipeline.rs`; this
+//! entrance owns request recovery and the inputs needed for native admission.
 
 use crate::PreparedNativeCompilation;
 use crate::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
@@ -10,6 +9,10 @@ use diagnostics::Diagnostic;
 use image_emission::ExecutableImageEmissionRequest;
 use terminal_psi_to_abstract_operations::RetainedNativeProviderInputs;
 
+/// Consume retained Terminal through the ordinary source-free native pipeline.
+/// Package permissions and optional receiver policy stay distinct and are
+/// independently rejoined by provider preparation and admission. Rejection
+/// returns the original complete image request, including its interpreter.
 pub fn compile(
     prepared: PreparedNativeCompilation<'_>,
 ) -> Result<crate::RealizedNativeProduct, (ExecutableImageEmissionRequest, Vec<Diagnostic>)> {
@@ -19,6 +22,11 @@ pub fn compile(
     }
 }
 
+/// Run the same preparation, provider and entry admission as [`compile`] for
+/// Terminal-only execution (`omega run --engine terminal`), returning the
+/// admitted runtime provisions without emitting an object or image.
+/// Independently selected components execute only as their own native
+/// images, so a program that binds one is unavailable on this route.
 pub fn admit_runtime(
     prepared: PreparedNativeCompilation<'_>,
 ) -> Result<
@@ -55,6 +63,8 @@ fn produce(
         components: prepared_components,
     } = prepared;
     let result = (|| {
+        // Completion is a prerequisite for every group, not merely whichever
+        // component happens to emit first.
         let scalar_input = scalars.native_input()?;
         for component in &prepared_components {
             component.scalars.native_input()?;
@@ -105,7 +115,6 @@ fn produce(
             &native_settlements,
             &request.terminal_authority_policy,
             &request.terminal_authority_permission_policy,
-            request.installation_assumptions,
         );
         let realization = crate::request::NativeRealizationRequest {
             observation: &observation,

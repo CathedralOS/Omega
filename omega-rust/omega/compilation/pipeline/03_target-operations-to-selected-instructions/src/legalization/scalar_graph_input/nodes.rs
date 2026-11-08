@@ -440,11 +440,11 @@ pub(super) fn validate(
         })?;
         if !node.successors.is_empty()
             || node.provenance != [PsiProvenance::Operation(operation)]
-            || node.work.is_empty()
+            || node.fuel.is_empty()
             || node
-                .work
+                .fuel
                 .iter()
-                .any(|work| work.site != PsiProvenance::Operation(operation))
+                .any(|fuel| fuel.site != PsiProvenance::Operation(operation))
         {
             return Err(LegalizationError::custody());
         }

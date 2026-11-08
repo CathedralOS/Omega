@@ -80,12 +80,6 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
             .iter()
             .map(|application| application.registrar),
     );
-    evidence.operations.extend(
-        module
-            .installed_interrupt_registrations
-            .iter()
-            .map(|registration| registration.operation),
-    );
     for coercion in &module.scalar_qualifications.coercions {
         evidence.edges.insert(coercion.edge);
         evidence.values.insert(coercion.source);

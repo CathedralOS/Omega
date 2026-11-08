@@ -4,35 +4,6 @@ use legalized_operations::{
 };
 use semantic_vocabulary::{BlockId, InvocationSite, OperationId};
 
-/// Resolve one of the two calls retained by this exact installation operation.
-/// The operation locates the borrow cut; its role selects the callable contract.
-/// A validator's Boolean is internal scratch, not the Scope operation's result.
-pub(in crate::selection) fn installation_call(
-    source: &LegalizedScalarFunction,
-    operation: OperationId,
-    role: target_operations::InstallationCallRole,
-) -> Option<&legalized_operations::LegalizedScalarCall> {
-    let mut rows = source
-        .instructions()
-        .filter(|row| row.operation == operation);
-    let row = rows.next()?;
-    if rows.next().is_some() {
-        return None;
-    }
-    let legalized_operations::LegalizedScalarInstructionKind::InstallStaticInterrupt {
-        calls, ..
-    } = &row.kind
-    else {
-        return None;
-    };
-    Some(
-        &calls[match role {
-            target_operations::InstallationCallRole::Validate => 0,
-            target_operations::InstallationCallRole::Work => 1,
-        }],
-    )
-}
-
 /// The input-use cut in the current function. A terminal invocation follows
 /// its complete block prefix; it never borrows an instruction's identity.
 pub(in crate::selection) fn use_cut(

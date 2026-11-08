@@ -1,10 +1,3 @@
-// Zeroed `Build.optimizations` field construction and post-evaluation counter extraction.
-//
-// Each optimization pass and the `human_report` request is represented as an integer
-// activation counter in `Build.optimizations`. A counter value of `0` leaves the
-// pass/report disabled, `1` enables it, and `> 1` or `< 0` rejects so duplicate
-// or malformed enablement in `build.omg` fails closed.
-
 use build_time_evaluation::BuildTimeValue;
 use optimization_core::{Optimization, OptimizationSelections};
 

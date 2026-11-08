@@ -18,7 +18,7 @@ Natural-cycle rows identify the verified components.
 
 A supported fixed-work certificate is replayed before its numeric ceiling is
 printed. Unsupported analysis or an unrepresentable ceiling prints
-`fixed_work status=unknown` with the existing deriver's diagnostic. This is a
+`fixed_fuel status=unknown` with the existing deriver's diagnostic. This is a
 limitation report, not proof that no finite bound exists or a complete
 component/foreign-wait resource analysis. Missing identities, invalid semantics,
 and failed certificate replay remain errors. The

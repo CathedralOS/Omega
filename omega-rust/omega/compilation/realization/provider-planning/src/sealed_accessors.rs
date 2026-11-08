@@ -1,6 +1,5 @@
-// Compiler-catalog declarations for generated placed scalar accessors.
-// Describes implementation availability and full nominal/signature/placement
-// contract identity without granting backing storage or loan authority.
+//! Exact compiler-catalog declarations for generated placed scalar accessors.
+//! This describes implementation availability, never a backing or loan grant.
 
 use crate::ProviderPlanningContext;
 use diagnostics::Diagnostic;
@@ -87,6 +86,8 @@ impl SealedAccessor {
             .map(|declaration| Self { declaration }))
     }
 
+    /// Full nominal/signature/placement identity for receiving mechanism joins.
+    /// Hashing this description grants no storage, lifetime or authority.
     pub fn execution_contract(
         &self,
         context: ProviderPlanningContext<'_>,
@@ -109,6 +110,8 @@ impl SealedAccessor {
         )
     }
 
+    /// Independently rejoin one retained plan at a receiving declaration gate.
+    /// The catalog role is not inferred from an equal callable signature.
     pub(crate) fn rejoin_plan(
         context: ProviderPlanningContext<'_>,
         plan: &effects::provider_plan::ProviderPlan,

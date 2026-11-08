@@ -1,4 +1,4 @@
-// Bounded physical-component bytes for boundary calling policies, never a complete boundary-policy record.
+//! Bounded physical-component bytes, never a complete boundary-policy record.
 
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::declarations::{

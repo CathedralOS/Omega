@@ -1,16 +1,4 @@
-// Public local resolution, in-memory capture, and package-snapshot verification
-// operations.
-//
-// `capture_local_source_input` acquires a local package once into a closed
-// in-memory `CapturedLocalSource` inventory so downstream consumers never
-// reopen the live checkout. `capture_verified_package_source_snapshot` and
-// `verify_package_source_snapshot` re-verify an already-published snapshot tree
-// under `SourceTreePolicy::ExactMaterialized` against its expected
-// `SourceContentDigest`, enabling review-only consumers to inspect exact
-// custody-backed bytes without re-evaluating ignore rules.
-// `resolve_local_source_snapshot_in_lane` captures and publishes a local
-// snapshot inside a retained storage lane, checking lane path identity before
-// and after publication.
+//! Public local resolution and package-snapshot verification operations.
 
 pub use super::recovery::recover_cached_local_source_in_lane;
 
@@ -46,6 +34,9 @@ pub fn resolve_local_source(
     Ok(capture_local_source(root.as_ref(), limits, SourceTreePolicy::LocalPackage)?.normalized)
 }
 
+/// Acquire once, retaining the same bytes that produced source identity.
+/// No disk publication or later checkout comparison is needed: every consumer
+/// uses this closed inventory. Capture still rejects observed tree drift.
 pub fn capture_local_source_input(
     root: impl AsRef<Path>,
     limits: LocalSourceLimits,
@@ -105,6 +96,10 @@ fn captured_link_path(
         })
 }
 
+/// Re-hash a published package snapshot under its original resolver limits.
+///
+/// This detects source drift at the verification boundary. Processes already
+/// holding the invoking user's host authority remain outside its claim.
 pub fn verify_package_source_snapshot(
     root: &Path,
     expected: &SourceContentDigest,
@@ -113,6 +108,13 @@ pub fn verify_package_source_snapshot(
     capture_verified_package_source_snapshot(root, expected, limits).map(|_| ())
 }
 
+/// Capture the exact bytes already covered by package-source custody.
+///
+/// Review-only consumers use this after transport resolution so they never
+/// reopen a live checkout or infer a tree from package-authored ignore rules.
+/// The returned paths are the same raw, root-relative bytes used by source
+/// identity; every file and symlink payload has already participated in the
+/// expected content commitment.
 pub fn capture_verified_package_source_snapshot(
     root: &Path,
     expected: &SourceContentDigest,
@@ -171,6 +173,10 @@ pub fn resolve_local_source_snapshot_in_lane(
     }
 }
 
+/// Resolve and publish a local source through a caller-supplied resolver.
+///
+/// Test fixture entry: production callers publish into an explicit lane via
+/// [`resolve_local_source_snapshot_in_lane`].
 #[cfg(test)]
 pub(crate) fn resolve_local_source_snapshot(
     root: impl AsRef<Path>,

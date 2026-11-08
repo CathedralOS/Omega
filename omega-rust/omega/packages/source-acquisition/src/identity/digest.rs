@@ -1,5 +1,4 @@
-// Shared canonical digest framing (`u64` little-endian length prefix) and
-// lowercase hexadecimal encoding.
+//! Shared canonical digest framing and lowercase hexadecimal encoding.
 
 pub(crate) fn append_framed_bytes(output: &mut Vec<u8>, bytes: &[u8]) {
     output.extend_from_slice(&(bytes.len() as u64).to_le_bytes());

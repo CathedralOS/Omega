@@ -7,7 +7,7 @@ use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{
     SelectedInstruction, SelectedInstructionProvenance, SelectedSelectionConstraints,
 };
-use semantic_vocabulary::{IntegerValue, MachineId, OperationId, WorkScheduleIdentity};
+use semantic_vocabulary::{FuelScheduleIdentity, IntegerValue, MachineId, OperationId};
 use target::NativeTarget;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -34,21 +34,13 @@ pub(super) fn with_builder(
         optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(
             b"placement-lifecycle test",
         ),
-        work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
         target,
         entry: MachineId::new(1).unwrap(),
         scalar_functions: vec![],
     };
     let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(&program);
-    let installed_interrupts =
-        provider_admission::AdmittedInstalledInterruptCohort::empty(program.psi);
-    let interrupt_helpers =
-        crate::installed_interrupts::PreparedHelperCohort::new(&installed_interrupts);
     let mut builder = Builder {
-        installed_interrupts: &installed_interrupts,
-        installed_stack_requirements: &[],
-        installed_entry_execution: None,
-        interrupt_helpers: &interrupt_helpers,
         backings: &backings,
         environment: &environment,
         pending_provenance: SelectedInstructionProvenance::default(),
@@ -71,7 +63,7 @@ pub(super) fn with_builder(
         operation: OperationId::new(71).unwrap(),
         result: None,
         kind: LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(0)),
-        work: vec![],
+        fuel: vec![],
         effect: optimization_unit::EffectLink {
             input: 0,
             output: 1,
@@ -298,10 +290,7 @@ fn failed_operation_assertion_traps_without_a_source_edge_or_continuation() {
                     builder,
                     row,
                     ImageHome {
-                        storage: fragmented_scalar::StorageAccess::Place {
-                            indices: &[],
-                            byte_offset: 0,
-                        },
+                        storage: fragmented_scalar::StorageAccess::Place(&[]),
                         place,
                         pointer,
                         byte_offset: 0,
@@ -349,7 +338,7 @@ fn failed_operation_assertion_traps_without_a_source_edge_or_continuation() {
                             assert_eq!(instruction.kind, SelectedInstructionKind::Crash);
                             assert!(
                                 instruction.provenance.edges.is_empty()
-                                    && instruction.provenance.work.is_empty()
+                                    && instruction.provenance.fuel.is_empty()
                             );
                             assert!(
                                 selected_instructions::terminator_successors(&block.terminator)
@@ -395,10 +384,7 @@ fn operation_owned_nested_loops_execute_without_semantic_edges() {
                 let place = PlaceId::new(19).unwrap();
                 let pointer = fragmented_scalar::constant(builder, row, place, 0).unwrap();
                 let home = ImageHome {
-                    storage: fragmented_scalar::StorageAccess::Place {
-                        indices: &[],
-                        byte_offset: 0,
-                    },
+                    storage: fragmented_scalar::StorageAccess::Place(&[]),
                     place,
                     pointer,
                     byte_offset: 0,
@@ -424,7 +410,7 @@ fn operation_owned_nested_loops_execute_without_semantic_edges() {
                 let preceding = OperationId::new(70).unwrap();
                 builder.pending_provenance = SelectedInstructionProvenance {
                     operations: vec![preceding],
-                    work: vec![optimization_unit::WorkSettlement {
+                    fuel: vec![optimization_unit::FuelSettlement {
                         site: optimization_unit::PsiProvenance::Operation(preceding),
                         units: 3,
                     }],
@@ -483,13 +469,13 @@ fn operation_owned_nested_loops_execute_without_semantic_edges() {
                     charged += block
                         .instructions
                         .iter()
-                        .flat_map(|instruction| &instruction.provenance.work)
+                        .flat_map(|instruction| &instruction.provenance.fuel)
                         .map(|settlement| settlement.units)
                         .sum::<u64>();
                     assert!(
                         selected_instructions::terminator_instruction(&block.terminator)
                             .provenance
-                            .work
+                            .fuel
                             .is_empty()
                     );
                     for successor in selected_instructions::terminator_successors(&block.terminator)
@@ -502,7 +488,7 @@ fn operation_owned_nested_loops_execute_without_semantic_edges() {
                         );
                         assert_eq!(successor.psi_edge, None);
                         assert!(
-                            successor.work.is_empty()
+                            successor.fuel.is_empty()
                                 && successor.bindings.is_empty()
                                 && successor.structural_bindings.is_empty()
                         );
@@ -537,7 +523,7 @@ fn operation_owned_nested_loops_execute_without_semantic_edges() {
                 assert_eq!(&bytes[32..], &[0xa7; 8]);
                 assert_eq!(
                     charged, 3,
-                    "preceding source work executes once, not once per native iteration"
+                    "preceding source fuel executes once, not once per native iteration"
                 );
             });
         }
@@ -649,10 +635,7 @@ fn resident_fragment_transfer_preserves_unrelated_output_bits() {
                 pointer,
                 2,
                 &output,
-                fragmented_scalar::StorageAccess::Place {
-                    indices: &[],
-                    byte_offset: 0,
-                },
+                fragmented_scalar::StorageAccess::Place(&[]),
                 decoded,
                 None,
             )
@@ -986,10 +969,7 @@ fn resident_complete_image_stages_commits_and_decodes_without_touching_rejected_
                 let output = PlaceId::new(11).unwrap();
                 let value_pointer = fragmented_scalar::constant(builder, row, owner, 0).unwrap();
                 let value = ImageHome {
-                    storage: fragmented_scalar::StorageAccess::Place {
-                        indices: &[],
-                        byte_offset: 0,
-                    },
+                    storage: fragmented_scalar::StorageAccess::Place(&[]),
                     place: owner,
                     pointer: value_pointer,
                     byte_offset: 5,
@@ -1015,19 +995,13 @@ fn resident_complete_image_stages_commits_and_decodes_without_touching_rejected_
                         builder,
                         &plan,
                         ImageHome {
-                            storage: fragmented_scalar::StorageAccess::Place {
-                                indices: &[],
-                                byte_offset: 0,
-                            },
+                            storage: fragmented_scalar::StorageAccess::Place(&[]),
                             place: owner,
                             pointer: backing,
                             byte_offset: 0,
                         },
                         ImageHome {
-                            storage: fragmented_scalar::StorageAccess::Place {
-                                indices: &[],
-                                byte_offset: 0,
-                            },
+                            storage: fragmented_scalar::StorageAccess::Place(&[]),
                             place: output,
                             pointer: output_pointer,
                             byte_offset: 0,
@@ -1123,10 +1097,7 @@ fn resident_authored_value_codec_keeps_signed_fields_fragments_and_array_strides
             let scratch = owner;
             let result = PlaceId::new(11).unwrap();
             let value = ImageHome {
-                storage: fragmented_scalar::StorageAccess::Place {
-                    indices: &[],
-                    byte_offset: 0,
-                },
+                storage: fragmented_scalar::StorageAccess::Place(&[]),
                 place: owner,
                 pointer: fragmented_scalar::constant(builder, row, owner, 0).unwrap(),
                 byte_offset: 0,
@@ -1135,10 +1106,7 @@ fn resident_authored_value_codec_keeps_signed_fields_fragments_and_array_strides
             initialization::stage_image(&types, builder, row, &plan, value, staged).unwrap();
             let staged_end = builder.instructions.len();
             let restored = ImageHome {
-                storage: fragmented_scalar::StorageAccess::Place {
-                    indices: &[],
-                    byte_offset: 0,
-                },
+                storage: fragmented_scalar::StorageAccess::Place(&[]),
                 place: result,
                 pointer: fragmented_scalar::constant(builder, row, result, 128).unwrap(),
                 byte_offset: 0,

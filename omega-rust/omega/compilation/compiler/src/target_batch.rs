@@ -1,24 +1,9 @@
-/*
-We compose shared source checking, per-target provider planning, and batched
-Terminal Psi preparation across all requested targets in a `CompileRequest`.
-
-When `begin_compilation` runs, we validate each target's package inputs and
-prepare one shared `SourceCompilation` continuation if at least one target is
-admitted. Target-local admission errors remain in their original requested
-positions while the application executes the shared Build.
-*/
-
-/*
-When `complete_compilation` rejoins the returned Build, we check the Product
-source once and capture every admitted target's declarations before any target
-publishes shared Terminal code (`PreparedProductTarget::capture`), so preparing
-one target never reopens Source for later siblings.
-
-`produce_products` then plans all requested products, extracts only the work
-items that require portable Terminal Psi production (`CompilationWork::Terminal`),
-runs `produce_retained_terminal_artifacts` once across the batch, and pairs each
-finished output back with its caller-supplied owner without parallel index tables.
-*/
+//! Compose shared source checking, product planning and Terminal preparation.
+//!
+//! The batch retains every target's position and failure. Products that need no
+//! executable artifact finish at planning; the others share portable production
+//! before transferring source-free native work to application Build. Owners expose typed
+//! results here rather than independent mode flags and partially filled slots.
 
 use crate::checked::PreparedProductTarget;
 use crate::checked::run_on_compile_thread;
@@ -32,13 +17,17 @@ use compilation_products::compile_request::{SharedCompileInputs, ValidatedTarget
 use compilation_products::{CheckedProductSource, RequestedCompileProduct};
 use diagnostics::Diagnostic;
 
+/// A validated target roster and one pending source continuation. Target-local
+/// admission errors remain in their original positions while the application
+/// executes the shared Build, if there is any admitted target.
 pub struct PreparedCompilation {
     shared: std::sync::Arc<SharedCompileInputs>,
     targets: Vec<(
         Option<target::TargetProfile>,
         Result<ValidatedTargetCompilation, Vec<Diagnostic>>,
     )>,
-    source: Option<Result<crate::SourceCompilation, crate::CompileFailure>>, // `None` when no target was admitted
+    // `None` exactly when no target was admitted, so no Build runs.
+    source: Option<Result<crate::SourceCompilation, crate::CompileFailure>>,
 }
 
 impl PreparedCompilation {
@@ -60,6 +49,8 @@ impl PreparedCompilation {
 }
 
 impl crate::CompilationSession {
+    /// Admit every target before preparing source. No Build effects execute in
+    /// the compiler; the returned continuation retains both refusals and work.
     pub fn begin_compilation(
         &mut self,
         request: CompileRequest,
@@ -87,6 +78,9 @@ impl crate::CompilationSession {
         })
     }
 
+    /// Join the actual returned Build, check its Product source once, then
+    /// prepare every requested target. Native results await application completion;
+    /// failure never drops a sibling's outcome.
     pub fn complete_compilation(
         &mut self,
         prepared: PreparedCompilation,
@@ -101,10 +95,15 @@ impl crate::CompilationSession {
             let source = match source {
                 Some(Ok(source)) => self.check_completed_source(source, returned),
                 Some(Err(failure)) => Err(failure.into_diagnostics()),
+                // Only reached by admitted targets, and `begin_compilation`
+                // prepares source whenever one exists.
                 None => Err(vec![Diagnostic::error(
                     "admitted target has no shared source preparation",
                 )]),
             };
+            // Complete every occurrence's Source inputs before the first
+            // target can publish shared code. Preparing inside the selection
+            // loop would reopen Source for its later siblings.
             let prepared_targets: Vec<_> = targets
                 .into_iter()
                 .map(|(profile, target)| {
@@ -141,6 +140,8 @@ impl crate::CompilationSession {
     }
 }
 
+/// Select this target's providers and entry against the shared Terminal program,
+/// then retain its requested output.
 fn select_target_product(
     shared: &SharedCompileInputs,
     target: ValidatedTargetCompilation,
@@ -165,9 +166,17 @@ fn select_target_product(
     })
 }
 
+/// Produce requested products from checked source and selected target inputs.
+/// Standalone, session and package requests use this same production sequence.
+/// This includes Terminal production; it is not the source-free Terminal-to-native
+/// entrance, which belongs to `native_compiler::compile`.
+/// Completed stops and errors stay in the ordered roster; only executable work
+/// borrows the shared Terminal producer. No parallel index table or empty output
+/// slots need to be reconstructed after production.
 pub(crate) fn produce_products<Owner>(
     requests: Vec<(Owner, Result<ProductRequest, CompilationProductError>)>,
 ) -> Vec<(Owner, Result<CompilationOutput, CompilationProductError>)> {
+    // The caller's target/package identity travels with its work and outcome.
     let mut work: Vec<_> = requests
         .into_iter()
         .map(|(owner, request)| (owner, request.and_then(ProductRequest::plan)))

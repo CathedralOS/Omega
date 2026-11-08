@@ -1,5 +1,3 @@
-// Unit tests verifying capability-bound `LiveBuildSource` reads, symlink refusal, and scope isolation.
-
 use super::*;
 
 fn account() -> EvaluationInvocationAccount {

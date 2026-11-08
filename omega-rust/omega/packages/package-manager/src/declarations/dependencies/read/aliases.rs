@@ -1,10 +1,11 @@
-// Requester-local dependency alias uniqueness validation across a single purpose scope.
+//! Alias validation across the one flat dependency set.
 
 use super::ProjectedDependencies;
 use crate::declarations::{AliasName, PackageName};
 use std::collections::BTreeMap;
 use std::fmt;
 
+/// Failure to validate requester-local aliases after package selection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum DependencyAliasError {
     SelectedPackageCountMismatch {

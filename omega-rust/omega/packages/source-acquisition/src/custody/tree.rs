@@ -1,16 +1,4 @@
-/*
-Capability-rooted cache tree and ancestry verification (`CacheCustodyKind`,
-`CacheCustodyMeasurement`, `verify_cache_custody`, and
-`verify_retained_cache_custody_root`).
-
-`verify_retained_cache_custody_root` uses a single no-follow open to reconcile
-classification metadata, macOS extended ACL facts, and the retained directory
-identity so no replacement can land between separate opens. `verify_cache_ancestry`
-walks from the filesystem/drive root down, opening each ancestor from its
-already-verified parent handle. `verify_cache_custody_from_open_root` enforces
-entry (`CACHE_CUSTODY_ENTRY_LIMIT`), depth (`CACHE_CUSTODY_DEPTH_LIMIT`), and
-logical resident byte ceilings across the entire cache tree.
-*/
+//! Filesystem custody shared by local snapshots and Git cache entries.
 
 use super::lock::same_std_and_capability_file_identity;
 #[cfg(windows)]
@@ -44,6 +32,9 @@ pub(crate) enum CacheCustodyKind {
     LocalSnapshot,
 }
 
+/// Exact bounded measurements produced by one complete capability-rooted
+/// custody walk. This records accepted resident state after a helper exits; it
+/// is not a during-write storage quota.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CacheCustodyMeasurement {
     pub(crate) entry_count: usize,
@@ -147,6 +138,14 @@ pub(crate) fn verify_cache_custody_root(
     verify_windows_open_cache_directory_identity(kind, root, &metadata)
 }
 
+/// `verify_cache_custody_root` for a directory the resolver already retains,
+/// plus the check that `root` still names that retained directory.
+///
+/// One no-follow open serves every fact about `root`: it must be the directory
+/// just classified, its ACL facts are read through it, and it must be the
+/// retained directory. Opening once for the ACL and again for the retained
+/// comparison would let a replacement land between the two, so the ACL and
+/// the identity would describe different objects; one handle binds all three.
 pub(crate) fn verify_retained_cache_custody_root(
     root: &Path,
     kind: CacheCustodyKind,
@@ -165,6 +164,9 @@ pub(crate) fn verify_retained_cache_custody_root(
     verify_retained_cache_directory(kind, root, &metadata, &named, retained, replaced)
 }
 
+/// A resolver walk has freshly checked the parent and checks it again after
+/// its direct children. Each child still binds fresh pathname metadata to a
+/// no-follow open and its retained identity inside that same parent.
 #[cfg(windows)]
 pub(crate) fn verify_retained_cache_child_custody_root(
     parent_path: &Path,
@@ -226,6 +228,11 @@ fn verify_retained_cache_directory(
     Ok(())
 }
 
+/// Check every directory above `root`, from the filesystem root down. `root`
+/// itself is left to its caller, which applies a stricter owner and mode check
+/// and its own descriptor-bound ACL check immediately afterwards. On macOS
+/// each ancestor is opened from its verified parent's handle, so one walk
+/// opens each ancestor once instead of reopening every prefix from `/`.
 #[cfg(unix)]
 fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), SourceResolveError> {
     use std::os::unix::fs::MetadataExt;
@@ -269,6 +276,9 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
 
 #[cfg(windows)]
 fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), SourceResolveError> {
+    // Open each component from its just-verified parent instead of reopening
+    // every prefix from the drive/share root. Fresh classification and handle
+    // identity checks still run at every component on every walk.
     let ancestors: Vec<&Path> = root.ancestors().collect();
     let mut verified_parent: Option<CapabilityDirectory> = None;
     for ancestor in ancestors.into_iter().rev() {
@@ -321,6 +331,7 @@ pub(crate) fn verify_cache_custody(
     verify_cache_custody_from_open_root(root, root_directory, kind, byte_limit)
 }
 
+/// The entry-ceiling rejection every custody walk level reports for `root`.
 fn entry_ceiling_exceeded(kind: CacheCustodyKind, root: &Path) -> SourceResolveError {
     cache_custody_invalid(
         kind,
@@ -436,6 +447,8 @@ pub(crate) fn verify_cache_custody_from_open_root(
                 ));
             }
             if observed > CACHE_CUSTODY_ENTRY_LIMIT {
+                // The retained-entry check above should make this unreachable, but keep the
+                // ceiling explicit if traversal accounting changes.
                 return Err(entry_ceiling_exceeded(kind, root));
             }
         }

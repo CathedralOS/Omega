@@ -1208,7 +1208,7 @@ fn deep_scalar_assumption_admission_uses_default_stack_and_exact_premise() {
             }
             Proposition::Equal(value(depth, true), value(depth, right))
         }
-        // The independently authored kernel question reaches its existing work
+        // The independently authored kernel question reaches its existing fuel
         // ceiling at this depth; source denotation must return that typed refusal.
         let mut arena = crate::TermArena::new();
         let two = arena.insert(crate::Term::Two);

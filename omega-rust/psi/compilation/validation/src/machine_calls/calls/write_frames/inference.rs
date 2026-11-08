@@ -167,16 +167,6 @@ impl FrameInference {
             .map(|values| values.entry_values.as_slice())
     }
 
-    pub(super) fn known_dynamic_implementation(
-        &self,
-        parameter: SymbolHandle,
-        path: &[facts::PlaceSegment],
-    ) -> Option<SymbolHandle> {
-        self.parameter_values
-            .as_ref()?
-            .known_dynamic_implementation(parameter, path)
-    }
-
     pub(super) fn selects_state(&self, state: &State) -> bool {
         self.parameter_values
             .as_ref()
@@ -204,38 +194,6 @@ impl FrameInference {
         let parameter_values = ParameterValues::new(program, state, values, indices);
         // With no known eligible input the ordinary full-union summary is
         // sufficient and remains shareable. Never specialize a cache entry.
-        let previous = std::mem::replace(
-            &mut self.parameter_values,
-            parameter_values
-                .has_known_values()
-                .then_some(parameter_values),
-        );
-        let result = action(self);
-        self.parameter_values = previous;
-        result
-    }
-
-    /// Same entry walk as `with_invocation`, plus selector paths the caller has
-    /// already proved. Those paths are not scalar values, so they never share
-    /// the unspecialized state summary.
-    pub(super) fn with_dynamic_selectors<T>(
-        &mut self,
-        program: &dyn CheckingInput,
-        state: &State,
-        indices: &[Option<usize>],
-        selectors: &[(SymbolHandle, Vec<facts::PlaceSegment>, SymbolHandle)],
-        action: impl FnOnce(&mut Self) -> T,
-    ) -> T {
-        let indices = program
-            .machine_holding_state(state.symbol)
-            .filter(|machine| {
-                super::transition_topology::named_state_transition_subgraph_is_acyclic(
-                    program, machine, state,
-                )
-            })
-            .map_or(&[][..], |_| indices);
-        let mut parameter_values = ParameterValues::new(program, state, &[], indices);
-        parameter_values.set_dynamic_selectors(selectors.to_vec());
         let previous = std::mem::replace(
             &mut self.parameter_values,
             parameter_values
@@ -297,10 +255,6 @@ pub(super) struct ParameterValues {
     values: Vec<(SymbolHandle, Option<BoolTruth>)>,
     entry_indices: Vec<Option<usize>>,
     indices: Vec<(SymbolHandle, Option<usize>)>,
-    /// A caller proved these parameter paths hold one exact dynamic implementation.
-    /// The body's dispatch may use that realization's checked stores. An empty
-    /// path is the parameter itself. Unknown selectors stay off this list.
-    selectors: Vec<(SymbolHandle, Vec<facts::PlaceSegment>, SymbolHandle)>,
 }
 
 impl ParameterValues {
@@ -371,27 +325,7 @@ impl ParameterValues {
             values,
             entry_indices: actual_indices.to_vec(),
             indices,
-            selectors: Vec::new(),
         }
-    }
-
-    pub(super) fn set_dynamic_selectors(
-        &mut self,
-        selectors: Vec<(SymbolHandle, Vec<facts::PlaceSegment>, SymbolHandle)>,
-    ) {
-        self.selectors = selectors;
-    }
-
-    pub(super) fn known_dynamic_implementation(
-        &self,
-        parameter: SymbolHandle,
-        path: &[facts::PlaceSegment],
-    ) -> Option<SymbolHandle> {
-        self.selectors
-            .iter()
-            .find_map(|(symbol, segments, implementation)| {
-                (*symbol == parameter && segments == path).then_some(*implementation)
-            })
     }
 
     fn index_value(
@@ -418,13 +352,10 @@ impl ParameterValues {
             .iter()
             .any(|(_, value)| matches!(value, Some(BoolTruth::True | BoolTruth::False)))
             || self.indices.iter().any(|(_, value)| value.is_some())
-            || !self.selectors.is_empty()
     }
 
     pub(super) fn restart(&self, program: &dyn CheckingInput, state: &State) -> Self {
-        let mut restarted = Self::new(program, state, &self.entry_values, &self.entry_indices);
-        restarted.selectors = self.selectors.clone();
-        restarted
+        Self::new(program, state, &self.entry_values, &self.entry_indices)
     }
 
     pub(super) fn argument_values(

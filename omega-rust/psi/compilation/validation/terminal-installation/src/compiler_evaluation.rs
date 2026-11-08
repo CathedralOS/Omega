@@ -2,7 +2,7 @@
 //!
 //! Selection and installation supply exact provider edges. This owner applies
 //! the same compiler-execution floor as Early Build, without recovering Source
-//! or treating runtime success, available bodies, or work as a proof.
+//! or treating runtime success, available bodies, or fuel as a proof.
 
 use semantic_vocabulary::compiler_evaluation::{
     CompilerEvaluationDeclaration, CompilerEvaluationEffects, DeclarationCustody,

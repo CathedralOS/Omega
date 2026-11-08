@@ -1,27 +1,4 @@
-/*
-We define stable package-source lineages (`SourceLineage`), immutable source
-resolutions (`ImmutableSourceResolution`), and domain-separated SHA-256 identity
-digests.
-
-`domain_digest!` generates 32-byte digest wrappers that expose borrowed digest
-bytes directly without formatting scratch. `decode_hex` validates length and
-ASCII hex characters up front and allocates the exact decoded byte count.
-*/
-
-/*
-Package lockfiles and review records must bind a package to a canonical source
-lineage regardless of whether the operator wrote an HTTPS or SSH Git locator,
-while keeping workspace members and host-local external paths distinct.
-Separating lineage normalization (`git`, `local`, `locator`) from content
-resolution (`resolution`) ensures lock verification and cache keys never
-conflate transport syntax with authenticated source content.
-*/
-
-/*
-- Git and known-host lineage normalization: `git`, `locator`
-- Workspace member and external local lineages: `local`
-- Authenticated commit/tree and content resolutions: `resolution`
-*/
+//! Stable source lineages and immutable source resolutions.
 
 use sha2::{Digest, Sha256};
 
@@ -48,6 +25,7 @@ macro_rules! domain_digest {
                 encode_hex(&self.0)
             }
 
+            /// Borrow canonical digest bytes without formatting scratch.
             pub const fn digest(&self) -> &[u8; 32] {
                 &self.0
             }
@@ -89,6 +67,8 @@ pub(super) fn decode_hex(value: &str) -> Option<Vec<u8>> {
     if !value.len().is_multiple_of(2) || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return None;
     }
+    // Validation precedes allocation, and the requested storage is exactly
+    // the decoded length rather than fallible-iterator growth capacity.
     let mut decoded = Vec::with_capacity(value.len() / 2);
     for pair in value.as_bytes().as_chunks::<2>().0 {
         let high = hex_value(pair[0]).expect("prevalidated hexadecimal");

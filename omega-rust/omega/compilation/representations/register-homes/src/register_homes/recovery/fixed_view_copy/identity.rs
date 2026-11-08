@@ -73,7 +73,7 @@ mod tests {
         SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
         VirtualFixedConstraintSite, VirtualRegisterId,
     };
-    use semantic_vocabulary::{MachineId, ValueId, WorkScheduleIdentity};
+    use semantic_vocabulary::{FuelScheduleIdentity, MachineId, ValueId};
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
     type Mutation = fn(&mut FixedViewCopyPlan);
@@ -147,7 +147,7 @@ mod tests {
                     vocabulary_marker: VocabularyMarker::CURRENT,
                     program_fingerprint: SemanticFingerprint::from_bytes([12; 32]),
                 },
-                work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+                fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
                 target: target::NativeTarget::linux_x64(),
                 entry: MachineId::new(1).unwrap(),
                 functions: Default::default(),

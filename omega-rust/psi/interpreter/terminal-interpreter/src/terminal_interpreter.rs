@@ -5,8 +5,8 @@
 //! module once, binds the supplied scalar arguments and
 //! [`TerminalStructuralInputs`] before committing any operation, and returns
 //! the engine for a caller that drives `TerminalExecution::resume` itself,
-//! charging work and dispatching every operation and terminator until the
-//! artifact completes, crashes or the sponsor's work is exhausted.
+//! charging fuel and dispatching every operation and terminator until the
+//! artifact completes, crashes or the sponsor's fuel is exhausted.
 //!
 //! Provider admission borrows an already retained artifact through
 //! `terminal_installation::admit_provider_installation`, or decodes external

@@ -7,7 +7,7 @@ use optimization_core::{
     PostAllocationOptimizationManifestIdentity, TerminalRelocationFreeTextSectionIdentity,
 };
 use selected_instructions::SelectedInstructionPlanIdentity;
-use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
+use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target::{NativeTarget, TargetWireIdentityError};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -71,9 +71,9 @@ impl FunctionFragmentTextSectionManifest {
             vocabulary_marker,
             program_fingerprint: SemanticFingerprint::from_bytes(cursor.array()?),
         };
-        let work_marker = cursor.u32()?;
-        let work_schedule = WorkScheduleIdentity::new(work_marker)
-            .ok_or(FunctionFragmentTextSectionManifestDecodeError::InvalidWorkSchedule)?;
+        let fuel_marker = cursor.u32()?;
+        let fuel_schedule = FuelScheduleIdentity::new(fuel_marker)
+            .ok_or(FunctionFragmentTextSectionManifestDecodeError::InvalidFuelSchedule)?;
         let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
         let post_allocation_manifest =
             PostAllocationOptimizationManifestIdentity::from_bytes(cursor.array()?);
@@ -141,7 +141,7 @@ impl FunctionFragmentTextSectionManifest {
             source_realization,
             selections,
             psi,
-            work_schedule,
+            fuel_schedule,
             selected,
             post_allocation_manifest,
             post_allocation_machine,
@@ -183,7 +183,7 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
     bytes.extend_from_slice(&record.selections.bytes());
     crate::codec_bytes::push_encoded(&mut bytes, record.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(record.psi.program_fingerprint.as_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, record.work_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.fuel_schedule.marker().to_le_bytes());
     bytes.extend_from_slice(&record.selected.bytes());
     bytes.extend_from_slice(&record.post_allocation_manifest.bytes());
     bytes.extend_from_slice(&record.post_allocation_machine.bytes());

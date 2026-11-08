@@ -8,8 +8,8 @@ use optimization_core::{OptimizationUnitIdentity, OwnershipFrontierFactIdentity}
 use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 
 use crate::{
-    EffectLink, NodeLocation, OptimizationEdge, OwnershipEvent, OwnershipFrontierSite,
-    PsiOptimizationUnit, PsiProvenance, ValueDefinition, ValueUse, WorkSettlement,
+    EffectLink, FuelSettlement, NodeLocation, OptimizationEdge, OwnershipEvent,
+    OwnershipFrontierSite, PsiOptimizationUnit, PsiProvenance, ValueDefinition, ValueUse,
 };
 
 /// Whether one exit class is absent, possible through opaque work, or certain
@@ -47,7 +47,7 @@ pub struct PsiObservableEvent {
 ///
 /// Empty `events` means the operation is a pure scalar computation under its
 /// already-verified exact Terminal semantics. It does not mean provenance,
-/// logical work, definitions, or live uses may be dropped: those axes remain
+/// logical fuel, definitions, or live uses may be dropped: those axes remain
 /// explicit in every row and a closed-region validator must join liveness.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiNodeObservation {
@@ -65,7 +65,7 @@ pub struct PsiNodeObservation {
     pub effect: EffectLink,
     pub ownership: Vec<OwnershipEvent>,
     pub provenance: Vec<PsiProvenance>,
-    pub work: Vec<WorkSettlement>,
+    pub fuel: Vec<FuelSettlement>,
     pub crash: ObservationKnowledge,
     pub suspension: ObservationKnowledge,
     pub events: Vec<PsiObservableEvent>,
@@ -148,7 +148,7 @@ pub fn reconstruct_psi_observation_model(unit: &PsiOptimizationUnit) -> PsiObser
                     effect: operation.effect,
                     ownership: operation.ownership.clone(),
                     provenance: operation.provenance.clone(),
-                    work: operation.work.clone(),
+                    fuel: operation.fuel.clone(),
                     crash,
                     suspension,
                     events,

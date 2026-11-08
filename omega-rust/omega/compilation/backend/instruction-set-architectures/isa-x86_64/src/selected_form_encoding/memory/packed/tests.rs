@@ -171,7 +171,7 @@ fn packed_memory_constraints_and_effects_retain_early_writes_and_flags() {
         assert_eq!(row.operands.len(), 3);
         assert_eq!(
             row.clobbers,
-            model.model().view_named("condition_flags").unwrap().units
+            model.model().view_named("rflags").unwrap().units
         );
         for (position, operand) in row.operands.iter().enumerate() {
             let writes = position == 2 || (load && position == 1);

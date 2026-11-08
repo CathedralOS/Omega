@@ -147,13 +147,13 @@ pub(super) fn path_thread_accounting(
                     site,
                     site,
                     &edge.provenance,
-                    &edge.work,
+                    &edge.fuel,
                 ));
                 realized.push(provenance_realized_at(
                     outgoing_site,
                     site,
                     &outgoing.provenance,
-                    &outgoing.work,
+                    &outgoing.fuel,
                 ));
             }
         }

@@ -57,6 +57,22 @@ impl ValueRequest {
         target: usize,
         expansion: &mut Expansion<'_>,
     ) -> Result<usize, LoweringError> {
+        let Some(effect) = self.snapshot_completion(checked)? else {
+            return Ok(target);
+        };
+        Ok(expansion.push(LoweredScalarBranchState::jumping(
+            target,
+            Vec::new(),
+            completed_types.to_vec(),
+            completed_types,
+            vec![effect],
+        )))
+    }
+
+    pub(crate) fn snapshot_completion(
+        self,
+        checked: &CheckedTrees,
+    ) -> Result<Option<LoweredScalarEffect>, LoweringError> {
         let root = value_facts(checked)
             .structural_values
             .root_for_value(self.value)
@@ -79,17 +95,11 @@ impl ValueRequest {
                     && declaration.no_code_affine_cleanup
             });
         if self.captured || !intrinsic_copy {
-            return Ok(target);
+            return Ok(None);
         }
-        Ok(expansion.push(LoweredScalarBranchState::jumping(
-            target,
-            Vec::new(),
-            completed_types.to_vec(),
-            completed_types,
-            vec![LoweredScalarEffect::CompleteSnapshots {
-                snapshots: vec![super::prepared::CompletedSnapshot::Produced(self.value)],
-            }],
-        )))
+        Ok(Some(LoweredScalarEffect::CompleteSnapshots {
+            snapshots: vec![super::prepared::CompletedSnapshot::Produced(self.value)],
+        }))
     }
 
     pub(crate) fn finish(
@@ -139,4 +149,32 @@ impl ValueRequest {
             effects,
         ))
     }
+}
+
+/// Psi 05 already admitted these exact private births and their disposal.
+/// Realization joins their stored carriers to this target's type catalog.
+pub(crate) fn selected_copies(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    copies: &[checked_trees::CheckedSelectedPayloadCopy],
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<ValueRequest>, LoweringError> {
+    copies
+        .iter()
+        .map(|copy| {
+            let declaration =
+                crate::shared::terminal_identities::structural_declaration_by_identity(
+                    types,
+                    identities,
+                    checked,
+                    copy.type_identity,
+                    "selected copy has no realized carrier",
+                )?;
+            Ok(ValueRequest {
+                value: copy.value,
+                structural_type: declaration.id,
+                captured: true,
+            })
+        })
+        .collect()
 }

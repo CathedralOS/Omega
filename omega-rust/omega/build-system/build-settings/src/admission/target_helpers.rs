@@ -1,12 +1,5 @@
-/*
-Bind `Build`-scope helper machines to the activation's execution target before
-Psi name resolution (`select_build_helpers`).
-
-For every root machine declaration inside the `Build` source set (`sources`), if
-it carries an authored target qualification matching `execution`, we preserve
-`authored_target` and clear `target` so Psi resolves it as the active helper for
-this `Build` execution while leaving Product target family formation untouched.
-*/
+//! Bind Build helpers to this activation's execution target before resolution.
+//! Product family formation remains target-neutral and belongs to Psi.
 
 use source::SourceId;
 use std::collections::HashSet;
@@ -14,6 +7,8 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
 use target::TargetProfile;
 
+/// Select Build helpers without consuming their authored target identity.
+/// The source set comes from package loading, not from declaration spelling.
 pub fn select_build_helpers(
     syntax: &mut SyntaxTrees,
     execution: TargetProfile,

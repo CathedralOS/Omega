@@ -5,7 +5,7 @@ pub enum FunctionFragmentTextSectionManifestDecodeError {
     UnsupportedVersion(u32),
     UnknownStage(u8),
     UnknownVocabulary(u16),
-    InvalidWorkSchedule,
+    InvalidFuelSchedule,
     UnknownArchitecture(u8),
     UnknownObjectFormat(u8),
     TargetLayoutOverflow,

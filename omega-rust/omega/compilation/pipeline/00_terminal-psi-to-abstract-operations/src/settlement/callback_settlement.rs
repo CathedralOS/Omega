@@ -3,8 +3,6 @@
 mod operations;
 mod placement;
 pub use placement::settle_native_callback_placements;
-mod installed_placement;
-pub use installed_placement::settle_installed_callback_placements;
 mod registrar_imports;
 pub(crate) use operations::CallbackTerminalOperations;
 

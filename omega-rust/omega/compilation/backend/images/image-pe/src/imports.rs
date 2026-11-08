@@ -162,7 +162,6 @@ pub(crate) fn install_import_thunks(
             byte_count: 6,
             symbol: symbol.clone(),
             footprint: None,
-            entry_effects: None,
         });
 
         thunks.push(PeImportThunk {

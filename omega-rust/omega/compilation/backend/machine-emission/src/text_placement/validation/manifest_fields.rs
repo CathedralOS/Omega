@@ -23,7 +23,7 @@ pub(super) fn check(
         || candidate.source_realization != source.source_realization
         || candidate.selections != source.selections
         || candidate.psi != source.psi
-        || candidate.work_schedule != source.work_schedule
+        || candidate.fuel_schedule != source.fuel_schedule
         || candidate.selected != source.selected
         || candidate.post_allocation_manifest != source.post_allocation_manifest
         || candidate.post_allocation_machine != source.post_allocation_machine

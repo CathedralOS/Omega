@@ -1,6 +1,6 @@
-// We join a typed scalar payload to native integer-word record geometry,
-// traversing single-field records to verify byte size, alignment, and non-cyclic
-// scalar leaf paths without accepting atomic or encoded storage.
+//! Join a typed scalar payload to native integer-word record geometry.
+//! The operation reports geometry; callers retain their own actual C type
+//! restrictions (for example a record-valued u32 versus a pointer word).
 
 use calling_conventions::{BoundarySignatureGeometry, BoundaryValueClass};
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, ScalarType};
@@ -25,6 +25,8 @@ pub(super) fn native_word_envelope(
         alignment: initial.alignment,
         contains_record: false,
     };
+    // A complete finite roster bounds traversal without allocating another
+    // visited set; cyclic and malformed nested edges cannot extend admission.
     for _ in 0..signature.shapes.len() {
         let shape = signature
             .shapes
@@ -59,6 +61,10 @@ pub(super) fn native_word_envelope(
     Err("native word envelope graph is cyclic")
 }
 
+/// The single integer leaf an owned native-word record chain ends in, when
+/// the chain is admitted by the same rules `scalar_payload_path` enforces.
+/// Layout-encoded members carry no per-field storage marker here: the record
+/// storage already binds their plan, and the leaf keeps its logical scalar.
 pub(super) fn scalar_leaf_integer(
     program: &terminal_interpreter::TerminalProgram,
     root: semantic_vocabulary::StructuralTypeId,
@@ -115,6 +121,8 @@ pub(super) fn scalar_leaf_integer(
     }
 }
 
+/// Exact semantic leaf below an owned native integer-word envelope. Geometry
+/// is authenticated separately against the evaluated calling application.
 pub(super) fn scalar_payload_path(
     program: &terminal_interpreter::TerminalProgram,
     root: semantic_vocabulary::StructuralTypeId,

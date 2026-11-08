@@ -1,5 +1,3 @@
-// Structural validation of contract expressions and static arguments within a signature scope.
-
 use crate::record::package::callable_policy::validation::signature::Scope;
 use crate::record::package::callable_policy::validation::signature::{
     BinderKind, Result, depth, lifetimes, operator, owned_pair, text, value_type,

@@ -206,27 +206,17 @@ fn build_x86_64_physical_register_model() -> PhysicalRegisterModel {
         named_views.insert(name, view);
         vector_units.push(unit);
     }
-    // Arithmetic changes CF/PF/AF/ZF/SF/OF without changing IF or the other
-    // system flags. Keep those dependencies separate while whole-register
-    // snapshots and restores continue to cover every RFLAGS bit.
-    let condition_flags = builder.unit("rflags.condition".into(), 6, RegisterUnitKind::Flags);
-    let control_flags = builder.unit("rflags.control".into(), 58, RegisterUnitKind::Flags);
-    for (name, units, bits) in [
-        ("rflags", vec![condition_flags, control_flags], 64),
-        ("condition_flags", vec![condition_flags], 6),
-        ("control_flags", vec![control_flags], 58),
-    ] {
-        let flags_view = builder.view(
-            name.into(),
-            FLAGS,
-            units.clone(),
-            units,
-            bits,
-            RegisterWriteSemantics::InstructionDefined,
-            false,
-        );
-        named_views.insert(name.into(), flags_view);
-    }
+    let flags_unit = builder.unit("rflags.storage".into(), 64, RegisterUnitKind::Flags);
+    let flags_view = builder.view(
+        "rflags".into(),
+        FLAGS,
+        vec![flags_unit],
+        vec![flags_unit],
+        64,
+        RegisterWriteSemantics::InstructionDefined,
+        false,
+    );
+    named_views.insert("rflags".into(), flags_view);
     let rip_unit = builder.unit(
         "rip.storage".into(),
         64,

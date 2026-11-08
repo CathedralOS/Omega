@@ -4,8 +4,8 @@
 use crate::{PsiOptimizationUnit, recompute_psi_optimization_unit_identity};
 use optimization_core::OptimizationUnitIdentity;
 use semantic_vocabulary::{
-    BoundaryMachineId, MachineId, PlaceId, StructuralDomainId, StructuralTypeId,
-    WorkScheduleIdentity,
+    BoundaryMachineId, FuelScheduleIdentity, MachineId, PlaceId, StructuralDomainId,
+    StructuralTypeId,
 };
 use std::sync::Arc;
 use terminal_psi::{
@@ -65,7 +65,7 @@ fn unit() -> PsiOptimizationUnit {
             vocabulary_marker: VocabularyMarker::CURRENT,
             program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
         },
-        work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
         entry: MachineId::new(1).unwrap(),
         structural_types: Vec::new().into(),
         structural_domains: Arc::new([]),

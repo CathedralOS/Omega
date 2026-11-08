@@ -81,7 +81,7 @@ use selected_instructions::{
     SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
     StoredLoadForwardingIdentity,
 };
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::forward_selected_stored_load;
 
@@ -99,7 +99,7 @@ pub struct StoredLoadForwardingReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
-    work_schedule: WorkScheduleIdentity,
+    fuel_schedule: FuelScheduleIdentity,
 }
 
 impl StoredLoadForwardingReceipt {

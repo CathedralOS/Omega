@@ -1,17 +1,12 @@
-// Physical placement and interrupted-state promises (`PackagePolicyPhysicalCallingContract`).
-//
-// This component contains no callback IDs, selected entries, or evidence
-// receipts; `parameters` are in native ABI order (including private
-// whole-parameter callbacks) and `ordinary_clobbers` are in deduplicated
-// canonical register order. `PackagePolicyMachineStateSet` stores a sorted,
-// deduplicated set of named state classes rather than compiler bit assignments.
-
 use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackageReviewBoundaryCallingPolicy, PackageReviewBoundaryValuePlacement,
     PackageReviewMachineRegister,
 };
 
+/// Physical placement and interrupted-state promises only. This component
+/// deliberately contains no callback IDs, selected entries, evidence receipts,
+/// or claims to be the complete requirement-pinned boundary policy.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyPhysicalCallingContract {
     pub(crate) policy: PackageReviewBoundaryCallingPolicy,
@@ -27,12 +22,15 @@ pub struct PackagePolicyPhysicalCallingContract {
 impl PackagePolicyPhysicalCallingContract {
     field_projection_accessors!(copied policy: PackageReviewBoundaryCallingPolicy);
 
+    /// Native ABI order, including any private whole-parameter callbacks.
+    /// Their semantic origins are not inferred from these physical placements.
     pub fn parameters(&self) -> &[PackageReviewBoundaryValuePlacement] {
         &self.parameters
     }
 
     field_projection_accessors!(optional result: Option<&PackageReviewBoundaryValuePlacement>);
 
+    /// Canonical register order, with no duplicates.
     pub fn ordinary_clobbers(&self) -> &[PackageReviewMachineRegister] {
         &self.ordinary_clobbers
     }
@@ -71,6 +69,7 @@ pub enum PackagePolicyMachineState {
     ExtendedState,
 }
 
+/// A canonical set of named state classes, not compiler bit assignments.
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyMachineStateSet(Vec<PackagePolicyMachineState>);
 

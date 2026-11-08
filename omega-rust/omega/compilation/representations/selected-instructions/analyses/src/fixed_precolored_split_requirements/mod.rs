@@ -17,7 +17,7 @@ use register_homes::{
 };
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::LiveRangeIdentity;
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 use target::NativeTarget;
 
 pub fn analyze_fixed_precolored_split_requirements(
@@ -43,7 +43,7 @@ seal_plan!(
         register_environment,
         allocator_availability,
         optimization_unit,
-        work_schedule,
+        fuel_schedule,
         target,
         policy,
         usage
@@ -59,7 +59,7 @@ pub struct FixedPrecoloredSplitRequirementValidationReceipt {
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
     pub(crate) optimization_unit: OptimizationUnitIdentity,
-    pub(crate) work_schedule: WorkScheduleIdentity,
+    pub(crate) fuel_schedule: FuelScheduleIdentity,
     pub(crate) target: NativeTarget,
     pub(crate) policy: FixedPrecoloredSplitRequirementPolicy,
     pub(crate) usage: OptimizationWorkUsage,

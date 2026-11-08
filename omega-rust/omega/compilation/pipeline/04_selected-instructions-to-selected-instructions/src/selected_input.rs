@@ -18,7 +18,7 @@ use selected_instruction_analyses::{
 use selected_instructions::{
     SelectedInstructionPlan, SelectedInstructionPlanIdentity, SelectedProgram,
 };
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 
 mod sealed {
     pub trait Sealed {}
@@ -57,8 +57,8 @@ macro_rules! validated_selected_analysis {
             fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
                 self.receipt().optimization_unit()
             }
-            fn work_schedule_identity(&self) -> WorkScheduleIdentity {
-                self.receipt().work_schedule()
+            fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+                self.receipt().fuel_schedule()
             }
         }
     };
@@ -96,8 +96,8 @@ impl SelectedProgramView for ValidatedPreAllocationTransformation {
     fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
         self.optimization_unit()
     }
-    fn work_schedule_identity(&self) -> WorkScheduleIdentity {
-        self.work_schedule()
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.fuel_schedule()
     }
 }
 

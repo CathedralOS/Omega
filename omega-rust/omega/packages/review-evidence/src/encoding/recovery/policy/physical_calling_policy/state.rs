@@ -1,5 +1,3 @@
-// Bounded recovery for physical entry control, machine regimes, state sets, stacks, and preemption plans.
-
 use super::{Error, Reader, placement::register};
 use crate::record::{
     PackagePolicyEntryControl, PackagePolicyEntryStack, PackagePolicyMachineRegime,

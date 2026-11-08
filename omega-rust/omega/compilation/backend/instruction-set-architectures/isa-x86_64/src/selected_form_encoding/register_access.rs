@@ -11,7 +11,6 @@
 //! MachineControl admission never grants custody of translated storage.
 
 mod descriptor_registers;
-pub(crate) mod installed_table;
 
 use super::{
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError as Error,
@@ -107,10 +106,10 @@ fn scratch(operation: Operation) -> &'static [&'static str] {
         Operation::SystemRead(SystemRegister::Control(_)) => &["r10", "r15"],
         Operation::SystemWrite(SystemRegister::Control(_)) => &["rax", "r10", "r11", "r15"],
         Operation::GlobalDescriptorTable(_) => &["r10"],
-        Operation::TaskRegisterActivate => &["r9", "r10", "r11", "condition_flags"],
-        Operation::SegmentReload(SegmentReload::Code) => &["r9", "r10", "condition_flags"],
+        Operation::TaskRegisterActivate => &["r9", "r10", "r11", "rflags"],
+        Operation::SegmentReload(SegmentReload::Code) => &["r9", "r10", "rflags"],
         Operation::SegmentReload(SegmentReload::Data) => {
-            &["rcx", "rdx", "r8", "r9", "r10", "r11", "condition_flags"]
+            &["rcx", "rdx", "r8", "r9", "r10", "r11", "rflags"]
         }
         Operation::PortRead => &["rax", "rdx", "r10"],
         Operation::SystemRead(SystemRegister::Rflags)
@@ -177,7 +176,7 @@ pub(crate) fn effects(operation: Operation) -> MachineEncodedEffects {
             .view_named("rsp")
             .expect("canonical stack pointer")
             .id;
-        encoded.implicit_unit_uses = units_of(&["rsp", "control_flags"]);
+        encoded.implicit_unit_uses = units_of(&["rsp", "rflags"]);
         encoded.memory = MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
             table_pointer_operand: 0,
             task_pointer_operand: 1,
@@ -196,7 +195,7 @@ pub(crate) fn effects(operation: Operation) -> MachineEncodedEffects {
             .view_named("rsp")
             .expect("canonical stack pointer")
             .id;
-        encoded.implicit_unit_uses = units_of(&["rsp", "control_flags"]);
+        encoded.implicit_unit_uses = units_of(&["rsp", "rflags"]);
         encoded.memory = MachineEncodedMemoryEffect::SegmentDescriptorReloadV1 {
             table_pointer_operand: 0,
             selector_operand: 1,
@@ -229,7 +228,7 @@ pub(crate) fn effects(operation: Operation) -> MachineEncodedEffects {
     }
     if matches!(operation, Operation::InterruptControl(_)) {
         let flags = physical
-            .view_named("control_flags")
+            .view_named("rflags")
             .expect("canonical flags register");
         encoded.implicit_unit_uses = register_model::sorted_units(flags.units.iter().copied());
         encoded.implicit_unit_defs = encoded.implicit_unit_uses.clone();

@@ -33,8 +33,6 @@ pub use prepared_roots::{
 };
 
 mod callback_application;
-mod installed_interrupt;
-pub use installed_interrupt::TerminalInstalledInterruptRegistration;
 mod calling_policies;
 mod native_layouts;
 pub use native_layouts::{

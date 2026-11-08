@@ -13,7 +13,7 @@ use crate::FixedViewCopyDecodeError;
 
 use super::{
     instruction::{decode_instruction, encode_instruction},
-    provenance::{decode_work, encode_work},
+    provenance::{decode_fuel, encode_fuel},
 };
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{Cursor, decode_id, decode_list, length},
@@ -82,10 +82,6 @@ pub(super) fn decode_block(
     };
     let instructions = decode_list(cursor, decode_instruction)?;
     let terminator = match cursor.byte()? {
-        9 => SelectedTerminator::OperationInvokeNoNormal {
-            instruction: decode_instruction(cursor)?,
-            operation: decode_id(cursor, OperationId::new)?,
-        },
         7 => SelectedTerminator::OperationTrap {
             instruction: decode_instruction(cursor)?,
             operation: decode_id(cursor, OperationId::new)?,
@@ -271,7 +267,7 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
             }
         }
     }
-    encode_work(bytes, &successor.work);
+    encode_fuel(bytes, &successor.fuel);
 }
 
 fn decode_successor(
@@ -420,7 +416,7 @@ fn decode_successor(
         bindings,
         structural_bindings,
         structural_case,
-        work: decode_work(cursor)?,
+        fuel: decode_fuel(cursor)?,
     })
 }
 

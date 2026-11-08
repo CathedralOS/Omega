@@ -220,7 +220,7 @@ impl PreparedBuildMachineProgram {
                 {
                     terminal_interpreter::TerminalExecutionStatus::Complete(value) => Ok(value),
                     terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_) => Err(format!(
-                        "constant Terminal execution exhausted its work budget after {} units",
+                        "constant Terminal execution exhausted its fuel allowance after {} units",
                         meter.usage().total_units(),
                     )),
                     terminal_interpreter::TerminalExecutionStatus::Crashed(crash) => {

@@ -1,13 +1,9 @@
-// Multi-target `ProgramEntry` contract source seeding (`entry_contract_seeds`, `EntryContractSource`).
-//
-// Every catalogued target profile's `ProgramEntry` contract source joins the assembled
-// `Product` source set so the parsed and checked program stays target-neutral and
-// checks all target-scoped bodies as siblings (`wiki/spec/build/configuration.md#multi-target-compilation`).
-// When the package graph contains a single supplier for a contract package, we seed
-// that package's source root; when no package supplies it and no accepted binding
-// overrides it, we fall back to the bundled `std` subtree and register closed
-// toolchain-contract custody (`register_custody`). When multiple suppliers exist,
-// we require an accepted semantic binding to disambiguate.
+//! Every target's program-entry contract source joins the assembled source
+//! set, not only the selected target's: the set is target-neutral and the
+//! other targets' target-scoped bodies are checked as siblings
+//! (`wiki/spec/build/configuration.md#multi-target-compilation`). Which
+//! contract realizes the program entry remains a per-target selection made
+//! later, from the target catalog's slot.
 
 use crate::PackageCompilationInputs;
 use crate::source::source_imports::SourceStorage;
@@ -21,6 +17,8 @@ pub(crate) struct EntryContractSeed {
 }
 
 impl EntryContractSeed {
+    /// Register only bundled fallback custody, then hand the selected source
+    /// to the loading stage. Ordinary suppliers keep their package identity.
     pub(crate) fn register_custody(self, storage: &mut SourceStorage) -> PathBuf {
         if self.closed_subtree {
             storage.register_toolchain_contract_root(self.source.clone(), self.root.clone());
@@ -30,6 +28,8 @@ impl EntryContractSeed {
     }
 }
 
+/// One seed per catalogued profile that owns a physical entry contract
+/// package, skipping any contract source the storage already holds.
 pub(crate) fn entry_contract_seeds(
     package_inputs: Option<&PackageCompilationInputs>,
     source_storage: &SourceStorage,
@@ -41,6 +41,9 @@ pub(crate) fn entry_contract_seeds(
     )
 }
 
+/// A paused query may see several settled dependency graphs before its own
+/// package exists. Supplier selection is the same operation as final assembly;
+/// only an already admitted root can contribute an accepted selection.
 pub(super) fn entry_contract_seeds_from_graphs(
     original: Option<&PackageCompilationInputs>,
     graphs: &[&PackageCompilationInputs],
@@ -85,6 +88,10 @@ pub(super) fn entry_contract_seeds_from_graphs(
     Ok(seeds)
 }
 
+/// The source choice a binding can affect, separate from its later authority.
+/// With one supplier, nominating another target or changing a schema record
+/// does not change the source forest. Multiple suppliers still require the
+/// exact accepted package; an unavailable selection must not reuse a fallback.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) enum EntryContractSource {
     Bundled,

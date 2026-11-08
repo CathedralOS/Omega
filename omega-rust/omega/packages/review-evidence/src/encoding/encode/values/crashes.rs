@@ -1,5 +1,3 @@
-// Canonical encoding for crash-route structural fields, predicate paths, and runtime indices.
-
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{

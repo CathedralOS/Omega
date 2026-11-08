@@ -1,4 +1,5 @@
-// Provider realization projection keeping the selected executable association while describing its stable source application so private specialization names never change package consent.
+//! Keep the selected executable association while describing its stable source
+//! application. Private specialization names must not change package consent.
 
 use super::rejected;
 use crate::capture::PackageReviewInput;

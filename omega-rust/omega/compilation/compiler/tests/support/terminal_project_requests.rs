@@ -2,7 +2,7 @@
 
 use build_declarations::{BuildDependencySource, BuildRequest, DependencyPurpose};
 use build_settings::host::requests::TerminalBuildRequestHost;
-use psi_work::WorkMeter;
+use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalStructuralInputs,
     TerminalStructuralValue,
@@ -56,7 +56,7 @@ pub(super) fn observe(
             }
             if foreign {
                 let error = instance
-                    .invoke(&mut WorkMeter::unbounded())
+                    .invoke(&mut TerminalFuelMeter::unbounded())
                     .err()
                     .ok_or("foreign Build receiver accepted")?;
                 if !format!("{error:?}").contains("original compiler-issued Build") {
@@ -70,16 +70,16 @@ pub(super) fn observe(
                 continue;
             }
             let mut observed = Vec::new();
-            let mut work = WorkMeter::with_budget(0);
+            let mut fuel = TerminalFuelMeter::with_allowance(0);
             for _ in 0..2_000 {
                 let status = instance
-                    .invoke(&mut work)
+                    .invoke(&mut fuel)
                     .map_err(|error| format!("invoke: {error:?}"))?;
                 observed.extend(host.drain_requests()?);
                 match status {
-                    TerminalExecutionStatus::SponsorExhausted(_) => work
+                    TerminalExecutionStatus::SponsorExhausted(_) => fuel
                         .replenish(1)
-                        .map_err(|error| format!("work: {error:?}"))?,
+                        .map_err(|error| format!("fuel: {error:?}"))?,
                     TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => break,
                     other => return Err(format!("unexpected Build status: {other:?}")),
                 }
@@ -102,7 +102,7 @@ pub(super) fn observe(
                 );
             }
             instance
-                .invoke(&mut work)
+                .invoke(&mut fuel)
                 .map_err(|error| format!("cached completion: {error:?}"))?;
             if !host.drain_requests()?.is_empty() {
                 return Err("cached completion replayed project effects".into());

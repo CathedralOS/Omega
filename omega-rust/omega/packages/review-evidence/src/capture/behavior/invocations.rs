@@ -1,7 +1,3 @@
-// Projection of synchronous invocation targets (`canonical_checked_invocation_targets`
-// and `project_synchronous_invocations`) into parameter positions and boundary
-// service identities.
-
 use super::super::semantics::declarations::nominal_identity;
 use crate::capture::SourceDeclarationInput;
 use crate::record::PackageReviewSynchronousInvocation;

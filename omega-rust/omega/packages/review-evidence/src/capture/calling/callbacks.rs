@@ -1,5 +1,4 @@
-// Callback policy projection rebinding compiler callback coordinates to receipt-free
-// semantic rows after the containing owner replays the validated calling application.
+//! Rebind compiler callback coordinates to receipt-free semantic rows.
 
 mod binders;
 mod layouts;
@@ -17,6 +16,8 @@ use provider_planning::calling_policy_plans::{
 };
 use typed_trees::name::Identifier;
 
+/// Called only after the containing owner replays the complete validated
+/// application. Compact identifiers are transient exact joins, never output.
 pub(crate) fn project_callback_policy(
     compilation: &PackageReviewInput<'_>,
     signature: &MaterializedBoundarySignature,

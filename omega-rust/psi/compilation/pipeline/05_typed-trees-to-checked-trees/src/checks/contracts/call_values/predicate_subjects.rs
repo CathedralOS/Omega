@@ -56,7 +56,7 @@ pub(super) fn current_case(
     captured: &crate::flow::CapturedValue<'_>,
     bindings: &mut Vec<crate::published::facts::boolean_predicates::BoundObservation>,
 ) -> Option<facts::BooleanPredicateOperand> {
-    let places = crate::flow::captured_observation_places(program, facts.flow.view(), captured)?;
+    let places = crate::flow::captured_observation_places(program, &facts.flow, captured)?;
     let [observed] = places.as_slice() else {
         return None;
     };
@@ -126,7 +126,7 @@ pub(super) fn retain_owned_cases<'facts>(
         }
         let values = crate::flow::captured_operand_values(
             program,
-            facts.flow.view(),
+            &facts.flow,
             &facts.semantic,
             state,
             receiver,
@@ -149,7 +149,7 @@ pub(super) fn retain_owned_cases<'facts>(
             if previous.place == binding.place
                 && !crate::flow::operand_observations_agree(
                     program,
-                    facts.flow.view(),
+                    &facts.flow,
                     previous_epoch,
                     first.observation.row(),
                     &binding.place,

@@ -9,8 +9,8 @@ pub fn encode_provenance(bytes: &mut Vec<u8>, provenance: &SelectedInstructionPr
     encode_ids(bytes, provenance.values.iter().map(|id| id.get()));
     encode_ids(bytes, provenance.edges.iter().map(|id| id.get()));
     encode_ids(bytes, provenance.obligations.iter().map(|id| id.get()));
-    encode_len(bytes, provenance.work.len());
-    for settlement in &provenance.work {
+    encode_len(bytes, provenance.fuel.len());
+    for settlement in &provenance.fuel {
         match settlement.site {
             PsiProvenance::Operation(operation) => {
                 bytes.push(0);

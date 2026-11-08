@@ -61,7 +61,7 @@ pub(super) fn lower(
             {
                 return unsupported("computed borrow disagrees with its callee referent custody");
             }
-            if matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }) {
+            if argument.source.structural_value_dependency().is_some() {
                     let slot = produced_values.iter().find(|slot| {
                         source_call.is_some_and(|source| slot.source_call == source) && slot.argument_ordinal == Some(argument_ordinal)
                     }).ok_or(LoweringError::Unsupported(

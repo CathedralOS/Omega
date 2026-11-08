@@ -115,7 +115,7 @@ pub(super) fn ambient_step_budget() -> u64 {
         .unwrap_or(STEP_BUDGET)
 }
 
-/// Work cap for CONST EVALUATION (comptime stage 1). The language's
+/// Fuel cap for CONST EVALUATION (comptime stage 1). The language's
 /// termination discipline (no general recursion, loops carry decreases) is the
 /// real guarantee; this cap is defense-in-depth against checker gaps. Exceeding
 /// it is a compile error at the const site.
@@ -426,7 +426,7 @@ pub(crate) struct Evaluator<'program> {
     /// Optional compiler-owned account shared across a complete build-review
     /// session. This measures deterministic compiler-owned build resources.
     pub(super) build_evaluation_sponsor: Option<BuildEvaluationSponsor>,
-    /// Total step budget for this run. Full-program interpretation uses
+    /// Total step allowance for this run. Full-program interpretation uses
     /// `STEP_BUDGET`; const evaluation uses the much smaller
     /// `CONST_EVAL_STEP_BUDGET` as a defense-in-depth step ceiling.
     step_budget: u64,

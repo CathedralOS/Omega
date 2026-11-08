@@ -6,7 +6,7 @@
 //! `<pass>.rs` holds that pass's visible local rule order and the contracts
 //! its rules share -- and its rules are the files under `<pass>/`, one per
 //! rule (or one table per rule family over a single proposal). `node_elision`
-//! owns shared removal proposals and provenance/work accounting;
+//! owns shared removal proposals and provenance/fuel accounting;
 //! `accepted_obligations` rejoins the proof facts those proposals consume.
 //! Constant, dominance, use-definition and cycle queries belong to `analyses`.
 //! Independent acceptance remains in `optimization-unit-semantics`.

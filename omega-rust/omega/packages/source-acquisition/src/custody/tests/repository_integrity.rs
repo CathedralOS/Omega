@@ -1,6 +1,3 @@
-// Unit tests for provisional Git cache cleanup, symlink/hardlink rejection,
-// config substitution detection, and external write-permission rejection.
-
 use super::{
     GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CONFIG_SHA1, LocalSourceLimits,
     ProvisionalCacheDirectory, SourceResolveError, create_private_cache_directory,
@@ -21,6 +18,8 @@ fn provisional_git_cache_directory_is_cleaned_if_retention_fails() {
         .expect("create provisional cache directory");
     {
         let _provisional = ProvisionalCacheDirectory::new(&parent, OsStr::new("provisional"));
+        // Returning from a failed retention path drops this guard while it
+        // still owns the just-created parent-relative name.
     }
     assert!(!cache.join("provisional").exists());
     let _ = std::fs::remove_dir_all(&cache);

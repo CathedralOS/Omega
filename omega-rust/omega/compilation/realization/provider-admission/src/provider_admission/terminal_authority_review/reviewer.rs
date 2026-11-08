@@ -1,13 +1,4 @@
-/*
-Recursive selected-provider closure expansion and leaf admission.
-
-`Reviewer` expands each reachable boundary once, verifies private access
-lifecycles and static-interrupt helpers against their expected compiler
-intrinsics, re-classifies and permission-checks component callable authority
-leaves, traverses installed `CheckedAdapter` provider instances, and records
-each leaf in a review-local `TerminalIdentityTableBuilder` because provider-side
-requirement text can be absent from the program plan's identity table.
-*/
+//! Recursive selected-provider closure expansion and leaf admission.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -43,6 +34,9 @@ pub(super) struct Reviewer<'a> {
 impl<'a> Reviewer<'a> {
     pub(super) fn new(context: ReviewContext<'a>) -> Self {
         Self {
+            // Provider-side requirement text can be absent from the plan's
+            // table, so leaves mint into a review-local copy of it rather
+            // than resolving through `index_of`.
             identities: context.input.plan().identities.clone().into_builder(),
             context,
             expanded: BTreeSet::new(),
@@ -60,6 +54,10 @@ impl<'a> Reviewer<'a> {
     }
 
     pub(super) fn expand_boundary(&mut self, boundary: BoundaryMachineId) -> Result<(), String> {
+        // Canonical provider admission already rejects cycles through every
+        // installed provider instance; this set
+        // only bounds the recursion so a repeated boundary is expanded once
+        // rather than re-checked.
         if !self.expanded.insert(boundary) {
             return Ok(());
         }
@@ -92,6 +90,10 @@ impl<'a> Reviewer<'a> {
             lifecycle
         };
         if let Some(intrinsic) = intrinsic {
+            // These private, source-authenticated operations consume existing
+            // extent custody. Their profile supplier is an ordinary selected
+            // call and is reviewed separately. Do not invent a provider/service
+            // identity for the primitive, or silently skip a missing settlement.
             let expected = TerminalMechanismIdentity::CompilerIntrinsic(intrinsic);
             if self.context.mechanisms.get(&boundary) != Some(&expected) {
                 return Err(format!(
@@ -115,50 +117,6 @@ impl<'a> Reviewer<'a> {
             }
             return Ok(());
         }
-        if let Some(operation) = declaration
-            .declaration
-            .as_ref()
-            .and_then(|row| row.execution.static_interrupt_operation())
-        {
-            let expected = TerminalMechanismIdentity::CompilerIntrinsic(
-                effects::CompilerIntrinsicExecutionIdentity::StaticInterrupt(operation),
-            );
-            if self.context.mechanisms.get(&boundary) != Some(&expected) {
-                return Err(format!(
-                    "static interrupt {boundary:?} has no exact admitted execution"
-                ));
-            }
-            if operation == language_core::static_interrupts::StaticInterruptOperation::Install {
-                if !self
-                    .context
-                    .installed_interrupts
-                    .scopes()
-                    .iter()
-                    .any(|scope| scope.boundary() == boundary)
-                {
-                    return Err(format!(
-                        "static interrupt {boundary:?} has no admitted Scope"
-                    ));
-                }
-            } else {
-                let exercised =
-                    self.context
-                        .physical_policy
-                        .classify(expected)
-                        .map_err(|error| {
-                            format!(
-                                "static interrupt helper has no physical classification: {:?}",
-                                error.mechanism()
-                            )
-                        })?;
-                if !exercised.classes().is_empty() {
-                    return Err(format!(
-                        "static interrupt helper {boundary:?} unexpectedly exercises host authority"
-                    ));
-                }
-            }
-            return Ok(());
-        }
         let requirement = self
             .context
             .input
@@ -173,6 +131,10 @@ impl<'a> Reviewer<'a> {
         let (selected_plan, selected_row, specialization) =
             self.context.selected_requirement(requirement)?;
         if let Some(authority) = self.context.component_authority(boundary)? {
+            // This witness came from actual producer native admission, not a
+            // descriptive receipt reconstructed by the receiver. Every leaf is
+            // nevertheless classified and permission-checked again here.
+            // Producer-local identity indices resolve in its own retained table.
             for leaf in authority.review().leaves() {
                 let effects::TerminalAuthorityClosureCustody::SelectedRequirement {
                     service_schema,
@@ -210,6 +172,12 @@ impl<'a> Reviewer<'a> {
                         "selected checked adapter for `{requirement}` has incomplete or substituted provider custody"
                     ));
                 }
+                // Recover the exact installed row, without treating an absent
+                // catalog or projection as successful installation. The trust
+                // boundary reports missing custody rather than panicking.
+                // The installed candidate names the specialized provider
+                // instance for a closed requirement; the selected row's
+                // binding retains the authored generic provider template.
                 let realization_identity = specialization
                     .and_then(|row| {
                         self.context
@@ -284,6 +252,9 @@ impl<'a> Reviewer<'a> {
         &mut self,
         instruction: super::reachability::ReachableCheckedOperation,
     ) -> Result<(), String> {
+        // The current receiving-policy vocabulary names exact selected
+        // requirements. A direct root has no such subject; classification
+        // alone must never be replayed as a receiving-permission verdict.
         if self.context.permission_policy.is_some() {
             return Err("direct checked instruction has no exact receiving-permission subject in this policy".into());
         }
@@ -359,6 +330,10 @@ impl<'a> Reviewer<'a> {
             }
             Err(_) => None,
         };
+        // The receiver-admission axis is consulted only when a receiving
+        // permission policy was explicitly supplied. Without one the leaf
+        // retains its mechanism and any available classification with no
+        // adjudicated permission; the leaf cannot claim admission later.
         let permitted = self
             .context
             .permission_policy

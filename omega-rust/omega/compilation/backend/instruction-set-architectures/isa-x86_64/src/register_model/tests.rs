@@ -316,12 +316,12 @@ fn register_constraint_catalog_closes_the_required_x86_64_inventory() {
     assert_eq!(compare.operands[0].class, GPR64);
     assert_eq!(
         compare.implicit_defs,
-        model.model().view_named("condition_flags").unwrap().units
+        model.model().view_named("rflags").unwrap().units
     );
 
     let branch = row(catalog, X86_64_CONDITIONAL_BRANCH);
     assert_eq!(branch.key, X86_64_CONDITIONAL_BRANCH);
-    for state in ["condition_flags", "rip"] {
+    for state in ["rflags", "rip"] {
         assert!(
             model
                 .model()
@@ -382,7 +382,7 @@ fn register_constraint_catalog_closes_the_required_x86_64_inventory() {
     assert!(subtract.implicit_defs.is_empty());
     assert_eq!(
         subtract.clobbers,
-        model.model().view_named("condition_flags").unwrap().units
+        model.model().view_named("rflags").unwrap().units
     );
     assert_eq!(
         branch.implicit_defs,
@@ -419,7 +419,7 @@ fn signed_remainder_row_keeps_the_divisor_out_of_rdx() {
     assert!(remainder.implicit_defs.is_empty());
     assert_eq!(
         remainder.clobbers,
-        model.model().view_named("condition_flags").unwrap().units
+        model.model().view_named("rflags").unwrap().units
     );
 
     // A fixed early-clobber definition cannot participate in the allocation
@@ -576,7 +576,7 @@ fn x86_64_target_semantics_reject_compatible_substitution_and_missing_clobbers()
 fn x86_64_branch_rejects_one_field_missing_flags_use() {
     let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
     let mut catalog = x86_64_register_constraint_catalog(&model);
-    let flags = model.model().view_named("condition_flags").unwrap().units[0];
+    let flags = model.model().view_named("rflags").unwrap().units[0];
     row_mut(&mut catalog, X86_64_CONDITIONAL_BRANCH)
         .implicit_uses
         .retain(|unit| *unit != flags);
@@ -661,69 +661,4 @@ fn normalized_foreign_templates_reject_signature_rows_and_changed_effects() {
         &x86_64_foreign_template_roster(),
         |catalog, model| validate_x86_64_register_constraint_catalog(catalog, model).is_ok(),
     );
-}
-
-#[test]
-fn frame_spills_preserve_control_flags_but_interfere_with_live_conditions() {
-    let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-    let catalog = x86_64_register_constraint_catalog(&model);
-    let units = |name| &model.model().view_named(name).unwrap().units;
-    let conditions = units("condition_flags");
-    let controls = units("control_flags");
-    assert!(conditions.iter().all(|unit| !controls.contains(unit)));
-    let mut whole = conditions.clone();
-    whole.extend(controls);
-    whole.sort_unstable();
-    assert_eq!(&whole, units("rflags"));
-
-    for key in [crate::X86_64_FRAME_ADDRESS, crate::X86_64_STORE64] {
-        let spill = row(&catalog, key);
-        assert_eq!(&spill.clobbers, conditions);
-        // A pending comparison still prevents inserting a frame-address mask.
-        let branch = row(&catalog, X86_64_CONDITIONAL_BRANCH);
-        assert!(
-            spill
-                .clobbers
-                .iter()
-                .all(|unit| branch.implicit_uses.contains(unit))
-        );
-        for check in [
-            crate::X86_64_INSTALLED_INTERRUPT_CPU_CHECK,
-            crate::X86_64_INSTALLED_INTERRUPT_TASK_COMMIT,
-            crate::X86_64_TASK_REGISTER_ACTIVATE,
-            crate::X86_64_CODE_SEGMENT_RELOAD,
-            crate::X86_64_DATA_SEGMENT_RELOAD,
-        ] {
-            let check = row(&catalog, check);
-            assert!(
-                controls
-                    .iter()
-                    .all(|unit| check.implicit_uses.contains(unit))
-            );
-            assert!(
-                spill
-                    .clobbers
-                    .iter()
-                    .all(|unit| !check.implicit_uses.contains(unit))
-            );
-        }
-    }
-    let interrupts = row(&catalog, crate::X86_64_INTERRUPT_CONTROL);
-    assert_eq!(&interrupts.implicit_uses, controls);
-    assert_eq!(&interrupts.implicit_defs, controls);
-    let snapshot = row(&catalog, crate::X86_64_FLAGS_SNAPSHOT);
-    assert!(
-        whole
-            .iter()
-            .all(|unit| snapshot.implicit_uses.contains(unit))
-    );
-    assert_eq!(
-        row(&catalog, crate::X86_64_FLAGS_RESTORE).implicit_defs,
-        whole
-    );
-    assert!(whole.iter().all(|unit| {
-        row(&catalog, X86_64_LINUX_SYSTEM_CALL)
-            .clobbers
-            .contains(unit)
-    }));
 }

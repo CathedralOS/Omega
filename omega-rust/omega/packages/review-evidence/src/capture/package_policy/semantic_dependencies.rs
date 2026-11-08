@@ -1,8 +1,4 @@
-// Retained semantic dependency edge projection with package-grouped private
-// implementation consumers. Automatic cleanup machine edges (`dropped by`) project
-// the exact selected cleanup hook rather than a declaration family, while
-// materialized generic carriers follow their checked nominal application metadata
-// (including nominal type arguments) rather than publishing generated carrier names.
+//! Retained semantic edges with package-grouped private implementation consumers.
 
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::conformances::policy_callable_identity;
@@ -81,6 +77,8 @@ pub(super) fn project(
         };
         let dependencies =
             if fact.kind == checked_trees::CheckedSemanticDependencyKind::AutomaticCleanupMachine {
+                // The checked dependency owner selected this exact cleanup hook
+                // with `dropped by`; declaration-family projection never selects it.
                 vec![policy_callable_identity(compilation, fact.dependency)?]
             } else {
                 nominal_declarations(compilation, fact.dependency)?
@@ -122,6 +120,10 @@ pub(super) fn project(
     Ok(rows)
 }
 
+/// Semantic dependency edges name source declarations. A materialized carrier
+/// retains its complete checked application separately; follow that metadata,
+/// including nominal type arguments, instead of publishing its generated name.
+/// The checked carrier itself is unchanged for layout and cleanup execution.
 fn nominal_declarations(
     compilation: &PackageReviewInput<'_>,
     root: SymbolHandle,
@@ -140,6 +142,8 @@ fn nominal_declarations(
     while let Some(visit) = pending.pop() {
         match visit {
             Visit::Symbol(symbol) => {
+                // Builtin/non-nominal type operands have no declaration symbol,
+                // exactly as in the checked dependency collector.
                 if !symbol.is_valid() {
                     continue;
                 }

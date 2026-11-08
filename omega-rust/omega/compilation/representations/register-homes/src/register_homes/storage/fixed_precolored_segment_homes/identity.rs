@@ -15,7 +15,7 @@ pub fn fixed_precolored_segment_home_plan_identity(
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, plan.work_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
     crate::codec_bytes::encode_target(&mut bytes, plan.target);
     bytes.push(match plan.policy {
         FixedPrecoloredSegmentHomePolicy::MostConstrainedLowestCompatibleViewV1 => 0,

@@ -1,8 +1,3 @@
-// Physical calling-contract projection from a validated boundary entry plan. The
-// containing policy separately retains exact requirement/target, native-parameter
-// origins, and semantic callback materializations so no validator or native
-// implementation receipt enters this value.
-
 use crate::capture::representation::physical_contract::{
     project_calling_policy, project_machine_register, project_value_placement,
 };
@@ -17,6 +12,10 @@ use calling_conventions::{
 };
 
 impl PackagePolicyPhysicalCallingContract {
+    /// Capture only the complete physical facet of a validated plan. The
+    /// containing policy must separately retain exact requirement/target,
+    /// native-parameter origins, and semantic callback materializations.
+    /// No validator or native implementation receipt enters this value.
     pub(crate) fn from_validated_plan(plan: &ValidatedBoundaryEntryPlan) -> Self {
         project(plan.plan())
     }

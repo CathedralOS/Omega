@@ -46,7 +46,7 @@ pub(crate) fn compute_terminal_live_ranges(
         selected: selected.selected_identity(),
         liveness: liveness.receipt().identity(),
         optimization_unit: selected.optimization_unit_identity(),
-        work_schedule: selected.work_schedule_identity(),
+        fuel_schedule: selected.fuel_schedule_identity(),
         target: selected.selected_plan().target,
         functions,
     })
@@ -65,10 +65,10 @@ pub(crate) fn compute_terminal_live_ranges_reusing(
         && prior.liveness == previous_liveness.receipt().identity()
         && previous_liveness.plan().selected == previous.selected_identity()
         && prior.optimization_unit == previous.optimization_unit_identity()
-        && prior.work_schedule == previous.work_schedule_identity()
+        && prior.fuel_schedule == previous.fuel_schedule_identity()
         && prior.target == previous.selected_plan().target
         && prior.optimization_unit == selected.optimization_unit_identity()
-        && prior.work_schedule == selected.work_schedule_identity()
+        && prior.fuel_schedule == selected.fuel_schedule_identity()
         && prior.target == selected.selected_plan().target
         && prior.functions.len() == previous.selected_plan().functions.len();
     let functions = selected
@@ -98,7 +98,7 @@ pub(crate) fn compute_terminal_live_ranges_reusing(
             selected: selected.selected_identity(),
             liveness: liveness.receipt().identity(),
             optimization_unit: selected.optimization_unit_identity(),
-            work_schedule: selected.work_schedule_identity(),
+            fuel_schedule: selected.fuel_schedule_identity(),
             target: selected.selected_plan().target,
             functions,
         },

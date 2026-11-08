@@ -32,7 +32,7 @@ use register_model::{
     ValidatedRegisterReservationProfile,
 };
 use selected_instructions::LiveRangeIdentity;
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 use target::NativeTarget;
 
 #[allow(clippy::too_many_arguments)]
@@ -78,7 +78,7 @@ seal_plan!(
         register_environment,
         allocator_availability,
         optimization_unit,
-        work_schedule,
+        fuel_schedule,
         target,
         policy,
         usage
@@ -95,7 +95,7 @@ pub struct FixedPrecoloredSegmentHomeValidationReceipt {
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
     pub(crate) optimization_unit: OptimizationUnitIdentity,
-    pub(crate) work_schedule: WorkScheduleIdentity,
+    pub(crate) fuel_schedule: FuelScheduleIdentity,
     pub(crate) target: NativeTarget,
     pub(crate) policy: FixedPrecoloredSegmentHomePolicy,
     pub(crate) usage: OptimizationWorkUsage,

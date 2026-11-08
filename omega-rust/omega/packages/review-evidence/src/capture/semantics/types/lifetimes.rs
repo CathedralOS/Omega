@@ -1,5 +1,3 @@
-// Lifetime topology and binder ordinal projection for public signature types and domain constraints.
-
 use super::super::declarations::nominal_identity_from_symbols;
 use super::super::encoding::{canonical_digest_label, framed_identity};
 use crate::record::PackageReviewNominalOwner;

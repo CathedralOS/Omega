@@ -7,8 +7,8 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-use psi_work::WorkMeter;
 use terminal_codec::CanonicalTerminalArtifact;
+use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalComponentBinding, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalEffectResult, TerminalExecutionResult, TerminalExecutionStatus, TerminalImportAdapter,
@@ -305,7 +305,7 @@ pub(super) fn inspect(
     instance
         .bind_component(component)
         .map_err(|error| format!("component binding: {error:?}"))?;
-    let mut meter = WorkMeter::unbounded();
+    let mut meter = TerminalFuelMeter::unbounded();
     let first = instance.invoke(&mut meter);
     let expected_observations = match expectation {
         InputExpectation::Observations(count) => count,

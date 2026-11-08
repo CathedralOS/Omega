@@ -1,9 +1,9 @@
-// We reconstruct the exact `TrustAdmission` obligations a root's grants
-// establish (`reconstruct_trust_obligations`). Each root grant resolves either
-// to a selected provider plan (`PreparedTrustIdentity::ProviderPlan`) or to an
-// accepted machine template or contract (`MachineTemplate` / `AcceptedMachine`),
-// rejecting grants that name nothing the program selects without performing
-// policy-file I/O.
+//! Reconstruct the exact trust obligations a root's grants establish.
+//!
+//! A grant in the root's build declaration is the root's acceptance; this
+//! owner resolves each grant to its exact claim or provider plan and rejects
+//! grants that name nothing the program selects. It performs no policy-file
+//! I/O and compares against no second acceptance record.
 
 use crate::{NonProviderTrustGrant, TrustAdmission};
 use diagnostics::Diagnostic;
@@ -30,6 +30,8 @@ struct PreparedTrustObligation {
     identity: PreparedTrustIdentity,
 }
 
+/// Reconstruct every exact trust obligation from compiler-owned semantic
+/// facts. This operation performs no policy discovery and no filesystem I/O.
 pub fn reconstruct_trust_obligations(
     declarations: &TrustDeclarations,
     root_grants: &[String],
@@ -45,7 +47,11 @@ pub fn reconstruct_trust_obligations(
     )
     .map_err(|diagnostic| vec![diagnostic])?;
     if package_aware {
-        crate::reject_package_grants_with_providers(declarations, root_grants, &provider_grants)?;
+        crate::root_grants::reject_package_grants_with_providers(
+            declarations,
+            root_grants,
+            &provider_grants,
+        )?;
     }
     for grant in root_grants {
         if let Some(provider_grant) = provider_grants

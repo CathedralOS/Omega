@@ -656,9 +656,8 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
 fn populate_machine_completed_cases(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    guard: &crate::frozen_program::CutGuard<'_>,
+    memos: &crate::frozen_program::CheckingMemos,
 ) {
-    let mut verdicts = Vec::new();
     for state in program.machine_states(machine) {
         let occurrences = crate::proof_contracts::default_domains::completed_case_occurrences(
             program, machine, state,
@@ -690,31 +689,24 @@ fn populate_machine_completed_cases(
                 .collect();
             observe_runtime_state_prefixes(program, machine, state, &mut batched)
         };
-        for ((statement_index, expression, reference), (visitor, recognized)) in
-            occurrences.iter().zip(visitors.iter().zip(recognized))
-        {
-            let verdict = (recognized && visitor.complete && visitor.observed)
-                .then_some(visitor.case)
-                .flatten();
-            verdicts.push((
-                (
-                    machine.symbol,
-                    state.symbol,
-                    *statement_index,
-                    *expression,
-                    *reference,
-                ),
-                verdict,
-            ));
-        }
-    }
-    // Published only once the whole population is known to be cut-free.
-    let Some(memos) = guard.memos() else {
-        return;
-    };
-    if let Ok(mut outcomes) = memos.completed_case_outcomes.lock() {
-        for (key, verdict) in verdicts {
-            outcomes.insert(key, verdict);
+        if let Ok(mut outcomes) = memos.completed_case_outcomes.lock() {
+            for ((statement_index, expression, reference), (visitor, recognized)) in
+                occurrences.iter().zip(visitors.iter().zip(recognized))
+            {
+                let verdict = (recognized && visitor.complete && visitor.observed)
+                    .then_some(visitor.case)
+                    .flatten();
+                outcomes.insert(
+                    (
+                        machine.symbol,
+                        state.symbol,
+                        *statement_index,
+                        *expression,
+                        *reference,
+                    ),
+                    verdict,
+                );
+            }
         }
     }
     if let Ok(mut populated) = memos.completed_case_populated.lock() {
@@ -755,13 +747,15 @@ pub(crate) fn completed_value_case_at_occurrence(
     // machine's state prefixes once, and later occurrences replay the
     // recorded verdict. The memo binds only the stored machine and state --
     // a projected body's same symbols keep the per-occurrence walk.
-    let stored = program
-        .machine(machine.symbol)
-        .is_some_and(|stored| std::ptr::eq(stored, machine))
-        && program
-            .state_in_machine(machine, state.symbol)
-            .is_some_and(|stored| std::ptr::eq(stored, state));
-    if stored && crate::frozen_program::frozen_program_memos(program).is_some() {
+    let memos = crate::frozen_program::frozen_program_memos(program).filter(|_| {
+        program
+            .machine(machine.symbol)
+            .is_some_and(|stored| std::ptr::eq(stored, machine))
+            && program
+                .state_in_machine(machine, state.symbol)
+                .is_some_and(|stored| std::ptr::eq(stored, state))
+    });
+    if let Some(memos) = memos {
         let key = (
             machine.symbol,
             state.symbol,
@@ -769,29 +763,26 @@ pub(crate) fn completed_value_case_at_occurrence(
             expression,
             reference,
         );
-        let lookup = || {
-            crate::frozen_program::readable_memos(program).find_map(|memos| {
-                memos
-                    .completed_case_outcomes
-                    .lock()
-                    .ok()
-                    .and_then(|outcomes| outcomes.get(&key).copied())
-            })
-        };
-        let mut cached = lookup();
-        let guard = crate::frozen_program::CutGuard::start(program);
+        let mut cached = memos
+            .completed_case_outcomes
+            .lock()
+            .ok()
+            .and_then(|outcomes| outcomes.get(&key).copied());
         if cached.is_none()
-            && !crate::frozen_program::readable_memos(program).any(|memos| {
-                memos
-                    .completed_case_populated
-                    .lock()
-                    .is_ok_and(|populated| populated.contains_key(&machine.symbol))
-            })
+            && !memos
+                .completed_case_populated
+                .lock()
+                .map(|populated| populated.contains_key(&machine.symbol))
+                .unwrap_or(false)
             && let Some(population) =
                 CheckingQuery::completed_case_population(program, machine.symbol)
         {
-            populate_machine_completed_cases(&population, machine, &guard);
-            cached = lookup();
+            populate_machine_completed_cases(&population, machine, memos);
+            cached = memos
+                .completed_case_outcomes
+                .lock()
+                .ok()
+                .and_then(|outcomes| outcomes.get(&key).copied());
         }
         if let Some(case) = cached {
             return case;

@@ -1,5 +1,3 @@
-// Structured summary and text rendering (`PackageSourceInspection`) for an inspected local or Git package source.
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageSourceInspection {
     pub source_kind: String,

@@ -155,6 +155,7 @@ impl ExpressionTable {
                     let capture = self.copy_match_subject(source, saved.capture, copies);
                     let pattern_head = self.copy_graph(source, saved.pattern_head, copies);
                     self.insert(ExpressionNode::SavedSubject(super::TableSavedSubject {
+                        component: saved.component,
                         capture,
                         pattern_head,
                     }))

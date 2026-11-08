@@ -1,6 +1,4 @@
-// Private per-invocation scratch directory (`TemporaryDirectory`) under the
-// host temporary root, named `omega-<purpose>-<pid>-<seq>` so kept or
-// interrupted directories are attributable to the operation that created them.
+//! An invocation owns exactly the directory it created, never a process-wide slot.
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -8,6 +6,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
+/// A private directory under the host temporary root, removed on drop unless
+/// the invocation asked to keep it. `purpose` names the operation in the
+/// directory name so leftovers from a kept or interrupted run are attributable.
 pub struct TemporaryDirectory {
     path: PathBuf,
     keep: bool,

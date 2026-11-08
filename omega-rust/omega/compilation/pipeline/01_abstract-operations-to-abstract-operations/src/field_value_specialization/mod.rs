@@ -51,7 +51,7 @@
 //! `BooleanConstant`/`IntegerConstant` in the same function — or a bound
 //! singleton — is a `Constant` resolution: the observation folds in place,
 //! the result keeps its value identity, and the node keeps its
-//! `PsiProvenance::Operation` custody, work settlement, successors,
+//! `PsiProvenance::Operation` custody, fuel settlement, successors,
 //! definitions, uses, and ownership events. A nonconstant scalar initializer
 //! is a `Forward` resolution when the substitution can retire the read
 //! exactly: the initializer must be defined in the same function at the
@@ -61,7 +61,7 @@
 //! comparisons, shifts, jump and conditional bindings, returns, and atomic
 //! operands — while the observation node itself must be cleanly removable.
 //! Forwarding then rebinds those uses, retires the observation node, and
-//! fuses the read's provenance and work settlement into the node inheriting
+//! fuses the read's provenance and fuel settlement into the node inheriting
 //! the vacated index; the function's derived metadata restamps from
 //! operation shape.
 //!

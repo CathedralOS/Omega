@@ -18,7 +18,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// argument slot. Consumers share this binding before choosing a value epoch.
 pub(crate) fn captured_call_operands<'facts>(
     program: &dyn ::validation::CheckingInput,
-    flow: checked_trees::FlowFactsRef<'facts>,
+    flow: &'facts FlowFacts,
     state: &checked_trees::FlowStateFact,
     call: &checked_trees::FlowCallFact,
 ) -> Option<(&'facts [FlowOperandFact], usize)> {
@@ -263,13 +263,13 @@ pub(crate) fn operand_binds_stable_copy(
 /// operands and shares the flow producer's canonical overlap law.
 pub(crate) fn operand_entry_origin_is_stable(
     program: &dyn ::validation::CheckingInput,
-    flow: checked_trees::FlowFactsRef<'_>,
+    flow: &FlowFacts,
     operand: &FlowOperandFact,
     place: &validation::CanonicalPlace,
 ) -> bool {
     entry_origin_is_stable(
         program,
-        flow.control,
+        &flow.control,
         operand.entry_origin_writes,
         operand.entry_origin_unknown_write,
         place,
@@ -368,7 +368,7 @@ fn entry_origin_is_stable_when(
 /// equal rendered paths cannot erase an intermediate write.
 pub(crate) fn operand_observations_agree(
     program: &dyn ::validation::CheckingInput,
-    flow: checked_trees::FlowFactsRef<'_>,
+    flow: &FlowFacts,
     first: &FlowOperandFact,
     second: &FlowOperandFact,
     place: &validation::CanonicalPlace,
@@ -388,7 +388,7 @@ pub(crate) fn operand_observations_agree(
 /// this judgment grants no referent access, value equality or loan permission.
 pub(crate) fn operand_bindings_agree(
     program: &dyn ::validation::CheckingInput,
-    flow: checked_trees::FlowFactsRef<'_>,
+    flow: &FlowFacts,
     first: &FlowOperandFact,
     second: &FlowOperandFact,
     place: &validation::CanonicalPlace,
@@ -405,7 +405,7 @@ pub(crate) fn operand_bindings_agree(
 
 fn operand_sources_agree(
     program: &dyn ::validation::CheckingInput,
-    flow: checked_trees::FlowFactsRef<'_>,
+    flow: &FlowFacts,
     first: &FlowOperandFact,
     second: &FlowOperandFact,
     place: &validation::CanonicalPlace,
@@ -420,7 +420,7 @@ fn operand_sources_agree(
     };
     operand_sources_agree_in_state(
         program,
-        flow.control,
+        &flow.control,
         statements,
         first,
         second,
@@ -525,7 +525,7 @@ pub(super) fn operand_sources_agree_in_state(
 /// contribute writes, and the operand retains its own earlier sibling prefix.
 pub(crate) fn operand_observation_before_statement_agrees(
     program: &dyn validation::CheckingInput,
-    flow: checked_trees::FlowFactsRef<'_>,
+    flow: &FlowFacts,
     operand: &FlowOperandFact,
     state: symbols::SymbolHandle,
     statement: usize,
@@ -544,7 +544,7 @@ pub(crate) fn operand_observation_before_statement_agrees(
 /// Descriptor identity is independent of writes through its retained loan.
 pub(crate) fn operand_binding_before_statement_agrees(
     program: &dyn validation::CheckingInput,
-    flow: checked_trees::FlowFactsRef<'_>,
+    flow: &FlowFacts,
     operand: &FlowOperandFact,
     state: symbols::SymbolHandle,
     statement: usize,
@@ -565,7 +565,7 @@ pub(crate) fn operand_binding_before_statement_agrees(
 /// statement, so only later admitted statements can change that value.
 pub(crate) fn call_return_before_statement_agrees(
     program: &dyn validation::CheckingInput,
-    flow: checked_trees::FlowFactsRef<'_>,
+    flow: &FlowFacts,
     caller: &checked_trees::FlowStateFact,
     call: &checked_trees::FlowCallFact,
     statement: usize,
@@ -623,7 +623,7 @@ pub(crate) fn call_return_before_statement_agrees(
                     flow.state_statement(caller, *index).is_some_and(|row| {
                         entry_origin_is_stable(
                             program,
-                            flow.control,
+                            &flow.control,
                             row.completed_content_writes,
                             row.completed_content_unknown_write,
                             place,
@@ -637,7 +637,7 @@ pub(crate) fn call_return_before_statement_agrees(
 
 fn observation_reaches_statement(
     program: &dyn validation::CheckingInput,
-    flow: checked_trees::FlowFactsRef<'_>,
+    flow: &FlowFacts,
     operand: &FlowOperandFact,
     state_symbol: symbols::SymbolHandle,
     statement: usize,
@@ -649,7 +649,7 @@ fn observation_reaches_statement(
     };
     observation_reaches_statement_in_state(
         program,
-        flow.control,
+        &flow.control,
         row.statements,
         operand,
         state_symbol,

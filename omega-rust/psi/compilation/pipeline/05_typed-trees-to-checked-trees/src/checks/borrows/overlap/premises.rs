@@ -494,7 +494,7 @@ pub(in crate::checks::borrows) fn append_statement_premises<'p>(
     };
     for guarantee in call_guarantees::available(
         program,
-        facts.view(),
+        facts,
         state_flow,
         call_guarantees::GuaranteeUse::StatementEntry(statement),
         &contexts,
@@ -525,7 +525,7 @@ pub(in crate::checks::borrows) fn append_statement_premises<'p>(
 /// them: reassignment cannot retarget the captured result occurrence.
 pub(super) fn captured_call_premises(
     program: &dyn ::validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     state: &FlowStateFact,
     statement: usize,
     contexts: &[FactContextHandle],

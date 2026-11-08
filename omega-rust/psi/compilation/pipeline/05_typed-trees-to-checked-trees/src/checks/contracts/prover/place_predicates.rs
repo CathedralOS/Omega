@@ -54,7 +54,7 @@ impl PlacePredicate {
         {
             return true;
         }
-        let proven = crate::flow::captured_value_places(program, facts.flow.view(), captured)
+        let proven = crate::flow::captured_value_places(program, &facts.flow, captured)
             .is_some_and(|places| {
                 !places.is_empty()
                     && places
@@ -85,7 +85,7 @@ impl PlacePredicate {
                             *context,
                         )
                     });
-                    if crate::flow::captured_value_places(program, facts.flow.view(), &source)
+                    if crate::flow::captured_value_places(program, &facts.flow, &source)
                         .is_some_and(|places| {
                             !places.is_empty()
                                 && places.iter().all(|place| {

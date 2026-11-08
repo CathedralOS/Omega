@@ -41,7 +41,7 @@ use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 
 pub use rewrite::rematerialize_selected_runtime_value;
 

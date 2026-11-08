@@ -1,59 +1,56 @@
-/*
-Native compiler-builtin admission and placed-scalar schema and backing-origin
-verification.
+//! Native builtin admission: derivation (`proposals`) binds each demanded
+//! boundary to its one selected intrinsic row, plan and Terminal boundary
+//! once; `retained` carries that binding to admission by plan index; this
+//! file admits it through the receiving policy and the local target catalog.
+//!
+//! Hosted builtins settle as call-shaped rows. Selected float arithmetic,
+//! minimum, maximum, negation, square root, NaN/infinity classification,
+//! two-rounding multiply-then-add,
+//! conversion into a float format and Exact or Saturating conversion to an integer settle as
+//! `NearestIeeeFloatArithmetic`, which Omega 02 realizes inline as one IEEE
+//! semantic operation (not necessarily one machine instruction): admission
+//! requires the boundary's exact
+//! signature for that operation and format (`(format, format) -> format`,
+//! `(format) -> format`, `(other) -> format`, `(integer) -> format` or
+//! `(format) -> integer`, `(format) -> bool`, or `(format, format, format) -> format`), so a row
+//! selected for another format, carrier or
+//! shape cannot stand in.
 
-Proposal derivation (`retained`) binds each demanded boundary to its one
-selected intrinsic row, plan, and Terminal boundary once and carries that
-binding to admission by plan index; `settle_compiler_builtins` admits it
-through the receiving policy and the local target catalog.
-*/
-
-/*
-Hosted builtins settle as call-shaped rows. Selected float arithmetic, minimum,
-maximum, negation, square root, NaN/infinity classification, two-rounding
-multiply-then-add, conversion into a float format, and Exact, Saturating, or
-Trapping conversion to an integer settle as `NearestIeeeFloatArithmetic`, which
-Omega 02 realizes inline as one IEEE semantic operation. Admission requires the
-boundary's exact signature for that operation and format so a row selected for
-another format, carrier, or shape cannot stand in.
-
-For placed caller-RAM scalar access (`AccessorScalarAccess`), we join the
-selected scalar schema to its independently admitted Terminal declaration
-(`validate_access_schema`) and verify that every reachable occurrence originates
-from captured RAM or a checked resident formation
-(`require_access_backing_origins`).
-*/
-
+mod access_schema;
 mod catalog;
+mod proposals;
 mod retained;
+mod terminal_execution;
+pub use terminal_execution::{AdmittedTerminalIntrinsics, admit_terminal_intrinsics};
 
 pub use catalog::SettledCompilerBuiltin;
-pub use retained::{
-    AdmittedTerminalIntrinsics, CompilerIntrinsicPlanProvenance, TerminalCompilerBuiltinProposal,
-    TerminalCompilerBuiltinSettlement, admit_terminal_intrinsics,
-    derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins,
-    validate_external_provider_owners,
-};
+
+pub use proposals::CompilerIntrinsicPlanProvenance;
+pub use proposals::derive_selected_intrinsic_settlement_proposals;
+mod external_satisfaction;
+pub use external_satisfaction::validate_external_provider_owners;
+pub use retained::prepare_retained_compiler_builtins;
+pub use retained::{TerminalCompilerBuiltinProposal, TerminalCompilerBuiltinSettlement};
 
 use crate::provider_admission::AdmittedTerminalMechanism;
 use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
 use crate::{AdmittedBoundaryExecution, AdmittedBoundarySettlement};
 use diagnostics::Diagnostic;
 use effects::CompilerAccessorScalarOperation;
-use effects::provider_plan::{ProviderPlan, ServiceSchema};
-use semantic_vocabulary::{
-    BoundaryCompletion, ExternalCompletionKind, IeeeFloatFormat, IntegerSign, ScalarType,
-};
+use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
 use target_operations::{
     BoundarySettlementRealization, CompilerBuiltinExecution, HostedExitProcessI32Realization,
     HostedReadByteRealization, HostedWriteByteI32Realization,
     NearestIeeeFloatArithmeticRealization,
 };
-use terminal_psi::{
-    BoundaryMachineDeclaration, StructuralAccess, TerminalAccessorKind, TerminalModule,
-};
-use terminal_semantics::AccessorScalarBoundaryDemand;
+use terminal_psi::TerminalAccessorKind;
 
+/// Admit each derived builtin proposal through the receiving policy and the
+/// local target catalog. Derivation already bound every proposal to its one
+/// selected intrinsic row, exact plan and Terminal boundary in this compile,
+/// so admission reads those bindings instead of rejoining them
+/// (pipeline.md, "Verification placement"). The boundary contract, receiving
+/// classification and target support are decided here and nowhere else.
 pub(super) fn settle_compiler_builtins<'request>(
     input: &NativeRealizationInput,
     request: &ProviderAdmissionRequest<'_, 'request>,
@@ -64,6 +61,10 @@ pub(super) fn settle_compiler_builtins<'request>(
     ),
     Vec<Diagnostic>,
 > {
+    // Every executed row derivation could not close is reported together:
+    // the roster was scoped to this entry's executed boundaries before it
+    // arrived, so each unsettled proposal here names a boundary this entry
+    // actually calls.
     let unsettled = request
         .compiler_builtins
         .iter()
@@ -135,11 +136,6 @@ pub(super) fn settle_compiler_builtins<'request>(
                 ))]
             })?;
         let realization = match execution {
-            CompilerBuiltinExecution::StaticInterrupt { .. } => {
-                return Err(vec![Diagnostic::error(
-                    "static interrupt execution requires its exact installed occurrence; ordinary provider proposals cannot supply it",
-                )]);
-            }
             CompilerBuiltinExecution::AccessLifecycle { .. }
             | CompilerBuiltinExecution::EmptyRunRelease => {
                 return Err(vec![Diagnostic::error(
@@ -147,22 +143,20 @@ pub(super) fn settle_compiler_builtins<'request>(
                 )]);
             }
             CompilerBuiltinExecution::ProgramStorageEntry => {
-                let binding = input
-                    .selected_program_entry_call()
-                    .filter(|binding| {
-                        binding.boundary() == boundary.id
-                            && binding.provider_plan() == proposal.provider_plan.identity_digest()
-                    })
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "semantic-entry transport has no exact Build-selected continuation binding",
-                        )]
-                    })?;
+                let binding = input.selected_program_entry_call()
+                    .filter(|binding| binding.boundary() == boundary.id
+                        && binding.provider_plan() == proposal.provider_plan.identity_digest())
+                    .ok_or_else(|| vec![Diagnostic::error(
+                        "semantic-entry transport has no exact Build-selected continuation binding",
+                    )])?;
                 if input.plan().function(binding.entry()).is_none() {
                     return Err(vec![Diagnostic::error(
                         "semantic-entry continuation left its executable closure",
                     )]);
                 }
+                // The binding realizes an internal call, not a second external
+                // settlement of the same boundary occurrence. Keep mechanism
+                // classification for closure review without a competing leaf.
                 mechanisms.push(AdmittedTerminalMechanism {
                     boundary: boundary.id,
                     mechanism: mechanism.into(),
@@ -199,7 +193,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                     boundary.id,
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                validate_access_schema(
+                access_schema::validate(
                     module,
                     boundary,
                     proposal.provider_plan,
@@ -215,6 +209,8 @@ pub(super) fn settle_compiler_builtins<'request>(
                     || demand.operation != operation
                     || operation == TerminalAccessorKind::Take
                     || effects::compiler_accessor_scalar_contract_identity(
+                        // Direct callable selection projects a lookup schema;
+                        // the sealed operation binds the satisfied contract.
                         proposal.semantic_schema.identity_digest(),
                         placement_commitment,
                         access_slot,
@@ -227,6 +223,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                 }
                 target_operations::AccessorScalarAccessRealization { contract, demand }.into()
             }
+
             CompilerBuiltinExecution::HostedExitProcessI32
                 if HostedExitProcessI32Realization::supports_target(request.target()) =>
             {
@@ -261,6 +258,8 @@ pub(super) fn settle_compiler_builtins<'request>(
                 ))]);
             }
             CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format } => {
+                // Only an x86 FMA carries the admitted feature custody; the
+                // catalog refuses it anywhere else.
                 let x86_scalar_fma = request.x86_scalar_fma_provider.filter(|_| {
                     operation == target_operations::IeeeFloatArithmeticOperation::FusedMultiplyAdd
                         && request.target().architecture == target::Architecture::X86_64
@@ -296,6 +295,9 @@ pub(super) fn settle_compiler_builtins<'request>(
     Ok((admitted, mechanisms))
 }
 
+/// Feature admission follows the actual Terminal execution demand, not source
+/// uses in other target bodies. The normal builtin proposal already binds the
+/// exact boundary and provider row; no separate FMA association is retained.
 fn admit_x86_fma_features(
     request: &ProviderAdmissionRequest<'_, '_>,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -342,6 +344,10 @@ fn admit_x86_fma_features(
     }
 }
 
+/// Compare the retained requirement premise with the exact selected schema row.
+/// Opaque foreign code is admitted under this premise; a display name or service
+/// ceiling cannot supply it. Closed intrinsic executions additionally check their
+/// independently known behavior below.
 pub(super) fn boundary_contract_matches_selected_schema(
     boundary: &terminal_psi::BoundaryMachineDeclaration,
     plan: &effects::provider_plan::ProviderPlan,
@@ -377,7 +383,6 @@ fn compiler_builtin_completion(execution: CompilerBuiltinExecution) -> BoundaryC
         | CompilerBuiltinExecution::HostedReadByte
         | CompilerBuiltinExecution::ProgramImageRetainedSuffixStart
         | CompilerBuiltinExecution::ProgramStorageEntry
-        | CompilerBuiltinExecution::StaticInterrupt { .. }
         | CompilerBuiltinExecution::AccessLifecycle { .. }
         | CompilerBuiltinExecution::EmptyRunRelease
         | CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. }
@@ -385,6 +390,12 @@ fn compiler_builtin_completion(execution: CompilerBuiltinExecution) -> BoundaryC
     }
 }
 
+/// Admit one selected float execution through the receiving target catalog.
+/// The realization must denote exactly the Terminal boundary's signature:
+/// the operation's operand count and operand type and one scalar result of
+/// the execution's own format, with no structural lane. A row selected for
+/// another format, integer carrier or operand shape cannot stand in for this
+/// boundary.
 fn float_arithmetic_realization(
     realization: NearestIeeeFloatArithmeticRealization,
     target: target::NativeTarget,
@@ -399,6 +410,8 @@ fn float_arithmetic_realization(
     float_arithmetic_signature(realization, boundary, structural_types)
 }
 
+/// The operation's semantic signature is shared by native admission and
+/// reference execution. ISA support remains a separate native obligation.
 fn float_arithmetic_signature(
     realization: NearestIeeeFloatArithmeticRealization,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
@@ -447,158 +460,6 @@ fn access_operation(operation: TerminalAccessorKind) -> CompilerAccessorScalarOp
         TerminalAccessorKind::Take => CompilerAccessorScalarOperation::Take,
         TerminalAccessorKind::Write => CompilerAccessorScalarOperation::Write,
     }
-}
-
-fn validate_access_schema(
-    module: &TerminalModule,
-    boundary: &BoundaryMachineDeclaration,
-    plan: &ProviderPlan,
-    schema: &ServiceSchema,
-    demand: &AccessorScalarBoundaryDemand,
-) -> Result<(), String> {
-    let invalid = || {
-        "placed scalar selected schema does not match its Terminal signature and effects".to_owned()
-    };
-    let [method] = schema.declaration.methods.as_slice() else {
-        return Err(invalid());
-    };
-    let requirement = module
-        .identities
-        .text(boundary.identity)
-        .ok_or_else(invalid)?;
-    let accessor = module
-        .structural_type(demand.accessor)
-        .and_then(|declaration| module.identities.text(declaration.identity))
-        .filter(|identity| !identity.is_empty())
-        .ok_or_else(invalid)?;
-    let borrow = match demand.access {
-        StructuralAccess::SharedBorrow => "ref",
-        StructuralAccess::MutableBorrow => "ref-mut",
-        _ => return Err(invalid()),
-    };
-    let scalar = primitive_identity(demand.scalar);
-    let mut parameters = vec![format!("{borrow}({accessor})")];
-    let name = match demand.operation {
-        TerminalAccessorKind::Read => "read",
-        TerminalAccessorKind::Take => "take",
-        TerminalAccessorKind::Write => {
-            parameters.push(scalar.clone());
-            "write"
-        }
-    };
-    let has_result = demand.operation != TerminalAccessorKind::Write;
-    if schema
-        .declaration
-        .identities
-        .text(method.requirement_identity)
-        != requirement
-        || method.name != name
-        || schema
-            .declaration
-            .identities
-            .text(schema.declaration.trait_name)
-            != format!("{}::{name}", method.requirement_owner)
-        || schema.declaration.trait_package_identity != plan.origin_package_identity
-        || method.requirement_owner_package_identity != schema.declaration.trait_package_identity
-        || !schema.declaration.receiver_applications.is_empty()
-        || method.parameter_count != parameters.len()
-        || method.parameter_type_identities.len() != parameters.len()
-        || !method
-            .parameter_type_identities
-            .iter()
-            .zip(&parameters)
-            .all(|(actual, expected)| schema.declaration.identities.text(*actual) == expected)
-        || method.has_result != has_result
-        || if has_result {
-            schema
-                .declaration
-                .identities
-                .text(method.result_type_identity)
-                != scalar
-        } else {
-            method.result_type_identity != Default::default()
-        }
-        || method.completion != boundary.completion
-        || method.terminates_guarantee != boundary.unconditional_termination
-        || !method.termination_premises.is_empty()
-        || !method.entry_claims.is_empty()
-        || !method.result_claims.is_empty()
-        || !method.service_reach.is_empty()
-        || !method.synchronous_invocations.is_empty()
-        || !boundary.requires.is_empty()
-        || !boundary.scalar_requires.is_empty()
-        || !boundary.scalar_ensures.is_empty()
-        || !boundary.normal_qualifications.is_empty()
-        || !boundary.program_local_root_introductions.is_empty()
-        || !boundary.content_guarantees.is_empty()
-        || !boundary.crash_routes.is_empty()
-        || !boundary.fixed_service_reach.is_empty()
-        || !boundary.published_service_ceiling.is_empty()
-        || boundary.owning_service.is_some()
-        || method.may_suspend
-        || method.may_block
-        || !schema
-            .calling_for_requirement(method.requirement_identity)
-            .is_empty()
-    {
-        return Err(invalid());
-    }
-    let placement = module
-        .access_view_plans
-        .iter()
-        .find(|placement| placement.carrier == demand.carrier)
-        .ok_or_else(invalid)?;
-    let entry = placement
-        .placement
-        .access()
-        .plan()
-        .entries()
-        .get(demand.access_slot as usize)
-        .ok_or_else(invalid)?;
-    let descriptor = placement.placement.access().field_descriptor(entry.key());
-    let logical_bits = match demand.scalar {
-        ScalarType::Boolean => 8,
-        ScalarType::Integer(integer) => u64::from(integer.bits()),
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => 32,
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => 64,
-    };
-    let complete = if let Some(descriptor) = descriptor {
-        matches!(descriptor.logical_extent().fragments(), [fragment]
-        if fragment.source_bit_offset() == 0
-            && fragment.layout_bit_offset() == descriptor.container_byte_offset() * 8
-            && fragment.width_bits() == u64::from(descriptor.transfer_width_bits())
-            && fragment.width_bits() == logical_bits)
-    } else {
-        placement
-            .placement
-            .access()
-            .field_region(entry.key())
-            .is_some()
-            && u64::from(demand.transfer_width_bits) == logical_bits
-    };
-    if !complete {
-        return Err("native placed scalar access requires a complete scalar container; fragmented or narrowed codecs require an explicit native realization".to_owned());
-    }
-    Ok(())
-}
-
-fn primitive_identity(scalar: ScalarType) -> String {
-    let name = match scalar {
-        ScalarType::Boolean => "bool".to_owned(),
-        ScalarType::Integer(integer) if integer.is_address() => "addr".to_owned(),
-        ScalarType::Integer(integer) => format!(
-            "{}{}",
-            if integer.sign() == IntegerSign::Signed {
-                "i"
-            } else {
-                "u"
-            },
-            integer.bits()
-        ),
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => "f32".to_owned(),
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => "f64".to_owned(),
-    };
-    format!("named(name({name}))")
 }
 
 fn require_access_backing_origins(
@@ -693,5 +554,12 @@ fn require_access_backing_origins(
     if occurrences == 0 {
         return Err("placed scalar native admission has no actual boundary occurrence".to_owned());
     }
+    // Resident formations borrow the original checked Granted & Resident<P,T>
+    // occurrence, not its descriptor storage. Native lifecycle settlement owns
+    // establishment; selected provider transfer remains an explicit admitted
+    // premise. Both use the same field access emitter once the exact formation
+    // and loan have been transported. Image publication separately checks the
+    // base-field load, so accepting this origin cannot turn descriptor RAM into
+    // resident backing or grant authority to an arbitrary pointer.
     Ok(())
 }

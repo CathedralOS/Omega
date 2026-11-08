@@ -1,19 +1,16 @@
-// Toolchain library root discovery and release content-digest verification (`configure`, `root`, `identity`).
-//
-// Locates the compiler's own bundled `source/library` (`core`, `std`, etc.), never a
-// requester-local substitute. Release builds enforce `OMEGA_RELEASE_LIBRARY_SHA256`
-// with no checkout fallback. Development builds prefer `OMEGA_DEVELOPMENT_LIBRARY_ROOT`
-// while it still holds `core/`, and otherwise recover `source/library` by walking
-// the running executable's ancestors so moved or secondary worktrees do not fail on
-// a stale compile-time checkout path. `identity()` re-hashes the library on demand
-// (`omega-toolchain-library-v1`) so edits to a development library are never masked
-// by the cached path in `LIBRARY`.
+//! Locate the toolchain's own library, never a requester-local substitute.
+//!
+//! Releases carry a library digest and no checkout fallback. Development builds
+//! retain their source tree. Embedders can configure an absolute library root
+//! before first use; OMEGA_LIBRARY_ROOT supplies the same explicit process-level
+//! choice for command-line use. Neither bypasses a release's content check.
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 static LIBRARY: OnceLock<Result<PathBuf, String>> = OnceLock::new();
 
+/// Set the process's toolchain library before any compilation or lookup.
 pub fn configure(root: &Path) -> Result<(), String> {
     let root = validate(root, option_env!("OMEGA_RELEASE_LIBRARY_SHA256"))?;
     LIBRARY
@@ -45,6 +42,18 @@ pub fn root() -> Result<PathBuf, String> {
         .clone()
 }
 
+/// The development library root to offer, recovering one the recorded path lost.
+///
+/// `build.rs` bakes an absolute `source/library` path from the checkout that
+/// compiled the binary, and asks Cargo to rerun only when the release digest
+/// changes. A binary therefore keeps naming its original checkout after that
+/// tree is moved or deleted, and every compilation fails on a path the current
+/// checkout never had. Prefer the recorded root while it still holds a library,
+/// then fall back to the tree this executable actually sits in, and finally to
+/// the recorded root so its absence is reported as before.
+///
+/// Release builds never reach this: their caller passes no development root,
+/// keeping "a release carries a digest and no checkout fallback" intact.
 fn recover_development_root(executable: &Path, recorded: Option<PathBuf>) -> Option<PathBuf> {
     if let Some(recorded) = &recorded
         && recorded.join("core").is_dir()
@@ -103,10 +112,15 @@ fn validate(root: &Path, expected: Option<&str>) -> Result<PathBuf, String> {
     Ok(root)
 }
 
+/// Identify the selected library's current source bytes, including injected core
+/// modules absent from a project's package graph. Do not cache this with the
+/// selected path: a development library may have changed since the prior use.
 pub fn identity() -> Result<String, String> {
     library_digest(&root()?)
 }
 
+// The packager uses the same versioned framing: sorted UTF-8 relative paths,
+// each prefixed by its u64 byte length, then file length and exact file bytes.
 fn library_digest(root: &Path) -> Result<String, String> {
     fn collect(root: &Path, directory: &Path, files: &mut Vec<String>) -> Result<(), String> {
         for entry in std::fs::read_dir(directory).map_err(|error| error.to_string())? {

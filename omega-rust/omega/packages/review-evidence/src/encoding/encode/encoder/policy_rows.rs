@@ -1,4 +1,4 @@
-// Allocation-free sizing and exact-reservation dual row output for package policy rows.
+//! Allocation-free sizing and exact-reservation dual row output.
 use super::{Encoder, PackageReviewEncodingError, text::Writer};
 
 impl Encoder<'_> {

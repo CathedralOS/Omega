@@ -1,14 +1,5 @@
-// Phase-timing ladder (`StageMeta`, `PhaseTiming`, `CompileTimings`).
-//
-// `CompileTimings::is_enabled` is propagated into child collectors so disabled
-// compilations skip inner clock reads instead of measuring and discarding rows
-// at merge time. Repeated measurements for the same stage label accumulate in
-// place without reordering first-seen phases.
-//
-// `BUILD_AND_CHECKED_CONTINUATION` spans build evaluation and the checked
-// continuation it drives (including Psi 00–05 and pre-build checks), while
-// `SOURCE_ASSEMBLY` spans package closure resolution and per-target source
-// assembly before build evaluation.
+//! Compile timings: the phase ladder every stage records into, and the
+//! accumulator that carries those records to the timing report.
 
 pub mod counters;
 
@@ -44,12 +35,17 @@ pub const TOKENS_TO_SYNTAX_TREES: StageMeta =
 pub const TYPED_TREES_TO_CHECKED_TREES: StageMeta =
     StageMeta::new("Psi 05", "TypedTrees", "CheckedTrees");
 
+/// Build evaluation and the checked continuation it drives; this step
+/// contains Psi 00 through Psi 05 and the pre-build check, so its row is
+/// their sum plus the build's own evaluation.
 pub const BUILD_AND_CHECKED_CONTINUATION: StageMeta = StageMeta::new(
     "Step: build",
     "AssembledSyntax",
     "CheckedTrees (contains Psi 00-05)",
 );
 
+/// Package closure resolution and per-target source assembly, before build
+/// evaluation; contains Psi 00 through Psi 03 when they run there.
 pub const SOURCE_ASSEMBLY: StageMeta =
     StageMeta::new("Step: assemble", "PreparedSources", "AssembledSyntax");
 
@@ -76,6 +72,9 @@ impl CompileTimings {
         }
     }
 
+    /// Whether this accumulator retains measurements. Callers propagate this
+    /// into subordinate collectors so a disabled request pays no inner clock
+    /// reads rather than measuring and dropping rows at merge time.
     pub const fn is_enabled(&self) -> bool {
         self.enabled
     }
@@ -84,6 +83,8 @@ impl CompileTimings {
         &self.phases
     }
 
+    /// Run `work` under `stage`, retaining one row when collection is enabled.
+    /// The stage's own error type passes through unchanged.
     pub fn record_result<T, E>(
         &mut self,
         stage: StageMeta,
@@ -108,6 +109,8 @@ impl CompileTimings {
         self.add_phase(stage.label(), microseconds);
     }
 
+    /// Include shared pipeline work beside this request's own activation work.
+    /// Disabled reports stay disabled even when a sibling requested timings.
     pub fn extend(&mut self, shared: &Self) {
         if self.enabled {
             for timing in &shared.phases {

@@ -1,13 +1,3 @@
-// Unit tests for historical local snapshot recovery, origin isolation,
-// corruption rejection, and lookup budgets.
-//
-// In `byte_identical_content_does_not_cross_local_origins`, we construct the
-// parent-traversal path using `MAIN_SEPARATOR_STR` rather than `Path::join`:
-// on Windows, `fs::canonicalize` returns a verbatim (`\\?\`) path where `/` is
-// treated as a literal filename character rather than a separator, so
-// `join("../source")` would miss the `ParentDir` component gate unless spelled
-// with the platform separator.
-
 use super::{
     LOCAL_CACHE_SNAPSHOTS, LocalSourceLimits, Path, SourceContentDigest, recover_bounded,
     recover_cached_local_source_in_lane,
@@ -135,6 +125,13 @@ fn byte_identical_content_does_not_cross_local_origins() {
         )
         .is_err()
     );
+    // Spell the traversal literally rather than through `Path::join`: `join`
+    // preserves the `/` inside its argument, and inside a verbatim (`\\?\`)
+    // Windows root `/` is an ordinary filename character, so `../source`
+    // parses as a single Normal component. No ParentDir reaches the
+    // canonical-origin gate and the misspelled origin misses the cache key
+    // instead of erring. The platform separator keeps `..` a real parent
+    // component on both hosts.
     let traversal = {
         let mut spelling = other.as_os_str().to_os_string();
         spelling.push(std::path::MAIN_SEPARATOR_STR);

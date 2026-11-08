@@ -1,7 +1,3 @@
-// Unit tests for exact commit/tree Git resolution, final issuance custody and
-// snapshot-drift checks, remote object-format discovery parsing, and Git
-// directory-prefix tree ordering.
-
 use super::{
     GitCommitId, GitObjectIdAlgorithm, GitSourceRequest, GitTransportProfile, GitTreeId,
     ImmutableSourceResolution, LocalSourceLimits, PendingResolvedGitSource, SourceResolveError,

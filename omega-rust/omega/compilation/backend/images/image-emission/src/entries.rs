@@ -10,4 +10,3 @@ pub(crate) mod hosted_entry_storage;
 pub(crate) mod hosted_receiver;
 pub(crate) mod hosted_unit_entry;
 pub(crate) mod physical_entry;
-pub(crate) mod private_entry_origin;

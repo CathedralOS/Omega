@@ -84,7 +84,7 @@ fn folded_node(
     Ok(OptimizationNode {
         operation,
         provenance: node.provenance.clone(),
-        work: node.work.clone(),
+        fuel: node.fuel.clone(),
         effect: node.effect,
         definitions: node.definitions.clone(),
         uses: node.uses.clone(),

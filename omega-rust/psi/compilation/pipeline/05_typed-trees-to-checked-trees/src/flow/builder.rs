@@ -20,9 +20,9 @@
 //! depend only on machines its values reach: a loop in an unrelated machine
 //! neither re-sweeps it nor sends it to the fallback.
 //!
-//! Value inputs flow from caller to callee; completed storage predicates flow
-//! back. Parts connected by the latter converge together. Other parts that
-//! no other part calls first converge alone on their own workers, recording
+//! Values only flow from caller to callee, so a group whose callers share a
+//! private helper is still serial at the helper. Each part of the group that
+//! no other part calls first converges alone on its own worker, recording
 //! every input delivery it makes. The group then runs its usual fixed point,
 //! building the remaining machines and replaying those deliveries at the
 //! visits where the serial run would make them; any visit that does not match
@@ -103,7 +103,6 @@ pub(crate) fn build_flow_facts(
     // than rebuilding identical rows.
     let shared_tables = std::sync::Arc::new(SharedFlowTables::new(
         program,
-        borrow,
         scalar_expressions,
         call_frames,
     ));
@@ -293,10 +292,8 @@ fn build_group<'plans>(
     if converge(inputs, semantic, build, machines, &mut []).is_some() {
         return;
     }
-    // Neither provisional inputs nor inferred return facts survive a
-    // nonconvergent graph. The fallback cannot consume the abandoned table.
+    // No provisional input fact survives a nonconvergent graph.
     build.discard_output();
-    build.normal_return_predicates.clear();
     semantic.clone_from(inputs.baseline);
     // Unknown is absorbing: immediate joins during fallback cannot establish
     // a new provisional constant in a state built later in this pass.
@@ -308,8 +305,8 @@ fn build_group<'plans>(
     sweep(inputs, semantic, build, machines, true, 0, &mut []);
 }
 
-/// Settle incoming values and completed return predicates, then confirm with
-/// one complete pass. `None` when the bound is exhausted,
+/// Sweep `machines` until their value inputs settle, then confirm with one
+/// complete pass, returning that pass. `None` when the bound is exhausted,
 /// confirmation fails, or a replayed part's visits diverge.
 fn converge<'plans>(
     inputs: &FlowInputs<'plans, '_>,
@@ -355,23 +352,13 @@ fn converge<'plans>(
         // cells. Scalar parameter intervals additionally traverse a finite
         // outward threshold set; their allowance is registered at discovery.
         pass_limit = pass_limit.saturating_add(build.new_state_field_input_height);
-        let input_changed = !build.dirty_state_value_inputs.is_empty();
-        if complete_pass {
-            // Only complete output may replace the prior return table.
-            // New or withdrawn rows schedule their callers for another pass;
-            // no caller reads the partially constructed callee in this sweep.
-            let (changed, height) =
-                super::normal_returns::refresh(program, semantic, build, machines);
-            pass_limit = pass_limit.saturating_add(height);
-            build.dirty_return_dependents(&changed);
-        }
         if build.dirty_state_value_inputs.is_empty() {
             if complete_pass {
                 return Some(pass);
             }
             complete_pass = true;
         } else {
-            if complete_pass && pass != 0 && input_changed {
+            if complete_pass && pass != 0 {
                 // Final publication must confirm the fixed point; never expose
                 // provisional evidence if an untracked dependency changed it.
                 return None;
@@ -478,9 +465,7 @@ fn sweep<'plans>(
 /// Roster positions grouped by an invocation that writes another machine's
 /// `state_value_inputs`: a non-entry call, an extracted or nested machine, or
 /// a private entry whose caller roster supplies the entry facts. A public
-/// entry stays on its declared premises. Calls lending exclusive storage also
-/// join the group because its completed return facts flow back to the caller;
-/// grouping does not import a caller's assumptions into a public entry.
+/// entry stays on its declared premises and does not join the caller's group.
 ///
 /// Within a group, a part is a machine with its lexical relatives, the family
 /// bodies called together with it, and every part that only it calls. A part
@@ -542,12 +527,7 @@ fn machine_groups(
                 continue;
             };
             let callee_machine = &machines[callee];
-            let returns_storage = super::normal_returns::has_exclusive_parameters(
-                program,
-                &program.machine_states(callee_machine)[state_position],
-            );
-            if !returns_storage
-                && callee_machine.lexical_region_origin.is_none()
+            if callee_machine.lexical_region_origin.is_none()
                 && !super::state_values::lexically_nested_machine(program, callee_machine.symbol)
                 && super::state_values::entry_state_index(program, callee_machine)
                     == Some(state_position)
@@ -585,14 +565,6 @@ fn machine_groups(
             for callee in callees {
                 if callee != caller {
                     calls.push((caller, callee));
-                    if returns_storage {
-                        // Output evidence flows back as well as inputs flowing
-                        // inward. These machines must converge together; the
-                        // input-delivery replay cannot stand in for that join.
-                        let (left, right) =
-                            (root(&mut part_owner, caller), root(&mut part_owner, callee));
-                        part_owner[left.max(right)] = left.min(right);
-                    }
                     let (left, right) = (root(&mut owner, caller), root(&mut owner, callee));
                     owner[left.max(right)] = left.min(right);
                 }

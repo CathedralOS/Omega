@@ -27,9 +27,6 @@ use validation::reference_result_custody::loan_place_segments;
 pub(super) enum StoredReferenceContents {
     Unknown,
     Incoming,
-    /// A literal or other immutable image. It has no caller-local address, and
-    /// that absence is the complete backing, not an unresolved pointer.
-    Image,
     Captured {
         referents: HandleSpan<FlowOperandReferent>,
     },
@@ -351,7 +348,6 @@ impl Execution<'_, '_, '_> {
             let mut origins = Vec::new();
             let mut known = true;
             let mut lifetime_known = true;
-            let mut saw_image = false;
             let mut retained_roots = Vec::new();
             for place in places {
                 let source = self
@@ -422,7 +418,6 @@ impl Execution<'_, '_, '_> {
                                 formation,
                             });
                         }
-                        StoredReferenceContents::Image => saw_image = true,
                         StoredReferenceContents::Unknown => {
                             known = false;
                             break;
@@ -467,8 +462,7 @@ impl Execution<'_, '_, '_> {
                     .unwrap_or_default();
                 let profile = self.context.control.operand_retentions.get_mut(retention);
                 profile.suppliers = suppliers;
-                profile.immutable_image =
-                    immutable_image || (saw_image && origins.is_empty() && known);
+                profile.immutable_image = immutable_image;
             }
             let path = self.context.control.operand_child_paths.insert_many(path);
             leaves.push(ReferenceLeaf {
@@ -898,7 +892,6 @@ impl Execution<'_, '_, '_> {
                         places.extend(captured);
                     }
                     StoredReferenceContents::Incoming => places.push(source.clone()),
-                    StoredReferenceContents::Image => {}
                     StoredReferenceContents::Unknown => {
                         return HandleSpan::empty();
                     }
@@ -1151,7 +1144,6 @@ impl Execution<'_, '_, '_> {
                     }
                     places.extend(captured);
                 }
-                StoredReferenceContents::Image => {}
                 StoredReferenceContents::Unknown => return Some(HandleSpan::empty()),
             }
         }
@@ -1230,19 +1222,8 @@ impl Execution<'_, '_, '_> {
                         |place| self.is_incoming_descriptor_place(place),
                     )
                     .unwrap_or_default();
-                    if places.is_empty()
-                        && projection_is_immutable_image(
-                            self.program,
-                            &self.context.control,
-                            capture,
-                            &projection,
-                        )
-                    {
-                        alternatives.push(StoredReferenceContents::Image);
-                    } else {
-                        let referents = self.append_captured_references(&places);
-                        alternatives.push(StoredReferenceContents::Captured { referents });
-                    }
+                    let referents = self.append_captured_references(&places);
+                    alternatives.push(StoredReferenceContents::Captured { referents });
                 }
             }
         }
@@ -1636,36 +1617,4 @@ impl Execution<'_, '_, '_> {
             .collect::<Vec<_>>();
         self.context.control.operand_referents.insert_many(rows)
     }
-}
-
-/// An immutable image projected through a completed constructor has no local
-/// address. Empty referents are that image, not a missing supplier.
-fn projection_is_immutable_image(
-    program: &dyn validation::CheckingInput,
-    control: &checked_trees::FlowControlFacts,
-    capture: Handle<checked_trees::FlowOperandFact>,
-    projection: &[PlaceSegment],
-) -> bool {
-    if !control.operands.is_valid(capture) {
-        return false;
-    }
-    let operand = control.operands.get(capture);
-    if projection.is_empty() {
-        return operand.referents.is_empty()
-            && control.operand_retentions.is_valid(operand.retention)
-            && control
-                .operand_retentions
-                .get(operand.retention)
-                .immutable_image;
-    }
-    let Some((child, _, consumed)) = validation::completed_storage::captured_operand_child_at_path(
-        program,
-        control,
-        operand,
-        operand.type_reference,
-        projection,
-    ) else {
-        return false;
-    };
-    projection_is_immutable_image(program, control, child, &projection[consumed..])
 }

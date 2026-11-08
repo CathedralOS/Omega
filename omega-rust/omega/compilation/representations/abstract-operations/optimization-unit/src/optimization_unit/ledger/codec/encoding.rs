@@ -1,15 +1,15 @@
 //! Stable transformation-ledger encoding.
 
 use super::super::{
-    OptimizationUnitIdentity, ProvenanceDisposition, PsiProvenance, PsiRealizationSite,
-    PsiTransformationLedger, PsiTransformationRecord, TerminalPsiIdentity, WorkScheduleIdentity,
+    FuelScheduleIdentity, OptimizationUnitIdentity, ProvenanceDisposition, PsiProvenance,
+    PsiRealizationSite, PsiTransformationLedger, PsiTransformationRecord, TerminalPsiIdentity,
 };
 use super::LEDGER_MAGIC;
 impl PsiTransformationLedger {
     pub fn encode(&self) -> Vec<u8> {
         encode_ledger(
             self.psi(),
-            self.work_schedule(),
+            self.fuel_schedule(),
             self.input(),
             self.output(),
             self.records(),
@@ -19,7 +19,7 @@ impl PsiTransformationLedger {
 
 pub(in crate::optimization_unit::ledger) fn encode_ledger(
     psi: TerminalPsiIdentity,
-    work_schedule: WorkScheduleIdentity,
+    fuel_schedule: FuelScheduleIdentity,
     input: OptimizationUnitIdentity,
     output: OptimizationUnitIdentity,
     records: &[PsiTransformationRecord],
@@ -28,7 +28,7 @@ pub(in crate::optimization_unit::ledger) fn encode_ledger(
     encoded.extend_from_slice(LEDGER_MAGIC);
     crate::codec_bytes::push_encoded(&mut encoded, psi.vocabulary_marker.get().to_le_bytes());
     encoded.extend_from_slice(psi.program_fingerprint.as_bytes());
-    crate::codec_bytes::push_encoded(&mut encoded, work_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut encoded, fuel_schedule.marker().to_le_bytes());
     encoded.extend_from_slice(&input.bytes());
     encoded.extend_from_slice(&output.bytes());
     encode_len(&mut encoded, records.len());
@@ -58,8 +58,8 @@ pub(in crate::optimization_unit::ledger) fn encode_ledger(
             for source in &row.sources {
                 encode_provenance(&mut encoded, *source);
             }
-            encode_len(&mut encoded, row.work.len());
-            for settlement in &row.work {
+            encode_len(&mut encoded, row.fuel.len());
+            for settlement in &row.fuel {
                 encode_provenance(&mut encoded, settlement.site);
                 crate::codec_bytes::push_encoded(&mut encoded, settlement.units.to_le_bytes());
             }
