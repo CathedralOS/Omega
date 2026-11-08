@@ -1442,11 +1442,11 @@ pub(crate) mod captured_returns {
 
         impl Captures<'_> {
             pub(super) fn family_return(
-                &self,
+                &mut self,
                 entries: &[&State],
             ) -> Option<Vec<CheckedReturnedReferencePlan>> {
                 let relations = self.relations?;
-                let observed = self.observed?;
+                let observed = self.observed.as_deref_mut()?;
                 let mut output = Vec::new();
                 let mut returning = false;
                 for entry in entries {
