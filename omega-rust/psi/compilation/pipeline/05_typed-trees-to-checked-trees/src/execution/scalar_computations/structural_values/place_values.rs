@@ -499,7 +499,7 @@ impl Builder<'_, '_> {
 /// directly: a construction, linear owner or view, a stored reference
 /// descriptor or loan, or a borrowed slice view. Membership here is the
 /// authored declaration's shape, never a source spelling or a scalar lane.
-fn names_owned_structural_value(
+pub(in crate::execution::scalar_computations) fn names_owned_structural_value(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {

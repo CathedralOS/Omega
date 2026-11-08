@@ -317,12 +317,7 @@ impl Builder<'_, '_> {
             // A borrowed subject still captures only its admitted view.
             let retains_owned_place = self.program.type_multiplicity(reference)
                 != language_semantics::Multiplicity::Unrestricted
-                && validation::has_contents(
-                    self.program,
-                    reference,
-                    &[],
-                    validation::ContentsRequirement::StructuralConstruction,
-                )
+                && super::structural_values::names_owned_structural_value(self.program, reference)
                 && validation::ownership_place_from_expression_in_state(
                     self.program,
                     self.state,
