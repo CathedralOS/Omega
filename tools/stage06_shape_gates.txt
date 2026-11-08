@@ -13,7 +13,7 @@
 3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/projections.rs
 289 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs.rs
 288 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention.rs
-257 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_computations.rs
+256 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_computations.rs
 82 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering.rs
 56 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared.rs
 75 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit.rs
