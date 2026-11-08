@@ -74,11 +74,11 @@ The nine positive programs and nine decoder-only controls are mirrored under
 
 ## Validation
 
-Linux x86_64 and macOS ARM64 coverage is complete for these conversion examples.
-All nine positive places have native and Psi exit 0 observations on each host,
-and every decoder-only twin retains its intended rejection. The Linux evidence
-combines the four-place batch with applicable retained observations of unchanged
-programs; the Mac evidence comes from one batch of all eighteen projects:
+These conversion examples pass on all four hosted targets. All nine positive
+places have native and Psi exit 0 observations on each host, and every decoder-only
+twin retains its intended rejection. The Linux x86_64 evidence combines its
+four-place batch with applicable retained observations of unchanged programs.
+Each other host has one batch covering all eighteen projects:
 
 | Host | Places | Native/Psi observation | Actual producer source |
 | --- | --- | --- | --- |
@@ -87,28 +87,34 @@ programs; the Mac evidence comes from one batch of all eighteen projects:
 | Linux x86_64 | Call result, match join, selected implementation | [42475689833](https://github.com/CathedralOS/Omega/actions/runs/42475689833) | `26c39d0e6335` |
 | Linux x86_64 | Parameter, constant, nested machine, other machine | [42510516060](https://github.com/CathedralOS/Omega/actions/runs/42510516060) | `18b2e57640ba` |
 | macOS ARM64 | All nine places | [42519412095](https://github.com/CathedralOS/Omega/actions/runs/42519412095) | `3ec75ded8c55` |
+| Windows x86_64 | All nine places | [42523390084, attempt 2](https://github.com/CathedralOS/Omega/actions/runs/42523390084/attempts/2) | `23ada24f408a` |
+| Linux ARM64 | All nine places | [42523393587](https://github.com/CathedralOS/Omega/actions/runs/42523393587) | `23ada24f408a` |
 
-The four-place Linux batch also checks its four corrupted-decoder projects. Each
-rejects at
-`FirstAgreement::round_trip`, naming `ReadFirst.try_from(frame)`. The other five
+The four-place Linux x86_64 batch also checks its four corrupted-decoder
+projects. Each rejects at `FirstAgreement::round_trip`, naming
+`ReadFirst.try_from(frame)`. The other five
 twins retain their intended checking observations from
 [42468758795](https://github.com/CathedralOS/Omega/actions/runs/42468758795),
 source `089c0a150e63`, and
 [42475689833](https://github.com/CathedralOS/Omega/actions/runs/42475689833),
 source `26c39d0e6335`. Historical observations keep those original revisions;
-they are not recorded as fresh executions on the latest producer. The Mac batch
-checks all nine corrupted-decoder projects against those same complete diagnostic
-fragments. Its captured Rust host is `aarch64-apple-darwin`, and its producer
-metadata identifies `macos_arm64`.
+they are not recorded as fresh executions on the latest producer. The Mac,
+Windows and Linux ARM64 batches each check all nine corrupted-decoder projects
+against the same complete diagnostic fragments. Their Rust hosts are
+`aarch64-apple-darwin`, `x86_64-pc-windows-msvc` and
+`aarch64-unknown-linux-gnu`, respectively, with matching producer host metadata.
+
+The first Windows attempt hit the 30-minute compiler-build limit before any
+program ran. The linked second attempt reused the saved cache and completed the
+same eighteen projects on the same source. The first attempt remains a
+preparation timeout.
 
 The frozen programs and oracles are unchanged. Optimized producer profiles,
 exact source snapshots and original artifacts are retained for each run. The
 README records host coverage milestones of the repair landed in
 [PR #2045](https://github.com/CathedralOS/Omega/pull/2045).
 
-Matching-host execution on Windows x86_64 and Linux ARM64 remains open.
-The broader LIBRARY-REPRESENTATION-FAMILIES acceptance also remains open.
-Earlier legacy-source executions do not close those requirements.
+The broader LIBRARY-REPRESENTATION-FAMILIES acceptance remains open.
 
 Current original reports, executable profiles, source bundles, exact input hashes
 and complete compressed observations are retained in
@@ -116,7 +122,8 @@ and complete compressed observations are retained in
 summaries and requests in `selected-agreement-20261106/`.
 The later field and four-place records are in `field-continuation-20261108/`
 and `linux-remainder-20261108/` under that same evidence directory. The Mac
-request and results are in `macos-agreement-20261108/`.
+request and results are in `macos-agreement-20261108/`; the Windows and Linux
+ARM64 records are in `remaining-hosts-20261108/`.
 
 The related controls cover missing premises, distinct selected maps, weak public
 contracts, mutable and linear custody, non-repeatable results, quotient fences
