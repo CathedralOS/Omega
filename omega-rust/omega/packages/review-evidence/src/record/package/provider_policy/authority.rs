@@ -1,4 +1,4 @@
-//! Source-qualified operational authority, independently of readable schemas.
+// Source-qualified operational authority records for service methods, kept independent of readable schemas.
 
 use crate::record::accessors::field_projection_accessors;
 use crate::record::package::callable_policy::validation::nominal_set;

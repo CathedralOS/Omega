@@ -1,6 +1,9 @@
-//! Execute a verified repository catalog before selecting one Product source.
-//! Acquisition supplies immutable code; the application returns declarations
-//! from its compiler. Unselected members supply catalog observations only.
+// We execute a verified Git repository catalog before selecting one `Product`
+// source. Acquisition supplies immutable code while the application returns
+// compiler-authenticated declarations; unselected members supply catalog
+// observations only, and authenticated member captures are retained before
+// their `Build` invocations execute so repository-relative selection has the
+// complete catalog.
 
 use super::acquisition::{AcquiredSourceSelection, SourceAcquisitionOrigin};
 use super::workspace_path::source_relative_path;
@@ -18,9 +21,6 @@ use package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, LocalSou
 use std::path::Path;
 use std::sync::Arc;
 
-/// A compiler-authenticated declaration and the closed source graphs actually
-/// used to compute or describe declarations for it. Undemanded Product requests
-/// remain inert observations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceMemberObservation {
     declaration: SourceBuildDeclaration,
@@ -105,8 +105,6 @@ impl AcquiredWorkspaceBuild {
             .join("build.omg")
     }
 
-    /// The catalog must have completed its own obligations. Member code comes
-    /// from exact declared subtrees of the same authenticated root capture.
     fn members(
         self,
         storage: &package_source::SourceResolver,
@@ -283,9 +281,6 @@ impl BuildSourceAcquisitions<'_> {
         }))
     }
 
-    /// Retain authenticated member captures before their Builds execute. A
-    /// member may request an external helper while the catalog is being
-    /// observed; repository-relative selection still needs the complete catalog.
     pub fn workspace_members(
         &mut self,
         workspace: AcquiredWorkspaceBuild,

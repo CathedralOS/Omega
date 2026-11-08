@@ -1,3 +1,5 @@
+// Field projection accessors for public API policy shape declarations.
+
 use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,

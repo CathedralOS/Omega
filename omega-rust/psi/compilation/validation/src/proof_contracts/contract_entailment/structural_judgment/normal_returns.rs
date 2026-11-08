@@ -27,7 +27,6 @@ mod match_captures;
 mod match_composition;
 mod nominal_values;
 mod operand_types;
-mod operation_requests;
 mod owned_arguments;
 mod placement_results;
 
@@ -231,7 +230,6 @@ enum ValueDelivery {
 struct OperationObservations<'query> {
     stop: ObservationStop,
     expressions: &'query [ExpressionHandle],
-    operation_index: Option<&'query operation_requests::OperationRequests>,
     operands: OperationOperandDemand<'query>,
     values: &'query [ExpressionHandle],
     roots: &'query [ExpressionHandle],
@@ -246,7 +244,6 @@ impl<'query> OperationObservations<'query> {
         OperationObservations {
             stop: ObservationStop::None,
             expressions,
-            operation_index: None,
             operands: OperationOperandDemand::All,
             values,
             roots: &[],
@@ -260,21 +257,6 @@ impl<'query> OperationObservations<'query> {
         }
     }
 
-    fn with_operation_index(
-        mut self,
-        index: &'query operation_requests::OperationRequests,
-    ) -> Self {
-        self.operation_index = Some(index);
-        self
-    }
-
-    fn observes_operation(self, expression: ExpressionHandle) -> bool {
-        self.operation_index.map_or_else(
-            || self.expressions.contains(&expression),
-            |index| index.contains(expression),
-        )
-    }
-
     fn with_roots(mut self, roots: &'query [ExpressionHandle]) -> Self {
         self.roots = roots;
         self
@@ -284,7 +266,6 @@ impl<'query> OperationObservations<'query> {
         Self {
             stop: ObservationStop::None,
             expressions: &[],
-            operation_index: None,
             operands: OperationOperandDemand::All,
             values: &[],
             roots: &[],
@@ -313,6 +294,8 @@ struct NormalOperand<'query> {
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
     demand: NormalValueDemand<'query>,
+    // Only a selected scalar consumer requests a referent observation.
+    scalar_read: Option<TypeReferenceHandle>,
 }
 
 type ValueScope<'scope> = (
@@ -676,7 +659,6 @@ impl<'program> StructuralJudge<'program> {
                 OperationObservations {
                     stop: ObservationStop::BeforeOperation(call),
                     expressions: &[],
-                    operation_index: None,
                     operands: operand_demand,
                     values: &[],
                     roots: &[],
@@ -723,7 +705,6 @@ impl<'program> StructuralJudge<'program> {
             OperationObservations {
                 stop: ObservationStop::BeforeExpression(expression),
                 expressions: &[],
-                operation_index: None,
                 operands: OperationOperandDemand::Selected(&[]),
                 values: &[],
                 roots: &[],
@@ -760,7 +741,6 @@ impl<'program> StructuralJudge<'program> {
             OperationObservations {
                 stop: ObservationStop::AfterValue(expression),
                 expressions: &[],
-                operation_index: None,
                 operands: OperationOperandDemand::All,
                 values: &[],
                 roots: &[],
@@ -798,7 +778,6 @@ impl<'program> StructuralJudge<'program> {
             OperationObservations {
                 stop: ObservationStop::AfterValue(expression),
                 expressions: &[],
-                operation_index: None,
                 operands: OperationOperandDemand::All,
                 values: &[],
                 roots: &[],
@@ -841,17 +820,13 @@ impl<'program> StructuralJudge<'program> {
             .iter()
             .map(|operand| operand.expression)
             .collect::<Vec<_>>();
-        let operation_index =
-            operation_requests::OperationRequests::prepare(self.program, &roots, operations);
         let mut entries = NormalObservationEntries::default();
         let completed = self.clone().evaluate_normal_operands(
             &operands,
             environment,
             scope,
             0,
-            OperationObservations::completion(observations, operations)
-                .with_operation_index(&operation_index)
-                .with_roots(&roots),
+            OperationObservations::completion(observations, operations).with_roots(&roots),
             &mut entries,
             None,
         );
@@ -914,6 +889,7 @@ impl<'program> StructuralJudge<'program> {
                     NormalOperand {
                         expression: root,
                         reference,
+                        scalar_read: None,
                         demand: if self
                             .program
                             .statement_table
@@ -1199,6 +1175,7 @@ impl<'program> StructuralJudge<'program> {
                 Some(NormalOperand {
                     expression: *expression,
                     reference,
+                    scalar_read: None,
                     demand: if position + 1 < arguments.len() {
                         match demand {
                             NormalValueDemand::ObserveOnly(values) => {
@@ -1291,6 +1268,7 @@ impl<'program> StructuralJudge<'program> {
                 expression: child,
                 reference,
                 demand,
+                scalar_read,
             },
         ) in operands.iter().enumerate()
         {
@@ -1331,7 +1309,13 @@ impl<'program> StructuralJudge<'program> {
                     return None;
                 };
                 let mut paths = paths.into_iter().peekable();
-                while let Some(path) = paths.next() {
+                while let Some(mut path) = paths.next() {
+                    if let Some(reference) = scalar_read {
+                        // Observe this operand before the next operand can
+                        // change its backing or replace its descriptor.
+                        path = path.complete_scalar_operand_read(child, reference, scope)?;
+                        path = path.at_expression(child, demand);
+                    }
                     if observes_root {
                         root_paths.push(path.judge.clone());
                     }
@@ -1578,7 +1562,7 @@ impl<'program> StructuralJudge<'program> {
             NormalValueDemand::Observe(observations)
                 if !before_operation
                     && (observations.contains(&expression)
-                        || requested_operations.observes_operation(expression)
+                        || requested_operations.expressions.contains(&expression)
                         || !discarded_value_has_no_own_effects(program, scope, expression)) =>
             {
                 NormalValueDemand::Value
@@ -1620,18 +1604,10 @@ impl<'program> StructuralJudge<'program> {
         let contains_observation =
             |observed| crate::expression_owners::expression_contains(program, expression, observed);
         let observes_inner_operation = || {
-            requested_operations.operation_index.map_or_else(
-                || {
-                    requested_operations
-                        .expressions
-                        .iter()
-                        .copied()
-                        .any(contains_observation)
-                },
-                |index| index.contains_in_subtree(expression),
-            ) || requested_operations
-                .values
+            requested_operations
+                .expressions
                 .iter()
+                .chain(requested_operations.values)
                 .copied()
                 .any(contains_observation)
                 || match requested_operations.stop {
@@ -1765,7 +1741,8 @@ impl<'program> StructuralJudge<'program> {
                 program, scope.0, scope.1, expression,
             )
             .is_some();
-        let scalar_field_read = scalar_storage_read && matches!(node, ExpressionNode::Member(_));
+        let field_storage_read =
+            self.requires_value_preservation() && matches!(node, ExpressionNode::Member(_));
         let scalar_reference_read = self
             .scalar_reference_read_type(scope.0, scope.1, expression)
             .is_some();
@@ -1829,12 +1806,15 @@ impl<'program> StructuralJudge<'program> {
                 }
             }
         }
+        let scalar_reads =
+            operand_types::selected_scalar_reads(program, scope.0, scope.1, expression, node);
         let operands = children_to_evaluate
             .into_iter()
-            .map(|(child, child_reference)| {
+            .enumerate()
+            .map(|(position, (child, child_reference))| {
                 let entry_values_requested = before_operation
                     || matches!(demand, NormalValueDemand::ObserveOnly(_))
-                        && requested_operations.observes_operation(expression);
+                        && requested_operations.expressions.contains(&expression);
                 let operand_demand = if entry_values_requested {
                     match requested_operations.operands {
                         OperationOperandDemand::All => NormalValueDemand::Value,
@@ -1858,9 +1838,13 @@ impl<'program> StructuralJudge<'program> {
                     // unrequested result, never for discarding a requested input.
                     _ if entry_values_requested => operand_demand,
                     ExpressionNode::Member(member)
-                        if (scalar_field_read || matches!(demand, NormalValueDemand::Location))
+                        if (field_storage_read
+                            || matches!(demand, NormalValueDemand::Location))
                             && child == member.receiver =>
                     {
+                        // A field reads its exact storage, including a whole
+                        // returned record. An unknown parent snapshot must not
+                        // hide independently retained child observations.
                         NormalValueDemand::Location
                     }
                     ExpressionNode::Indexed(indexed)
@@ -1889,6 +1873,9 @@ impl<'program> StructuralJudge<'program> {
                     expression: child,
                     reference: child_reference,
                     demand: child_demand,
+                    scalar_read: matches!(child_demand, NormalValueDemand::Value)
+                        .then(|| scalar_reads.get(position).copied().flatten())
+                        .flatten(),
                 }
             })
             .collect::<Vec<_>>();
@@ -1951,7 +1938,7 @@ impl<'program> StructuralJudge<'program> {
                     None
                 };
                 if requested_operations.stop == ObservationStop::BeforeOperation(expression)
-                    || requested_operations.observes_operation(expression)
+                    || requested_operations.expressions.contains(&expression)
                     || matches!(demand, NormalValueDemand::ObserveOnly(_))
                 {
                     entries.operations.push(NormalOperationEntry {
@@ -2040,7 +2027,9 @@ impl<'program> StructuralJudge<'program> {
                         NormalReturnPath::unobserved(judge).at_expression(expression, demand),
                     ]);
                 }
-                let receiver_changed = (scalar_storage_read || scalar_reference_read)
+                let receiver_changed = (field_storage_read
+                    || scalar_storage_read
+                    || scalar_reference_read)
                     && judge.storage_write_sequence != receiver_write_sequence
                     && !(scalar_storage_read
                         && judge.completed_read_address_is_current(scope.0, scope.1, expression));
@@ -2065,6 +2054,12 @@ impl<'program> StructuralJudge<'program> {
                 } else {
                     None
                 };
+                let scalar_read_completed = alternatives.is_none()
+                    && !receiver_changed
+                    && scalar_reference_read
+                    && judge.frame_resolver().is_some_and(|frames| {
+                        frames.completed_scalar_read(scope.0, scope.1, expression)
+                    });
                 let alternatives = alternatives
                     .map(|values| values.into_iter().map(Some).collect::<Vec<_>>())
                     .unwrap_or_else(|| vec![None]);
@@ -2080,6 +2075,7 @@ impl<'program> StructuralJudge<'program> {
                             receiver_changed,
                             scalar_storage_read,
                             contents,
+                            scalar_read_completed,
                         )?,
                         ValueDelivery::RetainObservations => {
                             // Failure of provisional metadata never erases the
@@ -2095,6 +2091,7 @@ impl<'program> StructuralJudge<'program> {
                                     receiver_changed,
                                     scalar_storage_read,
                                     contents,
+                                    scalar_read_completed,
                                 )
                                 .unwrap_or_else(|| NormalReturnPath::unobserved(judge.clone()))
                         }

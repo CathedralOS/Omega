@@ -143,7 +143,7 @@ pub(crate) fn replay_memberships(
         return Vec::new();
     };
     let Some((operands, _)) =
-        crate::flow::captured_call_operands(program, &facts.flow, state_flow, call)
+        crate::flow::captured_call_operands(program, facts.flow.view(), state_flow, call)
     else {
         return Vec::new();
     };

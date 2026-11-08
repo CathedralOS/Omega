@@ -321,7 +321,7 @@ impl<'a> UnitBody<'a> {
                         | Source::StructuralLocalBorrow { symbol, .. } => {
                             Some(facts::PlaceRoot::Symbol(symbol))
                         }
-                        Source::StructuralExpression { expression, .. } => {
+                        Source::StructuralExpression { expression } => {
                             Some(facts::PlaceRoot::Expression(expression))
                         }
                         Source::ScalarParameter { parameter_index } => scalar_parameters

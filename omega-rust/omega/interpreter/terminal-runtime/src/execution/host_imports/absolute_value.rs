@@ -1,8 +1,7 @@
-//! Interpret exact C `abs` bindings over their admitted signed integer word.
-//! A public one-scalar record is a by-value ABI envelope, not an opaque token
-//! or a borrowed address. Its exact captured payload is read through the normal
-//! boundary storage interface. Unit explicitly discards the C return register;
-//! neither that discard nor the host result establishes claims or qualifications.
+// Interpret exact C `abs` bindings (`AbsoluteValueImport`) over their admitted
+// signed 32-bit integer word. A public one-scalar record acts as a by-value ABI
+// envelope whose captured payload is read through the normal boundary storage
+// interface, and a `Unit` result explicitly discards the C return register.
 
 use calling_conventions::{BoundaryCallingApplication, CallSignature, ValueShape};
 use semantic_vocabulary::{
@@ -44,8 +43,6 @@ impl AbsoluteValueImport {
         let scalar = ScalarType::Integer(word);
         let signature = TerminalImportSignature::from(declaration);
         let result = if signature.result.is_unit() {
-            // A Unit declaration observes no C return register. It does not
-            // change the native operation or suppress validation of its input.
             None
         } else if signature.result == BoundaryMachineResult::Scalar(scalar.into()) {
             Some(ValueShape::integer(4, 4))

@@ -135,12 +135,12 @@ pub(crate) fn captured_observation_roots(
 
 pub(crate) fn captured_value_places(
     program: &dyn ::validation::CheckingInput,
-    flow: &FlowFacts,
+    flow: checked_trees::FlowFactsRef<'_>,
     value: &CapturedValue<'_>,
 ) -> Option<Vec<CapturedValuePlace>> {
     captured_places(
         program,
-        &flow.control,
+        flow.control,
         value.operand.row(),
         value.type_reference,
         &value.projection,
@@ -151,12 +151,12 @@ pub(crate) fn captured_value_places(
 /// still owns its storage snapshots. Both projections obey the same view law.
 pub(crate) fn captured_observation_places(
     program: &dyn ::validation::CheckingInput,
-    flow: &FlowFacts,
+    flow: checked_trees::FlowFactsRef<'_>,
     value: &CapturedValue<'_>,
 ) -> Option<Vec<CapturedValuePlace>> {
     captured_places(
         program,
-        &flow.control,
+        flow.control,
         value.observation.row(),
         value.observation_type,
         &value.observation_projection,
@@ -265,7 +265,7 @@ pub(super) fn captured_places(
 /// each independently; combining their contexts would invent a capture epoch.
 pub(crate) fn captured_operand_values<'capture>(
     program: &dyn ::validation::CheckingInput,
-    flow: &'capture FlowFacts,
+    flow: checked_trees::FlowFactsRef<'capture>,
     semantic: &FactPlan,
     state: &FlowStateFact,
     operand: CapturedOperand<'capture>,
@@ -559,7 +559,7 @@ pub(crate) fn observe_captured_values<'capture>(
         if value.producer_epoch.is_none()
             && operand_binds_live_view(program, value.type_reference)
             && let Some(mut stored) =
-                reaching_store_values(program, flow, semantic, state, &value, Some(epoch))
+                reaching_store_values(program, flow.view(), semantic, state, &value, Some(epoch))
         {
             for origin in &mut stored {
                 origin.observation = value.observation;
@@ -580,7 +580,7 @@ pub(crate) fn observe_captured_values<'capture>(
 /// leaving the current storage observation and its own contexts intact.
 fn reaching_store_values<'capture>(
     program: &dyn ::validation::CheckingInput,
-    flow: &'capture FlowFacts,
+    flow: checked_trees::FlowFactsRef<'capture>,
     semantic: &FactPlan,
     state: &FlowStateFact,
     value: &CapturedValue<'capture>,
@@ -617,7 +617,7 @@ fn reaching_store_values<'capture>(
     program.state_by_symbol(state.state_symbol)?;
     let captures = at_snapshot(
         program,
-        &flow.control,
+        flow.control,
         operand.storage_snapshot,
         source,
         if descriptor {
@@ -673,7 +673,7 @@ fn reaching_store_values<'capture>(
             flow,
             semantic,
             state,
-            CapturedOperand::recorded(&flow.control, selected.capture)?,
+            CapturedOperand::recorded(flow.control, selected.capture)?,
             selected.reference,
             &selected_path,
         )?);

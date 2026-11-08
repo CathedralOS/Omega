@@ -153,8 +153,8 @@ The compact primitive is required by the compiler customer. Representing the
 least 64 MiB at the current 16-byte row size, while the existing Delta oracle
 has a 16 MiB heap. That mismatch is structural, not an optimization problem.
 
-Divergence remains divergence. Fuel is never Delta meaning. An evaluator may
-bound work for a diagnostic run, but fuel exhaustion is an implementation
+Divergence remains divergence. Work is never Delta meaning. An evaluator may
+bound work for a diagnostic run, but work-budget exhaustion is an implementation
 profile's `Incomplete` result and proves neither rejection nor divergence.
 
 ## Compiler-application profile

@@ -1,4 +1,5 @@
-//! Join the loaded compiler and the actually selected toolchain library.
+// Verify that accepted lock records match the current source closure and loaded compiler/toolchain identity before any Build activation or compiler pass executes.
+// Request-path spellings (`.` vs. an absolute path) are navigation rather than compiler input, whereas package identity, immutable resolution, root role, dependency selections, and every occurrence's compiler identity must match exactly.
 
 use crate::lock::PackageLockTarget;
 use crate::resolution::graph::{
@@ -8,10 +9,6 @@ use crate::resolution::graph::{
 
 pub use compiler::compiler_input_identity;
 
-/// Refuse stale acceptance before a Build activation or compiler pass executes.
-/// Request-path spellings are navigation, not compiler input: the same canonical
-/// local project can be selected through `.` or an absolute path. Package
-/// identity, resolution, root role, and all dependency selections remain exact.
 pub(super) fn require_current_acceptance(
     closure: &ExactTargetPackageSourceClosure<'_>,
     accepted: &PackageLockTarget,
@@ -80,8 +77,6 @@ pub(super) fn require_current_acceptance(
     {
         return Err(stale(root_name, "dependency selections changed"));
     }
-    // Lock recovery already validates exact purpose/target occurrence coverage.
-    // Compare every occurrence, not just the root or the first target section.
     for occurrence in accepted.occurrences() {
         if occurrence
             .compilation()

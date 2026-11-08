@@ -1,4 +1,4 @@
-//! Exact authored crash guards in policy-only nested static signatures.
+// Exact authored crash guards in policy-only nested static signatures.
 
 use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;

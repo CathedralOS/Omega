@@ -138,6 +138,7 @@ pub(super) struct SharedFlowTables {
     dynamic_conformances: Option<std::sync::Arc<checked_trees::DynamicConformanceFacts>>,
     symbol_positions: SymbolPositions,
     machine_origins: MachineOrigins,
+    return_dependents: Vec<Vec<SymbolHandle>>,
     scalar_bindings_by_site: HashMap<
         (SymbolHandle, u32),
         Vec<arena::Handle<checked_trees::CheckedScalarExpressionBindings>>,
@@ -149,6 +150,7 @@ pub(super) struct SharedFlowTables {
 impl SharedFlowTables {
     pub(super) fn new(
         program: &dyn ::validation::CheckingInput,
+        borrow: &BorrowFacts,
         scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
         call_frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Self {
@@ -172,6 +174,7 @@ impl SharedFlowTables {
                 .map(std::sync::Arc::new),
             symbol_positions: SymbolPositions::build(program),
             machine_origins: MachineOrigins::solve(program, call_frames),
+            return_dependents: super::normal_returns::dependents(program, borrow),
             scalar_bindings_by_site,
             scalar_expressions_by_site,
             integer_literal_thresholds: std::sync::OnceLock::new(),
@@ -200,6 +203,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// single probes.
     reached_state_positions: Vec<(SymbolHandle, usize)>,
     pub(super) dirty_state_value_inputs: Vec<SymbolHandle>,
+    pub(super) normal_return_predicates: super::normal_returns::NormalReturnPredicates,
     pub(super) new_state_field_input_height: usize,
     /// Set only while one part of a split group converges alone.
     pub(super) input_recording: Option<super::state_values::InputRecording>,
@@ -315,6 +319,29 @@ impl<'plans> FlowBuildContext<'plans> {
         effects
     }
 
+    /// Call-site selector proofs do not belong in the target-only memo. The
+    /// unspecialized summary still answers every caller that has not narrowed
+    /// the same paths.
+    pub(super) fn stored_reference_effects_for_selectors(
+        &self,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        indices: &[Option<usize>],
+        selectors: &[(
+            symbols::SymbolHandle,
+            Vec<facts::PlaceSegment>,
+            symbols::SymbolHandle,
+        )],
+    ) -> Option<Rc<Vec<validation::StoredReferenceEffect>>> {
+        self.call_frames
+            .and_then(|frames| {
+                frames.state_stored_reference_effects_for_selectors(
+                    machine, state, indices, selectors,
+                )
+            })
+            .map(Rc::new)
+    }
+
     #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
@@ -329,6 +356,7 @@ impl<'plans> FlowBuildContext<'plans> {
     ) -> Self {
         let shared_tables = std::sync::Arc::new(SharedFlowTables::new(
             program,
+            borrow,
             scalar_expressions,
             call_frames,
         ));
@@ -371,6 +399,7 @@ impl<'plans> FlowBuildContext<'plans> {
             state_value_inputs: Vec::new(),
             reached_state_positions: Vec::new(),
             dirty_state_value_inputs: Vec::new(),
+            normal_return_predicates: Default::default(),
             new_state_field_input_height: 0,
             input_recording: None,
             replay_guard: None,
@@ -778,6 +807,14 @@ impl<'plans> FlowBuildContext<'plans> {
         )
     }
 
+    pub(super) fn dirty_return_dependents(&mut self, changed: &[usize]) {
+        for &machine in changed {
+            for &state in &self.shared_tables.return_dependents[machine] {
+                crate::shared::collections::push_unique(&mut self.dirty_state_value_inputs, state);
+            }
+        }
+    }
+
     pub(super) fn expression_occurrences_at(
         &self,
         program: &dyn ::validation::CheckingInput,
@@ -892,6 +929,8 @@ impl<'plans> FlowBuildContext<'plans> {
     /// StateValues contains owned evidence and typed-tree handles, never handles
     /// into these output arenas or the changing semantic plan. The immutable
     /// plans and mutation cache likewise retain no sweep-local handles.
+    /// Completed return predicates likewise retain only source identities;
+    /// keep them for the next sweep, clearing them on fallback or group exit.
     ///
     /// This is the former whole-context replacement boundary, not a partial
     /// rollback: all output rows must disappear together, before semantic
@@ -939,6 +978,7 @@ impl<'plans> FlowBuildContext<'plans> {
         self.state_value_inputs.clear();
         self.reached_state_positions.clear();
         self.dirty_state_value_inputs.clear();
+        self.normal_return_predicates.clear();
         flow
     }
 }

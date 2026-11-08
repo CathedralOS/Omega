@@ -1,3 +1,6 @@
+// Pure source-level planning for `build.omg` dependency additions and replacements.
+// Both planners operate on command-owned source strings without reading or writing the filesystem, binding any automatic edit or manual patch to the exact input SHA-256 digest and re-projecting the generated source to verify that the edit produced the exact expected row sequence.
+
 use crate::declarations::dependencies::edit::layout::discover_build_layout;
 use crate::declarations::dependencies::edit::rendering::{
     canonical_dependency_statement, source_digest,
@@ -11,9 +14,6 @@ use crate::declarations::dependencies::read::{
 };
 use std::path::PathBuf;
 
-/// Plan an addition using command-owned source without reading or writing the
-/// build path. Any edit or manual patch is bound to these exact source bytes.
-/// The authored row is a product dependency, matching `omega install`.
 pub(crate) fn plan_dependency_addition_from_source(
     build_path: PathBuf,
     source: String,
@@ -89,9 +89,6 @@ fn validated_automatic_addition(
     ))
 }
 
-/// Plan a replacement using command-owned source without reading or writing
-/// the build path. Any edit or manual patch is bound to these exact source
-/// bytes. `purpose` selects which authorized scope's row is rewritten.
 pub(crate) fn plan_dependency_replacement_from_source(
     build_path: PathBuf,
     source: String,

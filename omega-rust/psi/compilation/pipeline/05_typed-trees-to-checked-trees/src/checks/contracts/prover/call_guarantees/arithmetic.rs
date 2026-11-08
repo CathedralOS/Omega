@@ -53,7 +53,7 @@ pub(super) fn proves(
     let Some(goal) = at_invocation(program, facts, caller, required, goal, &[], frames) else {
         return false;
     };
-    let Some(call) = invocation_fact(facts, caller, required) else {
+    let Some(call) = invocation_fact(facts.view(), caller, required) else {
         return false;
     };
     append_store_hypotheses(
@@ -152,7 +152,7 @@ impl ExitArithmetic<'_, '_> {
                 })?;
             if crate::flow::value_origin_matches_call_return(
                 self.program,
-                &self.facts.flow,
+                self.facts.flow.view(),
                 machine,
                 self.caller,
                 self.exit.statement_index,
@@ -166,7 +166,7 @@ impl ExitArithmetic<'_, '_> {
         }
         value_origin(
             self.program,
-            self.facts,
+            self.facts.view(),
             self.caller,
             self.exit.statement_index,
             self.frames,
@@ -213,7 +213,7 @@ pub(in crate::checks) fn at_exit<'program, 'facts>(
     };
     let mut hypotheses = Vec::new();
     let mut returned = Vec::new();
-    for guarantee in super::available(program, facts, caller, frontier, contexts, frames) {
+    for guarantee in super::available(program, facts.view(), caller, frontier, contexts, frames) {
         if let Some(writes) = guarantee.post_return_writes.as_deref()
             && let Some(bound) = at_invocation(
                 program,
@@ -293,7 +293,7 @@ fn append_store_hypotheses(
             |place, observation| {
                 observation_origin(
                     program,
-                    facts,
+                    facts.view(),
                     caller,
                     stored.statement_index,
                     frames,
@@ -308,7 +308,7 @@ fn append_store_hypotheses(
             .collect::<Vec<_>>();
         for guarantee in super::available(
             program,
-            facts,
+            facts.view(),
             caller,
             super::GuaranteeUse::EvaluatedContext(stored.statement_index),
             &captured_contexts,
@@ -339,11 +339,16 @@ fn append_store_hypotheses(
             &captured_contexts,
             hypotheses,
             |place, observation| {
-                crate::flow::operand_entry_origin_is_stable(program, &facts.flow, operand, &place)
-                    .then_some(())?;
+                crate::flow::operand_entry_origin_is_stable(
+                    program,
+                    facts.flow.view(),
+                    operand,
+                    &place,
+                )
+                .then_some(())?;
                 observation_origin(
                     program,
-                    facts,
+                    facts.view(),
                     caller,
                     stored.statement_index,
                     frames,
@@ -391,7 +396,7 @@ fn proves_bound(
             } else {
                 observation_origin(
                     program,
-                    facts,
+                    facts.view(),
                     caller,
                     statement,
                     frames,
@@ -519,7 +524,7 @@ pub(super) fn at_invocation(
                 return call_result_atom(
                     program,
                     caller,
-                    invocation_fact(facts, caller, invocation)?,
+                    invocation_fact(facts.view(), caller, invocation)?,
                     &result.segments,
                     primitive,
                 );
@@ -565,7 +570,7 @@ pub(super) fn at_invocation(
                 place
             } else {
                 let machine = program.machine_by_symbol(caller.machine_symbol)?;
-                let call = invocation_fact(facts, caller, invocation)?;
+                let call = invocation_fact(facts.view(), caller, invocation)?;
                 // The statement boundary predates earlier sibling operands.
                 // Invocation inputs additionally owe their exact call-prefix
                 // preservation, even when this call's own arguments are places.
@@ -661,7 +666,7 @@ pub(in crate::checks) fn call_result_atom(
 
 pub(in crate::checks) fn value_origin(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     caller: &FlowStateFact,
     statement: usize,
     frames: &validation::CallFrameResolver<'_>,
@@ -680,7 +685,7 @@ pub(in crate::checks) fn value_origin(
 
 pub(in crate::checks) fn observation_origin(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     caller: &FlowStateFact,
     statement: usize,
     frames: &validation::CallFrameResolver<'_>,
@@ -695,7 +700,7 @@ pub(in crate::checks) fn observation_origin(
     }
     crate::flow::value_origin_before_statement(
         program,
-        &facts.flow,
+        facts.flow,
         machine,
         caller,
         statement,
@@ -824,12 +829,19 @@ fn proposition_with_static_actuals(
     {
         return None;
     }
-    bind_occurrences(program, facts, callable, expression, static_actuals, value)
+    bind_occurrences(
+        program,
+        facts.view(),
+        callable,
+        expression,
+        static_actuals,
+        value,
+    )
 }
 
 pub(in crate::checks) fn scalar_term(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     callable: &Callable<'_>,
     expression: ExpressionHandle,
     value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
@@ -844,13 +856,13 @@ pub(in crate::checks) fn scalar_term(
 /// Selected builtin meaning and policy precede every polynomial interpretation.
 fn admitted_scalar_expression(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     callable: &Callable<'_>,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    if !super::super::has_builtin_operators(program, &facts.operators, expression)
+    if !super::super::has_builtin_operators(program, facts.operators, expression)
         || !callable.builtin_meaning(program, expression)
-        || !term(program, &facts.operators, callable, expression)
+        || !term(program, facts.operators, callable, expression)
     {
         return None;
     }
@@ -876,7 +888,7 @@ pub(in crate::checks) fn completed_scalar_value(
 
 fn bind_completed_remainders(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     callable: &Callable<'_>,
     term: &mut ScopedArithmeticExpression,
 ) {
@@ -887,7 +899,7 @@ fn bind_completed_remainders(
         &mut Vec::new(),
         |expression, _| {
             if admitted_unsigned_remainder(program, callable, expression)
-                && super::super::has_builtin_operators(program, &facts.operators, expression)
+                && super::super::has_builtin_operators(program, facts.operators, expression)
             {
                 operations.push(expression);
             }
@@ -915,7 +927,7 @@ fn bind_completed_remainders(
 
 fn bind_occurrences(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     callable: &Callable<'_>,
     expression: ExpressionHandle,
     static_actuals: &[ScopedArithmeticBinding],

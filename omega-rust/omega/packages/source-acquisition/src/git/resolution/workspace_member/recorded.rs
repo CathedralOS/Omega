@@ -1,4 +1,9 @@
-//! Exact recorded repository selection with selective workspace materialization.
+// Exact recorded-revision workspace member resolution
+// (`resolve_git_workspace_member_at_revision_in_lanes`).
+//
+// After authenticating the commit and tree graph for the recorded `(commit,
+// tree)` pair, opens only the root/member declarations and the selected
+// member's payload closure, and materializes only the selected member.
 
 use crate::git::executable::selection::PrimaryGitSelection;
 use crate::git::request::GitSourceRequest;
@@ -14,12 +19,6 @@ use super::super::exact_revision::GitExactRevisionAcquisition;
 use super::super::selection::{GitRevisionSelection, RecordedGitRevision};
 use super::resolve_git_workspace_member_at_selection;
 
-/// Select one declared member from the exact recorded repository revision with
-/// the selected primary Git from `resolver.primary_git()?`.
-/// After authenticated tree-graph inspection, only declaration and selected
-/// member payloads are opened, and only the member is materialized.
-/// The planner, not source acquisition, owns package syntax.
-/// The original request remains retained; recorded IDs do not mint custody.
 pub fn resolve_git_workspace_member_at_revision_in_lanes<Planner>(
     primary_git: &PrimaryGitSelection,
     request: &GitSourceRequest,

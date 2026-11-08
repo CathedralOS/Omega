@@ -1,9 +1,14 @@
-//! Resolve one Git request into exact package source custody.
-//!
-//! Read in operation order: [`request`] owns the acquisition/selection input,
-//! [`recorded`] acquires recorded revisions, [`workspace`] applies
-//! Omega declaration semantics for named members, and [`binding`] joins the
-//! selected immutable snapshot to package identity and dependency rows.
+/*
+    We resolve one Git request into exact package source custody: `request`
+    owns the acquisition and selection input, `recorded` recovers historical
+    revisions under accepted metadata, and `workspace` applies Omega
+    declaration semantics for named workspace members.
+*/
+
+/*
+    Git package source resolution belongs to the package source boundary
+    (`resolution/source/git/mod.rs`).
+*/
 
 mod recorded;
 mod request;

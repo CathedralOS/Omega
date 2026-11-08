@@ -55,18 +55,13 @@ pub(super) enum RootScope {
     RankObservation,
 }
 
-/// One actually produced saved subject. The carrier and role are published
-/// together before any pattern observes its fields.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) struct DispatchReceiver {
-    pub(super) value: CheckedStructuralValueHandle,
-    pub(super) type_reference: TypeReferenceHandle,
-    pub(super) access: checked_trees::CheckedStructuralAccess,
-}
-
 pub(super) struct Builder<'program, 'plans> {
     pub(super) program: &'program dyn ::validation::CheckingInput,
     pub(super) shapes: ShapeCollector<'program>,
+    /// The declaration index every collector over this program starts from.
+    pub(super) carriers: crate::execution::terminal_unit::types::CarrierIndex,
+    /// Which flow calls' result types admit a checked structural result.
+    pub(super) call_result_types: super::call_result_types::CallResultTypes,
     pub(super) operators: &'program CheckedOperatorFacts,
     pub(super) semantic: &'program facts::FactPlan,
     pub(super) flow: &'program FlowFacts,
@@ -90,10 +85,6 @@ pub(super) struct Builder<'program, 'plans> {
     pub(super) locals: &'program [ScalarLocal],
     pub(super) plans: &'plans mut CheckedScalarComputationPlans,
     pub(super) structural_values: &'plans mut checked_trees::CheckedStructuralValuePlans,
-    /// Produced subject associations for this statement's sparse generational
-    /// expression subset. A zero value retains existing storage; it is not an
-    /// absent producer. No global expression interval is allocated here.
-    pub(super) dispatch_receivers: std::collections::BTreeMap<(u32, u32), DispatchReceiver>,
     pub(super) statement_nodes_start: usize,
     pub(super) root_scope: RootScope,
     /// A normalized source operand is one evaluation. Retain that identity for

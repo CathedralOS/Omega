@@ -61,6 +61,71 @@ impl FlowBorrowLifetimeFacts {
     }
 }
 
+/// The states a worker's copy of the ownership tables is walking, and
+/// whether any read on that copy asked for another state's per-state rows.
+///
+/// The permission walk can run each state on its own checking-pool worker,
+/// against a copy of these tables that shares every existing page and writes
+/// only the state's own page. That equals one serial walk only if no state
+/// reads a row another state writes during the walk. Every per-state lookup
+/// the walk can reach notes the state it reads here; a walk that read outside
+/// its own state is discarded and the whole walk runs serially instead. The
+/// guard travels with the copy, so reads made on any pool thread are noted.
+/// An ordinary table carries no guard and notes nothing.
+#[derive(Debug, Clone, Default)]
+pub struct WalkGuard(Option<std::sync::Arc<WalkGuardState>>);
+
+#[derive(Debug)]
+struct WalkGuardState {
+    /// The walked states, sorted by arena position for lookup.
+    states: Vec<SymbolHandle>,
+    crossed: std::sync::atomic::AtomicBool,
+}
+
+impl WalkGuard {
+    pub fn for_states(mut states: Vec<SymbolHandle>) -> Self {
+        states.sort_unstable_by_key(|state| (state.arena_index(), state.generation()));
+        Self(Some(std::sync::Arc::new(WalkGuardState {
+            states,
+            crossed: std::sync::atomic::AtomicBool::new(false),
+        })))
+    }
+
+    /// Note a read of `state`'s per-state rows.
+    pub fn note(&self, state: SymbolHandle) {
+        let Some(guard) = &self.0 else {
+            return;
+        };
+        let owned = guard
+            .states
+            .binary_search_by_key(&(state.arena_index(), state.generation()), |owned| {
+                (owned.arena_index(), owned.generation())
+            })
+            .is_ok();
+        if !owned {
+            guard
+                .crossed
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    /// Whether any read on this copy asked for a state it does not own.
+    pub fn crossed(&self) -> bool {
+        self.0
+            .as_ref()
+            .is_some_and(|guard| guard.crossed.load(std::sync::atomic::Ordering::Relaxed))
+    }
+}
+
+// Derived, nonsemantic state: two tables are equal whatever guards they carry.
+impl PartialEq for WalkGuard {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for WalkGuard {}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOwnershipFacts {
     pub instruction_effect_receipts: Arena<super::FlowInstructionEffectReceiptFact>,
@@ -90,6 +155,10 @@ pub struct FlowOwnershipFacts {
     pub owned_selections_by_state: KeyedRows<SymbolHandle, super::FlowOwnedSelectionReceipt>,
     pub selection_place_bindings_by_state:
         KeyedRows<SymbolHandle, super::FlowSelectionPlaceBinding>,
+    /// Present only on a worker's copy that walks one state's permissions; see
+    /// [`WalkGuard`]. Derived, nonsemantic state: never recorded or compared.
+    #[record(skip)]
+    pub walk_guard: WalkGuard,
 }
 
 impl FlowOwnershipFacts {
@@ -124,6 +193,7 @@ impl FlowOwnershipFacts {
             permissions_by_state: KeyedRows::default(),
             owned_selections_by_state: KeyedRows::default(),
             selection_place_bindings_by_state: KeyedRows::default(),
+            walk_guard: WalkGuard::default(),
         }
     }
 
@@ -132,6 +202,7 @@ impl FlowOwnershipFacts {
         state: SymbolHandle,
         run: impl FnOnce(&[arena::Handle<FlowPermissionEventFact>]) -> R,
     ) -> R {
+        self.walk_guard.note(state);
         self.permissions_by_state.with_rows(
             &self.permissions,
             |event| event.state_symbol,
@@ -145,6 +216,7 @@ impl FlowOwnershipFacts {
         state: SymbolHandle,
         run: impl FnOnce(&[arena::Handle<super::FlowOwnedSelectionReceipt>]) -> R,
     ) -> R {
+        self.walk_guard.note(state);
         self.owned_selections_by_state.with_rows(
             &self.owned_selections,
             |receipt| receipt.state,
@@ -158,6 +230,7 @@ impl FlowOwnershipFacts {
         state: SymbolHandle,
         run: impl FnOnce(&[arena::Handle<super::FlowSelectionPlaceBinding>]) -> R,
     ) -> R {
+        self.walk_guard.note(state);
         self.selection_place_bindings_by_state.with_rows(
             &self.selection_place_bindings,
             |binding| binding.state,
@@ -195,9 +268,6 @@ pub struct FlowControlFacts {
     pub descriptor_context_observations: super::FlowDescriptorObservationTable,
     pub atomic_executions: Arena<super::FlowAtomicExecutionFact>,
     pub case_accesses: Arena<super::FlowCaseAccessFact>,
-    pub owned_case_selections: Arena<super::FlowOwnedCaseSelection>,
-    pub owned_cases_by_expression:
-        KeyedRows<typed_trees::expression::ExpressionHandle, super::FlowOwnedCaseSelection>,
     pub operator_invocations: Arena<super::FlowOperatorInvocationFact>,
     pub operands: Arena<super::FlowOperandFact>,
     pub copied_values: Arena<super::FlowCopiedValue>,
@@ -243,19 +313,6 @@ pub struct FlowControlFacts {
 }
 
 impl FlowControlFacts {
-    pub fn with_owned_case_selections<R>(
-        &self,
-        expression: typed_trees::expression::ExpressionHandle,
-        run: impl FnOnce(&[arena::Handle<super::FlowOwnedCaseSelection>]) -> R,
-    ) -> R {
-        self.owned_cases_by_expression.with_rows(
-            &self.owned_case_selections,
-            |selection| selection.expression,
-            &expression,
-            run,
-        )
-    }
-
     pub fn with_expression_operands<R>(
         &self,
         expression: typed_trees::expression::ExpressionHandle,
@@ -270,10 +327,6 @@ impl FlowControlFacts {
     }
 
     pub fn seal_indexes(&mut self) {
-        self.owned_cases_by_expression
-            .seal(&self.owned_case_selections, |selection| {
-                selection.expression
-            });
         self.operands_by_expression
             .seal(&self.operands, |operand| operand.expression);
     }
@@ -309,8 +362,6 @@ impl FlowControlFacts {
             descriptor_context_observations: super::FlowDescriptorObservationTable::default(),
             atomic_executions: Arena::default(),
             case_accesses: Arena::default(),
-            owned_case_selections: Arena::default(),
-            owned_cases_by_expression: KeyedRows::default(),
             operator_invocations: Arena::default(),
             operands: Arena::default(),
             copied_values: Arena::default(),
@@ -521,6 +572,12 @@ macro_rules! paged_flow_roots {
         }
     ) => {
         impl $name {
+            /// Freeze every arena's pages so a clone shares them; see
+            /// `PagedArenaSet::share_pages`.
+            pub fn share_pages(&mut self) {
+                $(self.$arena.share_pages();)*
+            }
+
             /// Empty every arena, keeping each first page's allocation.
             pub fn reset_pages(&mut self) {
                 $(self.$arena.reset_retain_capacity();)*
@@ -546,6 +603,29 @@ macro_rules! paged_flow_roots {
             pub fn adopt_additional_pages(&mut self, mut other: Self) {
                 $(self.$arena.adopt_additional_pages(other.$arena.take_additional_pages());)*
                 $(self.$list.append(&mut other.$list);)*
+            }
+
+            /// The highest page generation any arena holds or has opened. A
+            /// fork that writes on pages above it cannot collide with a page
+            /// the arenas already hold.
+            pub fn latest_page_generation(&self) -> u32 {
+                let mut latest = 1;
+                $(latest = latest.max(self.$arena.latest_generation());)*
+                latest
+            }
+
+            /// Hand back every arena's pages from `generation` up, restoring
+            /// each arena's append generation to `baseline`'s. A fork of
+            /// `baseline` that wrote only on those pages equals `baseline`
+            /// again afterwards. Lists have no pages and move whole.
+            pub fn take_pages_from(&mut self, generation: u32, baseline: &Self) -> Self {
+                let mut taken = Self::default();
+                $(taken.$arena.adopt_additional_pages(
+                    self.$arena
+                        .take_pages_from(generation, baseline.$arena.current_generation()),
+                );)*
+                $(taken.$list = std::mem::take(&mut self.$list);)*
+                taken
             }
         }
     };
@@ -594,6 +674,8 @@ paged_flow_roots!(FlowOwnershipFacts {
         permissions_by_state,
         owned_selections_by_state,
         selection_place_bindings_by_state,
+        // Not an index, but likewise not paged: the guard a worker's copy carries.
+        walk_guard,
     ],
     lists: [],
 });
@@ -610,7 +692,6 @@ paged_flow_roots!(FlowControlFacts {
         descriptor_context_observations,
         atomic_executions,
         case_accesses,
-        owned_case_selections,
         operator_invocations,
         operands,
         copied_values,
@@ -641,6 +722,6 @@ paged_flow_roots!(FlowControlFacts {
         exit_parameter_origins,
         states,
     ],
-    indexes: [operands_by_expression, owned_cases_by_expression],
+    indexes: [operands_by_expression],
     lists: [retired_calls],
 });

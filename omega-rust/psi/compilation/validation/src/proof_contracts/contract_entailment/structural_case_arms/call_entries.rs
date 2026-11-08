@@ -10,10 +10,7 @@ use super::*;
 use crate::proof_contracts::contract_entailment::specification_calls::{
     SelectedCallContract, selected_call_site_contract,
 };
-use crate::proof_contracts::contract_entailment::structural_judgment::normal_returns::{
-    NormalOperationEntry, OperationOperandDemand,
-};
-use std::collections::{BTreeMap, BTreeSet};
+use crate::proof_contracts::contract_entailment::structural_judgment::normal_returns::OperationOperandDemand;
 
 /// A refuted arm excludes its complete target, including nested call operands.
 /// The ordinary occurrence owner separates that target from the live guard
@@ -29,16 +26,20 @@ pub(super) fn exclude_target_calls(
     if !target.is_valid() {
         return;
     }
-    for occurrence in crate::machine_calls::calls::collect_statement_call_occurrences(
+    for (ordinal, site) in crate::machine_calls::calls::collect_call_sites_in_statement(
         program,
         invocation,
         state,
         statement_index,
-    ) {
-        if occurrence.transition_target != target {
+    )
+    .into_iter()
+    .enumerate()
+    {
+        if crate::transition_call_target(program, invocation, state, statement_index, ordinal)
+            != Some(target)
+        {
             continue;
         }
-        let site = occurrence.site;
         let Some(SelectedCallContract::Concrete(_, entry)) =
             selected_call_site_contract(program, invocation.symbol, site)
         else {
@@ -60,16 +61,8 @@ pub(super) fn exclude_target_calls(
     }
 }
 
-/// A selected target starts after its completed guard. Exact source lane
-/// association keeps guard and sibling operands out of this entry inventory.
-#[derive(Clone, Copy)]
-pub(super) enum CallEntryScope {
-    Statement,
-    SelectedTarget(typed_trees::statement::TransitionTargetHandle),
-}
-
 #[allow(clippy::too_many_arguments)]
-pub(super) fn observe_calls<'program>(
+pub(super) fn observe_statement<'program>(
     program: &'program dyn crate::CheckingInput,
     theorem: &Machine,
     invocation: &Machine,
@@ -79,7 +72,6 @@ pub(super) fn observe_calls<'program>(
     states: &[typed_trees::state::State],
     state: &typed_trees::state::State,
     statement_index: usize,
-    scope: CallEntryScope,
     parameter_names: &[String],
     environment: &[(String, StructuralTerm)],
     hypotheses: &[(String, StructuralTerm)],
@@ -92,18 +84,6 @@ pub(super) fn observe_calls<'program>(
     visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
     guarantees: &CitationFacts,
 ) -> Option<()> {
-    if let CallEntryScope::SelectedTarget(target) = scope {
-        let transition = program
-            .statement_table
-            .statement_at(state, statement_index)?
-            .as_transition()?;
-        if !target.is_valid()
-            || !program.statement_table.transition_target_is_valid(target)
-            || !transition.targets().any(|candidate| candidate == target)
-        {
-            return None;
-        }
-    }
     // Only members observing inside another body ride a call entry. A site
     // in this state or on the current path is already (or can only still be)
     // served by this frame's own statements.
@@ -117,33 +97,28 @@ pub(super) fn observe_calls<'program>(
     if active.is_empty() {
         return Some(());
     }
-    let mut pending = Vec::new();
-    let mut operations = Vec::new();
-    for occurrence in crate::machine_calls::calls::collect_statement_call_occurrences(
+    for (ordinal, site) in crate::machine_calls::calls::collect_call_sites_in_statement(
         program,
         invocation,
         state,
         statement_index,
-    ) {
-        if let CallEntryScope::SelectedTarget(target) = scope
-            && occurrence.transition_target != target
-        {
-            continue;
-        }
+    )
+    .into_iter()
+    .enumerate()
+    {
         let Some(SelectedCallContract::Concrete(callee, entry)) =
-            selected_call_site_contract(program, invocation.symbol, occurrence.site)
+            selected_call_site_contract(program, invocation.symbol, site)
         else {
             continue;
         };
-        let eligible = active
-            .iter()
-            .enumerate()
-            .filter_map(|(position, member)| {
+        let mut eligible: Vec<&mut (dyn StructuralPrefixVisitor + '_)> = active
+            .iter_mut()
+            .filter_map(|member| {
                 (!path.contains(&entry.symbol)
                     && prefix_site_is_reachable(program, entry, &**member))
-                .then_some(position)
+                .then_some(&mut **member)
             })
-            .collect::<Vec<_>>();
+            .collect();
         if eligible.is_empty() {
             continue;
         }
@@ -155,56 +130,19 @@ pub(super) fn observe_calls<'program>(
         ) {
             return None;
         }
-        if let crate::CallSite::Expression { expression, .. } = occurrence.site {
-            operations.push(expression);
-        }
-        pending.push((occurrence, entry, eligible));
-    }
-    // One ordered prefix captures every requested pre-call frame. A missing
-    // frame means unreachable only after that complete prefix succeeded.
-    let mut observed = expression_entries(
-        program,
-        invocation,
-        judge,
-        state,
-        statement_index,
-        scope,
-        environment,
-        &operations,
-    )?;
-    for (occurrence, entry, eligible_indices) in pending {
-        let site = occurrence.site;
-        let mut eligible = active
-            .iter_mut()
-            .enumerate()
-            .filter_map(|(position, member)| {
-                eligible_indices
-                    .binary_search(&position)
-                    .is_ok()
-                    .then_some(&mut **member)
-            })
-            .collect::<Vec<_>>();
         let parameters = program.state_parameters(entry);
         let expression = match site {
             crate::CallSite::Expression { expression, .. } => Some(expression),
             _ => None,
         };
         let frames = if let Some(expression) = expression {
-            match observed.remove(&(expression.arena_index(), expression.generation())) {
-                Some(entries) => entries,
-                None => {
-                    for member in eligible.iter_mut() {
-                        member.excluded_body(
-                            state.symbol,
-                            statement_index,
-                            Some(expression),
-                            occurrence.transition_target,
-                            entry.symbol,
-                        );
-                    }
-                    continue;
-                }
-            }
+            judge.normal_operation_entries(
+                statement_index,
+                expression,
+                OperationOperandDemand::All,
+                environment,
+                (invocation, state, state.return_type),
+            )?
         } else {
             judge.normal_argument_entries(
                 crate::call_site_argument_expressions(program, &site),
@@ -244,7 +182,14 @@ pub(super) fn observe_calls<'program>(
                     state.symbol,
                     statement_index,
                     expression,
-                    occurrence.transition_target,
+                    crate::transition_call_target(
+                        program,
+                        invocation,
+                        state,
+                        statement_index,
+                        ordinal,
+                    )
+                    .unwrap_or_default(),
                     entry.symbol,
                 );
             }
@@ -272,83 +217,6 @@ pub(super) fn observe_calls<'program>(
         }
     }
     Some(())
-}
-
-/// Metadata chooses one authenticated schedule; the normal observation owner
-/// alone evaluates it. Inventories of other targets are never execution order.
-#[allow(clippy::too_many_arguments)]
-fn expression_entries<'program>(
-    program: &'program dyn crate::CheckingInput,
-    invocation: &Machine,
-    judge: &StructuralJudge<'program>,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    scope: CallEntryScope,
-    environment: &[(String, StructuralTerm)],
-    operations: &[ExpressionHandle],
-) -> Option<BTreeMap<(u32, u32), Vec<NormalOperationEntry<'program>>>> {
-    let mut entries = BTreeMap::<_, Vec<_>>::new();
-    if operations.is_empty() {
-        return Some(entries);
-    }
-    let statement = program
-        .statement_table
-        .statement_at(state, statement_index)?;
-    let anchor = match scope {
-        CallEntryScope::Statement => {
-            // Ordinary statement roots are ordered operands. This includes
-            // assignment target capture before RHS and call actuals before
-            // the outer invocation; the last root owns the complete prefix.
-            if matches!(
-                statement,
-                typed_trees::statement::StatementNode::Transition(_)
-            ) {
-                return None;
-            }
-            program
-                .tables
-                .expression_roots(statement)
-                .into_iter()
-                .map(|(_, root)| root)
-                .rfind(|root| root.is_valid())?
-        }
-        CallEntryScope::SelectedTarget(target) => {
-            let typed_trees::statement::TransitionTargetNode::Value(expression) =
-                program.statement_table.transition_target(target)
-            else {
-                return None;
-            };
-            *expression
-        }
-    };
-    let observed = judge.completed_observations(
-        statement_index,
-        anchor,
-        environment,
-        (invocation, state, state.return_type),
-        &[],
-        operations,
-    )?;
-    // A partial prefix cannot prove absence, and earlier snapshots from only
-    // some paths cannot stand in for all arrivals. Keep refusal distinct from
-    // a completely explored branch which does not invoke a requested call.
-    if !observed.roots_unavailable.is_empty() {
-        return None;
-    }
-    let requested = operations
-        .iter()
-        .map(|expression| (expression.arena_index(), expression.generation()))
-        .collect::<BTreeSet<_>>();
-    for frame in observed.operations {
-        let key = (
-            frame.expression.arena_index(),
-            frame.expression.generation(),
-        );
-        if requested.contains(&key) {
-            entries.entry(key).or_default().push(frame);
-        }
-    }
-    Some(entries)
 }
 
 /// Observing an executed prefix or normal completion does not treat the callee

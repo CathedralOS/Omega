@@ -1,9 +1,13 @@
-//! Exact admitted calloc/free operations over invocation-owned virtual storage.
-//! Addresses identify live allocations in this invocation only. Their bytes
-//! are zeroed and retained until free; no host pointer escapes. This adapter
-//! grants no guest domain or content account. The selected profile resolver
-//! can attest the actual allocation's backing; source authority still comes
-//! only from the independently admitted guest provider contract.
+/*
+We execute admitted `calloc`, `free`, and `memset` operations
+(`AllocationImport`, `AllocationValues`) over invocation-owned virtual storage.
+
+Addresses identify live allocations within this invocation only and never
+recycle, so a retired address cannot accidentally free a replacement allocation.
+Their bytes are zeroed and retained until `free`, and no host pointer escapes.
+When resolving a range, an empty range at a shared endpoint belongs to an
+exact-base allocation when one exists rather than the preceding allocation's end.
+*/
 
 mod admission;
 mod backing;
@@ -35,10 +39,6 @@ struct Allocation {
     backing: terminal_interpreter::TerminalProviderBacking,
 }
 
-/// Addresses never recycle within an invocation, so a retired address cannot
-/// accidentally free a replacement allocation. Dropping the invocation retires
-/// its private storage without creating guest completion receipts. The caller's
-/// host context shares this store across receiver and component instances.
 #[derive(Default)]
 pub(super) struct AllocationValues {
     allocations: Vec<Allocation>,
@@ -48,8 +48,6 @@ pub(super) struct AllocationValues {
 impl AllocationValues {
     fn backing_for_range(&self, base: u64, length: u64) -> Option<&Allocation> {
         let end = base.checked_add(length)?;
-        // An empty range at a shared endpoint belongs to an exact-base
-        // allocation when one exists, not the preceding allocation's end.
         self.allocations
             .iter()
             .find(|allocation| allocation.address == base && length <= allocation.length)
@@ -129,9 +127,6 @@ impl AllocationImport {
             return Ok(None);
         };
         let signature = TerminalImportSignature::from(declaration);
-        // Exclusive captured storage uses the native adapter's authenticated
-        // endpoint result. It is not an owned virtual allocation address.
-        // Owned values remain in this model and owe its complete contract.
         if matches!(operation, AllocationOperation::Initialize)
             && declaration.parameter_order.first()
                 == Some(&terminal_psi::BoundaryParameterKind::Structural)

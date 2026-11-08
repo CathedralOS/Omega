@@ -182,7 +182,7 @@ pub(crate) fn pruned_machine_provenance(
                     rows.push(proven_unreachable_at_own_site(
                         input,
                         &node.provenance,
-                        &node.fuel,
+                        &node.work,
                     ));
                 }
                 for edge in &node.successors {
@@ -194,7 +194,7 @@ pub(crate) fn pruned_machine_provenance(
                         rows.push(proven_unreachable_at_own_site(
                             input,
                             &edge.provenance,
-                            &edge.fuel,
+                            &edge.work,
                         ));
                     }
                 }

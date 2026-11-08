@@ -1,3 +1,7 @@
+// Unit tests for local snapshot publication, empty-directory preservation,
+// concurrent live-mutation rejection, tamper detection on reuse, and exact
+// materialized capture.
+
 use super::{
     LOCAL_CACHE_SNAPSHOTS, LOCAL_SNAPSHOT_METADATA, LocalSnapshotAddress, LocalSourceLimits,
     SourceContentDigest, SourceResolveError, SourceTreePolicy, VerifiedPackageSourceEntryKind,

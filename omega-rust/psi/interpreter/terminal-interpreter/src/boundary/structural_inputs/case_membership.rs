@@ -472,21 +472,6 @@ pub(crate) fn case_projection_with_membership_is_active(
     path: &[StructuralPathSegment],
     membership: &impl Fn(&[StructuralPathSegment]) -> Option<StructuralCaseId>,
 ) -> Result<bool, TerminalInterpretError> {
-    case_projection_with_checked_membership_is_active(types, structural_type, path, &|prefix| {
-        Ok(membership(prefix))
-    })
-}
-
-/// Resolve each conditional discriminator through its checked captured storage.
-/// A failed crossing remains an error; absence is never an inactive payload.
-pub(crate) fn case_projection_with_checked_membership_is_active(
-    types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    membership: &impl Fn(
-        &[StructuralPathSegment],
-    ) -> Result<Option<StructuralCaseId>, TerminalInterpretError>,
-) -> Result<bool, TerminalInterpretError> {
     let mut selected = path
         .iter()
         .enumerate()
@@ -507,7 +492,7 @@ pub(crate) fn case_projection_with_checked_membership_is_active(
     for (position, case) in selected {
         let prefix = &path[..position];
         let selected_type = resolve_structural_path_type(types, structural_type, prefix)?;
-        let stored = membership(prefix)?.ok_or_else(malformed)?;
+        let stored = membership(prefix).ok_or_else(malformed)?;
         let declaration = types.declaration(&selected_type)?;
         let (StructuralTypeShape::Sum {
             cases: declared_cases,

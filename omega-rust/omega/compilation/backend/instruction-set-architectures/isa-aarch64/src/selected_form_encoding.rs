@@ -15,7 +15,7 @@ mod byte_view_address_tests;
 mod compare_byte_sequences;
 mod copy_bytes;
 pub(crate) mod crash;
-mod decoding;
+pub(crate) mod decoding;
 mod encoded_scalar;
 mod encoding_types;
 mod float_bits;

@@ -147,30 +147,6 @@ pub(super) fn disposition_actions(
     source: SourcePlan,
     place_path: Option<&[checked_trees::CheckedUnitStructuralPathSegment]>,
 ) -> Result<Vec<CleanupAction>, &'static str> {
-    disposition_actions_at(
-        program,
-        facts,
-        targets,
-        shapes,
-        disposition_handle,
-        source,
-        place_path,
-        None,
-    )
-}
-
-/// The exact returned arm supplies its completed storage cut; all other deaths
-/// retain their original occurrence. Geometry and hook selection share it.
-pub(super) fn disposition_actions_at(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    targets: &[CheckedUnitCallableEntry<'_>],
-    shapes: &mut ShapeCollector<'_>,
-    disposition_handle: arena::Handle<checked_trees::ContextualCleanupDisposition>,
-    source: SourcePlan,
-    place_path: Option<&[checked_trees::CheckedUnitStructuralPathSegment]>,
-    completed_result: Option<&crate::flow::CompletedCleanupResult<'_>>,
-) -> Result<Vec<CleanupAction>, &'static str> {
     let disposition = facts
         .contextual_cleanup
         .dispositions
@@ -191,18 +167,10 @@ pub(super) fn disposition_actions_at(
         }
         _ => disposition.exit.statement_index,
     };
-    let case_evidence = crate::flow::CleanupCaseEvidence::new(program, facts, disposition)
+    let selected = crate::flow::selected_cleanup_leaves(program, facts, disposition)
+        .ok_or("cleanup cannot select its remaining owned leaves")?;
+    let case_evidence = crate::flow::CleanupCaseEvidence::new(program, facts.view(), disposition)
         .ok_or("cleanup has invalid occurrence case evidence")?;
-    let case_evidence = if let Some(completed) = completed_result {
-        case_evidence
-            .at_completed_result(completed)
-            .ok_or("cleanup result belongs to another immutable checking context")?
-    } else {
-        case_evidence
-    };
-    let selected =
-        crate::flow::selected_cleanup_leaves_in(program, facts, disposition, &case_evidence)
-            .ok_or("cleanup cannot select its remaining owned leaves")?;
     let case_reachability = |segments: &[facts::PlaceSegment]| case_evidence.reachability(segments);
     let place = validation::CanonicalPlace {
         root: disposition.root,

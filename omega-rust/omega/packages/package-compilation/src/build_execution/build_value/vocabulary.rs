@@ -1,16 +1,15 @@
-//! Exact toolchain build vocabulary: canonical build machine and prelude facets.
+// Exact toolchain build vocabulary queries: canonical `build` machine identity and prelude facets.
+//
+// `is_build_machine` verifies that a `build` machine symbol originates from the exact
+// companion `build.omg` `SourceId` selected by project discovery, rather than trusting
+// a filename scan or machine name alone. `has_exact_toolchain_build_facet` checks that
+// a facet data definition belongs to the compiler's build prelude.
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
 const BUILD_MACHINE: &str = "build";
 
-/// Whether a machine is the program's canonical free build machine, declared
-/// in the exact companion `build.omg` selected by project
-/// discovery. Typed symbols retain authored source identity, so neither a
-/// filename scan nor a machine-name handoff is authority.
-/// A wrong-arity build machine still refuses at evaluation with the arity
-/// error (pinned by fail/build/build_machine_wrong_arity).
 pub(crate) fn is_build_machine(
     typed: &TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -50,9 +49,6 @@ fn named_data_symbol(
     }
 }
 
-/// Whether the build machine's selected `Build` declares the ordinary
-/// `identifier` field. The toolchain prelude declares it; an authored `Build`
-/// opts in by declaring the same member.
 pub(super) fn build_machine_declares_identifier_field(
     typed: &TypedTrees,
     machine: &typed_trees::machine::Machine,

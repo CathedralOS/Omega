@@ -12,7 +12,6 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
-mod expressions;
 mod plans;
 mod successors;
 use plans::{CompletionOutcome, CompletionPath, Guard};
@@ -140,7 +139,6 @@ impl Query<'_> {
     ) -> Result<Transfers, &'static str> {
         match path.outcome {
             CompletionOutcome::Prefix => Ok(Transfers::default()),
-            CompletionOutcome::Completion(plan) => self.completion_expression(plan),
             CompletionOutcome::Structural(result) => {
                 let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
                     projection_evaluations: Default::default(),
@@ -271,8 +269,6 @@ impl Query<'_> {
         use checked_trees::CheckedConditionalReturnArm as Arm;
         match arm {
             Arm::Unit { .. } => Ok(Transfers::default()),
-            Arm::Completion(plan) => self.completion_expression(plan),
-            Arm::EvaluateUnit { operations, .. } => self.operation_sequence(operations.iter()),
             Arm::Scalar {
                 statement_ordinal, ..
             } => self.scalar_role(

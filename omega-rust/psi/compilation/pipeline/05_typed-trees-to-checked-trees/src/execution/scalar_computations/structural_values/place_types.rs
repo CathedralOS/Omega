@@ -25,23 +25,44 @@ pub(in super::super) fn canonical_place_is_borrowable(place: &validation::Canoni
         })
 }
 
-/// A copy reads named storage or an authenticated saved receiver. Its path
-/// can select a case payload or an evaluated array element; ordinary checking
-/// still proves the case, bounds, copy permission and access. This list of
-/// storage coordinates establishes none of those facts.
+/// `canonical_place_is_borrowable` widened with a runtime `Index` segment
+/// for the copied-leaf lane: `self.pointer_scan_nodes[position]` has no
+/// static ordinal, but the argument-path mint records the selector as a
+/// `RuntimeIndex` coordinate the terminal verifier re-proves against the
+/// enclosing array's extent. The `&place` borrow and scalar-case lanes keep
+/// the static shape — a loan or a case read replays the place, not a runtime
+/// element.
 pub(super) fn canonical_place_is_copyable(place: &validation::CanonicalPlace) -> bool {
-    matches!(
-        place.root,
-        facts::PlaceRoot::Symbol(_) | facts::PlaceRoot::Expression(_)
-    ) && place.segments.iter().all(|segment| {
-        matches!(
-            segment,
-            facts::PlaceSegment::Field { .. }
-                | facts::PlaceSegment::Case { .. }
-                | facts::PlaceSegment::FixedIndex { .. }
-                | facts::PlaceSegment::Index { .. }
-        )
-    })
+    matches!(place.root, facts::PlaceRoot::Symbol(_))
+        && place.segments.iter().all(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::FixedIndex { .. }
+                    | facts::PlaceSegment::Index { .. }
+            )
+        })
+}
+
+pub(super) fn symbol_declared_type(
+    program: &dyn ::validation::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
+                return Some(parameter.type_reference);
+            }
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let Some(local) = statement.as_local_data()
+                    && local.symbol == symbol
+                {
+                    return Some(local.type_reference);
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Copy permission describes the stored carrier, not source-use multiplicity.
@@ -89,10 +110,8 @@ pub(super) fn readable_place(
         });
     }
     let state = program.state_by_symbol(state)?;
-    if place.segments.is_empty()
-        && let Some(symbol) = place.root.as_symbol()
-        && program.state_parameter_by_symbol(state, symbol).is_some()
-    {
+    let symbol = place.root.as_symbol()?;
+    if place.segments.is_empty() && program.state_parameter_by_symbol(state, symbol).is_some() {
         let shell = validation::reference_shell(program, reference)?;
         if !shell.access.is_readable() {
             return None;
@@ -131,7 +150,6 @@ pub(in super::super) fn needs_copied_place_root(
     statement_index: usize,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
-    existing_capture: impl FnOnce(ExpressionHandle) -> bool,
 ) -> bool {
     if !copied_place_type(program, expected) {
         return false;
@@ -142,21 +160,10 @@ pub(in super::super) fn needs_copied_place_root(
     if !canonical_place_is_copyable(&place) {
         return false;
     }
-    if let Some(anchor) = place.root.as_expression() {
-        // The saved receiver was captured before its patterns. If its field
-        // needs a copy, failure to prepare that copy cannot donate ownership
-        // of the borrowed receiver to the ordinary owned-value route.
-        return existing_capture(anchor);
-    }
-    let Some(root) = validation::canonical_place_type_reference(
-        program,
-        state,
-        statement_index,
-        &validation::CanonicalPlace {
-            root: place.root,
-            segments: Vec::new(),
-        },
-    ) else {
+    let Some(symbol) = place.root.as_symbol() else {
+        return false;
+    };
+    let Some(root) = symbol_declared_type(program, symbol) else {
         return false;
     };
     if !place.segments.is_empty()

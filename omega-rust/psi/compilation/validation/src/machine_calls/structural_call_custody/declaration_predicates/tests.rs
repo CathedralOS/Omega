@@ -264,7 +264,6 @@ fn outer_storage_cannot_hide_an_unsupported_payload_predicate() {
         .expression_table
         .insert(ExpressionNode::SavedSubject(
             typed_trees::expression::TableSavedSubject {
-                component: Default::default(),
                 capture,
                 pattern_head: yes,
             },

@@ -1,5 +1,5 @@
 use super::super::{
-    AbstractOperation, AbstractSuccessor, FuelSettlement, OptimizationEdge, PsiProvenance,
+    AbstractOperation, AbstractSuccessor, OptimizationEdge, PsiProvenance, WorkSettlement,
 };
 
 pub(super) fn operation_edges(operation: &AbstractOperation) -> Vec<OptimizationEdge> {
@@ -18,7 +18,7 @@ pub(super) fn operation_edges(operation: &AbstractOperation) -> Vec<Optimization
             bindings: bindings.clone(),
             cleanup_actions: cleanup_actions.clone(),
             provenance: vec![PsiProvenance::Edge(*psi_edge)],
-            fuel: vec![FuelSettlement {
+            work: vec![WorkSettlement {
                 site: PsiProvenance::Edge(*psi_edge),
                 units: 1,
             }],
@@ -39,7 +39,7 @@ pub(super) fn operation_edges(operation: &AbstractOperation) -> Vec<Optimization
                 structural_bindings: case.structural_bindings.clone(),
                 cleanup_actions: case.cleanup_actions.clone(),
                 provenance: vec![PsiProvenance::Edge(case.psi_edge)],
-                fuel: vec![FuelSettlement {
+                work: vec![WorkSettlement {
                     site: PsiProvenance::Edge(case.psi_edge),
                     units: 1,
                 }],
@@ -57,7 +57,7 @@ fn successor_edge(successor: &AbstractSuccessor) -> OptimizationEdge {
         bindings: successor.bindings.clone(),
         cleanup_actions: successor.cleanup_actions.clone(),
         provenance: vec![PsiProvenance::Edge(successor.psi_edge)],
-        fuel: vec![FuelSettlement {
+        work: vec![WorkSettlement {
             site: PsiProvenance::Edge(successor.psi_edge),
             units: 1,
         }],

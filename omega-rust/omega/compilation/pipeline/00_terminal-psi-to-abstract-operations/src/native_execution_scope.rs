@@ -19,11 +19,13 @@
 use crate::SelectedProviderAdapter;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::{OperationKind, TerminalModule, Terminator};
+mod installed_interrupts;
 mod storage;
 
 #[derive(Debug)]
 pub(crate) enum NativeExecutionScopeError {
     TargetFamily(String),
+    InstalledInterrupt(String),
     MissingMachine(MachineId),
     MissingBoundary(BoundaryMachineId),
     MissingSelectedCheckedProvider(BoundaryMachineId),
@@ -33,7 +35,9 @@ pub(crate) enum NativeExecutionScopeError {
 impl std::fmt::Display for NativeExecutionScopeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::TargetFamily(error) => formatter.write_str(error),
+            Self::TargetFamily(error) | Self::InstalledInterrupt(error) => {
+                formatter.write_str(error)
+            }
             Self::MissingMachine(machine) => write!(
                 formatter,
                 "native execution scope reaches absent machine {machine:?}"
@@ -162,6 +166,10 @@ impl NativeExecutionScope {
             for block in &body.blocks {
                 for operation in &block.operations {
                     if let OperationKind::BoundaryCall { .. } = operation.kind {
+                        pending.extend(
+                            installed_interrupts::helper_roots(module, operation.id)
+                                .map_err(NativeExecutionScopeError::InstalledInterrupt)?,
+                        );
                         pending.extend(
                             callbacks
                                 .iter()

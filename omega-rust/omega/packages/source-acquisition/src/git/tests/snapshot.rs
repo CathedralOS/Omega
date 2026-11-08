@@ -1,15 +1,19 @@
+// Git snapshot publication and reuse tests covering member snapshot tamper
+// detection, workspace lane custody, executable/symlink preservation, batch
+// failure before staging, and submodule manifest rejection.
+
 use super::{
-    Arc, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, GIT_SNAPSHOT_METADATA, GitBlobBytes,
-    GitExecutionTransport, GitTreeEntry, GitTreeEntryKind, LocalSourceLimits, Path, PathBuf,
-    SourceResolveError, SourceResolver, create_git_source, git_cache_entry_root, local_git_request,
-    make_tree_owner_writable, primed_git_cache, publish_git_member_snapshot,
-    read_git_blobs_batch_from_path, remove_fixture, resolve_git_source_from_hardened_base,
-    run_test_git, run_test_git_with_input, temp_root, test_system_git_executor,
+    Arc, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, GitBlobBytes, GitExecutionTransport,
+    GitTreeEntry, GitTreeEntryKind, LocalSourceLimits, Path, PathBuf, SourceResolveError,
+    SourceResolver, create_git_source, git_cache_entry_root, local_git_request, primed_git_cache,
+    publish_git_member_snapshot, read_git_blobs_batch_from_path, remove_fixture,
+    resolve_git_source_from_hardened_base, run_test_git, run_test_git_with_input, temp_root,
+    test_system_git_executor,
 };
 #[cfg(unix)]
 use super::{
-    CANONICAL_DIRECTORY_MODE, GIT_CACHE_METADATA, git_snapshot_metadata, make_snapshot_read_only,
-    raw_os_bytes, resolve_materialized_source,
+    CANONICAL_DIRECTORY_MODE, GIT_CACHE_METADATA, GIT_SNAPSHOT_METADATA, git_snapshot_metadata,
+    make_snapshot_read_only, make_tree_owner_writable, raw_os_bytes, resolve_materialized_source,
 };
 use crate::PrimaryGitChoices;
 fn authenticated_single_file_member_tree(repository: &Path) -> (String, Vec<GitTreeEntry>) {

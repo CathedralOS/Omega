@@ -168,7 +168,7 @@ pub(super) fn check(
                     !projections.is_empty()
                         && projections.iter().all(|captured| {
                             if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                                eprintln!("CHECKSITE nominal-field-capture state={:?} statement={} target={:?} parameter={:?} required_path={segments:?} domain={domain_symbol:?} observation={:?} observation_type={:?} observation_projection={:?} observation_subjects={:?} producer={:?} producer_type={:?} producer_projection={:?} producer_subjects={:?}", state.state_symbol, call.statement_index, call.target_symbol, parameter.symbol, *captured.observation, captured.observation_type, captured.observation_projection.remaining, captured_observation_places(program, &facts.flow, captured).map(|places| places.into_iter().map(|place| (place.storage, place.projected)).collect::<Vec<_>>()), *captured.operand, captured.type_reference, captured.projection.remaining, captured_value_places(program, &facts.flow, captured).map(|places| places.into_iter().map(|place| (place.storage, place.projected)).collect::<Vec<_>>()));
+                                eprintln!("CHECKSITE nominal-field-capture state={:?} statement={} target={:?} parameter={:?} required_path={segments:?} domain={domain_symbol:?} observation={:?} observation_type={:?} observation_projection={:?} observation_subjects={:?} producer={:?} producer_type={:?} producer_projection={:?} producer_subjects={:?}", state.state_symbol, call.statement_index, call.target_symbol, parameter.symbol, *captured.observation, captured.observation_type, captured.observation_projection.remaining, captured_observation_places(program, facts.flow.view(), captured).map(|places| places.into_iter().map(|place| (place.storage, place.projected)).collect::<Vec<_>>()), *captured.operand, captured.type_reference, captured.projection.remaining, captured_value_places(program, facts.flow.view(), captured).map(|places| places.into_iter().map(|place| (place.storage, place.projected)).collect::<Vec<_>>()));
                             }
                             let invocation = facts
                                 .flow
@@ -197,14 +197,14 @@ pub(super) fn check(
                                 (
                                     captured.observation,
                                     captured.observation_type,
-                                    captured_observation_places(program, &facts.flow, captured),
+                                    captured_observation_places(program, facts.flow.view(), captured),
                                     call.entry_constraints,
                                     (state.state_symbol, call.statement_index),
                                 ),
                                 (
                                     captured.operand,
                                     captured.type_reference,
-                                    captured_value_places(program, &facts.flow, captured),
+                                    captured_value_places(program, facts.flow.view(), captured),
                                     captured.producer_invocation(call.entry_constraints),
                                     captured.producer_frontier(
                                         state.state_symbol,

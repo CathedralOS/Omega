@@ -544,12 +544,8 @@ impl RemainingCustody {
             current.join(sibling);
             Ok(())
         };
-        let begin = |branch, current: &mut Self| {
-            routes.observe_owned_case(branch, current);
-            Ok(())
-        };
         for (ordinal, event) in events.iter().enumerate() {
-            selected.enter_with(routes.event(event, calls), self, begin, |_, _| Ok(()), join)?;
+            selected.enter(routes.event(event, calls), self, |_, _| Ok(()), join)?;
             let receiving = establishments
                 .iter()
                 .filter(|establishment| establishment.event_ordinal == ordinal)
@@ -569,7 +565,7 @@ impl RemainingCustody {
                 false,
             );
         }
-        selected.enter_with(&[], self, begin, |_, _| Ok(()), join)
+        selected.enter(&[], self, |_, _| Ok(()), join)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -885,32 +881,11 @@ impl RemainingCustody {
         variant: symbols::SymbolHandle,
         positive: bool,
     ) {
-        let Some(paths) = Self::owned_case_paths(program, state, statement, place) else {
-            return;
-        };
-        if !paths.iter().any(|(selected, _)| *selected == variant) {
-            return;
-        }
-        for (selected, path) in paths {
-            if (selected == variant) != positive {
-                self.exclude_absent_case(&path);
-            }
-        }
-    }
-
-    /// Prepare the same owned-storage checks once for a saved branch
-    /// decision. No path is inactive until that decision selects its outcome.
-    pub(super) fn owned_case_paths(
-        program: &dyn validation::CheckingInput,
-        state: symbols::SymbolHandle,
-        statement: usize,
-        place: &validation::CanonicalPlace,
-    ) -> Option<Vec<(symbols::SymbolHandle, validation::CanonicalPlace)>> {
         let Some(machine) = program.machine_holding_state(state) else {
-            return None;
+            return;
         };
         let Some(state_definition) = program.state_in_machine(machine, state) else {
-            return None;
+            return;
         };
         if !crate::flow::stable_case_subject(program, machine, state_definition, statement, place)
             || !(0..=place.segments.len()).all(|length| {
@@ -926,13 +901,13 @@ impl RemainingCustody {
                 .is_some_and(|reference| validation::reference_shell(program, reference).is_none())
             })
         {
-            return None;
+            return;
         }
         let Some(data) =
             validation::canonical_place_type_reference(program, state, statement, place)
                 .and_then(|reference| program.closed_data_definition(reference))
         else {
-            return None;
+            return;
         };
         let variants = program
             .data_members(data)
@@ -942,16 +917,20 @@ impl RemainingCustody {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        Some(
-            variants
-                .into_iter()
-                .map(|variant| {
-                    let mut path = place.clone();
-                    path.segments.push(PlaceSegment::Case { variant });
-                    (variant, path)
-                })
-                .collect(),
-        )
+        if !variants.contains(&variant) {
+            return;
+        }
+        for excluded in variants
+            .into_iter()
+            .filter(|candidate| (*candidate == variant) != positive)
+        {
+            let mut path = place.segments.clone();
+            path.push(PlaceSegment::Case { variant: excluded });
+            self.exclude_absent_case(&validation::CanonicalPlace {
+                root: place.root,
+                segments: path,
+            });
+        }
     }
 
     fn invalidate_case_observations(

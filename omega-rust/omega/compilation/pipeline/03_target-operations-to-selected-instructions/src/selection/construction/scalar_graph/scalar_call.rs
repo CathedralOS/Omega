@@ -84,7 +84,7 @@ pub(super) fn emit(
                 .chain(std::iter::once(result.value))
                 .collect(),
             obligations: call.requirement_obligations.clone(),
-            fuel: operation.fuel.clone(),
+            work: operation.work.clone(),
             ..Default::default()
         },
     )?;

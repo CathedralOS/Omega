@@ -1,4 +1,5 @@
-//! Closed fact-family tags and exact framing.
+// Unit tests for `OptimizationFactReference` tag stability, corruption
+// detection, and exact 33-byte length framing.
 
 use super::super::OptimizationFactReferenceDecodeError;
 use super::{OptimizationFactReference, fact, obligation_fact, ownership_fact, range_fact};

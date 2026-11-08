@@ -54,6 +54,11 @@ fn key(state: SymbolHandle) -> (u32, u32) {
 }
 
 impl ReturnRelations {
+    pub(super) fn productive(&self, state: SymbolHandle) -> bool {
+        self.position(state)
+            .is_some_and(|position| self.rows[position].productive)
+    }
+
     fn position(&self, state: SymbolHandle) -> Option<usize> {
         self.rows
             .binary_search_by_key(&key(state), |row| key(row.state))
@@ -387,20 +392,6 @@ fn candidates(
     state: SymbolHandle,
 ) -> Option<Vec<CheckedReturnedReferencePlan>> {
     let state = program.state_by_symbol(state)?;
-    if let Some(entries) = super::family_returns::entries(program, state)? {
-        let mut output = Vec::new();
-        for entry in entries {
-            for candidate in candidates(program, facts, entry.symbol)? {
-                if !output.contains(&candidate) {
-                    output.push(candidate);
-                    if output.len() > super::super::MAX_REFERENCE_ORIGIN_LEAVES {
-                        return None;
-                    }
-                }
-            }
-        }
-        return Some(output);
-    }
     if !crate::normal_completion_possible(program, state)? {
         return Some(Vec::new());
     }

@@ -43,7 +43,7 @@ use crate::published::places::place_at;
 /// keep the conservative hold; nothing is released merely because it is Copy.
 fn completed_access_holds(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     flow: &FlowStateFact,
     statement: &FlowStatementFact,
     occurrences: &[StatementOccurrence],
@@ -144,7 +144,7 @@ fn completed_access_holds(
 /// with the last step that still holds it there.
 pub(super) fn final_holds_in_statement(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     state: &FlowStateFact,
     statement: &FlowStatementFact,
     statement_node: &StatementNode,
@@ -251,7 +251,7 @@ pub(super) fn loans_ended_before_call(
     };
     final_holds_in_statement(
         program,
-        facts,
+        facts.view(),
         flow,
         statement,
         node,
@@ -457,7 +457,7 @@ pub(super) fn check_storage_read<'p>(
     } else {
         place_access::place_backings(
             program,
-            facts,
+            facts.view(),
             loan_occurrences,
             read.state,
             statement_index,

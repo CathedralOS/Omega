@@ -93,7 +93,6 @@ pub(crate) use argument_paths::{
     ProjectedArgumentPath, borrowed_argument_endpoint, borrowed_index_segment,
     byte_sequence_literal_argument, projected_argument_path, projected_borrowed_path,
     projected_observed_path, projected_selected_path, retain_local_reference_source,
-    stored_reference_prefix,
 };
 pub(crate) use boundary_admission::{
     boundary_authority_refusal, boundary_trait_receiver_is_namespace,

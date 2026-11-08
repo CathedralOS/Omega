@@ -181,7 +181,7 @@ use selected_instructions::{
     SelectedInstructionPlanIdentity, SelectedStructuralTransport, VirtualRegister,
     VirtualRegisterId,
 };
-use semantic_vocabulary::{EdgeId, FuelScheduleIdentity, PlaceId, ScalarType, ValueId};
+use semantic_vocabulary::{EdgeId, PlaceId, ScalarType, ValueId, WorkScheduleIdentity};
 
 pub use rewrite::{
     spill_selected_runtime_value, spill_selected_runtime_value_with_crossing_status,

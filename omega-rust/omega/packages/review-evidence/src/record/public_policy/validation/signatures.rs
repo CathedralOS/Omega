@@ -1,3 +1,5 @@
+// Public static-signature telescope, machine parameter contract, and evidence-slot validation. Inline evidence slots and their local contract roster form a single telescope.
+
 use super::{Result, Scope};
 use crate::record::PackagePolicyMachineParameterContract;
 use crate::record::PackagePolicyTypeParameter;
@@ -147,9 +149,6 @@ pub(in crate::record) fn bounds(
     Ok(())
 }
 
-/// Inline evidence slots and their local contract roster are one telescope.
-/// Enclosing evidence belongs to the parent scope and cannot fill a missing
-/// contract in this callable.
 pub(in crate::record) fn evidence_parameters(
     parameters: &[PackagePolicyTypeParameter],
     contracts: &[PackageReviewConformanceBound],

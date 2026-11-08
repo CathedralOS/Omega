@@ -15,21 +15,14 @@ use diagnostics::Diagnostic;
 use language_semantics::{Multiplicity, PermissionEventSource};
 use typed_trees::expression::ExpressionHandle;
 
-mod owned_cases;
 pub(super) mod place_bindings;
 
-pub(crate) struct ExpressionRoutes {
+pub(super) struct ExpressionRoutes {
     completed: Vec<(ExpressionHandle, Vec<EvaluationBranch>)>,
-    owned_cases: owned_cases::OwnedCaseSelections,
 }
 
 impl ExpressionRoutes {
-    pub(super) fn from_steps(
-        program: &dyn validation::CheckingInput,
-        occurrences: &[StatementOccurrence],
-        control: &checked_trees::FlowControlFacts,
-        site: place_bindings::SelectionSite,
-    ) -> Self {
+    pub(super) fn from_steps(occurrences: &[StatementOccurrence]) -> Self {
         let completed = occurrences
             .iter()
             .filter_map(|occurrence| match occurrence.step {
@@ -37,10 +30,7 @@ impl ExpressionRoutes {
                 _ => None,
             })
             .collect();
-        Self {
-            completed,
-            owned_cases: owned_cases::OwnedCaseSelections::new(program, control, site, occurrences),
-        }
+        Self { completed }
     }
 
     pub(super) fn new(
@@ -50,7 +40,6 @@ impl ExpressionRoutes {
         statement_index: usize,
         evaluation: FlowPermissionEvaluation,
         operators: &CheckedOperatorFacts,
-        control: &checked_trees::FlowControlFacts,
     ) -> Self {
         let statement = &program.statement_table.statements(state.statement_nodes)[statement_index];
         let occurrences = statement_steps_at_evaluation(
@@ -63,25 +52,7 @@ impl ExpressionRoutes {
             operators,
             Some(evaluation),
         );
-        Self::from_steps(
-            program,
-            &occurrences,
-            control,
-            place_bindings::SelectionSite {
-                machine: machine.symbol,
-                state: state.symbol,
-                statement: statement_index,
-                evaluation,
-            },
-        )
-    }
-
-    pub(super) fn observe_owned_case(
-        &self,
-        branch: EvaluationBranch,
-        remaining: &mut super::cleanup_dispositions::RemainingCustody,
-    ) {
-        self.owned_cases.observe(branch, remaining);
+        Self::from_steps(&occurrences)
     }
 
     pub(super) fn expression(&self, expression: ExpressionHandle) -> &[EvaluationBranch] {

@@ -452,15 +452,8 @@ fn collect_reachable_nodes(
                 for argument in structural_arguments {
                     if let Some(place) = argument.as_place() {
                         extend_range(checked, place, &mut pending);
-                        if place.source.structural_value_dependency().is_some() {
-                            let root = produced_value_root(
-                                checked,
-                                source_call.statement().ok_or(LoweringError::Unsupported(
-                                    "declaration call has no structural producer custody",
-                                ))?,
-                                place,
-                            )?
-                            .root;
+                        if matches!(place.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }) {
+                            let root = produced_value_root(checked, source_call.statement().ok_or(LoweringError::Unsupported("declaration call has no structural producer custody"))?, place)?.root;
                             if !structural_roots.contains(&root) {
                                 structural_roots.push(root);
                             }
@@ -685,11 +678,8 @@ pub(crate) fn produced_value_root<'checked>(
     source_call: arena::Handle<checked_trees::FlowCallFact>,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
 ) -> Result<&'checked checked_trees::CheckedStructuralValueRoot, LoweringError> {
-    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-        expression,
-        value_dependency: Some(value),
-        ..
-    } = argument.source
+    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
+        argument.source
     else {
         return unsupported("computed structural operand has no produced expression");
     };
@@ -719,7 +709,12 @@ pub(crate) fn produced_value_root<'checked>(
     })?;
     let values = &checked.facts.values.structural_values;
     let root = values
-        .root_for_value_home(value, expression)
+        .completed_checked_expression_dependency(
+            &checked.facts.executable_bindings,
+            state.state_symbol,
+            Some(statement),
+            expression,
+        )
         .ok_or(LoweringError::Unsupported(
             "computed structural operand has no unique authenticated value dependency",
         ))?;
@@ -728,10 +723,7 @@ pub(crate) fn produced_value_root<'checked>(
     // belongs to the checked root, including a borrowed slice descriptor;
     // resolving that root does not manufacture an owned reference.
     if root.machine != state.machine_symbol
-        || root.state != state.state_symbol
-        || root.statement_ordinal != statement
         || !values.nodes.is_valid(root.root)
-        || values.nodes.get(root.root).expression != expression
         || (argument.path.is_empty()
             && validation::structural_type_identity(&checked.typed, root.type_reference, &[], &[])
                 != argument.type_identity)

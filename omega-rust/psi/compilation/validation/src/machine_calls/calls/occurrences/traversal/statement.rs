@@ -60,14 +60,14 @@ pub(crate) fn find_call_site_in_statement<'program>(
                 return Some(call_site);
             }
 
-            if let Some(call_site) = traversal.selected_target(transition.target, |traversal| {
+            if let Some(call_site) = traversal.selected(|traversal| {
                 find_call_site_in_transition_target(traversal, transition.target)
             }) {
                 return Some(call_site);
             }
 
             if transition.continuation.is_valid() {
-                return traversal.selected_target(transition.continuation, |traversal| {
+                return traversal.selected(|traversal| {
                     find_call_site_in_transition_target(traversal, transition.continuation)
                 });
             }

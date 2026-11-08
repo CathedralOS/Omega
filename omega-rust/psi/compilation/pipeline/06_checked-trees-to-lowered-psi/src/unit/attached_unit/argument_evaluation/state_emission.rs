@@ -399,9 +399,7 @@ pub(super) fn emit_state(
             access,
         } => {
             let arguments = arguments(outgoing)?;
-            let source = source.resolve(*access, operations)?;
-            let mut captured_path = source.path;
-            captured_path.extend(emit_prepared_path(path, 0, &values, next_value, operations));
+            let path = emit_prepared_path(path, 0, &values, next_value, operations);
             Terminator::Jump {
                 edge: edge_id(allocate_dense(next_edge)?),
                 target: *targets.get(*target).ok_or(LoweringError::Unsupported(
@@ -411,8 +409,8 @@ pub(super) fn emit_state(
                 erased_arguments: Vec::new(),
                 erased_proof_arguments: Vec::new(),
                 structural_arguments: vec![terminal_psi::StructuralArgument {
-                    place: source.place,
-                    path: captured_path,
+                    place: *source,
+                    path,
                     access: *access,
                 }],
                 cleanup_actions: Vec::new(),

@@ -254,7 +254,6 @@ pub(crate) enum ProjectionRoot {
 /// any physical prefix retained by the binding's caller. Physical argument paths
 /// use the strict walker unchanged; it must never implicitly dereference a
 /// descriptor value or a nested reference field.
-#[track_caller]
 pub(crate) fn prepare_structural_argument_path(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
@@ -276,7 +275,6 @@ pub(crate) fn prepare_structural_argument_path(
 /// A final call addresses the completed value. Its range producer has already
 /// consumed the original collection path; ordinary storage joins above still
 /// require that path when they bind the original source.
-#[track_caller]
 pub(crate) fn prepare_call_argument_path(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
@@ -306,7 +304,6 @@ pub(crate) fn prepare_call_argument_path(
 /// Complete a checked projection in its producer's coordinate system. Physical
 /// paths stay strict; logical loans retain their explicit carrier adaptation.
 /// The endpoint is a declaration view, not a fabricated invocation operand.
-#[track_caller]
 pub(crate) fn prepare_projection_path(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
@@ -441,7 +438,6 @@ fn follow_reference_endpoint<'a>(
     Ok(tip)
 }
 
-#[track_caller]
 fn prepare_structural_argument_projection<'a>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
@@ -465,21 +461,7 @@ fn prepare_structural_argument_projection<'a>(
         root,
         terminal_access(argument.access),
         types,
-    )
-    .map_err(|error| match error {
-        LoweringError::InvalidArgumentProjection(mut failure) => {
-            failure.source_root = argument.structural_storage_root();
-            failure.source_parameter = argument.source_parameter_index();
-            failure.source_result = argument.source_structural_result_binding_ordinal();
-            failure.published_root = Some(published_root);
-            failure.argument_type = Some(argument.type_identity);
-            failure.logical_root = argument.borrowed_root_type_identity();
-            failure.root_reference_hops = argument.borrowed_root_reference_hops();
-            failure.access = Some(argument.access);
-            LoweringError::InvalidArgumentProjection(failure)
-        }
-        error => error,
-    })?;
+    )?;
     if !projection.is_empty() {
         retain_selector_evaluations(
             projection,
@@ -515,7 +497,6 @@ pub(crate) fn retain_proven_selector_coordinates(
     }
 }
 
-#[track_caller]
 fn prepare_root_projection<'a>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
@@ -638,7 +619,6 @@ fn prepare_root_projection<'a>(
 
 /// Resolve the path against its original source declaration. Only runtime
 /// selector values and their bound obligations remain for the emitting call.
-#[track_caller]
 pub(crate) fn prepare_argument_path(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     path: &[CheckedUnitStructuralPathSegment],
@@ -651,7 +631,6 @@ pub(crate) fn prepare_argument_path(
 /// Resolve an indexed store's descriptor through the same typed projection
 /// as executable arguments. The caller retains only a conservative proof
 /// footprint; the indexed writer still evaluates the actual selector path.
-#[track_caller]
 pub(crate) fn prepare_element_view_path(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     path: &[CheckedUnitStructuralPathSegment],
@@ -667,7 +646,6 @@ pub(crate) fn prepare_element_view_path(
     Ok(path)
 }
 
-#[track_caller]
 fn prepare_argument_projection<'a>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     path: &[CheckedUnitStructuralPathSegment],
@@ -689,7 +667,7 @@ fn prepare_argument_projection<'a>(
     let mut tip = Tip::Declaration(declaration(root)?);
     let mut selected_case: Option<&terminal_psi::StructuralCaseDeclaration> = None;
     let mut prepared = Vec::with_capacity(path.len());
-    for (step_index, step) in path.iter().enumerate() {
+    for step in path {
         if selected_case.is_some() && !matches!(step, CheckedUnitStructuralPathSegment::Field(_)) {
             return unsupported("argument case must select its payload field");
         }
@@ -732,48 +710,7 @@ fn prepare_argument_projection<'a>(
                         | StructuralTypeShape::Mixed { cases, .. },
                     ) => cases,
                     _ => {
-                        let (selected_type, selected_carrier) = match tip {
-                            Tip::Declaration(declaration) => (
-                                Some(declaration.id),
-                                match &declaration.shape {
-                                    StructuralTypeShape::Reference { .. } => "reference descriptor",
-                                    StructuralTypeShape::PrimitiveScalar(_) => "primitive scalar",
-                                    StructuralTypeShape::ByteSequence(_) => "byte sequence",
-                                    StructuralTypeShape::ElementView { .. } => "element view",
-                                    StructuralTypeShape::Record { .. } => "record",
-                                    StructuralTypeShape::FixedArray { .. } => "fixed array",
-                                    StructuralTypeShape::Sum { .. } => "sum",
-                                    StructuralTypeShape::Mixed { .. } => "record with cases",
-                                    StructuralTypeShape::AtomicCell(_) => "atomic cell",
-                                },
-                            ),
-                            Tip::Inline(_) => (None, "inline field"),
-                            Tip::ByteElement => (None, "byte element"),
-                            Tip::CollectionWindow => (None, "collection window"),
-                        };
-                        let site = std::panic::Location::caller();
-                        return Err(LoweringError::InvalidArgumentProjection(Box::new(
-                            crate::shared::lowering_error::ArgumentProjectionFailure {
-                                reason: "argument case requires its exact source sum",
-                                machine: None,
-                                root,
-                                selected_type,
-                                selected_carrier,
-                                failed_step: step_index,
-                                segments: path.iter().take(32).cloned().collect(),
-                                segment_count: path.len(),
-                                source_root: None,
-                                source_parameter: None,
-                                source_result: None,
-                                published_root: None,
-                                argument_type: None,
-                                logical_root: None,
-                                root_reference_hops: 0,
-                                access: None,
-                                operation_file: site.file(),
-                                operation_line: site.line(),
-                            },
-                        )));
+                        return unsupported("argument case requires its exact source sum");
                     }
                 };
                 let mut matches = cases

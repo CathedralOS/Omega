@@ -1,4 +1,13 @@
-//! A private Windows observation pipe authenticated to the actual child process.
+// Windows private child runtime observation pipe authenticated to the actual
+// child process ID.
+//
+// `prepare_private_observation` creates a unique inbound named pipe with
+// `FILE_FLAG_FIRST_PIPE_INSTANCE | PIPE_NOWAIT | PIPE_REJECT_REMOTE_CLIENTS`
+// and passes its path via `OMEGA_PRIVATE_OBSERVATION_PIPE`. Once the parent
+// spawns the child and records its PID via `bind_child`, the reader thread
+// verifies the connected client's PID with `GetNamedPipeClientProcessId`
+// before accepting and draining the exact `expected_bytes` observation roster.
+
 use std::{
     io,
     os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle},
@@ -22,9 +31,9 @@ use windows_sys::Win32::{
 };
 
 pub struct PrivateObservationCapture {
-    completed: Arc<AtomicBool>,
-    child: Arc<AtomicU32>,
-    captured: Option<std::thread::JoinHandle<io::Result<Vec<u8>>>>,
+    completed: Arc<AtomicBool>, // Signals child completion to wake the pipe reader loop.
+    child: Arc<AtomicU32>, // Expected child PID authenticated via `GetNamedPipeClientProcessId`.
+    captured: Option<std::thread::JoinHandle<io::Result<Vec<u8>>>>, // Background reader thread verifying the exact byte roster.
 }
 impl PrivateObservationCapture {
     pub fn bind_child(&self, process_id: u32) {
@@ -70,7 +79,6 @@ pub fn prepare_private_observation(
         std::process::id()
     );
     let wide = name.encode_utf16().chain([0]).collect::<Vec<_>>();
-    // The first-instance flag prevents a pre-existing endpoint from answering this lane.
     let raw = unsafe {
         CreateNamedPipeW(
             wide.as_ptr(),
@@ -102,7 +110,6 @@ pub fn prepare_private_observation(
                 let result =
                     unsafe { ConnectNamedPipe(pipe.as_raw_handle(), std::ptr::null_mut()) };
                 let error = io::Error::last_os_error();
-                // In NOWAIT mode a nonzero result only makes an instance available.
                 connected =
                     result == 0 && error.raw_os_error() == Some(ERROR_PIPE_CONNECTED as i32);
                 if result == 0

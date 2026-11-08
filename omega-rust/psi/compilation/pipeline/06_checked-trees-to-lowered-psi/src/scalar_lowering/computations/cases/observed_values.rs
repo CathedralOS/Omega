@@ -37,7 +37,6 @@ pub(super) fn lower(
             .kind
         && let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
             expression,
-            ..
         } = subject.source
         && expansion
             .checked
@@ -66,9 +65,7 @@ pub(super) fn lower(
             .terminal_unit_effects
             .cleanup_control;
         let source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-            value_dependency: None,
             expression: root.expression,
-            logical_root_type_identity: None,
         };
         let authorized = control
             .value_completion(

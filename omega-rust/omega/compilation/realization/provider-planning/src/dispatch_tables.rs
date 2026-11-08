@@ -1,13 +1,10 @@
-//! The dispatch table of a table-field binding comes from its leaf's signature.
-//!
-//! `ForeignBinding::VtableField` and `ForeignBinding::TableFunction` name a
-//! function-address field. The record holding that field is the record the
-//! leaf's first parameter borrows: the caller passes it explicitly, and the
-//! foreign binding plan records that declaration. A provider holds no state,
-//! so neither the provider's name nor a data declaration qualifying the leaf
-//! supplies the table. Plan derivation, layout realization and package review
-//! all read the table here, so they cannot disagree about which record owns
-//! the field.
+// Dispatch table extraction for table-field foreign bindings
+// (`ForeignBinding::VtableField` and `ForeignBinding::TableFunction`). The
+// record holding the function-address field is borrowed by the leaf's first
+// parameter, which must be a readable reference to a data declaration. Freezing
+// `TableFieldStorage` while the selected leaf still owns Source keeps plan
+// derivation, layout realization, and package review aligned on the exact
+// record application and `addr` field declaration.
 
 use crate::provider_planning::{entry_state, type_reference_node};
 use checked_trees::typed_trees::{
@@ -18,7 +15,6 @@ use checked_trees::typed_trees::{
 };
 use symbols::SymbolHandle;
 
-/// The record a table leaf dispatches through, read from its first parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DispatchTable {
     table_type: TypeReferenceHandle,
@@ -26,26 +22,20 @@ pub struct DispatchTable {
 }
 
 impl DispatchTable {
-    /// The borrowed record type, with refinements removed.
     pub fn table_type(&self) -> TypeReferenceHandle {
         self.table_type
     }
 
-    /// The record's data declaration symbol.
     pub fn declaration(&self) -> SymbolHandle {
         self.declaration
     }
 
-    /// The record's data declaration.
     pub fn definition<'typed>(&self, typed: &'typed TypedTrees) -> &'typed DataDefinition {
         typed
             .data_definition_by_symbol(self.declaration)
             .expect("dispatch table declaration was resolved when the table was read")
     }
 
-    /// The table's declaration path, exported by the rule data declarations
-    /// use: a live module names its full path; a source-free tree retains the
-    /// complete path in the authored name.
     pub fn path(&self, typed: &TypedTrees) -> String {
         if typed.symbols.symbol_module(self.declaration).is_valid() {
             typed.symbols.display_path(self.declaration, "::")
@@ -55,9 +45,6 @@ impl DispatchTable {
     }
 }
 
-/// Read the dispatch table from the leaf's first parameter: a readable borrow
-/// of a data declaration. A write-only borrow cannot supply the table the call
-/// reads its function address from.
 pub fn dispatch_table(typed: &TypedTrees, machine: &Machine) -> Result<DispatchTable, String> {
     let entry = entry_state(typed, machine).ok_or("table leaf has no entry signature")?;
     let first = typed
@@ -84,9 +71,6 @@ pub fn dispatch_table(typed: &TypedTrees, machine: &Machine) -> Result<DispatchT
     })
 }
 
-/// Freeze the checked field use while the selected leaf still owns Source.
-/// Target realization consumes this correspondence and never rediscovers a
-/// field from its spelling, scalar width, or position in a second inventory.
 pub fn field_storage(
     typed: &TypedTrees,
     machine: &Machine,

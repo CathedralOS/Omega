@@ -1,12 +1,251 @@
-//! Choosing whole providers: `selection` is the one choice policy for
-//! invocation and canonical declarations, `provider_selection` chooses and then
-//! admits complete correspondence and composition, `declarations` keeps exact
-//! correspondence apart from candidate lookup, `independent_components` closes
-//! `Independent` selections over their components, and `provider_demands`
-//! judges prepared demand while keeping candidate order.
+/*
+Whole-provider choice, demand filtering, and correspondence/composition admission.
 
-pub(crate) mod declarations;
-pub(crate) mod independent_components;
-pub(crate) mod provider_demands;
-pub(crate) mod provider_selection;
-pub(crate) mod selection;
+Source consumers may perform cycle and ABI preparation between choose and admit.
+The chosen records own the exact candidates and declaration choices so the later
+admission cannot reinterpret indices against a different population.
+
+admit preserves source admission order:
+1. Operator family completeness (check_operator_families)
+2. Independent component composition closure (IndependentComponentJoin)
+3. Exact declaration correspondence
+4. Immutable SelectedProviderPlanFacts construction
+*/
+
+mod declarations;
+mod independent_components;
+mod selection;
+
+pub use declarations::{
+    CandidateDeclarations, ProviderCandidate, ProviderDeclaration, ProviderFamily,
+    ProviderFamilyCoordinate, ProviderIdentity, ProviderSubject, SelectedProvider,
+    SelectionProvenance,
+};
+
+use crate::CompositionMode;
+use declarations::same_declaration;
+use diagnostics::Diagnostic;
+use effects::provider_plan::ProviderPlan;
+use independent_components::IndependentComponentJoin;
+use std::collections::HashSet;
+use std::hash::Hash;
+
+pub fn is_candidate_demanded<Declaration: Eq + Hash, Origin>(
+    plan: &ProviderPlan,
+    schema: &Result<Declaration, String>,
+    requirements: &[Declaration],
+    uses: &HashSet<Declaration>,
+    choices: &[ProviderDeclaration<Declaration, Origin>],
+) -> bool {
+    requirements
+        .iter()
+        .any(|requirement| uses.contains(requirement))
+        || choices
+            .iter()
+            .any(|choice| choice.subject.selects_plan(schema, plan))
+}
+
+pub fn choose<Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
+    candidates: Vec<ProviderCandidate<Declaration, Owner>>,
+    target: target::TargetProfile,
+    defaults: &[ProviderDeclaration<Declaration, Origin>],
+    overrides: &[ProviderDeclaration<Declaration, Origin>],
+) -> Result<Vec<SelectedProvider<Declaration, Owner, Origin>>, Vec<Diagnostic>> {
+    let selected =
+        selection::select_provider_plan_indices(&candidates, target, defaults, overrides)?;
+    let mut candidates = candidates.into_iter().map(Some).collect::<Vec<_>>();
+    let mut chosen = Vec::with_capacity(selected.len());
+    for selected in selected {
+        let candidate = candidates
+            .get_mut(selected.candidate)
+            .and_then(Option::take)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "provider choice did not retain one exact candidate",
+                )]
+            })?;
+        let selected_by = if candidate.native_build {
+            SelectionProvenance::NativeBuild
+        } else {
+            selected.selected_by
+        };
+        chosen.push(SelectedProvider {
+            candidate,
+            selected_by,
+        });
+    }
+    Ok(chosen)
+}
+
+pub fn admit<'a, Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
+    mut selected: Vec<SelectedProvider<Declaration, Owner, Origin>>,
+    independent_components: impl IntoIterator<Item = &'a component_description::VerifiedComponent>,
+) -> Result<
+    (
+        effects::SelectedProviderPlanFacts,
+        Vec<SelectedProvider<Declaration, Owner, Origin>>,
+    ),
+    Vec<Diagnostic>,
+> {
+    selected.sort_by(|left, right| left.candidate.plan.selection_order(&right.candidate.plan));
+    let mut diagnostics = check_operator_families(&selected);
+    let mut independent_join = IndependentComponentJoin::new(independent_components);
+    for selected in &selected {
+        let plan = &selected.candidate.plan;
+        let correspondence = &selected.candidate.declarations;
+        let composition = match selected.selected_by.composition_mode() {
+            Ok(mode) => mode,
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(reason));
+                continue;
+            }
+        };
+        if composition == CompositionMode::Independent {
+            match &correspondence.selecting_declaration {
+                Ok(Some(owner)) => {
+                    if let Err(diagnostic) = independent_join.realize(plan, owner) {
+                        diagnostics.push(diagnostic);
+                    }
+                }
+                Ok(None) => diagnostics.push(Diagnostic::error(
+                    "independent provider has no exact selecting declaration",
+                )),
+                Err(refused) => diagnostics.extend(refused.iter().cloned()),
+            }
+        }
+        let declarations = match &selected.selected_by {
+            SelectionProvenance::BuildOverride(declarations)
+            | SelectionProvenance::TargetDefault(declarations) => declarations,
+            SelectionProvenance::UniqueCoveringCandidate => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "provider plan `{}` has no authored target selection or declared default",
+                    plan.name,
+                )));
+                continue;
+            }
+            SelectionProvenance::NativeBuild => {
+                continue;
+            }
+        };
+        if declarations.is_empty() {
+            diagnostics.push(Diagnostic::error(format!(
+                "selected provider plan `{}` has an authored selection origin without a declaration", plan.name,
+            )));
+        }
+        for declaration in declarations {
+            diagnostics.extend(declaration.subject.owner_errors());
+            if let Err(reason) = &declaration.provider_type.declaration {
+                diagnostics.push(Diagnostic::error(reason.clone()));
+            }
+            if !declaration.subject.selects_schema(
+                &correspondence.schema,
+                plan.schema
+                    .identity_text(plan.schema.declaration.trait_name),
+                plan.schema.root_application_identity(),
+            ) || !correspondence.provider.as_ref().is_some_and(|provider| {
+                same_declaration(&declaration.provider_type.declaration, provider)
+            }) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "selected provider plan `{}` has a selection declaration outside its exact schema, provider, or selecting-machine provenance", plan.name,
+                )));
+            }
+        }
+    }
+    diagnostics.extend(independent_join.finish());
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    let plans = selected
+        .iter()
+        .map(|selected| selected.candidate.plan.clone())
+        .collect::<Vec<_>>();
+    let facts = effects::SelectedProviderPlanFacts::from_selected_plans(plans.clone())
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    if facts.plans() != plans
+        || plans.iter().any(|plan| {
+            facts
+                .plan_by_exact_evidence(plan.report_fingerprint(), plan)
+                .is_none()
+        })
+    {
+        return Err(vec![Diagnostic::error(
+            "selected provider semantic facts do not retain the exact plans aligned with provenance",
+        )]);
+    }
+    Ok((facts, selected))
+}
+
+fn same_family<Declaration: PartialEq, Origin>(
+    left: &ProviderDeclaration<Declaration, Origin>,
+    right: &ProviderDeclaration<Declaration, Origin>,
+) -> bool {
+    left.subject.same_declaration_as(&right.subject)
+        && same_declaration(
+            &left.provider_type.declaration,
+            &right.provider_type.declaration,
+        )
+        && left.provider_type.application_identity == right.provider_type.application_identity
+}
+
+fn check_operator_families<Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
+    selected: &[SelectedProvider<Declaration, Owner, Origin>],
+) -> Vec<Diagnostic> {
+    let mut families: Vec<&ProviderDeclaration<Declaration, Origin>> = Vec::new();
+    for selected in selected {
+        for declaration in selected.selected_by.declarations() {
+            if matches!(
+                declaration.subject,
+                ProviderSubject::BoundaryOperatorFamily(_)
+            ) && !families
+                .iter()
+                .any(|existing| same_family(existing, declaration))
+            {
+                families.push(declaration);
+            }
+        }
+    }
+    let mut diagnostics = Vec::new();
+    for declaration in families {
+        let ProviderSubject::BoundaryOperatorFamily(family) = &declaration.subject else {
+            continue;
+        };
+        diagnostics.extend(family.preparation_errors.iter().cloned());
+        diagnostics.extend(declaration.subject.owner_errors());
+        for coordinate in &family.coordinates {
+            let realized = selected
+                .iter()
+                .filter(|selected| {
+                    same_declaration(
+                        &selected.candidate.declarations.schema,
+                        &coordinate.declaration,
+                    ) && selected
+                        .candidate
+                        .plan
+                        .schema
+                        .identity_text(selected.candidate.plan.schema.declaration.trait_name)
+                        == coordinate.requirement_identity
+                        && selected
+                            .candidate
+                            .declarations
+                            .provider
+                            .as_ref()
+                            .is_some_and(|provider| {
+                                same_declaration(provider, &declaration.provider_type.declaration)
+                            })
+                        && selected
+                            .selected_by
+                            .declarations()
+                            .iter()
+                            .any(|retained| same_family(retained, declaration))
+                })
+                .count();
+            if realized != 1 {
+                diagnostics.push(Diagnostic::error(format!(
+                    "boundary-operator family `{}` selection resolves coordinate `{}` to {realized} selected plans of provider `{}`; every coordinate is realized by exactly one",
+                    family.authored_path, coordinate.requirement_identity, declaration.provider_type.authored_path,
+                )));
+            }
+        }
+    }
+    diagnostics
+}

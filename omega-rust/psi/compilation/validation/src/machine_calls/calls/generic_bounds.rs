@@ -122,6 +122,14 @@ fn report_bodyless_boundary_symbol_call(
             return;
         }
     };
+    let static_interrupt_realization =
+        match crate::compiler_operations::static_interrupt_declaration(program, callee_machine) {
+            Ok(contract) => contract.is_some(),
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(reason));
+                return;
+            }
+        };
     let descriptor_realization =
         match crate::compiler_operations::descriptor_table_declaration(program, callee_machine) {
             Ok(contract) => contract.is_some(),
@@ -152,6 +160,7 @@ fn report_bodyless_boundary_symbol_call(
         && !compiler_access_execution
         && !compiler_empty_run_release
         && !descriptor_realization
+        && !static_interrupt_realization
         && !activation_realization
         && !compiler_layout_snapshot
         && !callee_machine.body_is_present

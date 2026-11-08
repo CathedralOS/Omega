@@ -1440,7 +1440,7 @@ fn recognize_structural_state_leaves_from<'a>(
                 // This observes callee entry before the statement completes or
                 // imports its guarantees. Hoisted calls and authored locals own
                 // the same ordered operation entries as terminal calls.
-                call_entries::observe_calls(
+                call_entries::observe_statement(
                     program,
                     machine,
                     invocation,
@@ -1450,7 +1450,6 @@ fn recognize_structural_state_leaves_from<'a>(
                     states,
                     state,
                     statement_index,
-                    call_entries::CallEntryScope::Statement,
                     parameter_names,
                     &environment,
                     &case_hypotheses,
@@ -1595,16 +1594,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             &execution,
                             execution_position + 1,
                             local.symbol,
-                            !visitors.is_empty()
-                                && visitors.iter().all(|observer| {
-                                    observer.site().state == state.symbol
-                                        && !observer.site().in_transition_target
-                                        && observer.site().statement_index < statements.len()
-                                        && !matches!(
-                                            statements[observer.site().statement_index],
-                                            StatementNode::Transition(_)
-                                        )
-                                }),
+                            all_sites_local(visitors, state.symbol, statements),
                         );
                         if dead_local {
                             let judge_refs: Vec<_> = outcomes
@@ -1622,16 +1612,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                 &execution,
                                 execution_position + 1,
                                 local.symbol,
-                                !visitors.is_empty()
-                                    && visitors.iter().all(|observer| {
-                                        observer.site().state == state.symbol
-                                            && !observer.site().in_transition_target
-                                            && observer.site().statement_index < statements.len()
-                                            && !matches!(
-                                                statements[observer.site().statement_index],
-                                                StatementNode::Transition(_)
-                                            )
-                                    }),
+                                all_sites_local(visitors, state.symbol, statements),
                             )
                         {
                             let judge_refs: Vec<_> = outcomes
@@ -2280,32 +2261,6 @@ fn recognize_structural_state_leaves_from<'a>(
                     }
                 } else {
                     if !visitors.is_empty() && matches!(target, TransitionTargetNode::Value(_)) {
-                        // Selected value targets can contain ordinary calls,
-                        // including calls below a Match. Observe their actual
-                        // entries before importing any completion guarantees.
-                        call_entries::observe_calls(
-                            program,
-                            machine,
-                            invocation,
-                            judge,
-                            classification,
-                            diagnostics,
-                            states,
-                            state,
-                            statement_index,
-                            call_entries::CallEntryScope::SelectedTarget(transition.source_target?),
-                            parameter_names,
-                            &branch_environment,
-                            &branch_hypotheses,
-                            &branch_equations,
-                            &pending_citations,
-                            path,
-                            arrivals,
-                            frame_id,
-                            fresh,
-                            visitors,
-                            &established_guarantees,
-                        )?;
                         continue;
                     }
                     let mut branch_judge =
@@ -2482,6 +2437,86 @@ fn recognize_structural_state_leaves_from<'a>(
 /// Reachability is over exact call identities, not membership in the root
 /// machine's former state list. This is only a pruning query: the path walker
 /// still checks each entered body and substitutes every actual argument.
+/// The visitor properties this walk's shared choices read. Everything else a
+/// visitor answers (its own site match, completion, observations) only decides
+/// what that visitor receives. The shared choices are:
+/// - a dead-local or never-branched rejoin, taken only when every site is local
+///   to the walked state (`all_sites_local`);
+/// - leaving a state, entering a body or riding a call entry, which ask whether
+///   a site is reachable (`prefix_site_is_reachable`): the site's state and the
+///   machines the visitor stops at.
+///
+/// Visitors with equal reads make each shared choice the same way alone as
+/// together, so one batched walk gives each the events of its solo walk.
+/// `shared_proof_walks` groups by these reads; a property the walker starts
+/// reading belongs here, and grouping follows it.
+#[derive(Clone, PartialEq, Eq)]
+pub(super) struct SharedChoiceReads {
+    state: SymbolHandle,
+    local_site: bool,
+    stops_at: Vec<SymbolHandle>,
+}
+
+impl SharedChoiceReads {
+    pub(super) fn of(
+        program: &dyn crate::CheckingInput,
+        visitor: &(dyn StructuralPrefixVisitor + '_),
+    ) -> Self {
+        let site = visitor.site();
+        let local_site = program.state_by_symbol(site.state).is_some_and(|state| {
+            site_is_local(
+                site,
+                state.symbol,
+                program.statement_table.statements(state.statement_nodes),
+            )
+        });
+        // ponytail: scans every machine per visitor; only proof-caller
+        // requirement sites are keyed, a few hundred per compile. Restrict to
+        // the walked machine's reachable owners if this shows in a profile.
+        let stops_at = program
+            .machines()
+            .iter()
+            .map(|machine| machine.symbol)
+            .filter(|&machine| visitor.stops_at_machine(machine))
+            .collect();
+        Self {
+            state: site.state,
+            local_site,
+            stops_at,
+        }
+    }
+
+    /// The site sits at entry of a non-transition statement of its own state.
+    pub(super) fn local_site(&self) -> bool {
+        self.local_site
+    }
+}
+
+fn site_is_local(
+    site: super::structural_prefix::StructuralPrefixSite,
+    state: SymbolHandle,
+    statements: &[StatementNode],
+) -> bool {
+    site.state == state
+        && !site.in_transition_target
+        && site.statement_index < statements.len()
+        && !matches!(
+            statements[site.statement_index],
+            StatementNode::Transition(_)
+        )
+}
+
+fn all_sites_local(
+    visitors: &[&mut (dyn StructuralPrefixVisitor + '_)],
+    state: SymbolHandle,
+    statements: &[StatementNode],
+) -> bool {
+    !visitors.is_empty()
+        && visitors
+            .iter()
+            .all(|visitor| site_is_local(visitor.site(), state, statements))
+}
+
 pub(super) fn prefix_site_is_reachable(
     program: &dyn crate::CheckingInput,
     source: &typed_trees::state::State,

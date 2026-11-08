@@ -1,13 +1,22 @@
-//! Carry checked provider choices without reconstructing their owner from code.
-//!
-//! Source custody qualifies whole plans before release. The selected closure
-//! carries Terminal-derived specialization and family aliases; this projection
-//! preserves those joins rather than reopening source facts. Native admission
-//! selects its executable subset without rebuilding this producer's output. Neither a
-//! display label nor sharing one realizing machine merges selecting declarations.
+// Selected provider adapter retention and synchronous call-graph construction.
+//
+// Source custody qualifies whole plans before release, and the selected closure
+// carries Terminal-derived specialization and family aliases.
+// `retain_selected_provider_adapters` preserves those joins without reopening
+// source facts or merging selecting declarations that share a realizing
+// machine.
+//
+// `AdmittedProgramProviderContext` and `selected_synchronous_call_graph` join an
+// inspection call graph to this receiver's admitted provider choices so a
+// private body realized under a smaller executable provider scope can still
+// inspect the original entry without installing providers in that body.
 
 use crate::SelectedProviderAdapter;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
+use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use terminal_installation::{
+    AdmittedProviderSelections, AdmittedTargetMachineSelections, SynchronousCallGraph,
+};
 
 pub fn retain_selected_provider_adapters(
     selected: &effects::SelectedProviderPlanFacts,
@@ -93,9 +102,6 @@ fn project_complete_adapters(
             }
         }
     }
-    // A declaring requirement may occur beneath independent inherited calling
-    // contracts. Its whole-plan custody remains the disambiguating coordinate;
-    // executable scope and installation select exact candidates at real uses.
     adapters.sort_by(|left, right| {
         left.requirement_identity
             .cmp(&right.requirement_identity)
@@ -115,4 +121,102 @@ fn project_complete_adapters(
         ));
     }
     Ok(adapters)
+}
+
+#[derive(Debug)]
+pub struct AdmittedProgramProviderContext {
+    psi: terminal_psi::TerminalPsiIdentity,
+    profile: target::TargetProfile,
+    selected_plans: [u8; 32],
+    providers: Option<AdmittedProviderSelections>,
+    entry_bridge: Option<(BoundaryMachineId, MachineId)>,
+}
+
+impl AdmittedProgramProviderContext {
+    pub(crate) fn new(
+        psi: terminal_psi::TerminalPsiIdentity,
+        profile: target::TargetProfile,
+        selected_plans: &effects::SelectedProviderPlanFacts,
+        providers: Option<&AdmittedProviderSelections>,
+        entry_bridge: Option<(BoundaryMachineId, MachineId)>,
+    ) -> Self {
+        Self {
+            psi,
+            profile,
+            selected_plans: *selected_plans.identity_digest().as_bytes(),
+            providers: providers.cloned(),
+            entry_bridge,
+        }
+    }
+
+    pub fn require(
+        &self,
+        psi: terminal_psi::TerminalPsiIdentity,
+        profile: target::TargetProfile,
+        selected_plans: &effects::SelectedProviderPlanFacts,
+    ) -> Result<(), String> {
+        if self.psi != psi {
+            return Err("program provider context names another Terminal artifact".into());
+        }
+        if self.profile != profile {
+            return Err("program provider context names another target profile".into());
+        }
+        if self.selected_plans != *selected_plans.identity_digest().as_bytes() {
+            return Err("program provider context names another selected-plan closure".into());
+        }
+        Ok(())
+    }
+
+    pub const fn providers(&self) -> Option<&AdmittedProviderSelections> {
+        self.providers.as_ref()
+    }
+
+    pub const fn entry_bridge(&self) -> Option<(BoundaryMachineId, MachineId)> {
+        self.entry_bridge
+    }
+}
+
+pub fn selected_synchronous_call_graph<'module>(
+    artifact: terminal_codec::TerminalArtifactView<'module>,
+    target_members: Option<&'module AdmittedTargetMachineSelections>,
+    entry_bridge: Option<(BoundaryMachineId, MachineId)>,
+    installation: Option<&AdmittedProviderSelections>,
+    profile: target::TargetProfile,
+) -> Result<SynchronousCallGraph<'module>, String> {
+    let identity = artifact.identity();
+    let module = artifact.module();
+    if target_members.is_some_and(|members| {
+        members.terminal_psi() != identity || members.target() != profile.target_name()
+    }) {
+        return Err("synchronous provider graph has another artifact or target selection".into());
+    }
+    let mut calls = Vec::new();
+    if let Some(installation) = installation {
+        if installation.terminal_psi() != identity {
+            return Err("synchronous provider graph has another provider installation".into());
+        }
+        calls.extend(installation.providers());
+        calls.extend(
+            installation
+                .assumed_bindings()
+                .iter()
+                .map(|binding| (binding.required, binding.implementation)),
+        );
+        for &(_, machine) in &calls {
+            let callable = terminal_psi::TargetMachineCallable::Machine(machine);
+            if let Some(members) = target_members {
+                members
+                    .entry(identity, module, callable)
+                    .map_err(|error| format!("synchronous provider body target: {error:?}"))?;
+            } else if module.target_machine_families.iter().any(|family| {
+                family
+                    .members
+                    .iter()
+                    .any(|member| member.callable == callable)
+            }) {
+                return Err("synchronous provider body needs its exact target selection".into());
+            }
+        }
+    }
+    SynchronousCallGraph::new(module, target_members, entry_bridge)?.with_boundary_calls(calls)
 }

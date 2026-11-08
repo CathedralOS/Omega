@@ -53,6 +53,9 @@ fn touches_external_state(semantic: MachineSemanticKind) -> bool {
             | MachineSemanticKind::GlobalDescriptorTableLoad
             | MachineSemanticKind::GlobalDescriptorTableStore
             | MachineSemanticKind::TaskRegisterActivate
+            | MachineSemanticKind::InstalledInterruptCpuCheck
+            | MachineSemanticKind::InstalledInterruptTaskCommit
+            | MachineSemanticKind::InstalledInterruptTablePublication
             | MachineSemanticKind::TaskRegisterRead
             | MachineSemanticKind::CodeSegmentReload
             | MachineSemanticKind::DataSegmentReload
@@ -165,6 +168,7 @@ pub(super) fn validate_declaration(
     } else if matches!(
         semantic,
         MachineSemanticKind::Crash
+            | MachineSemanticKind::PrivilegedCrash
             | MachineSemanticKind::ConditionalBranchNonZero
             | MachineSemanticKind::Jump
             | MachineSemanticKind::ConditionalBranchU64LessThan
@@ -265,6 +269,15 @@ pub(super) fn validate_declaration(
         _ if temporary_stack => crate::MachineMemoryEffect::TemporaryStackStorageV1,
         MachineSemanticKind::GlobalDescriptorTableLoad => crate::MachineMemoryEffect::ReadPointerV1,
         MachineSemanticKind::GlobalDescriptorTableStore => WritePointerV1,
+        MachineSemanticKind::InstalledInterruptCpuCheck => {
+            crate::MachineMemoryEffect::InstalledInterruptCpuCheckV1
+        }
+        MachineSemanticKind::InstalledInterruptTaskCommit => {
+            crate::MachineMemoryEffect::InstalledInterruptTaskCommitV1
+        }
+        MachineSemanticKind::InstalledInterruptTablePublication => {
+            crate::MachineMemoryEffect::InstalledInterruptTablePublicationV1
+        }
         MachineSemanticKind::TaskRegisterActivate => {
             crate::MachineMemoryEffect::TaskRegisterActivationV1
         }
@@ -320,6 +333,9 @@ pub(super) fn validate_declaration(
         | MachineSemanticKind::GlobalDescriptorTableLoad
         | MachineSemanticKind::GlobalDescriptorTableStore
         | MachineSemanticKind::TaskRegisterActivate
+        | MachineSemanticKind::InstalledInterruptCpuCheck
+        | MachineSemanticKind::InstalledInterruptTaskCommit
+        | MachineSemanticKind::InstalledInterruptTablePublication
         | MachineSemanticKind::TaskRegisterRead
         | MachineSemanticKind::CodeSegmentReload
         | MachineSemanticKind::DataSegmentReload
@@ -335,6 +351,7 @@ pub(super) fn validate_declaration(
         | MachineSemanticKind::AtomicAccess(_)
         | MachineSemanticKind::AccessorScalarAccess(_) => MayArchitecturalFaultV1,
         MachineSemanticKind::Crash => crate::MachineTrapBehavior::ExplicitCrashV1,
+        MachineSemanticKind::PrivilegedCrash => MayArchitecturalFaultV1,
         semantic if has_policy_trap(semantic) => crate::MachineTrapBehavior::TrappingIntegerV1,
         MachineSemanticKind::HostedExitProcessI32 => HostedExitReturnedV1,
         MachineSemanticKind::HostedReadByte => crate::MachineTrapBehavior::HostedReadFailureV1,
@@ -504,6 +521,27 @@ fn validate_encoded_effects(
         {
             return Err(());
         }
+    }
+    if declaration.semantic == MachineSemanticKind::PrivilegedCrash {
+        return if constraint.operands.is_empty()
+            && !constraint.implicit_uses.is_empty()
+            && constraint.implicit_defs == constraint.implicit_uses
+            && !constraint.clobbers.is_empty()
+            && encoded.external_operand_reads.is_empty()
+            && encoded.external_operand_writes.is_empty()
+            && encoded.implicit_unit_uses == constraint.implicit_uses
+            && encoded.implicit_unit_defs == constraint.implicit_defs
+            && encoded.implicit_unit_clobbers == constraint.clobbers
+            && encoded.memory == MachineEncodedMemoryEffect::NoneV1
+            && encoded.stack == MachineEncodedStackEffect::UnchangedV1
+            && encoded.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+            && encoded.control == MachineEncodedControlEffect::PrivilegedStopV1
+            && applicability == MachineAlternativeApplicability::Always
+        {
+            Ok(())
+        } else {
+            Err(())
+        };
     }
     if declaration.semantic == MachineSemanticKind::Crash {
         return if constraint.operands.is_empty()
@@ -863,10 +901,12 @@ fn validate_encoded_effects(
             return Err(());
         }
     }
-    // The fall-through-or-trap surface belongs to the Trapping forms alone,
-    // with exactly their trap surface and no memory or stack effect.
+    // Policy traps and privileged installation failure have different control
+    // effects. A failed commit stops without recursively raising an exception.
     if has_policy_trap(declaration.semantic)
         != (encoded.control == MachineEncodedControlEffect::FallThroughOrTrapV1)
+        || (declaration.semantic == MachineSemanticKind::InstalledInterruptTaskCommit)
+            != (encoded.control == MachineEncodedControlEffect::FallThroughOrStopV1)
         || has_policy_trap(declaration.semantic)
             != (encoded.trap == MachineEncodedTrapBehavior::TrappingIntegerV1)
     {
@@ -880,8 +920,11 @@ fn validate_encoded_effects(
             MachineBarrier::ExternalEffect
         }
         MachineEncodedControlEffect::AtomicRetryUntilCommitV1 => return Err(()),
-        MachineEncodedControlEffect::CrashV1 => return Err(()),
-        MachineEncodedControlEffect::FallThroughOrTrapV1 => MachineBarrier::ExternalEffect,
+        MachineEncodedControlEffect::CrashV1 | MachineEncodedControlEffect::PrivilegedStopV1 => {
+            return Err(());
+        }
+        MachineEncodedControlEffect::FallThroughOrTrapV1
+        | MachineEncodedControlEffect::FallThroughOrStopV1 => MachineBarrier::ExternalEffect,
         MachineEncodedControlEffect::HostedReadReturnOrTrapV1
         | MachineEncodedControlEffect::HostedExitOrTrapV1
         | MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => MachineBarrier::ExternalEffect,
@@ -1247,6 +1290,58 @@ fn validate_encoded_effects(
             && encoded.external_operand_reads == [0, 1, 2, 3]
             && encoded.external_operand_writes == [4]
             && encoded.control == MachineEncodedControlEffect::FallThroughV1 => {}
+        (
+            MachineEncodedMemoryEffect::InstalledInterruptCpuCheckV1 {
+                table_pointer_operand: 0,
+                task_pointer_operand: 1,
+                scratch_pointer_operand: 2,
+                stack_pointer: memory_stack,
+            },
+            MachineEncodedStackEffect::TemporaryBytesV1 {
+                stack_pointer,
+                byte_count: 8,
+            },
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::InstalledInterruptCpuCheck
+            && declaration.memory == crate::MachineMemoryEffect::InstalledInterruptCpuCheckV1
+            && memory_stack == stack_pointer
+            && encoded.external_operand_reads == [0, 1, 2]
+            && encoded.external_operand_writes == [3]
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && implicit_roster_matches(encoded, constraint) => {}
+        (
+            MachineEncodedMemoryEffect::InstalledInterruptTaskCommitV1 {
+                table_pointer_operand: 0,
+                task_pointer_operand: 1,
+                scratch_pointer_operand: 2,
+                stack_pointer: memory_stack,
+            },
+            MachineEncodedStackEffect::TemporaryBytesV1 {
+                stack_pointer,
+                byte_count: 8,
+            },
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::InstalledInterruptTaskCommit
+            && declaration.memory == crate::MachineMemoryEffect::InstalledInterruptTaskCommitV1
+            && memory_stack == stack_pointer
+            && encoded.external_operand_reads == [0, 1, 2]
+            && encoded.external_operand_writes.is_empty()
+            && encoded.control == MachineEncodedControlEffect::FallThroughOrStopV1
+            && implicit_roster_matches(encoded, constraint) => {}
+        (
+            MachineEncodedMemoryEffect::InstalledInterruptTablePublicationV1 {
+                table_pointer_operand: 0,
+                scratch_pointer_operand: 1,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::InstalledInterruptTablePublication
+            && declaration.memory
+                == crate::MachineMemoryEffect::InstalledInterruptTablePublicationV1
+            && encoded.external_operand_reads == [0, 1]
+            && encoded.external_operand_writes.is_empty()
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && implicit_roster_matches(encoded, constraint) => {}
         (
             MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
                 table_pointer_operand: 0,

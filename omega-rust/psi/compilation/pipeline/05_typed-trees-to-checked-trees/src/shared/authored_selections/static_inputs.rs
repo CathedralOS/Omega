@@ -15,6 +15,24 @@ pub(super) fn collect(
     resolutions: &mut Vec<AuthoredSelectionResolution>,
 ) -> Result<(), Diagnostic> {
     let typed = program.typed_program();
+    for (_, node) in typed.expression_table.iter_expressions() {
+        if let typed_trees::expression::ExpressionNode::Call(call) = node
+            && let Some(request) = &call.installed_interrupt_operation
+        {
+            collect_registrar(typed, request, resolutions)?;
+        }
+    }
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in crate::flow::state_statements(program, state.statement_nodes).iter() {
+                if let Some(call) = statement.as_call()
+                    && let Some(request) = &call.installed_interrupt_operation
+                {
+                    collect_registrar(typed, request, resolutions)?;
+                }
+            }
+        }
+    }
     for handle in typed.live_product_operand_applications() {
         let application = typed.product_operand_applications.get(handle);
         collect_inputs(
@@ -143,4 +161,58 @@ fn collect_inputs(
         }
     }
     Ok(())
+}
+
+/// Record the requirement's identity, not permission to install its callback.
+/// The complete application and slot remain separate installation obligations.
+fn collect_registrar(
+    typed: &typed_trees::TypedTrees,
+    request: &typed_trees::expression::InstalledInterruptOperationRequest,
+    resolutions: &mut Vec<AuthoredSelectionResolution>,
+) -> Result<(), Diagnostic> {
+    let Some(occurrence) = request.registrar_selection else {
+        return Ok(());
+    };
+    let selection = typed
+        .authored_declaration_selections()
+        .get(occurrence)
+        .ok_or_else(|| {
+            Diagnostic::error("interrupt registrar retains an unknown authored selection")
+        })?;
+    let mut argument = &request.registrar;
+    while let Some(application) = &argument.application
+        && application.member.is_valid()
+    {
+        argument = typed
+            .expression_table
+            .static_member(application.member)
+            .ok_or_else(|| Diagnostic::error("interrupt registrar lost its retained member"))?;
+    }
+    if selection.kind() != Kind::StaticArgument || !argument.symbol.is_valid() {
+        return Err(
+            Diagnostic::error("interrupt registrar has no exact requirement declaration")
+                .with_source_span(selection.source_span()),
+        );
+    }
+    let selected = typed.symbols.authored_origin(argument.symbol);
+    match selection.target() {
+        Target::LateBound(Binding::CheckedStaticArgument) => push_consistent_resolution(
+            typed,
+            resolutions,
+            AuthoredSelectionResolution {
+                occurrence,
+                binding: Binding::CheckedStaticArgument,
+                target: AuthoredSelectionResolutionTarget::Declaration(selected),
+            },
+        ),
+        Target::Resolved(target)
+            if typed.symbols.authored_origin(target.selected_symbol()) == selected =>
+        {
+            Ok(())
+        }
+        _ => Err(Diagnostic::error(
+            "interrupt registrar disagrees with its authored requirement selection",
+        )
+        .with_source_span(selection.source_span())),
+    }
 }

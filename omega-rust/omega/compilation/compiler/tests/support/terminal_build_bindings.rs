@@ -1,10 +1,10 @@
 //! The complete source Build entry, with real host binding effects and helper
-//! writeback. Product bodies stay inert; fuel pauses resume the same activation.
+//! writeback. Product bodies stay inert; work-budget pauses resume the same activation.
 use super::terminal_provision;
 
 use build_settings::host::bindings::TerminalBuildBindingHost;
 use build_settings::host::requests::TerminalBuildRequestHost;
-use terminal_fuel::TerminalFuelMeter;
+use psi_work::WorkMeter;
 use terminal_interpreter::{
     TerminalEffectHandler, TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram,
     TerminalStorageObservationError, TerminalStorageObservationValue, TerminalStructuralInputs,
@@ -118,9 +118,7 @@ fn exercise(
                 }
             }
             if foreign {
-                let error = instance
-                    .invoke(&mut TerminalFuelMeter::unbounded())
-                    .unwrap_err();
+                let error = instance.invoke(&mut WorkMeter::unbounded()).unwrap_err();
                 assert!(format!("{error:?}").contains("original compiler-issued Build"));
                 assert_eq!(
                     instance.observe_borrowed_entry(0, &identifier),
@@ -131,13 +129,13 @@ fn exercise(
                 assert!(project.drain_requests().unwrap().is_empty());
                 continue;
             }
-            let mut fuel = TerminalFuelMeter::with_allowance(0);
+            let mut work = WorkMeter::with_budget(0);
             let mut paused_after_effect = false;
             for _ in 0..1_000 {
-                match instance.invoke(&mut fuel).unwrap() {
+                match instance.invoke(&mut work).unwrap() {
                     TerminalExecutionStatus::SponsorExhausted(_) => {
                         paused_after_effect |= !instance.effects().is_empty();
-                        fuel.replenish(1).unwrap();
+                        work.replenish(1).unwrap();
                     }
                     TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => break,
                     status => panic!("unexpected full Build result: {status:?}"),

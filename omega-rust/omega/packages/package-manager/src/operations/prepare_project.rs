@@ -1,4 +1,28 @@
-//! Prepare one local `build.omg` project for package-aware compilation.
+/*
+    We prepare one local `build.omg` project for package-aware compilation. The
+    source closure is shared across requested product targets: an accepted
+    lock's target sections pin the same immutable source subject, and an
+    unlocked graph resolves the same way for any product target. What stays
+    per-target is only the accepted policy section that arms each target's own
+    restricted-request checkpoint.
+
+    Beginning local project preparation recovers transactions and selects
+    accepted target policy before acquiring an anonymous source, without
+    parsing `Build` declarations, invoking a compiler, or granting restricted
+    execution. A deleted declaration during a pending transaction is a recovery
+    conflict, not permission to bypass package preparation as standalone. A
+    single-target request rejects preparation immediately when its accepted
+    section is missing or unreadable; multi-target requests retain the error on
+    that target's row so sibling targets still compile. Completing source
+    resolution verifies that neither `build.omg` nor `omega.lock` changed
+    concurrently and routes the authored entry through invocation-owned source
+    inputs without live-read permission or persistent snapshot copies.
+*/
+
+/*
+    Package-owned project preparation and lock-baseline verification belong to
+    the package manager's operations boundary (`operations/prepare_project.rs`).
+*/
 
 use super::{PackageFileTransaction, PackagePublicationError, PackagePublicationLimits};
 use crate::lock::{PackageLock, PackageLockRecoveryLimits, PackageLockTarget};
@@ -22,22 +46,12 @@ mod tests;
 
 pub const LOCAL_PROJECT_CONTEXT: &[u8] = b"omega-local-project-v1";
 
-/// The compiler entry and exact package graph prepared from one local project,
-/// covering every requested target at once.
-///
-/// The source closure is shared: an accepted lock's target sections pin the
-/// same immutable source subject, and an unlocked graph resolves the same way
-/// for any product target. What stays per-target is only the accepted policy
-/// section that arms each target's own restricted-request checkpoint.
 pub struct PreparedLocalProject {
     entry_path: PathBuf,
     source_closure: ResolvedPackageSourceClosure,
     targets: Vec<PreparedProjectTarget>,
 }
 
-/// Package-owned recovery and policy state retained while application Build
-/// discovers the source graph. Beginning this operation neither parses Build
-/// declarations nor invokes a compiler or grants restricted execution.
 pub struct LocalProjectPreparation {
     transaction: Option<PackageFileTransaction>,
     baseline: Option<(Vec<u8>, Option<Vec<u8>>)>,
@@ -49,14 +63,9 @@ pub struct LocalProjectPreparation {
     offline: bool,
 }
 
-/// One requested target's view of the prepared project: its exact profile and
-/// the accepted lock section prepared for it, or the preparation error that
-/// target alone must report.
 pub(super) struct PreparedProjectTarget {
     pub(super) profile: TargetProfile,
-    /// `Ok(None)` names an unlocked project; `Err` is this target's missing or
-    /// unreadable accepted section — sibling targets still compile.
-    pub(super) accepted: Result<Option<PackageLockTarget>, PrepareLocalProjectError>,
+    pub(super) accepted: Result<Option<PackageLockTarget>, PrepareLocalProjectError>, // `Ok(None)` when unlocked; `Err` when this target's accepted section is missing or unreadable
 }
 
 impl PreparedLocalProject {
@@ -68,9 +77,6 @@ impl PreparedLocalProject {
         self.source_closure.graph().root().identity()
     }
 
-    /// Find the acquired identity from an exact canonical local origin, not a
-    /// declared package name or its cache directory. This is observation for
-    /// caller policy; it neither acquires source nor accepts any package rows.
     pub fn package_at_local_root(
         &self,
         canonical_root: &Path,
@@ -92,8 +98,6 @@ impl PreparedLocalProject {
             })
     }
 
-    /// Split for a multi-target route: every requested target's section beside
-    /// the shared entry path and source closure.
     pub(super) fn into_target_review_parts(
         self,
     ) -> (
@@ -171,9 +175,6 @@ impl fmt::Display for PrepareLocalProjectError {
 
 impl std::error::Error for PrepareLocalProjectError {}
 
-/// Recover transactions and select accepted target policy before acquiring an
-/// anonymous source. The application retains this owner through actual Build
-/// execution and returns its resolved graph to `complete_source_resolution`.
 pub fn begin_local_project_preparation(
     entry_path: &Path,
     targets: &[TargetProfile],
@@ -226,8 +227,6 @@ fn begin_local_project_preparation_in_storage(
             .recover()
             .map_err(PrepareLocalProjectError::Publication)?;
     }
-    // A deleted declaration during a pending transaction is a recovery
-    // conflict, not permission to bypass package preparation as standalone.
     let lock_present = match std::fs::symlink_metadata(project_root.join("omega.lock")) {
         Ok(_) => true,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
@@ -251,8 +250,6 @@ fn begin_local_project_preparation_in_storage(
                 .map_err(|error| PrepareLocalProjectError::Locked(error.to_string()))
         })
         .transpose()?;
-    // A lock's target sections pin the same immutable source subject, so the
-    // closure resolves once; each target then keeps only its own section.
     let prepared_targets = targets
         .iter()
         .map(|profile| {
@@ -271,9 +268,6 @@ fn begin_local_project_preparation_in_storage(
             }
         })
         .collect::<Vec<_>>();
-    // A single-target request keeps the historical failure surface: its one
-    // missing section rejects preparation itself, before storage opens or a
-    // missing local source acquires, rather than landing on the target row.
     let mut prepared_targets = prepared_targets;
     if let [single] = prepared_targets.as_mut_slice()
         && single.accepted.is_err()
@@ -312,8 +306,6 @@ fn begin_local_project_preparation_in_storage(
 }
 
 impl LocalProjectPreparation {
-    /// The authored entry routed inside the acquired namespace, not permission
-    /// to reopen it. Source compilation must also receive `acquire_root` custody.
     pub fn entry_path(&self) -> PathBuf {
         self.canonical_root.join(&self.entry_relative)
     }
@@ -327,8 +319,6 @@ impl LocalProjectPreparation {
         .map_err(PrepareLocalProjectError::Acquisition)
     }
 
-    /// Retain this operation's acquisition policy while the application executes
-    /// anonymous Build sources. Accepted selectors cannot refresh during discovery.
     pub fn source_acquisitions(
         &self,
     ) -> Result<BuildSourceAcquisitions<'_>, PrepareLocalProjectError> {
@@ -369,9 +359,6 @@ impl LocalProjectPreparation {
         ))
     }
 
-    /// Only package-manager resolution can supply this graph. Exact input
-    /// acceptance remains the later admission operation; completion grants no
-    /// permissions and never publishes or refreshes a lock.
     pub fn complete_source_resolution(
         self,
         resolved: crate::resolution::source::ResolvedBuildSources,
@@ -410,8 +397,6 @@ impl LocalProjectPreparation {
         let source_root = closure
             .source_root(closure.graph().root())
             .ok_or(PrepareLocalProjectError::MissingRootCustody)?;
-        // The root spelling routes through invocation-owned source inputs. It
-        // names neither a live-read permission nor a persistent snapshot copy.
         let prepared_entry = source_root.join(self.entry_relative);
         Ok(PreparedLocalProject {
             entry_path: prepared_entry,

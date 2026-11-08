@@ -1185,30 +1185,6 @@ pub struct CheckedUnitScalarControlPlan {
     pub primitive_type: PrimitiveType,
     /// Exact authored conditional and return coordinates after the ordered body.
     pub terminator: CheckedScalarStateTerminator,
-    /// Payload values born only after their exact return arm is selected.
-    pub selected_copies: Vec<CheckedScalarReturnCopies>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub struct CheckedScalarReturnCopies {
-    pub statement_ordinal: u32,
-    pub is_continuation: bool,
-    pub transition_target: typed_trees::statement::TransitionTargetHandle,
-    pub copied_payloads: Vec<CheckedSelectedPayloadCopy>,
-}
-
-/// A selected private copy whose source identity and disposal were admitted.
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub struct CheckedSelectedPayloadCopy {
-    pub value: crate::CheckedStructuralValueHandle,
-    pub type_identity: TypeIdentityId,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub struct CheckedSelectedPayloadCopies {
-    pub statement_ordinal: u32,
-    pub transition_target: typed_trees::statement::TransitionTargetHandle,
-    pub values: Vec<CheckedSelectedPayloadCopy>,
 }
 
 /// Storage for one `mut` scalar formal. The body establishes it before its

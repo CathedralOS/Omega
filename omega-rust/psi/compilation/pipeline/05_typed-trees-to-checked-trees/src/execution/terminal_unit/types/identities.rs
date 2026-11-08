@@ -96,7 +96,7 @@ pub(in crate::execution::terminal_unit) fn stored_type_presents_borrowed(
         && base_type_identity(program, source, &[], &[]) == Some(borrowed)
 }
 
-pub(crate) fn is_unit(
+pub(in crate::execution::terminal_unit) fn is_unit(
     program: &dyn ::validation::CheckingInput,
     mut type_reference: TypeReferenceHandle,
 ) -> bool {

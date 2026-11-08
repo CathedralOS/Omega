@@ -3,6 +3,7 @@ use arena::{Handle, HandleSpan};
 use crate::{BorrowCallFact, BorrowLoanFact, BorrowWritableRootFact};
 
 use super::super::{FlowConstraintKind, FlowConstraintRef, FlowContextFacts, FlowFacts};
+use crate::FlowFactsRef;
 
 impl FlowContextFacts {
     /// Semantic evidence retained by this exact operand/context roster.
@@ -24,20 +25,65 @@ impl FlowContextFacts {
 
 impl FlowFacts {
     pub fn constraints(&self, constraints: HandleSpan<FlowConstraintRef>) -> &[FlowConstraintRef] {
-        self.contexts.constraint_refs.span_or_empty(constraints)
+        self.view().constraints(constraints)
     }
 
     pub fn semantic_constraint_contexts(
         &self,
         constraints: HandleSpan<FlowConstraintRef>,
     ) -> impl Iterator<Item = facts::FactContextHandle> + '_ {
-        self.contexts.semantic_constraint_contexts(constraints)
+        self.view().semantic_constraint_contexts(constraints)
     }
 
     pub fn borrow_call_constraints(
         &self,
         constraints: HandleSpan<FlowConstraintRef>,
     ) -> impl Iterator<Item = Handle<BorrowCallFact>> + '_ {
+        self.view().borrow_call_constraints(constraints)
+    }
+
+    pub fn borrow_writable_root_constraints(
+        &self,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> impl Iterator<Item = Handle<BorrowWritableRootFact>> + '_ {
+        self.view().borrow_writable_root_constraints(constraints)
+    }
+
+    pub fn incoming_reference_constraints(
+        &self,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> impl Iterator<Item = Handle<crate::IncomingReferenceIdentity>> + '_ {
+        self.view().incoming_reference_constraints(constraints)
+    }
+
+    pub fn borrow_loan_constraints(
+        &self,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> impl Iterator<Item = Handle<BorrowLoanFact>> + '_ {
+        self.view().borrow_loan_constraints(constraints)
+    }
+}
+
+/// The same queries on a shared view; see `FlowFactsRef`.
+impl<'f> FlowFactsRef<'f> {
+    pub fn constraints(
+        self,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> &'f [FlowConstraintRef] {
+        self.contexts.constraint_refs.span_or_empty(constraints)
+    }
+
+    pub fn semantic_constraint_contexts(
+        self,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> impl Iterator<Item = facts::FactContextHandle> + 'f {
+        self.contexts.semantic_constraint_contexts(constraints)
+    }
+
+    pub fn borrow_call_constraints(
+        self,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> impl Iterator<Item = Handle<BorrowCallFact>> + 'f {
         self.constraints(constraints)
             .iter()
             .filter_map(|constraint| match constraint.kind {
@@ -47,9 +93,9 @@ impl FlowFacts {
     }
 
     pub fn borrow_writable_root_constraints(
-        &self,
+        self,
         constraints: HandleSpan<FlowConstraintRef>,
-    ) -> impl Iterator<Item = Handle<BorrowWritableRootFact>> + '_ {
+    ) -> impl Iterator<Item = Handle<BorrowWritableRootFact>> + 'f {
         self.constraints(constraints)
             .iter()
             .filter_map(|constraint| match constraint.kind {
@@ -59,9 +105,9 @@ impl FlowFacts {
     }
 
     pub fn incoming_reference_constraints(
-        &self,
+        self,
         constraints: HandleSpan<FlowConstraintRef>,
-    ) -> impl Iterator<Item = Handle<crate::IncomingReferenceIdentity>> + '_ {
+    ) -> impl Iterator<Item = Handle<crate::IncomingReferenceIdentity>> + 'f {
         self.constraints(constraints)
             .iter()
             .filter_map(|constraint| {
@@ -74,9 +120,9 @@ impl FlowFacts {
     }
 
     pub fn borrow_loan_constraints(
-        &self,
+        self,
         constraints: HandleSpan<FlowConstraintRef>,
-    ) -> impl Iterator<Item = Handle<BorrowLoanFact>> + '_ {
+    ) -> impl Iterator<Item = Handle<BorrowLoanFact>> + 'f {
         self.constraints(constraints)
             .iter()
             .filter_map(|constraint| match constraint.kind {

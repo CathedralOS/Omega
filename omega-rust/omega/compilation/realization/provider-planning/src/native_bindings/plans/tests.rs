@@ -1,3 +1,6 @@
+// Unit tests for Build-supplied native binding locator checking across selected
+// and unselected targets.
+
 use super::*;
 use crate::native_bindings::NativeBuildEvaluation;
 use build_time_evaluation::native_bindings::NativeBindingSelection;
@@ -6,15 +9,14 @@ use evaluation_accounting::{
     TerminalStorageScheduleIdentity,
 };
 use language_semantics::declaration_selection::{NativeBindingProducer, ProductTarget};
-use semantic_vocabulary::{FuelScheduleIdentity, PackageKeyIdentity};
+use semantic_vocabulary::{PackageKeyIdentity, WorkScheduleIdentity};
 
 const REQUIREMENT: &str = "Clock::now";
 
-/// One authored Build binding with a measured Terminal evaluation.
 fn supply(target: ProductTarget, locator: NativeBindingLocator) -> NativeBuildSupply {
     let package = PackageKeyIdentity::from_digest([3; 32]).unwrap();
     let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+        work_schedule: WorkScheduleIdentity::new(1).unwrap(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
     };
     let limits = BuildEvaluationSponsorLimits::new(100, 100, 8, 8, 100, 100, 100, 100).unwrap();
@@ -51,8 +53,6 @@ fn supply(target: ProductTarget, locator: NativeBindingLocator) -> NativeBuildSu
     }
 }
 
-/// Declarations as `capture` saves them for a requirement whose service
-/// surface was never demanded, so only the selected target could reach it.
 fn prepared(supplies: &[NativeBuildSupply]) -> PreparedNativeBuildBindings {
     PreparedNativeBuildBindings {
         rows: supplies
@@ -81,7 +81,6 @@ fn form(supplies: &[NativeBuildSupply]) -> Result<Vec<DerivedProviderPlan>, Vec<
 
 #[test]
 fn a_target_that_is_not_selected_still_refuses_its_invalid_locator() {
-    // Windows has no syscall locator. Building for Linux must still report it.
     let refused = form(&[supply(
         ProductTarget::WindowsX86_64,
         NativeBindingLocator::Syscall { number: 60 },
@@ -97,8 +96,6 @@ fn a_target_that_is_not_selected_still_refuses_its_invalid_locator() {
 
 #[test]
 fn a_valid_locator_for_a_target_that_is_not_selected_forms_no_candidate() {
-    // The same binding with a valid locator evaluates and contributes nothing,
-    // so the refusal above comes from the locator alone.
     let plans = form(&[supply(
         ProductTarget::LinuxArm64,
         NativeBindingLocator::Syscall { number: 60 },

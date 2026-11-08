@@ -1,4 +1,4 @@
-//! Source-graph package membership, without admission or declaration claims.
+// Source-graph package membership verification across retained semantic package owners without admission or declaration claims.
 
 mod framing;
 mod membership_accounting;
@@ -21,9 +21,6 @@ pub(super) trait Observer {
 }
 
 impl PackagePolicyBaseline {
-    /// Require every retained semantic package owner to belong to the enclosing
-    /// source graph. This does not require a direct edge, certify review, or
-    /// reconstruct a declaration from another package's baseline.
     pub fn validate_package_membership(
         &self,
         contains: impl FnMut(PackageKeyIdentity) -> bool,

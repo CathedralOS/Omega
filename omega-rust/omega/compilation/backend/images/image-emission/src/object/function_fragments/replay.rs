@@ -32,6 +32,7 @@ pub fn verify_retained_target_operations(
         optimized.plan(),
         optimized.unit(),
         current.boundary_origins(),
+        current.lowering_facts().installed_interrupts(),
     )
     .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
 }

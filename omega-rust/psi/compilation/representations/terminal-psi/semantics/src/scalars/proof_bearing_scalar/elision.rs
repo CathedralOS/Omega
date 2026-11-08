@@ -7,7 +7,7 @@
 //! re-projects the canonical kernel proposition; a goal that stays symbolic
 //! keeps its obligation row and its evidence requirement.
 //!
-//! The replacement keeps the operation's identity, result declaration, fuel,
+//! The replacement keeps the operation's identity, result declaration, work,
 //! and frontier policy. Its result equation replaces the discharged leaf's in
 //! every reconstructed axiom snapshot: that transport belongs to the rewrite's
 //! independent check, not to this judgment.

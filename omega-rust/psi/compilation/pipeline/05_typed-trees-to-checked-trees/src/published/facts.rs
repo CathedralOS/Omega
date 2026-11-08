@@ -268,6 +268,12 @@ pub(crate) fn build_check_facts<'program>(
     // seeded semantic plan or the borrow, proof, domain, scalar-expression or
     // operator facts still rebuilds from source.
     let mut previous_construction: Option<FlowConstruction> = None;
+    // Each state's last permission walk, for the next pass to reuse where
+    // every input of that walk is unchanged (see `PermissionWalkMemory`).
+    // `retrying_permissions` holds only while the previous pass ended in
+    // permission preparation's own retry, so nothing else ran in between.
+    let mut walk_memory = crate::checks::PermissionWalkMemory::default();
+    let mut retrying_permissions = false;
     loop {
         prepared.semantic.clone_from(&semantic);
         contextual_cleanup::entry_flow::seed_entry_requirements(
@@ -278,6 +284,9 @@ pub(crate) fn build_check_facts<'program>(
         let reusable = previous_construction
             .as_ref()
             .filter(|construction| construction.read_the_same_inputs(&prepared));
+        let walk_inputs = crate::checks::WalkInputs {
+            restored: std::mem::take(&mut retrying_permissions) && reusable.is_some(),
+        };
         if let Some(construction) = reusable {
             prepared.semantic.clone_from(&construction.semantic_after);
             prepared.flow.clone_from(&construction.flow);
@@ -313,8 +322,11 @@ pub(crate) fn build_check_facts<'program>(
             &mut claim_outcomes,
             mutation_summaries,
             call_frames.as_ref(),
+            &mut walk_memory,
+            walk_inputs,
         );
         if permission_outcome? {
+            retrying_permissions = true;
             continue;
         }
         if contextual_cleanup::retain_selected_receiver_loans(
@@ -396,7 +408,6 @@ fn finish_check_facts(
             (
                 prepared.values.scalar_computations,
                 prepared.values.structural_values,
-                prepared.values.completions,
             ) = crate::execution::scalar_computations::build_checked_value_computation_plans(
                 program,
                 &prepared.operators,
@@ -548,6 +559,48 @@ fn finish_check_facts(
         static_machine_selections.nominal_uses,
         &contract_plans,
     )?;
+    let mut installed_interrupt_registrations = Vec::new();
+    let mut next_callback_index = nominal_machine_uses.uses.len();
+    for registration in static_machine_selections.installed_interrupt_registrations {
+        // Reuse the same envelope, crash-refinement and entry-resource sealing
+        // as ordinary callback arguments, but retain the installation subject.
+        let mut callbacks =
+            build_nominal_machine_use_facts(program, registration.nominal_uses, &contract_plans)?;
+        for callback in &mut callbacks.uses {
+            callback.application_index = u32::try_from(next_callback_index).map_err(|_| {
+                vec![diagnostics::Diagnostic::error(
+                    "installation callback count exceeds u32",
+                )]
+            })?;
+            next_callback_index += 1;
+        }
+        installed_interrupt_registrations.push(
+            checked_trees::CheckedInstalledInterruptRegistration {
+                site: match registration.site {
+                    validation::ValidatedNominalMachineUseSite::Statement(site) => {
+                        checked_trees::NominalMachineUseSite::Statement(site)
+                    }
+                    validation::ValidatedNominalMachineUseSite::Expression(site) => {
+                        checked_trees::NominalMachineUseSite::Expression(site)
+                    }
+                },
+                control_service: registration.control_service,
+                application: registration.application,
+                target: registration.target,
+                registrar_owner: registration.registrar_owner,
+                registrar_application_identity: registration.registrar_application_identity,
+                registrar_declaring_application: registration.registrar_declaring_application,
+                registrar_arguments: registration.registrar_arguments,
+                registrar_lifetimes: registration.registrar_lifetimes,
+                timer_slot: registration.timer_slot,
+                slot_application: registration.slot_application,
+                callbacks,
+                specializations: build_requirement_call_specialization_facts(
+                    registration.specializations,
+                )?,
+            },
+        );
+    }
     // A structural machine-parameter contract emits no nominal use row, so
     // the specialization MP2b derived at its call edge survives only here.
     let requirement_call_specializations = build_requirement_call_specialization_facts(
@@ -645,6 +698,7 @@ fn finish_check_facts(
             domains,
             dynamic_conformances,
             nominal_machine_uses,
+            installed_interrupt_registrations,
             requirement_call_specializations,
             operators,
             capabilities,

@@ -58,7 +58,7 @@ fn request(
     let writes = if load { vec![1, 2] } else { vec![2] };
     let flags = physical
         .model()
-        .view_named("rflags")
+        .view_named("condition_flags")
         .ok_or(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel)?;
     let footprint = X86_64SelectedFormFootprint {
         register_reads: reads

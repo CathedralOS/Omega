@@ -344,7 +344,7 @@ pub(super) fn replace_byte(
         },
     )?;
     // Metadata and displaced content are not loaded. Only this committing byte
-    // store carries fuel; the original inline backing and live length survive.
+    // store carries work; the original inline backing and live length survive.
     builder.emit_store(
         0,
         1,

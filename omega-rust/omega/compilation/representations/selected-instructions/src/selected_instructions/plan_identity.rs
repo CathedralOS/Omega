@@ -12,7 +12,7 @@
 //! storage memoizes each digest beside its content, so minting the identity
 //! of such a plan hashes changed metadata, edited blocks and digest rosters.
 
-use optimization_unit::{FuelSettlement, PsiProvenance};
+use optimization_unit::{PsiProvenance, WorkSettlement};
 use semantic_vocabulary::{IntegerSign, ScalarType};
 
 use crate::{
@@ -59,7 +59,7 @@ pub fn selected_instruction_plan_identity(
         &mut header_bytes,
         plan.psi.vocabulary_marker.get().to_le_bytes(),
     );
-    push_encoded(&mut header_bytes, plan.fuel_schedule.marker().to_le_bytes());
+    push_encoded(&mut header_bytes, plan.work_schedule.marker().to_le_bytes());
     header_bytes.extend_from_slice(&plan.target.identity_bytes());
     push_encoded(&mut header_bytes, plan.entry.get().to_le_bytes());
     crate::codec_bytes::encode_len(&mut header_bytes, plan.functions.len());
@@ -541,7 +541,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     ids!(bytes => instruction.provenance.values);
     ids!(bytes => instruction.provenance.edges);
     ids!(bytes => instruction.provenance.obligations);
-    encode_fuel(bytes, &instruction.provenance.fuel);
+    encode_work(bytes, &instruction.provenance.work);
 }
 
 fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
@@ -712,12 +712,12 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
             }
         }
     }
-    encode_fuel(bytes, &successor.fuel);
+    encode_work(bytes, &successor.work);
 }
 
-fn encode_fuel(bytes: &mut Vec<u8>, fuel: &[FuelSettlement]) {
-    push_encoded(bytes, (fuel.len() as u64).to_le_bytes());
-    for settlement in fuel {
+fn encode_work(bytes: &mut Vec<u8>, work: &[WorkSettlement]) {
+    push_encoded(bytes, (work.len() as u64).to_le_bytes());
+    for settlement in work {
         match settlement.site {
             PsiProvenance::Operation(operation) => {
                 bytes.push(0);

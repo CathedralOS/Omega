@@ -5,9 +5,9 @@ use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationAccountingError,
     EvaluationMeasurementIdentity, EvaluationResource, TerminalStorageScheduleIdentity,
 };
+use psi_work::WorkMeter;
 use semantic_vocabulary::IntegerValue;
 use terminal_codec::CanonicalTerminalArtifact;
-use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstanceCloseError,
     TerminalInstanceError, TerminalInstantiation, TerminalInterpretError, TerminalProgram,
@@ -58,7 +58,7 @@ pub(super) fn observe(
         }
         for (cell_limit, byte_limit, first_succeeds) in ceilings {
             let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-                fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
                 storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
             };
             let sponsor = BuildEvaluationSponsor::new_with_measurement(
@@ -84,8 +84,8 @@ pub(super) fn observe(
                         ..Default::default()
                     })
                     .map_err(describe)?;
-                let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0))
-                    .map_err(describe)?;
+                let mut meter =
+                    WorkMeter::with_invocation(account.clone(), Some(0)).map_err(describe)?;
                 let result = loop {
                     match instance.invoke(&mut meter) {
                         Ok(TerminalExecutionStatus::SponsorExhausted(_)) => {
@@ -138,7 +138,7 @@ pub(super) fn observe(
                     if !matches!(
                         cause,
                         TerminalInterpretError::Storage(
-                            EvaluationAccountingError::AllowanceExhausted(
+                            EvaluationAccountingError::BudgetExhausted(
                                 EvaluationResource::ResultCustody
                             )
                         )

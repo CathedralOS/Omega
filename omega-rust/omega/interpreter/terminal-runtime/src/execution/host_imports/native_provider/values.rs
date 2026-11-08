@@ -1,6 +1,7 @@
-//! Exact scalar-leaf record codecs, shared by value transport and borrowed views.
-//! Physical placement comes from the retained target layout. The semantic
-//! declaration independently authenticates the complete leaf roster and types.
+// We admit, encode, and decode scalar-leaf record codecs shared by value
+// transport and borrowed views. Physical placement comes from the retained
+// target layout while the semantic declaration authenticates the complete leaf
+// roster and types.
 
 use super::super::borrowed_storage::geometry::expand_coordinates;
 use super::super::scalar_codec::{decode, encode, scalar_extent};
@@ -19,12 +20,14 @@ pub(super) struct ScalarField {
     pub logical: ScalarType,
     pub stored: ScalarType,
 }
+
 pub(super) struct ReferenceField {
     pub path: Vec<Path>,
     pub offset: usize,
     pub referent: StructuralTypeId,
     pub access: terminal_psi::StructuralAccess,
 }
+
 pub(super) struct StorageCodec {
     pub structural_type: StructuralTypeId,
     pub extent: usize,
@@ -32,6 +35,7 @@ pub(super) struct StorageCodec {
     pub fields: Vec<ScalarField>,
     pub references: Vec<ReferenceField>,
 }
+
 impl StorageCodec {
     pub fn admit(
         program: &TerminalProgram,
@@ -192,6 +196,7 @@ impl StorageCodec {
             references,
         })
     }
+
     pub fn encode(
         &self,
         values: &[TerminalBoundaryStorageValue],
@@ -233,6 +238,7 @@ impl StorageCodec {
         }
         Ok(bytes)
     }
+
     pub fn decode_fields(
         &self,
         bytes: &[u8],
@@ -260,6 +266,7 @@ impl StorageCodec {
             })
             .collect()
     }
+
     pub fn aggregate(
         &self,
         bytes: &[u8],

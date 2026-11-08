@@ -25,7 +25,22 @@ impl Builder<'_, '_> {
             binary,
         )?;
         if let Some((_, subject)) = self.readable_case_subject(binary.left, self.statement_index) {
-            let receiver_value = self.case_subject_receiver(&subject)?;
+            let receiver_value = if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression: anchor } = subject.source {
+                let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
+                    self.program.expression_table.expression(anchor)
+                else {
+                    return None;
+                };
+                let source = self.program.saved_value_source(saved)?;
+                let reference = validation::expression_result_type_reference(
+                    self.program, machine, state, source,
+                )?;
+                let value = self.structural_value(source, reference)?;
+                self.retain_structural_value_root(value, reference)?;
+                value
+            } else {
+                checked_trees::CheckedStructuralValueHandle::invalid()
+            };
             return Some(self.publish_case_membership(
                 expression,
                 expression,
@@ -63,9 +78,7 @@ impl Builder<'_, '_> {
             };
             self.program.saved_value_source(saved)?;
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                value_dependency: None,
                 expression,
-                logical_root_type_identity: None,
             }
         } else {
             let root = place.root.as_symbol()?;
@@ -133,49 +146,6 @@ impl Builder<'_, '_> {
                 access: checked_trees::CheckedStructuralAccess::SharedBorrow,
             },
         ))
-    }
-
-    /// A tag test retains its saved receiver and exact relative path. The
-    /// dispatch owns its birth; this association never replays the subject.
-    pub(super) fn case_subject_receiver(
-        &mut self,
-        subject: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    ) -> Option<checked_trees::CheckedStructuralValueHandle> {
-        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-            expression: anchor,
-            ..
-        } = subject.source
-        else {
-            return Some(checked_trees::CheckedStructuralValueHandle::invalid());
-        };
-        let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
-            self.program.expression_table.expression(anchor)
-        else {
-            return None;
-        };
-        if let Some(value) = self
-            .dispatch_receivers
-            .get(&(anchor.arena_index(), anchor.generation()))
-        {
-            return Some(value.value);
-        }
-        let capture = self.program.expression_table.value_capture(saved.capture);
-        if matches!(
-            capture.owner,
-            typed_trees::expression::ValueCaptureOwner::Match
-        ) {
-            // Match production must publish the exact value/place association
-            // before its patterns. Replaying its initializer cannot supply it.
-            return None;
-        }
-        let source = self.program.saved_value_source(saved)?;
-        let machine = self.program.machine_by_symbol(self.machine)?;
-        let state = self.program.state_in_machine(machine, self.state)?;
-        let reference =
-            validation::expression_result_type_reference(self.program, machine, state, source)?;
-        let value = self.structural_value(source, reference)?;
-        self.retain_structural_value_root(value, reference)?;
-        Some(value)
     }
 
     /// A runtime selector naming an immutable integer scalar local of this

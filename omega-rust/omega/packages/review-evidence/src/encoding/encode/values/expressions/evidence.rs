@@ -1,3 +1,5 @@
+// Canonical encoding for contract evidence arguments and their source/parameter lane coordinates.
+
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::values::expressions::Encoder;
 use crate::encoding::encode::values::identity::encode_nominal;

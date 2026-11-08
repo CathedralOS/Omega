@@ -7,7 +7,7 @@
 //! runtime memberships. A destination declaration never mints missing evidence.
 //!
 //! Cleanup preflight follows the ordered custody transaction on scratch ledgers.
-//! It never runs hooks or writes backing. This keeps rejection before fuel and
+//! It never runs hooks or writes backing. This keeps rejection before work and
 //! mutation without treating an already-disposed parent's claim as child overlap;
 //! the subsequent commit applies the same transitions to the live frame.
 //! Projected ownership transfers the affine complement and authenticated linear
@@ -21,14 +21,10 @@
 //! custody, and before destinations are installed. Otherwise a captured call
 //! result appears to leak its claim, or retirement removes a fresh binding.
 
-use crate::boundary::structural_inputs::case_membership::{
-    case_projection_with_checked_membership_is_active, stored_case_at_projection,
-};
 use crate::engine::custody::{
-    BlockArgumentProvenance, bind_active_block_arguments, bind_active_structural_arguments,
-    bind_affine_frontier, bind_arguments, projected_ownership_claims,
-    resolve_single_structural_argument, validate_nominal_cleanup_action, verified_structural_place,
-    whole_path_discard,
+    bind_active_retained_arguments, bind_active_structural_arguments, bind_affine_frontier,
+    bind_arguments, projected_ownership_claims, resolve_single_structural_argument,
+    validate_nominal_cleanup_action, verified_structural_place, whole_path_discard,
 };
 use crate::storage::runtime_rows::RuntimeRows;
 use crate::storage::scalar_storage::ScalarCell;
@@ -111,7 +107,7 @@ impl BlockBindings {
     /// places are also destinations. Updating one destination cannot affect
     /// another binding. Affine and borrowed descriptors retain their backing;
     /// owned unrestricted records publish independent staged payloads.
-    /// Reserve staged identities after edge fuel succeeds but before hooks can
+    /// Reserve staged identities after edge work succeeds but before hooks can
     /// allocate. Completion must not rewind the allocator to this saved cursor.
     pub(crate) fn reserve_identities(&self, execution: &mut TerminalExecution) {
         execution
@@ -814,67 +810,14 @@ impl TerminalExecution<'_> {
         // Source parameters already hold their admitted owner/loan relation.
         // Relabeling those same runtime places preserves it on another edge;
         // a new independent input never acquires that provenance.
-        let provenance = descriptor_arguments
-            .iter()
-            .map(|argument| {
-                let reference_projection = if argument.access != StructuralAccess::Owned
-                    && argument
-                        .path
-                        .contains(&terminal_psi::StructuralPathSegment::Referent)
-                {
-                    self.resolve_reference_storage_projection(
-                        self.structural_value(argument.place)?,
-                        &argument.path,
-                        argument.access,
-                    )?
-                    .map(|projection| {
-                        crate::boundary::values::StructuralRuntimePlace::from(&projection.value)
-                    })
-                } else {
-                    None
-                };
-                Ok(BlockArgumentProvenance {
-                    parameter: self.owned_block_source(argument.place),
-                    reference_projection,
-                })
-            })
-            .collect::<Result<Vec<_>, TerminalInterpretError>>()?;
-        let mut structural = bind_active_block_arguments(
+        let provenance = self.structural_argument_provenance(descriptor_arguments)?;
+        let mut structural = bind_active_retained_arguments(
             descriptor_parameters,
             descriptor_arguments,
             &resolved_arguments,
             &provenance,
-            &|argument_index, rows| {
-                let source = &descriptor_arguments[argument_index];
-                let mut active = Vec::new();
-                for row in rows {
-                    let is_active = case_projection_with_checked_membership_is_active(
-                    &self.structural_types(),
-                    resolved_arguments[argument_index].structural_type,
-                    &row.path,
-                    &|prefix| {
-                        // Conditions name the selected value, while a Referent
-                        // crosses the original descriptor's captured backing.
-                        // Resolve before cleanup or destination rebinding; this
-                        // metadata query grants no payload read/write access.
-                        let mut selected = Vec::with_capacity(source.path.len() + prefix.len());
-                        selected.extend_from_slice(&source.path);
-                        selected.extend_from_slice(prefix);
-                        let carrier = self.resolve_case_guard_carrier(source.place, &selected)?;
-                        Ok(stored_case_at_projection(
-                            &self.structural_types(),
-                            &carrier,
-                            self.structural_cases.as_map(),
-                            &[],
-                        ))
-                    },
-                    )?;
-                    if is_active {
-                        active.push(row.clone());
-                    }
-                }
-                Ok(active)
-            },
+            &self.structural_types(),
+            self.structural_cases.as_map(),
             self.account.as_ref(),
         )
         .map_err(|error| {

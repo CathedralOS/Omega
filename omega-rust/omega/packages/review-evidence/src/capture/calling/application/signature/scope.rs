@@ -1,6 +1,7 @@
-//! Keep the supplying declaration's regions separate from receiving binders.
-//! Explicit trait lifetime arguments and regions inside type operands use the
-//! same supplying coordinates, so repeated arguments retain their equality.
+// Calling-application lifetime scope keeping the supplying declaration's regions
+// separate from receiving binders so explicit trait lifetime arguments and regions
+// inside type operands share supplying coordinates and preserve repeated-argument
+// equality.
 
 use super::instantiation;
 use crate::capture::PackageReviewInput;

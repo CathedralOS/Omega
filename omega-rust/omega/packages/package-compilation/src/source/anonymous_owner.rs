@@ -1,31 +1,28 @@
-//! Canonical ownership for an anonymous source invocation after its Build join.
-//!
-//! The current standalone route completes only an empty dependency roster;
-//! authored Builds requesting dependencies are refused before this operation.
-//! That roster is committed alongside the complete captured namespace and exact
-//! applicable core declarations. Supplied package owners bypass this operation.
-//! The anonymous record uses a different digest domain from named lineage;
-//! PackageKeyIdentity carries the resulting opaque commitment through the
-//! existing declaration, specialization and portable-artifact representations.
-//! Root paths route capture only. Host/target checked instances, output paths,
-//! debug settings, caches and backend optimization choices do not enter the key.
+// Canonical content ownership (`AnonymousSourceCapture`) for an anonymous source invocation after its `Build` join.
+//
+// Standalone compilations that run without a caller-supplied `PackageCompilationInputs`
+// graph retain their captured source tree and applicable `core` + toolchain-contract
+// semantic dependencies in `AnonymousSourceCapture` while the `Build` machine executes
+// privately. Once the `Build` join completes (with an empty dependency roster on the
+// standalone route), `complete_without_dependencies` hashes the complete captured
+// namespace and sorted semantic-dependency digests under `OMEGA-ANONYMOUS-CONTENT-OWNER-V1`
+// and `OMEGA-LANGUAGE-DEFAULT-BUILD-SEMANTICS-V1` to derive a deterministic
+// `PackageKeyIdentity`, binding every unbound user source in the `SourceMap` without
+// letting host paths, target profiles, or backend flags enter the key.
 
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 use source::{CapturedSourceNode, CapturedSourceTree};
 use std::sync::Arc;
 
-/// Captured inputs retained while an anonymous Build executes privately.
-/// This is not a declaration owner. Completion follows the dependency join;
-/// the current standalone route admits no outstanding dependency requests.
 #[derive(Clone, compiler_storage::Record)]
 pub struct AnonymousSourceCapture {
-    pub(crate) root: std::path::PathBuf,
-    pub(crate) capture: Arc<CapturedSourceTree>,
-    pub(crate) filesystem: source::SourceFileSystem,
-    pub(crate) semantic_dependencies: Vec<[u8; 32]>,
-    pub(crate) sources: Arc<source::SourceMap>,
-    pub(crate) toolchain_contract_custody: crate::source::source_imports::ToolchainContractCustody,
+    pub(crate) root: std::path::PathBuf, // Canonical live root of the anonymous capture.
+    pub(crate) capture: Arc<CapturedSourceTree>, // Complete captured source tree.
+    pub(crate) filesystem: source::SourceFileSystem, // Captured virtual filesystem used during assembly.
+    pub(crate) semantic_dependencies: Vec<[u8; 32]>, // Applicable `core` and toolchain-contract digests.
+    pub(crate) sources: Arc<source::SourceMap>,      // Retained source map prior to owner binding.
+    pub(crate) toolchain_contract_custody: crate::source::source_imports::ToolchainContractCustody, // Admitted toolchain contract roots.
 }
 
 impl AnonymousSourceCapture {
@@ -33,14 +30,10 @@ impl AnonymousSourceCapture {
         &self.root
     }
 
-    /// The same captured namespace used by source assembly, including exact
-    /// link resolution. A later Build snapshot must not reopen the live root.
     pub fn filesystem(&self) -> &source::SourceFileSystem {
         &self.filesystem
     }
 
-    /// Derive Build's inventory in its own commitment domain, sharing acquired
-    /// file bytes. This does not assign a package or declaration owner.
     pub fn build_input(&self) -> Result<build_output::CapturedBuildSourceInput, String> {
         crate::source::source_snapshot::retained_source_input(&self.capture)
     }
@@ -49,9 +42,6 @@ impl AnonymousSourceCapture {
         &self.sources
     }
 
-    /// A later Product context may admit compiler-owned entry contracts beside
-    /// the captured root. Only this assembly's exact, selected source records
-    /// can use that existing contract issuer; generated files cannot inherit it.
     pub fn is_admitted_toolchain_contract_source(&self, file: &source::SourceFile) -> bool {
         self.sources.get(file.source_id) == Some(file)
             && self.sources.source_is_selected(file.source_id)
@@ -63,9 +53,6 @@ impl AnonymousSourceCapture {
                 == Some(file.package_root.as_path())
     }
 
-    /// Complete the empty dependency join before Product resolution. Supplied
-    /// package owners are retained, and no typed declaration is rewritten.
-    /// The source map comes from this capture, not a caller-supplied replacement.
     pub fn complete_without_dependencies(
         self,
     ) -> Result<Arc<source::SourceMap>, Vec<diagnostics::Diagnostic>> {
@@ -90,11 +77,9 @@ pub(crate) fn derive(
 ) -> Result<PackageKeyIdentity, String> {
     let mut digest = Sha256::new();
     field(&mut digest, b"OMEGA-ANONYMOUS-CONTENT-OWNER-V1\0");
-    // Version the language/default-build source semantics independently from
-    // the compiler's native implementation and target code generation.
     field(&mut digest, b"OMEGA-LANGUAGE-DEFAULT-BUILD-SEMANTICS-V1\0");
     snapshot(&mut digest, capture)?;
-    digest.update(0u64.to_le_bytes()); // completed dependency edge roster
+    digest.update(0u64.to_le_bytes());
     let mut core = core.into_iter().collect::<Vec<_>>();
     core.sort();
     core.dedup();
@@ -106,7 +91,6 @@ pub(crate) fn derive(
         .ok_or_else(|| "anonymous owner has the reserved zero digest".to_owned())
 }
 
-/// The complete applicable core snapshot is one semantic dependency.
 pub(crate) fn core_snapshot_identity(capture: &CapturedSourceTree) -> Result<[u8; 32], String> {
     let mut digest = Sha256::new();
     field(&mut digest, b"OMEGA-ANONYMOUS-CORE-SNAPSHOT-V1\0");
@@ -164,8 +148,6 @@ mod tests {
     fn canonical_record_retains_source_and_core_without_instance_order() {
         let source = snapshot("library.omg", b"public data Token {}");
         let owner = derive(&source, [[1; 32], [2; 32]]).unwrap();
-        // Independent V1 framing vector: u64 little-endian lengths/counts,
-        // file tag 1, executable tag 0, then the sorted core commitments.
         assert_eq!(
             owner.digest(),
             [

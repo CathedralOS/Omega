@@ -1,5 +1,16 @@
-//! Source discovery consumes the completed declaration and request ledger.
-//! Pure reuse keeps these immutable values, never an old activation or grant.
+/*
+Unified view over an executed or `Pure`-reused `Build` activation's source
+declaration and dependency request ledger (`CompletedBuildSource`,
+`BuildSourceResult`).
+
+When a `Pure` `Build` result is reused across review passes or targets,
+`CompletedBuildSource` retains the immutable `BuildDeclaration`, issued
+`BuildRequest` list, `demanded_sources`, and `source_join` without keeping a live
+activation or host grant alive. `BuildSourceResult` wraps either a live
+`&mut ReturnedBuild` (`Executed`) or a reused `&CompletedBuildSource` +
+occurrence-local `source_join` slot (`Reused`) so `orchestration` can inspect
+requests and join acquired dependency sources through one uniform interface.
+*/
 
 use super::{BuildDependencySelection, ReturnedBuild};
 use build_declarations::{BuildDeclaration, BuildRequest};
@@ -51,8 +62,6 @@ enum SourceResult<'result> {
     },
 }
 
-/// A source result supplied by its freshly admitted evaluation. Construction
-/// stays with the evaluator; a caller's configuration cannot issue this view.
 pub struct BuildSourceResult<'result> {
     state: SourceResult<'result>,
 }

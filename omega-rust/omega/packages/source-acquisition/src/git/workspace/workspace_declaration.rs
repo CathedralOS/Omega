@@ -1,3 +1,14 @@
+// Declaration custody records, size ceilings, and planner trait for Git
+// workspace member selection.
+//
+// `package-source` authenticates and reads declaration blobs from exact
+// repository paths into `GitWorkspaceDeclaration` records without parsing Omega
+// syntax. Callers implement `GitWorkspaceProjectionPlanner` to discover member
+// paths from the root declaration and select the target member, while
+// `GitWorkspaceProjectionCustody` retains the authenticated root and member
+// declarations in resolver custody rather than copying workspace-level files
+// into the projected member's compilation root.
+
 use crate::{ResolvedGitSource, SourceRelativePath, SourceResolveError};
 use std::fmt;
 
@@ -34,10 +45,6 @@ impl GitWorkspaceDeclarationLimits {
     }
 }
 
-/// One authenticated package declaration read from an exact repository path.
-///
-/// These bytes remain resolver custody. They are never placed in the selected
-/// member's compilation root merely to support workspace navigation replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitWorkspaceDeclaration {
     member_path: Option<SourceRelativePath>,
@@ -46,7 +53,6 @@ pub struct GitWorkspaceDeclaration {
     bytes: Vec<u8>,
 }
 
-/// Exact source-layer custody retained for one selected workspace member.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitWorkspaceProjectionCustody {
     root_declaration: GitWorkspaceDeclaration,
@@ -123,11 +129,6 @@ impl GitWorkspaceDeclaration {
     }
 }
 
-/// Manager-owned interpretation of source-authenticated declaration bytes.
-///
-/// The source resolver deliberately knows neither Omega syntax nor package
-/// declaration semantics. It authenticates and opens bytes; this planner
-/// discovers declared paths and selects by declared package identity.
 pub trait GitWorkspaceProjectionPlanner {
     type Error;
     type Evidence;

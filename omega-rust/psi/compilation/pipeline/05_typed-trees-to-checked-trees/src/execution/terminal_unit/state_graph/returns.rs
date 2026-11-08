@@ -9,7 +9,7 @@ use super::fused::fused_target_index;
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan,
     CheckedUnitEffectOperationPlan as OperationPlan, CheckedUnitStructuralParameterPlan,
-    Multiplicity, StatementNode, control,
+    Multiplicity, StatementNode, TransitionExit, TransitionTargetNode, control,
 };
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, parameter_qualifications};
@@ -109,8 +109,6 @@ pub(super) fn guarded(
     if arms.first()?.guard_statement_ordinal as usize != start {
         return None;
     }
-    let selected_copies =
-        control::selected_copies::SelectedCopies::new(program, facts, machine.symbol, state)?;
     let mut count = next_result_ordinal(operations)?;
     let mut return_values = Vec::new();
     let mut preamble = Vec::new();
@@ -128,7 +126,27 @@ pub(super) fn guarded(
             // custody owners; they cannot be relabeled as fresh value returns.
             return None;
         };
-        let (expression, copies) = selected_copies.for_destination(destination)?;
+        let expression = match crate::flow::state_statements(program, state.statement_nodes)
+            .get(*statement_ordinal as usize)?
+        {
+            StatementNode::Expression(expression) if !is_continuation => *expression,
+            StatementNode::Transition(transition)
+                if transition.exit == TransitionExit::Ordinary =>
+            {
+                let target = if *is_continuation {
+                    transition.continuation
+                } else {
+                    transition.target
+                };
+                let TransitionTargetNode::Value(expression) =
+                    program.statement_table.transition_target(target)
+                else {
+                    return None;
+                };
+                *expression
+            }
+            _ => return None,
+        };
         if validation::completing_call_transfer(program, expression)
             .is_some_and(|transfer| fused_target_index(program, fused, transfer.target).is_some())
         {
@@ -149,13 +167,7 @@ pub(super) fn guarded(
             expression,
             trace,
         )?;
-        return_values.push(checked_trees::CheckedGuardedReturnValue {
-            statement_ordinal: *statement_ordinal,
-            is_continuation: *is_continuation,
-            transition_target: copies.transition_target,
-            operation,
-            copied_payloads: copies.copied_payloads,
-        });
+        return_values.push(operation);
         preamble.extend(operand_calls);
     }
     Some((

@@ -966,7 +966,6 @@ pub use argument_correspondence::{
     SelectedCallArgument, SelectedCallArgumentError, authored_call_parameters,
     selected_call_arguments, selected_call_result_domain_matches,
 };
-pub(crate) use occurrences::collect_statement_call_occurrences;
 pub use occurrences::{
     CallSite, call_is_unconditional, call_site_argument_expressions, call_site_evidence_arguments,
     collect_call_sites_in_statement, find_call_site, find_call_site_in_state,

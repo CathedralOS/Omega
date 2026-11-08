@@ -1,4 +1,4 @@
-//! Canonical semantic conformance applications, without compiler receipts.
+// Canonical encoding for semantic conformance applications without compiler receipts.
 
 use super::super::type_identity;
 use super::identity::encode_nominal;

@@ -1,4 +1,4 @@
-//! Structural policy consistency, not compiler proof or acceptance authority.
+// Structural policy consistency for callable policy rows, without compiler proof or acceptance authority.
 
 use crate::record::validation::{ordered, ordered_by};
 use crate::record::{

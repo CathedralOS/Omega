@@ -58,7 +58,7 @@ pub(in crate::checks::contracts) fn proves(
 ) -> bool {
     evidence(
         program,
-        facts,
+        facts.view(),
         state_symbol,
         statement,
         contexts,
@@ -109,7 +109,11 @@ impl InstructionEffectEvidence {
         }
     }
 
-    pub(in crate::checks) fn overlaps(&self, facts: &CheckFacts, other: &Self) -> bool {
+    pub(in crate::checks) fn overlaps(
+        &self,
+        facts: checked_trees::CheckFactsRef<'_>,
+        other: &Self,
+    ) -> bool {
         if facts.semantic.facts.get(self.event).point != facts.semantic.facts.get(other.event).point
         {
             return false;
@@ -127,7 +131,7 @@ impl InstructionEffectEvidence {
 }
 pub(in crate::checks) fn evidence(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     state_symbol: SymbolHandle,
     statement: usize,
     contexts: &[facts::FactContextHandle],
@@ -147,7 +151,7 @@ pub(in crate::checks) fn evidence(
 }
 fn evidence_inner(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     state_symbol: SymbolHandle,
     statement: usize,
     contexts: &[facts::FactContextHandle],
@@ -228,7 +232,7 @@ fn evidence_inner(
             {
                 continue;
             }
-            let Some(call) = call_flows(&facts.flow.control, flow.calls)
+            let Some(call) = call_flows(facts.flow.control, flow.calls)
                 .iter()
                 .find(|call| {
                     call.statement_index == statement_index && call.call_ordinal == call_ordinal
@@ -449,7 +453,7 @@ impl<'program> QueryArguments<'program> {
     fn scoped_value(
         &self,
         program: &dyn validation::CheckingInput,
-        facts: &CheckFacts,
+        facts: checked_trees::CheckFactsRef<'_>,
         argument: QueryArgument,
         projection: &[facts::PlaceSegment],
         primitive: PrimitiveType,

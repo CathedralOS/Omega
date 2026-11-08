@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+language-core = { path = "../../../../psi/foundation/language-core" }
 provider-selection = { path = "../../realization/provider-selection" }
 language-semantics = { path = "../../../../psi/foundation/language-semantics" }
 component-description = { path = "../../backend/artifacts/component-description" }
@@ -31,4 +32,4 @@ target = { path = "../../backend/target" }
 
 [dev-dependencies]
 optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit/semantics" }
-terminal-fuel = { path = "../../../../psi/compilation/representations/terminal-psi/fuel" }
+psi-work = { path = "../../../../psi/compilation/representations/terminal-psi/work" }
