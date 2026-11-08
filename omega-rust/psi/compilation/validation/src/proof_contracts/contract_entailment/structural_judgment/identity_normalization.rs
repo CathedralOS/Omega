@@ -216,6 +216,23 @@ impl StructuralJudge<'_> {
             .then_some(own_type)
     }
 
+    /// Raw value producers do not universally add their content observation.
+    /// Both normalization and recursive correspondence preserve this boundary
+    /// from the value's own recorded type, without a formal or goal type.
+    pub(super) fn identity_content_observation(
+        &self,
+        value: &StructuralTerm,
+    ) -> Option<StructuralTerm> {
+        let reference = self.identity_content_type(value)?;
+        Some(
+            super::super::structural_terms::owned_projection_observation(
+                self.program,
+                reference,
+                value.clone(),
+            ),
+        )
+    }
+
     fn identity_normalization_cost(
         &self,
         value: &StructuralTerm,
@@ -269,14 +286,8 @@ impl StructuralJudge<'_> {
         // Ordinary call producers can retain raw actuals. Recover only this
         // value's own recorded type before entering its structural children;
         // canonical content formers are not records of observable endpoints.
-        if let Some(reference) = self.identity_content_type(&value) {
-            return Ok(
-                super::super::structural_terms::owned_projection_observation(
-                    self.program,
-                    reference,
-                    value,
-                ),
-            );
+        if let Some(observed) = self.identity_content_observation(&value) {
+            return Ok(observed);
         }
         // An established whole value can replace this application without
         // decomposing a subtree its proof has already accounted for. Matching

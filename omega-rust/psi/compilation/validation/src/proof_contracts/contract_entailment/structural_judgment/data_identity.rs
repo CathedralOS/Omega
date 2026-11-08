@@ -374,6 +374,10 @@ impl StructuralJudge<'_> {
             return StructuralJudgment::Unknown;
         }
         *remaining -= 1;
+        // This entry is also used recursively for raw call actuals. Canonical
+        // content stays one value before any structural field correspondence.
+        let left = self.identity_content_observation(&left).unwrap_or(left);
+        let right = self.identity_content_observation(&right).unwrap_or(right);
         if left.same_resolution_payload(&right) {
             return StructuralJudgment::Proven;
         }
