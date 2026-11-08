@@ -1726,29 +1726,9 @@ pub(crate) mod attached_unit {
                             };
                             let content = &self.checked.facts.qualifications.content;
                             let equation = content.body_conservations.get(derived.conservation);
-                            // The source law supplies public authorization and its original
-                            // formal positions. The completed law separately retains the exact
-                            // body coordinates proved before custody was established.
-                            let body_law = content
-                                .conservation_plans
-                                .get(equation.plan_index)
-                                .ok_or(LoweringError::Unsupported(
-                                    "boundary body lost its original authorization law",
-                                ))?;
-                            let completed_law = content
-                                .body_conservation_plans
-                                .get(equation.body_plan_index)
-                                .ok_or(LoweringError::Unsupported(
-                                    "boundary body lost its exact completed equation",
-                                ))?;
-                            if completed_law.owner != equation.machine_symbol
-                                || completed_law.callable != equation.state_symbol
-                                || body_law.owner != completed_law.owner
-                            {
-                                return unsupported(
-                                    "boundary body equation does not retain its authorized completion owner",
-                                );
-                            }
+                            // Psi05 authenticates the source law and completed frame before
+                            // publishing Boundary custody. Lower its original formal positions.
+                            let body_law = &content.conservation_plans[equation.plan_index];
                             let mut retained_requirements = Vec::new();
                             for requirement in content
                                 .boundary_body_requirements
@@ -1982,26 +1962,8 @@ pub(crate) mod attached_unit {
                             equation: &checked_trees::facts::ContentBodyConservationFact,
                             parameter: symbols::SymbolHandle,
                         ) -> Result<symbols::SymbolHandle, LoweringError> {
-                            let content = &self.checked.facts.qualifications.content;
-                            let law = content.conservation_plans.get(equation.plan_index).ok_or(
-                                LoweringError::Unsupported(
-                                    "boundary body lost its original parameter owner",
-                                ),
-                            )?;
-                            let completed_law = content
-                                .body_conservation_plans
-                                .get(equation.body_plan_index)
-                                .ok_or(LoweringError::Unsupported(
-                                    "boundary body lost its completed parameter coordinates",
-                                ))?;
-                            if completed_law.owner != equation.machine_symbol
-                                || completed_law.callable != equation.state_symbol
-                                || law.owner != completed_law.owner
-                            {
-                                return unsupported(
-                                    "boundary body parameter belongs to another completion owner",
-                                );
-                            }
+                            let law = &self.checked.facts.qualifications.content.conservation_plans
+                                [equation.plan_index];
                             if law.callable == equation.state_symbol {
                                 return Ok(parameter);
                             }
