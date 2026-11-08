@@ -52,7 +52,7 @@ The row is pinned by `tests/omega/{pass,fail}/facts/static_evidence_premise_thro
 ## Requirements and Evidence
 
 - **Parent outcome:** `OPERATOR-MACHINE-SUPPLY` (`TASKS.md`), whose remaining acceptance names this row: "A call premise that is a static evidence argument is recorded on the selected realization: `samples/cli/facts/static_evidence_premise` exits 0 on both engines through all nine places, and the caller reads `direct == true`. `kept == true` stays a separate premise. Each twin supplies `NoKept` instead of `YesKept` and rejects `Proof.holds(kept)`."
-- **Owning requirement:** [call preconditions](wiki/spec/language/machines.md#call-preconditions) with [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply) and [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization); formation checks sit in `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/contracts/evidence.rs` and `.../proof_contracts/contract_entailment/specification_calls.rs`.
+- **Owning requirement:** [call preconditions](wiki/spec/language/machines.md#call-preconditions) with [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply) and [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization); formation checks sit in `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts.rs` and `.../proof_contracts/contract_entailment/specification_calls.rs`.
 
 ### Full 8-Layer Specification and Lowering Evidence
 

@@ -7,7 +7,7 @@ publication are visible there in order. Its caller first invokes
 identities, then transfers the frozen typed owner and preparation judgments.
 Preparation and specialization are independent of checking; this package
 contains no typed elaboration or fallback route.
-[finalize_execution.rs](src/execution/finalize_execution.rs) consumes completed
+[`execution::finalize_execution`](src/execution.rs) consumes completed
 check facts, adopts inline construction shapes, assembles structural control cleanup and
 the Unit closure, then completes affine cleanup. It returns the facts only after
 cleanup diagnostics clear; the checker never publishes an intermediate plan set.
@@ -108,17 +108,17 @@ discovery passes none; it cannot read a partially published closure from
 than rebuilding them. The test-only evidence-mutation helper reconstructs plans
 transactionally so a failed reconstruction leaves its original fixture intact.
 
-| Owner under `src/` | Responsibility |
+| Owner (module path under `src/`) | Responsibility |
 | --- | --- |
 | `semantic/mod.rs`, `semantic/contracts/`, `semantic/points.rs` | Contract payloads, places, obligation origins, and program points. |
 | `semantic.rs` | The semantic-fact area root: `facts` states the knowledge, `calls` names the coordinates it is stated about, `places` renders the storage. |
 | `semantic/calls.rs`, `semantic/calls/parameter_domains.rs` | Checked argument referents and parameter-domain projection; exact call coordinates come from validation. |
-| `flow/`, `flow/call_phases.rs` | Entry facts, call requires, invalidation, guarantees, exits, and transfer order. |
-| `flow/place/`, `flow/domain/` | Canonical places and dependency-overlap invalidation. |
-| `flow/ownership/` | Type-multiplicity-based moves, drops, argument routes, and result storage. |
-| `execution/terminal_scalar/`, `execution/terminal_unit/`, `execution/terminal_cleanup.rs` | Executable graph discovery, callee closure and checked cleanup construction. |
-| `values/` | Ranking, initializer, argument, transition, and nested-expression origins. |
-| `checks/contracts/`, `checks/ranges/`, `checks/termination/` | Proof consumers and diagnostics, not competing durable fact models. |
+| `flow`, `flow::call_phases` | Entry facts, call requires, invalidation, guarantees, exits, and transfer order. |
+| `flow::place`, `flow::domain` | Canonical places and dependency-overlap invalidation. |
+| `flow::ownership` | Type-multiplicity-based moves, drops, argument routes, and result storage. |
+| `execution::terminal_scalar`, `execution::terminal_unit`, `execution::terminal_cleanup` | Executable graph discovery, callee closure and checked cleanup construction. |
+| `values` | Ranking, initializer, argument, transition, and nested-expression origins. |
+| `checks::contracts`, `checks::ranges`, `checks::termination` | Proof consumers and diagnostics, not competing durable fact models. |
 
 The representation's `flow/` modules group contexts, invalidations, borrow
 lifetimes, ownership, boundaries, and control. `facts/contract_plans.rs` owns
@@ -545,9 +545,9 @@ the lifetime contributes its matching leaves as candidate sources, each of
 which must supply the result's access. Unannotated multiple carried sources
 reject rather than selecting one by name.
 
-[Elision checking](src/checks/borrows/elision.rs) distinguishes incomplete
+[Elision checking (`checks::borrows::elision`)](src/checks_borrows.rs) distinguishes incomplete
 concrete frontiers from template-dependent machine and requirement inputs/results.
-[Template call checks](src/checks/borrows/elision/templates.rs) permit the latter
+[Template call checks](src/checks_borrows.rs) permit the latter
 only after exact selected callable/argument substitution closes the complete
 result frontier and resolves every returned view leaf to its input source.
 A fresh invocation result uses the same scoped region relation as callable
@@ -569,7 +569,7 @@ not the callee's carrier slot. Named normal completions transport their selected
 state's result-to-input relation through the same actual-source operation as
 expression calls.
 
-[Call return contracts](src/borrow/loans/call_views.rs) retain the signature and
+[Call return contracts](src/borrow.rs) retain the signature and
 applied telescope and requirement lifetime scope together. Evidence-bound
 requirements use their declaring trait's applied type arguments, including
 inherited forwarding. Direct,
@@ -630,17 +630,17 @@ remain separate work; accepted evidence counts cannot stand in for them.
 
 ## Borrow checking and resource production
 
-[borrows.rs](src/checks/borrows.rs) judges calls, statements, returned views and
+[`checks::borrows`](src/checks_borrows.rs) judges calls, statements, returned views and
 persistent carriers over the single `BorrowFacts` built by fact production.
 A call's operands and the reference leaves of one aggregate formed by a `let`,
 a store or a return are held together, so both pass the one pairwise
-[simultaneous-hold judgment](src/checks/borrows/simultaneous.rs);
-[aggregates.rs](src/checks/borrows/aggregates.rs) selects the leaves.
+[simultaneous-hold judgment](src/checks_borrows.rs);
+[`checks::borrows::aggregates`](src/checks_borrows.rs) selects the leaves.
 Reads, writes, call operands and exclusive operations share one live-loan
-judgment in [place_access.rs](src/checks/borrows/place_access.rs): a place
+judgment in [`checks::borrows::place_access`](src/checks_borrows.rs): a place
 rooted at a local reference that owns a live loan is rejoined to every backing
 that loan captured, and only the access's own retained lineage is exempt.
-[reads.rs](src/checks/borrows/reads.rs) applies it to each evaluated
+[`checks::borrows::reads`](src/checks_borrows.rs) applies it to each evaluated
 observation in the order `ownership_occurrences` replays a statement, against
 the loans live at statement entry and those the statement already formed. A
 loan whose last use is that statement ends after the last observation naming
@@ -650,7 +650,7 @@ judged at those events instead.
 Compatibility results are transient: there are no retained compatibility,
 mutation or call-comparison certificates. The overlap and containment judgments
 share a local selector cache, not a serialized snapshot to replay.
-[resources.rs](src/checks/borrows/resources.rs) constructs the loan lifecycle
+[`checks::borrows::resources`](src/checks_borrows_resources.rs) constructs the loan lifecycle
 and restored-use rows once; execution planning and Psi 06 still consume them.
 
 Stated entry/state `requires` and incoming guards can supply integer ordering,

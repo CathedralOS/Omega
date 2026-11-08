@@ -22,7 +22,7 @@ owns exact-name validation, subtractive selection and the resulting receipt.
 The compiler consumes its effective selection before artifact production without
 changing the authored selection; product-specific phase admission remains in
 the compiler. For checked-tree product pruning, it supplies the selected product
-roots to [Psi's product selection entrance](psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/products/product_pruning/mod.rs).
+roots to [Psi's product selection entrance](psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/products.rs).
 That owner validates roots, executes pruning and returns its evidence; an absent
 selection preserves the shared checked program without copying it. No compiler-local
 optimizer dispatcher wraps the transform.
