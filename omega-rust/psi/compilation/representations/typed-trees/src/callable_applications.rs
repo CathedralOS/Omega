@@ -5027,16 +5027,47 @@ pub(crate) mod signatures {
     }
 }
 pub(crate) mod table {
+    //! Repeated signature lookups should visit only the rows for that call.
+    //! Producers keep separate groups for machine selections and requirement
+    //! invocations, including each requirement's exact lexical owner. Inserts,
+    //! replacement and retirement maintain these links before returning. Handles
+    //! keep their generations, and row links preserve arena iteration order.
+
     use super::{AppliedCallableOwner, AppliedCallableSignature};
     use crate::signature::StateSignature;
     use crate::static_applications::StaticMachineApplicationHandle;
     use arena::{Arena, Handle};
+    use symbols::SymbolHandle;
 
     type CallableRow = Handle<AppliedCallableSignature>;
+
+    #[derive(Clone, Copy, Default, PartialEq, Eq)]
+    enum InvocationPurpose {
+        #[default]
+        MachineSelection,
+        Requirement(SymbolHandle),
+    }
+
+    fn invocation_owner(
+        row: &AppliedCallableSignature,
+    ) -> Option<(StaticMachineApplicationHandle, InvocationPurpose)> {
+        match row.owner {
+            AppliedCallableOwner::MachineSelection { invocation, .. } => {
+                Some((invocation, InvocationPurpose::MachineSelection))
+            }
+            AppliedCallableOwner::RequirementInvocation {
+                application,
+                lexical_owner,
+                ..
+            } => Some((application, InvocationPurpose::Requirement(lexical_owner))),
+            _ => None,
+        }
+    }
 
     #[derive(Clone, Default)]
     struct InvocationGroup {
         invocation: StaticMachineApplicationHandle,
+        purpose: InvocationPurpose,
         next: Handle<InvocationGroup>,
         first: CallableRow,
         last: CallableRow,
@@ -5109,7 +5140,7 @@ pub(crate) mod table {
     struct AssociationLayout {
         invocation_slots: usize,
         row_slots: usize,
-        selections: usize,
+        associated_rows: usize,
     }
 
     impl AssociationLayout {
@@ -5117,17 +5148,17 @@ pub(crate) mod table {
             let mut layout = Self {
                 invocation_slots: 0,
                 row_slots: 0,
-                selections: 0,
+                associated_rows: 0,
             };
             for (handle, row) in arena.iter() {
-                if let AppliedCallableOwner::MachineSelection { invocation, .. } = &row.owner {
+                if let Some((invocation, _)) = invocation_owner(row) {
                     layout.invocation_slots = layout
                         .invocation_slots
                         .max((invocation.arena_index() as usize).checked_add(1)?);
                     layout.row_slots = layout
                         .row_slots
                         .max((handle.arena_index() as usize).checked_add(1)?);
-                    layout.selections = layout.selections.checked_add(1)?;
+                    layout.associated_rows = layout.associated_rows.checked_add(1)?;
                 }
             }
             Some(layout)
@@ -5138,11 +5169,11 @@ pub(crate) mod table {
                 .checked_mul(std::mem::size_of::<Handle<InvocationGroup>>())?
                 .checked_add(self.row_slots.checked_mul(std::mem::size_of::<RowLink>())?)?
                 .checked_add(
-                    self.selections
+                    self.associated_rows
                         .checked_mul(std::mem::size_of::<InvocationGroup>())?,
                 )?
                 .checked_add(
-                    self.selections
+                    self.associated_rows
                         .checked_mul(std::mem::size_of::<CallableRow>())?,
                 )
         }
@@ -5150,16 +5181,16 @@ pub(crate) mod table {
 
     impl AppliedCallableTable {
         fn recover(arena: Arena<AppliedCallableSignature>, layout: AssociationLayout) -> Self {
-            let mut rows = Vec::with_capacity(layout.selections);
+            let mut rows = Vec::with_capacity(layout.associated_rows);
             for (handle, row) in arena.iter() {
-                if matches!(&row.owner, AppliedCallableOwner::MachineSelection { .. }) {
+                if invocation_owner(row).is_some() {
                     rows.push(handle);
                 }
             }
             let mut table = Self {
                 arena,
                 invocation_heads: vec![Handle::default(); layout.invocation_slots],
-                invocation_groups: Arena::with_capacity(layout.selections),
+                invocation_groups: Arena::with_capacity(layout.associated_rows),
                 row_links: vec![RowLink::default(); layout.row_slots],
             };
             for row in rows {
@@ -5227,7 +5258,11 @@ pub(crate) mod table {
             Ok(())
         }
 
-        fn group(&self, invocation: StaticMachineApplicationHandle) -> Handle<InvocationGroup> {
+        fn group(
+            &self,
+            invocation: StaticMachineApplicationHandle,
+            purpose: InvocationPurpose,
+        ) -> Handle<InvocationGroup> {
             let mut handle = self
                 .invocation_heads
                 .get(invocation.arena_index() as usize)
@@ -5235,7 +5270,7 @@ pub(crate) mod table {
                 .unwrap_or_default();
             while handle.is_valid() {
                 let group = self.invocation_groups.get(handle);
-                if group.invocation == invocation {
+                if group.invocation == invocation && group.purpose == purpose {
                     return handle;
                 }
                 handle = group.next;
@@ -5250,18 +5285,17 @@ pub(crate) mod table {
         }
 
         fn publish_row(&mut self, row: CallableRow) {
-            let AppliedCallableOwner::MachineSelection { invocation, .. } =
-                self.arena.get(row).owner
-            else {
+            let Some((invocation, purpose)) = invocation_owner(self.arena.get(row)) else {
                 return;
             };
-            let mut group = self.group(invocation);
+            let mut group = self.group(invocation, purpose);
             if !group.is_valid() {
                 let slot = invocation.arena_index() as usize;
                 self.invocation_heads
                     .resize(self.invocation_heads.len().max(slot + 1), Handle::default());
                 group = self.invocation_groups.insert(InvocationGroup {
                     invocation,
+                    purpose,
                     next: self.invocation_heads[slot],
                     ..Default::default()
                 });
@@ -5299,12 +5333,10 @@ pub(crate) mod table {
         }
 
         fn remove_row(&mut self, row: CallableRow) {
-            let AppliedCallableOwner::MachineSelection { invocation, .. } =
-                self.arena.get(row).owner
-            else {
+            let Some((invocation, purpose)) = invocation_owner(self.arena.get(row)) else {
                 return;
             };
-            let group = self.group(invocation);
+            let group = self.group(invocation, purpose);
             let mut previous = CallableRow::default();
             let mut current = self.invocation_groups.get(group).first;
             while current.is_valid() && current != row {
@@ -5345,7 +5377,23 @@ pub(crate) mod table {
             &self,
             invocation: StaticMachineApplicationHandle,
         ) -> impl Iterator<Item = (CallableRow, &AppliedCallableSignature)> {
-            let group = self.group(invocation);
+            self.invocation_rows(invocation, InvocationPurpose::MachineSelection)
+        }
+
+        pub(crate) fn requirement_rows(
+            &self,
+            invocation: StaticMachineApplicationHandle,
+            lexical_owner: SymbolHandle,
+        ) -> impl Iterator<Item = (CallableRow, &AppliedCallableSignature)> {
+            self.invocation_rows(invocation, InvocationPurpose::Requirement(lexical_owner))
+        }
+
+        fn invocation_rows(
+            &self,
+            invocation: StaticMachineApplicationHandle,
+            purpose: InvocationPurpose,
+        ) -> impl Iterator<Item = (CallableRow, &AppliedCallableSignature)> {
+            let group = self.group(invocation, purpose);
             let mut next = if group.is_valid() {
                 self.invocation_groups.get(group).first
             } else {
@@ -5518,6 +5566,52 @@ pub(crate) mod table {
                 }
             }
             assert!(saw_write_success && saw_read_success);
+            // Both purposes share the same links without borrowing each other's rows.
+            // Lexical-owner generations remain part of a requirement's exact identity.
+            let owner = SymbolHandle::from_parts(29, 1);
+            let other_owner = SymbolHandle::from_parts(29, 2);
+            let requirement = |application, lexical_owner| AppliedCallableSignature {
+                owner: AppliedCallableOwner::RequirementInvocation {
+                    declaration: Default::default(),
+                    application,
+                    lexical_owner,
+                },
+                signature: Default::default(),
+            };
+            let requirement_rows = |table: &AppliedCallableTable, application, lexical_owner| {
+                table
+                    .requirement_rows(application, lexical_owner)
+                    .map(|(handle, _)| handle)
+                    .collect::<Vec<_>>()
+            };
+            let mut mixed = AppliedCallableTable::default();
+            let machine = mixed.insert(selection(first));
+            let early = mixed.insert(requirement(first, owner));
+            let separate = mixed.insert(requirement(first, other_owner));
+            let late = mixed.insert(requirement(first, owner));
+            assert_eq!(rows(&mixed, first), [machine]);
+            assert_eq!(requirement_rows(&mixed, first, owner), [early, late]);
+            assert_eq!(requirement_rows(&mixed, first, other_owner), [separate]);
+            assert!(requirement_rows(&mixed, second, owner).is_empty());
+            let unchanged = mixed.clone();
+            mixed.free(early);
+            let recycled = mixed.insert(requirement(first, owner));
+            assert_eq!(recycled.arena_index(), early.arena_index());
+            assert_ne!(recycled.generation(), early.generation());
+            assert_eq!(requirement_rows(&mixed, first, owner), [recycled, late]);
+            assert_eq!(requirement_rows(&unchanged, first, owner), [early, late]);
+            mixed.replace(late, requirement(second, owner)).unwrap();
+            assert_eq!(requirement_rows(&mixed, first, owner), [recycled]);
+            assert_eq!(requirement_rows(&mixed, second, owner), [late]);
+            assert_eq!(requirement_rows(&mixed, first, other_owner), [separate]);
+            let encoded = compiler_storage::encode(&mixed, Default::default()).unwrap();
+            let restored: AppliedCallableTable =
+                compiler_storage::decode(&encoded, Default::default()).unwrap();
+            assert_eq!(restored, mixed);
+            assert_eq!(rows(&restored, first), [machine]);
+            assert_eq!(requirement_rows(&restored, first, owner), [recycled]);
+            assert_eq!(requirement_rows(&restored, second, owner), [late]);
+            assert_eq!(requirement_rows(&restored, first, other_owner), [separate]);
         }
 
         #[test]
@@ -5739,28 +5833,27 @@ pub(crate) mod trait_scopes {
                 }
                 return Ok(closed.signature);
             }
-            if let Some(signature) =
-                self.applied_callable_signatures
-                    .iter()
-                    .find_map(|(_, prepared)| {
+            if let Some(prepared) = self.find_requirement_invocation(
+                authored_application,
+                lexical_owner,
+                |prepared| {
                         matches!(prepared.owner, AppliedCallableOwner::RequirementInvocation {
-                application,
-                lexical_owner: owner,
-                ..
-            } if application == authored_application
-                && application.is_valid()
-                && owner == lexical_owner
-                && (prepared.signature.symbol == target
-                    || {
-                        let source = self.expression_table.static_machine_application(application);
-                        source.lexical_owner == lexical_owner
-                            && source.registration_operation == target
-                            && source.binding_declaration == prepared.signature.symbol
-                    }))
-                    .then_some(&prepared.signature)
-                    })
-            {
-                return Ok(signature);
+                    application,
+                    lexical_owner: owner,
+                    ..
+                } if application == authored_application
+                    && application.is_valid()
+                    && owner == lexical_owner
+                    && (prepared.signature.symbol == target
+                        || {
+                            let source = self.expression_table.static_machine_application(application);
+                            source.lexical_owner == lexical_owner
+                                && source.registration_operation == target
+                                && source.binding_declaration == prepared.signature.symbol
+                        }))
+                },
+            ) {
+                return Ok(&prepared.signature);
             }
             let outer = self.requirement_outer_signature(
                 lexical_owner,
