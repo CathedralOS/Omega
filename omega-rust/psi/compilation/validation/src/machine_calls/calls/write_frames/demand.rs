@@ -96,7 +96,7 @@ pub struct CallFrameTables<'program> {
     machine_symbols: HashMap<SymbolHandle, Option<Arc<MachineSymbols<'program>>>>,
     /// Exact direct scalar locals, prepared once for every state. None keeps
     /// duplicate names and non-private declarations ineligible.
-    private_scalar_locals: HashMap<SymbolHandle, HashMap<&'program str, Option<SymbolHandle>>>,
+    private_scalar_locals: Vec<PrivateScalarLocals<'program>>,
 }
 
 impl<'program> CallFrameTables<'program> {
@@ -106,27 +106,7 @@ impl<'program> CallFrameTables<'program> {
         let symbols = TopLevelSymbols::build(program, &mut diagnostics);
         diagnostics.is_empty().then(|| Self {
             symbols,
-            private_scalar_locals: program
-                .machines()
-                .iter()
-                .flat_map(|machine| program.machine_states(machine))
-                .map(|state| {
-                    let mut locals = HashMap::default();
-                    for local in program
-                        .statement_table
-                        .statements(state.statement_nodes)
-                        .iter()
-                        .filter_map(|statement| statement.as_local_data())
-                    {
-                        let root = private_scalar_local_symbol(program, local);
-                        locals
-                            .entry(local.name.as_str())
-                            .and_modify(|root| *root = None)
-                            .or_insert(root);
-                    }
-                    (state.symbol, locals)
-                })
-                .collect(),
+            private_scalar_locals: prepare_private_scalar_locals(program),
             machine_symbols: program
                 .machines()
                 .iter()
@@ -141,6 +121,53 @@ impl<'program> CallFrameTables<'program> {
                 .collect(),
         })
     }
+}
+
+#[derive(Default)]
+struct PrivateScalarLocals<'program> {
+    state: SymbolHandle,
+    names: Option<HashMap<&'program str, Option<SymbolHandle>>>,
+}
+
+fn prepare_private_scalar_locals(
+    program: &dyn crate::CheckingInput,
+) -> Vec<PrivateScalarLocals<'_>> {
+    let mut rows: Vec<PrivateScalarLocals<'_>> = Vec::new();
+    for state in program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine))
+    {
+        if !state.symbol.is_valid() {
+            continue;
+        }
+        let index = state.symbol.arena_index() as usize;
+        if rows.len() <= index {
+            rows.resize_with(index + 1, PrivateScalarLocals::default);
+        }
+        let slot = &mut rows[index];
+        if slot.state.is_valid() {
+            slot.names = None;
+            continue;
+        }
+        let mut names = HashMap::default();
+        for local in program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .filter_map(|statement| statement.as_local_data())
+        {
+            names
+                .entry(local.name.as_str())
+                .and_modify(|root| *root = None)
+                .or_insert_with(|| private_scalar_local_symbol(program, local));
+        }
+        *slot = PrivateScalarLocals {
+            state: state.symbol,
+            names: Some(names),
+        };
+    }
+    rows
 }
 
 fn private_scalar_local_symbol(
@@ -309,12 +336,12 @@ impl<'program> CallFrameResolver<'program> {
         name: &str,
     ) -> Option<SymbolHandle> {
         (self.program.machine_holding_state(state.symbol)?.symbol == owner).then_some(())?;
-        self.tables
+        let row = self
+            .tables
             .private_scalar_locals
-            .get(&state.symbol)?
-            .get(name)
-            .copied()
-            .flatten()
+            .get(state.symbol.arena_index() as usize)?;
+        (row.state == state.symbol).then_some(())?;
+        row.names.as_ref()?.get(name).copied().flatten()
     }
 
     /// Reconstruct every carried slot along this local home's successor path.

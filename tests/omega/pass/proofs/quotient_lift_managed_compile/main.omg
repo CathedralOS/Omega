@@ -66,8 +66,8 @@ ensures equivalent(representative(left), representative(right))
 
 machine representative_transports(left: Representative, right: Representative)
 requires
-    core::Identity<Representative>(left, left)
-    core::Identity<Representative>(right, right)
+    core::Identity<EquivalenceClass>(left as EquivalenceClass, left as EquivalenceClass)
+    core::Identity<EquivalenceClass>(right as EquivalenceClass, right as EquivalenceClass)
 ensures
     core::Identity<Representative>(left, left)
     core::Identity<Representative>(right, right)

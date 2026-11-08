@@ -51,6 +51,30 @@ impl ProofValueSubstitution {
         }
     }
 
+    /// The public quotient input is the projection of a hypothetical raw
+    /// representative. Keep the exact selected quotient type in both keys;
+    /// this never identifies the two carriers or changes the raw P view.
+    pub(super) fn quotient_projection(
+        &self,
+        program: &dyn crate::CheckingInput,
+        quotient: typed_trees::types::TypeReferenceHandle,
+    ) -> Self {
+        Self {
+            symbol: self.symbol,
+            rendered: format!(
+                "({} as {})",
+                self.rendered,
+                program.type_reference_table.display_name(quotient)
+            ),
+            trace: format!(
+                "{}:{:?}:{}",
+                self.trace,
+                SymbolHandle::invalid(),
+                program.normalized_type_identity_text(quotient)
+            ),
+        }
+    }
+
     pub(super) fn boolean(symbol: SymbolHandle, value: bool) -> Self {
         Self {
             symbol,
