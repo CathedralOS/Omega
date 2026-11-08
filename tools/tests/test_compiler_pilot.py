@@ -1251,5 +1251,28 @@ class CompilerPilotTests(unittest.TestCase):
                 pilot.ordinary_cli_fixture.expected_exit(root, sample, "linux_x86_64")
 
 
+    def test_windows_profile_join_uses_path_identity_for_mixed_separators(self):
+        import compiler_profile as profile
+        from pathlib import PureWindowsPath
+
+        fingerprint = Mock()
+        fingerprint.read_bytes.return_value = b'{"rustflags": []}'
+        target = dict(kind=["bin"], name="omega")
+        executable = r"D:/ot\debug\omega.exe"
+        item = dict(target=target, filenames=[executable], executable=executable,
+                    profile=dict(opt_level="1"))
+        with patch.object(profile, "Path", PureWindowsPath), \
+                patch.object(profile, "top_level_executable_fingerprints",
+                             return_value={fingerprint}) as find:
+            result = profile.artifact_codegen(item)
+            self.assertEqual(result["opt_level"], "1")
+            find.assert_called_once_with(PureWindowsPath(executable), target)
+            item["executable"] = r"D:\ot\debug\other.exe"
+            with self.assertRaisesRegex(profile.CompilerProfileError,
+                                        "cannot identify the exact Cargo compiler fingerprint"):
+                profile.artifact_codegen(item)
+            self.assertEqual(find.call_count, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

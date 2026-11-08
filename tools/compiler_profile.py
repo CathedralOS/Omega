@@ -115,7 +115,7 @@ def artifact_codegen(item):
                 fingerprints = artifact.parent.parent / ".fingerprint"
                 for directory in fingerprints.glob("*-" + suffix.group(1)):
                     candidates.update(directory.glob("*-" + name + ".json"))
-        elif item.get("executable") == str(artifact):
+        elif isinstance(item.get("executable"), str) and Path(item["executable"]) == artifact:
             candidates.update(top_level_executable_fingerprints(artifact, item["target"]))
     if len(candidates) != 1:
         raise CompilerProfileError(f"{name}: cannot identify the exact Cargo compiler fingerprint")
