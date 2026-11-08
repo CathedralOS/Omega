@@ -2842,9 +2842,7 @@ pub(crate) mod definitions_and_contracts {
         let quiet = parsed
             .root_items()
             .find_map(|item| match item {
-                Item::Machine(machine) if machine.name.as_str(&parsed) == "quiet" => {
-                    Some(machine)
-                }
+                Item::Machine(machine) if machine.name.as_str(&parsed) == "quiet" => Some(machine),
                 _ => None,
             })
             .expect("quiet machine");
@@ -2875,10 +2873,7 @@ pub(crate) mod definitions_and_contracts {
                 "reaches none crashes Trap crashes none;",
                 "cannot share a header with a `crashes Cause` route",
             ),
-            (
-                "reaches none crashes none true;",
-                "admits no route guards",
-            ),
+            ("reaches none crashes none true;", "admits no route guards"),
         ] {
             let source =
                 format!("public boundary trait Mark {{ machine read() -> u64 {rejected} }}");

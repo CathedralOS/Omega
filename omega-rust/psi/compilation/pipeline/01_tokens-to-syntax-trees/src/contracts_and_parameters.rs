@@ -848,10 +848,9 @@ pub(crate) mod contracts {
                     let keyword_source_span = Some(input.current_source_span());
                     let ((cause, header_token_count), after_header) = parse_crash_header(input)?;
                     let Some(cause) = cause else {
-                        let other_route =
-                            contracts.iter().any(|contract: &CapabilityContract| {
-                                matches!(contract.kind, CapabilityContractKind::Crashes { .. })
-                            });
+                        let other_route = contracts.iter().any(|contract: &CapabilityContract| {
+                            matches!(contract.kind, CapabilityContractKind::Crashes { .. })
+                        });
                         input = crate::grammar::contracts::finish_crashes_none(
                             after_header,
                             other_route,
@@ -1444,10 +1443,9 @@ pub(crate) mod contracts {
                     let keyword_source_span = Some(input.current_source_span());
                     let after_keyword = input.take_contextual("crashes")?;
                     if after_keyword.at_contextual("none") {
-                        let other_route =
-                            contracts.iter().any(|contract: &CapabilityContract| {
-                                matches!(contract.kind, CapabilityContractKind::Crashes { .. })
-                            });
+                        let other_route = contracts.iter().any(|contract: &CapabilityContract| {
+                            matches!(contract.kind, CapabilityContractKind::Crashes { .. })
+                        });
                         input = crate::grammar::contracts::finish_crashes_none(
                             after_keyword.take_contextual("none")?,
                             other_route,
@@ -1688,8 +1686,9 @@ pub(crate) mod contracts {
                 .error_here("`crashes none` cannot share a header with a `crashes Cause` route"));
         }
         if !at_clause_boundary(after_none) {
-            return Err(after_none
-                .error_here("`crashes none` admits no route guards; name a cause to guard a route"));
+            return Err(after_none.error_here(
+                "`crashes none` admits no route guards; name a cause to guard a route",
+            ));
         }
         Ok(after_none)
     }
