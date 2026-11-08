@@ -34194,22 +34194,23 @@ pub(crate) mod refuted_requires {
             expression_table(program).expression(fact)
             && unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
         {
+            let inner = remembered_instantiated_fact_judgment(
+                program,
+                judge,
+                callee_owner,
+                callee_parameters,
+                unary.operand,
+                map,
+                machine_map,
+                type_map,
+                caller_scope,
+                literal_replay,
+                judgments,
+            );
             return if judge.hypotheses_contradictory {
                 StructuralJudgment::Proven
             } else {
-                super::structural_terms::structural_term(
-                    program,
-                    None,
-                    Some((callee_owner, callee_parameters)),
-                    fact,
-                    None,
-                )
-                .map(|predicate| {
-                    StructuralJudge::substitute_call_term(&predicate, map, machine_map)
-                })
-                .map_or(StructuralJudgment::Unknown, |predicate| {
-                    judge.judge_observed_predicate(predicate, 0)
-                })
+                inner.negated()
             };
         }
         if program.static_type_predicate_operands(fact).is_some() {
@@ -79614,9 +79615,9 @@ pub(crate) mod structural_judgment {
                             value: Box::new(value),
                         };
                     }
-                    term @ (StructuralTerm::MathematicalBinary { .. }
+                    predicate @ (StructuralTerm::MathematicalBinary { .. }
                     | StructuralTerm::LogicalNot { .. }) => {
-                        let resolved = term
+                        let resolved = predicate
                             .map_children(|child| self.resolve_with_at(child, depth + 1, purpose));
                         if let Some((_, replacement)) = self.rewrites.find(&resolved) {
                             term = replacement.clone();
@@ -80883,13 +80884,13 @@ pub(crate) mod structural_judgment {
             if let ExpressionNode::Unary(unary) = expression_table(program).expression(fact)
                 && unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
             {
+                // Negation composes the operand's proposition judgment. In
+                // particular, a formed Identity is not a scalar Boolean value.
+                let inner = self.judge_proposition(program, unary.operand);
                 return if self.hypotheses_contradictory {
                     StructuralJudgment::Proven
                 } else {
-                    self.declaration_term(fact)
-                        .map_or(StructuralJudgment::Unknown, |predicate| {
-                            self.judge_observed_predicate(predicate, 0)
-                        })
+                    inner.negated()
                 };
             }
             if program.static_type_predicate_operands(fact).is_some() {
