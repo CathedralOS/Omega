@@ -2671,7 +2671,25 @@ mod propositions {
                         None,
                     )
                 };
-                let member_symbols = if members.len() == 1 && head_symbol.is_valid() {
+                let member_count = members.len();
+                // Mathematical bodies and proof formulas construct the same case
+                // values as machine expressions. Resolve the lexical head first so
+                // a value binding cannot be reinterpreted as a constructor namespace.
+                if (!head_symbol.is_valid()
+                    || matches!(
+                        symbols.get(head_symbol).kind,
+                        SymbolKind::Data | SymbolKind::Module
+                    ))
+                    && super::expressions::normalize_qualified_case_value(
+                        symbols,
+                        expressions,
+                        &path,
+                        expression,
+                    )
+                {
+                    return;
+                }
+                let member_symbols = if member_count == 1 && head_symbol.is_valid() {
                     vec![head_symbol]
                 } else if head_symbol.is_valid() {
                     resolve_state_scoped_table_path_member_symbols(
