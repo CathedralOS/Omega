@@ -377,10 +377,38 @@ impl Elaborator<'_> {
         &mut self,
         argument: &StaticMachineArgument,
     ) -> Result<TermHandle, Vec<Diagnostic>> {
-        if argument.application.is_some()
-            || argument.evidence_projection.is_some()
-            || argument.const_literal.is_some()
-        {
+        if let Some(application) = argument.application.as_deref() {
+            if argument.type_reference.is_valid()
+                || argument.evidence_projection.is_some()
+                || argument.const_literal.is_some()
+                || application.member.is_valid()
+                || !application.lifetime_arguments.is_empty()
+            {
+                return Err(self.refuse(
+                    "a mathematical type application carries conflicting operand or selection payloads"
+                        .to_owned(),
+                ));
+            }
+            let name = argument.path.last().cloned().unwrap_or_default();
+            let Some(sort) = self
+                .fixed_core
+                .classify(argument.symbol, &name)
+                .and_then(|member| member.universe_sort())
+            else {
+                return Err(self.refuse(
+                    "a mathematical generic term application has no kernel denotation yet"
+                        .to_owned(),
+                ));
+            };
+            let [level] = application.arguments.as_ref() else {
+                return Err(self.refuse(
+                    "a mathematical universe application requires one level argument".to_owned(),
+                ));
+            };
+            let level = self.static_level(level)?;
+            return Ok(self.arena.insert(Term::Sort(sort(level))));
+        }
+        if argument.evidence_projection.is_some() || argument.const_literal.is_some() {
             return Err(self.refuse(
                 "a mathematical generic term argument has no kernel denotation yet".to_owned(),
             ));

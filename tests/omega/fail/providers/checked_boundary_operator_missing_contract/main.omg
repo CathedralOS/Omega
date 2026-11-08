@@ -1,5 +1,7 @@
 // A checked body is not an admitted leaf: it must prove the boundary
 // operator's public result contract before its ProviderPlan can be selected.
+use omega::language::core::numeric_conversion;
+
 data CheckedMath {}
 
 boundary operator CheckedMath::identity(value: i32) -> i32
@@ -18,11 +20,11 @@ machine main() {}
 // The public promise and its provider retain the cast's arithmetic policy.
 // At 256, Wrapping yields 0 while Saturating yields 255.
 boundary operator CheckedMath::low_byte(value: u16) -> u8
-ensures result == (value as u8 in Wrapping);
+ensures result == (narrow_u16_to_u8_wrapping(value));
 
 machine CheckedMathProvider::low_byte_impl(input: u16) -> u8
 satisfies CheckedMath::low_byte
-ensures result == (input as u8 in Saturating)
+ensures result == (narrow_u16_to_u8_saturating(input))
 {
-    input as u8 in Saturating
+    narrow_u16_to_u8_saturating(input)
 }

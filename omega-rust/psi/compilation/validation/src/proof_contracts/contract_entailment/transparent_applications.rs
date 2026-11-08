@@ -12,9 +12,7 @@ use crate::frozen_program::expression_table;
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     StructuralJudge, StructuralJudgment, StructuralTerm,
 };
-use crate::proof_contracts::contract_entailment::structural_terms::{
-    structural_call_machine_name, structural_term,
-};
+use crate::proof_contracts::contract_entailment::structural_terms::structural_term;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
@@ -363,101 +361,14 @@ fn argument_term(
     caller_state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<StructuralTerm> {
-    let Some(call) = expression_table(program).call_node(expression) else {
-        return structural_term(
-            program,
-            Some((caller_machine, caller_state, Default::default())),
-            None,
-            expression,
-            None,
-        );
-    };
-    if call.receiver.is_valid()
-        || !call.evidence_arguments.is_empty()
-        || call.static_requirement_dispatch.is_some()
-    {
-        return structural_term(
-            program,
-            Some((caller_machine, caller_state, Default::default())),
-            None,
-            expression,
-            None,
-        );
-    }
-    let state = crate::machine_calls::calls::signature_queries::unique_state_by_symbol(
+    // Keep the whole typed application. Identity correspondence can consume
+    // its exact call/argument identity; synthetic field projections would lose
+    // that admitted value before the predicate receives it.
+    structural_term(
         program,
-        call.target_symbol,
-    )?;
-    let Some(data_symbol) =
-        crate::value_custody::type_shapes::head_data_symbol(program, state.return_type)
-    else {
-        return structural_term(
-            program,
-            Some((caller_machine, caller_state, Default::default())),
-            None,
-            expression,
-            None,
-        );
-    };
-    let data = crate::declarations::data_queries::data_definition_by_symbol(program, data_symbol)?;
-    // Product eta reconstructs plain records only. A sum's common
-    // fields do not identify its case or active payload.
-    if program
-        .data_members(data)
-        .iter()
-        .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
-    {
-        return structural_term(
-            program,
-            Some((caller_machine, caller_state, Default::default())),
-            None,
-            expression,
-            None,
-        );
-    }
-    let arguments = expression_table(program)
-        .expression_handles(call.arguments)
-        .iter()
-        .map(|argument| {
-            structural_term(
-                program,
-                Some((caller_machine, caller_state, Default::default())),
-                None,
-                *argument,
-                None,
-            )
-        })
-        .collect::<Option<Vec<_>>>()?;
-    let machine = structural_call_machine_name(call.target.as_str(), &call.machine_arguments, &[]);
-    let mut fields = program
-        .data_members(data)
-        .iter()
-        .filter_map(|member| {
-            let field = member.as_field()?;
-            Some((
-                field.name.as_str().to_owned(),
-                StructuralTerm::CallProjection {
-                    target: call.target_symbol,
-                    selections: call.machine_arguments.to_vec(),
-                    machine: machine.clone(),
-                    result_type: state.return_type,
-                    field: field.symbol,
-                    field_name: field.name.as_str().to_owned(),
-                    arguments: arguments.clone(),
-                },
-            ))
-        })
-        .collect::<Vec<_>>();
-    fields.sort_by(|left, right| left.0.cmp(&right.0));
-    Some(StructuralTerm::Constructor {
-        identity: super::structural_judgment::ConstructorIdentity::at_reference(
-            program,
-            state.return_type,
-            data,
-            None,
-        )?,
-        data: data.name.as_str().to_owned(),
-        case: String::new(),
-        fields,
-    })
+        Some((caller_machine, caller_state, Default::default())),
+        None,
+        expression,
+        None,
+    )
 }
