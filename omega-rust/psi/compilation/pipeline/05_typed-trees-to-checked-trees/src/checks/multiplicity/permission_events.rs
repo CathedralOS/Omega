@@ -1574,7 +1574,7 @@ fn state_call_writes(
 }
 
 #[derive(Debug)]
-struct DerivedCrashFrontier {
+pub(crate) struct DerivedCrashFrontier {
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_ordinal: u32,
@@ -1585,11 +1585,14 @@ struct DerivedCrashFrontier {
 /// crash. The result is an underapproximation by design: a conditional sum
 /// payload is omitted until active-case proof can make its liveness definite.
 /// Crash abandons these claims; it does not synthesize cleanup or consumption.
-pub(crate) fn record_crash_frontier_lower_bounds(
+///
+/// This derives them from the facts alone; `record_crash_frontier_lower_bounds`
+/// writes them into the contract plans.
+pub(crate) fn derive_crash_frontier_lower_bounds(
     program: &dyn ::validation::CheckingInput,
-    facts: &mut CheckFacts,
+    facts: &CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
-) {
+) -> Vec<DerivedCrashFrontier> {
     let mut derived = Vec::new();
     for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
@@ -1704,7 +1707,16 @@ pub(crate) fn record_crash_frontier_lower_bounds(
         );
     }
 
-    facts.contract_plans.update_plans(|contract| {
+    derived
+}
+
+/// Retain each checked crash site's derived frontier in its contract's crash
+/// plan; a site without one keeps its current lower bound.
+pub(crate) fn record_crash_frontier_lower_bounds(
+    contract_plans: &mut checked_trees::MachineContractPlans,
+    derived: &[DerivedCrashFrontier],
+) {
+    contract_plans.update_plans(|contract| {
         let checked_sites = contract
             .crash
             .checked_sites()

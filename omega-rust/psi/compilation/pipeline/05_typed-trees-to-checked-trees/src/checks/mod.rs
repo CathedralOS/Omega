@@ -207,11 +207,14 @@ pub(crate) fn check_checked_facts_recording(
         {
             diagnostics.append(&mut operator_crash_diagnostics);
         }
-        diagnostics.extend(crashes::infer_path_conditioned_guard_coverage(
-            program,
-            facts,
-            incoming_guards,
-        ));
+        let (crash_plans, coverage_diagnostics) =
+            crashes::infer_path_conditioned_guard_coverage(program, facts, incoming_guards);
+        for (position, crash) in crash_plans {
+            facts
+                .contract_plans
+                .update_plan(position, |plan| plan.crash = crash);
+        }
+        diagnostics.extend(coverage_diagnostics);
         if let Err(mut crash_diagnostics) =
             crashes::check_published_ceiling_coverage(program, facts)
         {
@@ -224,13 +227,21 @@ pub(crate) fn check_checked_facts_recording(
             diagnostics.append(&mut entry_diagnostics);
         }
 
-        if let Err(mut content_diagnostics) =
-            content::check_retained_content_custody(program, facts)
-        {
-            diagnostics.append(&mut content_diagnostics);
+        match content::check_retained_content_custody(program, facts) {
+            Ok(rows) => facts.qualifications.content.retained_borrow_custodies = rows,
+            Err(mut content_diagnostics) => {
+                facts
+                    .qualifications
+                    .content
+                    .retained_borrow_custodies
+                    .clear();
+                diagnostics.append(&mut content_diagnostics);
+            }
         }
 
-        if let Err(mut carry_diagnostics) = carry::check_suspension_carry(program, facts) {
+        let (carry, carry_result) = carry::check_suspension_carry(program, facts);
+        carry.publish(&mut facts.carry);
+        if let Err(mut carry_diagnostics) = carry_result {
             diagnostics.append(&mut carry_diagnostics);
         }
 
