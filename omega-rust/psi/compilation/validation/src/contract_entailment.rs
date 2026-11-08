@@ -66299,6 +66299,15 @@ pub(crate) mod structural_judgment {
                     judge.judge_observed_predicate(predicate("other"), 0),
                     StructuralJudgment::Unknown
                 ));
+                judge.intake_observed_predicate(predicate("other"), 0);
+                assert!(matches!(
+                    judge.judge_observed_predicate(predicate("other"), 0),
+                    StructuralJudgment::Proven
+                ));
+                let identity =
+                    judge.judge_explicit_identity(predicate("right"), predicate("other"), 0);
+                eprintln!("distinct established negations have identity judgment {identity:?}");
+                assert!(matches!(identity, StructuralJudgment::Unknown));
             }
 
             #[test]
