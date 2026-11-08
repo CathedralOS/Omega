@@ -13,66 +13,66 @@ use omega::language::core::conversion;
 public trait OpaqueRepresentation<Opaque, Representation> {
 }
 
-// A conversion carries its semantic value and all caller-supplied resources.
-// A resource type's ordinary domain states capacity and other admission bounds.
+// Requests keep resources explicit. Encoding borrows the semantic value;
+// decoding returns an established value together with its declared resources.
 public data RepresentationRequest<Value, Resources> {
     value: Value;
     resources: Resources;
 }
-
-// Preserve each map's error carrier rather than silently coercing errors.
-// Resource-backed error values retain their own declared ownership obligations.
+public data RepresentationDecodeRequest<'frame, Frame, Resources> {
+    frame: &'frame Frame;
+    resources: Resources;
+}
 public data RepresentationError<EncodingError, DecodingError> {
     case Encoding(error: EncodingError);
     case Decoding(error: DecodingError);
 }
 
-// A completed round trip succeeds and preserves the semantic value for every
-// admitted request. Its resource type and exact selected maps retain their
-// ordinary capacity, effect and custody contracts.
-public trait Representation<Value, Resources, Frame, EncodingError, DecodingError,
-    Encode satisfies TryFrom<RepresentationRequest<Value, Resources>, Frame, EncodingError>,
-    Decode satisfies TryFrom<Frame, RepresentationRequest<Value, Resources>, DecodingError>>
+// The model observes a borrowed frame and value without cloning either owner.
+// Its uniqueness law gives semantic identity, not resource or storage authority.
+public trait RepresentationModel<Value, Frame> {
+    machine valid<'view>(frame: &'view Frame) -> bool
+    reaches none suspends false blocks false terminates;
+    machine represents<'view, 'value>(frame: &'view Frame, value: &'value Value) -> bool
+    reaches none suspends false blocks false terminates;
+    machine unique<'view, 'left, 'right>(frame: &'view Frame, left: &'left Value, right: &'right Value)
+    reaches none suspends false blocks false terminates
+    requires represents(frame, left)
+    requires represents(frame, right)
+    ensures core::Identity<Value>(left, right);
+}
+
+// These guarantees constrain the selected TryFrom row itself. A separate
+// successful echo cannot establish encoding coverage or frame validity.
+public trait RepresentationEncoding<'value, Value, Resources, Frame, Error,
+    Model satisfies RepresentationModel<Value, Frame>> =
+    TryFrom<RepresentationRequest<&'value Value, Resources>, Frame, Error>
 {
-    machine round_trip(request: RepresentationRequest<Value, Resources>)
-        -> Result<RepresentationRequest<Value, Resources>, RepresentationError<EncodingError, DecodingError>>
+    machine TryFrom::try_from
     terminates
     ensures result in Result::Ok
-    ensures core::Identity<Value>(result.value.value, request.value);
+    ensures Model::valid(&result.value)
+    ensures Model::represents(&result.value, source.value);
 }
 
-// Mathematical laws may repeat these calls only when their complete invocation
-// is a stable value computation. Ordinary TryFrom and Representation stay open
-// to explicit buffers, effects and other resource contracts.
-public trait ValueConversion<Source, Destination, Error> = TryFrom<Source, Destination, Error> {
-    machine * reaches none suspends false blocks false terminates;
-}
-public trait RepresentationValidity<Frame> {
-    machine valid(frame: Frame) -> bool reaches none suspends false blocks false terminates;
-}
-
-// This stronger contract ties coverage, validity and exact preservation to the
-// selected maps. It is for mathematical values; it does not reinterpret mutable
-// resource requests as repeatable values or establish their custody by identity.
-public trait ValueRepresentation<Value, Resources, Frame, EncodingError, DecodingError,
-    Encode satisfies ValueConversion<RepresentationRequest<Value, Resources>, Frame, EncodingError>,
-    Decode satisfies ValueConversion<Frame, RepresentationRequest<Value, Resources>, DecodingError>,
-    Validity satisfies RepresentationValidity<Frame>>
-    : Representation<Value, Resources, Frame, EncodingError, DecodingError, Encode, Decode>
+// Decoding borrows its frame and receives any materialization resources
+// separately. Its successful result must describe that same frame; invalid
+// frames return an error and expose no unestablished destination.
+public trait RepresentationDecoding<'frame, Value, Resources, Frame, Error,
+    Model satisfies RepresentationModel<Value, Frame>> =
+    TryFrom<RepresentationDecodeRequest<'frame, Frame, Resources>, RepresentationRequest<Value, Resources>, Error>
 {
-    machine encode_covers(request: RepresentationRequest<Value, Resources>) reaches none terminates
-    ensures Encode::try_from(request) in Result::Ok;
-    machine encode_valid(request: RepresentationRequest<Value, Resources>, frame: Frame) reaches none terminates
-    requires core::Identity<Result<Frame, EncodingError>>(Encode::try_from(request), Result::Ok { value: frame })
-    ensures Validity::valid(frame);
-    machine decode_covers(frame: Frame) reaches none terminates
-    requires Validity::valid(frame)
-    ensures Decode::try_from(frame) in Result::Ok;
-    machine decode_rejects(frame: Frame) reaches none terminates
-    requires !Validity::valid(frame)
-    ensures Decode::try_from(frame) in Result::Err;
-    machine round_trip_preserves(request: RepresentationRequest<Value, Resources>, frame: Frame) reaches none terminates
-    requires core::Identity<Result<Frame, EncodingError>>(Encode::try_from(request), Result::Ok { value: frame })
-    ensures core::Identity<Result<RepresentationRequest<Value, Resources>, DecodingError>>(
-        Decode::try_from(frame), Result::Ok { value: request });
+    machine TryFrom::try_from
+    terminates
+    ensures Model::valid(source.frame) == (result in Result::Ok)
+    ensures (result in Result::Err) || Model::represents(source.frame, &result.value.value);
+}
+
+// This named map groups actual checked conversion contracts and their shared
+// model. Both maps retain their own effects, resource bounds and custody rules.
+public trait Representation<'value, 'frame, Value, EncodingResources, DecodingResources, Frame,
+    EncodingError, DecodingError,
+    Model satisfies RepresentationModel<Value, Frame>,
+    Encode satisfies RepresentationEncoding<'value, Value, EncodingResources, Frame, EncodingError, Model>,
+    Decode satisfies RepresentationDecoding<'frame, Value, DecodingResources, Frame, DecodingError, Model>> {
 }

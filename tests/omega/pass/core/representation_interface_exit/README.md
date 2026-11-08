@@ -1,36 +1,36 @@
 # Selected representation contracts
 
-This consumer uses the public representation interface with an owned frame and
-with a caller-owned byte buffer. It checks the restored semantic value, rejects
-an invalid owned frame, and uses the returned buffer before checking its neighbor
-bytes. The decoder-only control changes its returned semantic value to zero.
+This consumer checks that an owned frame and a caller-owned byte buffer preserve
+the same semantic value through selected conversions. Its reject twin supplies
+maps that always return an error. An independent echo still proves that it
+preserves its input; that promise cannot establish anything about those maps.
 
 Parent: **LIBRARY-REPRESENTATION-FAMILIES**. This is one library-interface
-milestone. It does not close the existing nine-place rows or their host coverage.
+milestone, not closure of its existing nine-place rows or host coverage.
 
-`RepresentationRequest<Value, Resources>` keeps resources explicit. A resource
-type's ordinary domain states its admission bounds; here the buffer requires at
-least two bytes. Encoding and decoding remain the exact selected `TryFrom`
-applications. Their error types remain separate in `RepresentationError`.
-The completed `Representation::round_trip` contract promises termination and a successful result
-with the same semantic value and the declared returned resource type. It grants
-no allocator, service reach or custody beyond those ordinary contracts.
+`RepresentationEncoding` and `RepresentationDecoding` strengthen the exact
+selected `TryFrom` requirements. Encoding must succeed, produce a valid frame
+and relate it to the borrowed input value. Decoding must accept valid frames,
+reject invalid frames and relate each successful value to its input frame.
+`Representation` groups these checked applications and their shared model.
+There is no separate round-trip implementation that can replace the map proofs.
 
-`ValueRepresentation` additionally requires encoding coverage, valid encoded
-frames, successful decoding of valid frames, malformed-input rejection and exact
-agreement between those selected maps. Its `ValueConversion` bounds permit the
-repeated mathematical calls used by those laws. The mutable-buffer example uses
-the completed-call base instead and never repeats a mutable conversion in a
-mathematical expression.
+The model queries borrow both the frame and semantic value. Its uniqueness law
+establishes semantic identity without cloning either owner or granting custody.
+Encoding takes explicit resources; decoding borrows its frame and takes separate
+materialization resources. Successful decoding returns its declared resources.
+Errors retain their selected types and ordinary ownership obligations.
+Neither conversion is required to be a repeatable mathematical function.
 
-The positive runs the maps independently of their theorem evidence. Values 17 and
-255 come from main's literals, and a tag-zero frame must fail. The buffered case
-round-trips 42, writes through the returned owner, and checks both neighbor bytes.
-These executable checks complement the universal checked contracts; they do not
-replace them. No source comparison grants resource identity or authority.
+The program uses the public guarantees to prove that the decoder's result is
+identical to the encoder's input. It also checks runtime values independently:
+17 and 255 come from main's literals, and a tag-zero owned frame must fail.
+The buffered case writes 42, decodes it, writes through the still-owned frame,
+and checks both neighbor bytes. The buffer's ordinary domain requires two bytes;
+the interface supplies no allocator, service reach or resource authority.
 
-Broader resource-specific coverage/failure contracts, other representation
-families and the parent acceptance remain open.
+Broader resource-dependent bounds, consuming/view protocols, representation
+families and the parent's full acceptance remain open.
 
 Canonical rules: [representation conversions](../../../../../wiki/spec/layouts/codecs.md#representation-conversions),
 [proof contracts](../../../../../wiki/spec/proofs/contracts.md#data-identity-in-facts),
