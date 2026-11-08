@@ -168,12 +168,8 @@ pub(crate) fn capture_source(
             }
         }
     };
-    if matches!(place.root, facts::PlaceRoot::Expression(_)) && !place.segments.is_empty() {
-        // A completed expression stores its reference descriptor. Projection
-        // begins by crossing that exact carrier, before any case or field.
-        // A whole reference slot keeps the endpoint loop below instead, so
-        // borrowing a descriptor never becomes borrowing its referent.
-        let root_reference = validation::canonical_place_type_reference(
+    let expression_root_type = if matches!(place.root, facts::PlaceRoot::Expression(_)) {
+        validation::canonical_place_type_reference(
             program,
             state.symbol,
             statement_index,
@@ -181,7 +177,16 @@ pub(crate) fn capture_source(
                 root: place.root,
                 segments: Vec::new(),
             },
-        )?;
+        )
+    } else {
+        None
+    };
+    if matches!(place.root, facts::PlaceRoot::Expression(_)) && !place.segments.is_empty() {
+        // A completed expression stores its reference descriptor. Projection
+        // begins by crossing that exact carrier, before any case or field.
+        // A whole reference slot keeps the endpoint loop below instead, so
+        // borrowing a descriptor never becomes borrowing its referent.
+        let root_reference = expression_root_type?;
         let mut prefix = calls::stored_reference_prefix(program, root_reference, |supplied| {
             access_can_supply(supplied.into(), access)
         })?;
@@ -298,20 +303,12 @@ pub(crate) fn capture_source(
             // An alias can name existing storage without publishing a value.
             // Retain its checked root type with the projection. Root reference
             // shells keep their separate stored-descriptor namespace.
-            let logical_root_type_identity = validation::canonical_place_type_reference(
-                program,
-                state.symbol,
-                statement_index,
-                &validation::CanonicalPlace {
-                    root: place.root,
-                    segments: Vec::new(),
-                },
-            )
-            .filter(|reference| validation::reference_shell(program, *reference).is_none())
-            .map(|reference| {
-                validation::stored_structural_type_identity(program, reference, &[], &[])
-            })
-            .filter(|identity| identity.is_valid());
+            let logical_root_type_identity = expression_root_type
+                .filter(|reference| validation::reference_shell(program, *reference).is_none())
+                .map(|reference| {
+                    validation::stored_structural_type_identity(program, reference, &[], &[])
+                })
+                .filter(|identity| identity.is_valid());
             SourcePlan::StructuralExpression {
                 value_dependency: None,
                 expression,
