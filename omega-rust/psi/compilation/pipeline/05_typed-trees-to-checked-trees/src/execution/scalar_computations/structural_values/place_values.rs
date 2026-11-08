@@ -152,6 +152,48 @@ impl Builder<'_, '_> {
         Some(ValueKind::CopiedStructuralPlace { source, leaf })
     }
 
+    /// The dispatch already selected this existing endpoint before patterns.
+    /// Keep its exact carrier and access ceiling; the alias is not an owned
+    /// producer to reconstruct. This source names storage only, not a copied
+    /// value, readable contents, or new loan authority.
+    pub(super) fn retained_dispatch_place_source(
+        &self,
+        anchor: ExpressionHandle,
+        access: StructuralAccess,
+    ) -> Option<SourcePlan> {
+        let receiver = self
+            .dispatch_receivers
+            .get(&(anchor.arena_index(), anchor.generation()))?;
+        if receiver.value.is_valid()
+            || access == StructuralAccess::Owned
+            || !crate::values::reference_sources::access_can_supply(receiver.access, access)
+            || reference_shell(self.program, receiver.type_reference).is_some()
+        {
+            return None;
+        }
+        let root = canonical_place_type_reference(
+            self.program,
+            self.state,
+            self.statement_index,
+            &CanonicalPlace {
+                root: PlaceRoot::Expression(anchor),
+                segments: Vec::new(),
+            },
+        )?;
+        if !validation::declared_carriers_match(self.program, root, receiver.type_reference) {
+            return None;
+        }
+        let identity =
+            stored_structural_type_identity(self.program, receiver.type_reference, &[], &[]);
+        identity
+            .is_valid()
+            .then_some(SourcePlan::StructuralExpression {
+                expression: anchor,
+                value_dependency: None,
+                logical_root_type_identity: Some(identity),
+            })
+    }
+
     /// A readable leaf keeps its named or saved home and exact projection.
     /// Its type names the leaf; borrowing it never takes the whole receiver.
     /// The consuming operation owns selector evaluation; its expression may
@@ -176,46 +218,7 @@ impl Builder<'_, '_> {
         let mut source = match place.root {
             PlaceRoot::Symbol(symbol) => SourcePlan::StructuralLocal { symbol },
             PlaceRoot::Expression(anchor) => {
-                let receiver = self
-                    .dispatch_receivers
-                    .get(&(anchor.arena_index(), anchor.generation()))?;
-                // The case view keeps the storage selected before its patterns.
-                // Copy only its admitted readable field, without making an
-                // owned value from the enclosing borrowed receiver.
-                if receiver.value.is_valid()
-                    || !matches!(
-                        receiver.access,
-                        StructuralAccess::Owned
-                            | StructuralAccess::SharedBorrow
-                            | StructuralAccess::MutableBorrow
-                    )
-                    || reference_shell(self.program, receiver.type_reference).is_some()
-                {
-                    return None;
-                }
-                let root = canonical_place_type_reference(
-                    self.program,
-                    self.state,
-                    self.statement_index,
-                    &CanonicalPlace {
-                        root: place.root,
-                        segments: Vec::new(),
-                    },
-                )?;
-                if !validation::declared_carriers_match(self.program, root, receiver.type_reference)
-                {
-                    return None;
-                }
-                SourcePlan::StructuralExpression {
-                    expression: anchor,
-                    value_dependency: None,
-                    logical_root_type_identity: Some(stored_structural_type_identity(
-                        self.program,
-                        receiver.type_reference,
-                        &[],
-                        &[],
-                    )),
-                }
+                self.retained_dispatch_place_source(anchor, StructuralAccess::SharedBorrow)?
             }
             _ => return None,
         };
