@@ -8139,9 +8139,49 @@ pub mod static_bindings {
                 continue;
             }
             if let Some(refinement) = carrier.refinement {
+                let arguments = bindings
+                    .iter()
+                    .map(|binding| {
+                        let reference = match &binding.value {
+                            StaticMachineBindingValue::Type(reference)
+                            | StaticMachineBindingValue::Const(reference)
+                            | StaticMachineBindingValue::RuntimeValue {
+                                type_reference: reference,
+                                ..
+                            } => *reference,
+                            StaticMachineBindingValue::Machine(argument)
+                            | StaticMachineBindingValue::Conformance(argument) => {
+                                argument.type_reference
+                            }
+                        };
+                        reference
+                            .is_valid()
+                            .then_some((binding.parameter, reference))
+                    })
+                    .collect::<Option<Vec<_>>>();
+                let refinement_application = arguments.and_then(|arguments| {
+                    typed_trees::trait_definition::AppliedTraitScope::new(
+                        program.typed_program(),
+                        refinement,
+                        typed_trees::trait_definition::TraitApplicationArguments {
+                            lexical_owner: machine.symbol,
+                            enclosing_data_applications: &[],
+                            arguments: &bound.arguments,
+                            lifetimes: &bound.lifetime_arguments,
+                        },
+                    )?
+                    .under_invocation(
+                        program.typed_program(),
+                        machine.symbol,
+                        call.lexical_owner,
+                        &arguments,
+                        lifetimes,
+                    )
+                });
                 diagnostics.extend(crate::refinement_fit::refinement_fit_diagnostics(
                     program,
                     refinement,
+                    refinement_application.as_ref(),
                     selected,
                     machine.name.as_str(),
                     bound.binder_name.as_str(),
