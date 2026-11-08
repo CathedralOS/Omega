@@ -12,4 +12,4 @@
 5 omega-rust/omega/interpreter/terminal-runtime/src/runtime_boundary.rs
 8 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/immutable_checking_input.rs
 3 omega-rust/psi/foundation/access-plans/src/tests/plan_validation.rs
-1 omega-rust/psi/interpreter/terminal-interpreter/src/embedding/instance/storage_observation.rs
+1 omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs
