@@ -590,63 +590,6 @@ mod domain_implications {
                 return false;
             };
             if !declaration.establishment_routes.is_empty() || declaration.alias.is_some() {
-                if let Ok(filter) = std::env::var("OMEGA_RECEIVING_TRACE") {
-                    let machine = program.machine_by_symbol(state.machine_symbol);
-                    let entry = program.state_by_symbol(state.state_symbol);
-                    let selected = filter == "1"
-                        || filter.split(',').any(|selected| {
-                            [
-                                machine.map(|m| m.name.as_str()),
-                                entry.map(|s| s.name.as_str()),
-                            ]
-                            .into_iter()
-                            .flatten()
-                            .any(|name| {
-                                name == selected || name.rsplit("::").next() == Some(selected)
-                            })
-                        });
-                    static EVENTS: std::sync::atomic::AtomicUsize =
-                        std::sync::atomic::AtomicUsize::new(0);
-                    if selected && EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 32 {
-                        let memberships = contexts
-                            .iter()
-                            .flat_map(|context| {
-                                facts
-                                    .semantic
-                                    .context_view(facts.semantic.contexts.get(*context))
-                                    .facts()
-                            })
-                            .filter_map(|fact| {
-                                let (_, _, domain, instance) = fact.payload.domain_membership()?;
-                                let place = facts.semantic.places.get(fact.place.as_place()?);
-                                let path =
-                                    facts.semantic.place_segments.span_or_empty(place.segments);
-                                Some((
-                                    place.root,
-                                    path.len(),
-                                    path[..path.len().min(8)].to_vec(),
-                                    domain,
-                                    instance,
-                                    fact.origin,
-                                ))
-                            })
-                            .take(12)
-                            .collect::<Vec<_>>();
-                        let subject = subject.as_ref().map(|place| {
-                            (
-                                place.root,
-                                place.segments.len(),
-                                &place.segments[..place.segments.len().min(8)],
-                            )
-                        });
-                        eprintln!(
-                            "RECEIVING routed-value machine={:?} state={:?} statement={statement_index} expression={value:?} domain={domain:?} instance={identity:?} subject={subject:?} contexts={} memberships_up_to_12={memberships:?}",
-                            machine.map(|m| m.name.as_str()),
-                            entry.map(|s| s.name.as_str()),
-                            contexts.len()
-                        );
-                    }
-                }
                 return false;
             }
             return value_satisfies_domain_instance_predicates_in_contexts(

@@ -112,32 +112,6 @@ jobs:
           if [ -n "$QUALIFICATION_SAMPLES" ]; then arguments+=(--samples "$QUALIFICATION_SAMPLES"); fi
           if [ -n "$QUALIFICATION_CONTROLS" ]; then arguments+=(--runtime-controls "$QUALIFICATION_CONTROLS"); fi
           mbx xtask "${arguments[@]}"
-      - name: Capture remaining receiving refusals
-        if: ${{ always() && (contains(inputs.qualification_corpus, 'pass/core/generic_content_static_callback') || contains(inputs.qualification_corpus, 'pass/facts/content_reunion_through_other_state_exit') || contains(inputs.qualification_corpus, 'run/core/content_reunion') || contains(inputs.qualification_corpus, 'pass/memory/address_translation_canary')) }}
-        continue-on-error: true
-        shell: bash
-        run: |
-          trace_index=0
-          while IFS= read -r fixture; do
-            receiving_filter=1
-            if [ "$fixture" = 'run/core/content_reunion' ]; then
-              receiving_filter='empty_left,empty_right,adjacent,rejoin,rejoin_state,rejoin_anonymous,rejoin_call_result,complete,left_arm,right_arm'
-            fi
-            if [ "$fixture" = 'pass/memory/address_translation_canary' ]; then
-              receiving_filter='install_and_teardown'
-            fi
-            OMEGA_RECEIVING_TRACE="$receiving_filter" mbx xtask qualify --output "build/qualification-receiving-$trace_index" --corpus "$fixture" || true
-            trace_index=$((trace_index + 1))
-          done < <(python3 - <<'PYTRACE'
-          import json, pathlib
-          path = pathlib.Path('build/qualification/checking-rows.json')
-          if path.exists():
-              selected = {'pass/core/generic_content_static_callback', 'pass/facts/content_reunion_through_other_state_exit', 'run/core/content_reunion', 'pass/memory/address_translation_canary'}
-              for row in json.loads(path.read_text()):
-                  if row['fixture'] in selected and (row['status'] not in ('checked', 'built') or row.get('diagnostics')):
-                      print(row['fixture'])
-          PYTRACE
-          )
       - name: Execute length sample with native/Psi agreement and rejection control
         if: ${{ inputs.qualification_corpus == '' && inputs.qualification_runtime == '' && inputs.qualification_samples == '' && inputs.qualification_controls == '' }}
         run: |
@@ -163,7 +137,6 @@ jobs:
           name: compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}
           path: |
             build/qualification/
-            build/qualification-receiving-*/
             build/sample-gate-runs/
             build/corpus-runs/
           if-no-files-found: warn

@@ -6315,61 +6315,6 @@ pub mod proof_embeddings {
                 _ => false,
             };
             if mathematical && (!proof_seen.contains(&handle) || runtime_seen.contains(&handle)) {
-                if std::env::var_os("OMEGA_RECEIVING_TRACE").is_some()
-                    || std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
-                {
-                    static EVENTS: std::sync::atomic::AtomicUsize =
-                        std::sync::atomic::AtomicUsize::new(0);
-                    if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 8 {
-                        let facts = program
-                            .proof_facts
-                            .iter()
-                            .filter_map(|(fact, value)| {
-                                matches!(value, ProofFact::Expression(root) if *root == handle)
-                                    .then_some(fact)
-                            })
-                            .collect::<Vec<_>>();
-                        let clauses = program
-                            .signature_contracts
-                            .iter()
-                            .filter_map(|(clause, value)| {
-                                value
-                                    .facts
-                                    .handles()
-                                    .any(|fact| facts.contains(&fact))
-                                    .then_some(clause)
-                            })
-                            .collect::<Vec<_>>();
-                        let callback_owners = program
-                            .data_type_parameters
-                            .iter()
-                            .filter_map(|(_, parameter)| {
-                                let typed_trees::data::TypeParameterKind::Machine { contract } =
-                                    &parameter.kind
-                                else {
-                                    return None;
-                                };
-                                let signature = program
-                                    .machine_parameter_contract_view(contract)?
-                                    .signature();
-                                signature
-                                    .contracts
-                                    .handles()
-                                    .any(|clause| clauses.contains(&clause))
-                                    .then_some((parameter.symbol, signature.symbol))
-                            })
-                            .take(16)
-                            .collect::<Vec<_>>();
-                        eprintln!(
-                            "RECEIVING missing-proof-context expression={handle:?} source={:?} fact_count={} facts={:?} clause_count={} clauses={:?} callback_owners_up_to_16={callback_owners:?}",
-                            expression_table(program).source_span(handle),
-                            facts.len(),
-                            &facts[..facts.len().min(16)],
-                            clauses.len(),
-                            &clauses[..clauses.len().min(16)],
-                        );
-                    }
-                }
                 diagnostics.push(
                     Diagnostic::error(format!(
                         "mathematical terms are proof-only and cannot be used as executable values or statements: `{}` {}",

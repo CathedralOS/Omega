@@ -51,36 +51,6 @@ mod body_conservation {
         ContentPlaceRoot, ContentPlaceVersion,
     };
 
-    fn trace_completion(
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        statement: usize,
-        expression: typed_trees::expression::ExpressionHandle,
-        details: std::fmt::Arguments<'_>,
-    ) {
-        if let Ok(selected) = std::env::var("OMEGA_RECEIVING_TRACE") {
-            if selected != "1"
-                && !selected.split(',').map(str::trim).any(|selected| {
-                    !selected.is_empty()
-                        && [machine.name.as_str(), state.name.as_str()]
-                            .into_iter()
-                            .any(|name| {
-                                name == selected || name.rsplit("::").next() == Some(selected)
-                            })
-                })
-            {
-                return;
-            }
-            static EVENTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-            if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 96 {
-                eprintln!(
-                    "RECEIVING content-body machine={} state={} statement={} expression={:?} {details}",
-                    machine.name, state.name, statement, expression,
-                );
-            }
-        }
-    }
-
     mod terminal_demands {
         /*
         A terminal callee must prove the caller's exact returned-content demand.
@@ -206,13 +176,6 @@ mod body_conservation {
                                 invocation.arguments,
                                 &plan,
                                 &mut remaining,
-                            );
-                            trace_transfer(
-                                program,
-                                state,
-                                current_state,
-                                invocation.target,
-                                &transferred,
                             );
                             if let Ok(next) = transferred {
                                 pending.push(next);
@@ -368,31 +331,6 @@ mod body_conservation {
             plan.report_fingerprint =
                 conservation_report_fingerprint(&plan.algebra, &plan.equation);
             Ok(plan)
-        }
-
-        fn trace_transfer(
-            program: &dyn validation::CheckingInput,
-            requested: &State,
-            source: &State,
-            target: SymbolHandle,
-            result: &Result<ContentConservationPlan, &'static str>,
-        ) {
-            if (std::env::var_os("OMEGA_RECEIVING_TRACE").is_some()
-                || std::env::var_os("OMEGA_STRUCT_TRACE").is_some())
-                && validation::call_target_state(program, target)
-                    .is_some_and(|target| target.symbol == requested.symbol)
-            {
-                static EVENTS: std::sync::atomic::AtomicUsize =
-                    std::sync::atomic::AtomicUsize::new(0);
-                if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 64 {
-                    return;
-                }
-                let outcome = result.as_ref().map(|plan| (plan.owner, plan.callable));
-                eprintln!(
-                    "RECEIVING content-demand source={:?} source_result={:?} target={:?} target_result={:?} outcome={outcome:?}",
-                    source.symbol, source.return_type, requested.symbol, requested.return_type,
-                );
-            }
         }
 
         /// Every predecessor must be the same unchanged complete entry value. A local
@@ -654,18 +592,8 @@ mod body_conservation {
                         evaluation_events,
                         &mut conditions,
                     );
-                    let returned = match returned {
-                        Ok(returned) => returned,
-                        Err(reason) => {
-                            trace_completion(
-                                machine,
-                                state,
-                                statement_index,
-                                expression,
-                                format_args!("plan={plan_index} returned-claims={reason}"),
-                            );
-                            continue;
-                        }
+                    let Ok(returned) = returned else {
+                        continue;
                     };
                     let mut input_bindings = ClaimBindings::default();
                     let mut output_bindings = ClaimBindings::default();
@@ -706,17 +634,6 @@ mod body_conservation {
                             })
                             .is_none()
                     {
-                        trace_completion(
-                            machine,
-                            state,
-                            statement_index,
-                            expression,
-                            format_args!(
-                                "plan={plan_index} bindings-refused input_rows={} output_rows={} returned={returned:?}",
-                                input_bindings.rows().count(),
-                                output_bindings.rows().count(),
-                            ),
-                        );
                         continue;
                     }
                     if !output_bindings.rows().all(|(binding, path)| {
@@ -733,13 +650,6 @@ mod body_conservation {
                                 )
                             })
                     }) {
-                        trace_completion(
-                            machine,
-                            state,
-                            statement_index,
-                            expression,
-                            format_args!("plan={plan_index} output-domain-refused"),
-                        );
                         continue;
                     }
                     let inputs = input_bindings.publish(facts);
@@ -758,28 +668,9 @@ mod body_conservation {
                     };
                     let available =
                         observe_body_inputs(program, facts.view(), &conservation, places);
-                    let available = match available {
-                        Ok(available) => available,
-                        Err(reason) => {
-                            trace_completion(
-                                machine,
-                                state,
-                                statement_index,
-                                expression,
-                                format_args!("plan={plan_index} available-inputs={reason}"),
-                            );
-                            continue;
-                        }
+                    let Ok(available) = available else {
+                        continue;
                     };
-                    trace_completion(
-                        machine,
-                        state,
-                        statement_index,
-                        expression,
-                        format_args!(
-                            "plan={plan_index} published inputs={inputs:?} outputs={outputs:?}"
-                        ),
-                    );
                     facts
                         .qualifications
                         .content
@@ -942,15 +833,6 @@ mod body_conservation {
                     } else {
                         Vec::new()
                     };
-                    trace_completion(
-                        machine,
-                        state,
-                        captured.statement_index,
-                        captured.expression,
-                        format_args!(
-                            "candidate plan={plan_index} shared={shared} admitted={admitted} domains={proven_domains:?}",
-                        ),
-                    );
                     (
                         position,
                         ConservationCandidate {

@@ -15420,28 +15420,6 @@ pub(crate) mod write_frames {
                         .to_owned()
                     })
                 })();
-                if let Ok(filter) = std::env::var("OMEGA_RECEIVING_TRACE") {
-                    let name = current_machine.name.as_str();
-                    if filter == "1"
-                        || filter.split(',').any(|selected| {
-                            name == selected || name.rsplit("::").next() == Some(selected)
-                        })
-                    {
-                        static EVENTS: std::sync::atomic::AtomicUsize =
-                            std::sync::atomic::AtomicUsize::new(0);
-                        if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 32 {
-                            let target = match site {
-                                crate::CallSite::Statement(call) => call.target.as_str(),
-                                crate::CallSite::Expression { call, .. } => call.target.as_str(),
-                                crate::CallSite::TransitionNamed { .. } => "named transition",
-                            };
-                            eprintln!(
-                                "RECEIVING signature-write-frame machine={name} target={target} result={:?}",
-                                written.as_ref().map(Vec::len).map_err(String::as_str)
-                            );
-                        }
-                    }
-                }
                 match written {
                     Ok(paths) => NormalizedWriteFrame::complete(paths),
                     Err(reason) => {
