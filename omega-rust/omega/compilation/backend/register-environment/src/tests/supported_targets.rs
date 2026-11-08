@@ -1,3 +1,10 @@
+/*
+We verify that every supported native target constructs a closed register
+environment whose selected constraint keys match the target's machine-effect
+catalog and expose valid constraint rows for core arithmetic, memory, and call
+primitives.
+*/
+
 use super::super::baseline_target_register_environment;
 use isa_aarch64::{
     AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_COPY_I64, AARCH64_SUBTRACT_I64,

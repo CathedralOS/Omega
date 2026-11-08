@@ -1,6 +1,15 @@
-//! The calling-plan vocabulary: registers and register sets, value classes,
-//! shapes and locations, call signatures, policies, entry control, the call
-//! plan, machine states and regimes, entry stacks and preemption.
+/*
+We define our calling-plan and machine-state vocabulary: machine registers and
+canonical register sets, value classes (`ValueClass`, `SystemVEightbyteClass`),
+value shapes (`ValueShape`) and placement locations (`ValueLocation`,
+`ValuePlacement`), call signatures and policies (`CallSignature`,
+`CallingPolicy`, `CallPlan`), and machine-state entry contracts (`MachineState`,
+`MachineStateSet`, `MachineRegime`, `EntryStack`, `Preemption`, `StatePlan`).
+We also provide the canonical byte-stream identity encoding of `StatePlan`
+(`encode_state_plan_identity`) using one-based variant tags and little-endian
+fields, which stays distinct from `Fnv1a::state_plan`'s zero-based compact
+call-plan identity.
+*/
 
 use crate::callback_materializations::CallbackMaterialization;
 use semantic_vocabulary::{IntegerType, ScalarType};
@@ -30,13 +39,7 @@ pub enum MachineRegister {
 }
 
 impl MachineRegister {
-    /// Stable ordinal for identity hashing and serialized relocation
-    /// records: x86-64 general registers occupy 0–15, XMM lanes 32–47,
-    /// AArch64 general registers 64–95, and vector lanes 128–159.
     pub const fn codec_index(self) -> u8 {
-        // Each register bank's base and lane count, indexed by the class
-        // `wire_class_index` publishes. A lane beyond its bank wraps inside
-        // it, so no codec index aliases another register file.
         const BANK_BASE: [u8; 5] = [0, 0, 32, 64, 128];
         const BANK_LANES: [u8; 5] = [1, 16, 16, 32, 32];
         let (class, index) = self.wire_class_index();
@@ -44,9 +47,6 @@ impl MachineRegister {
         BANK_BASE[bank] + index % BANK_LANES[bank]
     }
 
-    /// The wire class/index pair serialized register fields and digests use:
-    /// x86-64 general registers are class 1, XMM lanes class 2, AArch64
-    /// general registers class 3, and vector lanes class 4.
     pub const fn wire_class_index(self) -> (u8, u8) {
         match self {
             Self::X86Rax => (1, 0),
@@ -129,13 +129,7 @@ pub enum SystemVEightbyteClass {
 pub enum ValueClass {
     Integer,
     Float,
-    /// A pointer to caller-owned aggregate storage. `ValueShape::byte_size`
-    /// and `alignment` describe the referent, while the call placement carries
-    /// exactly one pointer and never allocates a caller-side value copy.
     BorrowedReference,
-    /// Internal scalar loan: a pointer to an address-plus-codec descriptor.
-    /// Geometry measures the descriptor, never the scalar's semantic carrier.
-    /// This is not the thin foreign-pointer ABI.
     BorrowedScalarReference,
     HomogeneousFloatAggregate {
         members: u8,
@@ -149,17 +143,11 @@ pub enum ValueClass {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ValueShape {
     pub class: ValueClass,
-    /// Complete value or borrowed referent extent, not a register fragment.
-    /// Keep the same range as native storage coordinates so a small pointer
-    /// can borrow a record whose arrays exceed 64 KiB.
     pub byte_size: u32,
     pub alignment: u16,
 }
 
 impl ValueShape {
-    /// The carried shape of an integer scalar for foreign-call transport: the
-    /// retained hosted address model uses a 64-bit integer-class slot, while
-    /// its semantic carrier remains an address throughout replay.
     pub fn for_integer(integer: IntegerType) -> Option<Self> {
         if integer.is_address() && integer.bits() == 64 {
             return Some(Self::integer(8, 8));
@@ -173,9 +161,6 @@ impl ValueShape {
         Some(Self::integer(u32::from(bytes), bytes))
     }
 
-    /// The carried shape of a scalar for foreign-call transport: fixed-width
-    /// integers take the integer-class slot of their byte extent, Booleans one
-    /// byte, and IEEE floats their interchange size.
     pub fn for_scalar(scalar_type: ScalarType) -> Option<Self> {
         match scalar_type {
             ScalarType::Boolean => Some(Self::integer(1, 1)),
@@ -245,9 +230,6 @@ pub struct CallSignature {
 }
 
 impl CallSignature {
-    /// The signature of a call boundary whose transports are placements:
-    /// each parameter's carried shape in order, plus the result's when the
-    /// call returns a value.
     pub fn of_placements(parameters: &[ValuePlacement], result: Option<&ValuePlacement>) -> Self {
         Self {
             parameters: parameters.iter().map(|placement| placement.shape).collect(),
@@ -263,22 +245,12 @@ pub enum ValueLocation {
         value_byte_offset: u32,
         byte_size: u32,
     },
-    /// Fragment resident in the ABI's incoming stack-argument area. This
-    /// offset deliberately excludes return addresses and callee prologue
-    /// storage; the inbound target encoder adds those target-specific biases.
     Stack {
         stack_byte_offset: u32,
         value_byte_offset: u32,
         byte_size: u32,
         alignment: u16,
     },
-    /// A value passed indirectly through a pointer. Parameters larger than the
-    /// ABI's direct-value ceiling carry a pointer to a caller-owned stack copy;
-    /// large results carry a pointer to their final caller-owned destination
-    /// and therefore have no copy slot. The copy offset starts a reserved
-    /// interval; over-aligned values round the absolute address upward inside
-    /// it. Reservation includes `alignment - stack_alignment` padding when
-    /// positive, not just payload bytes.
     Indirect {
         pointer: IndirectPointerLocation,
         copy_stack_byte_offset: Option<u32>,
@@ -288,8 +260,6 @@ pub enum ValueLocation {
 }
 
 impl ValueLocation {
-    /// The one construction of a register-resident placement row: fragment
-    /// `value_byte_offset` bytes into `register` with `byte_size` payload.
     pub const fn register(
         register: MachineRegister,
         value_byte_offset: u32,
@@ -302,7 +272,6 @@ impl ValueLocation {
         }
     }
 
-    /// The one construction of an incoming-stack-area placement row.
     pub const fn stack(
         stack_byte_offset: u32,
         value_byte_offset: u32,
@@ -317,7 +286,6 @@ impl ValueLocation {
         }
     }
 
-    /// The one construction of an indirect (pointer-carried) placement row.
     pub const fn indirect(
         pointer: IndirectPointerLocation,
         copy_stack_byte_offset: Option<u32>,
@@ -332,9 +300,6 @@ impl ValueLocation {
         }
     }
 
-    /// The register this location resolves to directly: a `Register`
-    /// placement, or an `Indirect` whose pointer lives in a register. Stack
-    /// placements and stack-resident indirect pointers resolve to none.
     pub fn direct_register(&self) -> Option<MachineRegister> {
         match self {
             Self::Register { register, .. }
@@ -360,9 +325,6 @@ pub enum IndirectPointerLocation {
     },
 }
 
-/// The byte size of a single placed value whose content starts at offset
-/// zero — the `Register`-or-`Stack` shape placement checks everywhere restate
-/// as a match arm when they only need that one fact.
 pub fn byte_size_at_offset_zero(locations: &[ValueLocation]) -> Option<u32> {
     match locations {
         [
@@ -390,9 +352,6 @@ pub struct ValuePlacement {
 }
 
 impl ValuePlacement {
-    /// One complete scalar result, either in a register or in caller-owned
-    /// storage addressed by the admitted result pointer. This checks transport
-    /// extent; signature admission still establishes the semantic scalar shape.
     pub fn is_complete_scalar_result(&self) -> bool {
         match self.locations.as_slice() {
             [
@@ -414,13 +373,6 @@ impl ValuePlacement {
         }
     }
 
-    /// Compare an internal parameter's physical transport with a boundary's.
-    /// Borrowed aggregate shapes measure the referent and use an indirect
-    /// location, while a foreign signature describes the thin pointer word.
-    /// The two carry the same address only at the exact same register or stack
-    /// location, with no value copy. Owned indirect aggregates and internal
-    /// scalar-loan descriptors are not thin borrowed pointers. This comparison
-    /// establishes transport only; the admitted signature owns referent custody.
     pub fn has_same_parameter_transport(&self, boundary: &Self) -> bool {
         if self == boundary {
             return true;
@@ -472,8 +424,6 @@ impl ValuePlacement {
         }
     }
 
-    /// The byte width carried by the placement when it is exactly one
-    /// register or stack word starting at value offset zero.
     pub fn single_word_byte_size(&self) -> Option<u32> {
         byte_size_at_offset_zero(&self.locations)
     }
@@ -489,12 +439,6 @@ pub enum CallingPolicy {
 }
 
 impl CallingPolicy {
-    /// The architecture-fixed scratch a field-destination materialization
-    /// encodes through (`lea`/`adrp`+`add`, then the private-slot store). It
-    /// is never an integer-bank parameter register and is already inside the
-    /// call's clobber footprint under either supported ABI, so a callback row
-    /// declares its units as implicit uses exactly when at least one
-    /// destination is a record field.
     pub const fn callback_field_scratch(self) -> MachineRegister {
         match self.architecture() {
             Architecture::X86_64 => MachineRegister::X86R11,
@@ -502,8 +446,6 @@ impl CallingPolicy {
         }
     }
 
-    /// Registers used while inserting fragments into a private record.
-    /// Every one must be free of incoming arguments until the call begins.
     pub const fn callback_fragment_scratch(self) -> &'static [MachineRegister] {
         match self.architecture() {
             Architecture::X86_64 => &[
@@ -528,9 +470,6 @@ impl CallingPolicy {
         }
     }
 
-    /// The policy a `ProgramEntryCallingConvention` selects: program-entry
-    /// spellings name ABI families, not syscall conventions, so the three
-    /// variants map one-to-one onto the callable policies.
     pub const fn for_program_entry_convention(
         convention: target::ProgramEntryCallingConvention,
     ) -> Self {
@@ -541,10 +480,6 @@ impl CallingPolicy {
         }
     }
 
-    /// The native callable matrix declares each supported (architecture,
-    /// object-format) pair instead of defaulting per architecture: a pair
-    /// with no declared policy fails closed rather than silently inheriting
-    /// an ABI. Adding a supported target extends this matrix deliberately.
     pub const fn native_for_target(target: target::NativeTarget) -> Self {
         match (target.architecture, target.object_format) {
             (Architecture::X86_64, target::ObjectFormat::Coff) => Self::MicrosoftX64,
@@ -560,15 +495,6 @@ impl CallingPolicy {
         }
     }
 
-    /// The syscall callable matrix declares which supported targets carry a
-    /// second boundary mechanism beside the C call answered by
-    /// [`native_for_target`]: reaching the kernel directly through the Linux
-    /// syscall ABI. `Some` selects that policy for direct-syscall boundary
-    /// declarations; `None` means the declared pair's boundary is exclusively
-    /// C-called (Windows imports, Darwin dyld stubs, UEFI services). Pairs
-    /// with no declared syscall row fail closed like `native_for_target`, so
-    /// a new supported target extends this matrix deliberately rather than
-    /// silently inheriting or silently dropping a syscall mechanism.
     pub const fn native_syscall_for_target(target: target::NativeTarget) -> Option<Self> {
         match (target.architecture, target.object_format) {
             (Architecture::X86_64, target::ObjectFormat::Elf) => Some(Self::LinuxSyscallX86_64),
@@ -584,15 +510,8 @@ impl CallingPolicy {
         }
     }
 
-    /// The registers this policy's ordinary call or syscall abandons: the
-    /// caller-saved bank every evaluated plan names, every entry replay
-    /// retains, and every entry plan's machine-state ceiling derives from.
-    /// One table serves them all, so a policy change lands here rather than
-    /// in each replay's private copy. `RegisterSet` canonicalizes order.
     pub fn ordinary_clobbers(self) -> RegisterSet {
         match self {
-            // Microsoft x64: the seven volatile integer registers plus the
-            // six volatile vector registers.
             Self::MicrosoftX64 => RegisterSet::new(
                 [
                     MachineRegister::X86Rax,
@@ -606,8 +525,6 @@ impl CallingPolicy {
                 .into_iter()
                 .chain((0..=5).map(MachineRegister::X86Xmm)),
             ),
-            // System V AMD64: the nine integer argument/return registers plus
-            // all sixteen vector registers.
             Self::SystemVAMD64 => RegisterSet::new(
                 [
                     MachineRegister::X86Rax,
@@ -623,23 +540,17 @@ impl CallingPolicy {
                 .into_iter()
                 .chain((0..=15).map(MachineRegister::X86Xmm)),
             ),
-            // AAPCS64: the eighteen integer argument/scratch registers (x18
-            // is platform-reserved) plus every volatile vector register.
             Self::Aapcs64 => RegisterSet::new(
                 (0..=17)
                     .map(MachineRegister::Aarch64X)
                     .chain((0..=7).map(MachineRegister::Aarch64V))
                     .chain((16..=31).map(MachineRegister::Aarch64V)),
             ),
-            // Linux x86-64 syscall: rcx and r11 hold the return address and
-            // flags the `syscall` instruction itself clobbers.
             Self::LinuxSyscallX86_64 => RegisterSet::new([
                 MachineRegister::X86Rax,
                 MachineRegister::X86Rcx,
                 MachineRegister::X86R11,
             ]),
-            // Linux AArch64 syscall: the six argument registers plus x8, the
-            // supervisor-call number register.
             Self::LinuxSyscallAarch64 => RegisterSet::new(
                 (0..=5)
                     .map(MachineRegister::Aarch64X)
@@ -763,21 +674,6 @@ pub struct StatePlan {
     pub preemption: Preemption,
 }
 
-/// The canonical byte-stream identity encoding of [`StatePlan`].
-///
-/// The one-based variant tags written here and the little-endian field order
-/// that follows them *are* the identity: legalized normalized-foreign-call
-/// identities and the register-home fixed-view-copy wire rows that replay them
-/// hash exactly these bytes, so a changed tag or a reordered field changes
-/// every artifact that carries a boundary-entry state plan. Consumers must
-/// call this function rather than repeat the table; a second copy is how two
-/// crates that must agree drift apart silently, since both keep compiling and
-/// only a mismatched identity ever reveals it.
-///
-/// This is deliberately *not* the same table as
-/// [`super::plan_identity::Fnv1a::state_plan`], which writes zero-based tags
-/// into the compact call-plan identity. Both encodings are already ratified;
-/// merging them would change one of the two.
 pub fn encode_state_plan_identity(bytes: &mut Vec<u8>, state: &StatePlan) {
     match state.initial_regime {
         MachineRegime::X86Long64 => bytes.push(1),
@@ -821,8 +717,6 @@ pub(crate) const fn system_v_eightbyte_class_code(class: SystemVEightbyteClass) 
 }
 
 pub(crate) const fn register_code(register: MachineRegister) -> u16 {
-    // The same class/index pairs `wire_class_index` publishes, spread one
-    // byte apart so the ordering key compares register file before lane.
     let (class, index) = register.wire_class_index();
     ((class as u16 - 1) << 8) | index as u16
 }

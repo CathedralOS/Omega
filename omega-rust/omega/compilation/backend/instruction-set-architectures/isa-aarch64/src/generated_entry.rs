@@ -1,4 +1,10 @@
-//! Closed target replay of the forms emitted by native entry/frame transport.
+/*
+We replay and validate generated AArch64 entry and frame-transport instruction
+words (`decode_aarch64_generated_entry`), reconstructing exact register reads,
+register writes, stack touches, vector touches, and terminal branch targets from
+the emitted 32-bit A64 words without trusting producer summaries.
+*/
+
 use crate::selected_form_encoding::decoding::{DecodedWord, decode_words};
 use calling_conventions::{
     GeneratedEntryControl as Control, GeneratedEntryEvidence, GeneratedEntryInstruction,
@@ -58,7 +64,6 @@ fn instruction(word: u32, offset: u32) -> Result<(Effects, Control), String> {
             field_byte_offset: offset,
         };
     } else if word == 0xd503_201f {
-        // NOP is a real covered instruction, not an unclassified byte gap.
     } else if word >> 31 == 1 && word & 0x1f80_0000 == 0x1100_0000 {
         let sets_flags = word & (1 << 29) != 0;
         effects.read(source, true, false);
@@ -104,7 +109,6 @@ fn instruction(word: u32, offset: u32) -> Result<(Effects, Control), String> {
         && destination != 31
         && valid_logical_immediate(word)
     {
-        // AND immediate used by absolute aligned homes; S is clear.
         effects.read(source, false, false);
         effects.write(destination, false, false);
     } else if word & 0xffe0_ffe0 == 0xaa00_03e0 {
@@ -119,8 +123,6 @@ fn instruction(word: u32, offset: u32) -> Result<(Effects, Control), String> {
 }
 
 fn valid_logical_immediate(word: u32) -> bool {
-    // DecodeBitMasks rejects an absent element size and an all-ones element.
-    // The encoded rotation cannot change validity once that size is known.
     let imms = (word >> 10) & 63;
     let size_encoding = ((word >> 16) & 64) | (!imms & 63);
     if size_encoding < 2 {
@@ -199,7 +201,6 @@ mod tests {
         for word in [0x9180_0000u32, 0x9200_fc00] {
             assert!(decode_aarch64_generated_entry(&word.to_le_bytes(), None).is_err());
         }
-        // Valid AND X0,X0,#-16; ordinary stack arithmetic remains separately covered.
         assert!(decode_aarch64_generated_entry(&0x927c_ec00u32.to_le_bytes(), None).is_ok());
         let stack = decode_aarch64_generated_entry(&0xd100_43ffu32.to_le_bytes(), None).unwrap();
         assert!(

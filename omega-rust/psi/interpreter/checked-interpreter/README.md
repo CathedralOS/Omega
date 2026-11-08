@@ -30,17 +30,20 @@ machine by name.
 
 Follow the operation into its subordinate owner:
 
-- [interpreter/evaluator.rs](src/interpreter/evaluator.rs) owns invocation-local
-  runtime state; its [execution methods](src/interpreter/evaluator/execution.rs)
-  bind entries, execute machines, and recover values from interpreter storage.
-  Expression, statement/call, value, and filesystem operations live below it.
-- [filesystem.rs](src/filesystem.rs) owns path authority, metadata layouts, and
-  exact operation-attempt vocabulary.
+- [interpreter.rs](src/interpreter.rs) owns invocation-local
+  runtime state (`Evaluator`); [execution.rs](src/execution.rs),
+  [execution_expressions.rs](src/execution_expressions.rs),
+  [execution_scalars.rs](src/execution_scalars.rs),
+  [program_values.rs](src/program_values.rs), and
+  [build_machine.rs](src/build_machine.rs) bind entries, execute machines, and
+  recover values from interpreter storage.
+- [filesystem.rs](src/filesystem.rs) and
+  [filesystem_real.rs](src/filesystem_real.rs) own path authority, metadata
+  layouts, operation-attempt vocabulary, call preparation, and the virtual and
+  physical providers.
 - [evaluation.rs](src/evaluation.rs) owns measured work, observations, included
-  sources, and result/failure records. Those records do not grant execution authority.
-- [filesystem_sponsor.rs](src/filesystem_sponsor.rs) and
-  [build_evaluation_sponsor.rs](src/build_evaluation_sponsor.rs) retain the separate
-  filesystem-storage and evaluator-resource accounts.
+  sources, result/failure records, build-evaluation sponsor/usage exports, and
+  virtual clock bindings. Those records do not grant execution authority.
 
 Focused coverage is in `tests/const_values.rs`, `tests/build_arguments.rs`, and
 `tests/resolved_state_execution.rs`, with filesystem preparation, output custody,

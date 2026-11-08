@@ -1,4 +1,10 @@
-//! Close semantic formals and native-only callback arguments in authored order.
+/*
+We close semantic formals and native-only direct callback arguments in authored
+order (`NativeParameterTelescope`), enforcing fresh compact parameter
+identities, contiguous zero-based native ordinals, and admitted 8/8 target
+function-pointer shapes while deriving direct callback demands directly from the
+emitted rows.
+*/
 
 use crate::{
     BoundaryNativeParameterGeometry, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
@@ -12,8 +18,6 @@ pub struct NativeParameterTelescope {
 }
 
 impl BoundaryNativeParameterShape {
-    /// The admitted targets use one 64-bit function pointer. A different
-    /// representation needs its own ABI admission, not a truncated address.
     pub fn function_pointer(target: NativeTarget) -> Result<Self, String> {
         if target.pointer_size != 8 || target.pointer_alignment != 8 {
             return Err(format!(
@@ -29,9 +33,6 @@ impl BoundaryNativeParameterShape {
 }
 
 impl NativeParameterTelescope {
-    /// Preserve semantic shape/identity correspondence while filling native-only
-    /// arguments. Compact IDs and native ordinals must each name one parameter;
-    /// gaps are not another ABI and cannot silently shift a callback address.
     pub fn close(
         semantic: impl IntoIterator<Item = BoundaryNativeParameterGeometry>,
         callbacks: impl IntoIterator<Item = CallingDirectCallback>,
@@ -82,8 +83,6 @@ impl NativeParameterTelescope {
         Ok(Self { parameters })
     }
 
-    /// The emitted rows retain every direct obligation; no parallel request
-    /// roster is needed to recover the callback identity or requirement.
     pub fn direct_demands(&self) -> impl Iterator<Item = NativeCallbackDemand> + '_ {
         self.parameters
             .iter()

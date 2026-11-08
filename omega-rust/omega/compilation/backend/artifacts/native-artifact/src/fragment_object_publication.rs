@@ -1,4 +1,11 @@
-//! Publish machine fragments as an object with admitted entry custody.
+/*
+We emit function-fragment objects (`emit_fragment_object`) and compose them
+with compiler-private callback objects and admitted program-entry bindings
+(`publish_fragment_object`). We verify that the resulting `ObjectArtifact`
+carries the exact hosted receiver or UEFI physical entry binding required by the
+admitted `ValidatedNativeProgramEntrySettlement` before returning a
+`PublishedFragmentObject`.
+*/
 
 use diagnostics::Diagnostic;
 
@@ -6,22 +13,11 @@ use crate::NativePhysicalEvidenceScope;
 use crate::native_artifact_error;
 use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 
-/// Entry custody and companion functions for one emitted object.
 pub struct FragmentObjectPublicationRequest<'request> {
-    /// The validated admission custody the binder must satisfy exactly. This
-    /// is the replayed settlement, not the caller-supplied declaration: its
-    /// source signature, storage contract, and Fused establishment roster were
-    /// already joined against the canonical artifact before reaching emission.
     pub program_entry: Option<&'request ValidatedNativeProgramEntrySettlement>,
-    /// The materialized compiler-private callback functions, in placement
-    /// order. Each record carries real emitted bytes produced by the shared
-    /// physical pipeline inside this same realization.
     pub private_functions: &'request [image_emission::PrivateFunctionObject],
 }
 
-/// The ordinary module projection and its original fragment custody.
-/// Emitting this before discovering callback bodies prunes dead destinations
-/// through the normal optimizer, rather than publishing orphan private code.
 pub struct FragmentObjectProjection {
     source: std::sync::Arc<object_file::StagedOptimizedRelocationFreeObjectContainer>,
     object: image_emission::ObjectArtifact,
@@ -32,11 +28,6 @@ impl FragmentObjectProjection {
         &self.object
     }
 
-    /// Borrow the entry transport that ordinary instruction selection consumed.
-    /// Scalar and mixed ABI summaries describe subsets of signatures; the
-    /// retained control graph carries the complete plan, including borrowed
-    /// referents, owned aggregates and resultless entries. Reading it does not
-    /// reconstruct or replay a plan after emission.
     pub fn entry_call_plan(&self) -> Result<&calling_conventions::CallPlan, Vec<Diagnostic>> {
         let targeted = self
             .source
@@ -64,14 +55,11 @@ impl FragmentObjectProjection {
     }
 }
 
-/// One emitted object and the custody retained by its publication checks.
 pub struct PublishedFragmentObject {
     pub object: image_emission::ObjectArtifact,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
 }
 
-/// Compose the already emitted modules and bind the admitted entry before
-/// capturing publication evidence. No producing stage is replayed here.
 pub fn publish_fragment_object(
     projection: FragmentObjectProjection,
     request: FragmentObjectPublicationRequest<'_>,
@@ -80,12 +68,7 @@ pub fn publish_fragment_object(
     let mut object =
         image_emission::compose_private_function_objects(object, request.private_functions)
             .map_err(|error| native_artifact_error("private object composition", error))?;
-    // The publication receipt retains the complete immutable object, including
-    // entry metadata. Bind before capture; later equality must still reject
-    // any replacement, omission or mutation of that checked binding.
     if let Some(entry) = request.program_entry {
-        // Every bound loan needs its exact initialized recipe and an implemented
-        // target-owned lender; unsupported entry families still fail closed.
         if entry.access_view_establishments().len() != entry.private_entry_ram().len()
             || entry
                 .access_view_establishments()
@@ -175,15 +158,10 @@ pub fn publish_fragment_object(
     validate_emitted_receiver_binding(&object, request.program_entry)?;
     Ok(PublishedFragmentObject {
         object,
-        // Publication consumes the object produced by this compile. Separate
-        // retained-artifact checks do not supply physical evidence here
-        // (pipeline.md, verification placement).
         physical_evidence_scope: NativePhysicalEvidenceScope::Unavailable,
     })
 }
 
-/// Produce an ordinary module object, without fabricating application entry custody.
-/// Root publication and private callback bodies share this emission operation.
 pub fn emit_fragment_object(
     emission: machine_emission::StagedOptimizedFunctionFragmentEmissionSource,
 ) -> Result<FragmentObjectProjection, Vec<Diagnostic>> {
@@ -208,12 +186,6 @@ pub fn emit_fragment_object(
     Ok(FragmentObjectProjection { source, object })
 }
 
-/// Admission is demand, not construction. The emitted object must carry a
-/// hosted receiver binding iff one was admitted, and that binding must be the
-/// validated settlement's exact source signature and physical contract — a
-/// missing binding is bypassed provisioning, and a substituted one binds a
-/// different continuation, receiver, or arrival contract than the checked
-/// source selected.
 fn validate_emitted_receiver_binding(
     object: &image_emission::ObjectArtifact,
     admitted: Option<&ValidatedNativeProgramEntrySettlement>,
@@ -230,9 +202,6 @@ fn validate_emitted_receiver_binding(
         };
     };
     if settlement.source().target_slot().owner == target::TargetProfile::UefiX64 {
-        // Source owns firmware bootstrap and calls the semantic continuation
-        // with already established arguments. The image owns ABI transport and
-        // the retained private stack, not firmware policy or root authority.
         return if binding.is_none()
             && object.physical_entry_binding().is_some_and(|binding| {
                 binding.semantic_entry() == settlement.checked_entry().terminal_entry()

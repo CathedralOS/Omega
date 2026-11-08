@@ -1,34 +1,25 @@
-//! Selected provider evidence: the closure of provider plans a selection actually
-//! reached — which provider realizes each boundary requirement — and its
-//! digest. The retained evidence beside it: `providers` records provider
-//! plans, approvals and boundary-call audits; `authority` the terminal
-//! authority dispositions and service permissions; `executable_scopes` the
-//! executable bytes, services and behavior exclusions admitted into a scope;
-//! `component_eras` the era ledger and progress manifests.
-//! Selected requirement identities are interned when plans enter the closure,
-//! before optional specialization or family relations are attached. Execution
-//! receipts use this closure-local table, not a plan's unrelated coordinates.
+/*
+We retain the selected provider closure (`SelectedProviderPlanFacts`), its
+domain-separated SHA-256 digest (`SelectedProviderClosureDigest`), and the
+compiler-private recovery candidate (`SelectedProviderPlanCandidate`). When
+plans enter the closure, we validate unique plan identities and boundary slots
+and intern requirement identities into a closure-local `TerminalIdentityTable`
+before attaching installation reach, template specialization rows, closed
+external requirement applications, or target-family realization coordinates.
+*/
 
 pub(crate) mod authority;
 pub(crate) mod component_eras;
 pub(crate) use optimization_core::digest_encoder;
 pub(crate) mod executable_scopes;
-mod external_requirements;
-mod retention;
-pub use retention::SelectedProviderPlanCandidate;
 pub(crate) mod providers;
-pub use external_requirements::SelectedExternalRequirementApplication;
 
 use crate::provider_evidence::digest_encoder::DomainDigestEncoder;
 use crate::provider_evidence::providers::provider_plan::DigestFeed;
-use crate::provider_plan::ProviderPlan;
+use crate::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanDigest};
 use std::collections::BTreeSet;
+use terminal_psi::{TerminalIdentityIndex, TerminalIdentityTable};
 
-#[cfg(test)]
-mod installation_tests;
-
-/// Strong `[u8; 32]` evidence digests: `from_digest` constructs at the
-/// visibility the caller's contract needs, `as_bytes` hands back the bytes.
 macro_rules! evidence_digest {
     ($(#[$attr:meta])* $name:ident, from: $(#[$fdoc:meta])* $fv:vis) => {
         $(#[$attr])*
@@ -65,23 +56,8 @@ macro_rules! evidence_digest {
 
 pub(crate) use evidence_digest;
 
-evidence_digest!(
-    /// Collision-resistant identity of one complete selected-provider
-    /// closure.
-    ///
-    /// This commits the exact selected plans and every attached closure
-    /// fact. The existing compact normalized identity remains a
-    /// compatibility/report coordinate and must not authorize artifact
-    /// replay by itself.
-    SelectedProviderClosureDigest
-);
+evidence_digest!(SelectedProviderClosureDigest);
 
-/// The exact provider plans selected by the compiler for one checked program.
-///
-/// Candidates remain ordinary policy values. This carrier retains only the
-/// fully covering candidates selected for the concrete target, in canonical
-/// name order, so later provider execution and generated-machine lowering do
-/// not have to rediscover selection from source declarations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssumedBindingContractSelection {
     pub required: String,
@@ -89,26 +65,36 @@ pub struct AssumedBindingContractSelection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedExternalRequirementApplication {
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_digest: ProviderPlanDigest,
+    pub selected_requirement_identity: TerminalIdentityIndex,
+    pub requirement_identity: TerminalIdentityIndex,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct SelectedProviderPlanCandidate {
+    pub plans: Vec<ProviderPlan>,
+    pub assumed_bindings: Vec<AssumedBindingContractSelection>,
+    pub report_fingerprint: u64,
+    pub installation_reach_resolutions: Vec<InstallationReachResolution>,
+    pub specialized_requirement_rows: Vec<SelectedRequirementSpecialization>,
+    pub external_requirement_applications: Vec<SelectedExternalRequirementApplication>,
+    pub family_realization_rows: Vec<SelectedTargetFamilyRealization>,
+    pub toolchain_settled_identities: BTreeSet<u64>,
+    pub identities: terminal_psi::TerminalIdentityTable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProviderPlanFacts {
     plans: Vec<ProviderPlan>,
     assumed_bindings: Vec<AssumedBindingContractSelection>,
-    /// Compact report coordinate. Authority retains `plans` and is exposed by
-    /// `identity_digest()`.
     report_fingerprint: u64,
     installation_reach_resolutions: Vec<InstallationReachResolution>,
-    /// Template-keyed selected rows rebound to their exact closed requirement
-    /// instances once specialization evidence exists.
     specialized_requirement_rows: Vec<SelectedRequirementSpecialization>,
     external_requirement_applications: Vec<SelectedExternalRequirementApplication>,
-    /// Exact family aliases of selected rows, closed against one Terminal artifact.
     family_realization_rows: Vec<SelectedTargetFamilyRealization>,
-    /// Compact identities of the members settled by the toolchain itself
-    /// (canonical-host mints). Report surfaces use this to label their
-    /// provenance honestly instead of reporting them as ungranted
-    /// dev-active packages.
     toolchain_settled_identities: BTreeSet<u64>,
-    /// Closure-local terminal identity table every interned `*identity`
-    /// field on the retained rows resolves against.
     identities: terminal_psi::TerminalIdentityTable,
 }
 
@@ -129,8 +115,31 @@ impl Default for SelectedProviderPlanFacts {
 }
 
 impl SelectedProviderPlanFacts {
-    /// Root-selected conditional relationships stay beside ordinary plans.
-    /// They never become checked conformance rows or direct-supplier guarantees.
+    pub fn recovery_candidate(&self) -> SelectedProviderPlanCandidate {
+        let Self {
+            plans,
+            assumed_bindings,
+            report_fingerprint,
+            installation_reach_resolutions,
+            specialized_requirement_rows,
+            external_requirement_applications,
+            family_realization_rows,
+            toolchain_settled_identities,
+            identities,
+        } = self;
+        SelectedProviderPlanCandidate {
+            plans: plans.clone(),
+            assumed_bindings: assumed_bindings.clone(),
+            report_fingerprint: *report_fingerprint,
+            installation_reach_resolutions: installation_reach_resolutions.clone(),
+            specialized_requirement_rows: specialized_requirement_rows.clone(),
+            external_requirement_applications: external_requirement_applications.clone(),
+            family_realization_rows: family_realization_rows.clone(),
+            toolchain_settled_identities: toolchain_settled_identities.clone(),
+            identities: identities.clone(),
+        }
+    }
+
     pub fn with_assumed_bindings(mut self, rows: Vec<AssumedBindingContractSelection>) -> Self {
         self.assumed_bindings = rows;
         self
@@ -188,10 +197,6 @@ impl SelectedProviderPlanFacts {
             .collect()
     }
 
-    /// Retain already-resolved provider plans without rejoining them through a
-    /// readable plan name. Authored selection paths belong before this
-    /// boundary; every plan here already carries its package-qualified slot,
-    /// provider, requirement, and realization provenance.
     pub fn from_selected_plans(mut plans: Vec<ProviderPlan>) -> Result<Self, String> {
         plans.sort_by(ProviderPlan::selection_order);
 
@@ -257,21 +262,6 @@ impl SelectedProviderPlanFacts {
         })
     }
 
-    /// Join one toolchain-settled canonical-host plan into this selected
-    /// closure.
-    ///
-    /// Provider settlement mints these plans for boundary services whose
-    /// canonical host is toolchain-owned (the accepted `FilesystemHost`
-    /// binding): no package may author `satisfies` conformances or
-    /// `select_provider` rows for that slot, so the toolchain retains the
-    /// per-target realization rows itself. The minted plan carries the exact
-    /// checked service schema and selected target, but it deliberately covers
-    /// only the leaves the toolchain can bind honestly on that target, so the
-    /// full-coverage check inside [`Self::from_selected_plans`] does not
-    /// apply. Demand-completeness still belongs to closure review: a demanded
-    /// leaf with no minted row resolves to zero selected rows and rejects
-    /// there, never here. Uniqueness, nonzero identity, and boundary-slot
-    /// invariants are unchanged.
     pub fn with_toolchain_settled_plan(mut self, plan: ProviderPlan) -> Result<Self, String> {
         if !self.installation_reach_resolutions.is_empty()
             || !self.specialized_requirement_rows.is_empty()
@@ -329,10 +319,6 @@ impl SelectedProviderPlanFacts {
         Ok(self)
     }
 
-    /// Whether this exact selected member was settled by the toolchain
-    /// rather than authored conformance selection. Exact structural
-    /// membership is required so a fingerprint-shaped substitute cannot
-    /// claim toolchain provenance.
     pub fn is_toolchain_settled(&self, plan: &ProviderPlan) -> bool {
         self.toolchain_settled_identities
             .contains(&plan.report_fingerprint())
@@ -343,9 +329,6 @@ impl SelectedProviderPlanFacts {
         &self.plans
     }
 
-    /// Extend an invocation's selection with exact demanded boundary callables.
-    /// The caller projects already-derived candidates through executable scope;
-    /// this does not classify mechanisms or grant package/runtime authority.
     pub fn with_direct_boundary_plans(mut self, plans: Vec<ProviderPlan>) -> Result<Self, String> {
         let checked = Self::from_selected_plans(plans)?;
         for plan in &checked.plans {
@@ -379,9 +362,6 @@ impl SelectedProviderPlanFacts {
         Ok(self)
     }
 
-    /// Compatibility/report lookup for existing compact-ID consumers. Code
-    /// making an admission or execution decision must use
-    /// [`Self::plan_by_exact_evidence`] instead.
     pub(crate) fn plan_by_report_fingerprint(
         &self,
         report_fingerprint: u64,
@@ -391,20 +371,11 @@ impl SelectedProviderPlanFacts {
             .find(|plan| plan.report_fingerprint() == report_fingerprint)
     }
 
-    /// Rejoin a compact provider-plan report identity only when the caller
-    /// also retains the complete selected plan evidence. The fingerprint is a
-    /// compatibility coordinate; exact structural equality is the authority
-    /// check, so a collision-equal substitute cannot select another plan.
     pub fn plan_by_exact_evidence(
         &self,
         report_identity: u64,
         exact_plan: &ProviderPlan,
     ) -> Option<&ProviderPlan> {
-        // Every constructor rejects a repeated plan and a fingerprint
-        // collision, so the one member structurally equal to `exact_plan` is
-        // the only member that can carry its fingerprint: comparing plans
-        // (which fails fast on the name) and rendering one fingerprint
-        // replaces rendering every member's.
         let selected = self.plans.iter().find(|plan| *plan == exact_plan)?;
         (selected.report_fingerprint() == report_identity).then_some(selected)
     }
@@ -413,13 +384,6 @@ impl SelectedProviderPlanFacts {
         self.report_fingerprint
     }
 
-    /// Re-derive the compact report coordinate from every roster this closure
-    /// retains. The roster is named here once: `plans`, installation reach,
-    /// specialized requirement rows, family realization rows and closed
-    /// external applications each join the fingerprint at this owner rather
-    /// than at the attachment method that happened to mutate them. Empty
-    /// rosters contribute nothing, so a closure with no attached evidence
-    /// keeps the plans-only coordinate.
     fn refresh_report_fingerprint(&mut self) {
         self.report_fingerprint = selected_closure_report_fingerprint(
             &self.plans,
@@ -431,15 +395,10 @@ impl SelectedProviderPlanFacts {
         );
     }
 
-    /// Non-authoritative compatibility/report identity retained for existing
-    /// artifact formats and diagnostics.
     pub const fn compatibility_report_identity(&self) -> u64 {
         self.report_fingerprint
     }
 
-    /// Domain-separated SHA-256 commitment to the complete exact selected
-    /// closure. Artifact replay must use this value or retain the complete
-    /// closure rather than relying on [`Self::compatibility_report_identity`].
     pub fn identity_digest(&self) -> SelectedProviderClosureDigest {
         let mut encoder = SelectedProviderClosureDigestEncoder::new();
         encoder.len(self.plans.len());
@@ -451,11 +410,8 @@ impl SelectedProviderPlanFacts {
             encoder.string(&row.required);
             encoder.string(&row.supplied);
         }
-        // This owner has no isolated-scope/opaque-executable admission route;
-        // the closure's own declared scope is what the encoder frames here, so
-        // the digest grammar's scope byte keeps its single definition.
         encoder.execution_scope(self.execution_scope());
-        encoder.len(0); // no opaque executable admissions
+        encoder.len(0);
 
         encoder.len(self.installation_reach_resolutions.len());
         for resolution in &self.installation_reach_resolutions {
@@ -499,15 +455,10 @@ impl SelectedProviderPlanFacts {
         crate::ExecutionScope::CallerAddressSpace
     }
 
-    /// The closure-local terminal identity table every retained `*identity`
-    /// field resolves against.
     pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
         &self.identities
     }
 
-    /// The rendered text one of this closure's retained interned coordinates
-    /// names; the zero coordinate renders as the empty field the encoders
-    /// wrote before interning.
     pub fn identity_text(&self, identity: terminal_psi::TerminalIdentityIndex) -> &str {
         identity_text(&self.identities, identity)
     }
@@ -516,13 +467,6 @@ impl SelectedProviderPlanFacts {
         self.plans.is_empty()
     }
 
-    /// Attach checked realization reach to provider-selected bounded
-    /// requirements. The requirement ceiling stays in the provider schema;
-    /// this row is derived implementation evidence used by root composition.
-    /// One requirement identity resolves once per selected plan — distinct
-    /// root traits inheriting the same requirement each retain their own row —
-    /// so the roster key is the (requirement identity, provider plan report
-    /// identity) pair.
     pub fn with_installation_reach_resolutions(
         mut self,
         mut resolutions: Vec<InstallationReachResolution>,
@@ -603,16 +547,6 @@ impl SelectedProviderPlanFacts {
         &self.installation_reach_resolutions
     }
 
-    /// Attach the template→closed requirement join derived from retained
-    /// specialization evidence. Provider plans derive before specialization
-    /// settlement, so a generic requirement's selected row retains the
-    /// authored template identities; Terminal boundary declarations and
-    /// provider candidates instead name the exact closed identities. These
-    /// rows rebind the selected closure to them without rewriting any
-    /// selected row: each record must name a selected plan's checked-adapter
-    /// row and its specialized instance, or a leaf row (import, intrinsic,
-    /// system call) that names the template as its own realization, and a
-    /// closed requirement resolves exactly once across the whole closure.
     pub fn with_specialized_requirement_rows(
         mut self,
         mut rows: Vec<SelectedRequirementSpecialization>,
@@ -680,8 +614,6 @@ impl SelectedProviderPlanFacts {
                             Some(plan.identity_text(*machine_identity))
                                 == self.identities.text(row.selected_machine_identity)
                         }
-                        // A leaf has no provider instance per closed tuple:
-                        // its row names the template as its own realization.
                         crate::provider_plan::ProviderBinding::Import { .. }
                         | crate::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
                         | crate::provider_plan::ProviderBinding::Syscall { .. } => {
@@ -705,16 +637,10 @@ impl SelectedProviderPlanFacts {
         Ok(self)
     }
 
-    /// The specialization roster: each row rebinds one template-keyed
-    /// selected row to one closed requirement instance and its specialized
-    /// provider instance.
     pub fn specialized_requirement_rows(&self) -> &[SelectedRequirementSpecialization] {
         &self.specialized_requirement_rows
     }
 
-    /// Native production obtains checked-body instances from Terminal's exact
-    /// candidate associations. Discard the source projection at that boundary;
-    /// leaf applications still need their separately retained binding custody.
     pub fn without_checked_specializations(mut self) -> Self {
         self.specialized_requirement_rows.retain(|specialization| {
             !self.plans.iter().any(|plan| {
@@ -734,9 +660,6 @@ impl SelectedProviderPlanFacts {
         self
     }
 
-    /// The roster row joining one closed requirement identity to its selected
-    /// plan row. A closed requirement belongs to one requirement template's
-    /// boundary slot, so it resolves once across the whole closure.
     pub fn specialized_requirement_row(
         &self,
         requirement_identity: &str,
@@ -747,9 +670,6 @@ impl SelectedProviderPlanFacts {
             .find(|row| row.requirement_identity == index)
     }
 
-    /// The roster rows under one selected plan row — every closed requirement
-    /// instance that template-keyed row serves through a specialized provider
-    /// instance.
     pub fn specialized_requirement_rows_for_row<'a>(
         &'a self,
         provider_plan_report_identity: u64,
@@ -762,9 +682,6 @@ impl SelectedProviderPlanFacts {
         })
     }
 
-    /// Every Terminal-facing requirement identity one selected plan row
-    /// serves: the roster's closed identities, or the row's own identity when
-    /// its requirement was never specialized, plus exact family aliases.
     pub fn selected_row_requirement_identities<'a>(
         &'a self,
         provider_plan_report_identity: u64,
@@ -805,8 +722,6 @@ impl SelectedProviderPlanFacts {
         identities
     }
 
-    /// Rejoin a Terminal identity to its selected row without changing the
-    /// original call's contract. Family and specialization custody stay distinct.
     pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> &'a str {
         if let Some(row) = self.family_realization_row(requirement) {
             return self.identity_text(row.selected_requirement_identity);
@@ -820,8 +735,6 @@ impl SelectedProviderPlanFacts {
             })
     }
 
-    /// Exact plan-scoped row matching, including retained family and closed
-    /// requirement coordinates. An alias cannot borrow a different plan's row.
     pub fn selected_row_matches_requirement(
         &self,
         requirement: &str,
@@ -846,12 +759,6 @@ impl SelectedProviderPlanFacts {
         requirement == selected_requirement
     }
 
-    /// The selected plan row serving one Terminal requirement identity, joined
-    /// through the same family and closed-requirement coordinates as
-    /// `selected_row_matches_requirement`. Selection resolves each requirement
-    /// to at most one row and each schema roster names a requirement once, so
-    /// the first match is the row; `None` means no provider was selected for
-    /// the requirement at all.
     pub fn selected_requirement_row(
         &self,
         requirement: &str,
@@ -889,10 +796,91 @@ impl SelectedProviderPlanFacts {
         })
     }
 
-    /// Attach the source producer's exact realization-to-row relation. This
-    /// checks closure consistency, not family membership or provider permission:
-    /// the proposal producer must close IDs and identities against its artifact
-    /// and selected target before execution consumes this retained relation.
+    pub fn external_requirement_applications(&self) -> &[SelectedExternalRequirementApplication] {
+        &self.external_requirement_applications
+    }
+
+    pub fn external_requirement_application(
+        &self,
+        requirement: &str,
+    ) -> Option<&SelectedExternalRequirementApplication> {
+        let index = self.identities.index_of(requirement)?;
+        self.external_requirement_applications
+            .iter()
+            .find(|row| row.requirement_identity == index)
+    }
+
+    pub fn with_external_requirement_applications(
+        mut self,
+        mut rows: Vec<SelectedExternalRequirementApplication>,
+        row_identities: &TerminalIdentityTable,
+    ) -> Result<Self, String> {
+        let mut identities = self.identities.clone().into_builder();
+        for row in &mut rows {
+            row.selected_requirement_identity = identities.intern(identity_text(
+                row_identities,
+                row.selected_requirement_identity,
+            ));
+            row.requirement_identity =
+                identities.intern(identity_text(row_identities, row.requirement_identity));
+        }
+        self.identities = identities.build();
+        rows.sort_by_cached_key(|row| self.identity_text(row.requirement_identity).to_owned());
+        for pair in rows.windows(2) {
+            if pair[0].requirement_identity == pair[1].requirement_identity {
+                return Err(
+                    "closed external requirement has multiple selected applications".into(),
+                );
+            }
+        }
+        for row in &rows {
+            if row.selected_requirement_identity.is_absent()
+                || row.requirement_identity.is_absent()
+                || row.selected_requirement_identity == row.requirement_identity
+            {
+                return Err(
+                    "closed external requirement lost its distinct source identities".into(),
+                );
+            }
+            let plan = self
+                .plan_by_report_fingerprint(row.provider_plan_report_identity)
+                .ok_or("closed external requirement names an unselected plan")?;
+            if plan.identity_digest() != row.provider_plan_digest {
+                return Err("closed external requirement substituted its selected plan".into());
+            }
+            let mut matching = plan.rows.iter().filter(|selected| {
+                Some(plan.identities.text(selected.requirement_identity))
+                    == self.identities.text(row.selected_requirement_identity)
+            });
+            let selected = matching
+                .next()
+                .ok_or("closed external requirement lost its selected row")?;
+            if matching.next().is_some()
+                || !matches!(selected.binding, ProviderBinding::Import { .. })
+            {
+                return Err(
+                    "closed external requirement requires exactly one selected Import row".into(),
+                );
+            }
+            let requirement = self.identity_text(row.requirement_identity);
+            if self.specialized_requirement_row(requirement).is_some()
+                || self.family_realization_row(requirement).is_some()
+                || self.plans.iter().any(|candidate| {
+                    candidate.rows.iter().any(|selected| {
+                        candidate.identities.text(selected.requirement_identity) == requirement
+                    })
+                })
+            {
+                return Err(
+                    "closed external requirement shadows another selected coordinate".into(),
+                );
+            }
+        }
+        self.external_requirement_applications = rows;
+        self.refresh_report_fingerprint();
+        Ok(self)
+    }
+
     pub fn with_family_realization_rows(
         mut self,
         mut rows: Vec<SelectedTargetFamilyRealization>,
@@ -979,8 +967,6 @@ impl SelectedProviderPlanFacts {
                         .into(),
                 );
             }
-            // A direct row or closed requirement must never be shadowed by
-            // a family alias which would redirect it to unrelated authority.
             for alias in [&row.head_identity, &row.member_identity] {
                 if self.plans.iter().any(|candidate| {
                     candidate.rows.iter().any(|candidate_row| {
@@ -1026,11 +1012,6 @@ impl SelectedProviderPlanFacts {
         Ok(())
     }
 
-    /// Requirement lookup for identities realized by exactly one selected
-    /// plan. A shared requirement identity — distinct root traits may inherit
-    /// the same requirement, so several plans can each carry its row — is
-    /// ambiguous here and yields `None`; scoped callers use
-    /// [`Self::installation_reach_resolution_for_plan`].
     pub(crate) fn installation_reach_resolution(
         &self,
         requirement_identity: &str,
@@ -1054,11 +1035,6 @@ impl SelectedProviderPlanFacts {
         Some(resolution)
     }
 
-    /// Resolve one requirement identity under the selected provider plan that
-    /// realized it for this root. Root traits inheriting a shared requirement
-    /// each retain a row under their own selected plan, so the pair
-    /// (requirement identity, provider plan report identity) is the exact
-    /// resolution address.
     pub(crate) fn installation_reach_resolution_for_plan(
         &self,
         provider_plan_report_identity: u64,
@@ -1080,11 +1056,6 @@ impl SelectedProviderPlanFacts {
             })
     }
 
-    /// Resolve one root closure from its concrete reach plus exact bounded
-    /// requirement dependencies, addressed through the root's own selected
-    /// provider plan. A requirement the root's plan realizes binds that
-    /// plan's row; a requirement realized by exactly one other selected plan
-    /// still resolves unscoped. Any other multiplicity rejects.
     pub fn resolve_installation_reach_for_plan(
         &self,
         concrete_reach: &[String],
@@ -1104,9 +1075,6 @@ impl SelectedProviderPlanFacts {
         Ok(resolved)
     }
 
-    /// Select the exact dependency row for both reach substitution and review
-    /// grounding. Preserve family selection before falling back to an unscoped
-    /// unique row; normalizing the requirement alone loses that plan custody.
     pub fn resolve_installation_requirement(
         &self,
         requirement_identity: &str,
@@ -1139,61 +1107,88 @@ impl SelectedProviderPlanFacts {
     }
 }
 
+impl SelectedProviderPlanCandidate {
+    pub fn validate(self) -> Result<SelectedProviderPlanFacts, String> {
+        let mut ordinary = Vec::new();
+        let mut toolchain = Vec::new();
+        for plan in &self.plans {
+            if self
+                .toolchain_settled_identities
+                .contains(&plan.report_fingerprint())
+            {
+                toolchain.push(plan.clone());
+            } else {
+                ordinary.push(plan.clone());
+            }
+        }
+        let mut recovered = SelectedProviderPlanFacts::from_selected_plans(ordinary)?;
+        for plan in toolchain {
+            recovered = recovered.with_toolchain_settled_plan(plan)?;
+        }
+        if recovered.plans != self.plans
+            || recovered.toolchain_settled_identities != self.toolchain_settled_identities
+            || recovered
+                .identities
+                .entries()
+                .iter()
+                .any(|identity| self.identities.index_of(identity).is_none())
+        {
+            return Err(
+                "recovered selected provider roster changed order, membership or identity custody"
+                    .to_owned(),
+            );
+        }
+        recovered.identities = self.identities.clone();
+        recovered = recovered.with_assumed_bindings(self.assumed_bindings.clone());
+        for row in &self.assumed_bindings {
+            recovered.assumed_supplier_identity(&row.required)?;
+        }
+        recovered = recovered.with_installation_reach_resolutions(
+            self.installation_reach_resolutions.clone(),
+            &self.identities,
+        )?;
+        recovered = recovered.with_specialized_requirement_rows(
+            self.specialized_requirement_rows.clone(),
+            &self.identities,
+        )?;
+        recovered = recovered.with_external_requirement_applications(
+            self.external_requirement_applications.clone(),
+            &self.identities,
+        )?;
+        recovered = recovered
+            .with_family_realization_rows(self.family_realization_rows.clone(), &self.identities)?;
+        if recovered.recovery_candidate() != self {
+            return Err(
+                "recovered provider closure is not canonical or lost a retained field".to_owned(),
+            );
+        }
+        Ok(recovered)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstallationReachResolution {
-    /// Index into the owning closure's `identities` table.
     pub requirement_identity: terminal_psi::TerminalIdentityIndex,
-    /// Compact report coordinate; the owning selected closure retains the
-    /// exact plan and its strong digest.
     pub provider_plan_report_identity: u64,
     pub upper_bound: Vec<String>,
     pub resolved_row: Vec<String>,
 }
 
-/// The post-specialization realization of one template-keyed selected plan
-/// row: which exact closed requirement instance it serves and which
-/// specialized provider instance realizes it.
-///
-/// Provider plans derive before specialization settlement, so a selected row
-/// for a generic requirement retains the authored template identities.
-/// Terminal boundary declarations and provider candidates instead carry the
-/// closed identities specialization minted. This row is the exact join
-/// between the two — derived by replaying the retained specialization
-/// receipts and the provider's recorded closed applications, never display
-/// names or runtime signatures. The selected row itself is never rewritten.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedRequirementSpecialization {
-    /// Compact report coordinate of the owning selected plan; the retained
-    /// closure and its strong digest remain the replay authority.
     pub provider_plan_report_identity: u64,
-    /// The exact requirement identity the selected row retains: the authored
-    /// generic requirement template, as an index into the owning closure's
-    /// `identities` table.
     pub selected_requirement_identity: terminal_psi::TerminalIdentityIndex,
-    /// The exact provider machine identity the selected row's checked-adapter
-    /// binding names: the authored generic provider template. A leaf row
-    /// (import, intrinsic, system call) has no provider machine and names the
-    /// requirement template itself.
     pub selected_machine_identity: terminal_psi::TerminalIdentityIndex,
-    /// The closed requirement identity Terminal boundary declarations carry.
     pub requirement_identity: terminal_psi::TerminalIdentityIndex,
-    /// The specialized provider instance identity Terminal provider
-    /// candidates carry as `candidate_identity`; the requirement template
-    /// for a leaf row, which serves every closed application unchanged.
     pub machine_identity: terminal_psi::TerminalIdentityIndex,
 }
 
-/// A provider row's exact target-family execution coordinates. The selected
-/// requirement is the authority address; head/member identify the original
-/// callable contract and selected realization in one canonical artifact.
-/// These records do not grant execution or establish a checked conformance.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedTargetFamilyRealization {
     pub terminal: terminal_psi::TerminalPsiIdentity,
     pub target: String,
     pub head: semantic_vocabulary::BoundaryMachineId,
     pub member: semantic_vocabulary::BoundaryMachineId,
-    /// Indices into the owning closure's `identities` table.
     pub head_identity: terminal_psi::TerminalIdentityIndex,
     pub member_identity: terminal_psi::TerminalIdentityIndex,
     pub selected_requirement_identity: terminal_psi::TerminalIdentityIndex,
@@ -1201,10 +1196,6 @@ pub struct SelectedTargetFamilyRealization {
     pub provider_plan_digest: crate::provider_plan::ProviderPlanDigest,
 }
 
-/// The rendered text `index` names in `identities`; the zero coordinate
-/// renders as the empty field the encoders wrote before interning. Every
-/// identity fold, sort key and diagnostic in this module resolves text here,
-/// so the projection is stated once rather than re-derived per site.
 pub(crate) fn identity_text(
     identities: &terminal_psi::TerminalIdentityTable,
     index: terminal_psi::TerminalIdentityIndex,
@@ -1293,10 +1284,6 @@ fn selected_closure_report_fingerprint(
 
 struct SelectedProviderClosureDigestEncoder(DomainDigestEncoder);
 
-/// Only the byte sink is closure-specific; the framed-feed vocabulary
-/// (`byte`, `bool`, `len`, `u64`, `i64`, `bytes`, `string`, `strings`) comes
-/// from [`DigestFeed`]'s single definition, as it does for every other
-/// domain-tagged encoder in this crate.
 impl DigestFeed for SelectedProviderClosureDigestEncoder {
     fn raw(&mut self, bytes: &[u8]) {
         self.0.raw(bytes);
@@ -1305,7 +1292,6 @@ impl DigestFeed for SelectedProviderClosureDigestEncoder {
 
 impl SelectedProviderClosureDigestEncoder {
     fn new() -> Self {
-        // v3 adds the separate closed Import application roster to this grammar.
         Self(DomainDigestEncoder::new(
             b"omega.selected-provider-closure.sha256.v3\0",
         ))
@@ -1323,5 +1309,88 @@ impl SelectedProviderClosureDigestEncoder {
                 self.u64(identity);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod installation_tests {
+    use super::*;
+
+    #[test]
+    fn installation_dependency_selection_preserves_plan_and_family_custody() {
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let requirement = identities.intern("Requirement::visit");
+        let head = identities.intern("Family::head");
+        let member = identities.intern("Family::member");
+        let mut selected = SelectedProviderPlanFacts {
+            identities: identities.build(),
+            installation_reach_resolutions: [1, 2]
+                .map(|plan| InstallationReachResolution {
+                    requirement_identity: requirement,
+                    provider_plan_report_identity: plan,
+                    upper_bound: vec!["X".into(), "Y".into()],
+                    resolved_row: vec![if plan == 1 { "X" } else { "Y" }.into()],
+                })
+                .to_vec(),
+            ..SelectedProviderPlanFacts::default()
+        };
+        assert_eq!(
+            selected
+                .resolve_installation_requirement("Requirement::visit", 1)
+                .unwrap()
+                .resolved_row,
+            ["X"]
+        );
+        assert!(
+            selected
+                .resolve_installation_requirement("Requirement::visit", 3)
+                .unwrap_err()
+                .contains("more than one")
+        );
+        assert!(
+            selected
+                .resolve_installation_requirement("Missing", 1)
+                .unwrap_err()
+                .contains("unresolved")
+        );
+        selected
+            .family_realization_rows
+            .push(SelectedTargetFamilyRealization {
+                terminal: terminal_psi::TerminalPsiIdentity {
+                    vocabulary_marker: terminal_psi::VocabularyMarker,
+                    program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
+                },
+                target: "macos_arm64".into(),
+                head: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+                member: semantic_vocabulary::BoundaryMachineId::new(2).unwrap(),
+                head_identity: head,
+                member_identity: member,
+                selected_requirement_identity: requirement,
+                provider_plan_report_identity: 2,
+                provider_plan_digest: crate::provider_plan::ProviderPlanDigest::from_digest(
+                    [2; 32],
+                ),
+            });
+        assert_eq!(
+            selected
+                .resolve_installation_requirement("Family::head", 1)
+                .unwrap()
+                .provider_plan_report_identity,
+            2
+        );
+        assert_eq!(
+            selected
+                .resolve_installation_reach_for_plan(&[], &["Family::member".into()], 1)
+                .unwrap(),
+            ["Y"]
+        );
+        selected.installation_reach_resolutions.remove(0);
+        assert_eq!(
+            selected
+                .resolve_installation_requirement("Requirement::visit", 3)
+                .unwrap()
+                .resolved_row,
+            ["Y"]
+        );
     }
 }

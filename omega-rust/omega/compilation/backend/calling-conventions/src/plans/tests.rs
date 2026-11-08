@@ -1,4 +1,8 @@
-//! Fixtures shared by the plan tests.
+/*
+We provide shared signature and strict interrupt-entry fixtures (`call_signature`,
+`integer_signature`, `strict_x86_entry`) for our calling-plan, entry-plan, and
+policy evaluation test suites.
+*/
 
 mod entries_footprints_and_policies;
 mod native_policies_and_syscalls;

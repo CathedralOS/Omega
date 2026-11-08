@@ -1,41 +1,62 @@
+/*
+We project admitted machine-code function fragments into sealed object
+artifacts (`ObjectArtifact`), compose private callback and component objects,
+bind physical and hosted entry shims, and emit verified executable and
+shared-component images across ELF, PE32+, and Mach-O. Every compiler-authored
+instruction byte, read-only byte-literal pool entry, normalized foreign-call
+custody record, and provenance-bearing function region is validated against the
+emitted container bytes without reconstructing legacy machine-code carriers.
+
+Our pipeline separates object custody from container emission and installation:
+`function_fragments.rs` is the sole builder of `ObjectArtifact` (in
+`object_artifact.rs`); `object.rs` composes private callback objects and
+component shared images; `entries.rs` binds physical stack-switch, hosted
+receiver, callable entry transport, and foreign adapter shims; `image.rs`
+routes sealed objects through direct or dynamic ELF container writers and
+replays terminal image custody; and `installation_record.rs` defines the
+installation error surface.
+*/
+
+/*
+We project each admitted function fragment once into `ObjectArtifact` rather
+than replaying a parallel machine-code record model, and we embed complete
+private callback objects via `compose_private_function_objects` so helper
+functions, imports, and read-only data survive intact instead of being
+flattened into a synthetic single-block thunk. Keeping `RequestedDynamicElfImage`
+distinct from `ExecutableImage` ensures that final-byte custody for a dynamic
+ELF container can never be mistaken for direct execution or installation
+authority at compile time.
+*/
+
+/*
+`native-artifact`, `compiler`, `native-compiler`, `orchestration`, and
+`native-provider-runtime` consume our object-artifact builders, entry bindings,
+and executable/component image emitters. `image`, `image-elf`, `image-pe`, and
+`image-macho` provide the underlying container writers and relocation envelope
+verifiers that `image.rs` and `object.rs` orchestrate.
+*/
+
 #![forbid(unsafe_code)]
 
-//! Standalone object and executable-image emission for the clean terminal-Psi
-//! realization lane.
-//!
-//! This crate consumes emitted fragments. It does not reconstruct the legacy
-//! `EncodedMachineCode` carrier or any source-shaped lowering state. Typed internal-call relocations may change only their exact
-//! architecture-native immediate fields; every other compiler-authored bit and
-//! every provenance-bearing function region remains final-byte validated.
-//!
-//! The crate has two lanes:
-//!
-//! - **The object artifact** lives in [`object_artifact`](object::object_artifact): the sealed
-//!   [`ObjectArtifact`] carrier, built only by [`function_fragments`](object::function_fragments), which
-//!   projects each admitted fragment once rather than replaying a second
-//!   machine-code record model against final bytes. Executable-image output
-//!   over a sealed object starts at
-//!   [`image_output`](image::image_output)'s `emit_executable_image`, which selects the direct
-//!   writers it owns or the dynamic ELF lane in [`dynamic_elf`](image::dynamic_elf), with
-//!   [`final_image_validation`](image::final_image_validation) replaying either for retained-artifact
-//!   readers; [`function_fragments`](object::function_fragments) places every addressed byte literal's
-//!   octets in one read-only pool after the
-//!   code, binding each literal address field to it. Ordinary callback bodies
-//!   follow that same projection. [`private_object_composition`](object::private_object_composition) embeds their
-//!   complete objects while keeping machine, call and replay identities local;
-//!   helpers, imports and data are not discarded to manufacture a single thunk.
-//! - **The canonical installation record wire format** lives in
-//!   [`installation_record`]: manifest metadata over the resulting sealed
-//!   image, its bytes under `installation_record/codec/` with one codec per
-//!   record family and its canonical shape under `record_shape/`. It does not grant
-//!   executable authority or replace the separate native admission, placement,
-//!   and retirement ladder. [`installed_artifact`] joins that record to an
-//!   installed code occurrence when the `installed-artifact` feature is on.
+mod codec_bytes {
+    pub(crate) use optimization_core::codec_bytes::u32_at;
 
-mod codec_bytes;
+    pub(crate) fn u16_at(bytes: &[u8], offset: usize) -> Option<u16> {
+        let end = offset.checked_add(2)?;
+        Some(u16::from_le_bytes(bytes.get(offset..end)?.try_into().ok()?))
+    }
+
+    pub(crate) fn u64_at(bytes: &[u8], offset: usize) -> Option<u64> {
+        let end = offset.checked_add(8)?;
+        Some(u64::from_le_bytes(bytes.get(offset..end)?.try_into().ok()?))
+    }
+}
+
 mod entries;
+pub(crate) mod function_fragments;
 mod image;
 mod object;
+pub(crate) mod object_artifact;
 pub use entries::callable_entry_transport::{
     CallableEntryTransport, NativeBodyCpuState, create_callable_entry_transport,
     create_installed_private_function_object, create_private_function_object,
@@ -58,7 +79,11 @@ pub use object::component_shared_image::{
     emit_component_shared_image,
 };
 mod installation_record;
-mod order;
+mod order {
+    pub(crate) fn strictly_increasing<T, K: Ord>(rows: &[T], key: impl Fn(&T) -> K) -> bool {
+        rows.windows(2).all(|pair| key(&pair[0]) < key(&pair[1]))
+    }
+}
 
 pub use object::function_fragments::FunctionFragmentObjectArtifactError;
 pub use object::object_artifact::{

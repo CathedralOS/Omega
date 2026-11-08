@@ -354,7 +354,7 @@ Callback placements stay in Omega rather than travelling through
 Psi as an opaque payload. One effective Psi optimization selection governs the
 whole program, including callback roots. The coordinator joins callback entries
 in that shared artifact before asking
-[Omega 00](../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/proposal.rs)
+[Omega 00](../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal.rs)
 to construct the native proposal. Canonical semantic decoding, selected-provider
 demands, entry/comparison/boundary joins and callback placement replay belong to
 that stage, not to the compiler. Missing callback bodies reject during shared
@@ -586,12 +586,12 @@ alone is not evidence that a syscall-backed program runs.
 ### Program-entry settlement
 
 [Entry roots](../../../../wiki/spec/build/entry_roots.md) owns the source/arrival
-contract. [entry_settlement](../pipeline/00_terminal-psi-to-abstract-operations/src/settlement/entry_settlement/mod.rs) independently replays
+contract. [entry_settlement](../pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement.rs) independently replays
 target, source signature, calling/storage plans, canonical artifact, exact
 Terminal entry, and service establishment before issuing the validated carrier.
 It does not call the Psi receipt producer to validate that producer's output.
 
-[service_establishment.rs](../pipeline/00_terminal-psi-to-abstract-operations/src/settlement/entry_settlement/service_establishment.rs) joins
+[entry_settlement.rs](../pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement.rs) joins
 selected Fused service evidence to the Terminal receiver's attachment and exact
 erased fields, then to the selected provider plans. Semantic receiver identity
 and retained Terminal attachment identity are separate facts and need not have
@@ -645,7 +645,7 @@ result, and resource custody; metadata-only receipt tests do not close the route
 
 Canonical callback applications and target calling applications enter the
 realization request separately. Omega 00's
-[callback settlement](../pipeline/00_terminal-psi-to-abstract-operations/src/settlement/callback_settlement/placement.rs)
+[callback settlement](../pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement.rs)
 joins their exact requirement and static binder ordinal, then produces the
 [backend placement](../backend/plans/backend-plan/src/callback_placements.rs):
 a direct callback parameter or record-field root with its native ordinal and
@@ -655,7 +655,7 @@ Source preparation retains only declaration checks and callback roots needed
 for pre-optimization behavior admission, including dormant registrar uses.
 ABI/context replay and occurrence joins remain separate.
 The
-[target-side carrier](../pipeline/02_abstract-operations-to-target-operations/src/lowering/coordination/native_callbacks.rs)
+[target-side carrier](../pipeline/02_abstract-operations-to-target-operations/src/coordination.rs)
 binds a Terminal operation, placement index, private function, native parameter
 application, registrar plan/context, and application commitment. Target lowering
 validates the one-slot relation. The commitment remains producer provenance:

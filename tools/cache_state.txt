@@ -4,12 +4,10 @@
 # (AGENTS.md conventions).
 # Written by `python tools/check_rules.py --update-cache-state`.
 1 omega-rust/omega/compilation/backend/plans/effects/src/provider_evidence/providers/provider_plan.rs
-1 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/home_assignment/compute/domain.rs
-1 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/home_assignment/physical_requirement.rs
+2 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/home_assignment.rs
 1 omega-rust/omega/compilation/realization/provider-planning/src/native_bindings/plans.rs
 1 omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/provenance_replay/named_provider_plans.rs
 1 omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/provenance_replay/plan_derivation.rs
-2 omega-rust/omega/compilation/representations/selected-instructions/src/selected_instructions/plan_identity.rs
 1 omega-rust/omega/packages/package-compilation/src/package_compilation/bindings.rs
 5 omega-rust/omega/packages/package-compilation/src/reuse/checked_source_cache.rs
 4 omega-rust/omega/packages/package-manager/src/resolution/source/custody.rs
@@ -73,7 +71,7 @@
 4 omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/values/structural_values.rs
 3 omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/lookup_indexes.rs
 3 omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/machine_declarations.rs
-3 omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/identity/table.rs
+3 omega-rust/psi/compilation/representations/terminal-psi/src/identity.rs
 5 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees.rs
 3 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/data_definitions.rs
 10 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declaration_index.rs

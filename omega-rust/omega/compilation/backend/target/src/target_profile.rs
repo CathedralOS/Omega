@@ -1,26 +1,16 @@
-//! The deployment-profile catalog and the native target shape each profile
-//! realizes.
-//!
-//! `TargetProfile` names every admitted deployment profile in canonical
-//! identity order and carries the target-owned program-entry slot contract
-//! (`ProgramEntrySlotDeclaration`, `TargetRequiredRootSlotDeclaration`):
-//! which environment-to-program root each profile requires, which closed
-//! toolchain package owns its physical entry, and which calling conventions
-//! the arrival and semantic continuation use. `HostedIntrinsicBundle` is the
-//! closed set of bundled target packages whose console and process-exit
-//! leaves this compiler realizes as hosted syscalls. `NativeTarget` is the
-//! plain architecture/object-format/pointer triple a realized profile maps to.
-//!
-//! Recognition is not realization: the catalog admits profiles this compiler
-//! does not realize (the bootstrap `alpha_bootstrap`), and
-//! `NativeTarget::from_omega_target_name` is where a demanded operation
-//! acquires — or refuses — a native shape.
+/*
+We define our canonical deployment-profile catalog (`TargetProfile`), the
+target-owned program-entry slot contracts (`ProgramEntrySlotDeclaration`),
+the bundled hosted-syscall provider catalog (`HostedIntrinsicBundle`), and
+the realized native target triples (`NativeTarget`). Recognition in
+`TargetProfile` is distinct from native realization in `NativeTarget`:
+profiles realized outside this compiler (such as `alpha_bootstrap`) remain
+valid catalog identities while refusing native realization.
+*/
 
 use diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
 
-/// Conventional closed-sum tags shared by the supported target realizations.
-/// Policy reflection and native storage must consume this same carrier.
 pub const CASE_TAG_BYTE_SIZE: u64 = 4;
 pub const CASE_TAG_BYTE_ALIGNMENT: u64 = 4;
 
@@ -37,39 +27,19 @@ pub enum ObjectFormat {
     Coff,
 }
 
-/// The selected deployment profile. Unlike [`NativeTarget`], this identity
-/// retains policy distinctions that share one architecture/object format
-/// (notably Windows and UEFI x86-64).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum TargetProfile {
     LinuxArm64,
     LinuxX64,
     MacosArm64,
-    /// The macOS x86-64 host profile. Recognition catalogues the Intel-macOS
-    /// host so `host()` resolves and `macos_x86_64` names a selected target.
-    /// The x86-64 Mach-O writer, the `targets/macos_x86_64` contract package,
-    /// the hosted entry bridge and the Darwin syscall console leaves are
-    /// implemented; emitted images run under Rosetta on Apple silicon, and a
-    /// native Intel host run is tracked under MACOS-X64-HOST-PROFILE.
     MacosX64,
     WindowsX64,
     UefiX64,
     CrossPlatformCli,
     LocalUnchecked,
-    /// The bootstrap Alpha target. Recognition makes its profile and slot
-    /// identities ordinary target-catalog facts while realization stays
-    /// with the bootstrap chain's own compilers: an inactive
-    /// `alpha_bootstrap` root binding must not demand a backend this
-    /// compiler does not have, and selecting the profile reports not
-    /// implemented rather than a checked result or a fallback artifact.
     AlphaBootstrap,
 }
 
-/// Stable, domain-separated identity of one deployment profile.
-///
-/// Source spelling and enum order are presentation details. Retained target
-/// evidence uses this identity so those details cannot silently rename a
-/// profile already present in locks or review material.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TargetProfileIdentity(&'static str);
 
@@ -88,8 +58,6 @@ pub enum ProgramEntryCallingConvention {
     SystemVAMD64,
 }
 
-/// Closed identity of a toolchain-owned physical-entry contract package.
-/// Source paths prove membership in this identity; they never define it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProgramEntryPhysicalContractPackage {
     UefiX64,
@@ -123,8 +91,6 @@ impl ProgramEntryPhysicalContractPackage {
         }
     }
 
-    /// Diagnostic spelling of the contract this package owns. Identity still
-    /// comes from the closed variant and manifest identity, never this name.
     pub const fn contract_name(self) -> &'static str {
         match self {
             Self::UefiX64 => "UEFI",
@@ -137,25 +103,6 @@ impl ProgramEntryPhysicalContractPackage {
     }
 }
 
-/// Closed identity of a bundled standard-library target package whose
-/// console and process-exit leaves close as hosted compiler intrinsics.
-///
-/// "Hosted" here means the bundle's bodyless `boundary machine` leaves
-/// (`ConsoleNativeProvider::{read_byte, write_byte, exit_process}` and
-/// `ProcessExitNativeProvider::exit_process`) bind by exact realization
-/// identity and this compiler emits the kernel syscall itself through
-/// `image-emission`'s hosted encoders (`HostedReadByte`, hosted byte output,
-/// `HostedExitProcessI32`). A target joins that catalog by gaining a variant
-/// here and nowhere else: provider-planning derives hosted candidates and
-/// selected-dispatch closes them against the bundled source through
-/// `from_target_name`, so widening this enum is the product decision.
-///
-/// One bundle exists under `source/library/std/targets/` but is not admitted
-/// to this hosted-syscall catalog. Windows process exit uses kernel32
-/// `ExitProcess` through `DllImport`; that foreign realization does not admit
-/// Windows to the hosted read, write, and exit syscall mechanisms. Intel macOS
-/// is admitted: `isa-x86_64` owns its Unix-class Darwin syscall leaves. Source
-/// paths prove membership in this identity; they never define it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostedIntrinsicBundle {
     LinuxArm64,
@@ -165,7 +112,6 @@ pub enum HostedIntrinsicBundle {
 }
 
 impl HostedIntrinsicBundle {
-    /// Every admitted bundle in canonical target-profile identity order.
     pub const ALL: [Self; 4] = [
         Self::LinuxArm64,
         Self::LinuxX64,
@@ -182,12 +128,10 @@ impl HostedIntrinsicBundle {
         }
     }
 
-    /// Canonical target name, shared with the owning [`TargetProfile`].
     pub const fn target_name(self) -> &'static str {
         self.target_profile().target_name()
     }
 
-    /// Package-relative path of the bundled console provider closure.
     pub const fn console_source(self) -> &'static str {
         match self {
             Self::LinuxArm64 => "targets/linux_arm64/console_impl.omg",
@@ -197,7 +141,6 @@ impl HostedIntrinsicBundle {
         }
     }
 
-    /// Package-relative path of the bundled process-exit provider closure.
     pub const fn process_exit_source(self) -> &'static str {
         match self {
             Self::LinuxArm64 => "targets/linux_arm64/process_exit_impl.omg",
@@ -207,18 +150,12 @@ impl HostedIntrinsicBundle {
         }
     }
 
-    /// The admitted bundle a canonical target name selects, or `None` for
-    /// every other target, including the bundled-but-unadmitted ones.
     pub fn from_target_name(target_name: &str) -> Option<Self> {
         Self::ALL
             .into_iter()
             .find(|bundle| bundle.target_name() == target_name)
     }
 
-    /// The admitted hosted-syscall bundle for this complete native target.
-    /// Architecture, object format, pointer size, and pointer alignment must
-    /// all match the bundle's canonical profile; a partial match grants no
-    /// hosted mechanism support.
     pub fn from_native_target(target: NativeTarget) -> Option<Self> {
         Self::ALL
             .into_iter()
@@ -226,36 +163,20 @@ impl HostedIntrinsicBundle {
     }
 }
 
-/// Target-owned declaration of the first environment-to-program root slot.
-/// The source binding supplies only `machine`; every other field belongs to
-/// the selected target profile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProgramEntrySlotDeclaration {
     pub owner: TargetProfile,
     pub slot_name: &'static str,
     pub schema: ProgramEntrySchema,
-    /// Stable semantic installation edge. This is never the platform ABI.
-    pub semantic_arrival_requirement: &'static str,
-    /// Target-fixed physical environment arrival. Hosted compatibility
-    /// profiles retain `None` until their two-surface entry bridge lands.
-    pub physical_arrival_requirement: Option<&'static str>,
-    /// Exact closed toolchain package that owns the physical requirement.
-    pub physical_contract_package: Option<ProgramEntryPhysicalContractPackage>,
-    /// Source boundary schema whose evaluated `Calling<C>` plan owns the
-    /// physical entry contract. `None` marks a profile not yet migrated from
-    /// its hosted compatibility bridge.
-    pub boundary_schema: Option<&'static str>,
-    /// Calling convention for the target-fixed physical arrival.
-    pub physical_calling_convention: Option<ProgramEntryCallingConvention>,
-    /// Private ABI used by the generated bridge to call the selected semantic
-    /// continuation. It is deliberately distinct from physical arrival even
-    /// when both currently select Microsoft x64.
-    pub semantic_calling_convention: Option<ProgramEntryCallingConvention>,
+    pub semantic_arrival_requirement: &'static str, // Stable semantic installation edge; never the platform ABI.
+    pub physical_arrival_requirement: Option<&'static str>, // Target-fixed physical environment arrival.
+    pub physical_contract_package: Option<ProgramEntryPhysicalContractPackage>, // Exact closed toolchain package that owns the physical requirement.
+    pub boundary_schema: Option<&'static str>, // Source boundary schema whose evaluated `Calling<C>` plan owns the physical entry contract.
+    pub physical_calling_convention: Option<ProgramEntryCallingConvention>, // Calling convention for the target-fixed physical arrival.
+    pub semantic_calling_convention: Option<ProgramEntryCallingConvention>, // Private ABI used by the generated bridge to call the selected semantic continuation.
     pub visible_parameters: ProgramEntryVisibleParameters,
 }
 
-/// The existing target-profile catalog exposes source requirements without
-/// receiving source trees or participating in source compatibility checking.
 pub struct ProgramEntrySlots;
 
 impl semantic_vocabulary::ProgramEntrySourceCatalog for ProgramEntrySlots {
@@ -294,12 +215,6 @@ impl ProgramEntrySlotDeclaration {
     }
 }
 
-/// One build-bound environment-to-program root required by a target profile.
-///
-/// The catalog is intentionally an enum rather than a flattened bag of entry
-/// fields: each slot schema owns its own physical/semantic contract shape.
-/// Consumers that only implement one schema must inspect the variant and fail
-/// closed for every other member instead of accepting and ignoring it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetRequiredRootSlotDeclaration {
     ProgramEntry(ProgramEntrySlotDeclaration),
@@ -332,10 +247,6 @@ impl From<ProgramEntrySlotDeclaration> for TargetRequiredRootSlotDeclaration {
 }
 
 impl TargetProfile {
-    /// The selected target's primitive model must fit the Terminal producer's
-    /// current representation capability. An abstract profile with no model
-    /// supplies no model premise; model-dependent formations still require a
-    /// concrete closure before Terminal production.
     pub fn admit_address_representation(self) -> Result<(), String> {
         if self.address_model().is_some_and(|model| {
             model != semantic_vocabulary::IntegerType::supported_address_representation()
@@ -348,10 +259,6 @@ impl TargetProfile {
         Ok(())
     }
 
-    /// The default source address space fixed by this concrete deployment
-    /// profile. This is explicit target data, independent of host pointer
-    /// width and the language's count carrier. Abstract profiles do not close
-    /// an address-model subject.
     pub fn address_model(self) -> Option<semantic_vocabulary::IntegerType> {
         match self {
             Self::LinuxArm64
@@ -364,11 +271,6 @@ impl TargetProfile {
         }
     }
 
-    /// Complete trusted deployment-profile catalog in canonical identity order.
-    ///
-    /// Consumers that retain profile-indexed evidence must use this catalog
-    /// rather than maintaining a parallel list that can drift from the
-    /// compiler's accepted source-visible cases.
     pub const ALL: [Self; 9] = [
         Self::LinuxArm64,
         Self::LinuxX64,
@@ -399,13 +301,6 @@ impl TargetProfile {
         Self::host_if_supported().expect("unsupported host profile for Omega native planning")
     }
 
-    /// The catalogued deployment profile this host admits, when one exists.
-    ///
-    /// A host whose `NativeTarget` triple has no catalogued profile returns
-    /// `None`. Callers that admit the
-    /// compiler host for interpreted work — build-scope source selection and
-    /// build machine execution — must carry that absence rather than panic or
-    /// name a foreign profile.
     pub fn host_if_supported() -> Option<Self> {
         if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
             Some(Self::MacosArm64)
@@ -422,11 +317,6 @@ impl TargetProfile {
         }
     }
 
-    /// Parse one target spelling supplied at a request boundary (CLI `--target`,
-    /// `CompileOptions.target_name`, explicit target sets). An absent name is
-    /// the Host convenience; a present name must be the exact canonical
-    /// spelling — retired aliases such as `windows_x64` for `windows_x86_64`
-    /// are unknown profiles, never a second name for one.
     pub fn from_omega_target_name(target_name: Option<&str>) -> Result<Self, Diagnostic> {
         let Some(target_name) = target_name else {
             return Ok(Self::host());
@@ -438,10 +328,6 @@ impl TargetProfile {
         })
     }
 
-    /// Parse a canonical target identity outside the invocation boundary.
-    /// The request boundary rejects retired CLI spellings outright, so nothing
-    /// downstream — source selection, locks, review evidence, or semantic
-    /// identity — ever re-parses or normalizes them.
     pub fn from_canonical_target_name(target_name: &str) -> Result<Self, Diagnostic> {
         Self::ALL
             .into_iter()
@@ -451,8 +337,6 @@ impl TargetProfile {
             })
     }
 
-    /// Parse the canonical source-level owner of a target-declared slot. This
-    /// namespace is intentionally distinct from deployment CLI target names.
     pub fn from_root_slot_owner(owner: &str) -> Result<Self, Diagnostic> {
         Self::from_canonical_target_name(owner)
             .map_err(|_| Diagnostic::error(format!("unknown target root-slot owner `{owner}`")))
@@ -472,9 +356,6 @@ impl TargetProfile {
         }
     }
 
-    /// Canonical source-visible case supplied through the compiler-owned
-    /// `Build.target` field. This identity is distinct from request-boundary
-    /// spellings and target root-slot owner namespaces.
     pub const fn build_case_name(self) -> &'static str {
         match self {
             Self::LinuxArm64 => "LinuxArm64",
@@ -518,10 +399,6 @@ impl TargetProfile {
         }
     }
 
-    /// The Rust compiler's native realization for this profile when it has
-    /// one. Recognition is not implementation: profiles realized outside
-    /// this compiler, like `alpha_bootstrap`, return `None`, while
-    /// `native_target()` stays total over natively realized profiles.
     pub fn native_realization(self) -> Option<NativeTarget> {
         match self {
             Self::AlphaBootstrap => None,
@@ -529,8 +406,6 @@ impl TargetProfile {
         }
     }
 
-    /// Compiler catalog inputs for fixed representation policy evaluation and
-    /// receiving-boundary replay. The executing host supplies none of these.
     pub fn layout_target_facts(self) -> Option<layout_plans::LayoutTargetFacts> {
         self.address_model()?;
         let native = self.native_realization()?;
@@ -553,10 +428,6 @@ impl TargetProfile {
             Self::WindowsX64 => NativeTarget::windows_x64(),
             Self::UefiX64 => NativeTarget::uefi_x64(),
             Self::CrossPlatformCli | Self::LocalUnchecked => NativeTarget::host(),
-            // Alpha has no `NativeTarget`: no architecture/object-format
-            // pair describes the bootstrap target, and selection rejects it
-            // through `NativeTarget::from_omega_target_name` before any
-            // caller reaches native planning.
             Self::AlphaBootstrap => {
                 unreachable!("alpha_bootstrap has no Rust native realization")
             }
@@ -582,13 +453,6 @@ impl TargetProfile {
                 Some(ProgramEntryCallingConvention::MicrosoftX64),
                 Some(ProgramEntryCallingConvention::MicrosoftX64),
             ),
-            // The macOS ARM64 hosted bridge retains two authored entry
-            // surfaces in toolchain custody: `MacosArm64PhysicalEntry::enter` is
-            // the physical process arrival and `ProgramStorageEntry::enter`
-            // is the semantic continuation it must adapter-map into. The
-            // source-visible application stays `HostedApplication` with no
-            // authored storage parameters; the two internal roots are
-            // provisioned by the bridge, never hosted arguments.
             Self::MacosArm64 => (
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
@@ -598,14 +462,6 @@ impl TargetProfile {
                 Some(ProgramEntryCallingConvention::Aapcs64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
             ),
-            // The Linux x86-64 hosted bridge retains the same two authored
-            // surfaces: `LinuxX86_64PhysicalEntry::enter` is the kernel process
-            // arrival (initial stack image in rsp, exit_group status in edi)
-            // and `ProgramStorageEntry::enter` is the semantic continuation it
-            // adapter-maps into. The source-visible application stays
-            // `HostedApplication` with no authored storage parameters; the two
-            // internal roots are provisioned by the bridge, never hosted
-            // arguments.
             Self::LinuxX64 => (
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
@@ -615,16 +471,6 @@ impl TargetProfile {
                 Some(ProgramEntryCallingConvention::SystemVAMD64),
                 Some(ProgramEntryCallingConvention::SystemVAMD64),
             ),
-            // The Linux ARM64 hosted bridge retains the same two authored
-            // surfaces: `LinuxArm64PhysicalEntry::enter` is the kernel process
-            // arrival (the initial process-stack image's argument-count head
-            // word is delivered at the incoming stack base; completion leaves
-            // through the exit_group supervisor call with status in w0) and
-            // `ProgramStorageEntry::enter` is the semantic continuation it
-            // adapter-maps into. The source-visible application stays
-            // `HostedApplication` with no authored storage parameters; the two
-            // internal roots are provisioned by the bridge, never hosted
-            // arguments.
             Self::LinuxArm64 => (
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
@@ -634,15 +480,6 @@ impl TargetProfile {
                 Some(ProgramEntryCallingConvention::Aapcs64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
             ),
-            // The macOS x86-64 hosted bridge retains the same two authored
-            // surfaces: `MacosX64PhysicalEntry::enter` is the dyld `appMain`
-            // process arrival (argc in edi; argv, envp and apple in rsi, rdx
-            // and rcx; the completion status back in eax) and
-            // `ProgramStorageEntry::enter` is the semantic continuation it
-            // adapter-maps into. The source-visible application stays
-            // `HostedApplication` with no authored storage parameters; the two
-            // internal roots are provisioned by the bridge, never hosted
-            // arguments.
             Self::MacosX64 => (
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
@@ -652,15 +489,6 @@ impl TargetProfile {
                 Some(ProgramEntryCallingConvention::SystemVAMD64),
                 Some(ProgramEntryCallingConvention::SystemVAMD64),
             ),
-            // The Windows x86-64 hosted bridge retains the same two authored
-            // surfaces: `WindowsProcessEntry::enter` is the loader process
-            // arrival (no contractual register inputs, 32-byte shadow space,
-            // completion status returned in eax as the process exit code) and
-            // `ProgramStorageEntry::enter` is the semantic continuation it
-            // adapter-maps into. The source-visible application stays
-            // `HostedApplication` with no authored storage parameters; the two
-            // internal roots are provisioned by the bridge, never hosted
-            // arguments.
             Self::WindowsX64 => (
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
@@ -694,13 +522,6 @@ impl TargetProfile {
         }
     }
 
-    /// Complete ordered catalog of build-bound external roots required by
-    /// this target profile. Runtime-open roots (for example dynamically
-    /// installed callbacks or interrupt vectors) do not belong here.
-    ///
-    /// `ProgramEntry` is the sole current member. Returning a catalog now,
-    /// rather than teaching closure verification that singleton fact, makes a
-    /// later real target-owned member visible to every completeness consumer.
     pub fn required_root_slots(
         self,
     ) -> impl ExactSizeIterator<Item = TargetRequiredRootSlotDeclaration> {
@@ -724,8 +545,6 @@ pub struct NativeTarget {
     pub pointer_alignment: usize,
 }
 
-/// A wire identity that is not a target's: an unassigned architecture or
-/// object-format discriminant, or a pointer field this host cannot represent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetWireIdentityError {
     UnknownArchitecture(u8),
@@ -734,9 +553,6 @@ pub enum TargetWireIdentityError {
 }
 
 impl NativeTarget {
-    /// The canonical identity bytes this target contributes to an
-    /// identity encoding: architecture, object format, pointer size and
-    /// alignment, in that order.
     pub fn identity_bytes(&self) -> [u8; 18] {
         let mut bytes = [0u8; 18];
         bytes[0] = match self.architecture {
@@ -757,9 +573,6 @@ impl NativeTarget {
         bytes
     }
 
-    /// The wire identity bytes persisted by artifact and fragment codecs:
-    /// one-based discriminants reserving zero for "unset", then pointer
-    /// size and alignment.
     pub fn wire_identity_bytes(&self) -> [u8; 18] {
         let mut bytes = [0u8; 18];
         bytes[0] = match self.architecture {
@@ -780,14 +593,6 @@ impl NativeTarget {
         bytes
     }
 
-    /// The inverse of [`Self::wire_identity_bytes`]: the same table that
-    /// spells a target's wire identity reads it back. The reader lives beside
-    /// the writer so the two cannot drift, and a decoder for a persisted
-    /// identity cannot accept a field group the writer never produces.
-    ///
-    /// This decodes shape, not admission: a decoded pointer contract is not
-    /// thereby a canonical deployment pointer, which the admitting validator
-    /// decides separately.
     pub fn from_wire_identity_bytes(encoded: &[u8; 18]) -> Result<Self, TargetWireIdentityError> {
         let architecture = match encoded[0] {
             1 => Architecture::Aarch64,
@@ -816,9 +621,6 @@ impl NativeTarget {
         })
     }
 
-    /// The canonical identity bytes this target contributes to an
-    /// identity hash: architecture, object format, pointer size and
-    /// alignment, in that order.
     pub fn encode_identity(&self, hasher: &mut Sha256) {
         hasher.update(self.identity_bytes());
     }
@@ -832,21 +634,12 @@ impl NativeTarget {
         }
     }
 
-    /// The host's native shape when this host is a catalogued deployment
-    /// profile. Unlike `host()`, this cannot fabricate a triple for a host the
-    /// toolchain does not certify: the shape comes through the profile, so an
-    /// uncatalogued host returns `None` rather than guessing.
     pub fn host_if_supported() -> Option<Self> {
         TargetProfile::host_if_supported().map(|profile| profile.native_target())
     }
 
     pub fn from_omega_target_name(target_name: Option<&str>) -> Result<Self, Diagnostic> {
         match target_name {
-            // An omitted name is the Host convenience, not open-ended
-            // inference: it resolves through the catalogued deployment
-            // profile. A host with no catalogued profile refuses with a
-            // diagnostic instead of panicking in `host()` or naming a
-            // foreign shape.
             None => Self::host_if_supported().ok_or_else(|| {
                 Diagnostic::error(
                     "no target profile named and this host has no catalogued Omega \
@@ -855,11 +648,6 @@ impl NativeTarget {
                 )
             }),
             Some(target_name) => match TargetProfile::from_omega_target_name(Some(target_name))? {
-                // A recognized profile is not an implemented one: profile
-                // identity is a target-catalog fact, while this function is
-                // where a demanded operation acquires a native realization.
-                // `alpha_bootstrap` has none, so selecting it reports not
-                // implemented instead of an unknown-name or a host fallback.
                 TargetProfile::AlphaBootstrap => Err(Diagnostic::error(format!(
                     "native realization for target profile `{target_name}` is not implemented"
                 ))),
@@ -895,9 +683,6 @@ impl NativeTarget {
         }
     }
 
-    /// The macOS x86-64 native shape. Image emission admits Mach-O only for
-    /// AArch64, so this triple carries catalog facts while
-    /// `can_emit_executable_image` keeps refusing the pair.
     pub fn macos_x64() -> Self {
         Self {
             architecture: Architecture::X86_64,
@@ -916,13 +701,6 @@ impl NativeTarget {
         }
     }
 
-    /// The UEFI application target: x86_64 PE32+ (the Coff/PE emitter),
-    /// matching the boot-verified milestone-1 image shape. The
-    /// subsystem-10/freestanding facts come from build.omg
-    /// (`efi_application`), exactly as they did on a Windows host; this
-    /// entry only pins architecture + format so the efi family
-    /// cross-compiles from ANY host. The name was already load-bearing in
-    /// source (`uefi_x64` external leaves, D15).
     pub fn uefi_x64() -> Self {
         Self {
             architecture: Architecture::X86_64,
@@ -1129,9 +907,6 @@ mod tests {
         eq!(profile.identity().as_str() => "omega.target-profile.v1:alpha_bootstrap");
         assert_eq!(profile.build_case_name(), "AlphaBootstrap");
 
-        // The slot schema comes from the same catch-all row the hosted
-        // compatibility profiles use: the source binding supplies only the
-        // machine, and no toolchain physical-contract package applies.
         let slot = profile.program_entry_slot();
         assert_eq!(slot.owner, profile);
         assert_eq!(slot.slot_name, "ProgramEntry");
@@ -1155,8 +930,6 @@ mod tests {
             "error: native realization for target profile `alpha_bootstrap` is not implemented"
         );
 
-        // Unknown owners and misspellings still reject rather than silently
-        // becoming an inactive recognized profile.
         for unknown in [
             "alpha",
             "alpha-bootstrap",
@@ -1187,8 +960,6 @@ mod tests {
         eq!(profile.identity().as_str() => "omega.target-profile.v1:macos_x86_64");
         assert_eq!(profile.build_case_name(), "MacosX86_64");
 
-        // The triple is real and the x86-64 Mach-O writer admits it; the
-        // remaining gap is the program-entry contract binding below.
         let native = profile.native_target();
         assert_eq!(native.architecture, super::Architecture::X86_64);
         assert_eq!(native.object_format, super::ObjectFormat::MachO);
@@ -1196,9 +967,6 @@ mod tests {
         assert_eq!(native.pointer_alignment, 8);
         assert_eq!(profile.native_realization(), Some(native));
 
-        // The slot binds the closed macOS x86-64 contract package: the
-        // dyld `appMain` arrival is target-fixed System V AMD64 and the
-        // source-visible application stays `HostedApplication`.
         let slot = profile.program_entry_slot();
         assert_eq!(slot.owner, profile);
         assert_eq!(slot.slot_name, "ProgramEntry");
@@ -1235,10 +1003,6 @@ mod tests {
 
     #[test]
     fn omitted_target_name_resolves_through_the_catalogued_host_profile() {
-        // The Host convenience resolves through the deployment-profile
-        // catalog: on a certified host it agrees with `host()`, and a host
-        // with no catalogued profile refuses instead of panicking or
-        // fabricating an uncertified triple.
         let resolved = NativeTarget::from_omega_target_name(None);
         match TargetProfile::host_if_supported() {
             Some(profile) => {
@@ -1261,10 +1025,6 @@ mod tests {
 
     #[test]
     fn wire_identity_round_trips_through_its_single_table() {
-        // The reader is the writer's inverse for every declared target, and a
-        // pointer contract with distinct widths pins the field order: a
-        // reader that transposed size and alignment would still round-trip
-        // the 8/8 targets, so the 8/4 probe is what makes the order real.
         for target in [
             NativeTarget::linux_arm64(),
             NativeTarget::macos_arm64(),
@@ -1296,7 +1056,6 @@ mod tests {
             ]),
             Err(TargetWireIdentityError::UnknownObjectFormat(9))
         );
-        // Zero is unassigned in both one-based tables and is not a wildcard.
         assert_eq!(
             NativeTarget::from_wire_identity_bytes(&[0; 18]),
             Err(TargetWireIdentityError::UnknownArchitecture(0))

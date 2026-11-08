@@ -1,24 +1,98 @@
-//! Source-free provisions retained before native realization consumes them.
-//!
-//! A runtime driver needs the actual admitted entry and installation, not a
-//! second source compilation or a guess from names in an emitted image. These
-//! records identify those provisions; they do not instantiate storage, grant
-//! process-domain authority, or license a host callback. The consuming driver
-//! supplies those premises at its own explicit runtime boundary.
+/*
+We capture source-free runtime provisions (`TerminalRuntimeHostProvisions`,
+`TerminalCallableRuntimeProvisions`, and `TerminalRuntimeProvisions`) from
+admitted native compilation inputs before image emission consumes them. We bind
+host boundary settlements to their original requirement identities, calling
+applications, and fixed-frame foreign adapter images (`emit_native_foreign_adapter`),
+and we validate component product rosters and adjacent publication receipts
+against root object imports.
+*/
 
-use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};
+use semantic_vocabulary::{BoundaryMachineId, MachineId, ScalarType};
 use std::sync::Arc;
 use target::NormalizedImportLocator;
 use terminal_installation::AdmittedScalarApplications;
 use terminal_installation::CheckedPrivateEntryRamRecipe;
-use terminal_psi::TerminalPsiIdentity;
+use terminal_psi::{BoundaryMachineDeclaration, BoundaryParameterKind, TerminalPsiIdentity};
 use terminal_psi_to_abstract_operations::TerminalTargetProviderProposal;
 
-mod native_adapters;
+fn scalar_parameters(
+    declaration: &BoundaryMachineDeclaration,
+    application: &BoundaryCallingApplication,
+) -> Result<Vec<Option<ScalarType>>, String> {
+    if !declaration.has_valid_parameter_order() {
+        return Err("foreign frame scalar transport has no complete semantic formal order".into());
+    }
+    let formals = declaration
+        .parameter_positions(BoundaryParameterKind::Scalar)
+        .zip(&declaration.scalar_parameters)
+        .collect::<Vec<_>>();
+    let rows = application
+        .signature
+        .native_parameters
+        .span(application.signature.native_parameter_rows)
+        .ok_or("foreign frame scalar transport has stale native telescope storage")?;
+    let count = application.plan.plan().call.parameters.len();
+    if rows.len() != count {
+        return Err("foreign frame scalar transport has an incomplete native telescope".into());
+    }
+    let mut result = vec![None; count];
+    let mut native_seen = vec![false; count];
+    let mut scalar_seen = vec![false; formals.len()];
+    for row in rows {
+        let ordinal = usize::try_from(row.native_ordinal)
+            .map_err(|_| "foreign frame native ordinal overflows")?;
+        let seen = native_seen
+            .get_mut(ordinal)
+            .ok_or("foreign frame native ordinal is outside its calling plan")?;
+        if std::mem::replace(seen, true) {
+            return Err("foreign frame native ordinal is repeated".into());
+        }
+        let BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } = row.origin else {
+            continue;
+        };
+        let formal = usize::try_from(formal_ordinal)
+            .map_err(|_| "foreign frame semantic ordinal overflows")?;
+        if formal >= declaration.parameter_order.len() {
+            return Err("foreign frame semantic ordinal is outside its declaration".into());
+        }
+        if let Some((index, (_, scalar))) = formals
+            .iter()
+            .enumerate()
+            .find(|(_, (position, _))| *position == formal)
+        {
+            if std::mem::replace(&mut scalar_seen[index], true) {
+                return Err("foreign frame scalar formal has repeated native transport".into());
+            }
+            result[ordinal] = Some(**scalar);
+        }
+    }
+    if scalar_seen.contains(&false) {
+        return Err("foreign frame lost a scalar formal's native transport".into());
+    }
+    Ok(result)
+}
 
-/// Runtime capture joins the emitted input, not an independently replaceable
-/// scalar receipt. The native installation may omit compile-only suppliers,
-/// but every installed row must preserve the selection used for evaluation.
+fn emit_native_adapter(
+    declaration: &BoundaryMachineDeclaration,
+    application: &BoundaryCallingApplication,
+    locator: &target::NormalizedForeignLocator,
+) -> Result<Arc<image_emission::NativeForeignAdapterImage>, String> {
+    let scalar_parameters = scalar_parameters(declaration, application)?;
+    let bridge = machine_emission::native_foreign_bridge::emit_native_foreign_bridge(
+        machine_emission::native_foreign_bridge::NativeForeignBridgeRequest {
+            target: application.target,
+            foreign: application.plan.clone(),
+            scalar_parameters,
+        },
+    )
+    .map_err(|reason| format!("foreign runtime adapter physical transport: {reason:?}"))?;
+    image_emission::emit_native_foreign_adapter(bridge, locator.clone(), application.commitment)
+        .map(Arc::new)
+        .map_err(|error| error.diagnostic.to_string())
+}
+
 fn capture_scalar_applications(
     input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
     identity: TerminalPsiIdentity,
@@ -45,18 +119,12 @@ fn capture_scalar_applications(
     Ok(Some(completed.clone()))
 }
 
-/// An exact host operation admitted for the native product. Reference execution
-/// may implement its semantic contract, but cannot substitute another slot or
-/// manufacture authority merely because a realization was selected.
 #[derive(Debug, Clone)]
 pub struct TerminalRuntimeHostProvision {
     pub boundary: BoundaryMachineId,
     pub realization: target_operations::BoundarySettlementRealization,
 }
 
-/// The original call contract served by one exact admitted foreign row.
-/// This relation is captured from selected closure custody, not reconstructed
-/// from either callable's spelling by a receiving host adapter.
 #[derive(Debug, Clone)]
 struct RuntimeHostRequirement {
     boundary: BoundaryMachineId,
@@ -64,15 +132,9 @@ struct RuntimeHostRequirement {
     selected_requirement_identity: String,
     provider_plan_report_identity: u64,
     calling_application: Option<calling_conventions::BoundaryCallingApplication>,
-    /// Produced once from this admitted row. An unavailable physical route
-    /// stays an explicit runtime limitation; it does not invalidate an otherwise
-    /// valid native program or cause the interpreter to compile a replacement.
     native_adapter: Option<Result<Arc<image_emission::NativeForeignAdapterImage>, String>>,
 }
 
-/// Exact callable host and selected-provider companions. These are shared
-/// by application entries and separately emitted callable entries; no
-/// ProgramEntry receipt or field establishment is inferred for a component.
 #[derive(Debug, Clone)]
 pub struct TerminalRuntimeHostProvisions {
     selection_identities: terminal_psi::TerminalIdentityTable,
@@ -120,11 +182,6 @@ impl TerminalRuntimeHostProvisions {
             let requirement = binding
                 .requirement_identity(selected.identities())
                 .ok_or("runtime foreign calling application lost its selected requirement")?;
-            // Admission has already joined these exact receiving rows to their
-            // foreign settlements. Direct leaves project the receiving identity,
-            // while the application retains its original requirement-owned
-            // nominal parameters and commitment. Looking up the application's
-            // original owner in the receiving selection would lose that relation.
             let mut rows = external_bindings.iter().filter(|row| {
                 selected.selected_row_matches_requirement(
                     &row.requirement_identity,
@@ -165,7 +222,7 @@ impl TerminalRuntimeHostProvisions {
                     "foreign runtime adapter has no retained complete calling application"
                         .to_owned()
                 })?;
-                native_adapters::emit(boundary, application, locator)
+                emit_native_adapter(boundary, application, locator)
             });
             host_requirements.push(RuntimeHostRequirement {
                 boundary: boundary.id,
@@ -190,10 +247,7 @@ impl TerminalRuntimeHostProvisions {
             borrowed_storage_layouts: Vec::new(),
         })
     }
-    /// Rejoin one original boundary contract to its captured foreign provider
-    /// row before offering a host implementation. This establishes identity
-    /// correspondence only; the adapter must still admit the complete contract,
-    /// ABI and actual host capability independently.
+
     pub fn matches_host_requirement(
         &self,
         declaration: &terminal_psi::BoundaryMachineDeclaration,
@@ -212,9 +266,6 @@ impl TerminalRuntimeHostProvisions {
         }) && matching.next().is_none()
     }
 
-    /// The admitted foreign row's complete source-free calling application.
-    /// Runtime adapters must inspect this geometry before interpreting opaque
-    /// owned bytes; equal-sized native placements do not establish a C shape.
     pub fn host_calling_application(
         &self,
         boundary: BoundaryMachineId,
@@ -226,9 +277,6 @@ impl TerminalRuntimeHostProvisions {
             .as_ref()
     }
 
-    /// Physical fixed-frame product of the same admitted provider/calling row.
-    /// A receiving runtime must still establish the actual provider instance,
-    /// native homes, leases and exact semantic completion before using it.
     pub fn host_native_foreign_adapter(
         &self,
         boundary: BoundaryMachineId,
@@ -262,8 +310,6 @@ impl TerminalRuntimeHostProvisions {
     }
 }
 
-/// Callable-specific reference provisions captured from its own native
-/// admission, without impersonating an application ProgramEntry.
 #[derive(Debug, Clone)]
 pub struct TerminalCallableRuntimeProvisions {
     identity: TerminalPsiIdentity,
@@ -325,8 +371,6 @@ impl TerminalCallableRuntimeProvisions {
     }
 }
 
-/// Entry and provider facts for the exact produced Terminal program. Source
-/// arena handles and physical wrapper storage do not cross this record.
 #[derive(Debug, Clone)]
 pub struct TerminalRuntimeProvisions {
     identity: TerminalPsiIdentity,
@@ -372,10 +416,7 @@ impl TerminalRuntimeProvisions {
         self.component_publications = receipts;
         Ok(())
     }
-    /// Explicit preflight for the isolated process runtime, not native image
-    /// installation. All dependency edges use these exact adjacent files and
-    /// version-qualified exports for this immutable process lifetime (protected
-    /// ELF symbols or exact two-level Mach-O dylib bindings).
+
     pub fn validate_component_process_inputs(&self, root: &std::path::Path) -> Result<(), String> {
         self.validate_component_product_roster()
             .map_err(str::to_owned)?;
@@ -409,8 +450,7 @@ impl TerminalRuntimeProvisions {
         self.components = components;
         Ok(self)
     }
-    /// Validate the optional runtime companion against a retained root. This
-    /// boundary also handles callers that never attached runtime provisions.
+
     pub fn validate_root_object(
         object: &image_emission::ObjectArtifact,
         runtime: Option<&Self>,
@@ -432,9 +472,6 @@ impl TerminalRuntimeProvisions {
         }
     }
 
-    /// Rejoin the actual byte-validated root's physical imports and complete
-    /// call bindings. Another runtime with an empty self-consistent roster
-    /// cannot answer this object's independent calls or change their WCSU.
     pub fn validate_component_root_object(
         &self,
         object: &image_emission::ObjectArtifact,
@@ -479,8 +516,6 @@ impl TerminalRuntimeProvisions {
         Ok(())
     }
 
-    /// Every selected component needs its exact physical product, even when
-    /// an alternate caller omitted the product-attachment operation entirely.
     pub fn validate_component_product_roster(&self) -> Result<(), &'static str> {
         self.validate_component_products(&self.components)
     }
@@ -539,8 +574,6 @@ impl TerminalRuntimeProvisions {
         self
     }
 
-    /// Capture already admitted facts while they still accompany the image
-    /// request. This is not another admission or a runtime authority grant.
     pub fn capture_native_admission(
         program_entry: terminal_psi_to_abstract_operations::NativeProgramEntrySettlement<'_>,
         input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
@@ -621,8 +654,6 @@ impl TerminalRuntimeProvisions {
         self.identity
     }
 
-    /// Retain the same producer's portable selections separately from this
-    /// native target's admitted entry, backing and external host provisions.
     pub fn with_target_provider_proposals(
         mut self,
         proposals: Vec<TerminalTargetProviderProposal>,
@@ -635,8 +666,6 @@ impl TerminalRuntimeProvisions {
         &self.target_provider_proposals
     }
 
-    /// Retain the same native producer's layout companion. These coordinates
-    /// confer neither host authority nor permission to replace guest fields.
     pub fn with_borrowed_storage_layouts(
         mut self,
         layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
@@ -657,14 +686,10 @@ impl TerminalRuntimeProvisions {
         self.source_signature_identity
     }
 
-    /// The actual admitted root's slot/arrival contract, not recovered from
-    /// the source-signature digest or inferred from selected host providers.
     pub const fn target_slot(&self) -> target::ProgramEntrySlotDeclaration {
         self.target_slot
     }
 
-    /// The selection facts table admitted same-stack requirement indices
-    /// resolve against.
     pub const fn selection_identities(&self) -> &terminal_psi::TerminalIdentityTable {
         self.host_provisions.selection_identities()
     }

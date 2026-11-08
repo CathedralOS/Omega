@@ -1,12 +1,13 @@
-//! Windows foreign image for the classful internet-address operations.
-//!
-//! Win32 and the Universal CRT do not export `inet_makeaddr` or `inet_lnaof`.
-//! A guest that satisfies those boundary requirements with `PeByName` still
-//! needs a loader-visible library beside the published executable. This image
-//! is that library: two `extern "C"` exports whose bodies are the same
-//! classful definition `network_address` evaluates for Terminal execution.
-//! The export names are the C names; the guest requirement path is not an
-//! input. Little-endian `bswap` matches `u32::swap_bytes` on Windows x64.
+/*
+We synthesize the minimal Windows x64 PE dynamic library (`omega_host.dll`)
+that exports `inet_makeaddr` and `inet_lnaof` for published executables on
+Windows.
+
+Because Win32 and the Universal CRT do not export `inet_makeaddr` or
+`inet_lnaof`, a Windows executable that binds those `PeByName` imports needs a
+companion DLL beside it whose machine code implements the exact classful IPv4
+definition evaluated by `network_address.rs`.
+*/
 
 pub const WINDOWS_INTERNET_PROVIDER_LIBRARY: &[u8] = b"omega_host.dll";
 

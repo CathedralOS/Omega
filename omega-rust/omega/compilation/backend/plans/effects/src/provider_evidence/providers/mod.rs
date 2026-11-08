@@ -1,4 +1,7 @@
-//! Omega-owned provider selection and admission records.
+/*
+We expose target-normalized foreign locator types and the `provider_plan`
+subsystem for Omega-owned provider selection and admission records.
+*/
 
 pub mod foreign_locator {
     pub use target::{

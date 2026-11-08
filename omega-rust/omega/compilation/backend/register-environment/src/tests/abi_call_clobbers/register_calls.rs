@@ -1,3 +1,9 @@
+/*
+We verify that every register-call arity and floating-point scalar-call rule
+selected by a target retains the exact ABI argument views, result view, implicit
+uses/defs, and caller-saved clobber set of its target calling convention.
+*/
+
 use super::{
     Architecture, NativeTarget, baseline_target_register_environment, scalar_abi_cases,
     units_for_names,

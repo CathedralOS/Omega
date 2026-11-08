@@ -1,12 +1,9 @@
-//! A Windows x86-64 shared component is the ordinary PE32+ layout with
-//! `IMAGE_FILE_DLL`, no loader entry, and one export directory.
-//!
-//! The directory is appended to `.rdata` after the import table. Its RVAs
-//! depend only on the text length and that table, so they are known before
-//! section planning. The file name the loader searches for is the content
-//! hash of these bytes; the directory's own name is a fixed label and is
-//! not that hash. A container is not an installed component or a callable
-//! address.
+/*
+We emit Windows x86-64 shared-component DLLs (`IMAGE_FILE_DLL`) by appending a
+sorted PE export directory (`IMAGE_EXPORT_DIRECTORY`) after the `.rdata` import
+table while retaining the source `FinalImage` and export roster on both success
+and rejection.
+*/
 
 use diagnostics::Diagnostic;
 use image::{FinalImage, FinalImageSection, FinalImageSymbolHandle};
@@ -18,8 +15,6 @@ use crate::{PeImageKind, emit_pe_x86_64};
 
 const COMPONENT_DIRECTORY_NAME: &[u8] = b"omega-component.dll\0";
 
-/// One selected export's linker spelling and original final-image definition.
-/// The caller obtains this projection from a complete checked slot application.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PeComponentExport {
     pub symbol: FinalImageSymbolHandle,
@@ -42,7 +37,6 @@ impl PeSharedComponentImage {
     pub fn exports(&self) -> &[PeComponentExport] {
         &self.exports
     }
-    /// Exact relocated text retained by the format owner for target replay.
     pub fn final_text_bytes(&self) -> &[u8] {
         &self.final_text_bytes
     }
@@ -64,8 +58,6 @@ image::rejection_carrier!(
     exports: Vec<PeComponentExport>,
 );
 
-/// Emit a separately loadable component without a process entry point.
-/// Failure retains both complete original inputs.
 pub fn emit_pe_shared_component(
     image: FinalImage,
     exports: Vec<PeComponentExport>,
@@ -199,10 +191,6 @@ pub(crate) fn export_directory_bytes(
     Ok(bytes)
 }
 
-/// A directory-relative offset becomes an RVA by adding it to the directory's
-/// own base. Every table the export directory names — the function, name and
-/// ordinal tables, the module label, and the directory's own end — is addressed
-/// this way, so the overflow rejection has one home.
 pub(crate) fn directory_rva_of(directory_rva: u32, offset: usize) -> Result<u32, Diagnostic> {
     directory_rva
         .checked_add(

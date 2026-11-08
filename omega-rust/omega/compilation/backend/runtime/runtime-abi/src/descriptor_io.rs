@@ -1,6 +1,15 @@
-//! Exact native descriptor I/O entry identities shared by admission and guards.
-//! Symbol text alone is insufficient: the normalized target, library identity,
-//! entry mechanism and ABI remain part of the offered implementation.
+/*
+We recognize exact native descriptor I/O entry identities (`DescriptorAbi`,
+`DescriptorOperation`) shared by admission and host execution guards.
+
+Symbol text alone is insufficient: we match the normalized target profile,
+library/object identity (`libSystem.B.dylib`, `msvcrt.dll`, versioned
+`libc.so.6`), or Linux syscall number. `descriptor_import` excludes `LinuxLibc`
+`Read` until the private-output adapter supplies its input/errno model, while
+`descriptor_import_identity` still recognizes the entry so other execution
+routes cannot misclassify it.
+*/
+
 use target::{ForeignLocatorCandidate, NormalizedForeignLocator, TargetProfile};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -8,6 +17,7 @@ pub enum DescriptorOperation {
     Read,
     Write,
 }
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DescriptorAbi {
     WindowsCrt,
@@ -20,15 +30,9 @@ pub fn descriptor_import(
     locator: &NormalizedForeignLocator,
 ) -> Option<(DescriptorAbi, DescriptorOperation)> {
     let identity = descriptor_import_identity(locator)?;
-    // The finite private-output adapter offers libc write. Libc read
-    // requires an input/errno model that it does not yet supply. Recognition
-    // remains separate so other execution routes cannot silently run it with
-    // a different input capability.
     (identity != (DescriptorAbi::LinuxLibc, DescriptorOperation::Read)).then_some(identity)
 }
 
-/// Recognize the exact descriptor operation independently of whether the host
-/// adapter offers its environment. This is not permission to execute it.
 pub fn descriptor_import_identity(
     locator: &NormalizedForeignLocator,
 ) -> Option<(DescriptorAbi, DescriptorOperation)> {

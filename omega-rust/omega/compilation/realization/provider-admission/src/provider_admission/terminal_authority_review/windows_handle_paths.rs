@@ -17,31 +17,6 @@ pub(super) enum HandleTransition {
         occurrence: NativeOccurrence,
         flags: u32,
     },
-    Duplicate {
-        source: HandleInstance,
-        result: HandleInstance,
-        occurrence: NativeOccurrence,
-    },
-    Preserve {
-        instance: HandleInstance,
-        occurrence: NativeOccurrence,
-    },
-    SynchronousIo {
-        instance: HandleInstance,
-        occurrence: NativeOccurrence,
-    },
-    Observe {
-        instance: HandleInstance,
-        occurrence: ScalarOccurrence,
-    },
-    Escape {
-        instance: HandleInstance,
-        occurrence: NativeOccurrence,
-    },
-    AttachedDeletion {
-        instance: HandleInstance,
-        occurrence: NativeOccurrence,
-    },
     Release {
         instance: HandleInstance,
         occurrence: NativeOccurrence,
@@ -72,24 +47,19 @@ pub(super) struct HandlePathProgram {
 
 #[derive(Debug)]
 pub(super) enum HandlePathFailure {
-    InvalidProgram(&'static str),
+    InvalidProgram,
     Lifetime {
         node: usize,
         reason: HandleLifetimeFailure,
     },
-    UncoveredRelease(NativeOccurrence),
+    UncoveredRelease,
     AnalysisBudget,
 }
 
 pub(super) struct HandlePathProof {
     pub releases: BTreeSet<NativeOccurrence>,
     pub visited_nodes: BTreeSet<usize>,
-    pub returning_states: Vec<ReturningHandleState>,
-}
-
-pub(super) struct ReturningHandleState {
-    pub node: usize,
-    pub ledger: HandleLifetimes,
+    pub returning_paths: usize,
 }
 
 impl HandlePathProgram {
@@ -98,14 +68,12 @@ impl HandlePathProgram {
         incoming: HandleLifetimes,
     ) -> Result<HandlePathProof, HandlePathFailure> {
         if self.nodes.get(self.entry).is_none() {
-            return Err(HandlePathFailure::InvalidProgram(
-                "ordinary-release scope has no entry",
-            ));
+            // Refused: ordinary-release scope has no entry.
+            return Err(HandlePathFailure::InvalidProgram);
         }
         if self.required_releases.is_empty() {
-            return Err(HandlePathFailure::InvalidProgram(
-                "ordinary-release scope has no actual release candidate",
-            ));
+            // Refused: ordinary-release scope has no actual release candidate.
+            return Err(HandlePathFailure::InvalidProgram);
         }
         for node in &self.nodes {
             if node
@@ -113,27 +81,23 @@ impl HandlePathProgram {
                 .iter()
                 .any(|target| *target >= self.nodes.len())
             {
-                return Err(HandlePathFailure::InvalidProgram(
-                    "ordinary-release scope has an absent successor",
-                ));
+                // Refused: ordinary-release scope has an absent successor.
+                return Err(HandlePathFailure::InvalidProgram);
             }
             if node.returning.is_some() && !node.successors.is_empty() {
-                return Err(HandlePathFailure::InvalidProgram(
-                    "ordinary-release return still has a continuation",
-                ));
+                // Refused: ordinary-release return still has a continuation.
+                return Err(HandlePathFailure::InvalidProgram);
             }
             if node.returning.is_none() && node.successors.is_empty() {
-                return Err(HandlePathFailure::InvalidProgram(
-                    "ordinary-release path falls off without a proved completion",
-                ));
+                // Refused: ordinary-release path falls off without a proved completion.
+                return Err(HandlePathFailure::InvalidProgram);
             }
             for transition in &node.transitions {
                 if let HandleTransition::Release { occurrence, .. } = transition
                     && !self.required_releases.contains(occurrence)
                 {
-                    return Err(HandlePathFailure::InvalidProgram(
-                        "ordinary-release scope substitutes its candidate roster",
-                    ));
+                    // Refused: ordinary-release scope substitutes its candidate roster.
+                    return Err(HandlePathFailure::InvalidProgram);
                 }
             }
         }
@@ -144,7 +108,7 @@ impl HandlePathProgram {
         let mut proof = HandlePathProof {
             releases: BTreeSet::new(),
             visited_nodes: BTreeSet::new(),
-            returning_states: Vec::new(),
+            returning_paths: 0,
         };
         while let Some((index, mut ledger)) = pending.pop_front() {
             let node = &self.nodes[index];
@@ -167,10 +131,7 @@ impl HandlePathProgram {
                         node: index,
                         reason,
                     })?;
-                proof.returning_states.push(ReturningHandleState {
-                    node: index,
-                    ledger: ledger.clone(),
-                });
+                proof.returning_paths += 1;
             }
             for &target in &node.successors {
                 if seen[target].contains(&ledger) {
@@ -184,18 +145,16 @@ impl HandlePathProgram {
                 pending.push_back((target, ledger.clone()));
             }
         }
-        if proof.returning_states.is_empty() {
-            return Err(HandlePathFailure::InvalidProgram(
-                "ordinary-release scope has no actual returning path",
-            ));
+        if proof.returning_paths == 0 {
+            // Refused: ordinary-release scope has no actual returning path.
+            return Err(HandlePathFailure::InvalidProgram);
         }
         if proof.visited_nodes.len() != self.nodes.len() {
-            return Err(HandlePathFailure::InvalidProgram(
-                "ordinary-release scope contains unproved unreachable nodes",
-            ));
+            // Refused: ordinary-release scope contains unproved unreachable nodes.
+            return Err(HandlePathFailure::InvalidProgram);
         }
-        if let Some(missing) = self.required_releases.difference(&proof.releases).next() {
-            return Err(HandlePathFailure::UncoveredRelease(*missing));
+        if !self.required_releases.is_subset(&proof.releases) {
+            return Err(HandlePathFailure::UncoveredRelease);
         }
         Ok(proof)
     }
@@ -209,31 +168,6 @@ impl HandleTransition {
                 occurrence,
                 flags,
             } => ledger.acquire_file(instance, occurrence, flags),
-            Self::Duplicate {
-                source,
-                result,
-                occurrence,
-            } => ledger.duplicate_file(source, result, occurrence),
-            Self::Preserve {
-                instance,
-                occurrence,
-            } => ledger.preserve(instance, occurrence),
-            Self::SynchronousIo {
-                instance,
-                occurrence,
-            } => ledger.synchronous_io(instance, occurrence),
-            Self::Observe {
-                instance,
-                occurrence,
-            } => ledger.observe_scalar(instance, occurrence),
-            Self::Escape {
-                instance,
-                occurrence,
-            } => ledger.escape(instance, occurrence),
-            Self::AttachedDeletion {
-                instance,
-                occurrence,
-            } => ledger.attach_deletion(instance, occurrence),
             Self::Release {
                 instance,
                 occurrence,
@@ -316,7 +250,7 @@ mod tests {
                 occurrence: second,
             });
         let proof = program.replay(HandleLifetimes::default()).unwrap();
-        assert_eq!(proof.returning_states.len(), 2);
+        assert_eq!(proof.returning_paths, 2);
         assert_eq!(proof.releases, BTreeSet::from([close, second]));
     }
 }

@@ -1,9 +1,12 @@
-//! One narrow-load body over each instruction set's roster and bytes.
-//!
-//! A narrow load reads one or two bytes through a pointer operand and writes a
-//! full, zero-extended register. The width and offset sweep, the footprint it
-//! must bind, the exact opcodes and the refusals every stream owes are stated
-//! once here; an instruction set answers with its roster and its bytes.
+/*
+We verify 8-bit and 16-bit zero-extending pointer loads (`Load8` and `Load16`)
+across `isa-aarch64` and `isa-x86_64`. Given an architecture's admitted
+register pairs, displacement schedule, encoder, validator, and opcode matcher,
+we check that every valid encoding binds a read-only general-memory footprint
+with untouched flags and no trap or stack effects, and that out-of-range
+offsets, mismatched widths, wrong opcodes, and single-bit stream mutations are
+rejected.
+*/
 
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
@@ -11,8 +14,6 @@ use selected_instructions::{
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedInstructionKind,
 };
 
-/// What one validated narrow-load encoding must report; every assertion on it
-/// is stated here, so neither target can bind a weaker effect.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Footprint {
     pub bytes: Vec<u8>,
@@ -24,33 +25,20 @@ pub struct Footprint {
     pub flags_untouched: bool,
 }
 
-/// The base and destination views one instruction set admits, and the byte
-/// offsets its addressing mode can spell at a given width.
 pub struct Roster<'a> {
     pub bases: &'a [&'a str],
     pub destination: &'a str,
     pub offsets: fn(u16) -> Vec<u32>,
 }
 
-/// One instruction set's pinned encodings and the requests it must refuse.
 pub struct Exact<'a> {
-    /// The two operand views both widths are encoded with.
     pub operands: [&'a str; 2],
-    /// The pinned stream per width, in the order `(width, bytes)`.
     pub expected: [(u16, &'a [u8]); 2],
-    /// The opcode byte that distinguishes zero from sign extension, and its
-    /// signed replacement for a one-byte and a two-byte load.
     pub signed_opcode: (usize, [u8; 2]),
-    /// Views the instruction set cannot admit as either operand.
     pub invalid_views: &'a [&'a str],
-    /// `(width, byte_offset)` requests the addressing mode cannot spell.
     pub invalid_offsets: &'a [(u16, u32)],
 }
 
-/// Sweep both widths over every admitted base and offset, require the footprint,
-/// the round trip and every refusal a narrow load owes to its stream, then
-/// require both widths' pinned opcodes and the refusal of every substituted
-/// opcode, view and offset the instruction set cannot spell.
 pub fn conformance<E: std::fmt::Debug>(
     physical: &ValidatedPhysicalRegisterModel,
     roster: &Roster<'_>,
@@ -167,7 +155,6 @@ pub fn conformance<E: std::fmt::Debug>(
                     reject(&operands[..1], displacement, &encoded.bytes),
                     "{kind:?} {base_name} accepted a shorter operand list"
                 );
-                // The complete address is read before the result is defined.
                 assert!(
                     encode(kind, alternative, &[base, base], displacement).is_ok(),
                     "{kind:?} {base_name} refused its complete address read"
