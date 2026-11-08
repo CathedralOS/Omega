@@ -33,6 +33,16 @@ impl<'program> StaticTypeArgumentOwner<'program> {
         if let Some(data) = program.data_definition_by_symbol(owner) {
             return Some(Self::Data(data));
         }
+        if let Some(declaration) = program
+            .mathematical_definitions()
+            .iter()
+            .find(|declaration| declaration.symbol == owner)
+        {
+            return Some(Self::Mathematical {
+                declaration,
+                binders: program.data_type_parameters.span(declaration.binders)?,
+            });
+        }
         // Const symbols deliberately outlive value substitution and retain
         // source provenance even when an executable projection omits the value.
         (owner.is_valid() && program.symbols.get(owner).kind == SymbolKind::Const).then(|| {
@@ -91,15 +101,25 @@ impl<'program> StaticTypeArgumentOwner<'program> {
                 append_scope(&mut types, &mut lifetimes, &outer_types, &outer_lifetimes);
                 (Cow::Owned(types), Cow::Owned(lifetimes), signature.symbol)
             }
+            Self::Mathematical {
+                declaration,
+                binders,
+            } => {
+                let mut types = binders.to_vec();
+                let (outer_types, lifetimes) = enclosing_parameters(program, declaration.symbol);
+                let mut lifetimes = lifetimes;
+                append_scope(&mut types, &mut lifetimes, &outer_types, &[]);
+                (Cow::Owned(types), Cow::Owned(lifetimes), declaration.symbol)
+            }
             Self::Constant { symbol, .. } => {
-                let (types, lifetimes) = constant_parameters(program, symbol);
+                let (types, lifetimes) = enclosing_parameters(program, symbol);
                 (Cow::Owned(types), Cow::Owned(lifetimes), symbol)
             }
         }
     }
 }
 
-fn constant_parameters(
+fn enclosing_parameters(
     program: &dyn crate::CheckingInput,
     constant: SymbolHandle,
 ) -> (Vec<TypeParameter>, Vec<Identifier>) {

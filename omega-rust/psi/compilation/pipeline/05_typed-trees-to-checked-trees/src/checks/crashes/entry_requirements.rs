@@ -30,6 +30,7 @@ pub(super) fn collect(
     let Some(entry) = program.machine_states(machine).first() else {
         return result;
     };
+    let entry_predicates = validation::EntryPredicateObservations::new(program, machine);
     let mut common = consequences::Consequences::new(
         program,
         parameter_names,
@@ -78,10 +79,23 @@ pub(super) fn collect(
             let Some(expression) = fact.as_expression() else {
                 continue;
             };
-            if !has_exact_entry_meaning(program, machine, operators, parameter_names, *expression) {
+            // Mathematical predicates use the same formed-value judgment as
+            // other contracts. Scalar entry syntax remains independently strict.
+            let proved = entry_predicates.proves_crash_condition(*expression);
+            if !proved
+                && !has_exact_entry_meaning(
+                    program,
+                    machine,
+                    operators,
+                    parameter_names,
+                    *expression,
+                )
+            {
                 continue;
             }
-            if common.establishes(*expression, false, &result.consequences, 0) == Some(true) {
+            if proved
+                || common.establishes(*expression, false, &result.consequences, 0) == Some(true)
+            {
                 result.consequences.push(canonical_crash_contract_predicate(
                     program,
                     *expression,

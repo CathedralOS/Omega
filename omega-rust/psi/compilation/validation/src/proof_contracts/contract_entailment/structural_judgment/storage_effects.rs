@@ -558,51 +558,10 @@ impl StructuralJudge<'_> {
         state: &State,
         written: &[String],
     ) -> Option<Vec<SymbolHandle>> {
-        self.frame_resolver()?;
-        if self.program.machine_holding_state(state.symbol)?.symbol != self.machine_symbol {
-            return None;
-        }
+        let frames = self.frame_resolver()?;
         written
             .iter()
-            .map(|path| {
-                let mut declarations = self
-                    .program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .iter()
-                    .filter_map(|statement| statement.as_local_data())
-                    .filter(|local| local.name.as_str() == path.as_str());
-                let local = declarations.next()?;
-                if !local.symbol.is_valid() || declarations.next().is_some() {
-                    return None;
-                }
-                let typed_trees::types::TypeReferenceNode::Named { symbol, .. } = self
-                    .program
-                    .type_reference_table
-                    .type_reference(local.type_reference)
-                else {
-                    return None;
-                };
-                use symbols::BuiltinTypeAtom;
-                matches!(
-                    self.program.symbols.builtin_type_atom(*symbol),
-                    Some(
-                        BuiltinTypeAtom::Bool
-                            | BuiltinTypeAtom::Address
-                            | BuiltinTypeAtom::I8
-                            | BuiltinTypeAtom::I16
-                            | BuiltinTypeAtom::I32
-                            | BuiltinTypeAtom::I64
-                            | BuiltinTypeAtom::U8
-                            | BuiltinTypeAtom::U16
-                            | BuiltinTypeAtom::U32
-                            | BuiltinTypeAtom::U64
-                            | BuiltinTypeAtom::F32
-                            | BuiltinTypeAtom::F64
-                    )
-                )
-                .then_some(local.symbol)
-            })
+            .map(|path| frames.private_scalar_local(self.machine_symbol, state, path))
             .collect()
     }
 

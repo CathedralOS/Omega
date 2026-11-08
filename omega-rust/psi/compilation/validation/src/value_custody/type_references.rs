@@ -104,6 +104,10 @@ pub enum StaticTypeArgumentOwner<'program> {
         declaration: &'program typed_trees::machine::Machine,
         signature: &'program typed_trees::signature::StateSignature,
     },
+    Mathematical {
+        declaration: &'program typed_trees::mathematical::MathematicalDefinition,
+        binders: &'program [TypeParameter],
+    },
     Constant {
         symbol: symbols::SymbolHandle,
         name: &'program str,
@@ -389,6 +393,9 @@ impl fmt::Display for TypeReferenceOwner<'_> {
                             "machine-parameter requirement `{}`",
                             signature.name
                         )?;
+                    }
+                    StaticTypeArgumentOwner::Mathematical { declaration, .. } => {
+                        write!(formatter, "mathematical declaration `{}`", declaration.name)?;
                     }
                     StaticTypeArgumentOwner::Constant { name, .. } => {
                         write!(formatter, "constant `{name}`")?;

@@ -74,6 +74,35 @@ pub(crate) fn validate_proof_embeddings(
             }
         }
     }
+    // Copied public call signatures remain proof roots even after static
+    // specialization removes their authored machine parameter. Their facts do
+    // not become executable arena leftovers or gain truth from this census.
+    for contract in crate::proof_contracts::contract_results::retained_callable_contracts(program) {
+        for clause in program.state_signature_contracts(contract.signature) {
+            for fact in program.proof_facts.span_or_empty(clause.facts) {
+                match fact {
+                    ProofFact::Expression(expression) => {
+                        collect_expression_nodes(
+                            program,
+                            *expression,
+                            &mut proof_nodes,
+                            &mut proof_seen,
+                        );
+                    }
+                    ProofFact::Membership(membership) => {
+                        nodes!(program => membership.value => &mut proof_nodes => &mut proof_seen);
+                    }
+                    ProofFact::Proposition(application) => {
+                        for argument in
+                            expression_table(program).expression_handles(application.arguments)
+                        {
+                            nodes!(program => *argument => &mut proof_nodes => &mut proof_seen);
+                        }
+                    }
+                }
+            }
+        }
+    }
     for expression in crate::mathematical_applications::expression_nodes(program) {
         collect_expression_nodes(program, expression, &mut proof_nodes, &mut proof_seen);
     }

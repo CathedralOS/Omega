@@ -25,6 +25,8 @@ use language_semantics::content::{
     ContentPlaceVersion,
 };
 
+mod terminal_demands;
+
 pub(crate) fn observe_body_completion(
     program: &dyn validation::CheckingInput,
     facts: &mut checked_trees::CheckFactsWalk<'_>,
@@ -43,13 +45,21 @@ pub(crate) fn observe_body_completion(
         return Vec::new();
     }
     let mut observed = Vec::new();
-    for (plan_index, plan) in state_conservation_plans(program, facts.view(), machine, state) {
+    // The immutable site preparation already transported terminal demands.
+    // Reuse those plans instead of rediscovering the call graph at every
+    // completed operand during the sequential custody walk.
+    let mut plans = Vec::new();
+    for candidate in candidates {
+        if !plans.iter().any(|(plan_index, plan)| {
+            *plan_index == candidate.plan_index && *plan == &candidate.plan
+        }) {
+            plans.push((candidate.plan_index, &candidate.plan));
+        }
+    }
+    for (plan_index, plan) in plans {
         if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
             continue;
         }
-        let Some(plan) = plan_at_state(program, facts.view(), state, plan) else {
-            continue;
-        };
         let Some((inputs, outputs)) =
             owned_return_sides(plan.equation.left(), plan.equation.right())
         else {
@@ -87,6 +97,7 @@ pub(crate) fn observe_body_completion(
                 // exact sources before any callable theorem can be consumed.
                 let prepared = candidates.iter().find(|candidate| {
                     candidate.plan_index == plan_index
+                        && candidate.plan == *plan
                         && candidate.returned_at == returned_at
                         && candidate.completed_value == completed_value
                 });
@@ -221,6 +232,7 @@ pub(crate) fn observe_body_completion(
 #[derive(Debug, Clone)]
 pub(crate) struct ConservationCandidate {
     plan_index: usize,
+    plan: language_semantics::content::ContentConservationPlan,
     returned_at: arena::Handle<checked_trees::FlowStateOutgoingFact>,
     completed_value: arena::Handle<checked_trees::FlowOperandFact>,
     admitted: bool,
@@ -351,6 +363,7 @@ impl ConservationSites {
                     position,
                     ConservationCandidate {
                         plan_index,
+                        plan: plan.clone(),
                         returned_at,
                         completed_value,
                         admitted,
@@ -425,7 +438,8 @@ pub(crate) fn conservation_sites(
     sites
 }
 
-/// The machine conservation plans owned by this state or its machine entry.
+/// Declared plans and exact terminal callers' demands are proof obligations,
+/// never assumptions about the value a body returns.
 fn state_conservation_plans(
     program: &dyn validation::CheckingInput,
     facts: checked_trees::CheckFactsRef<'_>,
@@ -436,7 +450,7 @@ fn state_conservation_plans(
         .machine_states(machine)
         .first()
         .map(|state| state.symbol);
-    facts
+    let mut plans = facts
         .qualifications
         .content
         .conservation_plans
@@ -448,7 +462,24 @@ fn state_conservation_plans(
                 && (plan.callable == state.symbol || Some(plan.callable) == entry)
         })
         .map(|(position, plan)| (position, plan.clone()))
-        .collect()
+        .collect::<Vec<_>>();
+    for (plan_index, plan) in facts
+        .qualifications
+        .content
+        .conservation_plans
+        .iter()
+        .enumerate()
+        .filter(|(_, plan)| plan.owner_kind == ContentConservationOwnerKind::Machine)
+    {
+        for demanded in terminal_demands::at_state(program, facts, plan, machine, state) {
+            if !plans.iter().any(|(existing_index, existing)| {
+                *existing_index == plan_index && *existing == demanded
+            }) {
+                plans.push((plan_index, demanded));
+            }
+        }
+    }
+    plans
 }
 
 /// Whether the value completed at `site` proves `domain` at `path`, in the

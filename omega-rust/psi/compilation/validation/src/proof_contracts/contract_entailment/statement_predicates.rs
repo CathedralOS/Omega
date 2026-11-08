@@ -12,6 +12,79 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::PrimitiveType;
 use typed_trees::{machine::Machine, state::State};
 
+/// Formed declaration predicates at the invocation entry, without body facts
+/// or private caller observations. A crash condition is a question here; it
+/// never becomes one of the entry hypotheses used to answer itself.
+pub struct EntryPredicateObservations<'program> {
+    program: &'program dyn crate::CheckingInput,
+    machine: &'program Machine,
+    judge: std::cell::OnceCell<super::structural_judgment::StructuralJudge<'program>>,
+}
+
+impl<'program> EntryPredicateObservations<'program> {
+    pub fn new(program: &'program dyn crate::CheckingInput, machine: &'program Machine) -> Self {
+        Self {
+            program,
+            machine,
+            judge: std::cell::OnceCell::new(),
+        }
+    }
+
+    fn judge(&self) -> &super::structural_judgment::StructuralJudge<'program> {
+        self.judge.get_or_init(|| {
+            let entry = self.program.machine_states(self.machine).first();
+            let requires = self
+                .program
+                .machine_contracts(self.machine)
+                .iter()
+                .chain(
+                    entry
+                        .into_iter()
+                        .flat_map(|state| self.program.state_contracts(state)),
+                )
+                .filter(|contract| {
+                    contract.kind == typed_trees::signature::SignatureContractKind::Requires
+                })
+                .flat_map(|contract| self.program.proof_facts.span_or_empty(contract.facts))
+                .filter_map(|fact| fact.as_expression().copied())
+                .collect::<Vec<_>>();
+            super::structural_judgment::StructuralJudge::from_runtime_requires(
+                self.program,
+                self.machine,
+                &requires,
+            )
+        })
+    }
+
+    pub fn proves_crash_condition(&self, expression: ExpressionHandle) -> bool {
+        let Some(entry) = self.program.machine_states(self.machine).first() else {
+            return false;
+        };
+        let owned = self
+            .program
+            .machine_contracts(self.machine)
+            .iter()
+            .filter(|contract| {
+                matches!(
+                    contract.kind,
+                    typed_trees::signature::SignatureContractKind::Crashes { .. }
+                )
+            })
+            .flat_map(|contract| self.program.proof_facts.span_or_empty(contract.facts))
+            .any(|fact| fact.as_expression() == Some(&expression));
+        owned
+            && matches!(
+                self.judge().judge_predicate_in_scope(
+                    (self.machine, entry, entry.return_type),
+                    expression,
+                    &[],
+                    0
+                ),
+                StructuralJudgment::Proven
+            )
+    }
+}
+
 /// Ordinary Boolean questions over the current values of a checked prefix.
 pub struct StatementPredicateObservations<'program> {
     program: &'program dyn crate::CheckingInput,

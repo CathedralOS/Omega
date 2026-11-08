@@ -94,6 +94,9 @@ pub struct CallFrameTables<'program> {
     /// Per-machine member/state symbol tables. `None` retains the build's
     /// non-empty-diagnostics verdict so callers keep failing closed.
     machine_symbols: HashMap<SymbolHandle, Option<Arc<MachineSymbols<'program>>>>,
+    /// Exact direct scalar locals, prepared once for every state. None keeps
+    /// duplicate names and non-private declarations ineligible.
+    private_scalar_locals: HashMap<SymbolHandle, HashMap<&'program str, Option<SymbolHandle>>>,
 }
 
 impl<'program> CallFrameTables<'program> {
@@ -103,6 +106,27 @@ impl<'program> CallFrameTables<'program> {
         let symbols = TopLevelSymbols::build(program, &mut diagnostics);
         diagnostics.is_empty().then(|| Self {
             symbols,
+            private_scalar_locals: program
+                .machines()
+                .iter()
+                .flat_map(|machine| program.machine_states(machine))
+                .map(|state| {
+                    let mut locals = HashMap::default();
+                    for local in program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .iter()
+                        .filter_map(|statement| statement.as_local_data())
+                    {
+                        let root = private_scalar_local_symbol(program, local);
+                        locals
+                            .entry(local.name.as_str())
+                            .and_modify(|root| *root = None)
+                            .or_insert(root);
+                    }
+                    (state.symbol, locals)
+                })
+                .collect(),
             machine_symbols: program
                 .machines()
                 .iter()
@@ -117,6 +141,40 @@ impl<'program> CallFrameTables<'program> {
                 .collect(),
         })
     }
+}
+
+fn private_scalar_local_symbol(
+    program: &dyn crate::CheckingInput,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<SymbolHandle> {
+    if !local.symbol.is_valid() {
+        return None;
+    }
+    let TypeReferenceNode::Named { symbol, .. } = program
+        .type_reference_table
+        .type_reference(local.type_reference)
+    else {
+        return None;
+    };
+    use symbols::BuiltinTypeAtom;
+    matches!(
+        program.symbols.builtin_type_atom(*symbol),
+        Some(
+            BuiltinTypeAtom::Bool
+                | BuiltinTypeAtom::Address
+                | BuiltinTypeAtom::I8
+                | BuiltinTypeAtom::I16
+                | BuiltinTypeAtom::I32
+                | BuiltinTypeAtom::I64
+                | BuiltinTypeAtom::U8
+                | BuiltinTypeAtom::U16
+                | BuiltinTypeAtom::U32
+                | BuiltinTypeAtom::U64
+                | BuiltinTypeAtom::F32
+                | BuiltinTypeAtom::F64
+        )
+    )
+    .then_some(local.symbol)
 }
 
 pub(super) fn machine_symbols<'program>(
@@ -242,6 +300,23 @@ pub fn operand_call_plans(
 }
 
 impl<'program> CallFrameResolver<'program> {
+    /// One uniquely named direct scalar declaration in the exact caller state.
+    /// No reference, field path, alias or same-spelled foreign local qualifies.
+    pub(crate) fn private_scalar_local(
+        &self,
+        owner: SymbolHandle,
+        state: &State,
+        name: &str,
+    ) -> Option<SymbolHandle> {
+        (self.program.machine_holding_state(state.symbol)?.symbol == owner).then_some(())?;
+        self.tables
+            .private_scalar_locals
+            .get(&state.symbol)?
+            .get(name)
+            .copied()
+            .flatten()
+    }
+
     /// Reconstruct every carried slot along this local home's successor path.
     /// This proves intermediate retention and prevents a repeated establishment
     /// from overwriting a prior live generation; it is not a return summary.

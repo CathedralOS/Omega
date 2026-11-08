@@ -29,7 +29,6 @@ ensures result == 3
 
 machine plus_index_comm(a: u64, b: u64)
 satisfies IndexAdd<u64>::add_comm as Canonical
-requires core::Identity<u64>(plus_index(a, b), plus_index(b, a))
 ensures core::Identity<u64>(plus_index(a, b), plus_index(b, a))
 {
     _ = plus_index(a, b);
@@ -38,7 +37,6 @@ ensures core::Identity<u64>(plus_index(a, b), plus_index(b, a))
 
 machine plus_index_assoc(a: u64, b: u64, c: u64)
 satisfies IndexAdd<u64>::add_assoc as Canonical
-requires core::Identity<u64>(plus_index(plus_index(a, b), c), plus_index(a, plus_index(b, c)))
 ensures core::Identity<u64>(plus_index(plus_index(a, b), c), plus_index(a, plus_index(b, c)))
 {
     _ = plus_index(plus_index(a, b), c);
@@ -52,11 +50,11 @@ Canonical satisfies IndexAdd<u64>
         plus_index(a, b)
     }
     machine add_comm(a: u64, b: u64)
-    ensures core::Identity<u64>(plus_index(a, b), plus_index(b, a)) {
+    ensures core::Identity<u64>(Canonical::add(a, b), Canonical::add(b, a)) {
         plus_index_comm(a, b);
     }
     machine add_assoc(a: u64, b: u64, c: u64)
-    ensures core::Identity<u64>(plus_index(plus_index(a, b), c), plus_index(a, plus_index(b, c))) {
+    ensures core::Identity<u64>(Canonical::add(Canonical::add(a, b), c), Canonical::add(a, Canonical::add(b, c))) {
         plus_index_assoc(a, b, c);
     }
 }
