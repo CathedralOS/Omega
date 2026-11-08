@@ -103,6 +103,7 @@ jobs:
           QUALIFICATION_CORPUS: ${{ inputs.qualification_corpus }}
           QUALIFICATION_RUNTIME: ${{ inputs.qualification_runtime }}
           QUALIFICATION_SAMPLES: ${{ inputs.qualification_samples }}
+          OMEGA_LE_CASE_TRACE: "1"
           QUALIFICATION_CONTROLS: ${{ inputs.qualification_controls }}
         run: |
           set -euo pipefail
