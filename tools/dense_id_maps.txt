@@ -182,7 +182,7 @@
 1 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/optimization_unit/construction/structural_custody.rs
 2 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/optimization_unit/graph.rs
 13 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/optimization_unit/structural_places.rs
-12 omega-rust/omega/compilation/representations/abstract-operations/src/abstract_operations/atomic.rs
+12 omega-rust/omega/compilation/representations/abstract-operations/src/atomic.rs
 1 omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/original_homes.rs
 1 omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/reference_outputs.rs
 1 omega-rust/omega/packages/review-evidence/src/capture/api/data/evidence.rs
