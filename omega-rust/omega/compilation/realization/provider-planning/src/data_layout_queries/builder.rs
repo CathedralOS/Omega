@@ -1,23 +1,30 @@
-//! The layout plan builder.
-//!
-//! This file owns the plan entry points, the builder and its visit stack.
-//! `data_layouts.rs` computes record and sum layouts,
-//! `type_reference_layouts.rs` lays out type references under generic
-//! bindings, `generic_bindings.rs` resolves those bindings,
-//! `private_callback_closure.rs` closes private callback demands and
-//! `semantic_ranges.rs` derives plan-laid semantic ranges.
+/*
+We own the layout-plan entry points (`build_layout_plan`,
+`build_layout_plan_for_roots`, `layout_type_reference`, and
+`try_layout_type_reference`), the `LayoutBuilder` state, its inline-first visit
+stack (`LayoutVisitStack`), and generic type/const-argument binding resolution
+(`generic_bindings`).
+
+Opaque declarations, generic templates, and proof-only data (recursive or
+holding proof-only inline) remain absent from the eager top-level catalog. When
+a by-value layout reaches a boundary-opaque declaration through another concrete
+shape, the exact compiler-validated selection redirects physical derivation to
+its carrier. Inline recursion is caught by `LayoutVisitStack` with an actionable
+indirection diagnostic, and monomorphized generic data instances are recorded
+under their definition symbol (or poisoned on multi-instantiation collision so
+each use sizes privately without ambiguous field offsets).
+*/
 
 mod data_layouts;
-mod generic_bindings;
 mod private_callback_closure;
 mod semantic_ranges;
 #[cfg(test)]
 mod tests;
 mod type_reference_layouts;
 
-use crate::data_layout_queries::builder::generic_bindings::GenericLayoutBinding;
-use crate::data_layout_queries::builder::generic_bindings::binding_for_type;
-use crate::data_layout_queries::builder::generic_bindings::fixed_array_length;
+use crate::data_layout_queries::builder::generic_bindings::{
+    GenericLayoutBinding, binding_for_type, fixed_array_length,
+};
 use crate::data_layout_queries::builder::private_callback_closure::close_private_callback_layouts;
 use crate::data_layout_queries::sizing::pointer_layout;
 use crate::data_layout_queries::{
@@ -37,13 +44,6 @@ use representation_selections::OpaqueRepresentationSelection;
 use symbols::{BuiltinType, SymbolHandle};
 use target::NativeTarget;
 
-/// Build the selected target's general physical layout plan.
-///
-/// Opaque declarations remain absent from the eager top-level catalog. When a
-/// by-value layout reaches one through another concrete shape, the exact
-/// compiler-validated selection redirects physical derivation to its carrier.
-/// Merely supplying a selection does not create a package demand or expose the
-/// carrier as the semantic source type.
 pub fn build_layout_plan(
     program: &TypedTrees,
     target: impl Into<crate::data_layout_queries::LayoutTarget>,
@@ -57,14 +57,6 @@ pub fn build_layout_plan(
     )
 }
 
-/// Build the physical catalog reachable from the requested declaration roots.
-///
-/// Callback closure requests only its native parameter roots. Scalar symbols
-/// have no data declaration, and generic, opaque, and proof-only declarations
-/// remain outside the top-level catalog just as in the complete catalog.
-/// Inline field dependencies are laid out recursively. An unresolved family
-/// reached through a requested root still requires a target-closed Terminal
-/// view; unrelated declarations never acquire a physical layout demand.
 pub fn build_layout_plan_for_roots(
     program: &TypedTrees,
     target: impl Into<crate::data_layout_queries::LayoutTarget>,
@@ -79,11 +71,6 @@ pub fn build_layout_plan_for_roots(
         OpaqueRepresentationDemand::CatalogConstruction,
     );
 
-    // Math roster N1: proof-only data (recursive, or holding proof-only
-    // inline) HAS no layout, by definition -- skip it the way generic
-    // templates are skipped. Runtime admissibility belongs to checking; this
-    // catalog only omits carriers without geometry. An explicit recursive
-    // by-value demand is rejected by the visit-stack backstop.
     let proof_only = checked_trees::typed_trees::proof_only::classify(program);
 
     for data_definition in program.data_definitions() {
@@ -105,14 +92,6 @@ pub fn build_layout_plan_for_roots(
     builder.finish()
 }
 
-/// Compute the selected target's concrete size/alignment for one typed reference.
-/// This consumes type structure, not check facts, and does not authorize execution.
-/// Task activation elaboration uses this for argument, outcome, and
-/// continuation-live values without duplicating layout rules. References do
-/// not descend into their referee and therefore never demand or consume an
-/// opaque representation selection. A direct by-value opaque request is an
-/// actual layout demand and rejects when the authoritative build selected no
-/// representation.
 pub fn layout_type_reference(
     program: &TypedTrees,
     target: impl Into<crate::data_layout_queries::LayoutTarget>,
@@ -128,9 +107,6 @@ pub fn layout_type_reference(
     .layout_type_reference_handle(type_reference, &[])
 }
 
-/// Query one carrier using the ordinary layout traversal, retaining the
-/// distinction between a genuine zero size and an extent whose constant has
-/// not closed. A fresh builder owns each query; no provisional geometry escapes.
 pub fn try_layout_type_reference(
     program: &TypedTrees,
     target: impl Into<crate::data_layout_queries::LayoutTarget>,
@@ -147,9 +123,6 @@ pub fn try_layout_type_reference(
     Ok((!builder.unresolved_array_extent).then_some(layout))
 }
 
-/// The complete layout catalog eagerly visits declarations that may never be
-/// used. Only an explicit type-layout request is proof that an unselected
-/// opaque is demanded by value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OpaqueRepresentationDemand {
     CatalogConstruction,
@@ -160,9 +133,7 @@ struct LayoutBuilder<'program> {
     data_definitions: &'program [DataDefinition],
     data_layouts: Arena<DataLayout>,
     data_visiting: LayoutVisitStack,
-    /// Set by the actual by-value traversal, after generic binding lookup.
-    /// Query callers discard provisional geometry when this flag is set.
-    unresolved_array_extent: bool,
+    unresolved_array_extent: bool, // set by by-value traversal when a fixed-array extent has not closed
     fields: Arena<FieldLayout>,
     bit_fields: Vec<BitFieldLayout>,
     stored_integers: Vec<StoredIntegerLayout>,
@@ -171,14 +142,7 @@ struct LayoutBuilder<'program> {
     data_layout_identities: Vec<TargetClosedDataLayoutIdentity>,
     opaque_representation_selections: &'program [OpaqueRepresentationSelection],
     opaque_representation_demand: OpaqueRepresentationDemand,
-    /// One recorded MONOMORPHIZED instance per generic data definition: the
-    /// definition symbol paired with the canonical display of its type
-    /// arguments. The instance's `DataLayout` is keyed by the DEFINITION symbol
-    /// (that is what downstream field-offset resolution looks up through the
-    /// type descriptor), so a program may instantiate each generic data with
-    /// ONE argument list; a second, DIFFERENT instantiation is a clean error
-    /// until per-instance identity is threaded through descriptors.
-    generic_instance_signatures: Vec<(SymbolHandle, String)>,
+    generic_instance_signatures: Vec<(SymbolHandle, String)>, // one monomorphized instance per generic data definition symbol
     trait_definitions: &'program [TraitDefinition],
     program: &'program TypedTrees,
     target: NativeTarget,
@@ -316,11 +280,6 @@ impl<'program> LayoutBuilder<'program> {
         }
 
         if self.data_visiting.contains(symbol) {
-            // A data type reached while it is still being laid out contains itself as an
-            // INLINE value (directly, or through a cycle of inline fields), so it has no
-            // finite size -- a `Node { next: Node }` value would nest endlessly. This is
-            // inherently impossible, not a missing feature; name the type and point at the
-            // fix (indirection) rather than exposing the internal symbol index.
             let name = self
                 .data_definition_by_symbol(symbol)
                 .ok()
@@ -369,7 +328,6 @@ impl<'program> LayoutBuilder<'program> {
             })
     }
 
-    /// The planned layout entry keyed `symbol`, when that data type already has one.
     fn data_layout_entry_by_symbol(
         &self,
         symbol: SymbolHandle,
@@ -389,11 +347,6 @@ impl<'program> LayoutBuilder<'program> {
         None
     }
 
-    /// The descriptor of a type reference under `bindings`: a reference to a
-    /// bound GENERIC TYPE PARAMETER resolves to the descriptor of its ARGUMENT,
-    /// so a monomorphized instance's `val: T` field carries the substituted
-    /// descriptor (arithmetic domain, storage symbol) instead of an opaque
-    /// parameter symbol. Callers outside any instance pass no bindings.
     fn type_descriptor(
         &self,
         type_reference: TypeReferenceHandle,
@@ -416,8 +369,6 @@ impl<'program> LayoutBuilder<'program> {
             } => {
                 let base = self.type_descriptor(*base_type, bindings);
                 let constraint_list = self.program.type_reference_table.constraints(*constraints);
-                // Qualification preserves the base descriptor, including an
-                // exact fixed array. Arithmetic policy remains separate metadata.
                 TypeLayoutDescriptor::Constrained {
                     base_type: Box::new(base),
                     domain: constraint_list
@@ -437,9 +388,6 @@ impl<'program> LayoutBuilder<'program> {
                     element_type: Box::new(self.type_descriptor(*element_type, bindings)),
                     length,
                 },
-                // A recipe length closes only in a closed program copy; an
-                // unclosed one degrades to Unit exactly like an unresolved
-                // const parameter (layout cannot size it).
                 None => TypeLayoutDescriptor::Unit,
             },
             TypeReferenceNode::Slice { element_type } => TypeLayoutDescriptor::Slice {
@@ -471,5 +419,78 @@ impl<'program> LayoutBuilder<'program> {
             TypeReferenceNode::ConstExpression(_) => TypeLayoutDescriptor::Unit,
             TypeReferenceNode::Unit => TypeLayoutDescriptor::Unit,
         }
+    }
+}
+
+pub(crate) mod generic_bindings {
+    use checked_trees::typed_trees::TypedTrees;
+    use checked_trees::typed_trees::types::{
+        FixedArrayLength, TypeReferenceHandle, TypeReferenceNode,
+    };
+    use symbols::SymbolHandle;
+
+    #[derive(Debug, Clone, Copy)]
+    pub(crate) struct GenericLayoutBinding<'program> {
+        pub(crate) parameter_symbol: SymbolHandle,
+        pub(crate) parameter_name: &'program str,
+        pub(crate) argument: TypeReferenceHandle,
+    }
+
+    pub(crate) fn binding_for_type<'program>(
+        symbol: SymbolHandle,
+        name: &str,
+        bindings: &[GenericLayoutBinding<'program>],
+    ) -> Option<GenericLayoutBinding<'program>> {
+        bindings
+            .iter()
+            .find(|binding| {
+                if symbol.is_valid() {
+                    binding.parameter_symbol == symbol
+                } else {
+                    binding.parameter_name == name
+                }
+            })
+            .copied()
+    }
+
+    pub(crate) fn fixed_array_length(
+        program: &TypedTrees,
+        type_reference: TypeReferenceHandle,
+        length: &FixedArrayLength,
+        bindings: &[GenericLayoutBinding<'_>],
+    ) -> Option<usize> {
+        match length {
+            FixedArrayLength::Literal(length) => Some(*length),
+            FixedArrayLength::ConstParameter { symbol, name } => {
+                let binding = binding_for_type(*symbol, name, bindings)?;
+                const_argument_value(program, binding.argument, bindings, 0)
+            }
+            FixedArrayLength::Expression(_) => None,
+            FixedArrayLength::ConstCall { .. } => program.closed_fixed_array_length(type_reference),
+        }
+    }
+
+    fn const_argument_value(
+        program: &TypedTrees,
+        argument: TypeReferenceHandle,
+        bindings: &[GenericLayoutBinding<'_>],
+        depth: usize,
+    ) -> Option<usize> {
+        if depth >= 16 {
+            return None;
+        }
+        if let Some(value) = program
+            .type_reference_table
+            .anonymous_numeric_literal_value(argument)
+        {
+            return Some(value);
+        }
+        let TypeReferenceNode::Named { symbol, name } =
+            program.type_reference_table.type_reference(argument)
+        else {
+            return None;
+        };
+        let binding = binding_for_type(*symbol, name, bindings)?;
+        const_argument_value(program, binding.argument, bindings, depth + 1)
     }
 }

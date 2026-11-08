@@ -1,4 +1,10 @@
-//! Target-closed private callback slots and complete inline record paths.
+// We close target-specific private callback slots (`close_private_callback_demands`)
+// and complete inline record paths (`close_private_callback_layouts`). Each
+// slot placement is checked for alignment, bounds, and non-overlap against
+// semantic field bit-ranges and sibling private callback slots, while inline
+// record paths are closed from every reaching root data layout without cycles
+// or duplicate destinations.
+
 use crate::data_layout_queries::builder::semantic_ranges::{
     plan_laid_semantic_ranges, ranges_overlap,
 };
@@ -156,6 +162,7 @@ pub(crate) fn close_private_callback_layouts(
     }
     Ok((identities, layouts))
 }
+
 fn reaches_slot(
     symbol: symbols::SymbolHandle,
     data: &Arena<DataLayout>,
@@ -187,6 +194,7 @@ fn reaches_slot(
     seen.pop();
     found
 }
+
 #[allow(clippy::too_many_arguments)]
 fn close_path(
     program: &TypedTrees,

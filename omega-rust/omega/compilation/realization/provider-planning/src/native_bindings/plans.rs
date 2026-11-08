@@ -1,11 +1,14 @@
-//! Whole native maps retain their supplier, exact requirements and completed Build.
-//! There is no realization machine: source visibility was admitted on the
-//! designated operands, and each irreducible row now refines that requirement's
-//! independently evaluated calling application. Candidate construction grants
-//! no trust; ordinary selected-provider and executable admission follow it.
-//! Neutral schemas come from the same prepared Product catalog as authored
-//! providers. Exact declared-signature admission and all-target locator checks
-//! still precede attaching the selected target's calling evidence.
+// Build-supplied native binding candidate formation and locator evaluation.
+// Whole native maps retain their supplier, exact requirements, and completed
+// Build evaluation without a realization machine: source visibility was admitted
+// on the designated operands, and each irreducible row refines that
+// requirement's independently evaluated calling application. Neutral schemas
+// come from the prepared Product catalog, and dormant targets retain an absent
+// service surface without turning it into an eager source-preparation error. Every
+// authored target's locator is checked under that target, while only the
+// requested target realization consumes this compilation's evaluated calling
+// geometry; equal bindings for the same requirement collapse into a single row
+// with accumulated equivalent origins.
 
 use super::NativeBuildSupply;
 use crate::provider_planning::trait_name_text;
@@ -33,11 +36,6 @@ pub struct NativeBuildRowOrigin {
     pub origin: package_compilation::PackageNativeBindingOrigin,
 }
 
-/// Exact declaration facts for completed Build binding intents. Capturing these
-/// records does not evaluate a locator, consume Calling, or admit a provider.
-/// Each occurrence supplies its own evaluation evidence at settlement; only
-/// declarations are shared. Declaration and surface refusals remain at their
-/// original settlement boundaries.
 pub struct PreparedNativeBuildBindings {
     rows: Vec<PreparedNativeBuildBinding>,
 }
@@ -56,8 +54,6 @@ struct PreparedNativeRequirement {
 }
 
 impl PreparedNativeBuildBindings {
-    /// Source formation runs once for this checked Product. Subsequent targets
-    /// borrow immutable metadata, not a Source context or a declaration lookup.
     pub fn capture(services: ServiceCatalog<'_>, supplies: &[NativeBuildSupply]) -> Self {
         let typed = services.context().typed;
         let rows = supplies
@@ -82,9 +78,6 @@ impl PreparedNativeBuildBindings {
                         signature: signature.symbol,
                         identity: typed.trait_requirement_callable_identity_text(owner, signature),
                         method: signature.name.as_str().to_owned(),
-                        // A dormant target used to check its locator but not
-                        // demand a service surface. Retain absence without
-                        // turning it into an eager source-preparation error.
                         surface: services.retain_declaration(
                             ProviderSchemaDeclaration::BoundaryTrait(owner.symbol),
                         ),
@@ -99,8 +92,6 @@ impl PreparedNativeBuildBindings {
         Self { rows }
     }
 
-    /// Form neutral candidates once from this occurrence's Build evidence.
-    /// Final schema/Calling validation belongs after evaluated attachment.
     pub(crate) fn form(
         &self,
         supplies: &[NativeBuildSupply],
@@ -118,9 +109,6 @@ impl PreparedNativeBuildBindings {
             let fail = |reason: String| {
                 vec![Diagnostic::error(reason).with_source_span(selection.source_span)]
             };
-            // Source cohorts share declarations, never another occurrence's
-            // measured evaluation. Bind the exact authored row to the current
-            // Build evidence without a source lookup or a first-match search.
             if prepared_binding.selection != *selection {
                 return Err(fail(
                     "native Build supply differs from its prepared declaration".into(),
@@ -141,9 +129,6 @@ impl PreparedNativeBuildBindings {
                 producer,
                 evaluated,
             };
-            // Every authored target's locator is checked under that target. Only
-            // the requested realization consumes this compilation's evaluated
-            // calling geometry; another target must never inherit its ABI plan.
             if selected_target != Some(target) {
                 continue;
             }
@@ -219,8 +204,6 @@ impl PreparedNativeBuildBindings {
                 {
                     return Err(fail("native Build supplier binds one requirement to conflicting normalized locators".into()));
                 }
-                // Equal bindings are one semantic choice. Keep every reached
-                // source/evaluation origin without installing another provider row.
                 Arc::make_mut(origin).origin.equivalents.push(production);
                 continue;
             }
@@ -332,8 +315,6 @@ fn evaluate(
     materialization.raw(&binding_digest.as_bytes());
     let materialization =
         EvaluatedBindingMaterializationDigest::from_bytes(materialization.finish())?;
-    // The Build requirement shares the producer's identity table so readers
-    // resolve both through one evaluated via-binding namespace.
     let requirement_identity = identities.intern(requirement);
     let receipt = EvaluatedBindingReceipt::from_evaluation(
         Some(selection.supplier_package),
