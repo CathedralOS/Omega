@@ -42,20 +42,24 @@ execution. Raw runs remain outside git under the existing qualification workflow
 
 ## Observed candidate
 
-[Run 42513563575](https://github.com/CathedralOS/Omega/actions/runs/42513563575)
-authenticates source `0ef9213f3832293de6df91f544d1ef32af68b633`, the optimized
+[Run 42516674064](https://github.com/CathedralOS/Omega/actions/runs/42516674064)
+authenticates source `87bc8227d1fb62bf2a346aea802853132a37b025`, the optimized
 producer profiles and all 44 selected source/oracle blobs. All eleven checking
 rows satisfy their intended oracles. The frozen positive, ordinary integer
 negation, double integer negation and existing IEEE identity program each
 execute with native exit 0, Psi exit 0 and agreement on Linux x86-64.
+The five changed corpus rows retain this actual clean producer revision.
 
-[Run 42512068420](https://github.com/CathedralOS/Omega/actions/runs/42512068420)
-passes the three focused Rust tests, formatting, dependency boundaries and
-production Clippy on `e78c5edc15c`. Its Rust/library/toolchain dependency closure
-is unchanged in the program qualification and subsequent record/documentation
-commit. The records keep their actual producer revision.
+[Run 42516516592](https://github.com/CathedralOS/Omega/actions/runs/42516516592)
+passes the same three focused Rust tests, formatting, dependency boundaries and
+production Clippy on this source. The extended replay test establishes two
+distinct negations as true, then queries their identity. It observes Unknown
+and checks that ordinary value resolution leaves the proposition intact.
+The [earlier test-only source](https://github.com/CathedralOS/Omega/actions/runs/42515879789)
+`234053a1525` observed Proven for that identity query. Dedicated predicate-truth
+lookup now keeps logical truth out of value and identity normalization.
 
 The two existing custom-order/changed-operand expected fragments were refreshed
 after [baseline run 42512531236](https://github.com/CathedralOS/Omega/actions/runs/42512531236)
 reproduced the same complete diagnostics on preserved source `0bda069e4d2`.
-Their authored programs are unchanged.
+Their authored programs and all frozen positive functional inputs are unchanged.
