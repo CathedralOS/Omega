@@ -24,13 +24,14 @@ pub fn collect_product_selection_occurrences(
         machine: SymbolHandle::invalid(),
         state: SymbolHandle::invalid(),
         seen: Vec::new(),
+        touched: Vec::new(),
         occurrences: Vec::new(),
     };
     for machine in program.machines() {
         census.machine = machine.symbol;
         for state in program.machine_states(machine) {
             census.state = state.symbol;
-            census.seen.clear();
+            census.reset_seen();
             for statement in program.statement_table.statements(state.statement_nodes) {
                 for (_, root) in program.tables.expression_roots(statement) {
                     crate::references::visit_expression(program, &mut census, root);
@@ -45,7 +46,20 @@ struct Census {
     machine: SymbolHandle,
     state: SymbolHandle,
     seen: Vec<Vec<ExpressionHandle>>,
+    /// Slots of `seen` written since the last reset. Each state starts from
+    /// an empty `seen`; emptying only these slots keeps the table's length,
+    /// where clearing it whole re-grew it to the expression arena's size for
+    /// every state.
+    touched: Vec<usize>,
     occurrences: Vec<ProductSelectionOccurrence>,
+}
+
+impl Census {
+    fn reset_seen(&mut self) {
+        for index in self.touched.drain(..) {
+            self.seen[index].clear();
+        }
+    }
 }
 impl Extend<SymbolHandle> for Census {
     fn extend<Symbols: IntoIterator<Item = SymbolHandle>>(&mut self, _: Symbols) {}
@@ -58,6 +72,9 @@ impl TypedReferences for Census {
         }
         if self.seen[index].contains(&expression) {
             return false;
+        }
+        if self.seen[index].is_empty() {
+            self.touched.push(index);
         }
         self.seen[index].push(expression);
         true

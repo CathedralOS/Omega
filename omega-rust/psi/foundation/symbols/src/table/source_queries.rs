@@ -208,6 +208,18 @@ impl SymbolTable {
         let mut selected_exact = false;
         let mut ambiguous = false;
         for (symbol, is_public) in candidates {
+            // A candidate is kept only when its display path equals the
+            // declaration path or its own name does. A display path ends with
+            // the symbol's own name, so neither can hold unless the path is
+            // that name or ends with `::` and that name. Testing this first
+            // skips the package and visibility walks below for every
+            // differently named candidate; all of those tests are pure reads.
+            if symbol.is_valid()
+                && symbol != self.root
+                && !path_can_name(declaration_path, self.name(symbol))
+            {
+                continue;
+            }
             if !symbol.is_valid()
                 || !self.symbol_source_is_selected(symbol)
                 || !match dependency {
@@ -419,4 +431,14 @@ impl SymbolTable {
         }
         None
     }
+}
+
+/// Whether `path` can be the display path of, or equal the name of, a
+/// non-root symbol named `name`: a display path joins its names with `::` and
+/// ends with the symbol's own name.
+fn path_can_name(path: &str, name: &str) -> bool {
+    path == name
+        || path
+            .strip_suffix(name)
+            .is_some_and(|prefix| prefix.ends_with("::"))
 }
