@@ -568,7 +568,6 @@ pub(crate) mod captured_returns {
     pub(crate) mod completion_calls {
         use arena::Handle;
         use checked_trees::{FlowCallFact, FlowControlFacts, FlowOperandFact};
-        use std::cell::RefCell;
         use std::collections::BTreeMap;
         use symbols::SymbolHandle;
 
@@ -580,29 +579,30 @@ pub(crate) mod captured_returns {
             (handle.arena_index(), handle.generation())
         }
 
-        pub(crate) struct CompletionCalls<'facts> {
-            control: &'facts FlowControlFacts,
-            states: RefCell<BTreeMap<Identity, Option<StateCalls>>>,
-            owners: RefCell<BTreeMap<Identity, Vec<SymbolHandle>>>,
-            targets: RefCell<BTreeMap<Identity, Option<Option<SymbolHandle>>>>,
+        /*
+        Memoized call lookups for one captured-return question. Each map fills
+        lazily on first use, so a question only pays for the states, invocations
+        and targets it actually reaches. The owner of the question holds this
+        table by value and lends it `&mut` to the capture walk; every lookup
+        reads the same flow-control facts, which callers pass in explicitly.
+        */
+        #[derive(Default)]
+        pub(crate) struct CompletionCalls {
+            states: BTreeMap<Identity, Option<StateCalls>>,
+            owners: BTreeMap<Identity, Vec<SymbolHandle>>,
+            targets: BTreeMap<Identity, Option<Option<SymbolHandle>>>,
         }
 
-        impl<'facts> CompletionCalls<'facts> {
-            pub(crate) fn new(control: &'facts FlowControlFacts) -> Self {
-                Self {
-                    control,
-                    states: RefCell::default(),
-                    owners: RefCell::default(),
-                    targets: RefCell::default(),
-                }
-            }
-
-            fn prepare_state(&self, state: SymbolHandle) -> Option<StateCalls> {
-                let flow = self.control.unique_state_by_symbol(state)?;
-                self.control.calls.span(flow.calls)?;
+        impl CompletionCalls {
+            fn prepare_state(
+                control: &FlowControlFacts,
+                state: SymbolHandle,
+            ) -> Option<StateCalls> {
+                let flow = control.unique_state_by_symbol(state)?;
+                control.calls.span(flow.calls)?;
                 let mut calls = StateCalls::new();
                 for handle in flow.calls.handles() {
-                    let call = self.control.calls.get(handle);
+                    let call = control.calls.get(handle);
                     if !call.authored_expression.is_valid()
                         || call.authored_dispatch_role
                             == checked_trees::FlowCallDispatchRole::SavedSubjectRead
@@ -619,16 +619,15 @@ pub(crate) mod captured_returns {
             }
 
             pub(crate) fn ordinary(
-                &self,
+                &mut self,
+                control: &FlowControlFacts,
                 operand: &FlowOperandFact,
             ) -> Option<Option<Handle<FlowCallFact>>> {
-                let state = key(operand.state_symbol);
-                if !self.states.borrow().contains_key(&state) {
-                    let calls = self.prepare_state(operand.state_symbol);
-                    self.states.borrow_mut().insert(state, calls);
-                }
-                let states = self.states.borrow();
-                let calls = states.get(&state)?.as_ref()?;
+                let calls = self
+                    .states
+                    .entry(key(operand.state_symbol))
+                    .or_insert_with(|| Self::prepare_state(control, operand.state_symbol))
+                    .as_ref()?;
                 if !operand.expression.is_valid() {
                     return Some(None);
                 }
@@ -639,45 +638,45 @@ pub(crate) mod captured_returns {
                 }
             }
 
-            pub(crate) fn invocation(
-                &self,
+            pub(crate) fn invocation<'facts>(
+                &mut self,
+                control: &'facts FlowControlFacts,
                 state: SymbolHandle,
                 invocation: Handle<FlowCallFact>,
             ) -> Option<&'facts FlowCallFact> {
-                self.control.unique_state_by_symbol(state)?;
-                if !self.control.calls.is_valid(invocation) {
+                control.unique_state_by_symbol(state)?;
+                if !control.calls.is_valid(invocation) {
                     return None;
                 }
-                let identity = key(invocation);
-                if !self.owners.borrow().contains_key(&identity) {
-                    let mut owners = self
-                        .control
-                        .call_owners(invocation)
-                        .into_iter()
-                        .map(|row| row.state_symbol)
-                        .collect::<Vec<_>>();
-                    owners.sort_by_key(|state| key(*state));
-                    self.owners.borrow_mut().insert(identity, owners);
-                }
                 self.owners
-                    .borrow()
-                    .get(&identity)?
+                    .entry(key(invocation))
+                    .or_insert_with(|| {
+                        let mut owners = control
+                            .call_owners(invocation)
+                            .into_iter()
+                            .map(|row| row.state_symbol)
+                            .collect::<Vec<_>>();
+                        owners.sort_by_key(|state| key(*state));
+                        owners
+                    })
                     .binary_search_by_key(&key(state), |candidate| key(*candidate))
                     .is_ok()
-                    .then(|| self.control.calls.get(invocation))
+                    .then(|| control.calls.get(invocation))
             }
 
-            pub(crate) fn target(
+            pub(crate) fn known_target(
                 &self,
                 target: SymbolHandle,
-                classify: impl FnOnce() -> Option<Option<SymbolHandle>>,
+            ) -> Option<Option<Option<SymbolHandle>>> {
+                self.targets.get(&key(target)).copied()
+            }
+
+            pub(crate) fn record_target(
+                &mut self,
+                target: SymbolHandle,
+                result: Option<Option<SymbolHandle>>,
             ) -> Option<Option<SymbolHandle>> {
-                let identity = key(target);
-                if let Some(result) = self.targets.borrow().get(&identity) {
-                    return *result;
-                }
-                let result = classify();
-                self.targets.borrow_mut().insert(identity, result);
+                self.targets.insert(key(target), result);
                 result
             }
         }
@@ -714,25 +713,34 @@ pub(crate) mod captured_returns {
                     calls,
                     ..FlowStateFact::default()
                 });
-                let prepared = CompletionCalls::new(&control);
+                let mut prepared = CompletionCalls::default();
                 let mut operand = FlowOperandFact {
                     state_symbol: state,
                     statement_index: 1,
                     expression,
                     ..FlowOperandFact::default()
                 };
-                assert_eq!(prepared.ordinary(&operand), Some(Some(calls.handle_at(0))));
+                assert_eq!(
+                    prepared.ordinary(&control, &operand),
+                    Some(Some(calls.handle_at(0)))
+                );
                 operand.statement_index = 2;
-                assert_eq!(prepared.ordinary(&operand), Some(Some(calls.handle_at(2))));
+                assert_eq!(
+                    prepared.ordinary(&control, &operand),
+                    Some(Some(calls.handle_at(2)))
+                );
                 operand.statement_index = 3;
-                assert_eq!(prepared.ordinary(&operand), None);
+                assert_eq!(prepared.ordinary(&control, &operand), None);
                 operand.statement_index = 4;
-                assert_eq!(prepared.ordinary(&operand), Some(None));
+                assert_eq!(prepared.ordinary(&control, &operand), Some(None));
                 operand.statement_index = 1;
                 operand.expression = ExpressionHandle::from_parts(10, 2);
-                assert_eq!(prepared.ordinary(&operand), Some(Some(calls.handle_at(5))));
+                assert_eq!(
+                    prepared.ordinary(&control, &operand),
+                    Some(Some(calls.handle_at(5)))
+                );
                 operand.state_symbol = SymbolHandle::from_parts(1, 2);
-                assert_eq!(prepared.ordinary(&operand), None);
+                assert_eq!(prepared.ordinary(&control, &operand), None);
             }
 
             #[test]
@@ -750,12 +758,21 @@ pub(crate) mod captured_returns {
                     state_symbol: foreign,
                     ..FlowStateFact::default()
                 });
-                let prepared = CompletionCalls::new(&control);
-                assert!(prepared.invocation(state, calls.start()).is_some());
-                assert!(prepared.invocation(foreign, calls.start()).is_none());
+                let mut prepared = CompletionCalls::default();
+                assert!(
+                    prepared
+                        .invocation(&control, state, calls.start())
+                        .is_some()
+                );
+                assert!(
+                    prepared
+                        .invocation(&control, foreign, calls.start())
+                        .is_none()
+                );
                 assert!(
                     prepared
                         .invocation(
+                            &control,
                             state,
                             Handle::from_parts(
                                 calls.start().arena_index(),
@@ -771,36 +788,30 @@ pub(crate) mod captured_returns {
                     ..FlowStateFact::default()
                 });
                 assert!(
-                    CompletionCalls::new(&control)
-                        .invocation(state, calls.start())
+                    CompletionCalls::default()
+                        .invocation(&control, state, calls.start())
                         .is_none()
                 );
             }
 
             #[test]
             fn captured_return_target_retains_negative_and_known_empty_classification() {
-                let control = FlowControlFacts::default();
-                let prepared = CompletionCalls::new(&control);
+                let mut prepared = CompletionCalls::default();
                 let unavailable = SymbolHandle::from_parts(1, 1);
                 let empty = SymbolHandle::from_parts(1, 2);
-                let classifications = std::cell::Cell::new(0);
+                let mut classifications = 0;
+                let mut target = |target, result: Option<Option<SymbolHandle>>| {
+                    if let Some(known) = prepared.known_target(target) {
+                        return known;
+                    }
+                    classifications += 1;
+                    prepared.record_target(target, result)
+                };
                 for _ in 0..2 {
-                    assert_eq!(
-                        prepared.target(unavailable, || {
-                            classifications.set(classifications.get() + 1);
-                            None
-                        }),
-                        None
-                    );
-                    assert_eq!(
-                        prepared.target(empty, || {
-                            classifications.set(classifications.get() + 1);
-                            Some(None)
-                        }),
-                        Some(None)
-                    );
+                    assert_eq!(target(unavailable, None), None);
+                    assert_eq!(target(empty, Some(None)), Some(None));
                 }
-                assert_eq!(classifications.get(), 2);
+                assert_eq!(classifications, 2);
             }
         }
     }
@@ -827,7 +838,7 @@ pub(crate) mod captured_returns {
             pub(crate) fn captured(
                 control: &FlowControlFacts,
                 operand: &FlowOperandFact,
-                calls: impl Fn(&FlowOperandFact) -> Option<Vec<SymbolHandle>>,
+                calls: impl FnMut(&FlowOperandFact) -> Option<Vec<SymbolHandle>>,
             ) -> Option<Self> {
                 let mut builder = Builder::new(control, calls);
                 builder.graph.root = builder.operand(operand)?;
@@ -838,7 +849,7 @@ pub(crate) mod captured_returns {
                 control: &FlowControlFacts,
                 call: &checked_trees::FlowCallFact,
                 target: Option<SymbolHandle>,
-                calls: impl Fn(&FlowOperandFact) -> Option<Vec<SymbolHandle>>,
+                calls: impl FnMut(&FlowOperandFact) -> Option<Vec<SymbolHandle>>,
             ) -> Option<Self> {
                 let mut builder = Builder::new(control, calls);
                 let mut required = Vec::new();
@@ -883,7 +894,7 @@ pub(crate) mod captured_returns {
 
         impl<'facts, Calls> Builder<'facts, Calls>
         where
-            Calls: Fn(&FlowOperandFact) -> Option<Vec<SymbolHandle>>,
+            Calls: FnMut(&FlowOperandFact) -> Option<Vec<SymbolHandle>>,
         {
             fn new(control: &'facts FlowControlFacts, calls: Calls) -> Self {
                 Self {
@@ -1181,7 +1192,7 @@ pub(crate) mod captured_returns {
         use checked_trees::FlowOperandFact;
         use facts::PlaceSegment;
 
-        impl Captures<'_> {
+        impl<'capture> Captures<'capture> {
             #[allow(clippy::too_many_arguments)]
             pub(crate) fn completed_descriptor_sources(
                 &self,
@@ -1374,7 +1385,7 @@ pub(crate) mod captured_returns {
             pub(crate) segments: Vec<facts::PlaceSegment>,
         }
 
-        impl Captures<'_> {
+        impl<'capture> Captures<'capture> {
             pub(crate) fn invocation_carrier(
                 &self,
                 state: &typed_trees::state::State,
@@ -1612,10 +1623,10 @@ pub(crate) mod captured_returns {
             pub(crate) extent: ReferenceOriginExtent,
         }
 
-        impl Captures<'_> {
+        impl<'capture> Captures<'capture> {
             #[allow(clippy::too_many_arguments)]
             pub(crate) fn argument_return_sources(
-                &self,
+                &mut self,
                 state: &typed_trees::state::State,
                 reference: TypeReferenceHandle,
                 operand: Handle<FlowOperandFact>,
@@ -1931,7 +1942,7 @@ pub(crate) mod captured_returns {
 
             #[allow(clippy::too_many_arguments)]
             fn ordinary_argument_sources(
-                &self,
+                &mut self,
                 state: &typed_trees::state::State,
                 reference: TypeReferenceHandle,
                 operand: Handle<FlowOperandFact>,
@@ -1985,10 +1996,10 @@ pub(crate) mod captured_returns {
         };
         use semantic_vocabulary::ReferenceOriginExtent;
 
-        impl Captures<'_> {
+        impl<'capture> Captures<'capture> {
             #[allow(clippy::too_many_arguments)]
             pub(crate) fn invocation_argument_sources(
-                &self,
+                &mut self,
                 state: &typed_trees::state::State,
                 reference: typed_trees::types::TypeReferenceHandle,
                 descriptor: &FlowOperandFact,
@@ -2009,7 +2020,7 @@ pub(crate) mod captured_returns {
                     let control = &self.facts.flow.control;
                     let call = self
                         .calls
-                        .invocation(state.symbol, invocation)
+                        .invocation(&self.facts.flow.control, state.symbol, invocation)
                         .ok_or("returned descriptor has no exact performed invocation")?;
                     if descriptor.state_symbol != state.symbol
                         || descriptor.statement_index != call.statement_index
@@ -2193,9 +2204,9 @@ pub(crate) mod captured_returns {
             loan_place_segments,
         };
 
-        impl Captures<'_> {
+        impl<'capture> Captures<'capture> {
             pub(crate) fn invocation_return_sources(
-                &self,
+                &mut self,
                 state: &typed_trees::state::State,
                 transition_target: typed_trees::statement::TransitionTargetHandle,
                 call: &checked_trees::FlowCallFact,
@@ -2608,7 +2619,7 @@ pub(crate) mod captured_returns {
             }
 
             pub(crate) fn captured_input_sources(
-                &self,
+                &mut self,
                 state: &typed_trees::state::State,
                 reference: TypeReferenceHandle,
                 operand_handle: arena::Handle<checked_trees::FlowOperandFact>,
@@ -2730,10 +2741,10 @@ pub(crate) mod captured_returns {
                 Some(output)
             }
 
-            pub(crate) fn completed_operand_source<'fact>(
-                &'fact self,
-                mut operand: &'fact checked_trees::FlowOperandFact,
-            ) -> Option<&'fact checked_trees::FlowOperandFact> {
+            pub(crate) fn completed_operand_source(
+                &self,
+                mut operand: &'capture checked_trees::FlowOperandFact,
+            ) -> Option<&'capture checked_trees::FlowOperandFact> {
                 let mut visited = Vec::new();
                 loop {
                     let source = if operand.value_source.is_valid() {
@@ -2781,11 +2792,11 @@ pub(crate) mod captured_returns {
                 Some(operand)
             }
 
-            pub(crate) fn completed_operand_leaf<'fact>(
-                &'fact self,
-                mut operand: &'fact checked_trees::FlowOperandFact,
+            pub(crate) fn completed_operand_leaf(
+                &self,
+                mut operand: &'capture checked_trees::FlowOperandFact,
                 mut path: &[CheckedUnitStructuralPathSegment],
-            ) -> Option<&'fact checked_trees::FlowOperandFact> {
+            ) -> Option<&'capture checked_trees::FlowOperandFact> {
                 while !path.is_empty() {
                     operand = self.completed_operand_source(operand)?;
                     let mut selected = None;
@@ -2839,7 +2850,7 @@ pub(crate) mod captured_returns {
         };
         use facts::PlaceSegment;
 
-        impl Captures<'_> {
+        impl<'capture> Captures<'capture> {
             pub(crate) fn loaded_descriptor_origins(
                 &self,
                 state: &typed_trees::state::State,
@@ -3008,9 +3019,9 @@ pub(crate) mod captured_returns {
             is_mutable_structural_parameter, loan_place_segments, stored_carrier_sources,
         };
 
-        impl Captures<'_> {
+        impl<'capture> Captures<'capture> {
             pub(crate) fn call_paths(
-                &self,
+                &mut self,
                 call: &checked_trees::FlowCallFact,
                 active: &mut Vec<SymbolHandle>,
             ) -> Option<Vec<Vec<CheckedUnitStructuralPathSegment>>> {
@@ -3083,7 +3094,7 @@ pub(crate) mod captured_returns {
             }
 
             pub(crate) fn expression_leaf_present(
-                &self,
+                &mut self,
                 state: &typed_trees::state::State,
                 statement_index: usize,
                 expression: ExpressionHandle,
@@ -3226,7 +3237,7 @@ pub(crate) mod captured_returns {
             }
 
             pub(crate) fn place_leaf_present(
-                &self,
+                &mut self,
                 state: &typed_trees::state::State,
                 before: usize,
                 root: facts::PlaceRoot,
@@ -3423,32 +3434,37 @@ pub(crate) mod captured_returns {
             Captures, CheckedReturnedReferencePlan, SymbolHandle, completions::ReturnCoverage,
         };
         use checked_trees::CheckFacts;
-        use std::cell::{Cell, RefCell};
 
+        /*
+        What one evaluation of a return equation (or of the root question)
+        observed: the states it read approximations of, the coverage of each
+        completed value, and whether it proved the state cannot return. The
+        fixed-point loop in `complete` owns one per evaluation and lends it
+        `&mut` to the capture walk, then moves the fields out.
+        */
         #[derive(Default)]
         pub(crate) struct EquationObservations {
-            dependencies: RefCell<Vec<SymbolHandle>>,
-            completions: RefCell<Vec<ReturnCoverage>>,
-            nonreturning: Cell<bool>,
+            dependencies: Vec<SymbolHandle>,
+            completions: Vec<ReturnCoverage>,
+            nonreturning: bool,
         }
 
         impl EquationObservations {
-            pub(crate) fn require(&self, state: SymbolHandle) {
-                let mut dependencies = self.dependencies.borrow_mut();
-                if !dependencies.contains(&state) {
-                    dependencies.push(state);
+            pub(crate) fn require(&mut self, state: SymbolHandle) {
+                if !self.dependencies.contains(&state) {
+                    self.dependencies.push(state);
                 }
             }
 
-            pub(crate) fn completed(&self, completion: ReturnCoverage) {
+            pub(crate) fn completed(&mut self, completion: ReturnCoverage) {
                 for dependency in completion.dependencies() {
                     self.require(dependency);
                 }
-                self.completions.borrow_mut().push(completion);
+                self.completions.push(completion);
             }
 
-            pub(crate) fn nonreturning(&self) {
-                self.nonreturning.set(true);
+            pub(crate) fn nonreturning(&mut self) {
+                self.nonreturning = true;
             }
         }
 
@@ -3487,7 +3503,7 @@ pub(crate) mod captured_returns {
             pub(crate) fn approximation(
                 &self,
                 state: SymbolHandle,
-                observed: &EquationObservations,
+                observed: &mut EquationObservations,
             ) -> Vec<CheckedReturnedReferencePlan> {
                 observed.require(state);
                 match self.position(state) {
@@ -3521,9 +3537,9 @@ pub(crate) mod captured_returns {
         pub(crate) fn complete<T>(
             program: &dyn crate::CheckingInput,
             facts: &CheckFacts,
-            question: impl Fn(&Captures<'_>) -> Option<T>,
+            question: impl Fn(&mut Captures<'_>) -> Option<T>,
         ) -> Option<T> {
-            let calls = super::completion_calls::CompletionCalls::new(&facts.flow.control);
+            let mut calls = super::completion_calls::CompletionCalls::default();
             let mut relations = ReturnRelations::default();
             let mut answer = None;
             let mut question_dependencies = Vec::new();
@@ -3537,13 +3553,13 @@ pub(crate) mod captured_returns {
                 for state in std::mem::take(&mut pending) {
                     let position = relations.position(state)?;
                     let row = &relations.rows[position];
-                    let observed = EquationObservations::default();
-                    let captures = Captures {
+                    let mut observed = EquationObservations::default();
+                    let mut captures = Captures {
                         program,
                         facts,
-                        calls: &calls,
+                        calls: &mut calls,
                         relations: Some(&relations),
-                        observed: Some(&observed),
+                        observed: Some(&mut observed),
                     };
                     let sources = captures
                         .returned(program.state_by_symbol(row.state)?, &mut Vec::new())
@@ -3556,32 +3572,32 @@ pub(crate) mod captured_returns {
                             Some(row.state),
                         );
                     }
-                    let dependencies = observed.dependencies.into_inner();
+                    let dependencies = observed.dependencies;
                     required.extend(dependencies.iter().copied());
                     evaluated.push(EvaluatedEquation {
                         position,
                         sources,
                         dependencies,
-                        completions: observed.completions.into_inner(),
-                        nonreturning: observed.nonreturning.get(),
+                        completions: observed.completions,
+                        nonreturning: observed.nonreturning,
                     });
                 }
                 if question_dirty {
                     question_dirty = false;
-                    let observed = EquationObservations::default();
+                    let mut observed = EquationObservations::default();
                     answer = Some(
-                        question(&Captures {
+                        question(&mut Captures {
                             program,
                             facts,
-                            calls: &calls,
+                            calls: &mut calls,
                             relations: Some(&relations),
-                            observed: Some(&observed),
+                            observed: Some(&mut observed),
                         })
                         .or_else(|| refusal("completed return question is unavailable", None))?,
                     );
-                    question_coverage = observed.completions.into_inner();
-                    question_nonreturning = observed.nonreturning.get();
-                    for dependency in observed.dependencies.into_inner() {
+                    question_coverage = observed.completions;
+                    question_nonreturning = observed.nonreturning;
+                    for dependency in observed.dependencies {
                         required.push(dependency);
                         if !question_dependencies.contains(&dependency) {
                             question_dependencies.push(dependency);
@@ -3795,11 +3811,11 @@ pub(crate) mod captured_returns {
             if !crate::normal_completion_possible(program, state)? {
                 return Some(Vec::new());
             }
-            let calls = super::completion_calls::CompletionCalls::new(&facts.flow.control);
+            let mut calls = super::completion_calls::CompletionCalls::default();
             let captures = Captures {
                 program,
                 facts,
-                calls: &calls,
+                calls: &mut calls,
                 relations: None,
                 observed: None,
             };
@@ -3862,7 +3878,7 @@ pub(crate) mod captured_returns {
                     })
                     .expect("the missing alternative is represented, not silently removed");
                 let result = complete(&program, &facts, |captures| {
-                    captures.observed?.completed(missing.clone());
+                    captures.observed.as_deref_mut()?.completed(missing.clone());
                     Some(7)
                 });
                 assert_eq!(result, None);
@@ -3876,7 +3892,7 @@ pub(crate) mod captured_returns {
                         .expect("the formed empty constructor has complete coverage");
                 assert_eq!(
                     complete(&program, &facts, |captures| {
-                        captures.observed?.completed(covered.clone());
+                        captures.observed.as_deref_mut()?.completed(covered.clone());
                         Some(7)
                     }),
                     Some(7)
@@ -3890,7 +3906,7 @@ pub(crate) mod captured_returns {
                 let facts = CheckFacts::default();
                 assert_eq!(
                     complete(&program, &facts, |captures| {
-                        captures.observed?.nonreturning();
+                        captures.observed.as_deref_mut()?.nonreturning();
                         Some(Vec::<CheckedReturnedReferencePlan>::new())
                     }),
                     Some(Vec::new())
@@ -3984,9 +4000,9 @@ pub(crate) mod captured_returns {
     pub(crate) struct Captures<'capture> {
         program: &'capture dyn crate::CheckingInput,
         facts: &'capture CheckFacts,
-        calls: &'capture completion_calls::CompletionCalls<'capture>,
+        calls: &'capture mut completion_calls::CompletionCalls,
         relations: Option<&'capture relations::ReturnRelations>,
-        observed: Option<&'capture relations::EquationObservations>,
+        observed: Option<&'capture mut relations::EquationObservations>,
     }
 
     pub(crate) struct FrameOrigin {
@@ -4013,7 +4029,7 @@ pub(crate) mod captured_returns {
         extent: ReferenceOriginExtent,
     }
 
-    impl Captures<'_> {
+    impl<'capture> Captures<'capture> {
         fn trace_return_state(&self, state: &State) -> bool {
             if !crate::trace_flags::trace_completion() {
                 return false;
@@ -4031,7 +4047,7 @@ pub(crate) mod captured_returns {
         }
 
         fn target_sources(
-            &self,
+            &mut self,
             target: SymbolHandle,
             _active: &mut Vec<SymbolHandle>,
         ) -> Option<Vec<CheckedReturnedReferencePlan>> {
@@ -4051,14 +4067,14 @@ pub(crate) mod captured_returns {
             }
             let state = crate::call_target_state(self.program, target)?;
             if let Some(relations) = self.relations {
-                let observed = self.observed?;
+                let observed = self.observed.as_deref_mut()?;
                 return Some(relations.approximation(state.symbol, observed));
             }
             None
         }
 
         fn returned(
-            &self,
+            &mut self,
             state: &State,
             active: &mut Vec<SymbolHandle>,
         ) -> Option<Vec<CheckedReturnedReferencePlan>> {
@@ -4069,7 +4085,7 @@ pub(crate) mod captured_returns {
                 return None;
             }
             if !crate::normal_completion_possible(self.program, state)? {
-                if let Some(observed) = self.observed {
+                if let Some(observed) = self.observed.as_deref_mut() {
                     observed.nonreturning();
                 }
                 return Some(Vec::new());
@@ -4085,7 +4101,7 @@ pub(crate) mod captured_returns {
         }
 
         fn normal_returns(
-            &self,
+            &mut self,
             state: &State,
             active: &mut Vec<SymbolHandle>,
             selected_site: Option<(usize, typed_trees::statement::TransitionTargetHandle)>,
@@ -4253,62 +4269,77 @@ pub(crate) mod captured_returns {
                             }
                         }
                     }
-                    if let Some(observed) = self.observed {
+                    if self.observed.is_some() {
                         let value = self.completed_return_value(
                             state,
                             statement_index,
                             transition_target,
                             expression,
                         )?;
-                        observed.completed(completions::ReturnCoverage::captured(
-                            &self.facts.flow.control,
+                        let facts = self.facts;
+                        let coverage = completions::ReturnCoverage::captured(
+                            &facts.flow.control,
                             value,
                             |operand| self.completion_calls(operand),
-                        )?);
+                        )?;
+                        self.observed.as_deref_mut()?.completed(coverage);
                     }
                 }
             }
             completed.then_some(output)
         }
 
-        fn observe_return_invocation(&self, call: &checked_trees::FlowCallFact) -> Option<bool> {
-            if let Some(observed) = self.observed {
+        fn observe_return_invocation(
+            &mut self,
+            call: &checked_trees::FlowCallFact,
+        ) -> Option<bool> {
+            if self.observed.is_some() {
+                let facts = self.facts;
+                let target = self.completion_target(call)?;
                 let coverage = completions::ReturnCoverage::invocation(
-                    &self.facts.flow.control,
+                    &facts.flow.control,
                     call,
-                    self.completion_target(call)?,
+                    target,
                     |operand| self.completion_calls(operand),
                 )?;
                 let ready = coverage.established(|state| {
                     self.relations
                         .is_some_and(|relations| relations.productive(state))
                 });
-                observed.completed(coverage);
+                self.observed.as_deref_mut()?.completed(coverage);
                 return Some(ready);
             }
             Some(true)
         }
 
         fn completion_target(
-            &self,
+            &mut self,
             call: &checked_trees::FlowCallFact,
         ) -> Option<Option<SymbolHandle>> {
-            self.calls.target(call.target_symbol, || {
-                if crate::call_target_has_checked_body_contract(self.program, call.target_symbol) {
-                    let state = crate::call_target_state(self.program, call.target_symbol)?;
-                    if self.reference_leaves(state)?.is_empty() {
-                        Some(None)
-                    } else {
-                        Some(Some(state.symbol))
-                    }
-                } else {
-                    Some(None)
-                }
-            })
+            if let Some(known) = self.calls.known_target(call.target_symbol) {
+                return known;
+            }
+            let classified = self.classify_completion_target(call.target_symbol);
+            self.calls.record_target(call.target_symbol, classified)
+        }
+
+        fn classify_completion_target(
+            &mut self,
+            target: SymbolHandle,
+        ) -> Option<Option<SymbolHandle>> {
+            if !crate::call_target_has_checked_body_contract(self.program, target) {
+                return Some(None);
+            }
+            let state = crate::call_target_state(self.program, target)?;
+            if self.reference_leaves(state)?.is_empty() {
+                Some(None)
+            } else {
+                Some(Some(state.symbol))
+            }
         }
 
         fn completion_calls(
-            &self,
+            &mut self,
             operand: &checked_trees::FlowOperandFact,
         ) -> Option<Vec<SymbolHandle>> {
             let control = &self.facts.flow.control;
@@ -4317,10 +4348,13 @@ pub(crate) mod captured_returns {
                 ..
             } = operand.completion
             {
-                Some(self.calls.invocation(operand.state_symbol, invocation)?)
+                Some(
+                    self.calls
+                        .invocation(control, operand.state_symbol, invocation)?,
+                )
             } else {
                 self.calls
-                    .ordinary(operand)?
+                    .ordinary(control, operand)?
                     .map(|call| control.calls.get(call))
             };
             let mut targets = Vec::new();
@@ -4333,12 +4367,12 @@ pub(crate) mod captured_returns {
         }
 
         fn ordinary_return_call(
-            &self,
+            &mut self,
             state: &State,
             statement_index: usize,
             target: typed_trees::statement::TransitionTargetHandle,
             expression: ExpressionHandle,
-        ) -> Option<Option<&checked_trees::FlowCallFact>> {
+        ) -> Option<Option<&'capture checked_trees::FlowCallFact>> {
             let Some(call) = expression_table(self.program).call_node(expression) else {
                 return Some(None);
             };
@@ -4357,12 +4391,12 @@ pub(crate) mod captured_returns {
         }
 
         fn return_call(
-            &self,
+            &mut self,
             state: &State,
             statement_index: usize,
             target: typed_trees::statement::TransitionTargetHandle,
             expression: ExpressionHandle,
-        ) -> Option<&checked_trees::FlowCallFact> {
+        ) -> Option<&'capture checked_trees::FlowCallFact> {
             let flow = self.flow(state.symbol)?;
             let machine = self.program.machine_by_symbol(flow.machine_symbol)?;
             let mut calls = self
@@ -4405,7 +4439,7 @@ pub(crate) mod captured_returns {
         }
 
         fn return_origins(
-            &self,
+            &mut self,
             state: &State,
             loan: &checked_trees::BorrowReturnedLoanFact,
             leaf: &CheckedReferenceResultSourcePlan,
@@ -4512,7 +4546,7 @@ pub(crate) mod captured_returns {
             transition_target: typed_trees::statement::TransitionTargetHandle,
             expression: ExpressionHandle,
             path: &[CheckedUnitStructuralPathSegment],
-        ) -> Option<&checked_trees::FlowOperandFact> {
+        ) -> Option<&'capture checked_trees::FlowOperandFact> {
             let operand =
                 self.completed_return_value(state, statement_index, transition_target, expression)?;
             self.completed_operand_leaf(operand, path)
@@ -4524,7 +4558,7 @@ pub(crate) mod captured_returns {
             statement_index: usize,
             transition_target: typed_trees::statement::TransitionTargetHandle,
             expression: ExpressionHandle,
-        ) -> Option<&checked_trees::FlowOperandFact> {
+        ) -> Option<&'capture checked_trees::FlowOperandFact> {
             let flow = self.flow(state.symbol)?;
             let control = &self.facts.flow.control;
             let mut exits = control.exits.span(flow.exits)?.iter().filter(|exit| {
@@ -5128,7 +5162,7 @@ pub(crate) mod captured_returns {
             })
         }
 
-        fn flow(&self, state: SymbolHandle) -> Option<&checked_trees::FlowStateFact> {
+        fn flow(&self, state: SymbolHandle) -> Option<&'capture checked_trees::FlowStateFact> {
             self.facts.flow.control.unique_state_by_symbol(state)
         }
 
