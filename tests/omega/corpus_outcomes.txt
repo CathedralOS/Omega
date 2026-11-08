@@ -2561,9 +2561,9 @@ fail/calls/closed_constructor_generic_field_recast_not_identity rejected 17514ms
 	cannot prove requires contract for call take from Main::main: view.value > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/calls/closed_constructor_inline_projection_divergence_unknown rejected 108363ms expected @0d0c11daa127
 	specification call `projected` is not denotational: the selected machine is not unconditionally terminating
-fail/calls/closed_constructor_projection_reference_result_rejected rejected 16430ms expected @ccdb99ca2214
+fail/calls/closed_constructor_projection_reference_result_rejected rejected 13084ms expected @c1f462d311c1
 	fact-position projection from call `zero` is not denotational: the selected call closure observes or mutates hidden state, uses atomic/external machinery, or contains a non-checked target
-	specification call `View::zero` has no observation-free, reach-free, crash-free value denotation: the selected closure contains runtime observations or mutable storage
+	specification call `View::zero` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
 fail/calls/closed_constructor_projection_runtime_receiver_rejected rejected 15980ms expected @ccdb99ca2214
 	fact-position projection from call `zero` is not denotational: only one direct free call with non-call runtime arguments is admitted
 fail/calls/closed_constructor_requires_alias_write_rejected rejected 33087ms expected @e3a0a3c77bb4
@@ -5115,8 +5115,8 @@ fail/drops/borrowed_replacement_old_hook_prerequisite rejected 10332ms expected 
 	cannot prove automatic cleanup requires at selected edge from replace state entry after statement 0: holder.token does not establish drop_token clause `token.value == 7`
 fail/drops/borrowed_selected_cleanup_missing_child_requirement rejected 11058ms expected @b45dc4f7989c
 	cannot prove automatic cleanup requires at selected edge from replace state entry after statement 1: elements[__hoist_2].child does not establish drop_child clause `child.value == 7`
-fail/drops/borrowed_temporary_projection_retains_owner_disposition rejected 7713ms expected @ee4dbb4b2d56
-	cannot automatically dispose borrowed temporary `named(name(nominal\\(package-owner\\(32:e9c1cb83be99d2d9adcf0d52daa2bbeee8120717bff12c4e2a43536f4df3fe1b\\)\\,path\\(Pair\\)\\)))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition
+fail/drops/borrowed_temporary_projection_retains_owner_disposition rejected 2941ms expected @c1f462d311c1
+	cannot automatically dispose borrowed temporary `named(name(nominal\\(package-owner\\(32:8d44e36f462095dcdd2d00f875736f93d9b1cb027b033b6e280d86da85fbd53d\\)\\,path\\(Pair\\)\\)))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition
 fail/drops/claim_bearing_temporary_hook_prerequisite rejected 8775ms expected @ee4dbb4b2d56
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Pair.second does not establish drop_receipt clause `receipt.code == 7`
 fail/drops/claim_bearing_temporary_requires_disposition rejected 1384ms expected @ccdb99ca2214
