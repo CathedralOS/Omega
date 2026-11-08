@@ -1,1 +1,2 @@
-is not the exact owner-unique `Content<Owner, A>::project` conformance machine
+callable `InvalidSplit::split` has an invalid content-conservation contract
+content conservation identity requires an exact closed content algebra carrier

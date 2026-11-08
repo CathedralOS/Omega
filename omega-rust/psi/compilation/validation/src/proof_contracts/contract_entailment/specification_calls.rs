@@ -2096,6 +2096,38 @@ fn plain_machine_selection(
                 .is_some())
 }
 
+/// Value substitution does not project a proposition's stored type identity.
+/// Keep that route closed until its exact source carrier needs no type or
+/// region substitution; formation and application admission remain separate.
+fn identity_carrier_is_closed(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    carrier: typed_trees::type_identity::TypeIdentityId,
+) -> bool {
+    let Ok(identity) =
+        crate::mathematical_applications::identity_application_at(program, expression)
+    else {
+        return false;
+    };
+    if carrier != program.normalized_type_identity(identity.carrier)
+        || !typed_trees::domain::index_argument_is_closed(program, identity.carrier)
+    {
+        return false;
+    }
+    #[derive(Clone, Copy)]
+    struct ClosedCarrier;
+    impl crate::queries::type_regions::TypeRegionScope for ClosedCarrier {}
+    crate::queries::type_regions::type_reference_regions_match(
+        program,
+        identity.carrier,
+        identity.carrier,
+        ClosedCarrier,
+        ClosedCarrier,
+        &mut (),
+        &mut |_, _, _, _, _, _| false,
+    )
+}
+
 fn structurally_substitutable_fact(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
@@ -2107,8 +2139,10 @@ fn structurally_substitutable_fact(
     let Some(binary) = expression_table(program).binary_node(expression) else {
         return matches!(expression_table(program).expression(expression), ExpressionNode::Call(_))
             && term(expression).is_some_and(|term| {
-                matches!(&term, StructuralTerm::Application { result_type, .. }
-                    if program.primitive_type_reference(*result_type) == Some(typed_trees::types::PrimitiveType::Bool))
+                (matches!(&term, StructuralTerm::Identity { carrier, .. }
+                    if identity_carrier_is_closed(program, expression, *carrier))
+                    || matches!(&term, StructuralTerm::Application { result_type, .. }
+                        if program.primitive_type_reference(*result_type) == Some(typed_trees::types::PrimitiveType::Bool)))
                     && term_has_complete_substitution(program, &term)
             });
     };
@@ -2165,8 +2199,16 @@ fn term_has_complete_substitution(
         StructuralTerm::ContentValue { value, .. } => {
             term_has_complete_substitution(program, value)
         }
-        StructuralTerm::Identity { .. }
-        | StructuralTerm::CapturedValue { .. }
+        StructuralTerm::Identity {
+            carrier,
+            left,
+            right,
+        } => {
+            carrier.is_valid()
+                && term_has_complete_substitution(program, left)
+                && term_has_complete_substitution(program, right)
+        }
+        StructuralTerm::CapturedValue { .. }
         | StructuralTerm::BoundProjection { .. }
         | StructuralTerm::MathematicalBinary { .. }
         | StructuralTerm::IntegerEmbedding { .. }

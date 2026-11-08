@@ -141,6 +141,9 @@ impl<'a> Elaborator<'a> {
         if let Some(alias) = self.source_type_alias(reference)? {
             return Ok(alias);
         }
+        if let Some(carrier) = self.region_nominal_carrier(reference)? {
+            return Ok(carrier);
+        }
         // Arithmetic policy changes the selected source value operation, not
         // the calculus domain. Source application admission and captured type
         // references retain the complete shell; only this carrier projection
@@ -232,6 +235,55 @@ impl<'a> Elaborator<'a> {
             ))),
             TypeReferenceNode::Unit => Ok(self.carrier_term(ScalarCarrier::Unit)),
         }
+    }
+
+    /// A data type with only lifetime parameters has the same opaque proof
+    /// representation as an ordinary nominal type. Its key retains the
+    /// declaring scope and exact lifetimes. Type/value parameters continue
+    /// through the checked indexed-family representation.
+    fn region_nominal_carrier(
+        &mut self,
+        reference: TypeReferenceHandle,
+    ) -> Result<Option<TermHandle>, Vec<diagnostics::Diagnostic>> {
+        let TypeReferenceNode::Generic {
+            base_symbol,
+            lifetime_arguments,
+            arguments,
+            ..
+        } = self.program.type_reference_table.type_reference(reference)
+        else {
+            return Ok(None);
+        };
+        if lifetime_arguments.is_empty()
+            || !type_reference_table(self.program)
+                .type_reference_handles(*arguments)
+                .is_empty()
+        {
+            return Ok(None);
+        }
+        let Some(data) = self.program.unique_data_definition_by_symbol(*base_symbol) else {
+            return Ok(None);
+        };
+        if !self.program.data_type_parameters(data).is_empty()
+            || data.lifetime_parameters.len() != lifetime_arguments.len()
+        {
+            return Ok(None);
+        }
+        let identity = typed_trees::type_identity::applied_type_identity(
+            self.program,
+            reference,
+            self.source_owner,
+            &[],
+        )
+        .ok_or_else(|| self.refuse("a nominal carrier lost its exact lifetime scope".into()))?;
+        let position = if let Some(position) = self.region_carriers.get(&identity) {
+            *position
+        } else {
+            let position = self.push_type_carrier();
+            self.region_carriers.insert(identity, position);
+            position
+        };
+        Ok(Some(self.constant(position)))
     }
 
     /// Resolve a `Named` reference in type position. Scope entries

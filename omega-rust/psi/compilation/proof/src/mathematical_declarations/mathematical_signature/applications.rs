@@ -389,7 +389,16 @@ impl Elaborator<'_> {
                         .to_owned(),
                 ));
             }
-            let name = argument.path.last().cloned().unwrap_or_default();
+            // The fixed vocabulary's unresolved fallback expects the full
+            // qualified spelling. A resolved symbol remains authoritative.
+            let name = Identifier::generated(
+                argument
+                    .path
+                    .iter()
+                    .map(Identifier::as_str)
+                    .collect::<Vec<_>>()
+                    .join("::"),
+            );
             let Some(sort) = self
                 .fixed_core
                 .classify(argument.symbol, &name)

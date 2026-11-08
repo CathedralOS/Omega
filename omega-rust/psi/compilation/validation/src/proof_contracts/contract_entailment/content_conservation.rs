@@ -125,9 +125,11 @@ pub fn completed_value_content_conservation_dependencies(
     if plan.owner != machine.symbol || plan.callable != state.symbol {
         return None;
     }
-    let result = super::completed_observations::fold_completed_values(
+    // A callable law is established under its declared entry contract.
+    // Stronger facts at this program's private callers may prove one actual
+    // invocation, but cannot publish the law for arbitrary later callers.
+    let mut observation = super::completed_observations::CompletedObservation::new(
         program,
-        machine,
         state,
         statement_index,
         expression,
@@ -136,8 +138,16 @@ pub fn completed_value_content_conservation_dependencies(
         conservation_fold_succeeds,
         conservation_fold(program, plan, projections),
     );
-    let result = result?;
-    (result.complete && result.state.0).then_some(result.state.1)
+    let recognized = super::structural_prefix::observe_runtime_state_prefix(
+        program,
+        machine,
+        state,
+        &mut observation,
+    )
+    .is_some();
+    observation
+        .shared_success(recognized)
+        .map(|(_, proofs)| proofs)
 }
 
 /// Provisional numeric bindings carry possible law dependencies; they do not

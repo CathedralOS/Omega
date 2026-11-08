@@ -138,6 +138,8 @@ struct Elaborator<'a> {
     source_content: Option<proof_admission::SourceContentTheory>,
     /// Carrier symbol -> signature position (a `Type 0` assumption).
     carriers: HashMap<SymbolHandle, u32>,
+    /// Region-only nominal types retain their exact scoped lifetime identity.
+    region_carriers: HashMap<typed_trees::type_identity::NormalizedTypeIdentity, u32>,
     /// `Int : Type 0` — the shared mathematical-integer carrier every
     /// fixed-width integer carrier denotes into: `i8`–`u64`, `Int` and
     /// `UInt` all name it, exactly as the bounded denotation's scalar
@@ -257,6 +259,7 @@ pub(crate) fn check_mathematical_signature(
         declarations,
         source_content: None,
         carriers: HashMap::new(),
+        region_carriers: HashMap::new(),
         integer: None,
         boolean: None,
         address: None,

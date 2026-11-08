@@ -1574,7 +1574,7 @@ impl<'program> StructuralJudge<'program> {
             return;
         }
         if holds {
-            self.intake(self.program, fact);
+            self.intake_proposition(self.program, fact);
         }
         if self
             .declaration_expression_type(fact)
@@ -3473,6 +3473,17 @@ impl<'program> StructuralJudge<'program> {
     ) -> StructuralJudgment {
         if self.case_facts_only && !super::call_requirements::case_fact_only(program, fact) {
             return StructuralJudgment::Unknown;
+        }
+        if let ExpressionNode::Unary(unary) = expression_table(program).expression(fact)
+            && unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
+        {
+            // Negation composes the operand's proposition judgment. In
+            // particular, a formed Identity is not a scalar Boolean value.
+            return match self.judge_proposition(program, unary.operand) {
+                StructuralJudgment::Proven => StructuralJudgment::Refuted,
+                StructuralJudgment::Refuted => StructuralJudgment::Proven,
+                StructuralJudgment::Unknown => StructuralJudgment::Unknown,
+            };
         }
         if program.static_type_predicate_operands(fact).is_some() {
             return self
