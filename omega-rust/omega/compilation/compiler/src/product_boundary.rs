@@ -511,9 +511,8 @@ fn native_product_supplies_inputs_without_orchestrating_component_emission() {
 
 #[test]
 fn boundary_application_policy_has_one_source_free_owner() {
-    let settlement = include_str!(
-        "../../pipeline/00_terminal-psi-to-abstract-operations/src/settlement/boundary_application_settlement.rs"
-    );
+    let settlement =
+        include_str!("../../pipeline/00_terminal-psi-to-abstract-operations/src/settlement.rs");
     assert_absent(
         &[settlement],
         "boundary application settlement owns",
