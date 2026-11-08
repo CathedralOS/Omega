@@ -57320,16 +57320,38 @@ pub(crate) mod structural_judgment {
                 use crate::proof_contracts::contract_entailment::structural_terms::{
                     owned_projection_observation, unary_term_in_scope,
                 };
+                use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder};
                 use typed_trees::expression::{
                     ExpressionNode, TableUnaryExpression, UnaryOperator,
                 };
 
-                let mut program = TypedTrees::default();
-                let (exact, wrapping) = references(&mut program);
+                let mut symbols = SymbolTableBuilder::default();
+                let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                let builtins = symbols.insert_children(root, symbols::builtin_type_symbols());
+                let mut program = TypedTrees {
+                    symbols: symbols.finish(),
+                    ..Default::default()
+                };
+                let exact = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: builtins.handle_at(BuiltinTypeAtom::I32.ordinal() as u32),
+                        name: Identifier::generated("i32"),
+                    });
+                let constraints = program.type_reference_table.insert_constraints([
+                    TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Wrapping),
+                ]);
+                let wrapping =
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Constrained {
+                            base_type: exact,
+                            constraints,
+                        });
                 let byte = program
                     .type_reference_table
                     .insert(TypeReferenceNode::Named {
-                        symbol: SymbolHandle::invalid(),
+                        symbol: builtins.handle_at(BuiltinTypeAtom::U8.ordinal() as u32),
                         name: Identifier::generated("u8"),
                     });
                 let equal = |left, right| StructuralTerm::MathematicalBinary {
