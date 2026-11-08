@@ -41,7 +41,7 @@
 2 omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/foreign_scalar_backings.rs
 1 omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/storage_origin_input.rs
 1 omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/value_transport.rs
-1 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/preservation/replay/state.rs
+1 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/preservation.rs
 2 omega-rust/omega/compilation/realization/provider-admission/src/provider_admission/access_lifecycles.rs
 1 omega-rust/omega/compilation/realization/provider-admission/src/provider_admission/settlements/source_imports.rs
 2 omega-rust/omega/compilation/realization/provider-admission/src/provider_admission/terminal_authority_review/context.rs

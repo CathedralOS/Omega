@@ -1,44 +1,42 @@
 #![forbid(unsafe_code)]
 
-//! Optimizer module role: crate map. Selected instructions to register homes.
-//!
-//! Start at [`stage_register_allocation`] in `register_allocation.rs`. It
-//! consumes the preceding selected X-to-X stage's current program and proof,
-//! sequences home assignment and admitted pressure recovery, and publishes one
-//! [`RetainedAllocation`]. That preceding stage owns selected-lowering rewrites
-//! and reusable selected-program analyses; allocation does not rerun it.
-//!
-//! Module map, in route order:
-//! - `register_allocation` owns the entry and its exact route.
-//! - `assignment` holds the stages that route sequences: `transformed` homes
-//!   after a completed rewrite run, the optional `recovery` rules,
-//!   `runtime_spill` pressure recovery — including residual pressure a
-//!   completed run hands over — `baseline` homes over `home_assignment`, and
-//!   the `post_allocation_manifest` every route publishes.
-//! - `rewrites` holds the allocation-recovery rewrites register assignment
-//!   replays (runtime spill, split and rematerialization, fixed occurrences,
-//!   fixed-view copies, pressure rematerialization) and stages active-resident
-//!   rematerialization; `reanalysis` re-derives facts over fixed-view copies.
-//! - `output` owns the current allocation facts every route publishes.
-//! - `preservation` derives allocation-visible callee-saved requirements.
-//!
-//! Every name the route owns is re-exported below from the module that owns
-//! it, so the root reads as a map. Upstream vocabulary (`register_model`,
-//! `register_homes`, `selected_instructions`, and the selected-program
-//! analyses and rewrite primitives in `selected_instruction_analyses`) is
-//! imported from its owner where it is used. Selected optimization's result
-//! arrives as `selected_instruction_analyses::SelectedOptimizationOutput`;
-//! this stage names no type of the stage before it. The root re-exports upstream names in two places
-//! only: the `register_homes` records a stage publishes beside its operations
-//! (post-allocation manifest, logical spill operations, stack-slot coloring),
-//! and the seven selected-program analysis names listed last, which the
-//! post-allocation stages still import through this crate.
+/*
+We assign physical register homes and execute admitted register-pressure
+recovery over the selected instruction program (`Omega 05`). Our entry point,
+`stage_register_allocation` in `register_allocation.rs`, consumes the preceding
+`Omega 04` stage's `SelectedOptimizationOutput`, sequences transition-free home
+assignment alongside declared or runtime-spill pressure recovery, and publishes
+one validated `RetainedAllocation` carrying the current allocated program and
+its checked facts.
+*/
 
-/// One owner row per receipt accessor: the field's own name read back as its
-/// own type. A receipt whose rows are not one of the shared identity blocks
-/// lists them here instead of restating the body at the site; `ref` selects
-/// the `&self` receiver and `borrow` the `&self` receiver with a `&` field
-/// read, for receipts whose callers hold a reference.
+/*
+Register allocation must satisfy target register views, storage/write-unit
+aliasing, fixed-operand pins, tied operands, directional early clobbers, and
+ABI call reservations without inventing unchecked moves or silently altering
+recovery policy. We separate transition-free home assignment (`home_assignment.rs`)
+from explicit CFG recovery rewrites (`rewrites.rs`, `fixed_view_copy_recovery.rs`,
+`pressure_rematerialization_recovery.rs`, `runtime_spill_and_split.rs`) and seal
+`ValidatedSelectedAnalysis` so every post-rewrite graph is re-analyzed through
+fresh liveness, live-range, and legality checks before its homes are accepted.
+*/
+
+/*
+- Input: `SelectedOptimizationOutput` from `Omega 04` (`selected-instructions-to-selected-instructions`).
+- Output: `RetainedAllocation` (`output.rs`) and `ValidatedAllocatedCalleeSavedRequirements` (`preservation.rs`) consumed by `Omega 06` (`register-homes-to-machine-plan`).
+- Flat module layout:
+  - `register_allocation.rs`: stage entry routing identity, completed rewrite runs, declared recovery rules, and runtime spill fallback.
+  - `assignment.rs`: baseline, transformed, recovery, runtime-spill, and post-allocation manifest staging.
+  - `home_assignment.rs`: transition-free constraint solver, interference/early-clobber preparation, and independent home replay.
+  - `rewrites.rs`: fixed-occurrence materialization, fixed-view segment-home staging, settlement-gap alignment, and active-resident rematerialization staging.
+  - `fixed_view_copy_recovery.rs`: fixed-view copy materialization and independent CFG replay.
+  - `pressure_rematerialization_recovery.rs`: active-resident immediate rematerialization under register pressure.
+  - `runtime_spill_and_split.rs`: runtime value spilling, live-range splitting, and runtime rematerialization.
+  - `reanalysis.rs`: liveness, live-range, and legality reanalysis over fixed-view copy graphs.
+  - `output.rs`: `AllocationOutput` projection and `RetainedAllocation` admission.
+  - `preservation.rs`: allocation-visible callee-saved register modification discovery and replay.
+*/
+
 macro_rules! receipt_accessor_rows {
     (ref $name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
         $( $(#[$meta])* pub const fn $field(&self) -> $ty { self.$field } )*
@@ -51,8 +49,6 @@ macro_rules! receipt_accessor_rows {
     };
 }
 
-/// A by-value receipt whose accessor rows are exactly its fields. The struct
-/// and `receipt_accessor_rows!` stay one roster.
 macro_rules! copy_receipt {
     (
         $(#[$meta:meta])*
@@ -71,9 +67,6 @@ macro_rules! copy_receipt {
     };
 }
 
-/// The one error surface every stage error shares: its variant list is the
-/// report, so `Display` names the stage and `Error` adds no behavior beyond
-/// what the variants already carry.
 macro_rules! stage_error_display {
     ($error:ty, $stage:literal) => {
         impl std::fmt::Display for $error {
@@ -90,8 +83,6 @@ pub(crate) use optimization_core::digest_encoder;
 #[macro_use]
 extern crate selected_instruction_analyses;
 
-// The shared analyses, work accounting and codec the moved recovery code
-// names at the crate root.
 use selected_instruction_analyses as analyses;
 #[allow(unused_imports)]
 pub(crate) use selected_instruction_analyses::*;
@@ -99,15 +90,105 @@ use selected_instructions::{FixedViewCopyIdentity, PressureRematerializationIden
 
 #[macro_use]
 mod assignment;
+mod fixed_view_copy_recovery;
+mod home_assignment;
 mod output;
 mod preservation;
+mod pressure_rematerialization_recovery;
 mod reanalysis;
 mod register_allocation;
 mod rewrites;
-mod selected_input;
+mod runtime_spill_and_split;
+mod selected_input {
+    use crate::{
+        ValidatedFixedOccurrences, ValidatedFixedViewCopies, ValidatedPressureRematerialization,
+        ValidatedRuntimeRematerialization, ValidatedRuntimeSpill, ValidatedRuntimeSplit,
+    };
+    use optimization_core::OptimizationUnitIdentity;
+    use selected_instruction_analyses::{
+        OwnedSelectedProgram, SelectedProgramRef, SelectedProgramView,
+    };
+    use selected_instructions::{
+        SelectedInstructionPlan, SelectedInstructionPlanIdentity, SelectedProgram,
+    };
+    use semantic_vocabulary::WorkScheduleIdentity;
 
-// The recovery rewrites and the reanalysis over fixed-view copies, at the
-// crate root where their own modules name them.
+    mod sealed {
+        pub trait Sealed {}
+    }
+
+    pub trait ValidatedSelectedAnalysis: sealed::Sealed + SelectedProgramView {}
+
+    impl sealed::Sealed for SelectedProgram {}
+    impl ValidatedSelectedAnalysis for SelectedProgram {}
+    impl sealed::Sealed for OwnedSelectedProgram {}
+    impl ValidatedSelectedAnalysis for OwnedSelectedProgram {}
+    impl sealed::Sealed for SelectedProgramRef<'_> {}
+    impl ValidatedSelectedAnalysis for SelectedProgramRef<'_> {}
+
+    macro_rules! validated_selected_analysis {
+        ($name:ident) => {
+            impl sealed::Sealed for $name {}
+
+            impl ValidatedSelectedAnalysis for $name {}
+
+            impl SelectedProgramView for $name {
+                fn selected_plan(&self) -> &SelectedInstructionPlan {
+                    self.transformed()
+                }
+                fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+                    self.shared_transformed()
+                }
+                fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+                    self.receipt().transformed_selected()
+                }
+                fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+                    self.receipt().optimization_unit()
+                }
+                fn work_schedule_identity(&self) -> WorkScheduleIdentity {
+                    self.receipt().work_schedule()
+                }
+            }
+        };
+    }
+
+    validated_selected_analysis!(ValidatedRuntimeSpill);
+
+    validated_selected_analysis!(ValidatedRuntimeSplit);
+
+    validated_selected_analysis!(ValidatedRuntimeRematerialization);
+
+    validated_selected_analysis!(ValidatedPressureRematerialization);
+
+    validated_selected_analysis!(ValidatedFixedOccurrences);
+
+    impl sealed::Sealed for ValidatedFixedViewCopies {}
+
+    impl ValidatedSelectedAnalysis for ValidatedFixedViewCopies {}
+
+    impl SelectedProgramView for ValidatedFixedViewCopies {
+        fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+            std::sync::Arc::clone(&self.plan().transformed)
+        }
+
+        fn selected_plan(&self) -> &SelectedInstructionPlan {
+            &self.plan().transformed
+        }
+
+        fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+            self.receipt().transformed_selected()
+        }
+
+        fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+            self.receipt().optimization_unit()
+        }
+
+        fn work_schedule_identity(&self) -> WorkScheduleIdentity {
+            self.receipt().work_schedule()
+        }
+    }
+}
+
 pub use reanalysis::{
     OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,
     StagedOptimizedSelectedReanalysisCustodyReceipt, stage_optimized_selected_reanalysis,
@@ -129,8 +210,6 @@ pub use rewrites::{
 };
 pub use selected_input::ValidatedSelectedAnalysis;
 
-/// The completed suites selected optimization hands this stage, and their
-/// ledgers as this stage's receipts retain them.
 pub(crate) type SelectedLoweringResult =
     selected_instruction_analyses::CompletedSelectedOptimization<
         optimization_core::SelectedLoweringOptimizationCompletionIdentity,
@@ -145,10 +224,7 @@ pub type PreAllocationLedger = selected_instruction_analyses::SelectedOptimizati
     optimization_core::PreAllocationOptimizationCompletionIdentity,
 >;
 
-// The entry and its route.
 pub use register_allocation::{RegisterAllocationError, stage_register_allocation};
-
-// Stages sequenced by `stage_register_allocation`, in route order.
 
 pub(crate) use assignment::baseline::{
     OptimizedPostCopyRegisterHomeCustodyError, OptimizedRegisterHomeCustodyError,
@@ -179,8 +255,6 @@ pub(crate) use assignment::transformed::{
     StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
 
-// Rematerialization staged by the active-resident recovery rule.
-
 pub(crate) use rewrites::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
@@ -188,11 +262,9 @@ pub(crate) use rewrites::{
     stage_optimized_active_resident_rematerialization_pressure,
 };
 
-// Current allocation facts.
 pub(crate) use output::AllocationAdmissionError;
 pub use output::{AllocationEvidence, AllocationOutput, RetainedAllocation};
 
-// Allocation-visible callee-saved requirements.
 pub use preservation::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementIdentity,
     AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedRequirementPolicy,
@@ -202,10 +274,6 @@ pub use preservation::{
     validate_allocated_callee_saved_requirements,
 };
 
-// Validated spill boundaries not yet sequenced by `stage_register_allocation`.
-
-// Upstream selected-program analyses. `AllocationOutput` carries the ranges
-// and legality; the post-allocation stages name these through this crate.
 pub use selected_instruction_analyses::{
     MachineEffectStageError, SelectedProgramView, ValidatedAllocationLegality, ValidatedLiveRanges,
     ValidatedPreAllocationMachineEffects, analyze_machine_effects,
