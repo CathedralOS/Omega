@@ -1,7 +1,41 @@
-//! Clean AArch64 encoders owned by the terminal-Psi realization lane.
-//!
-//! Only normalized target and terminal-installation facts enter this crate;
-//! source-shaped representations and legacy operation graphs are absent.
+/*
+We provide the AArch64 physical register model, register-constraint catalog,
+machine-effect catalog, frame and FPCR custody protocols, hosted syscall
+sequences, post-handoff writer lowering, and selected-form instruction encoders
+and validators for the native realization pipeline. Every interface in this
+crate consumes only normalized target, register-home, and terminal-installation
+facts, with zero dependency on source-shaped Psi representations.
+*/
+
+/*
+We pair every AArch64 byte producer with an independent structural decoder and
+validator inside the same domain boundary so that no downstream layout,
+relaxation, or image-emission stage ever trusts an unchecked instruction word
+stream or a claimed byte width. By deriving register constraints, machine
+effects, encoder word sequences, and decoded footprints from shared AArch64
+realization tables (`register_model`, `machine_effects`, `saturating_forms`, and
+`selected_form_encoding`), we guarantee that instruction selection, register
+allocation, and binary emission agree on every register read, clobber, flag
+write, memory access, and trap edge.
+*/
+
+/*
+Our domain modules serve the AArch64 backend across selection, allocation, and
+emission:
+- `register_model` and `preservation_storage`: physical AArch64 registers,
+  AAPCS64 and Darwin call/operation constraint keys, and callee-saved storage
+  catalogs.
+- `machine_effects` and `saturating_forms`: per-alternative encoded effect
+  declarations and saturating arithmetic word realizations.
+- `frame_protocol`, `immediate_offset`, and `floating_control`: fixed-frame
+  prologue/epilogue save/restore, stack-commit probing, 64-bit immediate
+  addressing steps, and FPCR save/restore sequences.
+- `selected_form_encoding`: encoding, structural decoding, and validation for
+  all AArch64 selected instruction forms, branches, and call templates.
+- `generated_entry`, `hosted_sequences`, and `post_handoff_writer`: generated
+  entry replay, import-free Linux/Darwin syscall leaves, and address-free
+  post-handoff writer code generation.
+*/
 
 pub(crate) use optimization_core::codec_bytes;
 mod floating_control;
@@ -18,7 +52,41 @@ pub use register_model::aarch64_linux_system_call_keys;
 pub use register_model::{AARCH64_LOAD_ENCODED_SCALAR, AARCH64_STORE_ENCODED_SCALAR};
 mod saturating_forms;
 #[cfg(test)]
-pub(crate) mod test_support;
+pub(crate) mod test_support {
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+    use selected_instructions::{MachineAlternativeKey, SelectedInstructionKind};
+
+    pub(crate) fn rejects_every_bit_flip(
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: SelectedInstructionKind,
+        alternative: MachineAlternativeKey,
+        operands: &[RegisterViewId],
+        bytes: &[u8],
+    ) {
+        reject_every_bit_flip(bytes, &format!("{kind:?}"), |changed| {
+            crate::validate_aarch64_selected_form_encoding(
+                physical,
+                kind,
+                alternative,
+                operands,
+                changed,
+            )
+            .is_err()
+        });
+    }
+
+    pub(crate) fn reject_every_bit_flip(
+        bytes: &[u8],
+        description: &str,
+        reject: impl Fn(&[u8]) -> bool,
+    ) {
+        for bit in 0..bytes.len() * 8 {
+            let mut changed = bytes.to_vec();
+            changed[bit / 8] ^= 1 << (bit % 8);
+            assert!(reject(&changed), "{description} accepted changed bit {bit}");
+        }
+    }
+}
 pub use register_model::AARCH64_DIVIDE_I64;
 pub use register_model::AARCH64_DIVIDE_U64;
 pub use register_model::AARCH64_LOAD8;
@@ -51,9 +119,7 @@ pub use register_model::{
     aarch64_aapcs64_mixed_unit_call_keys, aarch64_darwin_mixed_unit_call_keys,
 };
 mod selected_form_encoding;
-/// Unresolved ordinary internal call control; the owner retains its fixup.
 pub const ORDINARY_DIRECT_CALL_BYTES: [u8; 4] = 0x9400_0000_u32.to_le_bytes();
-/// Ordinary call-return control, after restoring continuation custody.
 pub const ORDINARY_RETURN_BYTES: [u8; 4] = 0xd65f_03c0_u32.to_le_bytes();
 pub use floating_control::{
     encode_restore_fpcr_from_sp_displacement, encode_save_fpcr_to_sp_displacement,

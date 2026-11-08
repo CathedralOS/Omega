@@ -1,27 +1,19 @@
-//! The x86-64 hosted kernels whose console and exit leaves enter through
-//! `syscall`: Linux and Intel macOS.
-//!
-//! Both kernels share the instruction, the argument registers (`rdi`, `rsi`,
-//! `rdx`), the result register (`rax`) and the clobbers (`rcx`, `r11`,
-//! `rflags`), so one register contract serves both. They differ in two exact
-//! facts. Darwin numbers BSD calls in the Unix class `0x2000000`, and it
-//! reports failure by setting the carry flag with a positive errno in `rax`,
-//! where Linux returns a negative errno. A Darwin leaf therefore branches on
-//! carry before any comparison replaces the flags; a positive errno such as
-//! `EPERM` (1) would otherwise read as a one-byte transfer.
-//!
-//! <https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/mach/i386/syscall_sw.h>
-//! <https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/syscalls.master>
+/*
+We encode and decode import-free hosted x86-64 `syscall` leaves for Linux and
+Intel macOS (`encode_hosted_exit_process_i32_for_target`,
+`encode_darwin_read_byte_to_stack`, `encode_hosted_exit_process_i32`,
+`encode_hosted_write_byte_i32_from_r11`, `encode_linux_read_byte_to_stack`, and
+`encode_linux_write_line_literal`), handling Darwin's `0x0200_0000` Unix syscall
+class and carry-flag error reporting alongside Linux's negative-errno contract.
+*/
 
 use diagnostics::Diagnostic;
 use target::NativeTarget;
 
-/// Exact syscall facts of one hosted x86-64 kernel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct HostedKernel {
     pub(crate) write: u32,
     pub(crate) exit: u32,
-    /// Darwin reports failure through the carry flag.
     pub(crate) carry_reports_failure: bool,
 }
 
@@ -39,11 +31,8 @@ const DARWIN: HostedKernel = HostedKernel {
     carry_reports_failure: true,
 };
 
-/// Darwin `read` in the Unix class.
 const DARWIN_READ: u32 = DARWIN_UNIX_CLASS | 3;
 
-/// The hosted kernel an exact x86-64 target enters, or `None` for targets
-/// whose boundary is exclusively C-called (Windows, UEFI).
 pub(crate) fn hosted_kernel(target: NativeTarget) -> Option<HostedKernel> {
     if target == NativeTarget::linux_x64() {
         Some(LINUX)
@@ -54,19 +43,14 @@ pub(crate) fn hosted_kernel(target: NativeTarget) -> Option<HostedKernel> {
     }
 }
 
-/// Whether the exact target realizes hosted byte and exit leaves through
-/// `syscall`.
 pub(crate) fn hosted_syscall_target(target: NativeTarget) -> bool {
     hosted_kernel(target).is_some()
 }
 
-/// The process-exit call number the exact target's hosted exit leaf enters.
 pub(crate) fn hosted_exit_syscall_number(target: NativeTarget) -> Option<u32> {
     hosted_kernel(target).map(|kernel| kernel.exit)
 }
 
-/// Import-free `exit(value)` for an immediate status on either hosted
-/// kernel: `mov edi, imm32; mov eax, nr; syscall; ud2`.
 pub fn encode_hosted_exit_process_i32_for_target(
     target: NativeTarget,
     value: i32,
@@ -75,52 +59,47 @@ pub fn encode_hosted_exit_process_i32_for_target(
         Diagnostic::error("x86-64 hosted exit has no syscall kernel for this target")
     })?;
     let mut bytes = Vec::with_capacity(14);
-    bytes.push(0xbf); // mov edi, imm32
+    bytes.push(0xbf);
     crate::codec_bytes::push_encoded(&mut bytes, value.to_le_bytes());
-    bytes.push(0xb8); // mov eax, imm32
+    bytes.push(0xb8);
     crate::codec_bytes::push_encoded(&mut bytes, kernel.exit.to_le_bytes());
-    bytes.extend_from_slice(&[0x0f, 0x05]); // syscall
-    bytes.extend_from_slice(&[0x0f, 0x0b]); // ud2 if exit returns
+    bytes.extend_from_slice(&[0x0f, 0x05]);
+    bytes.extend_from_slice(&[0x0f, 0x0b]);
     Ok(bytes)
 }
 
-/// Import-free Darwin `read(0, &byte, 1)` into one canonical
-/// `ByteRead = Eof | Byte(i32)` stack home. The home is zeroed first, so an
-/// exact zero-byte read leaves the ordinal-zero `Eof` value; an exact
-/// one-byte read writes ordinal one after the kernel filled the payload
-/// byte. Carry, and every other count, traps.
 pub fn encode_darwin_read_byte_to_stack(
     home_byte_offset: u32,
     payload_byte_offset: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(DARWIN_READ_BYTE_LEAF_BYTES);
-    bytes.extend_from_slice(&[0x31, 0xc0]); // xor eax, eax
+    bytes.extend_from_slice(&[0x31, 0xc0]);
     for offset in [home_byte_offset, payload_byte_offset] {
-        bytes.extend_from_slice(&[0x89, 0x84, 0x24]); // mov [rsp+disp32], eax
+        bytes.extend_from_slice(&[0x89, 0x84, 0x24]);
         crate::codec_bytes::push_encoded(&mut bytes, offset.to_le_bytes());
     }
-    bytes.extend_from_slice(&[0x31, 0xff]); // xor edi, edi (stdin)
-    bytes.extend_from_slice(&[0x48, 0x8d, 0xb4, 0x24]); // lea rsi, [rsp+disp32]
+    bytes.extend_from_slice(&[0x31, 0xff]);
+    bytes.extend_from_slice(&[0x48, 0x8d, 0xb4, 0x24]);
     crate::codec_bytes::push_encoded(&mut bytes, payload_byte_offset.to_le_bytes());
-    bytes.extend_from_slice(&[0xba, 1, 0, 0, 0]); // mov edx, 1
-    bytes.push(0xb8); // mov eax, SYS_read | Unix class
+    bytes.extend_from_slice(&[0xba, 1, 0, 0, 0]);
+    bytes.push(0xb8);
     crate::codec_bytes::push_encoded(&mut bytes, DARWIN_READ.to_le_bytes());
-    bytes.extend_from_slice(&[0x0f, 0x05]); // syscall
+    bytes.extend_from_slice(&[0x0f, 0x05]);
     let carry_branch = bytes.len();
-    bytes.extend_from_slice(&[0x72, 0]); // jc trap: consume carry before CMP
-    bytes.extend_from_slice(&[0x48, 0x83, 0xf8, 0]); // cmp rax, 0
+    bytes.extend_from_slice(&[0x72, 0]);
+    bytes.extend_from_slice(&[0x48, 0x83, 0xf8, 0]);
     let eof_branch = bytes.len();
-    bytes.extend_from_slice(&[0x74, 0]); // je done
-    bytes.extend_from_slice(&[0x48, 0x83, 0xf8, 1]); // cmp rax, 1
+    bytes.extend_from_slice(&[0x74, 0]);
+    bytes.extend_from_slice(&[0x48, 0x83, 0xf8, 1]);
     let count_branch = bytes.len();
-    bytes.extend_from_slice(&[0x75, 0]); // jne trap
-    bytes.extend_from_slice(&[0xc7, 0x84, 0x24]); // mov dword [rsp+disp32], 1
+    bytes.extend_from_slice(&[0x75, 0]);
+    bytes.extend_from_slice(&[0xc7, 0x84, 0x24]);
     crate::codec_bytes::push_encoded(&mut bytes, home_byte_offset.to_le_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, 1_u32.to_le_bytes());
     let done_branch = bytes.len();
-    bytes.extend_from_slice(&[0xeb, 0]); // jmp done
+    bytes.extend_from_slice(&[0xeb, 0]);
     let trap = bytes.len();
-    bytes.extend_from_slice(&[0x0f, 0x0b]); // ud2
+    bytes.extend_from_slice(&[0x0f, 0x0b]);
     let done = bytes.len();
 
     let rel8 = |target: usize, end: usize| {
@@ -135,11 +114,8 @@ pub fn encode_darwin_read_byte_to_stack(
     Ok(bytes)
 }
 
-/// Exact byte width of [`encode_darwin_read_byte_to_stack`].
 pub(crate) const DARWIN_READ_BYTE_LEAF_BYTES: usize = 67;
 
-/// Decode the complete Darwin read leaf independently of its encoder,
-/// returning its structural home byte offset.
 pub(crate) fn decode_darwin_read_byte(bytes: &[u8]) -> Option<u32> {
     if bytes.len() != DARWIN_READ_BYTE_LEAF_BYTES {
         return None;
@@ -231,8 +207,6 @@ mod tests {
             let bytes = encode_darwin_read_byte_to_stack(home, home + 4).unwrap();
             assert_eq!(bytes.len(), DARWIN_READ_BYTE_LEAF_BYTES);
             assert_eq!(decode_darwin_read_byte(&bytes), Some(home));
-            // mov eax, 0x2000003; syscall; jc trap -- carry is consumed
-            // before `cmp rax, 0` replaces the flags.
             assert_eq!(&bytes[31..40], &[0xb8, 3, 0, 0, 2, 0x0f, 0x05, 0x72, 25]);
             assert_eq!(&bytes[40 + 25..40 + 27], &[0x0f, 0x0b]);
             for bit in 0..bytes.len() * 8 {
@@ -243,5 +217,168 @@ mod tests {
             let linux = crate::encode_linux_read_byte_to_stack(home, home + 4).unwrap();
             assert_eq!(decode_darwin_read_byte(&linux), None);
         }
+    }
+}
+
+pub fn encode_hosted_exit_process_i32(value: i32) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(14);
+    bytes.push(0xbf);
+    crate::codec_bytes::push_encoded(&mut bytes, value.to_le_bytes());
+    bytes.push(0xb8);
+    crate::codec_bytes::push_encoded(&mut bytes, 231_u32.to_le_bytes());
+    bytes.extend_from_slice(&[0x0f, 0x05]);
+    bytes.extend_from_slice(&[0x0f, 0x0b]);
+    bytes
+}
+
+pub fn encode_hosted_write_byte_i32_from_r11() -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(44);
+    bytes.extend_from_slice(&[0x48, 0x83, 0xec, 0x10]);
+    bytes.extend_from_slice(&[0x44, 0x88, 0x1c, 0x24]);
+    bytes.extend_from_slice(&[0xbf, 1, 0, 0, 0]);
+    bytes.extend_from_slice(&[0x48, 0x89, 0xe6]);
+    bytes.extend_from_slice(&[0xba, 1, 0, 0, 0]);
+    bytes.extend_from_slice(&[0xb8, 1, 0, 0, 0]);
+    bytes.extend_from_slice(&[0x0f, 0x05, 0x48, 0x85, 0xc0]);
+    bytes.extend_from_slice(&[0x7e, 0x06]);
+    bytes.extend_from_slice(&[0x48, 0x83, 0xc4, 0x10]);
+    bytes.extend_from_slice(&[0xeb, 0x02, 0x0f, 0x0b]);
+    bytes
+}
+
+pub fn encode_linux_read_byte_to_stack(
+    home_byte_offset: u32,
+    payload_byte_offset: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(72);
+    bytes.extend_from_slice(&[0x31, 0xc0]);
+    for offset in [home_byte_offset, payload_byte_offset] {
+        bytes.extend_from_slice(&[0x89, 0x84, 0x24]);
+        crate::codec_bytes::push_encoded(&mut bytes, offset.to_le_bytes());
+    }
+    bytes.extend_from_slice(&[0x31, 0xff]);
+    bytes.extend_from_slice(&[0x48, 0x8d, 0xb4, 0x24]);
+    crate::codec_bytes::push_encoded(&mut bytes, payload_byte_offset.to_le_bytes());
+    bytes.extend_from_slice(&[0xba, 1, 0, 0, 0]);
+    bytes.extend_from_slice(&[0x31, 0xc0]);
+    bytes.extend_from_slice(&[0x0f, 0x05]);
+    bytes.extend_from_slice(&[0x48, 0x83, 0xf8, 0]);
+    let eof_branch = bytes.len();
+    bytes.extend_from_slice(&[0x74, 0]);
+    bytes.extend_from_slice(&[0x48, 0x83, 0xf8, 1]);
+    let trap_branch = bytes.len();
+    bytes.extend_from_slice(&[0x75, 0]);
+    bytes.extend_from_slice(&[0xc7, 0x84, 0x24]);
+    crate::codec_bytes::push_encoded(&mut bytes, home_byte_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, 1_u32.to_le_bytes());
+    let done_branch = bytes.len();
+    bytes.extend_from_slice(&[0xeb, 0]);
+    let trap = bytes.len();
+    bytes.extend_from_slice(&[0x0f, 0x0b]);
+    let done = bytes.len();
+
+    let rel8 = |target: usize, end: usize| {
+        i8::try_from(target as i128 - end as i128)
+            .map(|value| value as u8)
+            .map_err(|_| Diagnostic::error("Linux x86-64 read-byte branch is out of range"))
+    };
+    bytes[eof_branch + 1] = rel8(done, eof_branch + 2)?;
+    bytes[trap_branch + 1] = rel8(trap, trap_branch + 2)?;
+    bytes[done_branch + 1] = rel8(done, done_branch + 2)?;
+    Ok(bytes)
+}
+
+pub fn encode_linux_write_line_literal(
+    literal: &[u8],
+) -> Result<(Vec<u8>, std::ops::Range<usize>), Diagnostic> {
+    let payload_len = literal
+        .len()
+        .checked_add(1)
+        .and_then(|len| u32::try_from(len).ok())
+        .ok_or_else(|| Diagnostic::error("Linux x86-64 write_line literal is too large"))?;
+    let mut bytes = Vec::with_capacity(52 + payload_len as usize);
+    bytes.extend_from_slice(&[0xbf, 1, 0, 0, 0]);
+    let lea_offset = bytes.len();
+    bytes.extend_from_slice(&[0x48, 0x8d, 0x35, 0, 0, 0, 0]);
+    bytes.push(0xba);
+    crate::codec_bytes::push_encoded(&mut bytes, payload_len.to_le_bytes());
+    let loop_offset = bytes.len();
+    bytes.extend_from_slice(&[0xb8, 1, 0, 0, 0]);
+    bytes.extend_from_slice(&[0x0f, 0x05]);
+    bytes.extend_from_slice(&[0x48, 0x85, 0xc0]);
+    let trap_branch_offset = bytes.len();
+    bytes.extend_from_slice(&[0x0f, 0x8e, 0, 0, 0, 0]);
+    bytes.extend_from_slice(&[0x48, 0x01, 0xc6]);
+    bytes.extend_from_slice(&[0x48, 0x29, 0xc2]);
+    let loop_branch_offset = bytes.len();
+    bytes.extend_from_slice(&[0x0f, 0x85, 0, 0, 0, 0]);
+    let data_skip_offset = bytes.len();
+    bytes.extend_from_slice(&[0xe9, 0, 0, 0, 0]);
+    let trap_offset = bytes.len();
+    bytes.extend_from_slice(&[0x0f, 0x0b]);
+    let data_offset = bytes.len();
+    bytes.extend_from_slice(literal);
+    bytes.push(b'\n');
+    let data_end = bytes.len();
+
+    let relative = |target: usize, instruction_end: usize| -> Result<[u8; 4], Diagnostic> {
+        i32::try_from(target as i128 - instruction_end as i128)
+            .map(i32::to_le_bytes)
+            .map_err(|_| Diagnostic::error("Linux x86-64 write_line branch is out of range"))
+    };
+    bytes[lea_offset + 3..lea_offset + 7].copy_from_slice(&relative(data_offset, lea_offset + 7)?);
+    bytes[trap_branch_offset + 2..trap_branch_offset + 6]
+        .copy_from_slice(&relative(trap_offset, trap_branch_offset + 6)?);
+    bytes[loop_branch_offset + 2..loop_branch_offset + 6]
+        .copy_from_slice(&relative(loop_offset, loop_branch_offset + 6)?);
+    bytes[data_skip_offset + 1..data_skip_offset + 5]
+        .copy_from_slice(&relative(data_end, data_skip_offset + 5)?);
+    Ok((bytes, data_offset..data_end))
+}
+
+#[cfg(test)]
+mod linux_tests {
+    use super::{
+        encode_hosted_exit_process_i32, encode_hosted_write_byte_i32_from_r11,
+        encode_linux_read_byte_to_stack, encode_linux_write_line_literal,
+    };
+
+    #[test]
+    fn linux_exit_and_write_literal_keep_exact_bytes() {
+        assert_eq!(
+            encode_hosted_exit_process_i32(0x1234_5678),
+            [
+                0xbf, 0x78, 0x56, 0x34, 0x12, 0xb8, 0xe7, 0x00, 0x00, 0x00, 0x0f, 0x05, 0x0f, 0x0b,
+            ]
+        );
+        let (bytes, data) = encode_linux_write_line_literal(&[0, 0x80, 0xff]).unwrap();
+        assert_eq!(&bytes[data.clone()], &[0, 0x80, 0xff, b'\n']);
+        assert_eq!(&bytes[data.start - 2..data.start], &[0x0f, 0x0b]);
+        let retry = bytes
+            .windows(2)
+            .position(|window| window == [0x0f, 0x85])
+            .expect("retry branch");
+        let displacement = i32::from_le_bytes(bytes[retry + 2..retry + 6].try_into().unwrap());
+        let retry_target = i64::try_from(retry + 6).unwrap() + i64::from(displacement);
+        let loop_start = bytes
+            .windows(7)
+            .position(|window| window == [0xb8, 1, 0, 0, 0, 0x0f, 0x05])
+            .unwrap();
+        assert_eq!(retry_target, i64::try_from(loop_start).unwrap());
+
+        let byte_write = encode_hosted_write_byte_i32_from_r11();
+        assert_eq!(&byte_write[..4], &[0x48, 0x83, 0xec, 0x10]);
+        assert_eq!(&byte_write[33..37], &[0x48, 0x83, 0xc4, 0x10]);
+        assert_eq!(&byte_write[39..], &[0x0f, 0x0b]);
+        let trap_target = 33_i64 + i64::from(byte_write[32] as i8);
+        assert_eq!(trap_target, 39);
+        let success_target = 39_i64 + i64::from(byte_write[38] as i8);
+        assert_eq!(success_target, i64::try_from(byte_write.len()).unwrap());
+
+        let byte_read = encode_linux_read_byte_to_stack(16, 20).unwrap();
+        assert_eq!(&byte_read[..2], &[0x31, 0xc0]);
+        assert_eq!(&byte_read[5..9], &16_u32.to_le_bytes());
+        assert!(byte_read.windows(2).any(|window| window == [0x0f, 0x05]));
+        assert_eq!(&byte_read[byte_read.len() - 2..], &[0x0f, 0x0b]);
     }
 }

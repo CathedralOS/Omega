@@ -1,14 +1,11 @@
-//! Target-owned encoding for one compiler-private semantic Unit wrapper.
-//!
-//! The semantic ProgramStorage plan deliberately owns no byte coordinates.
-//! This module selects the Microsoft-x64 realization whose body mutates
-//! no floating-point control state and uses only caller-saved registers. The
-//! unresolved rel32 field is not executable authority until section placement
-//! binds it to one exact private continuation offset.
-//!
-//! The wrapper forwards only the two explicit installed roots. Application
-//! state is authored ordinary storage, and its complete activation demand is
-//! checked independently before the physical bridge lends stack backing.
+/*
+We encode, decode, and resolve compiler-private Microsoft x64 semantic `Unit`
+wrapper templates (`encode_x86_64_semantic_unit_wrapper_template`,
+`validate_x86_64_semantic_unit_wrapper_template`, and
+`resolve_x86_64_semantic_unit_wrapper_private_continuation`), marshaling incoming
+register and stack arguments into a fixed frame and tail-continuing into the
+private target body without mutating floating-point control state.
+*/
 
 use calling_conventions::{MachineRegister, RegisterSet};
 use target::NativeTarget;
@@ -21,8 +18,6 @@ pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_WIDTH: u8 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum X86_64SemanticUnitWrapperEncodingPolicy {
-    /// The wrapper touches RAX, RCX, RDX, RSP, RFLAGS, and memory only. It does
-    /// not install Omega's ordinary 33-byte control-state/nonvolatile envelope.
     MicrosoftX64CallerSavedOnlyNoControlStateMutationV1,
 }
 
@@ -48,7 +43,6 @@ pub struct X86_64SemanticUnitWrapperEncodingRequest {
     pub outgoing_release_byte_count: u32,
     pub pre_call_stack_alignment: u16,
     pub copies: [X86_64SemanticUnitWrapperCopy; 4],
-    /// The two exact installed Extent roots, in declared argument order.
     pub argument_bindings: [X86_64SemanticUnitWrapperArgumentBinding; 2],
     pub relocation_field_byte_width: u8,
     pub relocation_addend: i64,
@@ -69,8 +63,6 @@ pub enum X86_64SemanticUnitWrapperCleanupEffect {
     NoneV1,
 }
 
-/// Physical effects retained beside the exact target bytes. This is target
-/// validation evidence, not permission to invoke the wrapper.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct X86_64SemanticUnitWrapperFootprint {
     pub root_reads: [X86_64SemanticUnitWrapperCopy; 4],
@@ -248,7 +240,6 @@ pub fn encode_x86_64_semantic_unit_wrapper_template(
     validate_x86_64_semantic_unit_wrapper_template(request, &bytes)
 }
 
-/// Independently parse every opcode, register, displacement, and frame byte.
 pub fn validate_x86_64_semantic_unit_wrapper_template(
     request: X86_64SemanticUnitWrapperEncodingRequest,
     bytes: &[u8],
@@ -411,8 +402,6 @@ pub(crate) fn validate_x86_64_resolved_semantic_unit_wrapper(
     })
 }
 
-/// The stack adjustment sign-extends imm32. Rounding, frame addition and the
-/// zero loop must all describe the same finite positive residence.
 fn validate_request(
     request: X86_64SemanticUnitWrapperEncodingRequest,
 ) -> Result<(), X86_64SemanticUnitWrapperEncodingError> {
@@ -428,7 +417,6 @@ fn validate_request(
     Ok(())
 }
 
-/// A 20-byte counted loop plus one 8-byte LEA, independent of context size.
 fn expected_function_byte_count() -> usize {
     X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT
 }
@@ -472,7 +460,6 @@ fn expected_footprint(
 }
 
 fn expected_relocation() -> X86_64SemanticUnitWrapperRelocation {
-    // sub(7) + copies(4×15) + extent binds(2×8) reach the call opcode.
     let opcode = 83;
     X86_64SemanticUnitWrapperRelocation {
         kind: X86_64SemanticUnitWrapperRelocationKind::Relative32PrivateContinuationFromNextInstructionV1,

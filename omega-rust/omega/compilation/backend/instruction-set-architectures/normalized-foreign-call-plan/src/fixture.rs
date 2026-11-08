@@ -1,28 +1,13 @@
-//! The selected normalized-foreign-call record both instruction sets' template
-//! tests admit, the case those tests derive from it, and the callback roster
-//! they wire into it.
-//!
-//! The record carries physical call inputs only; source ownership and
-//! declarations stay the template tests' independent responsibility. Only a
-//! target's own facts differ between instruction sets — which target, how many
-//! parameters its integer registers take before the first floating one, the
-//! aggregate its fourth result shape names, and the locator family its import is
-//! spelled in — so those are arguments and the construction is stated once.
-//!
-//! The encoded effects a roster row charges, the callback destination
-//! vocabulary naming where a materialized address lands, and the byte counts
-//! that vocabulary's materialization groups charge stay with the instruction
-//! set; [`case`] and [`callback_fixture`] take them as arguments so the
-//! scaffolding around them is stated once.
-//!
-//! The template bodies both instruction sets run end to end are stated here
-//! too. Each admission asserts the same retained operands, the same evaluated
-//! effects, the same exact byte extent, and the same fixup refusal of a mutated
-//! group, a swapped destination, or a stale effect; an instruction set answers
-//! only the [`Entrances`] it enters through — its row, its declaration, its
-//! register vocabulary, its encoder and validator, its callback destination
-//! vocabulary and byte table, and the terminal call bytes those groups
-//! precede.
+/*
+We construct the canonical `SelectedNormalizedForeignCall` test records,
+callback materialization rosters, and end-to-end template verification sweeps
+shared by the `isa-aarch64` and `isa-x86_64` foreign-call template tests. Each
+instruction set supplies only its target identity, integer argument register
+count, aggregate return shape, symbolic import locator, and callback destination
+byte table through `Entrances`; we verify retained operands, evaluated effects,
+exact byte extents, and rejection of mutated callback groups, swapped
+destinations, and stale effect declarations.
+*/
 
 use calling_conventions::{
     CallSignature, CallbackBinderRequirement, CallbackMaterialization,
@@ -55,7 +40,6 @@ use target_operations::{
     TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
 };
 
-/// The PE import the Windows fixture names.
 pub fn pe_locator() -> NormalizedForeignLocator {
     normalize_foreign_locator(
         ForeignLocatorCandidate::PeByName {
@@ -67,7 +51,6 @@ pub fn pe_locator() -> NormalizedForeignLocator {
     .unwrap()
 }
 
-/// The symbol-versioned ELF import the Linux fixture names.
 pub fn elf_locator(profile: TargetProfile) -> NormalizedForeignLocator {
     normalize_foreign_locator(
         ForeignLocatorCandidate::ElfVersioned {
@@ -80,7 +63,6 @@ pub fn elf_locator(profile: TargetProfile) -> NormalizedForeignLocator {
     .unwrap()
 }
 
-/// The Mach-O dylib import the Darwin fixture names.
 pub fn mach_o_locator() -> NormalizedForeignLocator {
     normalize_foreign_locator(
         ForeignLocatorCandidate::MachODylibSymbol {
@@ -92,10 +74,6 @@ pub fn mach_o_locator() -> NormalizedForeignLocator {
     .unwrap()
 }
 
-/// One selected normalized-foreign-call record for `target`, carrying
-/// `input_layout` parameters and `result`'s shaped result. `integer_registers`
-/// is the target's integer-argument register count and `aggregate` the shape
-/// its fourth result names.
 pub fn record(
     target: NativeTarget,
     integer_registers: usize,
@@ -245,10 +223,6 @@ pub fn record(
     }
 }
 
-/// Everything a template test hands its encoder, in the order both instruction
-/// sets' test modules already destructure: the validated physical model, the
-/// selected kind and alternative, the roster row's operand columns, the effects
-/// that row's call declaration charges, and the record they were derived from.
 pub type Case = (
     ValidatedPhysicalRegisterModel,
     SelectedInstructionKind,
@@ -259,12 +233,6 @@ pub type Case = (
     SelectedNormalizedForeignCall,
 );
 
-/// Derive one encoder-test case from `record`.
-///
-/// The kind, the alternative, the roster row the record evaluates to, that
-/// row's operand columns, and the record itself are target-independent; only
-/// the row lookup (`constraint`) and the encoded effects of the row under
-/// `physical` (`effects`) belong to the instruction set.
 pub fn case(
     physical: ValidatedPhysicalRegisterModel,
     record: SelectedNormalizedForeignCall,
@@ -296,7 +264,6 @@ pub fn case(
     )
 }
 
-/// The roster row's operand view and access columns, in roster order.
 pub fn operand_columns(
     row: &RegisterInstructionConstraint,
 ) -> (Vec<RegisterViewId>, Vec<RegisterOperandAccess>) {
@@ -313,27 +280,18 @@ pub fn operand_columns(
     (views, accesses)
 }
 
-/// The materialization byte counts one instruction set charges for its two
-/// callback destination forms: a register and a record field.
 #[derive(Debug, Clone, Copy)]
 pub struct CallbackByteCounts {
     pub register: u16,
     pub field: u16,
 }
 
-/// One wired private callback destination, named the way every instruction set
-/// can read it: the register its address materializes in and, for a record
-/// field, the byte offset of the private slot inside that record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CallbackPlacement {
     pub register: MachineRegister,
     pub field_byte_offset: Option<usize>,
 }
 
-/// The wired callback fixture: the record that carries the callbacks, each
-/// destination in the caller's own vocabulary, the materialization byte count
-/// the caller's table charges for it, and the physical placement the fixture
-/// drew it from — all in roster order.
 pub struct CallbackFixture<Destination> {
     pub record: SelectedNormalizedForeignCall,
     pub destinations: Vec<Destination>,
@@ -341,17 +299,6 @@ pub struct CallbackFixture<Destination> {
     pub placements: Vec<CallbackPlacement>,
 }
 
-/// Wire the four-callback fixture into `record`: a private parameter slot, a
-/// record field, another parameter slot, and another field of the same root
-/// record, in that roster order, over the record's own evaluated
-/// boundary-entry plan.
-///
-/// `into_destination` names each placement in the caller's vocabulary — the
-/// fixture never lands an address in a memory destination, because its callback
-/// roots are register resident — and `counts` is the caller's own per-form
-/// materialization extent table. The two private parameter slots are
-/// materialized inside the call, so the record keeps only the field root as an
-/// explicit input; source custody for that root is checked upstream.
 pub fn callback_fixture<Destination>(
     mut record: SelectedNormalizedForeignCall,
     into_destination: impl Fn(CallbackPlacement) -> Destination,
@@ -468,9 +415,6 @@ pub fn callback_fixture<Destination>(
     }
 }
 
-/// One instruction set's terminal call bytes, and where its fixup patches the
-/// import field and measures the next-instruction reference, both relative to
-/// the call's first byte.
 #[derive(Debug, Clone)]
 pub struct CallBytes {
     pub bytes: Vec<u8>,
@@ -478,12 +422,8 @@ pub struct CallBytes {
     pub reference_byte_offset: u16,
 }
 
-/// The unresolved fixup record one instruction set's templates carry.
 pub type ForeignFixup<Kind, State, Callback> = crate::Fixup<Kind, State, Callback>;
 
-/// One instruction set's encoder entrance: the selected inputs a template is
-/// encoded from, the callback destinations in the caller's vocabulary, and the
-/// record they were derived from.
 pub type Entrance<Destination, Kind, State, Callback> =
     fn(
         NativeTarget,
@@ -497,9 +437,6 @@ pub type Entrance<Destination, Kind, State, Callback> =
         &SelectedNormalizedForeignCall,
     ) -> Result<crate::Template<ForeignFixup<Kind, State, Callback>>, crate::Error>;
 
-/// One instruction set's validator entrance: the same selected inputs as
-/// [`Entrance`], plus the bytes, fixup, and callback destinations a caller
-/// claims the encoder produced.
 pub type Validation<Destination, Kind, State, Callback> =
     fn(
         NativeTarget,
@@ -515,12 +452,6 @@ pub type Validation<Destination, Kind, State, Callback> =
         &SelectedNormalizedForeignCall,
     ) -> Result<crate::Template<ForeignFixup<Kind, State, Callback>>, crate::Error>;
 
-/// Everything an instruction set answers the shared template bodies, and
-/// nothing else: the roster row and declaration its own effects owner
-/// evaluates, the physical view its model names a machine register by, its
-/// encoder and validator, the canonical fixup constructor and the columns of
-/// one callback materialization, and the terminal call bytes plus the patch
-/// offsets those materialization groups precede.
 pub struct Entrances<Destination, Kind, State, Callback> {
     pub call: CallBytes,
     pub constraint: fn(&SelectedNormalizedForeignCall) -> Option<RegisterInstructionConstraint>,
@@ -531,18 +462,12 @@ pub struct Entrances<Destination, Kind, State, Callback> {
     pub fixed_view: fn(&ValidatedPhysicalRegisterModel, MachineRegister) -> Option<RegisterViewId>,
     pub encode: Entrance<Destination, Kind, State, Callback>,
     pub validate: Validation<Destination, Kind, State, Callback>,
-    /// The canonical unresolved fixup for one `{boundary, ordinal}` row.
     pub fixup:
         fn(BoundaryMachineId, u32, &[Destination]) -> Option<ForeignFixup<Kind, State, Callback>>,
-    /// One callback materialization as `(destination, byte offset, byte count)`.
     pub fixup_row: fn(&Callback) -> (Destination, u16, u16),
-    /// Displace one materialization group, leaving the others intact.
     pub advance: fn(&mut Callback),
 }
 
-/// One selected case bound to the instruction set that encodes it, so a shared
-/// body names only the effects, bytes, fixup, and destinations it asserts
-/// about rather than restating the nine selected inputs each time.
 struct Subject<'a, Destination, Kind, State, Callback> {
     entrances: &'a Entrances<Destination, Kind, State, Callback>,
     target: NativeTarget,
@@ -576,7 +501,6 @@ impl<'a, Destination, Kind, State, Callback> Subject<'a, Destination, Kind, Stat
         }
     }
 
-    /// Re-point the subject at the retained row's own columns and alternative.
     fn bind_row(
         &mut self,
         row: &RegisterInstructionConstraint,
@@ -646,8 +570,6 @@ impl<'a, Destination, Kind, State, Callback> Subject<'a, Destination, Kind, Stat
         )
     }
 
-    /// Encode this record against substituted operand columns, which is how a
-    /// body proves the columns are not interchangeable.
     fn encode_with(
         &self,
         operands: &[RegisterViewId],
@@ -687,20 +609,12 @@ impl<'a, Destination, Kind, State, Callback> Subject<'a, Destination, Kind, Stat
         )
     }
 
-    /// The exact extent of `byte_counts`' materialization groups plus this
-    /// instruction set's terminal call bytes.
     fn extent(&self, byte_counts: &[u16]) -> u16 {
         let call = u16::try_from(self.entrances.call.bytes.len()).expect("call bytes fit a u16");
         byte_counts.iter().sum::<u16>() + call
     }
 }
 
-/// The callback-bearing record's retained operands, evaluated effects, exact
-/// bytes, and unresolved fixups, under both of one target's alternate ABIs.
-///
-/// `into_destination` and `counts` are the caller's callback destination
-/// vocabulary and per-form byte table; every assertion around them is the same
-/// on both instruction sets.
 pub fn retained_callbacks<Destination, Kind, State, Callback>(
     entrances: &Entrances<Destination, Kind, State, Callback>,
     inputs: impl Fn(bool, usize, usize) -> Case,
@@ -869,8 +783,6 @@ pub fn retained_callbacks<Destination, Kind, State, Callback>(
     }
 }
 
-/// Every result shape — direct, hidden-aggregate, and structural — retains one
-/// template, and a stale effect or a dropped parameter location is refused.
 pub fn direct_and_hidden_aggregate_results_share_the_import_template<
     Destination,
     Kind,
@@ -929,8 +841,6 @@ pub fn direct_and_hidden_aggregate_results_share_the_import_template<
     }
 }
 
-/// A callback-free template is exactly the terminal call bytes over the
-/// canonical fixup, and every selected input round-trips.
 pub fn template_has_exact_bytes_and_fixup<Destination, Kind, State, Callback>(
     entrances: &Entrances<Destination, Kind, State, Callback>,
     inputs: impl Fn(bool, usize, usize) -> Case,
@@ -964,12 +874,6 @@ pub fn template_has_exact_bytes_and_fixup<Destination, Kind, State, Callback>(
     assert_eq!(fixup.patch_byte_width, 4);
 }
 
-/// Every evaluated boundary-entry plan selects its own exact operand columns
-/// under one template, and a substituted view, a flipped role, or another
-/// result's columns are refused.
-///
-/// `layouts` is the number of parameter counts one target's plan admits and
-/// `substitute` a view naming neither the input nor the result bank.
 pub fn evaluated_plans_select_exact_operands_and_effects_under_one_template<
     Destination,
     Kind,
@@ -993,8 +897,6 @@ pub fn evaluated_plans_select_exact_operands_and_effects_under_one_template<
                 .encode(&subject.effects, &[])
                 .expect("admitted plan encodes");
             assert_eq!(template.operand_views(), subject.operands.as_slice());
-            // A different result choice is a valid row, but cannot retain
-            // this row's external writes and remaining caller-save effects.
             let (_, _, _, wrong, wrong_accesses, _, _) =
                 inputs(false, input_layout, (result + 1) % 3);
             assert_eq!(
@@ -1002,16 +904,12 @@ pub fn evaluated_plans_select_exact_operands_and_effects_under_one_template<
                 Err(crate::Error::OperandViewMismatch)
             );
             if !subject.operands.is_empty() {
-                // This view belongs to neither the input nor result bank.
                 let mut substituted = subject.operands.clone();
                 substituted[0] = subject.physical.model().view_named(substitute).unwrap().id;
                 assert_eq!(
                     subject.encode_with(&substituted, &subject.accesses, &subject.effects, &[]),
                     Err(crate::Error::OperandViewMismatch)
                 );
-                // Flip the actual role: result-only rows start with Def,
-                // whereas nonempty input layouts start with Use. If the
-                // new roles describe another valid row, stale effects reject.
                 let mut swapped_accesses = subject.accesses.clone();
                 swapped_accesses[0] = match subject.accesses[0] {
                     RegisterOperandAccess::Use => RegisterOperandAccess::Def,
@@ -1028,14 +926,6 @@ pub fn evaluated_plans_select_exact_operands_and_effects_under_one_template<
     }
 }
 
-/// One admission rejects a wrong instruction kind, every target this
-/// instruction set does not encode, a foreign alternative family, a
-/// substituted `{boundary, ordinal}`, a non-canonical terminal word, and a
-/// stale effect.
-///
-/// `unsupported` is the set of targets the other instruction set owns, which
-/// is this one's evidence of target admission; `malformed` is a word that
-/// differs from the canonical placeholder.
 pub fn rejects_wrong_kind_target_alternative_and_fixup<Destination, Kind, State, Callback>(
     entrances: &Entrances<Destination, Kind, State, Callback>,
     inputs: impl Fn(bool, usize, usize) -> Case,
@@ -1094,7 +984,6 @@ pub fn rejects_wrong_kind_target_alternative_and_fixup<Destination, Kind, State,
     let template = subject
         .encode(&subject.effects, &[])
         .expect("fixture record encodes");
-    // A substituted boundary or ordinal cannot validate.
     let mut foreign = template.fixup().clone();
     foreign.boundary = BoundaryMachineId::new(9).unwrap();
     assert_eq!(
@@ -1107,12 +996,10 @@ pub fn rejects_wrong_kind_target_alternative_and_fixup<Destination, Kind, State,
         subject.validate(template.bytes(), foreign, &subject.effects, &[]),
         Err(crate::Error::FixupMismatch)
     );
-    // The canonical placeholder is the only admitted word.
     assert_eq!(
         subject.validate(malformed, template.fixup().clone(), &subject.effects, &[]),
         Err(crate::Error::MalformedTemplate)
     );
-    // A complete effect mismatch rejects.
     let mut wrong_effects = subject.effects.clone();
     wrong_effects.implicit_unit_clobbers.clear();
     assert_eq!(

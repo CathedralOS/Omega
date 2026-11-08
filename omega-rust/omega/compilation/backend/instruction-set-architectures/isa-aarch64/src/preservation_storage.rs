@@ -1,4 +1,9 @@
-//! Exact AArch64 ABI preservation-storage groups.
+/*
+We define and validate the AArch64 ABI callee-saved preservation-storage catalog
+(`aarch64_preservation_storage_catalog`) for `linux_arm64` and `macos_arm64`,
+binding preserved general-purpose (`x19`..`x28`) and low-64-bit vector
+(`d8`..`d15`) registers to their canonical save/restore groups.
+*/
 
 use register_model::{
     PreservationStorageCatalog, PreservationStorageCatalogValidationError,

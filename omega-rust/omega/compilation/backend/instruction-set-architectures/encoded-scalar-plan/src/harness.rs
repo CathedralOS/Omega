@@ -1,23 +1,19 @@
-//! The two sweeps both instruction sets' encoded-scalar tests run.
-//!
-//! An instruction set answers only what the other cannot: its canonical
-//! physical register model, the six operand views it admits, its own `encode`
-//! and `validate` entrances, and the decoder that reads its stream back. Every
-//! assertion between those hooks is the same on both targets — the addresses
-//! the store writes and the load reads, the extension the load leaves in the
-//! result register, and the refusal of every single-bit mutation or operand
-//! alias of the emitted stream — so it is stated here once.
-//!
-//! A stream's unit belongs to the decoder that reads it: x86 positions count
-//! bytes and AArch64 positions count words, which is why replay arrives as the
-//! caller's `execute` rather than as a stream length computed here.
+/*
+We provide the shared conformance sweeps (`exact_footprint_and_extension` and
+`rejects_every_single_bit_mutation`) that both `isa-aarch64` and `isa-x86_64`
+run over their `LoadEncodedScalar` and `StoreEncodedScalar` encoders and
+validators. Each architecture supplies its six admitted operand register views,
+its `encode` and `validate` functions, and its decoded-stream replay callback;
+we verify every admitted signed, unsigned, and out-of-band codec word, exact
+byte access order, sign/zero extension, single-bit stream corruption refusal,
+and scratch-register aliasing rejection.
+*/
 
 use register_model::RegisterViewId;
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
 };
 
-/// The selected kind one admission direction names.
 pub const fn kind(load: bool) -> SelectedInstructionKind {
     if load {
         SelectedInstructionKind::LoadEncodedScalar
@@ -26,7 +22,6 @@ pub const fn kind(load: bool) -> SelectedInstructionKind {
     }
 }
 
-/// The single alternative both encoded-scalar kinds declare.
 pub const fn alternative(load: bool) -> MachineAlternativeKey {
     MachineAlternativeKey {
         family: if load {
@@ -38,16 +33,12 @@ pub const fn alternative(load: bool) -> MachineAlternativeKey {
     }
 }
 
-/// Every admitted codec word, in its unsigned and signed spelling, plus the
-/// out-of-band words the descriptor producer can also emit.
 fn codecs() -> impl Iterator<Item = u64> {
     (1..=8u64)
         .flat_map(|width| [width, width | 256])
         .chain([516, 520, 1025, 2056])
 }
 
-/// Encode one direction for the admitted operands, or report that the form
-/// refused them.
 fn emit<E: std::fmt::Debug>(
     encode: &impl Fn(
         SelectedInstructionKind,
@@ -60,12 +51,6 @@ fn emit<E: std::fmt::Debug>(
     encode(kind(load), alternative(load), operands).expect("admitted operands must encode")
 }
 
-/// Run one store and one load for every admitted codec word, and assert the
-/// memory the store wrote, the addresses the load read, and the extension the
-/// result register holds.
-///
-/// `registers` are the six operand slots' physical codes in operand order;
-/// `execute` replays a decoded stream over the register file and memory.
 pub fn exact_footprint_and_extension<E: std::fmt::Debug>(
     registers: [u8; 6],
     operands: [RegisterViewId; 6],
@@ -124,9 +109,6 @@ pub fn exact_footprint_and_extension<E: std::fmt::Debug>(
     }
 }
 
-/// Assert that the form refuses every single-bit mutation of its emitted
-/// stream, every operand that aliases a scratch slot with an input, and admits
-/// shared inputs that the program can still run.
 pub fn rejects_every_single_bit_mutation<E: std::fmt::Debug>(
     operands: [RegisterViewId; 6],
     encode: impl Fn(

@@ -1,14 +1,12 @@
-//! Hosted AArch64 instruction sequences realized without imports: process
-//! exit, byte read and write through the host syscall interface, and a
-//! literal line write, each encoded from raw MOVZ/MOVK/SVC words for Linux and
-//! Darwin. Selected-form encodings live in `selected_form_encoding`.
+/*
+We encode and decode import-free hosted AArch64 syscall sequences for Linux
+(`svc #0` with syscall number in `x8`) and Darwin (`svc #0x80` with syscall
+number in `x16` and carry-flag error reporting), covering process exit, single-
+byte console writes, stack-home byte reads, and literal line writes.
+*/
 
 use diagnostics::Diagnostic;
 
-/// Exact import-free hosted AArch64 realization of `exit_process(i32)`.
-/// Darwin uses syscall 1 in x16 and SVC 0x80; Linux uses exit_group 94 in x8.
-/// See Apple's xnu `bsd/kern/syscalls.master` and `libsyscall/custom/SYS.h`:
-/// <https://github.com/apple-oss-distributions/xnu>.
 pub fn encode_hosted_exit_process_i32(
     target: target::NativeTarget,
     value: i32,
@@ -31,8 +29,6 @@ pub fn encode_hosted_exit_process_i32(
     Ok(bytes)
 }
 
-/// Import-free Linux `write(1, &byte, 1)` realization. The caller places the
-/// low byte of the exact `i32` source in `w9`; this encoder owns the stack slot.
 pub fn encode_hosted_write_byte_i32_from_w9() -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::new();
     crate::codec_bytes::push_encoded(&mut bytes, 0xd100_43ff_u32.to_le_bytes());
@@ -50,16 +46,10 @@ pub fn encode_hosted_write_byte_i32_from_w9() -> Result<Vec<u8>, Diagnostic> {
     Ok(bytes)
 }
 
-/// `add x1, sp, #payload`: one word inside the first 4 KiB of the frame, then
-/// shifted page steps and the unshifted remainder when nonzero past it. These
-/// are the steps `FrameAddress` and the frame protocol's `sp` adjustment
-/// share, so a read-byte home anywhere in a `u32` frame is addressable.
 pub(crate) fn read_byte_payload_address(payload_byte_offset: u32) -> Vec<u32> {
     crate::immediate_offset::address_words(1, 31, u64::from(payload_byte_offset))
 }
 
-/// The `x1` payload address for a `ByteRead` home whose tag word sits at
-/// `home_byte_offset` and whose `i32` payload follows it.
 fn read_byte_home_address(
     home_byte_offset: u32,
     payload_byte_offset: u32,
@@ -75,33 +65,27 @@ fn read_byte_home_address(
     Ok(read_byte_payload_address(payload_byte_offset))
 }
 
-/// Import-free Linux `read(0, &byte, 1)` realization into one canonical
-/// `ByteRead = Eof | Byte(i32)` stack home. `x1` addresses the payload for the
-/// whole sequence: Linux system calls preserve every register but `x0`.
 pub fn encode_linux_read_byte_to_stack(
     home_byte_offset: u32,
     payload_byte_offset: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut words = read_byte_home_address(home_byte_offset, payload_byte_offset, "Linux")?;
-    words.push(0xb81f_c03f); // stur wzr, [x1, #-4]: canonical Eof tag
-    words.push(0xb900_003f); // str wzr, [x1]: zero unused payload bytes
+    words.push(0xb81f_c03f);
+    words.push(0xb900_003f);
     words.push(u32::from_le_bytes(encode_movz(0, 0)));
     words.push(u32::from_le_bytes(encode_movz(2, 1)));
-    words.push(u32::from_le_bytes(encode_movz(8, 63))); // SYS_read
+    words.push(u32::from_le_bytes(encode_movz(8, 63)));
     words.push(u32::from_le_bytes(encode_svc(0)));
-    words.push(0xb400_0000 | (7 << 5)); // cbz x0, done
+    words.push(0xb400_0000 | (7 << 5));
     words.push(u32::from_le_bytes(encode_compare_x_immediate(0, 1)?));
-    words.push(0x5400_0001 | (4 << 5)); // b.ne trap
-    words.push(0x5280_0029); // mov w9, #1
-    words.push(0xb81f_c029); // stur w9, [x1, #-4]: Byte tag
-    words.push(0x1400_0002); // b done
+    words.push(0x5400_0001 | (4 << 5));
+    words.push(0x5280_0029);
+    words.push(0xb81f_c029);
+    words.push(0x1400_0002);
     words.push(u32::from_le_bytes(encode_brk(0)));
     Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
 }
 
-/// Import-free Darwin read into caller-owned storage, without changing SP.
-/// Darwin's system call return writes its second result into `x1`, so the
-/// payload address is formed again before the tag store.
 pub fn encode_macos_read_byte_to_stack(
     home_byte_offset: u32,
     payload_byte_offset: u32,
@@ -109,26 +93,24 @@ pub fn encode_macos_read_byte_to_stack(
     let address = read_byte_home_address(home_byte_offset, payload_byte_offset, "Darwin")?;
     let reach = u32::try_from(address.len()).expect("one or two address words");
     let mut words = address.clone();
-    words.push(0xb81f_c03f); // stur wzr, [x1, #-4]: canonical Eof tag
-    words.push(0xb900_003f); // str wzr, [x1]: zero unused payload bytes
+    words.push(0xb81f_c03f);
+    words.push(0xb900_003f);
     words.push(u32::from_le_bytes(encode_movz(0, 0)));
     words.push(u32::from_le_bytes(encode_movz(2, 1)));
     words.push(u32::from_le_bytes(encode_movz(16, 3)));
     words.push(u32::from_le_bytes(encode_svc(0x80)));
-    // b.cs trap: consume syscall carry before CMP replaces NZCV.
     words.push(0x5400_0002 | ((7 + reach) << 5));
-    words.push(0xb400_0000 | ((7 + reach) << 5)); // cbz x0, done
+    words.push(0xb400_0000 | ((7 + reach) << 5));
     words.push(u32::from_le_bytes(encode_compare_x_immediate(0, 1)?));
-    words.push(0x5400_0001 | ((4 + reach) << 5)); // b.ne trap
-    words.push(0x5280_0029); // mov w9, #1
+    words.push(0x5400_0001 | ((4 + reach) << 5));
+    words.push(0x5280_0029);
     words.extend(address);
-    words.push(0xb81f_c029); // stur w9, [x1, #-4]: Byte tag
-    words.push(0x1400_0002); // b done
+    words.push(0xb81f_c029);
+    words.push(0x1400_0002);
     words.push(u32::from_le_bytes(encode_brk(0)));
     Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
 }
 
-/// Import-free Linux `write_line` over one immutable literal.
 pub fn encode_linux_write_line_literal(
     literal: &[u8],
 ) -> Result<(Vec<u8>, std::ops::Range<usize>), Diagnostic> {
@@ -144,21 +126,21 @@ pub fn encode_linux_write_line_literal(
     }
     let mut bytes = Vec::new();
     let adr_offset = bytes.len();
-    bytes.extend_from_slice(&[0; 4]); // adr x1, data
+    bytes.extend_from_slice(&[0; 4]);
     append_unsigned_immediate(&mut bytes, 2, payload_len);
-    bytes.extend(encode_movz(8, 64)); // x8 = SYS_write
+    bytes.extend(encode_movz(8, 64));
     let loop_offset = bytes.len();
-    bytes.extend(encode_movz(0, 1)); // x0 = STDOUT_FILENO
+    bytes.extend(encode_movz(0, 1));
     bytes.extend(encode_svc(0));
     bytes.extend(encode_compare_x_immediate(0, 0)?);
     let trap_branch_offset = bytes.len();
-    bytes.extend_from_slice(&[0; 4]); // b.le trap
+    bytes.extend_from_slice(&[0; 4]);
     bytes.extend(encode_add_x_register(1, 1, 0));
     bytes.extend(encode_subs_x_register(2, 2, 0));
     let loop_branch_offset = bytes.len();
-    bytes.extend_from_slice(&[0; 4]); // b.ne loop
+    bytes.extend_from_slice(&[0; 4]);
     let data_skip_offset = bytes.len();
-    bytes.extend_from_slice(&[0; 4]); // b after_data
+    bytes.extend_from_slice(&[0; 4]);
     let trap_offset = bytes.len();
     bytes.extend(encode_brk(0));
     let data_offset = bytes.len();

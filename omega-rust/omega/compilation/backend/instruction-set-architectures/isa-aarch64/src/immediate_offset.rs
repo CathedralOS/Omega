@@ -1,32 +1,17 @@
-//! Unsigned offsets realized as 64-bit `add`/`sub` (immediate) steps.
-//!
-//! One A64 `add`/`sub` immediate carries twelve bits, optionally shifted left
-//! by twelve, so a shifted-then-unshifted pair reaches 16 MiB - 1. Frame
-//! extents, record fields and pointer displacements are `u32`-sized, so an
-//! offset past that pair continues with further shifted steps of at most 4095
-//! pages each before the unshifted remainder. The steps need no scratch
-//! register: the first reads the base and every later step reads and writes
-//! the destination, so a destination that aliases its base — the allocator's
-//! `AddressOffset` aliasing, or `sp` adjusting itself — stays exact.
-//!
-//! Every offset has exactly one step sequence: full 4095-page steps, then the
-//! partial page step, then the unshifted remainder when nonzero. Decoding
-//! enforces that shape, so a replayed sequence cannot carry the same sum in a
-//! different split.
-//!
-//! Register number 31 names `sp` in both the base and destination fields of
-//! these instructions; the frame protocol and frame forms rely on that.
+/*
+We realize unsigned 32-bit byte offsets on AArch64 as canonical sequences of
+64-bit `add`/`sub` immediate instructions (`address_words`,
+`aligned_frame_address_words`, and `decode_address_words`). Offsets beyond one
+shifted-plus-unshifted 12-bit pair (16 MiB - 1) step in full 4095-page increments
+before the partial page and byte remainder, requiring no scratch register and
+decoding uniquely.
+*/
 
-/// `add xD, xN, #imm` (64-bit, unshifted, flags preserved).
 pub(crate) const ADD_IMMEDIATE: u32 = 0x9100_0000;
-/// `sub xD, xN, #imm` (64-bit, unshifted, flags preserved).
 pub(crate) const SUBTRACT_IMMEDIATE: u32 = 0xd100_0000;
-/// The `sh` bit selecting `#imm, lsl #12`.
 const SHIFT_TWELVE: u32 = 1 << 22;
-/// The largest value one twelve-bit immediate field carries.
 const IMMEDIATE_LIMIT: u64 = 4095;
 
-/// One shifted or unshifted step of an offset sequence.
 const fn step(opcode: u32, shifted: bool, immediate: u64, destination: u8, base: u8) -> u32 {
     opcode
         | if shifted { SHIFT_TWELVE } else { 0 }
@@ -35,8 +20,6 @@ const fn step(opcode: u32, shifted: bool, immediate: u64, destination: u8, base:
         | destination as u32
 }
 
-/// Append `destination = base ± pages * 4096` as shifted steps of at most
-/// 4095 pages each. Nothing is appended for zero pages.
 pub(crate) fn append_page_steps(
     words: &mut Vec<u32>,
     opcode: u32,
@@ -54,8 +37,6 @@ pub(crate) fn append_page_steps(
     }
 }
 
-/// Append `destination = base ± amount`: the page steps, then the unshifted
-/// remainder when nonzero. A zero amount appends nothing.
 pub(crate) fn append_offset_steps(
     words: &mut Vec<u32>,
     opcode: u32,
@@ -76,8 +57,6 @@ pub(crate) fn append_offset_steps(
     }
 }
 
-/// `destination = base + amount` as an address: the offset steps, and one
-/// `add xD, xN, #0` for a zero amount so the destination is always written.
 pub(crate) fn address_words(destination: u8, base: u8, amount: u64) -> Vec<u32> {
     let mut words = Vec::with_capacity(address_word_count(amount) as usize);
     append_offset_steps(&mut words, ADD_IMMEDIATE, destination, base, amount);
@@ -87,8 +66,6 @@ pub(crate) fn address_words(destination: u8, base: u8, amount: u64) -> Vec<u32> 
     words
 }
 
-/// Align an address within a padded, fixed frame. SP itself is unchanged.
-/// The member offset follows the mask so fields keep their declared offsets.
 pub(crate) fn aligned_frame_address_words(
     destination: u8,
     frame_offset: u32,
@@ -104,7 +81,6 @@ pub(crate) fn aligned_frame_address_words(
         31,
         u64::from(frame_offset) + u64::from(alignment - 1),
     );
-    // AND (not ANDS): preserve NZCV and all registers except the destination.
     words.push(
         0x9240_0000
             | ((64 - shift) << 16)
@@ -155,7 +131,6 @@ pub(crate) fn validate_aligned_frame_address_words(
         }
 }
 
-/// How many words [`address_words`] emits for `amount`.
 pub(crate) const fn address_word_count(amount: u64) -> u64 {
     let pages = (amount >> 12).div_ceil(IMMEDIATE_LIMIT);
     if amount & IMMEDIATE_LIMIT != 0 || amount == 0 {
@@ -165,20 +140,11 @@ pub(crate) const fn address_word_count(amount: u64) -> u64 {
     }
 }
 
-/// Largest byte size an address sequence over any `u32` offset encodes to:
-/// 257 page steps and one remainder step.
 pub(crate) const MAX_ADDRESS_BYTES: u16 = (address_word_count(u32::MAX as u64) * 4) as u16;
 
-/// Largest byte size of a scratch-addressed 64-bit frame store: the page
-/// steps of the last page-aligned `u32` offset, then the store itself.
 pub(crate) const MAX_STORE64_BYTES: u16 =
     ((address_word_count(u32::MAX as u64 & !4095) + 1) * 4) as u16;
 
-/// Decode one canonical address sequence for `destination = base + offset`.
-/// Every word must be a 64-bit unshifted or shifted `add` immediate writing
-/// the destination; only the first reads the base. Shifted steps come first,
-/// all but the last carry exactly 4095 pages, and at most one unshifted
-/// remainder follows them. A lone unshifted step may carry zero.
 pub(crate) fn decode_address_words(words: &[u32], destination: u8, base: u8) -> Option<u64> {
     let mut offset = 0_u64;
     let mut previous_pages = None;
@@ -219,7 +185,6 @@ mod tests {
 
     #[test]
     fn short_offsets_keep_the_one_and_two_word_forms() {
-        // add x9, sp, #0 / #17; add x9, sp, #1, lsl #12; then the pair.
         assert_eq!(address_words(9, 31, 0), vec![0x9100_03e9]);
         assert_eq!(address_words(9, 31, 17), vec![0x9100_47e9]);
         assert_eq!(address_words(9, 31, 4096), vec![0x9140_07e9]);
@@ -232,7 +197,6 @@ mod tests {
 
     #[test]
     fn offsets_past_sixteen_mebibytes_continue_with_page_steps() {
-        // 32 MiB - 1 = 8191 pages + 4095: 4095 + 4095 + 1 pages, then 4095.
         let words = address_words(3, 7, 33_554_431);
         assert_eq!(
             words,
@@ -240,7 +204,6 @@ mod tests {
         );
         assert_eq!(words.len() as u64, address_word_count(33_554_431));
         assert_eq!(decode_address_words(&words, 3, 7), Some(33_554_431));
-        // Aliased base and destination: every step reads the register.
         let aliased = address_words(5, 5, 33_554_432);
         assert_eq!(decode_address_words(&aliased, 5, 5), Some(33_554_432));
     }
@@ -277,7 +240,6 @@ mod tests {
     #[test]
     fn decoding_rejects_noncanonical_splits_and_registers() {
         let words = address_words(3, 7, 33_554_431);
-        // 4094 + 4095 + 2 pages is the same sum in a different split.
         let split = vec![
             step(ADD_IMMEDIATE, true, 4094, 3, 7),
             step(ADD_IMMEDIATE, true, 4095, 3, 3),
@@ -285,12 +247,9 @@ mod tests {
             words[3],
         ];
         assert_eq!(decode_address_words(&split, 3, 7), None);
-        // A later step reading the original base loses the running sum.
         let mut reread = words.clone();
         reread[1] = step(ADD_IMMEDIATE, true, 4095, 3, 7);
         assert_eq!(decode_address_words(&reread, 3, 7), None);
-        // A shifted step after the remainder is out of order, and a zero
-        // step after the first pads the sequence.
         let reordered = vec![
             step(ADD_IMMEDIATE, false, 4095, 3, 7),
             step(ADD_IMMEDIATE, true, 1, 3, 3),
@@ -298,7 +257,6 @@ mod tests {
         assert_eq!(decode_address_words(&reordered, 3, 7), None);
         let padded = vec![words[0], step(ADD_IMMEDIATE, false, 0, 3, 3)];
         assert_eq!(decode_address_words(&padded, 3, 7), None);
-        // Subtraction is not an address step.
         let mut subtract = Vec::new();
         append_offset_steps(&mut subtract, SUBTRACT_IMMEDIATE, 3, 7, 17);
         assert_eq!(decode_address_words(&subtract, 3, 7), None);
@@ -311,7 +269,6 @@ mod tests {
         append_offset_steps(&mut words, SUBTRACT_IMMEDIATE, 31, 31, 0);
         assert!(words.is_empty());
         append_offset_steps(&mut words, ADD_IMMEDIATE, 31, 31, 33_554_448);
-        // add sp, sp, #4095, lsl #12 (x2); add sp, sp, #2, lsl #12; add sp, sp, #16
         assert_eq!(
             words,
             vec![0x917f_ffff, 0x917f_ffff, 0x9140_0bff, 0x9100_43ff]

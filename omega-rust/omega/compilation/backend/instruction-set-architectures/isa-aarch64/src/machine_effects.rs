@@ -1,3 +1,10 @@
+/*
+We build and validate the AArch64 machine-effect catalog
+(`aarch64_machine_effect_catalog` and `validate_aarch64_machine_effect_catalog`),
+mapping every AArch64 register-constraint key and normalized foreign call to its
+exact encoded register, flag, memory, stack, control-flow, and trap effects.
+*/
+
 use register_model::{TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog};
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
@@ -11,7 +18,235 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 
 use crate::saturating_forms::SaturatingRealization;
 
-mod scalar_call;
+mod scalar_call {
+    use register_model::{RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
+    use selected_instructions::{
+        MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
+        MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
+        MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
+        MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
+        MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    };
+
+    pub(super) fn declaration(
+        semantic: MachineSemanticKind,
+        constraint: RegisterConstraintKey,
+        constraints: &ValidatedRegisterConstraintCatalog,
+    ) -> MachineEffectDeclaration {
+        let row = constraints
+            .catalog()
+            .constraint(constraint)
+            .expect("canonical AArch64 catalog contains its scalar-call constraint");
+        MachineEffectDeclaration::call(
+            semantic,
+            constraint,
+            16,
+            4,
+            (semantic == MachineSemanticKind::NormalizedForeignCall).then_some(20),
+            MachineEncodedEffects {
+                external_operand_reads: row.operand_reads(),
+                external_operand_writes: row.operand_writes(),
+                implicit_unit_uses: row.implicit_uses.clone(),
+                implicit_unit_defs: row.implicit_defs.clone(),
+                implicit_unit_clobbers: row.clobbers.clone(),
+                memory: MachineEncodedMemoryEffect::NoneV1,
+                stack: MachineEncodedStackEffect::UnchangedV1,
+                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                control: MachineEncodedControlEffect::DirectRelativeCallV1,
+            },
+        )
+    }
+
+    pub fn aarch64_normalized_foreign_call_declaration(
+        record: &selected_instructions::SelectedNormalizedForeignCall,
+        row: &register_model::RegisterInstructionConstraint,
+    ) -> Option<MachineEffectDeclaration> {
+        let expected = normalized_foreign_constraint(record)?;
+        if *row != expected {
+            return None;
+        }
+        let supervisor = record.call.binding.system_call().is_some();
+        let table = if record.call.binding.table_dispatch().is_some() {
+            Some(crate::selected_form_encoding::table_call::table_address(
+                record,
+            )?)
+        } else {
+            None
+        };
+        let mut register_destinations = 0_u16;
+        let mut field_destinations = 0_u16;
+        let mut callback_byte_count = 0_u16;
+        for callback in &record.call.callbacks {
+            if Some(callback.terminal_operation) != record.invocation_site.operation() {
+                return None;
+            }
+            match callback.destination.clone() {
+                calling_conventions::NativePlace::Parameter(_) => {
+                    if !matches!(
+                        callback.application.placement.locations.as_slice(),
+                        [calling_conventions::ValueLocation::Register { .. }]
+                    ) {
+                        return None;
+                    }
+                    register_destinations = register_destinations.checked_add(1)?;
+                    callback_byte_count = callback_byte_count.checked_add(8)?;
+                }
+                calling_conventions::NativePlace::Field { .. } => {
+                    field_destinations = field_destinations.checked_add(1)?;
+                    let [calling_conventions::ValueLocation::Register { register, .. }] =
+                        callback.application.placement.locations.as_slice()
+                    else {
+                        return None;
+                    };
+                    let destination =
+                        crate::Aarch64CallbackMaterializationDestination::RecordField {
+                            root_register: *register,
+                            placements: callback.field_placements.clone()?,
+                        };
+                    let size =
+                        crate::selected_form_encoding::callback_group_bytes(&destination)?.len();
+                    callback_byte_count =
+                        callback_byte_count.checked_add(u16::try_from(size).ok()?)?;
+                }
+            }
+        }
+        if supervisor && !record.call.callbacks.is_empty() {
+            return None;
+        }
+        let variant =
+            u32::from(register_destinations != 0) | (u32::from(field_destinations != 0) << 1);
+        let byte_count = if supervisor || table.is_some() {
+            20
+        } else {
+            4_u16.checked_add(callback_byte_count)?
+        };
+        Some(MachineEffectDeclaration {
+            semantic: MachineSemanticKind::NormalizedForeignCall,
+            constraint: row.key,
+            memory: if field_destinations != 0 {
+                MachineMemoryEffect::PrivateCallbackMaterializationV1
+            } else if table.is_some() {
+                MachineMemoryEffect::ReadPointerV1
+            } else {
+                MachineMemoryEffect::NoneV1
+            },
+            trap: if field_destinations != 0 || table.is_some() {
+                MachineTrapBehavior::MayArchitecturalFaultV1
+            } else {
+                MachineTrapBehavior::NeverV1
+            },
+            barrier: MachineBarrier::Call,
+            call: if supervisor {
+                MachineCallEffect::SupervisorNormalReturnV1
+            } else {
+                MachineCallEffect::ExternalNormalReturnV1 {
+                    pre_call_stack_alignment: 16,
+                }
+            },
+            cleanup: MachineCleanupEffect::NoneV1,
+            alternatives: vec![MachineAlternative {
+                key: MachineAlternativeKey {
+                    family: selected_instructions::MachineAlternativeFamily::NormalizedForeignCall,
+                    variant,
+                },
+                applicability: MachineAlternativeApplicability::Always,
+                size: MachineSizeKnowledge::ExactBytes(byte_count),
+                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+                encoded: MachineEncodedEffects {
+                    external_operand_reads: row.operand_reads(),
+                    external_operand_writes: row.operand_writes(),
+                    implicit_unit_uses: row.implicit_uses.clone(),
+                    implicit_unit_defs: row.implicit_defs.clone(),
+                    implicit_unit_clobbers: row.clobbers.clone(),
+                    memory: match table {
+                        Some((_, byte_offset)) => {
+                            let position =
+                            selected_instructions::calls::constraints::foreign_argument_registers(
+                                &record.call,
+                            )
+                            .iter()
+                            .position(|(parameter, _)| *parameter == 0)?;
+                            MachineEncodedMemoryEffect::ReadTableFieldV1 {
+                                pointer_operand: u16::try_from(position).ok()?,
+                                byte_offset,
+                            }
+                        }
+                        None if field_destinations != 0 => {
+                            MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1
+                        }
+                        None => MachineEncodedMemoryEffect::NoneV1,
+                    },
+                    stack: MachineEncodedStackEffect::UnchangedV1,
+                    trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                    control: if supervisor {
+                        MachineEncodedControlEffect::SupervisorCallV1
+                    } else if table.is_some() {
+                        MachineEncodedControlEffect::IndirectExternalCallV1
+                    } else {
+                        MachineEncodedControlEffect::DirectRelativeCallV1
+                    },
+                },
+            }],
+        })
+    }
+
+    pub(crate) fn normalized_foreign_constraint(
+        record: &selected_instructions::SelectedNormalizedForeignCall,
+    ) -> Option<register_model::RegisterInstructionConstraint> {
+        let target = record.call.binding.native_target()?;
+        let abi = super::aarch64_selected_abi(target).ok()?;
+        let key = if record.call.binding.system_call().is_some() {
+            *crate::aarch64_linux_system_call_keys().first()?
+        } else {
+            match abi {
+                super::Aarch64SelectedAbi::Aapcs64 => {
+                    *crate::aarch64_aapcs64_normalized_foreign_call_keys().first()?
+                }
+                super::Aarch64SelectedAbi::Darwin => {
+                    *crate::aarch64_darwin_normalized_foreign_call_keys().first()?
+                }
+            }
+        };
+        let physical = crate::validated_aarch64_physical_register_model();
+        let catalog = crate::aarch64_register_constraint_catalog_for(physical);
+        let base = catalog.constraint(key)?;
+        selected_instructions::calls::constraints::instantiate_foreign_call_constraint(
+            &record.call,
+            base,
+            physical,
+            |register| crate::aarch64_fixed_register_view(physical, register),
+        )
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use target::NativeTarget;
+
+        #[test]
+        fn system_call_effects_reject_user_space_call_state_and_missing_clobbers() {
+            let physical = crate::validated_aarch64_physical_register_model();
+            let constraints = crate::validate_aarch64_register_constraint_catalog(
+                crate::aarch64_register_constraint_catalog(physical),
+                physical,
+            )
+            .unwrap();
+            let target = NativeTarget::linux_arm64();
+            let catalog = crate::aarch64_machine_effect_catalog(target, &constraints).unwrap();
+            crate::validate_aarch64_machine_effect_catalog(target, &constraints, catalog.clone())
+                .expect("kernel entry effects");
+            let other =
+                crate::aarch64_machine_effect_catalog(NativeTarget::macos_arm64(), &constraints)
+                    .unwrap();
+            isa_conformance::system_call::effects_conformance(
+                &constraints,
+                &catalog,
+                &crate::aarch64_linux_system_call_keys(),
+                physical.model().view_named("sp").unwrap().id,
+                &other,
+            );
+        }
+    }
+}
 pub use scalar_call::aarch64_normalized_foreign_call_declaration;
 pub(crate) use scalar_call::normalized_foreign_constraint;
 
@@ -165,22 +400,12 @@ pub fn aarch64_machine_effect_catalog(
     })
 }
 
-/// The AArch64 encoding matrix declares one call/return ABI family per
-/// supported (architecture, object-format) pair: AAPCS64 under ELF and the
-/// Darwin AAPCS64 variant under Mach-O. An undeclared pair — including every
-/// non-AArch64 architecture — fails closed rather than silently inheriting
-/// one family's rows; adding a supported AArch64 format extends this matrix
-/// deliberately.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Aarch64SelectedAbi {
     Aapcs64,
     Darwin,
 }
 
-/// Resolve the declared pair to its ABI family. Every selected-form encoding
-/// that needs the call/return roster — the machine-effect catalog and the
-/// scalar-call template validator alike — consults this matrix rather than
-/// re-reading the target, so an undeclared pair fails closed once, here.
 pub(crate) fn aarch64_selected_abi(
     target: NativeTarget,
 ) -> Result<Aarch64SelectedAbi, Aarch64MachineEffectCatalogValidationError> {
@@ -196,12 +421,6 @@ pub(crate) fn aarch64_selected_abi(
     }
 }
 
-/// The exact register-constraint key roster the AArch64 encoding matrix
-/// declares for one target: every constraint row this target's selected forms
-/// may use, selected by the ABI family its declared pair resolves to. The
-/// machine-effect catalog and the allocator register environment both consume
-/// this one roster instead of deriving their own, so the allocator cannot
-/// drift from the effect declarations. `None` means the pair has no AArch64 ABI.
 pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
     let Ok(abi) = aarch64_selected_abi(target) else {
         return None;
@@ -239,8 +458,6 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             interrupt_control: None,
             memory_fence: Some(crate::AARCH64_MEMORY_FENCE),
             atomic_fence: Some(crate::AARCH64_ATOMIC_FENCE),
-            // All canonical atomic forms use baseline A64. Decisive updates
-            // retain their exclusive retry work; Once remains one attempt.
             access_read: Some(crate::AARCH64_ACCESSOR_READ),
             access_write: Some(crate::AARCH64_ACCESSOR_WRITE),
             atomic_load: Some(crate::AARCH64_ATOMIC_LOAD),
@@ -382,9 +599,6 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
     })
 }
 
-/// The single alternative every AArch64 form admits: one always-applicable
-/// encoding, named by its family, its byte size and its encoded effects row.
-/// Forms that admit more than one variant name the key themselves.
 macro_rules! form_alternative {
     ($family:expr, $size:expr, $encoded:expr) => {
         vec![MachineAlternative {
@@ -893,7 +1107,6 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
     if let Some(width) = packed_load_width(semantic) {
         return MachineSizeKnowledge::ExactBytes((2 * width - 1) * 4);
     }
-    // Each saturating carrier class is one fixed word sequence.
     if let Some(realization) = SaturatingRealization::of_semantic(semantic) {
         return MachineSizeKnowledge::ExactBytes(realization.byte_size());
     }
@@ -902,9 +1115,6 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             unreachable!("AArch64 has no privileged termination key")
         }
         MachineSemanticKind::Crash => MachineSizeKnowledge::ExactBytes(4),
-        // The allocated address scratch is always written before the store,
-        // including small offsets; its early-clobber contract is not optional.
-        // One page step reaches 16 MiB; each further 4095 pages adds a step.
         MachineSemanticKind::Store64 => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 8,
             maximum_bytes: Some(
@@ -937,8 +1147,6 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             minimum_bytes: 4,
             maximum_bytes: Some(16),
         },
-        // `adrp` then `add #:lo12:`, both fields unresolved until object
-        // construction binds them to the literal's image symbol.
         MachineSemanticKind::ImageAddress => MachineSizeKnowledge::ExactBytes(8),
         MachineSemanticKind::HostedExitProcessI32
         | MachineSemanticKind::HostedReadByte
@@ -960,8 +1168,6 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::ExactRemainderU64
         | MachineSemanticKind::WrappingRemainderI64
         | MachineSemanticKind::ExactRemainderI64 => MachineSizeKnowledge::ExactBytes(8),
-        // One unshifted `add` inside the first page; shifted page steps and
-        // the unshifted remainder past it.
         MachineSemanticKind::FrameAddress => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 4,
             maximum_bytes: Some(crate::immediate_offset::MAX_ADDRESS_BYTES * 2 + 4),
@@ -970,8 +1176,6 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             minimum_bytes: 4,
             maximum_bytes: Some(crate::immediate_offset::MAX_ADDRESS_BYTES),
         },
-        // Conditional branches resolve to a 4-byte `B.cond` when the taken
-        // edge fits imm19 and widen to `B.<invcond> +8; B target` past it.
         MachineSemanticKind::ConditionalBranchNonZero
         | MachineSemanticKind::ConditionalBranchU64LessThan
         | MachineSemanticKind::ConditionalBranchI64LessThan => {
@@ -995,4 +1199,531 @@ const fn packed_load_width(semantic: MachineSemanticKind) -> Option<u16> {
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::{
+        AARCH64_AAPCS64_RETURN, AARCH64_AAPCS64_RETURN_UNIT, AARCH64_CONDITIONAL_BRANCH,
+        AARCH64_COPY_I64, AARCH64_DARWIN_RETURN, AARCH64_DARWIN_RETURN_UNIT, AARCH64_SUBTRACT_I64,
+        Aarch64MachineEffectCatalogValidationError, Architecture, MachineAlternativeApplicability,
+        MachineBarrier, MachineCallEffect, MachineEncodedControlEffect, MachineEncodedEffects,
+        MachineEncodedStackEffect, MachineSemanticKind, MachineSizeKnowledge, NativeTarget,
+        ObjectFormat, ValidatedRegisterConstraintCatalog, aarch64_machine_effect_catalog,
+        validate_aarch64_machine_effect_catalog,
+    };
+    use crate::{
+        Aarch64RegisterConstraintCatalogValidationError, aarch64_physical_register_model,
+        aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
+    };
+    use register_model::validate_physical_register_model;
+
+    fn constraints() -> ValidatedRegisterConstraintCatalog {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        validate_aarch64_register_constraint_catalog(
+            aarch64_register_constraint_catalog(&physical),
+            &physical,
+        )
+        .unwrap_or_else(|error: Aarch64RegisterConstraintCatalogValidationError| panic!("{error}"))
+    }
+
+    macro_rules! eq {
+        ($left:expr => $right:expr) => {
+            assert_eq!($left, $right);
+        };
+    }
+
+    #[test]
+    fn every_saturating_carrier_binds_its_shape_key_size_and_flags() {
+        use selected_instructions::{SaturatingCarrier, SaturatingOperation};
+        let constraints = constraints();
+        let nzcv = crate::aarch64_physical_register_model()
+            .view_named("nzcv")
+            .unwrap()
+            .units
+            .clone();
+        for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
+            let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
+            for carrier in SaturatingCarrier::ALL {
+                let signed = carrier.is_signed();
+                let narrow = carrier.is_narrow();
+                for (operation, semantic) in [
+                    (
+                        SaturatingOperation::Add,
+                        MachineSemanticKind::SaturatingAdd(carrier),
+                    ),
+                    (
+                        SaturatingOperation::Subtract,
+                        MachineSemanticKind::SaturatingSubtract(carrier),
+                    ),
+                    (
+                        SaturatingOperation::Divide,
+                        MachineSemanticKind::SaturatingDivide(carrier),
+                    ),
+                    (
+                        SaturatingOperation::Remainder,
+                        MachineSemanticKind::SaturatingRemainder(carrier),
+                    ),
+                    (
+                        SaturatingOperation::Multiply,
+                        MachineSemanticKind::SaturatingMultiply(carrier),
+                    ),
+                ] {
+                    let (key, size, writes): (_, u16, &[u16]) = match operation {
+                        SaturatingOperation::Add if carrier == SaturatingCarrier::U64 => {
+                            (crate::register_model::AARCH64_SATURATING_ADD_U64, 8, &[2])
+                        }
+                        SaturatingOperation::Add => (
+                            crate::register_model::AARCH64_SATURATING_ADD_CLAMPED,
+                            if !narrow {
+                                16
+                            } else if signed {
+                                28
+                            } else {
+                                16
+                            },
+                            &[2, 3],
+                        ),
+                        SaturatingOperation::Subtract if !signed => (
+                            crate::register_model::AARCH64_SATURATING_SUBTRACT_UNSIGNED,
+                            8,
+                            &[2],
+                        ),
+                        SaturatingOperation::Subtract => (
+                            crate::register_model::AARCH64_SATURATING_SUBTRACT_CLAMPED,
+                            if narrow { 28 } else { 16 },
+                            &[2, 3],
+                        ),
+                        SaturatingOperation::Divide if !signed => {
+                            (crate::register_model::AARCH64_DIVIDE_U64, 4, &[2])
+                        }
+                        SaturatingOperation::Divide => (
+                            crate::register_model::AARCH64_SATURATING_DIVIDE_SIGNED,
+                            if narrow { 16 } else { 24 },
+                            &[2, 3],
+                        ),
+                        SaturatingOperation::Remainder if !signed => {
+                            (crate::register_model::AARCH64_REMAINDER_U64, 8, &[2])
+                        }
+                        SaturatingOperation::Remainder => {
+                            (crate::register_model::AARCH64_REMAINDER_I64, 8, &[2])
+                        }
+                        SaturatingOperation::Multiply if carrier == SaturatingCarrier::U64 => (
+                            crate::register_model::AARCH64_SATURATING_MULTIPLY_U64,
+                            16,
+                            &[2, 3],
+                        ),
+                        SaturatingOperation::Multiply => (
+                            crate::register_model::AARCH64_SATURATING_MULTIPLY_CLAMPED,
+                            if !narrow {
+                                24
+                            } else if signed {
+                                28
+                            } else {
+                                16
+                            },
+                            &[2, 3],
+                        ),
+                    };
+                    let declaration = catalog
+                        .declaration_by_semantic(semantic)
+                        .unwrap_or_else(|| panic!("{semantic:?} declared"));
+                    assert_eq!(declaration.constraint, key, "{semantic:?}");
+                    assert_eq!(declaration.alternatives.len(), 1);
+                    let alternative = &declaration.alternatives[0];
+                    assert_eq!(
+                        alternative.size,
+                        MachineSizeKnowledge::ExactBytes(size),
+                        "{semantic:?}"
+                    );
+                    assert_eq!(alternative.encoded.external_operand_reads, [0, 1]);
+                    assert_eq!(alternative.encoded.external_operand_writes, writes);
+                    let defines_nzcv = !(operation == SaturatingOperation::Divide && !signed)
+                        && operation != SaturatingOperation::Remainder;
+                    assert_eq!(
+                        alternative.encoded.implicit_unit_defs,
+                        if defines_nzcv {
+                            nzcv.clone()
+                        } else {
+                            Vec::new()
+                        },
+                        "{semantic:?}"
+                    );
+                    for corruption in 0..3 {
+                        let mut changed = catalog.clone();
+                        let alternative = &mut changed
+                            .declaration_by_semantic_mut(semantic)
+                            .unwrap()
+                            .alternatives[0];
+                        match corruption {
+                            0 => alternative.encoded.external_operand_writes.clear(),
+                            1 => alternative.size = MachineSizeKnowledge::ExactBytes(size + 4),
+                            _ => {
+                                let sibling = match carrier {
+                                    SaturatingCarrier::I8 => SaturatingCarrier::U8,
+                                    SaturatingCarrier::I16 => SaturatingCarrier::U16,
+                                    SaturatingCarrier::I32 => SaturatingCarrier::U32,
+                                    SaturatingCarrier::I64 => SaturatingCarrier::U64,
+                                    SaturatingCarrier::U8 => SaturatingCarrier::I8,
+                                    SaturatingCarrier::U16 => SaturatingCarrier::I16,
+                                    SaturatingCarrier::U32 => SaturatingCarrier::I32,
+                                    SaturatingCarrier::U64 => SaturatingCarrier::I64,
+                                };
+                                alternative.key.family = match operation {
+                                    SaturatingOperation::Add => {
+                                        MachineSemanticKind::SaturatingAdd(sibling)
+                                    }
+                                    SaturatingOperation::Subtract => {
+                                        MachineSemanticKind::SaturatingSubtract(sibling)
+                                    }
+                                    SaturatingOperation::Divide => {
+                                        MachineSemanticKind::SaturatingDivide(sibling)
+                                    }
+                                    SaturatingOperation::Remainder => {
+                                        MachineSemanticKind::SaturatingRemainder(sibling)
+                                    }
+                                    SaturatingOperation::Multiply => {
+                                        MachineSemanticKind::SaturatingMultiply(sibling)
+                                    }
+                                }
+                                .into();
+                            }
+                        };
+                        assert!(
+                            validate_aarch64_machine_effect_catalog(target, &constraints, changed)
+                                .is_err(),
+                            "{semantic:?} corruption {corruption}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn wrapping_remainder_catalog_preserves_inputs_and_flags() {
+        let constraints = constraints();
+        for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
+            let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
+            let declaration = catalog
+                .declaration_by_semantic(MachineSemanticKind::WrappingRemainderI64)
+                .unwrap();
+            eq!(declaration.constraint => crate::register_model::AARCH64_REMAINDER_I64);
+            eq!(declaration.alternatives[0].size => MachineSizeKnowledge::ExactBytes(8));
+            assert_eq!(
+                declaration.alternatives[0].encoded,
+                MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2])
+            );
+            for corruption in 0..3 {
+                let mut changed = catalog.clone();
+                let alternative = &mut changed
+                    .declaration_by_semantic_mut(MachineSemanticKind::WrappingRemainderI64)
+                    .unwrap()
+                    .alternatives[0];
+                match corruption {
+                    0 => alternative.encoded.external_operand_reads.truncate(1),
+                    1 => alternative.size = MachineSizeKnowledge::ExactBytes(4),
+                    _ => alternative.key.family = MachineSemanticKind::ExactDivideU64.into(),
+                };
+                assert!(
+                    validate_aarch64_machine_effect_catalog(target, &constraints, changed).is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn bitwise_xor_catalog_binds_family_size_and_pure_effects() {
+        for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
+            let constraints = constraints();
+            let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
+            validate_aarch64_machine_effect_catalog(target, &constraints, catalog.clone()).unwrap();
+            let declaration = catalog
+                .declaration_by_semantic(MachineSemanticKind::BitwiseXorI64)
+                .unwrap();
+            assert_eq!(declaration.alternatives.len(), 1);
+            let alternative = &declaration.alternatives[0];
+            eq!(alternative.key.family => MachineSemanticKind::BitwiseXorI64.into());
+            assert_eq!(alternative.size, MachineSizeKnowledge::ExactBytes(4));
+            eq!(alternative.encoded => MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2]));
+            for corruption in 0..3 {
+                let mut changed = catalog.clone();
+                let alternative = &mut changed
+                    .declaration_by_semantic_mut(MachineSemanticKind::BitwiseXorI64)
+                    .unwrap()
+                    .alternatives[0];
+                match corruption {
+                    0 => alternative.key.family = MachineSemanticKind::BitwiseAndI64.into(),
+                    1 => alternative.encoded.external_operand_reads.truncate(1),
+                    _ => alternative.size = MachineSizeKnowledge::ExactBytes(8),
+                }
+                assert!(
+                    validate_aarch64_machine_effect_catalog(target, &constraints, changed).is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn integer_normalization_catalog_binds_identity_size_and_effects() {
+        for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
+            let constraints = constraints();
+            let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
+            validate_aarch64_machine_effect_catalog(target, &constraints, catalog.clone()).unwrap();
+            for semantic in [
+                MachineSemanticKind::ZeroExtendU16,
+                MachineSemanticKind::SignExtendI8,
+                MachineSemanticKind::SignExtendI16,
+                MachineSemanticKind::SignExtendI32,
+            ] {
+                let declaration = catalog.declaration_by_semantic(semantic).unwrap();
+                assert_eq!(declaration.constraint, AARCH64_COPY_I64);
+                assert_eq!(declaration.alternatives.len(), 1);
+                let alternative = &declaration.alternatives[0];
+                assert_eq!(alternative.key.family, semantic.into());
+                assert_eq!(alternative.size, MachineSizeKnowledge::ExactBytes(4));
+                eq!(alternative.encoded => MachineEncodedEffects::fallthrough_v1(vec![0], vec![1]));
+                for corruption in 0..3 {
+                    let mut changed = catalog.clone();
+                    let row = changed.declaration_by_semantic_mut(semantic).unwrap();
+                    match corruption {
+                        0 => row.alternatives[0].key.family = MachineSemanticKind::CopyI64.into(),
+                        1 => row.alternatives[0].size = MachineSizeKnowledge::ExactBytes(1),
+                        _ => row.alternatives[0].encoded.external_operand_reads.clear(),
+                    }
+                    assert!(
+                        validate_aarch64_machine_effect_catalog(target, &constraints, changed)
+                            .is_err()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn catalog_declares_one_flag_transparent_subtraction_alternative() {
+        for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
+            let constraints = constraints();
+            let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
+            let subtract = catalog
+                .declaration_by_semantic(MachineSemanticKind::ExactSubtractI64)
+                .unwrap();
+            assert_eq!(subtract.constraint, AARCH64_SUBTRACT_I64);
+            let register_effects = constraints
+                .catalog()
+                .constraint(subtract.constraint)
+                .unwrap();
+            assert!(register_effects.implicit_uses.is_empty());
+            assert!(register_effects.implicit_defs.is_empty());
+            assert!(register_effects.clobbers.is_empty());
+            assert_eq!(subtract.alternatives.len(), 1);
+            eq!(subtract.alternatives[0].applicability => MachineAlternativeApplicability::Always);
+            eq!(subtract.alternatives[0].size => MachineSizeKnowledge::ExactBytes(4));
+            let less_than_branch = catalog
+                .declaration_by_semantic(MachineSemanticKind::ConditionalBranchU64LessThan)
+                .unwrap();
+            let signed_less_than_branch = catalog
+                .declaration_by_semantic(MachineSemanticKind::ConditionalBranchI64LessThan)
+                .unwrap();
+            assert_eq!(less_than_branch.constraint, AARCH64_CONDITIONAL_BRANCH);
+            assert_eq!(less_than_branch.barrier, MachineBarrier::ControlFlow);
+            assert_eq!(less_than_branch.alternatives.len(), 1);
+            assert_eq!(
+                less_than_branch.alternatives[0].size,
+                MachineSizeKnowledge::EncoderResolved {
+                    minimum_bytes: 4,
+                    maximum_bytes: Some(8),
+                }
+            );
+            assert_eq!(
+                less_than_branch.alternatives[0].encoded.control,
+                MachineEncodedControlEffect::ConditionalRelativeBranchV1
+            );
+            eq!(signed_less_than_branch.constraint => AARCH64_CONDITIONAL_BRANCH);
+            assert_eq!(signed_less_than_branch.alternatives.len(), 1);
+            assert_eq!(
+                signed_less_than_branch.alternatives[0].key.family,
+                selected_instructions::MachineAlternativeFamily::ConditionalBranchI64LessThan
+            );
+            assert_eq!(
+                signed_less_than_branch.alternatives[0].size,
+                MachineSizeKnowledge::EncoderResolved {
+                    minimum_bytes: 4,
+                    maximum_bytes: Some(8),
+                }
+            );
+            let scalar_call = catalog.declaration_by_semantic(MachineSemanticKind::CallScalar);
+            {
+                let scalar_call = scalar_call.expect("supported target declares scalar call");
+                assert_eq!(
+                    scalar_call.call,
+                    MachineCallEffect::InternalNormalReturnV1 {
+                        pre_call_stack_alignment: 16,
+                    }
+                );
+                eq!(scalar_call.alternatives[0].size => MachineSizeKnowledge::ExactBytes(4));
+                assert_eq!(
+                    scalar_call.alternatives[0].encoded.control,
+                    MachineEncodedControlEffect::DirectRelativeCallV1
+                );
+                assert_eq!(
+                    scalar_call.alternatives[0].encoded.stack,
+                    MachineEncodedStackEffect::UnchangedV1
+                );
+            }
+            assert!(validate_aarch64_machine_effect_catalog(target, &constraints, catalog).is_ok());
+            let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
+            let return_unit = catalog
+                .declaration_by_semantic(MachineSemanticKind::ReturnUnit)
+                .unwrap();
+            assert!(
+                constraints
+                    .catalog()
+                    .constraint(return_unit.constraint)
+                    .unwrap()
+                    .operands
+                    .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn semantic_validator_rejects_invented_alias_or_size_semantics() {
+        let target = NativeTarget::linux_arm64();
+        let constraints = constraints();
+        let mut wrong = aarch64_machine_effect_catalog(target, &constraints).unwrap();
+        let subtract = wrong
+            .declaration_by_semantic_mut(MachineSemanticKind::ExactSubtractI64)
+            .unwrap();
+        subtract.alternatives[0].applicability =
+            MachineAlternativeApplicability::ResultAliasesOperand {
+                result: 2,
+                operand: 0,
+            };
+        assert_eq!(
+            validate_aarch64_machine_effect_catalog(target, &constraints, wrong),
+            Err(Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch)
+        );
+
+        let mut wrong = aarch64_machine_effect_catalog(target, &constraints).unwrap();
+        wrong
+            .declaration_by_semantic_mut(MachineSemanticKind::MaterializeI64)
+            .unwrap()
+            .alternatives[0]
+            .size = MachineSizeKnowledge::ExactBytes(4);
+        assert_eq!(
+            validate_aarch64_machine_effect_catalog(target, &constraints, wrong),
+            Err(Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch)
+        );
+    }
+
+    #[test]
+    fn selected_keys_declare_the_supported_aarch64_pairs() {
+        let constraints = constraints();
+        for (target, darwin, return_i64, return_unit, read, exit, write) in [
+            (
+                NativeTarget::linux_arm64(),
+                false,
+                AARCH64_AAPCS64_RETURN,
+                AARCH64_AAPCS64_RETURN_UNIT,
+                crate::AARCH64_HOSTED_READ_BYTE,
+                crate::AARCH64_HOSTED_EXIT_PROCESS_I32,
+                crate::AARCH64_HOSTED_WRITE_BYTE_I32,
+            ),
+            (
+                NativeTarget::macos_arm64(),
+                true,
+                AARCH64_DARWIN_RETURN,
+                AARCH64_DARWIN_RETURN_UNIT,
+                crate::AARCH64_DARWIN_HOSTED_READ_BYTE,
+                crate::AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32,
+                crate::AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32,
+            ),
+        ] {
+            let keys = aarch64_machine_effect_catalog(target, &constraints)
+                .unwrap()
+                .selected_keys;
+            assert_eq!(keys.return_i64, return_i64);
+            assert_eq!(keys.return_unit, return_unit);
+            assert_eq!(keys.hosted_read_byte, Some(read));
+            assert_eq!(keys.hosted_exit_process_i32, Some(exit));
+            assert_eq!(keys.hosted_write_byte_i32, Some(write));
+            assert_eq!(
+                keys.call_unit,
+                if darwin {
+                    crate::aarch64_darwin_register_unit_call_keys()
+                } else {
+                    crate::aarch64_aapcs64_register_unit_call_keys()
+                }
+            );
+            assert_eq!(
+                keys.call_unit_mixed,
+                if darwin {
+                    crate::aarch64_darwin_mixed_unit_call_keys()
+                } else {
+                    crate::aarch64_aapcs64_mixed_unit_call_keys()
+                }
+            );
+            let mut expected_scalar = if darwin {
+                crate::aarch64_darwin_register_call_keys()
+            } else {
+                crate::aarch64_aapcs64_register_call_keys()
+            };
+            expected_scalar.extend(crate::aarch64_float_scalar_call_keys(darwin));
+            assert_eq!(keys.call_scalar, expected_scalar);
+            assert_eq!(
+                keys.call_aggregate,
+                crate::aarch64_register_aggregate_call_keys(darwin)
+                    .into_iter()
+                    .chain(crate::aarch64_mixed_aggregate_call_keys(darwin))
+                    .chain(crate::aarch64_indirect_aggregate_call_keys(darwin))
+                    .collect::<Vec<_>>()
+            );
+            eq!(keys.return_aggregate => crate::aarch64_register_aggregate_return_keys(darwin));
+            eq!(keys.return_float => crate::aarch64_float_scalar_return_keys(darwin));
+        }
+    }
+
+    #[test]
+    fn selected_keys_fail_closed_on_undeclared_pairs() {
+        let constraints = constraints();
+        let coff = NativeTarget {
+            architecture: Architecture::Aarch64,
+            object_format: ObjectFormat::Coff,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        };
+        assert_eq!(
+            aarch64_machine_effect_catalog(coff, &constraints),
+            Err(Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi)
+        );
+    }
+
+    #[test]
+    fn hosted_rows_follow_the_declared_target_not_the_format_shape() {
+        let constraints = constraints();
+        for (undeclared, return_i64) in [
+            (
+                NativeTarget {
+                    pointer_size: 4,
+                    pointer_alignment: 4,
+                    ..NativeTarget::linux_arm64()
+                },
+                AARCH64_AAPCS64_RETURN,
+            ),
+            (
+                NativeTarget {
+                    pointer_size: 4,
+                    pointer_alignment: 4,
+                    ..NativeTarget::macos_arm64()
+                },
+                AARCH64_DARWIN_RETURN,
+            ),
+        ] {
+            let keys = aarch64_machine_effect_catalog(undeclared, &constraints)
+                .unwrap()
+                .selected_keys;
+            assert_eq!(keys.return_i64, return_i64);
+            assert!(keys.hosted_write_byte_i32.is_none());
+            assert!(keys.hosted_read_byte.is_none());
+            assert!(keys.hosted_exit_process_i32.is_none());
+        }
+    }
+}
