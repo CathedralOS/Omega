@@ -7,8 +7,8 @@
 //! (`.agents/worktree/worker-1`) and resetting `HEAD` in place (`git checkout --detach
 //! origin/main && git clean -fd`) preserves 100% of Cargo's incremental cache.
 //!
-//! Each slot's current `<lane>-<topic>` label is stored in `.git/worktrees/<slot>/topic`
-//! so the checkout itself remains completely clean.
+//! Each slot's current `<lane>-<topic>` label is stored in its Git administration
+//! directory, so moving a checkout preserves ownership and keeps its files clean.
 //!
 //! Subcommands:
 //! - `cargo xtask worktree status` — list all worktrees, their active topic, state, and cache.
@@ -38,6 +38,7 @@ use crate::repo_root;
 #[derive(Debug, Clone)]
 struct WorktreeInfo {
     path: PathBuf,
+    git_dir: PathBuf,
     name: String,
     slot_index: Option<usize>,
     topic: Option<String>,
@@ -87,26 +88,72 @@ fn primary_root(current_root: &Path) -> PathBuf {
     current_root.to_path_buf()
 }
 
-fn topic_file(main_root: &Path, name: &str) -> PathBuf {
-    main_root.join(".git/worktrees").join(name).join("topic")
-}
-
-fn read_topic(main_root: &Path, name: &str) -> Option<String> {
-    let raw = fs::read_to_string(topic_file(main_root, name)).ok()?;
-    let trimmed = raw.trim();
-    (!trimmed.is_empty()).then(|| trimmed.to_owned())
-}
-
-fn write_topic(main_root: &Path, name: &str, topic: Option<&str>) {
-    let path = topic_file(main_root, name);
-    match topic {
-        Some(t) if !t.is_empty() => {
-            let _ = fs::write(path, format!("{t}\n"));
-        }
-        _ => {
-            let _ = fs::remove_file(path);
-        }
+fn worktree_git_dir(worktree_path: &Path) -> Result<PathBuf, String> {
+    let out = Command::new("git")
+        .args(["rev-parse", "--absolute-git-dir"])
+        .current_dir(worktree_path)
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|error| {
+            format!(
+                "cannot locate Git directory for {}: {error}",
+                worktree_path.display()
+            )
+        })?;
+    if !out.status.success() {
+        return Err(format!(
+            "cannot locate Git directory for {}: {}",
+            worktree_path.display(),
+            String::from_utf8_lossy(&out.stderr).trim(),
+        ));
     }
+    let directory = String::from_utf8(out.stdout).map_err(|error| {
+        format!(
+            "Git directory for {} is not UTF-8: {error}",
+            worktree_path.display()
+        )
+    })?;
+    let directory = PathBuf::from(directory.trim());
+    if !directory.is_absolute() {
+        return Err(format!(
+            "Git returned a non-absolute directory for {}",
+            worktree_path.display()
+        ));
+    }
+    Ok(directory)
+}
+
+fn read_topic(git_dir: &Path) -> Result<Option<String>, String> {
+    let path = git_dir.join("topic");
+    let raw = match fs::read_to_string(&path) {
+        Ok(raw) => raw,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(format!(
+                "cannot read worktree topic {}: {error}",
+                path.display()
+            ));
+        }
+    };
+    let trimmed = raw.trim();
+    Ok((!trimmed.is_empty()).then(|| trimmed.to_owned()))
+}
+
+fn write_topic(git_dir: &Path, topic: Option<&str>) -> Result<(), String> {
+    let path = git_dir.join("topic");
+    let result = match topic {
+        Some(topic) if !topic.is_empty() => fs::write(&path, format!("{topic}\n")),
+        _ => match fs::remove_file(&path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            result => result,
+        },
+    };
+    result.map_err(|error| format!("cannot update worktree topic {}: {error}", path.display()))
+}
+
+fn report_error(message: String) -> u8 {
+    eprintln!("worktree: {message}");
+    1
 }
 
 fn rev_parse(root: &Path, rev: &str) -> Option<String> {
@@ -237,57 +284,68 @@ fn reset_slot_to_main(worktree_path: &Path) -> bool {
     checkout_ok && clean_ok
 }
 
-fn list_worktrees(main_root: &Path) -> Vec<WorktreeInfo> {
+fn list_worktrees(main_root: &Path) -> Result<Vec<WorktreeInfo>, String> {
     let open_prs = open_pr_commits(main_root);
     let main_oid = rev_parse(main_root, "origin/main").unwrap_or_default();
-    let Ok(out) = Command::new("git")
+    let out = Command::new("git")
         .args(["worktree", "list", "--porcelain"])
         .current_dir(main_root)
         .stdin(Stdio::null())
         .output()
-    else {
-        return Vec::new();
-    };
+        .map_err(|error| format!("cannot list worktrees: {error}"))?;
+    if !out.status.success() {
+        return Err(format!(
+            "cannot list worktrees: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
     let text = String::from_utf8_lossy(&out.stdout);
     let mut result = Vec::new();
     let mut cur_path: Option<PathBuf> = None;
     let mut cur_head = String::new();
     let mut cur_locked = false;
 
-    let flush =
-        |path: Option<PathBuf>, head: &str, locked: bool, out_vec: &mut Vec<WorktreeInfo>| {
-            let Some(p) = path else {
-                return;
-            };
-            if p == main_root {
-                return;
-            }
-            let name = p
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("")
-                .to_owned();
-            let slot_index = worker_slot_index(&name);
-            let topic = read_topic(main_root, &name);
-            let at_main = !head.is_empty() && head == main_oid;
-            let open_pr = open_prs.contains(head);
-            let has_warm_target = p.join("target/debug").is_dir();
-            out_vec.push(WorktreeInfo {
-                path: p,
-                name,
-                slot_index,
-                topic,
-                head: head.to_owned(),
-                locked,
-                at_main,
-                open_pr,
-                has_warm_target,
-            });
+    let flush = |path: Option<PathBuf>,
+                 head: &str,
+                 locked: bool,
+                 out_vec: &mut Vec<WorktreeInfo>|
+     -> Result<(), String> {
+        let Some(p) = path else {
+            return Ok(());
         };
+        if p == main_root {
+            return Ok(());
+        }
+        let name = p
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_owned();
+        let slot_index = worker_slot_index(&name);
+        // Git keeps this directory's name when the checkout is moved.
+        let git_dir = worktree_git_dir(&p)?;
+        let topic = read_topic(&git_dir)?;
+        let at_main = !head.is_empty() && head == main_oid;
+        let open_pr = open_prs.contains(head);
+        let has_warm_target = p.join("target/debug").is_dir();
+        out_vec.push(WorktreeInfo {
+            path: p,
+            git_dir,
+            name,
+            slot_index,
+            topic,
+            head: head.to_owned(),
+            locked,
+            at_main,
+            open_pr,
+            has_warm_target,
+        });
+        Ok(())
+    };
 
     for line in text.lines() {
         if let Some(rest) = line.strip_prefix("worktree ") {
-            flush(cur_path.take(), &cur_head, cur_locked, &mut result);
+            flush(cur_path.take(), &cur_head, cur_locked, &mut result)?;
             cur_path = Some(PathBuf::from(rest.trim()));
             cur_head.clear();
             cur_locked = false;
@@ -297,7 +355,7 @@ fn list_worktrees(main_root: &Path) -> Vec<WorktreeInfo> {
             cur_locked = true;
         }
     }
-    flush(cur_path.take(), &cur_head, cur_locked, &mut result);
+    flush(cur_path.take(), &cur_head, cur_locked, &mut result)?;
     result.sort_by_key(|w| {
         (
             w.slot_index.is_none(),
@@ -305,7 +363,7 @@ fn list_worktrees(main_root: &Path) -> Vec<WorktreeInfo> {
             w.name.clone(),
         )
     });
-    result
+    Ok(result)
 }
 
 fn is_valid_topic_name(name: &str) -> bool {
@@ -362,7 +420,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             Ok(())
         }
         "status" | "list" => {
-            let items = list_worktrees(&main_root);
+            let items = list_worktrees(&main_root).map_err(report_error)?;
             println!(
                 "{:<16} {:<24} {:<12} {:<10} {:<6} PATH",
                 "SLOT", "TOPIC", "HEAD", "STATE", "CACHE"
@@ -412,7 +470,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 .stdin(Stdio::null())
                 .status();
 
-            let items = list_worktrees(&main_root);
+            let items = list_worktrees(&main_root).map_err(report_error)?;
 
             // 1. If a worker-N slot already carries this topic and is clean, reuse it in place.
             if let Some(t) = topic
@@ -453,7 +511,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                     continue;
                 }
                 if reset_slot_to_main(&slot.path) {
-                    write_topic(&main_root, &slot.name, topic);
+                    write_topic(&slot.git_dir, topic).map_err(report_error)?;
                     eprintln!(
                         "worktree acquire: assigned `{}` (topic: {})",
                         slot.name,
@@ -496,7 +554,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                     .status()
                     .is_ok_and(|s| s.success());
                 if move_ok && reset_slot_to_main(&slot_path) {
-                    write_topic(&main_root, &slot_name, topic);
+                    write_topic(&donor.git_dir, topic).map_err(report_error)?;
                     eprintln!(
                         "worktree acquire: promoted `{}` -> `{}` (topic: {})",
                         donor.name,
@@ -523,7 +581,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             if !status.success() {
                 return Err(1);
             }
-            write_topic(&main_root, &slot_name, topic);
+            let git_dir = worktree_git_dir(&slot_path).map_err(report_error)?;
+            write_topic(&git_dir, topic).map_err(report_error)?;
             eprintln!(
                 "worktree acquire: created `{}` (topic: {})",
                 slot_name,
@@ -534,7 +593,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         }
         "release" => {
             let target_name = args.get(1).cloned().unwrap_or_else(|| current_name.clone());
-            let items = list_worktrees(&main_root);
+            let items = list_worktrees(&main_root).map_err(report_error)?;
             let Some(wt) = items.iter().find(|w| w.name == target_name) else {
                 eprintln!("worktree release: unknown worktree `{target_name}`");
                 return Err(1);
@@ -554,7 +613,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             if !reset_slot_to_main(&wt.path) {
                 return Err(1);
             }
-            write_topic(&main_root, &wt.name, None);
+            write_topic(&wt.git_dir, None).map_err(report_error)?;
             println!("released `{}` back to idle pool at origin/main", wt.name);
             Ok(())
         }
@@ -582,7 +641,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 keep.insert(current_name.clone());
             }
 
-            let items = list_worktrees(&main_root);
+            let items = list_worktrees(&main_root).map_err(report_error)?;
             let mut to_delete_dirs: Vec<(String, PathBuf)> = Vec::new();
             let mut reset_slots = 0usize;
             // Legacy worktrees refused for removal; their directories stay out of the
@@ -617,7 +676,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                     .is_ok_and(|s| s.success());
                 if move_ok {
                     let _ = reset_slot_to_main(&worker1_path);
-                    write_topic(&main_root, "worker-1", None);
+                    write_topic(&donor.git_dir, None).map_err(report_error)?;
                     println!("promoted warm worktree `{}` -> `worker-1`", donor.name);
                     promoted_name = Some(donor.name.clone());
                 }
@@ -637,7 +696,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                         if dry_run {
                             println!("would reset pool slot `{}` to origin/main", wt.name);
                         } else if reset_slot_to_main(&wt.path) {
-                            write_topic(&main_root, &wt.name, None);
+                            write_topic(&wt.git_dir, None).map_err(report_error)?;
                             println!("reset pool slot `{}` to origin/main", wt.name);
                         }
                         reset_slots += 1;
@@ -657,8 +716,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                     );
                 } else {
                     // Remove git worktree admin metadata first so directory deletion can run in parallel.
-                    let admin_dir = main_root.join(".git/worktrees").join(&wt.name);
-                    let _ = fs::remove_dir_all(&admin_dir);
+                    fs::remove_dir_all(&wt.git_dir).map_err(|error| {
+                        report_error(format!(
+                            "cannot remove Git directory {}: {error}",
+                            wt.git_dir.display(),
+                        ))
+                    })?;
                     to_delete_dirs.push((wt.name.clone(), wt.path.clone()));
                 }
             }
@@ -744,7 +807,109 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::reset_refusal;
+    use super::{read_topic, reset_refusal, worktree_git_dir, write_topic};
+    use std::fs;
+    use std::path::Path;
+    use std::process::{Command, Stdio};
+
+    #[test]
+    fn ownership_follows_a_moved_linked_worktree() {
+        struct Scratch(std::path::PathBuf);
+        impl Drop for Scratch {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        fn git(root: &Path, arguments: &[&str]) {
+            let output = Command::new("git")
+                .args(arguments)
+                .current_dir(root)
+                .stdin(Stdio::null())
+                .output()
+                .expect("run temporary repository command");
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let scratch = Scratch(std::env::temp_dir().join(format!(
+            "omega-worktree-topic-{}-{unique}",
+            std::process::id(),
+        )));
+        fs::create_dir(&scratch.0).unwrap();
+        let repository = scratch.0.join("repository");
+        fs::create_dir(&repository).unwrap();
+        let hooks = scratch.0.join("empty-hooks");
+        fs::create_dir(&hooks).unwrap();
+        git(&repository, &["init"]);
+        git(
+            &repository,
+            &[
+                "-c",
+                "user.name=Worktree test",
+                "-c",
+                "user.email=worktree@example.invalid",
+                "-c",
+                "commit.gpgsign=false",
+                "-c",
+                &format!("core.hooksPath={}", hooks.display()),
+                "commit",
+                "--allow-empty",
+                "-m",
+                "initial",
+            ],
+        );
+        let original = scratch.0.join("original-worktree");
+        let moved = scratch.0.join("worker-1");
+        git(
+            &repository,
+            &[
+                "worktree",
+                "add",
+                "--detach",
+                original.to_str().unwrap(),
+                "HEAD",
+            ],
+        );
+        let git_dir = worktree_git_dir(&original).unwrap();
+        write_topic(&git_dir, Some("tools-before-move")).unwrap();
+        git(
+            &repository,
+            &[
+                "worktree",
+                "move",
+                original.to_str().unwrap(),
+                moved.to_str().unwrap(),
+            ],
+        );
+
+        let moved_git_dir = worktree_git_dir(&moved).unwrap();
+        assert_eq!(moved_git_dir, git_dir);
+        assert_eq!(
+            read_topic(&moved_git_dir).unwrap().as_deref(),
+            Some("tools-before-move")
+        );
+        write_topic(&moved_git_dir, Some("tools-after-move")).unwrap();
+        assert_eq!(
+            fs::read_to_string(git_dir.join("topic")).unwrap(),
+            "tools-after-move\n"
+        );
+        write_topic(&moved_git_dir, None).unwrap();
+        assert_eq!(read_topic(&moved_git_dir).unwrap(), None);
+        write_topic(&moved_git_dir, None).unwrap();
+
+        // A filesystem failure must remain an error, never an unowned slot or a
+        // successful assignment. A directory blocks both reading and writing.
+        fs::create_dir(git_dir.join("topic")).unwrap();
+        assert!(read_topic(&moved_git_dir).is_err());
+        let error = write_topic(&moved_git_dir, Some("tools-refused")).unwrap_err();
+        assert!(error.contains("cannot update worktree topic"));
+    }
 
     // Every way a worktree can hold work blocks a reset; only an empty one passes.
     #[test]
