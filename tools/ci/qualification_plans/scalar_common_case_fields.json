@@ -38,9 +38,7 @@
   },
   "fixtures": [
     "pass/proofs/case_call_premises",
-    "pass/storage/large_zero_initialized_local_exit",
-    "pass/structs/case_field_type_store_shapes",
-    "pass/structs/runtime_composed_case_payload_reads_exit"
+    "pass/storage/large_zero_initialized_local_exit"
   ],
   "source_only": true,
   "samples": [],

@@ -412,26 +412,6 @@ impl ScalarBindings {
                     }
                     None => {
                         let Some(symbol) = storage_root.and_then(|root| root.as_symbol()) else {
-                            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                                let homes = self
-                                    .structural_locals
-                                    .iter()
-                                    .take(8)
-                                    .map(|binding| {
-                                        (
-                                            &binding.root,
-                                            &binding.argument.place,
-                                            binding.argument.access,
-                                            &binding.structural_type,
-                                        )
-                                    })
-                                    .collect::<Vec<_>>();
-                                eprintln!(
-                                    "CHECKSITE computed-borrow-home-missing root={storage_root:?} result_ordinal={result_ordinal:?} access={access:?} path_segments={} local_count={} first_homes={homes:?}",
-                                    argument.path.len(),
-                                    self.structural_locals.len(),
-                                );
-                            }
                             return unsupported("computed borrow lost its established expression");
                         };
                         if self.view_locals.iter().any(|local| local.symbol == symbol) {

@@ -66,11 +66,32 @@ impl Emission<'_, '_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "computed reference backing has no storage identity",
                 ))?;
-            if self
+            let argument = if let Some(completed) = self
                 .evaluation
-                .completed_source_binding(source_value, root, root_type, self.operations)?
-                .is_none()
+                .completed_value_binding(source_value, self.operations)?
             {
+                // Address formation uses this exact producer's admitted home.
+                // A constructor operand would request a new owned value and
+                // could copy a saved receiver into a different physical home.
+                // Keep the original path/access; the ordinary borrowed-argument
+                // join below still checks the requested loan ceiling.
+                if completed.structural_type != root_type {
+                    return unsupported(
+                        "completed reference backing has a different retained source type",
+                    );
+                }
+                if crate::expression_preparation::bindings::structural_local_by_root(
+                    &self.evaluation.structural_locals,
+                    root,
+                )
+                .is_none()
+                {
+                    return unsupported(
+                        "completed reference backing has no current source-root binding",
+                    );
+                }
+                completed.argument.clone()
+            } else {
                 // A genuinely unproduced backing completes through its own
                 // occurrence and publishes its claims before the loan forms.
                 let ValueOutcome::Normal(completed) = self.child_constructor_operand(
@@ -82,19 +103,20 @@ impl Emission<'_, '_, '_> {
                 else {
                     return Ok(ValueOutcome::NoNormal);
                 };
-                crate::expression_preparation::bindings::retain_completed_structural_homes(
-                    &mut self.evaluation.structural_locals,
-                    &[StructuralLocalBinding {
-                        result_binding_ordinal: None,
-                        root,
-                        argument: completed.argument,
-                        structural_type: root_type,
-                    }],
-                )?;
-            }
-            // Cached reuse already proved the exact current root, argument
-            // and type. Publishing that same binding with no result alias
-            // would be an exact no-op; only a fresh producer publishes here.
+                completed.argument
+            };
+            // Require the exact current root/argument/type association. This
+            // also publishes a genuinely fresh backing; a conflicting existing
+            // home remains an error rather than being silently overwritten.
+            crate::expression_preparation::bindings::retain_completed_structural_homes(
+                &mut self.evaluation.structural_locals,
+                &[StructuralLocalBinding {
+                    result_binding_ordinal: None,
+                    root,
+                    argument,
+                    structural_type: root_type,
+                }],
+            )?;
         }
         let evaluations = value_facts(self.checked)
             .scalar_computations

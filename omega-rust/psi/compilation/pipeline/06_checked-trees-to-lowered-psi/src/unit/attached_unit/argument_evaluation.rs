@@ -340,12 +340,26 @@ impl Evaluation {
         if !alias.is_valid() {
             return Ok(());
         }
-        let completed = self
-            .completed_value_binding(value, operations)?
+        let completed = operations
+            .computed_values
+            .iter()
+            .rev()
+            .find(|(candidate, _)| *candidate == value)
+            .map(|(_, binding)| binding.clone())
             .ok_or(LoweringError::Unsupported(
                 "saved subject has no completed producer home",
-            ))?
-            .clone();
+            ))?;
+        // The producer catalog also contains completed sibling and retired
+        // homes. Only this frame's current name may acquire a lexical alias.
+        // This is name transport; read/move authority remains with the checked
+        // operand and ordinary custody validation, including partial moves.
+        if self
+            .retired_structural_homes
+            .contains(&completed.argument.place)
+            || self.current_claims.source(&completed.argument)?.is_none()
+        {
+            return unsupported("saved subject lost its completed name in this execution frame");
+        }
         crate::expression_preparation::bindings::retain_completed_structural_homes(
             &mut self.structural_locals,
             &[StructuralLocalBinding {
@@ -364,14 +378,15 @@ impl Evaluation {
         value: checked_trees::CheckedStructuralValueHandle,
         operations: &'operations OperationBuffer,
     ) -> Result<&'operations ComputedValueBinding, LoweringError> {
-        self.completed_value_binding(value, operations)?
-            .filter(|binding| {
-                binding.argument.path.is_empty()
-                    && binding.argument.access == StructuralAccess::Owned
-            })
-            .ok_or(LoweringError::Unsupported(
-                "saved value requires a completed whole owned home",
-            ))
+        let binding =
+            self.completed_value_binding(value, operations)?
+                .ok_or(LoweringError::Unsupported(
+                    "saved value has not completed in this execution frame",
+                ))?;
+        if !binding.argument.path.is_empty() || binding.argument.access != StructuralAccess::Owned {
+            return unsupported("saved value lost its whole produced name in this execution frame");
+        }
+        Ok(binding)
     }
 
     /// One exact producer's current physical name, without strengthening its
@@ -398,31 +413,7 @@ impl Evaluation {
             .contains(&binding.argument.place)
             || self.current_claims.source(&binding.argument)?.is_none()
         {
-            return unsupported("completed value lost its current physical home");
-        }
-        Ok(Some(binding))
-    }
-
-    /// Reuse a producer only through its exact current source name and type.
-    /// None means the producer has not completed in this frame. A cached
-    /// producer with a retired home or a mismatched name is an error; it must
-    /// not be evaluated again or rebound under another source.
-    pub(crate) fn completed_source_binding<'operations>(
-        &self,
-        value: checked_trees::CheckedStructuralValueHandle,
-        root: facts::PlaceRoot,
-        structural_type: semantic_vocabulary::StructuralTypeId,
-        operations: &'operations OperationBuffer,
-    ) -> Result<Option<&'operations ComputedValueBinding>, LoweringError> {
-        let Some(binding) = self.completed_value_binding(value, operations)? else {
-            return Ok(None);
-        };
-        if binding.structural_type != structural_type
-            || structural_local_by_root(&self.structural_locals, root).is_none_or(|source| {
-                source.structural_type != structural_type || source.argument != binding.argument
-            })
-        {
-            return unsupported("completed value does not match its current source home");
+            return unsupported("saved value lost its whole produced name in this execution frame");
         }
         Ok(Some(binding))
     }
