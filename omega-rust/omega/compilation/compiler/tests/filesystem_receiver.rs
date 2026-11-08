@@ -249,6 +249,7 @@ fn windows_canonicalize_receiver() {
             &retained,
             native_compiler::NativeCompileRequest {
                 private_entry_ram: &[],
+                installation_assumptions: &[],
                 optimization_selections: &optimizations,
                 terminal_authority_policy: provider_admission::current_terminal_authority_policy(),
                 accepted_package_terminal_authority_permission_policy: package_policy.clone(),
