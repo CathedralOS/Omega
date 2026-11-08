@@ -52334,7 +52334,7 @@ pub(crate) mod structural_judgment {
                     // Otherwise only the operand's judgment can decide it; failed
                     // search and statement formation remain Unknown.
                     let resolved = self.resolve_at(predicate.clone(), depth + 1);
-                    if let Some(holds) = resolved.boolean_value() {
+                    if let Some(holds) = self.rewrites.logical_truth(resolved.semantic_value()) {
                         return if holds {
                             StructuralJudgment::Proven
                         } else {
@@ -66308,6 +66308,11 @@ pub(crate) mod structural_judgment {
                     judge.judge_explicit_identity(predicate("right"), predicate("other"), 0);
                 eprintln!("distinct established negations have identity judgment {identity:?}");
                 assert!(matches!(identity, StructuralJudgment::Unknown));
+                assert!(
+                    judge
+                        .resolve(predicate("right"))
+                        .same_resolution_payload(&predicate("right"))
+                );
             }
 
             #[test]
@@ -66332,7 +66337,9 @@ pub(crate) mod structural_judgment {
                 assert!(!predicate(1).same_resolution_payload(&predicate(2)));
                 let mut premises = super::super::rewrite_table::RewriteTable::default();
                 premises.push_logical_predicate((predicate(1), StructuralTerm::boolean(true)));
-                assert!(premises.find(&predicate(1)).is_some());
+                assert_eq!(premises.logical_truth(&predicate(1)), Some(true));
+                assert_eq!(premises.logical_truth(&predicate(2)), None);
+                assert!(premises.find(&predicate(1)).is_none());
                 assert!(premises.find(&predicate(2)).is_none());
                 assert_eq!(premises.iter().count(), 0);
                 assert_eq!(premises.value_identities().count(), 0);
@@ -76902,12 +76909,27 @@ pub(crate) mod structural_judgment {
                     let entry = &self.entries[index as usize];
                     let matches = match self.meanings[index as usize] {
                         RewriteMeaning::ScalarEquation => entry.0 == *term,
-                        RewriteMeaning::ValueIdentity | RewriteMeaning::LogicalPredicate => {
-                            entry.0.same_resolution_payload(term)
-                        }
+                        RewriteMeaning::ValueIdentity => entry.0.same_resolution_payload(term),
+                        RewriteMeaning::LogicalPredicate => false,
                     };
                     if matches {
                         return Some(entry);
+                    }
+                }
+                None
+            }
+
+            /// Predicate judgment consumes logical truth directly. The value
+            /// resolver cannot replace a proposition with its Boolean truth marker:
+            /// two established statements need not be the same mathematical value.
+            pub(crate) fn logical_truth(&self, term: &StructuralTerm) -> Option<bool> {
+                let indices = self.index.get(&rewrite_key(term))?;
+                for &index in indices {
+                    let entry = &self.entries[index as usize];
+                    if self.meanings[index as usize] == RewriteMeaning::LogicalPredicate
+                        && entry.0.same_resolution_payload(term)
+                    {
+                        return entry.1.boolean_value();
                     }
                 }
                 None
