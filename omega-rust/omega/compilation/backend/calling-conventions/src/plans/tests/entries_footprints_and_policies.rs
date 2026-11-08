@@ -1,3 +1,10 @@
+/*
+We test ordinary and interrupt boundary entry validation, state-footprint
+evidence firewalling, fragment canonicalization before identity hashing, policy
+rejection vs. invalid accepted plan diagnostics, and the pinned byte-stream
+encoding of `StatePlan`.
+*/
+
 use super::{call_signature, integer_signature, strict_x86_entry};
 use crate::plans::{
     BoundaryPlanDiagnostic, BoundaryPlanResult, CallingPolicy, CallingPolicyRejection, EntryStack,
@@ -165,8 +172,6 @@ fn call_clobbers_must_fit_the_entry_state_ceiling() {
     assert!(error.0.contains("clobbers exceed"));
 }
 
-/// A state plan whose every field carries a distinguishable value, so a
-/// reordered field shows up in the pinned bytes below.
 fn pinned_state_plan(
     initial_regime: MachineRegime,
     stack: EntryStack,
@@ -183,15 +188,10 @@ fn pinned_state_plan(
     }
 }
 
-/// The four state sets, each a little-endian `u16` bitmask, in their pinned
-/// order: interrupted, saved, restored, permitted transitive use.
 const PINNED_STATE_SETS: [u8; 8] = [0x01, 0, 0x02, 0, 0x04, 0, 0x08, 0];
 
 #[test]
 fn state_plan_identity_bytes_are_pinned_for_every_variant() {
-    // Expected bytes ported from the copies of this encoder that
-    // `legalized_operations::identity::normalized_foreign` and the
-    // register-home fixed-view-copy codec carried before de-duplication.
     let regimes: [(MachineRegime, &[u8]); 2] = [
         (MachineRegime::X86Long64, &[1]),
         (MachineRegime::Aarch64A64 { exception_level: 2 }, &[2, 2]),

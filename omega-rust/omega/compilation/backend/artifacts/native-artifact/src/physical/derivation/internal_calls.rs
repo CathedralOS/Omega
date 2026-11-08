@@ -1,14 +1,9 @@
-//! Derive selected boundary internal-call evidence from shared call custody.
-//!
-//! A selected checked callee inside the same artifact emits an ordinary
-//! resolved internal call: no object settlement row, no normalized foreign
-//! call, and no external execution binding. The emitted call's retained
-//! call-stack row names the invocation owner and the callee machine, and the
-//! canonical module names the selected provider or target-family member.
-//! This lane binds that custody — the same object rosters `fragment_call`
-//! follows for resolved calls — under the actual selection parent. Providers
-//! retain their settlement plan; families retain the authentic portable head
-//! and exact selected member without provider installation authority.
+/*
+We derive physical evidence for selected boundary calls realized as ordinary
+resolved internal calls, rejoining their call-stack custody and fragment
+call-graph origins to either an installed provider settlement plan or an
+authentic target-family member.
+*/
 
 use crate::BoundaryInternalCallCustody;
 use crate::BoundaryTraitSettlementParts;
@@ -31,15 +26,11 @@ use crate::physical::native_byte_span;
 use crate::physical::operator_applications::fragment_call::validate_destination;
 use machine_code::SemanticCodeSite;
 use optimization_core::NativeOptimizationProjectionIdentity;
-use semantic_vocabulary::InvocationSite;
+use semantic_vocabulary::{InvocationSite, MachineId};
 use target::{Architecture, NativeTarget, TargetProfile};
 use target_operations::CallSiteOwner;
 use terminal_psi::OperationKind;
 
-mod call_custody;
-
-/// One retained call-stack row a boundary call's emitted internal call can
-/// rejoin; the variants mirror the caller's record families exactly.
 enum InternalCallRow<'artifact> {
     Unit(&'artifact image_emission::ObjectUnitCallStack),
     Scalar(&'artifact image_emission::ObjectScalarCallStack),
@@ -58,8 +49,63 @@ enum InternalCallSelection<'module, 'artifact> {
     },
 }
 
-/// Native shape checks compatibility; the retained tag chooses the exact
-/// deployment row. Profiles sharing a shape never acquire a tag from the host.
+fn rejoin_call_custody<'publication>(
+    publication: &'publication FragmentPublicationBinding,
+    occurrence: &OptimizedBoundaryOccurrence,
+    callee: MachineId,
+    field_offset: usize,
+) -> Result<&'publication legalized_operations::LegalizedScalarCall, &'static str> {
+    let owner = CallSiteOwner::from(occurrence.invocation_site());
+    let mut functions = publication
+        .selected_plan()
+        .functions
+        .iter()
+        .filter(|function| function.machine == occurrence.machine());
+    let (Some(function), None) = (functions.next(), functions.next()) else {
+        return Err("selected boundary internal call lacks one selected caller");
+    };
+    let mut records = function.calls.iter().filter(|record| record.owner == owner);
+    let (Some(record), None) = (records.next(), records.next()) else {
+        return Err("selected boundary internal call has no unique retained origin");
+    };
+    let (block, instruction) =
+        image_emission::unique_block_instruction(function, record.instruction)
+            .ok_or("selected boundary internal call lacks its selected instruction")?;
+    let retains_owner = match occurrence.invocation_site() {
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
+            instruction.provenance.operations.contains(&operation)
+        }
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
+        | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+            instruction.provenance.edges.contains(&edge)
+        }
+    };
+    if record.call.target.machine() != Some(callee)
+        || instruction.kind.machine_callee() != Some(callee)
+        || !retains_owner
+    {
+        return Err("selected boundary internal call changed its selected owner or callee");
+    }
+    let mut resolutions = publication
+        .text_section()
+        .resolved_internal_machine_calls
+        .iter()
+        .filter(|resolution| {
+            resolution.caller == occurrence.machine() && resolution.owner == owner
+        });
+    let (Some(resolution), None) = (resolutions.next(), resolutions.next()) else {
+        return Err("selected boundary internal call lacks one placed resolution");
+    };
+    if resolution.instruction != record.instruction
+        || resolution.block != block.id
+        || resolution.callee != callee
+        || usize::try_from(resolution.field_section_offset) != Ok(field_offset)
+    {
+        return Err("selected boundary internal call changed its placed occurrence or callee");
+    }
+    Ok(&record.call)
+}
+
 fn checked_family_member<'module>(
     module: &'module terminal_psi::TerminalModule,
     boundary: semantic_vocabulary::BoundaryMachineId,
@@ -127,11 +173,6 @@ impl InternalCallRow<'_> {
     }
 }
 
-/// `true` when the occurrence owns a retained internal call-stack
-/// row — that is, the boundary call emitted an ordinary internal call.
-/// `evidence.rs` uses the predicate to reject an occurrence that somehow
-/// carries this realization beside an installed settlement or a normalized
-/// foreign call.
 pub(crate) fn boundary_internal_call_exists(
     object: &image_emission::ObjectArtifact,
     occurrence: &OptimizedBoundaryOccurrence,
@@ -149,14 +190,6 @@ pub(crate) fn boundary_internal_call_exists(
         })
 }
 
-/// Derive the D41 physical child for one selected boundary call
-/// realized as an ordinary resolved internal call.
-///
-/// `Ok(None)` leaves custody this lane does not cover — a boundary call that
-/// emitted no internal call — without a claimed
-/// child; the occurrence then blocks as `UnrealizedBoundaryOccurrence`.
-/// Custody drift that would contradict a validated object or its Terminal
-/// operation is an error, matching the settlement derivations.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn derive_boundary_internal_call_child(
     module: &terminal_psi::TerminalModule,
@@ -170,10 +203,6 @@ pub(crate) fn derive_boundary_internal_call_child(
     target: NativeTarget,
     fragment_publication: Option<&FragmentPublicationBinding>,
 ) -> Result<Option<NativePhysicalChild>, &'static str> {
-    // The emitted call must still rejoin exactly one Terminal boundary call
-    // on the occurrence's machine. This lane binds the plain internal-call
-    // custody. Image publication already joined its complete operand and
-    // result transport; structural operands do not make the call foreign.
     let mut machines = module
         .machines
         .iter()
@@ -230,8 +259,6 @@ pub(crate) fn derive_boundary_internal_call_child(
                     "selected boundary internal call does not rejoin one Terminal completion edge",
                 );
             };
-            // External completion carries no returning claim receipts. The
-            // selected-call replay retains its complete edge and operands.
             (boundary, &[][..], SemanticCodeSite::Edge(source_edge))
         }
     };
@@ -269,7 +296,7 @@ pub(crate) fn derive_boundary_internal_call_child(
             Err("selected boundary internal call rejoins duplicate call custody")
         };
     };
-    let record = call_custody::rejoin(
+    let record = rejoin_call_custody(
         fragment_publication.ok_or("selected boundary internal call lacks fragment custody")?,
         occurrence,
         call.target(),
@@ -288,11 +315,6 @@ pub(crate) fn derive_boundary_internal_call_child(
         return Err("selected boundary internal call changed its completion transfers");
     }
     let selection = if let Some(plan) = selected_plan {
-        // A provider and a target family carry distinct selection custody.
-        // The shared physical call transport grants neither kind of authority.
-        // Code sharing is not choosing-declaration equality. Rejoin the exact
-        // installed origin retained by ordinary call lowering, not a search
-        // for whichever catalog conformance happens to name this body.
         let legalized_operations::NativeCallOrigin::InstalledProvider {
             boundary: selected_boundary,
             provider,
@@ -327,10 +349,6 @@ pub(crate) fn derive_boundary_internal_call_child(
         let [conformance] = conformances.as_slice() else {
             return Err("installed provider internal call cannot rejoin one provider conformance");
         };
-        // The call retains a closed requirement, while the plan's selected
-        // row can name its generic template. Rejoin the actual supplied
-        // boundary here; an assumed crossing has already authenticated its
-        // distinct required/supplied relationship above.
         let supplied_requirement = if let Some(assumption) = assumption {
             module
                 .boundary_machine(assumption.selected_requirement)
@@ -389,9 +407,6 @@ pub(crate) fn derive_boundary_internal_call_child(
         .get(opcode..end)
         .ok_or("selected boundary internal call is outside object text")?;
     validate_destination(target.architecture, opcode, bytes, callee.text_offset)?;
-    // The operation's complete emitted interval is its exact semantic-code
-    // attribution row; the resolved call must sit inside it, and an internal
-    // call carries no relocation of its own.
     let mut attribution = object.semantic_code_attribution().iter().filter(|row| {
         row.machine == function.machine
             && row.attribution.site == semantic_site

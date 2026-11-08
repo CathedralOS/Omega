@@ -1,15 +1,14 @@
-//! Bounded receiving view of the existing complete v7 plan commitment input.
-//!
-//! This reader does not mint a ProviderPlan, evaluated binding receipt, or
-//! selection authority. It authenticates the original normalized bytes and
-//! exposes their row coordinates so artifact consumers can independently join
-//! checked realizations to verified bodies. Irreducible binding payloads remain
-//! committed bytes; receiving them never makes them executable.
+/*
+We provide a bounded receiving view (`ProviderPlanInput`) over the v7
+provider-plan commitment preimage. We authenticate the complete SHA-256
+commitment and validate canonical schema and row ordering before exposing
+checked-adapter row coordinates so artifact consumers can join checked
+realizations to verified bodies without minting a `ProviderPlan` or granting
+execution authority.
+*/
 
 use sha2::{Digest, Sha256};
 
-// Pin the layout implemented by this receiver independently of the writer.
-// A future writer schema must be rejected until its receiving grammar exists.
 const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v7\0";
 
 const MAX_BYTES: usize = 8 * 1024 * 1024;
@@ -31,9 +30,6 @@ pub struct ProviderPlanInputRow<'a> {
 }
 
 impl<'a> ProviderPlanInput<'a> {
-    /// Replay the full original commitment before exposing any coordinates.
-    /// Coverage is checked against the committed schema; a caller must still
-    /// authenticate every candidate and its contract against its own artifact.
     pub fn read(bytes: &'a [u8], expected: &[u8; 32]) -> Result<Self, &'static str> {
         if bytes.len() > MAX_BYTES || <[u8; 32]>::from(Sha256::digest(bytes)) != *expected {
             return Err("provider plan input differs from its complete commitment");
@@ -42,15 +38,15 @@ impl<'a> ProviderPlanInput<'a> {
         if reader.take(PROVIDER_PLAN_DOMAIN.len())? != PROVIDER_PLAN_DOMAIN {
             return Err("unknown provider plan input schema");
         }
-        reader.nonempty_string()?; // selection name
+        reader.nonempty_string()?;
         let provider = reader.string()?;
-        reader.string()?; // complete applied provider identity, empty for a declaration
+        reader.string()?;
         let provider_package = reader.package()?;
         let target = reader.string()?;
-        reader.nonempty_string()?; // schema identity
+        reader.nonempty_string()?;
         reader.package()?;
         for _ in 0..reader.count()? {
-            reader.string()?; // complete receiving trait application identity
+            reader.string()?;
             reader.nonempty_string()?;
             reader.package()?;
             reader.strings()?;
@@ -60,7 +56,7 @@ impl<'a> ProviderPlanInput<'a> {
         let mut methods = Vec::new();
         for _ in 0..reader.count()? {
             let name = reader.nonempty_string()?;
-            reader.nonempty_string()?; // requirement owner
+            reader.nonempty_string()?;
             reader.package()?;
             let requirement = reader.nonempty_string()?;
             let key = (name, requirement);
@@ -70,7 +66,7 @@ impl<'a> ProviderPlanInput<'a> {
                 return Err("provider plan schema repeats or reorders a method");
             }
             methods.push(key);
-            reader.strings()?; // exact parameter identities
+            reader.strings()?;
             let mut previous_claim = None;
             for _ in 0..reader.count()? {
                 let position = reader.number()?;
@@ -81,12 +77,12 @@ impl<'a> ProviderPlanInput<'a> {
                     return Err("provider plan entry claims repeat or reorder");
                 }
                 previous_claim = Some(key);
-                reader.tag(1)?; // predicate body
+                reader.tag(1)?;
                 reader.carry()?;
-                reader.tag(0)?; // accepts authority flow
+                reader.tag(0)?;
             }
-            reader.tag(1)?; // completion
-            reader.tag(1)?; // has result
+            reader.tag(1)?;
+            reader.tag(1)?;
             if reader.tag(1)? == 1 {
                 reader.nonempty_string()?;
             }
@@ -99,11 +95,11 @@ impl<'a> ProviderPlanInput<'a> {
                 previous_domain = Some(domain);
                 reader.carry()?;
             }
-            reader.strings()?; // reach
-            reader.strings()?; // synchronous invocation contracts
-            reader.tag(1)?; // suspend
-            reader.tag(1)?; // block
-            reader.tag(1)?; // termination guarantee
+            reader.strings()?;
+            reader.strings()?;
+            reader.tag(1)?;
+            reader.tag(1)?;
+            reader.tag(1)?;
             let mut previous_premise = None;
             for _ in 0..reader.count()? {
                 let profile = reader.nonempty_string()?;
@@ -150,10 +146,10 @@ impl<'a> ProviderPlanInput<'a> {
                 return Err("provider plan rows repeat, reorder, or escape the schema");
             }
             row_keys.push(key);
-            reader.number()?; // same-stack admission
+            reader.number()?;
             let checked_adapter = match reader.tag(7)? {
                 0 => {
-                    reader.nonempty_string()?; // target
+                    reader.nonempty_string()?;
                     match reader.tag(3)? {
                         0 | 3 => {
                             reader.blob()?;
@@ -188,10 +184,10 @@ impl<'a> ProviderPlanInput<'a> {
                     reader.nonempty_string()?;
                     reader.nonempty_string()?;
                     if reader.tag(1)? == 1 {
-                        reader.nonempty_string()?; // exact storage application
-                        reader.nonempty_string()?; // exact field declaration
+                        reader.nonempty_string()?;
+                        reader.nonempty_string()?;
                     } else {
-                        reader.nonempty_string()?; // deferred refusal
+                        reader.nonempty_string()?;
                     }
                     None
                 }
@@ -294,8 +290,6 @@ impl<'a> Reader<'a> {
         Ok(())
     }
 
-    /// Validate the complete v7 roster without granting calling authority or
-    /// replacing its declaration ABI keys with compact report coordinates.
     fn calling_applications(&mut self, requirement: &str) -> Result<(), &'static str> {
         let mut previous_application = None;
         for _ in 0..self.count()? {
@@ -452,7 +446,6 @@ mod tests {
                             .iter()
                             .enumerate()
                             .map(|(ordinal, kind)| CallingStaticOperand {
-                                // ABI formal ordinals may have gaps; they are not runtime positions.
                                 ordinal: ordinal as u32 * 2 + 1,
                                 kind: *kind,
                                 identity: format!("static-operand-{ordinal}"),

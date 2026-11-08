@@ -1,3 +1,9 @@
+/*
+We test `NativeArtifact` identity sensitivity, selected provider plan
+projections, closed external requirement applications, foreign stack
+contributions, and kernel system-call provider custody.
+*/
+
 use super::provider_execution::{
     validate_foreign_stack_contribution, validate_provider_execution_reports,
 };
@@ -73,7 +79,6 @@ fn kernel_provider_custody_rejects_substituted_plans_and_user_control_records() 
         let validate = |call: &image_emission::ObjectForeignCall| {
             validate_foreign_provider_binding("Input::read", call, &plans, &identities)
         };
-        // Zero is a valid syscall number; no user-space stack receipt is invented.
         assert_eq!(validate(&call), Ok(()));
         for mutation in 0..5 {
             let mut changed = call.clone();
@@ -246,7 +251,6 @@ fn selected_plan_projection_retains_closed_and_unspecialized_requirements() {
 
 #[test]
 fn closed_import_reports_rejoin_original_execution_and_reject_plan_substitution() {
-    // Synthetic report data tests replay addresses, never mints provider authority.
     let selected = "Registrar::register";
     let closed = "Registrar::register<u64, Comparator::compare>";
     let other = "Registrar::register<i32, Comparator::compare>";

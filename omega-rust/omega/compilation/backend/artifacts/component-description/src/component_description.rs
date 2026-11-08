@@ -1,45 +1,26 @@
-//! Canonical component descriptions: the bounded, byte-replayed carrier that
-//! publishes a checked component's exact semantic subject, entry roster,
-//! outgoing authority, custody constraints, retained providers, and
-//! installation obligations.
-//!
-//! A description is self-contained evidence, not authority: it embeds the
-//! canonical Terminal artifact (semantic module and sealed proof section) and
-//! every claim a verifier can independently replay from those bytes. Reading
-//! a description grants no callable authority, no installed custody, and no
-//! resource admission; installation-dependent facts are emitted only as
-//! obligations that a later occurrence must satisfy under a fresh profile.
-//!
-//! The producer [`describe_component_facts`] publishes this source-free
-//! carrier from independently supplied facts. The independent consumer lives
-//! in `component_verification::verify_component`, which re-decodes the embedded
-//! artifact and re-derives every description fact rather than trusting the
-//! producer's rows.
+/*
+We define the canonical `ComponentDescription` schema (`OMGCMPD\0` v3), its
+module-inventory derivation (`derive_component_inventory` and
+`describe_decoded_component_facts`), and its deterministic wire codec
+(`encode_component_description` and `decode_component_description_with_artifact`).
+We exhaustively classify every `OperationKind` when deriving outgoing
+authority, custody constraints, entries, exports, and installation service
+bounds from the embedded Terminal artifact, and we enforce strict roster length
+limits and canonical sorting at both publication and decode time.
+*/
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ServiceId};
 use terminal_psi::{OperationKind, TerminalIdentityIndex, TerminalModule, TerminalPsiIdentity};
 
-/// Wire magic for the canonical component-description encoding.
 const DESCRIPTION_MAGIC: &[u8; 8] = b"OMGCMPD\0";
-/// Domain prefix for the description's own collision-resistant identity.
 const DESCRIPTION_IDENTITY_DOMAIN: &[u8] = b"omega-component-description-v1";
-/// Domain prefix for one import slot's requirement contract identity.
 const REQUIREMENT_CONTRACT_DOMAIN: &[u8] = b"omega-component-requirement-v1";
-/// Domain prefix for the canonical entry export's contract identity.
 const CANONICAL_ENTRY_CONTRACT_DOMAIN: &[u8] = b"omega-component-canonical-entry-v1";
-/// Domain prefix for a derived port-space mechanism assumption.
 const PORT_MECHANISM_DOMAIN: &[u8] = b"omega-component-port-mechanism-v1";
 const REGISTER_MECHANISM_DOMAIN: &[u8] = b"omega-component-register-mechanism-v1";
 
-/// One wire-tag table per enum, generated whole.
-///
-/// The forward `tag` and the reverse `from_tag` are one list here, so a variant
-/// cannot be given a number in one direction only: the previous hand-written
-/// pairs kept two match tables per enum in step by inspection, and a new variant
-/// added to one of them read back as an unsupported tag or silently aliased
-/// another variant's number.
 macro_rules! wire_tagged {
     ($name:ident { $($variant:ident = $tag:literal),+ $(,)? }) => {
         impl $name {
@@ -59,33 +40,15 @@ macro_rules! wire_tagged {
     };
 }
 
-/// Current and only published description schema.
-///
-/// V3 retains the complete original normalized provider-plan input. Consumers
-/// replay its strong commitment and independently authenticate uncalled checked
-/// exports, separately from the outgoing-call roster. V2 retained only plan
-/// digests and could not authenticate those selected-satisfied exports.
 pub const COMPONENT_DESCRIPTION_SCHEMA_V3: u32 = 3;
 
-/// Hard bound on one encoded description, including the embedded artifact.
 pub(crate) const MAX_COMPONENT_DESCRIPTION_BYTES: usize = 8 * 1024 * 1024;
-/// Hard bound on any single roster inside a description.
 pub(crate) const MAX_DESCRIPTION_ROSTER: usize = 4096;
 
-/// How far the checked component evidence has advanced.
-///
-/// Only [`DescriptionFrontier::TerminalArtifactClosure`] is a complete
-/// description: the embedded artifact closes the semantic module, and every
-/// roster is replayable from it plus the retained selected-provider facts.
-/// Earlier frontiers describe a component before its closure exists and are
-/// rejected by `verify_component` rather than treated as complete.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DescriptionFrontier {
-    /// The component was declared in source but no checked closure exists.
     AuthoredDeclaration,
-    /// A provider plan was selected but the artifact closure was not bound.
     SelectedPlan,
-    /// The canonical Terminal artifact closes the component.
     TerminalArtifactClosure,
 }
 
@@ -95,39 +58,18 @@ wire_tagged!(DescriptionFrontier {
     TerminalArtifactClosure = 3,
 });
 
-/// One import slot: an outgoing requirement the component demands but does
-/// not itself seal to a retained provider. Installation must bind each slot
-/// to an exact provider occurrence under a fresh profile.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ImportSlot {
     pub slot: u32,
-    /// Canonical identity of the boundary requirement left unsealed.
     pub requirement_identity: String,
-    /// Collision-resistant contract identity for the requirement spelling.
     pub contract_identity: [u8; 32],
 }
 
-/// One exported callable surface offered to the component's callers.
-///
-/// Two export families exist, both re-derived from the embedded artifact:
-/// the canonical entry (`export:canonical:{machine}`) and one row per checked
-/// provider candidate the module retains
-/// ([`requirement_export_identity`]). The second family is what an
-/// independently selected provider component offers to a consumer's
-/// `Independent` selection: the exact requirement it realizes, the provider
-/// type that realizes it, and the checked candidate machine identity the
-/// selected `CheckedAdapter` row names. A description cannot invent or omit
-/// either family; the verifier compares the roster row for row.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ExportSurface {
-    /// Canonical export identity.
     pub identity: String,
 }
 
-/// Canonical export identity of one checked provider realization retained by
-/// the module's provider-candidate catalog. The three identities are the
-/// exact join coordinates the selected-plan join uses; the spelling is a
-/// string identity compared whole, never parsed.
 pub(crate) fn requirement_export_identity(
     requirement_identity: &str,
     provider_identity: &str,
@@ -136,43 +78,20 @@ pub(crate) fn requirement_export_identity(
     format!("export:requirement:{requirement_identity}|{provider_identity}|{candidate_identity}")
 }
 
-/// One export surface's join contract — the structured half the opaque
-/// `exports` roster cannot carry on the wire.
-///
-/// These rows are never producer claims: they are derived from the verified
-/// module at admission and exposed on `VerifiedComponent`, so a consumer
-/// joins a demanded import against an offered realization by digest
-/// equality. A requirement export carries
-/// [`requirement_contract_identity`] of the offered requirement — the same
-/// domain [`ImportSlot::contract_identity`] uses — while the canonical
-/// entry export carries [`canonical_entry_contract_identity`], a distinct
-/// domain that can never alias a requirement contract (the canonical entry
-/// is an entry surface, not an importable realization).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct ExportContract {
-    /// The export surface's canonical identity — the same string the
-    /// `exports` roster row carries.
     pub identity: String,
-    /// The contract this surface offers to the join.
     pub contract_identity: [u8; 32],
 }
 
-/// Every possible way execution may enter the described component.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ComponentEntryKind {
-    /// The module's canonical selected entry machine.
     Canonical,
-    /// A suspension call site whose stored frontier re-enters on resume.
     SuspensionResumption,
-    /// Startup behavior the component expects installation to run.
     Startup,
-    /// A callback registration the component performs.
     RegisteredCallback,
-    /// A timer registration the component performs.
     Timer,
-    /// A cleanup route the component requires on removal.
     Cleanup,
-    /// Entry through a retained provider owned by this component.
     RetainedProvider,
 }
 
@@ -186,17 +105,12 @@ wire_tagged!(ComponentEntryKind {
     RetainedProvider = 7,
 });
 
-/// Evidence binding one entry row to independently checkable fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EntryEvidence {
-    /// The entry is re-derived from the embedded artifact itself.
     ModuleDerived,
-    /// The entry is declared by the producer and inseparable from the named
-    /// assumption digest, which the verifier's profile must accept.
     AssumptionBound([u8; 32]),
 }
 
-/// One row of the component's complete entry roster.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ComponentEntry {
     pub kind: ComponentEntryKind,
@@ -204,18 +118,11 @@ pub struct ComponentEntry {
     pub evidence: EntryEvidence,
 }
 
-/// Classes of authority that can leave the component's own closure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum OutgoingAuthorityClass {
-    /// A bodyless boundary machine invoked by a `BoundaryCall` operation.
     BoundaryRequirement,
-    /// An immediate port-space write naming its exact service identity.
     PortSpaceWrite,
-    /// A catalogued register event retaining its exact service and register.
     RegisterAccess,
-    /// One service of the selected entry's concrete published reach. Bounds
-    /// installation still owes are never folded in here: each retained
-    /// `reaches <= Bound` row publishes separately in `service_bounds`.
     ServiceCeiling,
 }
 
@@ -226,24 +133,14 @@ wire_tagged!(OutgoingAuthorityClass {
     RegisterAccess = 4,
 });
 
-/// Evidence binding one outgoing-authority row to checkable fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum OutgoingEvidence {
-    /// The row is re-derived from the embedded artifact and remains an
-    /// unsealed demand: installation must bind it per occurrence.
     ModuleDerived,
-    /// The row is sealed by the retained provider plan with this exact
-    /// strong plan digest. The digest must name a provider in the
-    /// description's retained-provider roster.
     ProviderSealed([u8; 32]),
-    /// The row is module-derived and additionally requires a hardware- or
-    /// environment-mediating assumption with this exact digest.
     PhysicalMechanism([u8; 32]),
-    /// The row is declared and inseparable from the named assumption digest.
     AssumptionBound([u8; 32]),
 }
 
-/// One row of the component's complete outgoing-authority roster.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OutgoingAuthority {
     pub class: OutgoingAuthorityClass,
@@ -251,45 +148,21 @@ pub struct OutgoingAuthority {
     pub evidence: OutgoingEvidence,
 }
 
-/// One retained installation-bound reach row, published as its own roster
-/// entry beside the concrete reach's `ServiceCeiling` rows.
-///
-/// An unresolved `reaches <= Bound` requirement is still installation's to
-/// resolve; its bound is the declared conservative ceiling on whichever
-/// provider installation later selects, not reach this component's own
-/// closure already publishes. Unioning the bound into the concrete ceiling
-/// would let a bound stand in for resolved reach, so the two publish as
-/// distinct fields.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct InstallationServiceBound {
-    /// Canonical identity of the unresolved installation-bound requirement.
     pub requirement_identity: String,
-    /// The row's declared conservative upper bound, in canonical order.
     pub bound: Vec<ServiceId>,
 }
 
-/// Ownership, custody, and capability constraints the component carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CustodyKind {
-    /// A closure-wide direct entry input bound to one exact access view.
     AccessViewInput,
-    /// A whole-parent mutating call reactivating a direct mutable root.
     ReborrowRestoredCall,
-    /// A live caller claim consumed by a successful boundary invocation.
     CompletionReceipt,
-    /// A per-occurrence capacity schema authorized by a called boundary.
     ProgramLocalRootIntroduction,
-    /// A provider assumption retained by a called boundary's content
-    /// guarantee.
     BoundaryContentGuarantee,
-    /// The exact live frontier carried across a possibly-suspending call.
     SuspensionFrontier,
-    /// Custody of a resource or code mapping the composition admits. The row
-    /// preserves custody only; it grants no remap or unmap authority.
     Mapping,
-    /// Custody of a live code or resource lease held by the installed
-    /// component. The row preserves custody only; it grants no renewal or
-    /// release authority.
     Lease,
 }
 
@@ -304,17 +177,12 @@ wire_tagged!(CustodyKind {
     Lease = 10,
 });
 
-/// Evidence binding one custody row to checkable fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CustodyEvidence {
-    /// The row is re-derived from the embedded artifact.
     ModuleDerived,
-    /// The row is declared and inseparable from the named assumption digest.
     AssumptionBound([u8; 32]),
 }
 
-/// One row of the component's custody roster. These constraints preserve
-/// custody; they grant no cleanup, transfer, or discharge authority.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CustodyConstraint {
     pub kind: CustodyKind,
@@ -322,40 +190,21 @@ pub struct CustodyConstraint {
     pub evidence: CustodyEvidence,
 }
 
-/// One provider retained by the selected component closure. The strong
-/// `plan_digest` is the only authoritative plan identity; `report_identity`
-/// is a non-authoritative compact coordinate for reports and cache joins.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RetainedProvider {
     pub report_identity: u64,
     pub plan_digest: [u8; 32],
-    /// Complete canonical v5 commitment input, never executable authority.
     pub plan_input: Vec<u8>,
-    /// Exact requirement identities this provider seals for the component.
-    /// A canonical subset of the complete plan: called requirements and checked
-    /// exports only. Unused sibling methods stay committed in `plan_input`.
     pub requirement_identities: Vec<String>,
 }
 
-/// Installation-dependent facts the description can demand but never
-/// satisfy. Each kind requires fresh per-occurrence resource and profile
-/// admission at installation; compilation or provider code alone cannot
-/// discharge them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ObligationKind {
-    /// Provision the exact selected-entry stack closure demand.
     StackProvision,
-    /// Admit one retained provider occurrence under a fresh profile.
     ProviderOccurrence,
-    /// Bind one import slot to an exact provider at installation.
     ImportBinding,
-    /// Admit per-occurrence resource capacity named by a boundary schema.
     ResourceAdmission,
-    /// Bind one exact resource or code mapping the composition demands at
-    /// installation.
     Mapping,
-    /// Admit one per-occurrence code or resource lease the component requires
-    /// at installation.
     Lease,
 }
 
@@ -368,8 +217,6 @@ wire_tagged!(ObligationKind {
     Lease = 7,
 });
 
-/// One installation obligation. The `identity` is the canonical obligation
-/// coordinate; `detail` carries bounded human-readable context only.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct InstallationObligation {
     pub kind: ObligationKind,
@@ -377,60 +224,29 @@ pub struct InstallationObligation {
     pub detail: String,
 }
 
-/// The complete canonical component description.
-///
-/// Every roster is kept in canonical order by the codec; construction outside
-/// `describe_component` is possible but the verifier re-derives and compares
-/// every module-derived row, so a hand-authored description cannot claim
-/// facts the embedded artifact does not contain.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComponentDescription {
     pub schema: u32,
     pub frontier: DescriptionFrontier,
-    /// Canonical bytes of the sealed Terminal artifact this description
-    /// publishes. The codec validates them with
-    /// `CanonicalTerminalArtifact::from_bytes` at every boundary.
     pub artifact_bytes: Vec<u8>,
-    /// Exact unsealed imports installation must still bind.
     pub imports: Vec<ImportSlot>,
-    /// Exact exported callable surfaces.
     pub exports: Vec<ExportSurface>,
-    /// Every possible entry into the component.
     pub entries: Vec<ComponentEntry>,
-    /// Every authority path leaving the component closure.
     pub outgoing: Vec<OutgoingAuthority>,
-    /// Every retained installation-bound reach row, each with its declared
-    /// conservative bound — published distinctly from the concrete reach
-    /// the `ServiceCeiling` outgoing rows carry.
     pub service_bounds: Vec<InstallationServiceBound>,
-    /// Every custody constraint the component carries.
     pub custody: Vec<CustodyConstraint>,
-    /// The retained selected-provider roster.
     pub providers: Vec<RetainedProvider>,
-    /// Strong digest of the complete selected provider closure facts this
-    /// roster was drawn from. `ComponentCandidate::checked` already binds it
-    /// to the artifact; the verifier checks internal consistency here.
     pub provider_closure_digest: [u8; 32],
-    /// Installation-dependent demands, never satisfied by the description.
     pub obligations: Vec<InstallationObligation>,
-    /// Inseparable assumptions the consumer's profile must accept before
-    /// any declared entry, authority, or custody row bound to them verifies.
     pub assumptions: Vec<[u8; 32]>,
-    /// Strong identity of the native realization, when one is bound.
-    /// Artifact evidence only; never installation or invocation authority.
     pub realization_identity: Option<[u8; 32]>,
 }
 
-/// Producer-side failure to describe a candidate.
 #[derive(Debug)]
 pub enum DescribeError {
-    /// The embedded canonical artifact bytes failed artifact validation.
     ArtifactFormat(terminal_codec::CanonicalTerminalArtifactError),
-    /// The artifact identity could not be reconstructed.
     ArtifactIdentity(terminal_codec::CodecError),
-    /// A called boundary machine had no declaration in the module.
     UndeclaredBoundary(BoundaryMachineId),
-    /// The description would exceed a bound its decoder enforces.
     BoundExceeded(&'static str),
 }
 
@@ -461,20 +277,13 @@ impl std::fmt::Display for DescribeError {
 
 impl std::error::Error for DescribeError {}
 
-/// Decode failures for the canonical description wire format.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DescriptionDecodeRejection {
-    /// Input is empty, truncated, or has trailing bytes.
     Corrupt(&'static str),
-    /// The wire magic did not match.
     InvalidMagic,
-    /// An unknown schema, frontier, kind, class, or evidence tag was read.
     UnsupportedTag(&'static str),
-    /// A roster exceeded its hard bound.
     RosterBoundExceeded(&'static str),
-    /// An identity string was not UTF-8.
     IdentityInvalid(&'static str),
-    /// A roster was not in canonical order or contained a duplicate.
     NonCanonicalOrder(&'static str),
 }
 
@@ -497,7 +306,6 @@ impl std::fmt::Display for DescriptionDecodeRejection {
 
 impl std::error::Error for DescriptionDecodeRejection {}
 
-/// Collision-resistant identity of one exact encoded description.
 pub(crate) fn component_description_identity(canonical_bytes: &[u8]) -> [u8; 32] {
     crate::digest_encoder::DomainDigestEncoder::content(
         DESCRIPTION_IDENTITY_DOMAIN,
@@ -505,7 +313,6 @@ pub(crate) fn component_description_identity(canonical_bytes: &[u8]) -> [u8; 32]
     )
 }
 
-/// Collision-resistant contract identity of one requirement spelling.
 pub(crate) fn requirement_contract_identity(requirement_identity: &str) -> [u8; 32] {
     crate::digest_encoder::DomainDigestEncoder::content(
         REQUIREMENT_CONTRACT_DOMAIN,
@@ -513,7 +320,6 @@ pub(crate) fn requirement_contract_identity(requirement_identity: &str) -> [u8; 
     )
 }
 
-/// Distinguishes a concrete root from a portable family head in exported labels.
 fn canonical_entry_label(entry: terminal_psi::TargetMachineCallable) -> String {
     match entry {
         terminal_psi::TargetMachineCallable::Machine(machine) => {
@@ -525,22 +331,10 @@ fn canonical_entry_label(entry: terminal_psi::TargetMachineCallable) -> String {
     }
 }
 
-/// The rendered spelling of one interned identity.
-///
-/// A codec-decoded module's indices are in range, so a producer publishing an
-/// identity has no failure to report here and the fallback is the empty
-/// spelling. Every roster that names an identity reads it through this one
-/// place rather than repeating the fallback decision.
 pub(crate) fn identity_text(module: &TerminalModule, identity: TerminalIdentityIndex) -> &str {
     module.identities.text(identity).unwrap_or_default()
 }
 
-/// Collision-resistant contract identity of the canonical entry export.
-///
-/// The canonical entry never satisfies a demanded import — a demanded
-/// contract is a requirement contract — so its digest lives in its own
-/// domain and cannot collide with any [`requirement_contract_identity`]
-/// output.
 pub(crate) fn canonical_entry_contract_identity(
     entry: terminal_psi::TargetMachineCallable,
 ) -> [u8; 32] {
@@ -559,7 +353,6 @@ pub(crate) fn canonical_entry_contract_identity(
     digest.finish()
 }
 
-/// Derived assumption digest for one immediate port-space mechanism.
 pub(crate) fn port_mechanism_assumption(service: ServiceId, port: u16, value: u8) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(PORT_MECHANISM_DOMAIN);
     digest.raw(&service.get().to_le_bytes());
@@ -578,43 +371,19 @@ pub(crate) fn register_mechanism_assumption(
     digest.finish()
 }
 
-/// Lowercase hex rendering of digest bytes, taken from the shared encoder.
 pub(crate) use crate::digest_encoder::hex;
 
-/// Every fact `verify_component` can re-derive from the embedded artifact
-/// alone. The producer emits exactly these rows (plus declared rows bound to
-/// assumptions and selected-provider seals); the verifier rejects any
-/// module-derived row that is missing or does not match.
 pub(crate) struct DerivedInventory {
-    /// Requirement identities of every called boundary, canonical order.
     pub(crate) called_requirement_identities: Vec<String>,
-    /// Module-derived entry rows.
     pub(crate) entries: Vec<ComponentEntry>,
-    /// Module-derived export rows with their join contracts. The
-    /// description's `exports` roster carries each row's `identity`; the
-    /// `contract_identity` rides the verified component instead of the
-    /// wire, so the roster and contracts cannot disagree.
     pub(crate) export_contracts: Vec<ExportContract>,
-    /// Module-derived custody rows.
     pub(crate) custody: Vec<CustodyConstraint>,
-    /// Exact port-space writes as `(service, port, value)`.
     pub(crate) port_writes: BTreeSet<(ServiceId, u16, u8)>,
     pub(crate) register_accesses: BTreeSet<(ServiceId, terminal_psi::RegisterOperation)>,
-    /// The selected entry's concrete published reach: services the
-    /// component's own closed execution reaches. Retained installation-bound
-    /// rows never fold into this set.
     pub(crate) concrete_service_reach: BTreeSet<ServiceId>,
-    /// Retained installation-bound reach rows, each with its declared
-    /// conservative bound — the same split the module's
-    /// `root_service_reach` carries.
     pub(crate) service_bounds: Vec<InstallationServiceBound>,
 }
 
-/// Re-derive the complete module-evident inventory of a decoded artifact.
-///
-/// This is the shared producer/verifier derivation: the producer uses it to
-/// emit rows and the verifier re-runs it on its own decode so no producer row
-/// can be trusted rather than replayed.
 pub(crate) fn derive_component_inventory(
     module: &TerminalModule,
 ) -> Result<DerivedInventory, DescribeError> {
@@ -626,19 +395,9 @@ pub(crate) fn derive_component_inventory(
     for machine in &module.machines {
         for block in &machine.blocks {
             for operation in &block.operations {
-                // Every operation kind must be placed in an explicit group:
-                // an authority-bearing kind added to `OperationKind` without a
-                // decision here stops compiling rather than silently reading
-                // as empty outgoing authority. Operations are the complete
-                // authority surface: block terminators are closure-internal
-                // control flow, suspension resumptions are the module-level
-                // call-site table counted below, and in-module calls resolve
-                // through the verified module's own machine table, so their
-                // callee's operations are scanned by this same enumeration and
-                // they carry no authority past the component closure.
                 match &operation.kind {
                     OperationKind::EstablishNativeCodeLayout { .. }
-                    | OperationKind::ReadScalarApplication { .. } => {},
+                    | OperationKind::ReadScalarApplication { .. } => {}
                     OperationKind::BoundaryCall {
                         boundary,
                         completion_receipts,
@@ -666,12 +425,35 @@ pub(crate) fn derive_component_inventory(
                     } => {
                         port_writes.insert((*service, *port, *value));
                     }
-                    OperationKind::ActivateTaskRegister { service, .. } => { register_accesses.insert((*service, terminal_psi::RegisterOperation::TaskRegisterActivate)); }
-                    OperationKind::ReloadSegmentDescriptors { service, kind, .. } => { register_accesses.insert((*service, terminal_psi::RegisterOperation::SegmentReload(*kind))); }
-                    OperationKind::ReadSegmentSelector { service, register } => { register_accesses.insert((*service, terminal_psi::RegisterOperation::SegmentRead(*register))); }
-                    OperationKind::ReadTaskRegister { service } => { register_accesses.insert((*service, terminal_psi::RegisterOperation::TaskRegisterRead)); }
-                    OperationKind::GlobalDescriptorTable { service, operation, .. } => {
-                        register_accesses.insert((*service, terminal_psi::RegisterOperation::GlobalDescriptorTable(*operation)));
+                    OperationKind::ActivateTaskRegister { service, .. } => {
+                        register_accesses.insert((
+                            *service,
+                            terminal_psi::RegisterOperation::TaskRegisterActivate,
+                        ));
+                    }
+                    OperationKind::ReloadSegmentDescriptors { service, kind, .. } => {
+                        register_accesses.insert((
+                            *service,
+                            terminal_psi::RegisterOperation::SegmentReload(*kind),
+                        ));
+                    }
+                    OperationKind::ReadSegmentSelector { service, register } => {
+                        register_accesses.insert((
+                            *service,
+                            terminal_psi::RegisterOperation::SegmentRead(*register),
+                        ));
+                    }
+                    OperationKind::ReadTaskRegister { service } => {
+                        register_accesses
+                            .insert((*service, terminal_psi::RegisterOperation::TaskRegisterRead));
+                    }
+                    OperationKind::GlobalDescriptorTable {
+                        service, operation, ..
+                    } => {
+                        register_accesses.insert((
+                            *service,
+                            terminal_psi::RegisterOperation::GlobalDescriptorTable(*operation),
+                        ));
                     }
                     OperationKind::RegisterAccess { service, event } => {
                         if let Some(service) = service {
@@ -685,7 +467,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::CallStructuralWithScalarArguments { .. }
                     | OperationKind::CallDynamic { .. } => {}
                     OperationKind::EstablishAccessReference { .. }
-        | OperationKind::EstablishReference { .. }
+                    | OperationKind::EstablishReference { .. }
                     | OperationKind::ReleaseReference { .. }
                     | OperationKind::EstablishScalarArray { .. }
                     | OperationKind::EstablishStructuralArray { .. }
@@ -706,7 +488,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::StorageAddress { .. }
                     | OperationKind::PrimitiveScalarRead { .. }
                     | OperationKind::AtomicFence { .. }
-        | OperationKind::AtomicAccess { .. }
+                    | OperationKind::AtomicAccess { .. }
                     | OperationKind::StructuralScalarFieldStore { .. }
                     | OperationKind::StructuralByteSequenceFieldLength { .. }
                     | OperationKind::StructuralByteSequenceFieldByteStore { .. }
@@ -766,8 +548,6 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::WrappingIntegerRemainder { .. }
                     | OperationKind::SaturatingIntegerRemainder { .. }
                     | OperationKind::ExactIntegerRemainder { .. }
-                    // A Trapping primitive's crash is closure-internal: it
-                    // grants no outgoing boundary or port authority.
                     | OperationKind::TrappingInteger { .. }
                     | OperationKind::FloatResultPolicy { .. }
                     | terminal_psi::move_or_store_structural_field_pattern!()
@@ -871,10 +651,6 @@ pub(crate) fn derive_component_inventory(
 
     let concrete_service_reach: BTreeSet<ServiceId> =
         module.root_service_reach.concrete.iter().copied().collect();
-    // Each retained installation-bound row publishes its declared bound as
-    // its own roster entry; the bound is never unioned into the concrete
-    // reach's ceiling, so a consumer can always tell "the component reaches
-    // this service" apart from "installation still owes this bound".
     let mut service_bounds: Vec<InstallationServiceBound> = module
         .root_service_reach
         .installation_dependencies
@@ -900,12 +676,6 @@ pub(crate) fn derive_component_inventory(
             contract_identity: canonical_entry_contract_identity(entry),
         });
     }
-    // Every checked provider candidate the module retains is an exported
-    // realization: a consumer's `Independent` selection joins its selected
-    // plan rows to exactly these coordinates, and a demanded import joins
-    // the offered requirement by its contract identity. The catalog is
-    // semantic, not a selection, so exporting it grants nothing;
-    // installation still binds an occurrence per selected row.
     for candidate in &module.provider_candidates {
         export_contracts.push(ExportContract {
             identity: requirement_export_identity(
@@ -939,30 +709,13 @@ pub(crate) fn derive_component_inventory(
     })
 }
 
-/// The selected entry's internal stack demand reduced to the three facts the
-/// description publishes as its `StackProvision` obligation.
-///
-/// The emitter derives the complete demand (with its target, contributing
-/// machines, and admitted contributions) beside the native artifact; the
-/// description keeps only the entry, ceiling, and alignment that installation
-/// must provision, so this crate never imports image emission. The row is
-/// declared evidence: it names a demand and grants no provision, lease, or
-/// installed-root admission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StackDemandFacts {
-    /// The selected component entry machine the demand closes over.
     pub entry: MachineId,
-    /// Exact internal call-graph stack ceiling in bytes.
     pub ceiling_bytes: u64,
-    /// Required stack alignment in bytes.
     pub stack_alignment: u32,
 }
 
-// Selection can include native defaults that have no consumer in this retained
-// component. Publish complete plans only when a module call or checked export
-// references them. Never trim rows or rewrite their committed plan identity;
-// the consumer authenticates the complete plan and independently checks every
-// claimed component row. Unused siblings in a whole provider are not claims.
 fn component_references_plan(
     module: &TerminalModule,
     inventory: &DerivedInventory,
@@ -998,26 +751,14 @@ fn component_references_requirement(
         })
 }
 
-/// The exact publication facts a component description is built from.
-///
-/// `stack_demand` and `realization_identity` are optional so the same
-/// producer covers a Psi-only component capsule (no native realization yet)
-/// and a fully realized native component whose publisher supplies both.
 #[derive(Debug, Clone, Copy)]
 pub struct ComponentDescriptionFacts<'a> {
-    /// The sealed canonical Terminal artifact to embed.
     pub artifact: &'a terminal_codec::CanonicalTerminalArtifact,
-    /// The complete selected provider-plan facts for this component.
     pub selected_provider_plans: &'a effects::SelectedProviderPlanFacts,
-    /// Emitter-derived internal stack demand for the selected entry, when a
-    /// native realization exists.
     pub stack_demand: Option<StackDemandFacts>,
-    /// Strong identity of the bound native realization, when one exists.
     pub realization_identity: Option<[u8; 32]>,
 }
 
-/// Both in-memory description and serialized publication use the same inventory
-/// derivation. Only callers in this owner may supply the already-decoded module.
 pub(crate) fn describe_decoded_component_facts(
     facts: ComponentDescriptionFacts<'_>,
     module: &TerminalModule,
@@ -1184,20 +925,8 @@ pub(crate) fn describe_decoded_component_facts(
     })
 }
 
-// ---------------------------------------------------------------------------
-// Canonical wire codec
-// ---------------------------------------------------------------------------
-
-// The read half of the wire protocol is the workspace's shared cursor; this
-// decoder supplies only its own roster and identity bounds.
 use optimization_core::cursor::{Cursor, Truncated};
 
-/// The shared bounded cursor, narrowed to this decoder's own failure: a
-/// truncated read is a corrupt description.
-///
-/// `cursor::Cursor` owns the read half of the workspace's byte protocol
-/// (truncation and length handling); this wire adds only its own roster and
-/// identity bounds below, and maps a truncated read onto its corrupt row.
 type Reader<'a> = Cursor<'a>;
 
 impl From<Truncated> for DescriptionDecodeRejection {
@@ -1206,7 +935,6 @@ impl From<Truncated> for DescriptionDecodeRejection {
     }
 }
 
-/// One roster's declared row count, bounded before any row is read.
 fn roster_len(
     reader: &mut Reader<'_>,
     what: &'static str,
@@ -1218,13 +946,6 @@ fn roster_len(
     Ok(count)
 }
 
-/// One length-framed identity string.
-///
-/// Identities copy Terminal identity strings, which the Terminal codec admits up
-/// to `MAX_CONTENT_IDENTITY_BYTES` each, and an export identity joins three of
-/// them. The whole-description bound already limits every length frame, so an
-/// identity has no smaller bound of its own; a 1 KiB cap rejected real exports
-/// whose producer had published them.
 fn read_identity(reader: &mut Reader<'_>) -> Result<String, DescriptionDecodeRejection> {
     let length = reader.u32()? as usize;
     String::from_utf8(reader.take(length)?.to_vec())
@@ -1244,10 +965,6 @@ fn push_identity(out: &mut Vec<u8>, identity: &str) {
     out.extend_from_slice(identity.as_bytes());
 }
 
-/// Refuse to publish a description its decoder would reject for size.
-///
-/// These are the decoder's own bounds, read from the same constants, so a
-/// producer never writes bytes that `decode_component_description` refuses.
 pub(crate) fn check_publication_bounds(
     description: &ComponentDescription,
     encoded: &[u8],
@@ -1287,11 +1004,6 @@ pub(crate) fn check_publication_bounds(
     Ok(())
 }
 
-/// Encode one description to its canonical wire form.
-///
-/// The encoder emits every roster in sorted order; decoding any other order
-/// is rejected as non-canonical, so the encoding is a bijection between
-/// semantically equal descriptions and their byte form.
 pub fn encode_component_description(description: &ComponentDescription) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend_from_slice(DESCRIPTION_MAGIC);
@@ -1423,16 +1135,12 @@ pub fn encode_component_description(description: &ComponentDescription) -> Vec<u
     out
 }
 
-/// Decode a canonical description, enforcing every bound and roster order.
 pub fn decode_component_description(
     bytes: &[u8],
 ) -> Result<ComponentDescription, DescriptionDecodeRejection> {
     decode_component_description_with_artifact(bytes).map(|(description, _artifact)| description)
 }
 
-/// Decode the description and retain its independently replayed canonical
-/// artifact for verification. This proves canonical encoding only; subject,
-/// proof admission, and inventory checks remain the verifier's responsibility.
 pub fn decode_component_description_with_artifact(
     bytes: &[u8],
 ) -> Result<
@@ -1710,11 +1418,6 @@ pub fn decode_component_description_with_artifact(
     ))
 }
 
-/// Reconstruct the description's semantic subject from the embedded artifact.
-///
-/// The subject is never read from a description field: it is the
-/// `TerminalPsiIdentity` reconstructed from the artifact's own decoded
-/// semantic module, so no producer spelling can rename the component.
 pub fn description_subject(
     description: &ComponentDescription,
 ) -> Result<TerminalPsiIdentity, DescribeError> {
@@ -1729,8 +1432,6 @@ pub fn description_subject(
 mod tests {
     use super::*;
 
-    /// An export identity joins three Terminal identities; the decoder must
-    /// read back any length the encoder writes within the description bound.
     #[test]
     fn identity_longer_than_one_kibibyte_round_trips() {
         let identity = "export:requirement:".to_owned() + &"x".repeat(4096);

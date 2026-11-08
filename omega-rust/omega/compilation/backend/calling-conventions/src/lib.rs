@@ -1,18 +1,35 @@
-//! Calling conventions: value passing, stack realization, and callbacks per host.
-//!
-//! `plans` owns the calling-plan vocabulary the README's contract publishes;
-//! `darwin`, `linux`, and `windows` fix each host's registers, syscall numbers,
-//! and import libraries; `aggregate_layout` decides how aggregates and stack
-//! slots are passed; `callback_materializations` binds native callbacks.
-//! Layout and selection consume these; they never re-derive them.
-//!
-//! Start at `host_operations.rs`: the host operation catalog, its
-//! capabilities and the external binding rows that bind an operation to a
-//! foreign symbol; `plans` owns the calling-plan vocabulary,
-//! `callback_materializations` realizes callbacks,
-//! `boundary_values` classifies public value graphs and checks authored ABI
-//! classes, `aggregate_layout` lays out aggregates, and `hosts` fixes each host's registers, syscall numbers and import
-//! libraries.
+/*
+We normalize target calling conventions, boundary value classification,
+aggregate and Terminal storage layouts, callback materialization plans, and
+host operation bindings into one deterministic backend contract. Our `CallPlan`,
+`StatePlan`, and `BoundaryEntryPlan` vocabulary in `plans` defines how values
+travel across registers, outgoing stack slots, and caller-owned indirect
+copies, while `boundary_values` and `structural_shapes` classify public and
+structural value graphs under Microsoft x64, System V AMD64, AAPCS64, and Linux
+syscall policies.
+*/
+
+/*
+We separate these normalized contracts and source-free value graphs from both
+source-authored policy evaluation and target instruction emission so provider
+realization, foreign admission, and native lowering consume one canonical
+representation without re-running source evaluators or drifting on register
+banks, eightbyte classes, or callback slot identities. Emitted footprint and
+generated-entry evidence remain distinct from boundary contract identity so
+register allocation or code-generation changes revalidate an implementation
+without altering its published requirement commitment.
+*/
+
+/*
+Start in `plans.rs` for the calling-plan, machine-state, and entry-evidence
+contracts, `boundary_values.rs` and `structural_shapes.rs` for recursive ABI
+value classification, and `aggregate_layout.rs` plus `terminal_layout.rs` for
+record and conventional sum storage geometry. Read `boundary_application.rs`
+and `callback_materializations.rs` for native parameter telescopes, callback
+slot commitments, and registrar binder joins, and `host_operations.rs` for our
+host capability and operation catalog, external binding rows, Darwin and
+Windows import library tables, and x86-64 interrupt gate address assembly.
+*/
 
 pub(crate) use optimization_core::codec_bytes;
 pub(crate) use optimization_core::digest_encoder;
@@ -21,9 +38,6 @@ mod boundary_application;
 mod boundary_values;
 mod callback_materializations;
 mod host_operations;
-mod interrupt_gate;
-pub use interrupt_gate::{InterruptGateAddress, interrupt_gate_address};
-mod hosts;
 mod plans;
 mod structural_shapes;
 pub mod terminal_layout;
@@ -53,10 +67,10 @@ pub use callback_materializations::{
     callback_layout_slot_id, callback_nominal_report_fingerprint, callback_plan_laid_layout_id,
     callback_requirement_id, nominal_callback_native_parameter_id,
 };
-pub use host_operations::external_bindings::{ExternalBindingKind, ExternalBindingRow};
-pub use host_operations::{HostCapability, HostOperation};
-pub use hosts::darwin::{DARWIN_LIBOBJC_PATH, darwin_import_library};
-pub use hosts::windows::windows_import_library;
+pub use host_operations::{
+    DARWIN_LIBOBJC_PATH, ExternalBindingKind, ExternalBindingRow, HostCapability, HostOperation,
+    InterruptGateAddress, darwin_import_library, interrupt_gate_address, windows_import_library,
+};
 pub use plans::{
     BoundaryEntryPlan, BoundaryPlanResult, CallPlan, CallSignature, CallingPolicy,
     CallingPolicyRejection, EntryControl, EntryStack, GeneratedEntryControl,

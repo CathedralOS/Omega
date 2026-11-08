@@ -1,25 +1,15 @@
-//! PRV1 (design-ruled 2026-07-17): the typed **ProviderPlan** policy
-//! carrier -- one value per (provider type, service schema, target), unifying
-//! checked `satisfies` closures and irreducible external leaves with the
-//! remaining built-in platform-lowering tables. CONSTRUCTION IS FREE: any code can build a plan; PRV2
-//! validates coverage/signatures/identity, PRV3 admits semantic claims
-//! through the chapter-10 grant/receipt carrier and selects by a
-//! slot-owner capability. PRV4 retired authored `provides`/populate tables:
-//! ordinary target packages now own checked adapters and `via Binding` leaves.
-//! Trust classification is ADMISSION OUTPUT,
-//! never author-selected plan data -- which is why no trust field exists
-//! on these types.
-//!
-//! This file owns the provider plan, its rows and bindings.
-//! `service_schemas.rs` carries service schemas, methods, progress
-//! premises and claims, `evaluated_bindings.rs` evaluated binding usages,
-//! receipts, foreign imports and syscalls, `digest_encoder.rs` the plan
-//! digest encoder and `tests.rs` the plan tests.
+/*
+We define the `ProviderPlan` carrier — one value per `(provider type, service
+schema, target)` — unifying checked `satisfies` closures and irreducible
+external leaves (`ProviderBinding`) with structural schema coverage checks and
+canonical SHA-256 commitments (`ProviderPlanDigest`). Construction is free, and
+no author-selected trust field exists on these types; admission and trust
+classification belong to downstream review receipts.
+*/
 
 mod digest_encoder;
 pub(crate) use digest_encoder::DigestFeed;
 mod evaluated_bindings;
-mod identity_table;
 mod retained_inputs;
 pub use retained_inputs::{ProviderPlanInput, ProviderPlanInputRow};
 mod service_schemas;
@@ -30,7 +20,9 @@ pub use evaluated_bindings::{
     EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport,
     EvaluatedForeignSyscall, EvaluatedNativeBinding, evaluated_syscall_identity_digest,
 };
-pub use identity_table::{ProviderIdentityId, ProviderIdentityTable};
+pub use language_semantics::service_surface::identities::{
+    ProviderIdentityId, ProviderIdentityTable,
+};
 pub use service_schemas::BoundaryCallingPlanCommitment;
 pub use service_schemas::{
     ProviderPlanDigest, ServiceCallingApplication, ServiceCallingPlan, ServiceEntryAuthorityFlow,
@@ -42,141 +34,66 @@ pub use service_schemas::{
 
 use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
 
-/// How one method binds on one target. Instructions are checked `asm` bodies
-/// whose catalog contracts contribute their obligations; they are deliberately
-/// not a second, bodiless provider-binding mechanism.
-///
-/// The string-backed `via ForeignBinding::DllImport("library", "symbol")` bootstrap
-/// has no case here. Raw foreign bytes are data, never Omega symbol names or
-/// ambient lookup authority: an import binds through one evaluated
-/// [`EvaluatedForeignImport`] whose target-normalized locator was produced by
-/// checked Omega code. Versioned encodings that once carried the bootstrap
-/// keep their tag unassigned and reject it on decode instead of
-/// reinterpreting two authored strings as one physical locator.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderBinding {
-    /// One evaluated, target-validated physical foreign locator. Its atomic
-    /// byte coordinates remain sealed together through selection and opaque
-    /// executable accounting.
-    Import { evaluated: EvaluatedForeignImport },
-    /// Direct system call by number.
-    Syscall { number: i64 },
-    /// A compiler-known operation furnished by the selected target package.
-    /// This is the exact normalized realization-machine overload identity;
-    /// target catalog selection is derived separately from the checked
-    /// requirement and selected target.
-    CompilerIntrinsic { machine: String },
-    /// COM/UEFI slot dispatch: callee address read from the receiver.
-    VtableSlot { index: i64 },
-    /// Field-model vtable dispatch: the fn-ptr field of a named table
-    /// struct; the byte offset resolves from the layout plan downstream.
+    Import {
+        evaluated: EvaluatedForeignImport,
+    },
+    Syscall {
+        number: i64,
+    },
+    CompilerIntrinsic {
+        machine: String,
+    },
+    VtableSlot {
+        index: i64,
+    },
     VtableField {
         table: String,
         field: String,
         storage: Result<TableFieldStorage, String>,
     },
-    /// UEFI service-table function (the boot-services shape).
     TableFunction {
         table: String,
         field: String,
         storage: Result<TableFieldStorage, String>,
     },
-    /// An ORDINARY CHECKED MACHINE realizing the requirement (the ruling's
-    /// composite form: lowering sequences and argument adaptation are
-    /// checked Omega code with an explicit satisfies edge, never authored
-    /// rows). Psi conformance checking enforces the adapter as a REFINEMENT:
-    /// its transitive effects must fit inside the satisfied requirement's
-    /// declared ceiling.
     CheckedAdapter {
-        /// Canonical typed machine-overload identity, never a short name,
-        /// interned into the owning [`ProviderPlan::identities`].
         machine_identity: ProviderIdentityId,
-        /// Exact package owning the checked adapter. `None` is retained only
-        /// for toolchain, standalone, and focused source-free programs.
         machine_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     },
 }
 
-/// Checked correspondence for a table-address read, before target layout.
-/// The application names storage, not merely its nominal record declaration;
-/// the field names the exact declaration within that application. Retaining
-/// this use grants neither a readable loan nor foreign execution authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableFieldStorage {
     pub table_application: String,
     pub field_declaration: String,
 }
 
-/// One method's normalized provider binding. Composite argument adaptation is
-/// checked Omega code, so plan rows carry only irreducible leaf mechanisms.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPlanRow {
     pub method: String,
-    /// Exact requirement overload supplied by this row, as an index into the
-    /// owning plan's `identities` table. It is always present; a method
-    /// spelling is display/debug data, not dispatch identity.
     pub requirement_identity: ProviderIdentityId,
-    /// First-occurrence-normalized equality partition for the target trait's
-    /// lifetime application on this exact realization edge. Empty for a
-    /// lifetime-free trait, operator, or top-level requirement.
     pub requirement_lifetime_partition: Vec<u32>,
-    /// Authored same-stack demand of this realization, in bytes. Zero means
-    /// the source wrote no demand; foreign-call admission then keeps the
-    /// historical unmeasured reserve. Checked adapters and toolchain rows
-    /// stay zero because they are not opaque foreign leaves.
     pub admitted_same_stack_bytes: u64,
     pub binding: ProviderBinding,
 }
 
-/// The PRV1 carrier: one provider type's plan for one service schema on one
-/// target. `origin_package_identity` is exact compiler-derived provenance
-/// INPUT to admission (a package can never self-grant); the legacy readable
-/// `origin_package` is display data only. The admission verdict itself lives
-/// in the chapter-10 receipts, never here.
 #[derive(Debug, Clone, Default)]
 pub struct ProviderPlan {
-    /// The plan's own name (`omega::host::standard::console`, the future
-    /// slot-selection key).
     pub name: String,
-    /// The nominal provider type whose explicit conformance closure produced
-    /// this plan. Empty only for a free external leaf; checked adapters belong
-    /// to nominal provider types. Slot overrides select this identity, never
-    /// individual rows.
     pub provider_type: String,
-    /// Complete applied implementation identity in this plan's identity table.
-    /// Zero is a declaration-level provider with no static application.
     pub provider_application: ProviderIdentityId,
-    /// Exact package owning `provider_type`. Free external leaves and
-    /// toolchain/standalone/source-free trees retain `None`; consumers must not
-    /// infer this from `provider_type` or the realizing machine's package.
     pub provider_type_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    /// The target this plan serves (`windows_x86_64`; empty = every target).
     pub target: String,
-    /// The schema served.
     pub schema: ServiceSchema,
-    /// Interned canonical identities this plan's binding fields point into.
-    /// Schema-owned identities intern into `schema.declaration.identities` instead.
     pub identities: ProviderIdentityTable,
-    /// One row per bound method.
     pub rows: Vec<ProviderPlanRow>,
-    /// Exact package that authored the realizing machine(s). `None` means the
-    /// source was not package-owned (for example toolchain or standalone
-    /// source); consumers must not infer ownership from any readable name.
     pub origin_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    /// Legacy readable origin label. This is diagnostic data, not admission
-    /// provenance, and must never repair a missing exact package identity.
     pub origin_package: String,
-    /// The plan's [`Self::identity_digest`], computed on first use and kept.
-    /// Construct with `ProviderPlanDigestMemo::default()`; a plan's fields
-    /// are construction data and are not mutated after its digest is read.
     pub digest_memo: ProviderPlanDigestMemo,
 }
 
-/// Memoized [`ProviderPlan::identity_digest`], [`ProviderPlan::report_fingerprint`],
-/// and [`ProviderPlan::schema_identity_digest`]. It is not part of the plan's
-/// value: equality ignores it, debug output omits its state, and a clone
-/// starts empty, so a clone whose public fields are changed before its first
-/// digest cannot inherit the original's commitment.
 #[derive(Default)]
 pub struct ProviderPlanDigestMemo {
     digest: std::sync::OnceLock<ProviderPlanDigest>,
@@ -223,8 +140,6 @@ fn push_package_identity(
 }
 
 impl PartialEq for ProviderPlan {
-    /// Semantic equality: field values plus the interned text each binding
-    /// resolves, never the process-local mint order that produced the ids.
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
             && self.provider_type == other.provider_type
@@ -247,9 +162,6 @@ impl PartialEq for ProviderPlan {
 impl Eq for ProviderPlan {}
 
 impl ProviderPlanRow {
-    /// Semantic equality given the tables each row's binding identities were
-    /// interned into; `CheckedAdapter` machine identities compare by
-    /// resolved text so mint order never decides equality.
     fn eq_in(
         &self,
         left_table: &ProviderIdentityTable,
@@ -280,17 +192,10 @@ impl ProviderPlanRow {
 }
 
 impl ProviderPlan {
-    /// The canonical identity text one of this plan's interned fields names.
-    /// Projects the empty string for the zero id, matching the empty-field
-    /// rendering the encoder wrote before interning.
     pub fn identity_text(&self, identity: ProviderIdentityId) -> &str {
         self.identities.text(identity)
     }
 
-    /// Domain-separated SHA-256 commitment to the complete normalized plan
-    /// structure. Unlike [`Self::report_fingerprint`], this includes exact
-    /// normalized foreign-locator coordinates and is suitable for retained
-    /// evidence identity. Computed once per plan value.
     pub fn application_identity(&self) -> Option<&str> {
         let identity = self.identity_text(self.provider_application);
         (!identity.is_empty()).then_some(identity)
@@ -317,9 +222,6 @@ impl ProviderPlan {
         )
     }
 
-    /// Exact canonical input to the v6 normalized-plan commitment. Receivers
-    /// recompute the commitment before admitting a historical folded closure.
-    /// Reconstruct from current fields, independently of the digest memo.
     pub fn identity_preimage(&self) -> Vec<u8> {
         self.encode_identity(ProviderPlanDigestEncoder::for_provider_plan_preimage())
             .finish_preimage()
@@ -379,12 +281,6 @@ impl ProviderPlan {
         encoder
     }
 
-    /// Historical FNV-1a report fingerprint over the canonical rendering
-    /// (name, exact package provenance, target, schema surface, and rows in
-    /// method order). Presentation order and whitespace are excluded. This
-    /// compact value supports sorting, diagnostics, and compatibility lookup;
-    /// admission and execution must retain the exact plan and its
-    /// collision-resistant [`Self::identity_digest`].
     pub fn report_fingerprint(&self) -> u64 {
         *self
             .digest_memo
@@ -515,7 +411,7 @@ impl ProviderPlan {
             let mut result_claims = method.result_claims.iter().collect::<Vec<_>>();
             result_claims.sort_by(|left, right| left.domain.cmp(&right.domain));
             for claim in result_claims {
-                rendered.push_str(&format!("\nmrc:{}/{}", claim.domain, claim.effective_carry,));
+                rendered.push_str(&format!("\nmrc:{}/{}", claim.domain, claim.effective_carry));
             }
             for calling in self
                 .schema
@@ -576,15 +472,10 @@ impl ProviderPlan {
         }
         let mut hash = semantic_vocabulary::Fnv1a::new();
         hash.bytes(rendered.as_bytes());
-        // Report coordinates distinguish exact applied receiver rosters too.
-        // This is still a compact coordinate, never an admission identity.
         hash.bytes(self.schema_identity_digest().as_bytes());
         hash.finish()
     }
 
-    /// The deterministic order selection pipelines apply before replaying or
-    /// reporting chosen plans: name, origin package, provider-type package,
-    /// schema trait package, then the report fingerprint.
     pub fn selection_order(&self, other: &ProviderPlan) -> std::cmp::Ordering {
         self.name
             .cmp(&other.name)
@@ -605,9 +496,6 @@ impl ProviderPlan {
             .then_with(|| self.report_fingerprint().cmp(&other.report_fingerprint()))
     }
 
-    /// PRV2: full structural validation against the schema -- every method
-    /// bound exactly once and no stray rows. Returns NAMED errors; empty =
-    /// structurally valid.
     pub fn validate_against_schema(&self) -> Vec<String> {
         let mut errors = self.validate_candidate_against_schema();
         for method in &self.schema.declaration.methods {
@@ -629,11 +517,6 @@ impl ProviderPlan {
         errors
     }
 
-    /// Validate one candidate before coverage/selection. Partial candidates
-    /// are legitimate, but a candidate cannot duplicate a requirement, name a
-    /// callable row outside its schema. This is the additive-only conformance check;
-    /// selection decides whether the surviving candidate covers the complete
-    /// slot.
     pub fn validate_candidate_against_schema(&self) -> Vec<String> {
         let mut errors = Vec::new();
         if let Err(reason) = self.schema.validate_receiver_applications() {
@@ -656,10 +539,6 @@ impl ProviderPlan {
             ));
         }
         for (method_index, method) in self.schema.declaration.methods.iter().enumerate() {
-            // One rendering of the coordinate every diagnostic in this loop
-            // opens with -- plan, boundary-slot identity, method -- so a new
-            // coordinate joins all of them at once instead of at whichever
-            // site happened to be edited.
             let context = || {
                 format!(
                     "plan `{}` schema method `{}::{}`",
@@ -987,9 +866,6 @@ impl ProviderPlan {
                 }
                 ProviderBinding::VtableField { table, field, .. }
                 | ProviderBinding::TableFunction { table, field, .. } => {
-                    // The table is the record the leaf's first parameter
-                    // borrows. A provider holds no state, so neither its name
-                    // nor a data declaration qualifying the leaf supplies it.
                     if table.is_empty() {
                         errors.push(format!(
                             "external leaf for `{}::{}` uses a table field, but its first parameter is not a readable borrow of a data declaration",
@@ -1069,9 +945,6 @@ impl ProviderPlan {
         errors
     }
 
-    /// PRV2 preview (the cheapest structural fact, used by tests today):
-    /// every schema method has exactly one row and every row names a
-    /// schema method.
     pub fn covers_schema(&self) -> bool {
         self.schema.declaration.methods.iter().all(|method| {
             self.rows

@@ -1,0 +1,132 @@
+/*
+We represent the entry, quiescence, and retirement of one component era as
+verifiable receipts and recoverable replay rejection errors rather than mutable
+state transitions.
+*/
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComponentEraEntryReceipt {
+    invocation_identity: u64,
+    binding_contract: String,
+    entry_contract: String,
+    resolved_era_identity: u64,
+    entry_plan: String,
+    entry_linearized: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComponentEraQuiescenceReceipt {
+    era_identity: u64,
+    binding_contract: String,
+    residual_lifetime_cohort_holds: usize,
+    all_dispositions_complete: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComponentEraRetirementReceipt {
+    retirement_identity: u64,
+    era_identity: u64,
+    binding_contract: String,
+    lifetime_cohort_released: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EraEntryRejection {
+    NoPublishedEra,
+    CurrentEraAbsent,
+    ExactLinearizationJoin,
+}
+
+impl EraEntryRejection {
+    pub const fn diagnostic(&self) -> &'static str {
+        match self {
+            Self::NoPublishedEra => "component binding has no published era",
+            Self::CurrentEraAbsent => "current component era is absent from its ledger",
+            Self::ExactLinearizationJoin => {
+                "component entry receipt does not linearize exactly once into the current open era"
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EraQuiescenceRejection {
+    EraNotLive,
+    ClosingCohortJoin,
+}
+
+impl EraQuiescenceRejection {
+    pub const fn diagnostic(&self) -> &'static str {
+        match self {
+            Self::EraNotLive => "component era is not live",
+            Self::ClosingCohortJoin => {
+                "component era quiescence requires closing, zero entries, zero program-local root \
+                 authority holds, and complete cohort disposition"
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EraRetirementRejection {
+    EraNotLive,
+    EpochLeasesLive,
+    QuiescentReleaseJoin,
+    ExecutableTcbRetirement(String),
+}
+
+impl EraRetirementRejection {
+    pub fn diagnostic(&self) -> &str {
+        match self {
+            Self::EraNotLive => "component era is not live",
+            Self::EpochLeasesLive => {
+                "component era retirement rejects while program-local root epoch leases remain live"
+            }
+            Self::QuiescentReleaseJoin => {
+                "component era retirement requires a noncurrent quiescent released cohort and \
+                 fresh receipt"
+            }
+            Self::ExecutableTcbRetirement(diagnostic) => diagnostic.as_str(),
+        }
+    }
+}
+
+macro_rules! recoverable_error {
+    ($name:ident, $value:ident, $type:ty, $rejection:ty) => {
+        #[derive(Debug)]
+        pub struct $name {
+            $value: $type,
+            rejection: $rejection,
+        }
+        impl $name {
+            pub fn rejection(&self) -> $rejection {
+                self.rejection.clone()
+            }
+            pub fn diagnostic(&self) -> &str {
+                self.rejection.diagnostic()
+            }
+            pub fn into_value(self) -> $type {
+                self.$value
+            }
+        }
+    };
+}
+
+recoverable_error!(
+    EraEntryError,
+    receipt,
+    ComponentEraEntryReceipt,
+    EraEntryRejection
+);
+recoverable_error!(
+    EraQuiescenceError,
+    receipt,
+    ComponentEraQuiescenceReceipt,
+    EraQuiescenceRejection
+);
+recoverable_error!(
+    EraRetirementError,
+    receipt,
+    ComponentEraRetirementReceipt,
+    EraRetirementRejection
+);

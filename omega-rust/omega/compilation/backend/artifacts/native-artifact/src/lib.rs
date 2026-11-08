@@ -1,22 +1,31 @@
+/*
+We own the source-free native artifact handoff from canonical Terminal Psi
+through fragment object publication, executable receiver admission, Direct and
+Dynamic-ELF image construction, independent physical evidence derivation, and
+self-verifying executable/package publication receipts. Our carriers (`NativeArtifact`,
+`DynamicElfNativeArtifact`, `NativeComponentProduct`, `PublishedFragmentObject`,
+`TerminalRuntimeProvisions`, and `ExecutablePublicationReceipt`) bind canonical
+Terminal bytes to target objects, executable images, selected provider plans,
+and domain-separated digest commitments.
+*/
+/*
+We exclude source syntax, AST handles, and source-derived provider-plan arenas
+from this crate so artifact validation, physical evidence replay, and
+installation receipt checks operate purely on canonical Terminal bytes and
+target emission outputs. Separating `NativeArtifact` from `DynamicElfNativeArtifact`
+and `PreparedExecutablePublication` from `PreparedDynamicElfPublication` prevents
+dynamically linked ELF bytes or unverified emission parts from impersonating
+self-contained installable native artifacts.
+*/
+/*
+Upstream lowering and emission stages (`terminal_psi_to_abstract_operations`,
+`machine_emission`, `object_file`, and `image_emission`) supply the verified
+Terminal input, staged function fragments, object containers, and final image
+bytes that `admit_executable_entry`, `publish_fragment_object`, and
+`RequestedNativeArtifact::emit` assemble and validate before downstream
+compiler drivers install executables or macOS `.app` bundles.
+*/
 #![forbid(unsafe_code)]
-
-//! Authority-free canonical Terminal-Psi to native artifact handoff.
-//!
-//! This crate deliberately has no dependency on source, syntax, typed,
-//! checked, or source-derived provider-plan carriers.
-//! It owns only canonical Terminal bytes, target artifacts, and the exact
-//! source-free identity projections needed to replay their joins.
-//!
-//! Start at `fragment_object_publication.rs` for fragment emission, entry
-//! binding and object publication evidence,
-//! `entry_receiver.rs` for executable receiver admission before construction,
-//! `native_artifact.rs` for artifact construction and replay,
-//! and its `emission.rs` for requested-image dispatch and complete native custody,
-//! `publication.rs` for executable publication evidence and receipt replay,
-//! `package_publication.rs` for macOS bundle assembly and package receipts,
-//! `callable_entry.rs` for validated callable-entry staging.
-//! A physical firmware entry uses the selected checked source adapter and an
-//! ABI bridge; it never publishes the semantic storage entry as firmware code.
 
 pub(crate) use optimization_core::codec_bytes;
 pub(crate) use optimization_core::digest_encoder;
@@ -69,7 +78,6 @@ pub use publication::{
     executable_installation_evidence_digest,
 };
 
-/// Single-error diagnostic for a failed `context` stage of native artifact work.
 pub(crate) fn native_artifact_error(
     context: &str,
     error: impl std::fmt::Display,

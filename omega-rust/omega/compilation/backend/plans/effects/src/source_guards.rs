@@ -1,18 +1,15 @@
-//! Source guards on provider-plan identity storage. Provider plans and
-//! schemas store program-owned identities once in `ProviderIdentityTable`;
-//! interned rows carry `ProviderIdentityId` handles and render text through
-//! `identities.text(..)` / `identity_text(..)` only at report and codec
-//! boundaries. Neutral declaration storage in Psi follows the same contract.
-//! The forbidden needles are assembled at runtime so this file never contains
-//! them verbatim. The scan itself is shared (`source_audit`); this file owns
-//! only its needles, its roots and its boundary exemptions.
+/*
+We guard provider-plan identity storage so provider plans and service schemas
+store program-owned identities once in `ProviderIdentityTable` and reference
+them via `ProviderIdentityId` or `TerminalIdentityIndex` handles rather than
+raw strings. We assemble forbidden declaration needles at runtime so this test
+file never contains them verbatim.
+*/
 
 use source_audit::{source_lines, violations};
 
-/// The crate whose sources these guards pin.
 const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
-/// The neutral declaration moved to Psi; its storage guards must follow it.
 fn service_surface_owner() -> String {
     std::path::Path::new(CRATE_ROOT)
         .join("../../../../../psi/foundation/language-semantics")
@@ -20,7 +17,6 @@ fn service_surface_owner() -> String {
         .into_owned()
 }
 
-/// The `field: <shape>` declaration needles `field` must never carry.
 fn text_shapes(field: &str) -> Vec<String> {
     [": String", ": Option<String>", ": Vec<String>"]
         .iter()
@@ -28,9 +24,6 @@ fn text_shapes(field: &str) -> Vec<String> {
         .collect()
 }
 
-/// The interned fields must be declared with `ProviderIdentityId` handles;
-/// the guard requires each declaration so a revert to text cannot pass
-/// silently.
 #[test]
 fn interned_fields_hold_provider_identity_ids() {
     let mut missing = Vec::new();
@@ -54,8 +47,6 @@ fn interned_fields_hold_provider_identity_ids() {
     );
 }
 
-/// No provider type may redeclare `trait_name` or `machine_identity` as
-/// text; those names are interned identities.
 #[test]
 fn provider_types_carry_no_text_trait_or_machine_identities() {
     let mut forbidden = text_shapes("trait_name");
@@ -74,9 +65,6 @@ fn provider_types_carry_no_text_trait_or_machine_identities() {
     );
 }
 
-/// `requirement_identity` is interned on `ServiceMethod` and
-/// `ServiceProgressEstablishmentRoute`. Scan their new Psi owner as well as
-/// Omega so moving a declaration cannot make the guard pass vacuously.
 #[test]
 fn service_schemas_carry_no_text_requirement_identities() {
     let mut findings = violations(
@@ -98,18 +86,11 @@ fn service_schemas_carry_no_text_requirement_identities() {
     );
 }
 
-/// Boundary declarations where identity text is legitimate: constructor
-/// parameters interning on arrival and the authored-exclusion `Service`
-/// payload, which carries the selected declaration's hermetic identity as
-/// text until a Terminal module's catalog resolves it.
 const ALLOWED: &[(&str, &str)] = &[(
-    "behavior_exclusions/authored.rs",
+    "provider_evidence/executable_scopes.rs",
     "Service { identity: String, name: String },",
 )];
 
-/// Stored `*identity`/`identities` declarations carry interned
-/// `TerminalIdentityIndex` handles; text identity survives only on the
-/// boundary declarations pinned in `ALLOWED`.
 #[test]
 fn crate_carries_no_string_identity_fields() {
     let forbidden = [

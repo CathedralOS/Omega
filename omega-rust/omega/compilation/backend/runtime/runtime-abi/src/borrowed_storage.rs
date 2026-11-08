@@ -1,10 +1,13 @@
-//! Retained native placement of scalar leaves, sum tags and opaque regions.
-//! Target lowering produces these coordinates with its ordinary storage
-//! geometry. A host adapter may encode captured semantic fields with them;
-//! neither the layout nor an offset establishes a loan or permits replacement.
-//! Gaps are deliberately visible: a semantic field snapshot cannot invent the
-//! contents of native padding, pointers or other unmodeled storage. Case paths
-//! select payload namespaces; native ordinal mappings never become Psi case IDs.
+/*
+We retain the native placement of scalar leaves, sum discriminators, and opaque
+regions inside borrowed structural storage (`NativeBorrowedStorageLayout`).
+
+Target lowering populates these coordinates from its ordinary storage geometry
+so host adapters can encode and decode captured semantic fields. Neither the
+layout nor a byte offset establishes a loan or permits replacement of unmodeled
+storage: padding, pointers, and inactive sum cases stay in `opaque_regions` so
+a semantic field snapshot never overwrites them.
+*/
 
 use arena::{Arena, HandleSpan};
 use semantic_vocabulary::{
@@ -41,17 +44,13 @@ impl Default for NativeStoragePathStep {
     }
 }
 
-/// A fixed-array dimension stays a recipe, not one compiler row per element.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct NativeStorageRepetition {
-    pub path_position: usize,
+    pub path_position: usize, // Fixed-array dimension position in the structural path.
     pub length: u64,
     pub byte_stride: u32,
 }
 
-/// Native storage whose contents are not represented by scalar or tag recipes.
-/// A matching semantic leaf keeps its custody; these bytes cannot be decoded
-/// as a replacement merely because another case overlays scalar storage here.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct NativeBorrowedStorageOpaqueRegion {
     path: HandleSpan<NativeStoragePathStep>,
@@ -60,15 +59,12 @@ pub struct NativeBorrowedStorageOpaqueRegion {
     pub byte_size: u32,
 }
 
-/// Nominal case identity and its signed 32-bit conventional native tag.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeStorageCaseTag {
     pub case: StructuralCaseId,
     pub native_tag: i32,
 }
 
-/// Placement of one sum's discriminator below the borrowed storage root.
-/// The path selects the sum itself, including any enclosing payload cases.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBorrowedStorageDiscriminator {
     path: HandleSpan<NativeStoragePathStep>,
@@ -78,8 +74,6 @@ pub struct NativeBorrowedStorageDiscriminator {
     pub byte_offset: u32,
 }
 
-// Arena vacancy is distinct from any semantic identity. The slots supply the
-// arena's default without manufacturing a case or type for an empty row.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 struct NativeStorageDiscriminatorSlot(Option<NativeBorrowedStorageDiscriminator>);
 
@@ -103,7 +97,6 @@ pub struct NativeBorrowedStorageLayout {
 }
 
 impl NativeBorrowedStorageLayout {
-    /// Consume the lowering owner's construction scratch, not source syntax.
     pub fn new(
         structural_type: StructuralTypeId,
         byte_size: u32,
@@ -218,8 +211,6 @@ impl NativeBorrowedStorageLayout {
         self.repetitions.span_or_empty(field.repetitions)
     }
 
-    /// Recipes for every sum occurrence, including sums inside inactive cases.
-    /// The semantic snapshot selects which case-qualified recipes are active.
     pub fn discriminators(&self) -> impl Iterator<Item = &NativeBorrowedStorageDiscriminator> {
         self.discriminator_storage
             .span_or_empty(self.discriminators)
@@ -227,7 +218,6 @@ impl NativeBorrowedStorageLayout {
             .filter_map(|slot| slot.0.as_ref())
     }
 
-    /// Nominal declaration path to the sum, before any array repetition is expanded.
     pub fn discriminator_path(
         &self,
         discriminator: &NativeBorrowedStorageDiscriminator,
@@ -238,7 +228,6 @@ impl NativeBorrowedStorageLayout {
             .map(|step| step.0)
     }
 
-    /// Fixed-array dimensions shared by this discriminator's storage occurrences.
     pub fn discriminator_repetitions(
         &self,
         discriminator: &NativeBorrowedStorageDiscriminator,
@@ -246,7 +235,6 @@ impl NativeBorrowedStorageLayout {
         self.repetitions.span_or_empty(discriminator.repetitions)
     }
 
-    /// Exact nominal case to native ordinal mapping supplied by target lowering.
     pub fn discriminator_cases(
         &self,
         discriminator: &NativeBorrowedStorageDiscriminator,

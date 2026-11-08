@@ -1,4 +1,13 @@
-//! Canonical serialization of the artifact's exact identity inputs.
+/*
+We serialize the complete identity preimage (`derive_native_artifact_identity`)
+and foreign-call custody digest (`foreign_call_custody_digest`) for native
+artifacts. We bind the canonical Terminal artifact identity, physical entry
+requirements, installation assumptions, target wire identity, object/image text
+and container bytes, compiler validation digests, selected provider plans,
+provider execution reports, authority policy commitments, D29 boundary coverage,
+and D32 physical evidence (or its blocking gap) into one collision-resistant
+digest.
+*/
 
 use super::{
     NativeArtifactIdentity, NativePhysicalEvidenceScope, NativeProviderExecution,
@@ -8,8 +17,6 @@ use crate::digest_encoder::DomainDigestEncoder;
 use crate::physical::{canonical_usize, hash_bytes, hash_call_site_owner};
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 
-// v15 distinguishes checked private-image stack provision from incoming
-// stack accesses; the receiver still admits the exact mapped invocation.
 const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v15\0";
 
 pub(super) struct NativeArtifactIdentityFields<'a> {
@@ -44,16 +51,9 @@ pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) boundary_application_coverage_identity: Option<[u8; 32]>,
     pub(super) physical_evidence_scope: &'a NativePhysicalEvidenceScope,
     pub(super) physical_evidence_identity: Option<[u8; 32]>,
-    /// Identity of the derivation-owned gap that names where scoped evidence
-    /// stopped; `None` when evidence is complete or the scope admits no
-    /// derivation. A gap and complete evidence never coexist, but the lanes
-    /// stay distinct in the preimage rather than sharing one digest slot.
     pub(super) physical_evidence_gap_identity: Option<[u8; 32]>,
 }
 
-/// The compiler-attached evidence digests the artifact identity carries as
-/// optional custody anchors: present only when the emitted image retained that
-/// validation evidence, so both artifact flavors hash the same absence.
 pub(super) fn compiler_identity_evidence(
     output: &image::EmittedImageOutput,
 ) -> (
@@ -105,20 +105,30 @@ pub(super) fn derive_native_artifact_identity(
         digest.raw(&row.entry().get().to_le_bytes());
         digest.raw(&row.installation().get().to_le_bytes());
         match row {
-            installation_evidence::InstallationEnvironmentAssumption::Bootstrap(row) => match row.interval {
-                installation_evidence::BootstrapAssumptionInterval::EntryUntilInstallationPublished => digest.byte(0),
-            },
+            installation_evidence::InstallationEnvironmentAssumption::Bootstrap(row) => {
+                match row.interval {
+                    installation_evidence::BootstrapAssumptionInterval::EntryUntilInstallationPublished => {
+                        digest.byte(0);
+                    }
+                }
+            }
             installation_evidence::InstallationEnvironmentAssumption::InterruptDelivery(row) => {
-                match row.interval { installation_evidence::InterruptDeliveryInterval::InstalledScopeLifetime => digest.byte(0) }
-                match row.delivery { installation_evidence::X86InterruptDeliveryProfile::ArchitecturalExceptionsAndExternalIrqs => digest.byte(0) }
+                match row.interval {
+                    installation_evidence::InterruptDeliveryInterval::InstalledScopeLifetime => {
+                        digest.byte(0);
+                    }
+                }
+                match row.delivery {
+                    installation_evidence::X86InterruptDeliveryProfile::ArchitecturalExceptionsAndExternalIrqs => {
+                        digest.byte(0);
+                    }
+                }
             }
         }
         digest.raw(row.environment_description_sha256());
         hash_bytes(&mut digest, row.source_provenance().as_bytes());
         hash_bytes(&mut digest, row.caller_provenance().as_bytes());
     }
-    // The target's canonical wire identity: architecture, object format,
-    // pointer size and alignment, stated once by the target owner.
     digest.raw(&fields.target.wire_identity_bytes());
     hash_bytes(&mut digest, fields.object_text_bytes);
     hash_bytes(&mut digest, fields.image_bytes);
@@ -132,8 +142,6 @@ pub(super) fn derive_native_artifact_identity(
     }
     hash_bytes(&mut digest, fields.output_file_name.as_bytes());
     hash_bytes(&mut digest, fields.output_format.as_bytes());
-    // `EmittedImageOutput` currently has one closed output kind. Retaining a
-    // tag here makes extending that vocabulary an explicit identity change.
     digest.raw(&[1]);
     for count in fields.output_counts {
         digest.raw(&canonical_usize(count));
@@ -208,8 +216,6 @@ pub(super) fn derive_native_artifact_identity(
             .to_le_bytes(),
     );
     digest.raw(&fields.terminal_authority_policy_identity.commitment());
-    // A missing receiver-admission axis is a distinct identity input, never an
-    // alias for an empty or populated permission policy.
     match fields.terminal_authority_permission_policy_identity {
         None => digest.raw(&[0]),
         Some(permission_policy_identity) => {
@@ -241,8 +247,6 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
         hash_call_site_owner(&mut digest, &call.owner);
         digest.raw(&canonical_usize(call.text_offset));
         digest.raw(&call.caller_live_bytes.to_le_bytes());
-        // MXCSR/FPCR preservation around the call: one saved slot plus the
-        // exact save and restore intervals per target lane.
         for control in [call.x86_floating_control, call.aarch64_floating_control] {
             hash_floating_control(&mut digest, control);
         }
@@ -310,9 +314,6 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
     digest.finish()
 }
 
-/// The interned text one identity index names, committed as the exact
-/// length-prefixed field the plan encoder wrote; the zero coordinate renders
-/// empty, which is the preimage every family-row identity fold requires.
 fn hash_identity_text(
     digest: &mut DomainDigestEncoder,
     identities: &terminal_psi::TerminalIdentityTable,
@@ -370,8 +371,6 @@ fn hash_optional_digest_and_report(
     }
 }
 
-/// The rule is address-independent. The enclosing native identity commits the
-/// emitted image and its layout; a receiver binds its relocated occurrence.
 fn hash_physical_entry_requirements(
     digest: &mut DomainDigestEncoder,
     requirement: Option<&image_emission::PhysicalEntryRequirements>,
@@ -381,9 +380,6 @@ fn hash_physical_entry_requirements(
         return;
     };
     digest.byte(1);
-    // Closed semantics: mapped code/data plus retained RW backing throughout
-    // the physical invocation and its installed Scopes. This is a requirement,
-    // never a caller-supplied assertion that a runtime mapping exists.
     digest.byte(0);
     digest.raw(&row.psi().vocabulary_marker.get().to_le_bytes());
     digest.raw(row.psi().program_fingerprint.as_bytes());

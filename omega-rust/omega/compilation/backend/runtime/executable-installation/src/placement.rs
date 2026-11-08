@@ -1,20 +1,35 @@
-//! Code placement claims, materialization receipts, frozen placements and
-//! final validation certificates.
-//!
-//! `materializer.rs` resolves one admitted artifact at one claimed placement
-//! into the inert `MaterializedArtifactBytes` the freeze transition binds.
-
-pub(crate) mod materializer;
+/*
+We define the linear placement states (`CodePlacement`, `FrozenPlacement`,
+`ValidatedPlacement`), materialized artifact bytes (`MaterializedArtifactBytes`),
+and provider-side placement evidence (`ValidatedPlacementEvidence`) that carry
+an admitted artifact from a writable W+NX destination to a frozen R+NX
+placement ready for installation.
+*/
 
 use crate::artifacts::{AdmittedArtifact, Artifact, InstallationAudience};
 use crate::authority_digests::{
-    AdmissionReceiptId, CodePlacementId, FinalValidationId, InstallationScopeId, MachineFootprintId,
+    AccessPlanId, AdmissionReceiptId, CodePlacementId, FinalBytesDigest, FinalValidationId,
+    InstallationScopeId, MachineFootprintId,
 };
-use crate::placement::materializer::MaterializedArtifactBytes;
 use extents::{AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights};
 use layout_plans::PlacementConstraints;
 
-/// One-shot authority over an exact W+NX destination.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MaterializedArtifactBytes {
+    admission: AdmittedArtifact,
+    placement: CodePlacementEvidence,
+    access_plan: AccessPlanId,
+    base_address: u64,
+    bytes: Vec<u8>,
+    final_bytes: FinalBytesDigest,
+}
+
+impl MaterializedArtifactBytes {
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CodePlacementExtentEvidence {
     base: u64,
@@ -26,14 +41,13 @@ struct CodePlacementExtentEvidence {
     lineage: extents::ExtentLineageId,
 }
 
-/// Linear W+NX placement state. It carries no executable permission.
 #[derive(Debug)]
 pub(crate) struct CodePlacement {
     pub(crate) placement: CodePlacementId,
     pub(crate) scope: InstallationScopeId,
     audience: InstallationAudience,
     pub(crate) constraints: PlacementConstraints,
-    pub(crate) extent: Extent,
+    pub(crate) extent: Extent, // Linear W+NX placement extent carrying no executable permission.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,7 +59,6 @@ pub(crate) struct CodePlacementEvidence {
     extent: CodePlacementExtentEvidence,
 }
 
-/// Linear R+NX placement whose exact bytes can no longer change.
 #[derive(Debug)]
 pub(crate) struct FrozenPlacement {
     pub(crate) artifact: AdmittedArtifact,
@@ -54,16 +67,12 @@ pub(crate) struct FrozenPlacement {
     pub(crate) realized_footprint: MachineFootprintId,
 }
 
-/// Linear R+NX placement bound to checked final bytes and footprint.
 #[derive(Debug)]
 pub struct ValidatedPlacement {
     pub(crate) frozen: FrozenPlacement,
     pub(crate) validation: FinalValidationId,
 }
 
-/// Exact provider-side evidence for one validated placement. Normalized IDs
-/// remain report keys; authorization compares the canonical artifact, frozen
-/// bytes, placement geometry, authority lineage, and validation result.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ValidatedPlacementEvidence {
     pub(crate) admission_evidence: AdmittedArtifact,

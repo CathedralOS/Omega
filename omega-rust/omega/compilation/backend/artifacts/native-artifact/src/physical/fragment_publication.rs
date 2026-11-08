@@ -1,4 +1,9 @@
-//! Exact publication custody over the shared, independently validated object route.
+/*
+We bind fragment-published object custody to a validated optimized physical
+evidence scope, retaining the relocation-free object plan, placed text section,
+and selected instruction plan so physical derivation can rejoin unresolved
+import fields and instruction spans directly.
+*/
 
 use std::sync::Arc;
 
@@ -6,27 +11,13 @@ use image_emission::ObjectArtifact;
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 
 use super::ValidatedOptimizedNativePhysicalEvidenceScope;
-/// Immutable admitted object evidence. Equality deliberately covers the complete
-/// object, including metadata not used by the current physical-child projection.
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct FragmentPublicationBinding {
     object: Arc<ObjectArtifact>,
-    /// Independent projection of the foreign-call roster already published in
-    /// the object and used for stack sizing and image emission.
     foreign_call_custody: Vec<image_emission::ObjectForeignCall>,
-    /// The relocation-free object plan the custody rows were projected from.
-    /// Its identity is already bound by the container custody digested into
-    /// this binding's identity; retaining the plan lets physical derivation
-    /// rejoin the unresolved import field and declared import symbol the
-    /// object route would have proven through relocation records.
     relocation_free_object: Arc<object_file::RelocationFreeObjectPlan>,
-    /// The placed text section the projected custody rows' byte intervals
-    /// name; retaining it lets physical derivation rejoin each scalar-argument
-    /// span to the placed instruction evidence it was derived from.
     text_section: Arc<machine_code::RelocationFreeTextSectionPlacement>,
-    /// The selected plan the custody replayed. Its roster rows still carry
-    /// the call-site custody the projected rows deliberately leave in roster
-    /// form — the scalar result-home requirement and the evaluated binding.
     selected: Arc<selected_instructions::SelectedInstructionPlan>,
     identity: [u8; 32],
 }
@@ -81,8 +72,6 @@ pub(crate) fn derive_scope(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     object: &ObjectArtifact,
 ) -> Result<ValidatedOptimizedNativePhysicalEvidenceScope, &'static str> {
-    // `object` was projected from `source` in this compile; the projection is
-    // not replayed here (verification placement in `omega-rust/pipeline.md`).
     let foreign_call_custody = image_emission::derive_normalized_foreign_call_custody(source)
         .map_err(|_| "fragment publication foreign call custody failed source replay")?;
     let relocation_free_object = source.shared_object();
@@ -126,9 +115,6 @@ pub(crate) fn derive_scope(
     digest.raw(&source.custody().source_text_section_manifest().bytes());
     digest.raw(&source.custody().object().bytes());
     digest.raw(&source.custody().object_container().bytes());
-    // Independent projection is a deterministic function of this exact source
-    // custody. Its role domain binds that interpretation; retained full-object
-    // equality below checks all derived fields without a parallel serializer.
     let publication = FragmentPublicationBinding {
         object: Arc::new(object.clone()),
         foreign_call_custody,
@@ -149,7 +135,6 @@ pub(crate) fn derive_scope(
     ))
 }
 
-// Tests exercise this retained-but-unwired path, so it is dead only outside them.
 #[cfg_attr(
     not(test),
     expect(
@@ -170,4 +155,32 @@ fn validate_final_plan(
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::validate_final_plan;
+
+    #[test]
+    fn construction_rejects_detached_final_plan_and_object_terminal() {
+        let psi = terminal_psi::TerminalPsiIdentity {
+            vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+            program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([17; 32]),
+        };
+        let retained = abstract_operations::AbstractOperationPlan {
+            psi,
+            entry: semantic_vocabulary::MachineId::new(1).unwrap(),
+            identities: Default::default(),
+            structural_types: Vec::new().into(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            dynamic_dispatch: Default::default(),
+            functions: Vec::new(),
+        };
+        assert!(validate_final_plan(&retained, &retained, psi, psi).is_ok());
+        let mut changed = retained.clone();
+        changed.entry = semantic_vocabulary::MachineId::new(2).unwrap();
+        assert!(validate_final_plan(&changed, &retained, psi, psi).is_err());
+        let mut changed_terminal = psi;
+        changed_terminal.program_fingerprint =
+            terminal_psi::SemanticFingerprint::from_bytes([18; 32]);
+        assert!(validate_final_plan(&retained, &retained, psi, changed_terminal).is_err());
+    }
+}

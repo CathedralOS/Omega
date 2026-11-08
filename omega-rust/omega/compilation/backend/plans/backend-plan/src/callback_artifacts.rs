@@ -1,26 +1,82 @@
-//! Produced callback bodies and their portable declaration joins.
-//!
-//! The compiler supplies produced Terminal bodies and checked placements. This
-//! owner checks their artifact, registrar-operation and declaration joins;
-//! native admission then borrows only executable and ABI evidence. These checks
-//! do not replace callback interface admission or final object/image replay.
+/*
+We pair produced Terminal callback thunk bodies with their checked placements,
+portable registrar applications, and target-owned ABI recipes. We validate
+that every occurrence selects the declared callback in its caller's canonical
+Terminal program before native admission borrows executable and ABI evidence.
+*/
 
-/// Callback selection in the shared canonical program. Its entry retains the
-/// declaration chosen by Psi; native preparation joins that identity to the
-/// caller's portable demand.
+use calling_conventions::{
+    BoundaryEntryPlan, CallbackMaterializationContext, CallbackRequirementId,
+    NativeParameterApplication, NativePlace, StaticMachineBinderId,
+};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeCallbackPlacement {
+    pub application_index: u32,
+    pub static_machine_ordinal: u32,
+    pub canonical_requirement_overload: String,
+    pub contract_commitment: [u8; 32],
+    pub boundary_entry_plan: BoundaryEntryPlan,
+    pub entry_parameters: Vec<NativeCallbackEntryParameter>, // Ordered nominal native rows of the callback's inbound requirement.
+    pub private_materialization: Option<BoundCallbackPrivateMaterialization>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeCallbackEntryParameter {
+    pub application: NativeParameterApplication,
+    pub origin: calling_conventions::BoundaryNativeParameterOrigin,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PrivateCallbackDestinationApplication {
+    Direct {
+        application: NativeParameterApplication,
+    },
+    Field {
+        root: NativeParameterApplication,
+        placements: calling_conventions::PrivateCallbackPlacements,
+    },
+}
+
+impl PrivateCallbackDestinationApplication {
+    pub fn application(&self) -> &NativeParameterApplication {
+        match self {
+            Self::Direct { application } => application,
+            Self::Field { root, .. } => root,
+        }
+    }
+
+    pub fn placements(&self) -> Option<&calling_conventions::PrivateCallbackPlacements> {
+        match self {
+            Self::Direct { .. } => None,
+            Self::Field { placements, .. } => Some(placements),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundCallbackPrivateMaterialization {
+    pub registrar_invokes_callback: bool, // False denotes no same-stack edge during registration.
+    pub binder: StaticMachineBinderId,
+    pub destination: NativePlace,
+    pub requirement: CallbackRequirementId,
+    pub registrar_boundary_entry_plan: BoundaryEntryPlan,
+    pub registrar_calling_plan_report_fingerprint: u64,
+    pub registrar_application_report_fingerprint: u64,
+    pub registrar_application_commitment: [u8; 32],
+    pub registrar_application: calling_conventions::BoundaryCallingApplication,
+    pub destination_application: PrivateCallbackDestinationApplication,
+    pub context: CallbackMaterializationContext,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalCallbackThunkArtifact {
     artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     entry: semantic_vocabulary::MachineId,
-    /// Dense semantic formal ordinals in the body's scalar-then-structural
-    /// parameter order. Derived from the canonical body's retained runtime
-    /// order, never inferred from equal native shapes or checked source.
-    parameter_formals: Vec<u32>,
+    parameter_formals: Vec<u32>, // Dense semantic formal ordinals in runtime parameter order.
 }
 
 impl TerminalCallbackThunkArtifact {
-    /// Join the retained callback occurrence to its unique canonical body.
-    /// Formal ordering is part of that body, never a source-side sidecar.
     pub fn for_application(
         artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
         application_index: u32,
@@ -66,15 +122,6 @@ impl TerminalCallbackThunkArtifact {
     }
 }
 
-/// Exact join from one retained callback placement to the canonical Terminal
-/// boundary-call operation produced from its authored registrar occurrence.
-/// The thunk retains its portable declaration identity. Native
-/// admission projects the executable, ABI inputs and private function identity,
-/// without a source-side receipt.
-///
-/// `placement_index` reaches the retained placement that owns the registrar
-/// plan and the private destination application; this join does not re-carry
-/// that application as an independent copy.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalCallbackOccurrenceProposal {
     placement_index: usize,
@@ -136,12 +183,6 @@ impl TerminalCallbackOccurrenceProposal {
     }
 }
 
-/// Borrowed canonical program, selected body and placement for one compiler-private
-/// callback thunk. The ordinary callback-argument carrier remains separate so
-/// target lowering cannot confuse executable body custody with a semantic
-/// registrar argument.
-///
-/// Native identity is scoped to the caller's canonical Terminal program.
 #[derive(Debug, Clone, Copy)]
 pub struct NativeCallbackThunkSettlement<'artifact> {
     pub terminal_operation: semantic_vocabulary::OperationId,
@@ -154,12 +195,6 @@ pub struct NativeCallbackThunkSettlement<'artifact> {
     pub entry_parameters: &'artifact [crate::NativeCallbackEntryParameter],
 }
 
-/// Close produced callback bodies against the caller's portable demands.
-/// The proposal producer performs this join once before retaining native inputs.
-///
-/// This is the body/placement projection, not complete callback admission.
-/// Callers separately validate occurrence coverage, registrar destinations,
-/// the thunk's native interface, and the canonical program and proof.
 pub fn validate_callback_thunk_joins(
     caller: terminal_codec::TerminalArtifactView<'_>,
     occurrences: &[TerminalCallbackOccurrenceProposal],
@@ -182,8 +217,6 @@ pub fn validate_callback_thunk_joins(
             caller.identity(),
             occurrence.placement_index(),
         );
-        // The selected body must be the declared callback, not merely a
-        // signature-compatible sibling in the shared program.
         if !declaration.same_identity_as(&body.identities, &application.body, &module.identities)
             || application.registrar != occurrence.terminal_operation()
             || expected_function != Some(occurrence.callback_thunk_identity())
@@ -196,8 +229,6 @@ pub fn validate_callback_thunk_joins(
     Ok(())
 }
 
-/// Borrow complete producer-owned bodies and ABI plans in occurrence order.
-/// Re-entry does not repeat the producer's declaration and registrar joins.
 pub fn native_callback_thunks(
     occurrences: &[TerminalCallbackOccurrenceProposal],
 ) -> Vec<NativeCallbackThunkSettlement<'_>> {

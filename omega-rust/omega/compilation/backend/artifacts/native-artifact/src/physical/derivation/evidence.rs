@@ -1,5 +1,9 @@
-//! Deriving the physical evidence of one artifact: walking its children,
-//! validating their coordinates, and the identities the evidence carries.
+/*
+We drive artifact-wide physical evidence derivation across surviving boundary
+and operator occurrences, checking that every retained privileged port effect is
+consumed by a settlement and that the derived physical children form an exact
+bijection with the surviving occurrence roster.
+*/
 
 use crate::NativeByteSpan;
 use crate::NativeOptimizationProjection;
@@ -47,15 +51,9 @@ use target_operations::CallSiteOwner;
 use terminal_psi::OperationKind;
 use terminal_psi::Terminator;
 
-/// How one scoped physical-evidence derivation finished. `Blocked` names the
-/// first subject the derivation could not bind, so an artifact without
-/// complete evidence never fails silently.
 pub(crate) enum NativePhysicalEvidenceDerivation {
-    /// The artifact's scope admits no physical-evidence derivation at all.
     Unavailable,
-    /// Every surviving occurrence bound exactly one physical child.
     Complete(NativePhysicalEvidence),
-    /// Derivation stopped at the first subject it could not bind.
     Blocked(NativePhysicalEvidenceGap),
 }
 
@@ -140,8 +138,6 @@ pub(crate) fn derive_physical_evidence(
         return Err("native physical evidence found a stale boundary settlement");
     }
 
-    // Fragment publication independently reconstructs the object's foreign
-    // calls. This is evidence for the same roster, not additional calls.
     let fragment_publication = match scope {
         NativePhysicalEvidenceScope::ValidatedOptimizedProjection(optimized) => {
             optimized.fragment_publication()
@@ -233,8 +229,6 @@ pub(crate) fn derive_physical_evidence(
             .get(&occurrence.boundary())
             .copied()
             .ok_or("native physical evidence names an absent boundary requirement")?;
-        // A family is selected by its exact deployment row, not by a provider
-        // plan. Its unchanged boundary occurrence still owns this emitted call.
         let family = module.target_machine_families.iter().any(|family| {
             family.canonical == terminal_psi::TargetMachineCallable::Boundary(occurrence.boundary())
                 && !family
@@ -344,10 +338,6 @@ pub(crate) fn derive_physical_evidence(
                 children.push(child);
             }
             (None, None) => {
-                // An installed provider realized inside this same artifact
-                // retains neither a settlement nor a normalized foreign call:
-                // it emitted an ordinary resolved internal call, and that
-                // retained custody binds the occurrence here.
                 if let Some(child) = derive_boundary_internal_call_child(
                     module,
                     terminal_artifact.manifest().semantic(),
@@ -374,10 +364,6 @@ pub(crate) fn derive_physical_evidence(
             }
         }
     }
-    // Every retained privileged port effect must have been consumed by an
-    // exact `MetadataOnlyPort` settlement join above. An unowned privileged
-    // effect cannot be attributed to a surviving occurrence, so the artifact
-    // remains valid without claiming complete physical coverage.
     if consumed_port_effects.len() != object.port_effects().len() {
         let Some(effect) = object
             .port_effects()
@@ -430,9 +416,6 @@ pub(crate) fn derive_physical_evidence(
                 if optimized.fragment_publication().is_some()),
         )?
         else {
-            // Unsupported compiler-intrinsic or call mechanics leave the
-            // artifact valid, but the gap names the exact surviving
-            // occurrence the span derivation declined.
             return Ok(blocked(
                 NativePhysicalEvidenceGapSubject::UnsupportedOperatorSpan {
                     occurrence: *occurrence,
@@ -638,12 +621,12 @@ fn derive_identity_projection(
         return Err("native optimization projection cannot rejoin every D29 operation");
     }
     let mut canonical = terminal_identity_bytes(terminal);
-    canonical.push(1); // D29 operator-application occurrences.
+    canonical.push(1);
     canonical.extend_from_slice(&canonical_usize(operator_occurrences.len()));
     for occurrence in &operator_occurrences {
         canonical.extend_from_slice(&occurrence.identity().bytes());
     }
-    canonical.push(2); // D41 ordinary boundary-trait occurrences.
+    canonical.push(2);
     canonical.extend_from_slice(&canonical_usize(boundary_occurrences.len()));
     for occurrence in &boundary_occurrences {
         canonical.extend_from_slice(&occurrence.identity().bytes());
@@ -817,9 +800,6 @@ pub(crate) fn ranges_overlap(
     left_start < right_end && right_start < left_end
 }
 
-/// Whether a text-section relocation covers any byte of `[start, end)`: a
-/// direct-instruction child owns exactly the bytes it emitted, so an overlap
-/// means the retained bytes are not that instruction's own.
 pub(crate) fn text_relocation_overlaps(
     object: &image_emission::ObjectArtifact,
     (start, end): (usize, usize),
@@ -835,9 +815,6 @@ pub(crate) fn text_relocation_overlaps(
     })
 }
 
-/// Each child retains a canonical covered union in each coordinate domain.
-/// Its intervals have equal lengths across custody boundaries; no hull is
-/// permitted to claim compiler-only bytes between authored intervals.
 fn validate_physical_child_spans(child: &NativePhysicalChild) -> Result<(), &'static str> {
     let domains = [
         child.machine_spans(),
@@ -878,9 +855,6 @@ fn validate_physical_child_spans(child: &NativePhysicalChild) -> Result<(), &'st
     Ok(())
 }
 
-/// The shared boundary-child tail both provider derivations close with:
-/// per-layer byte digests, the child identity, and the parts record. The
-/// call sites differ only in the relocation disposition they mint.
 pub(crate) fn boundary_physical_child_parts(
     parent: PhysicalChildParent,
     projection: NativeOptimizationProjectionIdentity,
