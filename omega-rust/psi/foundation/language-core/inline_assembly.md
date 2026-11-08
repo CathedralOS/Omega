@@ -1,7 +1,7 @@
 # Checked instruction catalog
 
 [Assembly](../../../../wiki/spec/language/assembly.md) owns the language contract.
-[inline_assembly.rs](src/inline_assembly/mod.rs) is the closed shared source catalog:
+[inline_assembly.rs](src/inline_assembly.rs) is the closed shared source catalog:
 instruction shape, availability, target, authority, ordered operand constraints,
 ordering, flag data flow and realized clobbers. A catalog row is not proof that
 every source-to-native consumer realizes it.

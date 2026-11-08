@@ -148,8 +148,8 @@
 2 omega-rust/psi/compilation/validation/src/value_custody/type_references/open_index_expressions.rs
 4 omega-rust/psi/compilation/validation/terminal-installation/src/provider_installation.rs
 2 omega-rust/psi/compilation/validation/terminal-installation/src/synchronous_calls.rs
-2 omega-rust/psi/foundation/semantic-vocabulary/src/proposition/propositions.rs
-2 omega-rust/psi/foundation/semantic-vocabulary/src/storage/content.rs
+2 omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs
+2 omega-rust/psi/foundation/semantic-vocabulary/src/storage.rs
 1 omega-rust/psi/foundation/symbols/src/fast_map.rs
 1 omega-rust/psi/interpreter/terminal-interpreter/src/boundary_effects.rs
 4 omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs

@@ -1,14 +1,10 @@
-//! Application scope of conditional proof requirements, independent of source.
-//!
-//! Checking freezes declaration relationships; product selection narrows seed
-//! eligibility without discarding those descriptions. Call and static-binding
-//! facts remain owned by the producing graph. Provider candidates discover possible
-//! work only; actual membership consumes the caller's settled provider edges.
+/*
+We validate and canonicalize proof applications, checking formal-to-actual
+argument bindings, scope isolation, and premise satisfaction across mathematical
+and scalar proof terms.
+*/
 
 use arena::{Arena, HandleSpan};
-
-#[cfg(test)]
-mod tests;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofApplicationMachine<Declaration: 'static> {
@@ -31,10 +27,8 @@ pub struct ProofApplicationTargetMember<Declaration> {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofDeclarationDependencies<Declaration: 'static> {
-    /// Several retained application payloads may contribute to the same owner.
     pub declaration: Declaration,
     pub dependencies: HandleSpan<Declaration>,
-    /// Trait formation includes its exact own/refining signature declarations.
     pub signatures: HandleSpan<Declaration>,
 }
 
@@ -52,22 +46,17 @@ pub struct ProofApplicationPlan<Declaration: 'static> {
 }
 
 impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaration> {
-    /// Narrow the selected-product view; retained metadata is not a seed.
     pub fn retain_product_machines(&mut self, mut selected: impl FnMut(Declaration) -> bool) {
         self.machines.for_each_mut(|_, machine| {
             machine.product_selected &= selected(machine.machine);
         });
     }
 
-    /// Project one retained callable onto its explicit target member. This
-    /// describes membership only; no execution or checking authority is added.
     pub fn callable_for_target(&self, symbol: Declaration, target: &str) -> Option<Declaration> {
         self.target_machine(self.called_machine(symbol)?, target)
             .map(|row| row.machine)
     }
 
-    /// Describe authored target membership independently of Product selection
-    /// or executable availability. This adds no invocation or seed authority.
     pub fn declared_callable_for_target(
         &self,
         symbol: Declaration,
@@ -126,9 +115,6 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
             .then_some(machine)
     }
 
-    /// Complete descriptive dependencies of independently supplied declaration
-    /// roots. This traversal never follows execution/provider edges or grants
-    /// a machine body membership merely because a type mentions its context.
     pub fn declaration_closure(&self, declarations: &[Declaration]) -> Vec<Declaration> {
         let mut roots = self.declaration_dependencies(declarations);
         self.retain_declaration_signatures(&mut roots);
@@ -190,10 +176,6 @@ impl<Declaration: Copy> Application<Declaration> {
     }
 }
 
-/// Exact instantiated edge of the existing call/substitution walk. Static
-/// operands remain part of application equality rather than flattening into
-/// declaration membership. Provider substitution is explicit, not a direct
-/// authored call to the implementation.
 pub struct ProofInvocationEdge<Declaration> {
     pub source: Application<Declaration>,
     pub target: Application<Declaration>,
@@ -202,28 +184,18 @@ pub struct ProofInvocationEdge<Declaration> {
     pub static_delegation: bool,
 }
 
-/// Borrowed application queries have no source tree or source-expression access.
 pub struct ProofApplications<'a, Declaration: 'static, Calls> {
     plan: &'a ProofApplicationPlan<Declaration>,
     operational: &'a Calls,
     rows: std::sync::OnceLock<MachineRows<'a, Declaration>>,
 }
 
-/// The plan's machine rows in arena order, with each row's machine symbol
-/// and each of its state symbols sorted once by `declaration_order`.
-///
-/// Every program machine is a walk root, and each step of the walk looked
-/// its callee up by scanning every plan row, which made one walk quadratic
-/// in the machine count. Ties keep arena order, so the first match of an
-/// equal range is the row the scan found first.
 struct MachineRows<'a, Declaration: 'static> {
     rows: Vec<&'a ProofApplicationMachine<Declaration>>,
     by_machine: Vec<(Declaration, usize)>,
     by_state: Vec<(Declaration, usize)>,
 }
 
-/// One walk retains executable owners and invoked coordinates separately.
-/// A boundary requirement can be invoked without having an executable body.
 pub struct ProofApplicationReachability<Declaration> {
     pub machines: Vec<Declaration>,
     pub calls: Vec<Declaration>,
@@ -277,7 +249,6 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         })
     }
 
-    /// `ProofApplicationPlan::matching_machine` through the sorted rows.
     fn matching_machine(
         &self,
         symbol: Declaration,
@@ -304,7 +275,6 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         self.matching_machine(symbol, |row| row.product_selected)
     }
 
-    /// `ProofApplicationPlan::target_machine` through the sorted rows.
     fn target_machine(
         &self,
         machine: &'a ProofApplicationMachine<Declaration>,
@@ -362,9 +332,6 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         self.plan.symbols.span_or_empty(self.plan.declarations)
     }
 
-    /// Discover required authored scopes from the actual condition owners.
-    /// Portable consumers supply those owners directly instead of trusting a
-    /// separately serialized obligation-presence or owner-list summary.
     pub fn required_scopes<'request>(
         &'request self,
         primary: &'request str,
@@ -446,10 +413,6 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         self.walk_applications(target, provider_edges, pending)
     }
 
-    /// Physical application demand begins only at supplied invocations. Merely
-    /// declaring a target-scoped body does not invoke its layout policies.
-    /// Conditional language checking uses `reachability` to include authored
-    /// source scopes as well; both consumers share the same call/substitution walk.
     pub fn invocation_reachability(
         &self,
         target: &str,
@@ -472,10 +435,6 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         provider_edges: &[(Declaration, Declaration)],
         mut pending: Vec<Application<Declaration>>,
     ) -> ProofApplicationReachability<Declaration> {
-        // Membership tests over everything reached so far made one walk
-        // quadratic in the machine count. These sets answer the same exact
-        // questions (`declaration_order` is injective), and each list keeps
-        // first-reached order.
         let mut visited =
             std::collections::BTreeMap::<Calls::Order, Vec<Application<Declaration>>>::new();
         let mut machines = Vec::new();
@@ -577,8 +536,6 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                 }
                 call_ordinal += 1;
             });
-            // Missing operational facts are not an empty body. Match the
-            // checked graph's stopping boundary before cleanup/dynamic edges.
             if !has_summary {
                 continue;
             }
@@ -625,8 +582,6 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                     }),
             );
         }
-        // Resolve state/family coordinates and their binders exactly as the
-        // visited application does; no display identity participates.
         for edge in &mut invocations {
             if let Some(declaration) = self.called_machine(edge.target.machine)
                 && let Some(machine) = self.target_machine(declaration, target)
@@ -683,8 +638,6 @@ fn resolve_bindings<Declaration: Copy + Eq, Calls: ProofApplicationCalls<Declara
     resolved
 }
 
-/// Borrowed call coordinates. The producer resolves the static binder fallback
-/// once; consumers never infer a binding from a display name or emitted body.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProofApplicationCall<Declaration, Bindings> {
     pub binder: Declaration,
@@ -694,16 +647,12 @@ pub struct ProofApplicationCall<Declaration, Bindings> {
     pub arguments: Bindings,
 }
 
-/// The checked graph and portable graph share one application walk. Source
-/// borrowers project their existing operational facts; portable consumers read
-/// the published rows. Neither reconstructs calls from executable instructions.
 pub trait ProofApplicationCalls<Declaration> {
     type Bindings: Copy;
     type Order: Ord;
 
     fn declaration_order(declaration: Declaration) -> Self::Order;
 
-    /// Return false when this machine has no retained operational summary.
     fn visit_calls(
         &self,
         machine: Declaration,
@@ -717,25 +666,14 @@ pub trait ProofApplicationCalls<Declaration> {
     fn visit_cleanup(&self, machine: Declaration, visit: impl FnMut(Declaration));
 }
 
-/// Source-free operational projection. Only the relationships used by proof
-/// scope are published; effect summaries remain with their existing owner.
 #[derive(Debug, Clone, Default)]
 pub struct ProofCallGraph<Declaration: 'static> {
-    /// Private: the only writers are `insert_machine` and `update_machine`, so
-    /// `machine_index` and its revision stamp always describe this arena.
     machines: Arena<ProofCallMachine<Declaration>>,
     pub calls:
         Arena<ProofApplicationCall<Declaration, HandleSpan<ProofStaticBinding<Declaration>>>>,
     pub bindings: Arena<ProofStaticBinding<Declaration>>,
     pub cleanup: Arena<Declaration>,
-    /// `machines` sorted by machine, published by the producer once the rows
-    /// are final (`index_machines`); ties keep arena order. A walk reads one
-    /// row per reached machine, and scanning every row for each made a walk
-    /// over every program machine quadratic. It is derived from `machines`,
-    /// so equality ignores it.
     machine_index: Vec<(Declaration, arena::Handle<ProofCallMachine<Declaration>>)>,
-    /// The `machines` revision and length the index was built at; any later
-    /// mutation retires it.
     indexed_at: Option<(u64, usize)>,
 }
 
@@ -811,13 +749,10 @@ where
 }
 
 impl<Declaration: Default + 'static> ProofCallGraph<Declaration> {
-    /// Every machine row, in arena order.
     pub fn machines(&self) -> &Arena<ProofCallMachine<Declaration>> {
         &self.machines
     }
 
-    /// Append one machine row. The index stops matching the arena revision,
-    /// so lookups read the rows until `index_machines` runs again.
     pub fn insert_machine(
         &mut self,
         row: ProofCallMachine<Declaration>,
@@ -825,7 +760,6 @@ impl<Declaration: Default + 'static> ProofCallGraph<Declaration> {
         self.machines.insert(row)
     }
 
-    /// Edit one machine row, with the same index rule as `insert_machine`.
     pub fn update_machine(
         &mut self,
         row: arena::Handle<ProofCallMachine<Declaration>>,
@@ -836,7 +770,6 @@ impl<Declaration: Default + 'static> ProofCallGraph<Declaration> {
 }
 
 impl<Declaration: Copy + Ord + Default + 'static> ProofCallGraph<Declaration> {
-    /// Publish `machine_index` over the final `machines` rows.
     pub fn index_machines(&mut self) {
         let mut index = self
             .machines
@@ -852,8 +785,6 @@ impl<Declaration: Copy + Ord + Default + 'static> ProofCallGraph<Declaration> {
         self.indexed_at = Some((self.machines.revision(), self.machines.len()));
     }
 
-    /// The first row for `machine`, through the published index when it
-    /// is current.
     fn machine_row(&self, machine: Declaration) -> Option<&ProofCallMachine<Declaration>> {
         if self.indexed_at != Some((self.machines.revision(), self.machines.len())) {
             return self
@@ -874,8 +805,6 @@ impl<Declaration: Copy + Ord + Default + 'static> ProofCallGraph<Declaration> {
 }
 
 impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaration> {
-    /// Rebind retained declaration coordinates without changing scope policy.
-    /// The map is supplied by the boundary that owns declaration identity.
     pub fn try_map<Mapped: Copy + Eq + Default + 'static, Error>(
         &self,
         mut map: impl FnMut(Declaration) -> Result<Mapped, Error>,
@@ -977,8 +906,6 @@ fn map_span<Declaration: Copy + Default, Mapped: Default, Error>(
 }
 
 impl<Declaration: Copy + Eq + Default + 'static> ProofCallGraph<Declaration> {
-    /// Capture the producing graph through the same view used by membership.
-    /// Missing summaries stay missing; no body or provider demand is invented.
     pub fn capture<
         Source: Copy + Eq + Default + 'static,
         Calls: ProofApplicationCalls<Source>,
@@ -1041,5 +968,217 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofCallGraph<Declaration> {
         Ok(self
             .bindings
             .insert_many(bindings.into_iter().collect::<Result<Vec<_>, Error>>()?))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn declared_target_membership_is_not_product_membership() {
+        let mut plan = ProofApplicationPlan::<u32>::default();
+        let members = plan
+            .target_members
+            .insert_many([ProofApplicationTargetMember {
+                target: "macos_arm64".into(),
+                machine: 2,
+            }]);
+        let head = plan.machines.insert(ProofApplicationMachine {
+            machine: 1,
+            family_interface: true,
+            family_members: members,
+            ..Default::default()
+        });
+        let body = plan.machines.insert(ProofApplicationMachine {
+            machine: 2,
+            authored_target: Some("macos_arm64".into()),
+            ..Default::default()
+        });
+        assert_eq!(plan.declared_callable_for_target(1, "macos_arm64"), Some(2));
+        assert_eq!(plan.declared_callable_for_target(1, "linux_arm64"), None);
+        assert_eq!(plan.callable_for_target(1, "macos_arm64"), None);
+        plan.machines.get_mut(head).product_selected = true;
+        assert_eq!(plan.callable_for_target(1, "macos_arm64"), None);
+        plan.machines.get_mut(body).product_selected = true;
+        assert_eq!(plan.callable_for_target(1, "macos_arm64"), Some(2));
+        assert_eq!(plan.callable_for_target(1, "linux_arm64"), None);
+    }
+
+    #[test]
+    fn family_binder_rebasing_keeps_distinct_static_applications() {
+        let mut plan = ProofApplicationPlan::<u32>::default();
+        machine(&mut plan, 1, Some("macos_arm64"));
+        let interface_binders = plan.symbols.insert_many([10]);
+        let member_binders = plan.symbols.insert_many([11]);
+        let members = plan
+            .target_members
+            .insert_many([ProofApplicationTargetMember {
+                target: "macos_arm64".into(),
+                machine: 3,
+            }]);
+        plan.machines.insert(ProofApplicationMachine {
+            machine: 2,
+            binders: interface_binders,
+            family_interface: true,
+            family_members: members,
+            product_selected: true,
+            ..Default::default()
+        });
+        plan.machines.insert(ProofApplicationMachine {
+            machine: 3,
+            binders: member_binders,
+            authored_target: Some("macos_arm64".into()),
+            product_selected: true,
+            ..Default::default()
+        });
+        machine(&mut plan, 4, None);
+        machine(&mut plan, 5, None);
+        let mut graph = ProofCallGraph::<u32>::default();
+        let first = graph.bindings.insert_many([ProofStaticBinding {
+            parameter: 10,
+            selected: 4,
+            ..Default::default()
+        }]);
+        let second = graph.bindings.insert_many([ProofStaticBinding {
+            parameter: 10,
+            selected: 5,
+            ..Default::default()
+        }]);
+        let calls = graph.calls.insert_many([
+            ProofApplicationCall {
+                callee: 2,
+                arguments: first,
+                ..Default::default()
+            },
+            ProofApplicationCall {
+                callee: 2,
+                arguments: second,
+                ..Default::default()
+            },
+        ]);
+        graph.insert_machine(ProofCallMachine {
+            machine: 1,
+            calls,
+            ..Default::default()
+        });
+        let calls = graph.calls.insert_many([ProofApplicationCall {
+            binder: 11,
+            ..Default::default()
+        }]);
+        graph.insert_machine(ProofCallMachine {
+            machine: 3,
+            calls,
+            ..Default::default()
+        });
+        let mut reached = ProofApplications::new(&plan, &graph)
+            .membership("macos_arm64", false, &[], None)
+            .0;
+        reached.sort_unstable();
+        assert_eq!(reached, [1, 3, 4, 5]);
+        assert!(
+            ProofApplications::new(&plan, &graph)
+                .membership("windows_x86_64", false, &[], None)
+                .0
+                .is_empty()
+        );
+    }
+
+    fn symbol(ordinal: u32) -> u32 {
+        ordinal
+    }
+
+    fn machine(plan: &mut ProofApplicationPlan<u32>, ordinal: u32, scope: Option<&str>) {
+        plan.machines.insert(ProofApplicationMachine {
+            machine: symbol(ordinal),
+            authored_target: scope.map(str::to_owned),
+            source_target: scope.map(str::to_owned),
+            product_selected: true,
+            ..Default::default()
+        });
+    }
+
+    #[test]
+    fn family_lookup_keeps_exact_members_and_missing_targets() {
+        let mut plan = ProofApplicationPlan::default();
+        let members = plan.target_members.insert_many([
+            ProofApplicationTargetMember {
+                target: "macos_arm64".into(),
+                machine: symbol(2),
+            },
+            ProofApplicationTargetMember {
+                target: "windows_x86_64".into(),
+                machine: symbol(3),
+            },
+        ]);
+        plan.machines.insert(ProofApplicationMachine {
+            machine: symbol(1),
+            family_interface: true,
+            family_members: members,
+            product_selected: true,
+            ..Default::default()
+        });
+        machine(&mut plan, 2, Some("macos_arm64"));
+        machine(&mut plan, 3, Some("windows_x86_64"));
+        let head = plan.called_machine(symbol(1)).expect("family head");
+        let member = plan.called_machine(symbol(2)).expect("exact member");
+        assert_eq!(
+            plan.target_machine(head, "windows_x86_64")
+                .map(|body| body.machine),
+            Some(symbol(3))
+        );
+        assert!(plan.target_machine(head, "linux_arm64").is_none());
+        assert!(plan.target_machine(member, "windows_x86_64").is_none());
+        assert_eq!(
+            plan.target_machine(member, "macos_arm64")
+                .map(|body| body.machine),
+            Some(symbol(2))
+        );
+    }
+
+    #[test]
+    fn repeated_declaration_payloads_contribute_all_formation_dependencies() {
+        let mut plan = ProofApplicationPlan::default();
+        for (owner, dependencies) in [(1, vec![2]), (2, vec![3]), (2, vec![4]), (4, vec![2, 5])] {
+            let dependencies = plan
+                .symbols
+                .insert_many(dependencies.into_iter().map(symbol));
+            plan.declaration_dependencies
+                .insert(ProofDeclarationDependencies {
+                    declaration: symbol(owner),
+                    dependencies,
+                    ..Default::default()
+                });
+        }
+        assert_eq!(
+            plan.declaration_membership(&[symbol(1)]),
+            [2, 3, 4, 5].map(symbol)
+        );
+    }
+
+    #[test]
+    fn invocation_roots_do_not_seed_uninvoked_scoped_branches() {
+        let mut plan = ProofApplicationPlan::<u32>::default();
+        machine(&mut plan, 1, None);
+        machine(&mut plan, 2, Some("macos_arm64"));
+        machine(&mut plan, 3, Some("macos_arm64"));
+        machine(&mut plan, 4, Some("windows_x86_64"));
+        let mut graph = ProofCallGraph::<u32>::default();
+        let calls = graph.calls.insert_many([ProofApplicationCall {
+            callee: 10,
+            ..Default::default()
+        }]);
+        graph.insert_machine(ProofCallMachine {
+            machine: 1,
+            calls,
+            ..Default::default()
+        });
+        let applications = ProofApplications::new(&plan, &graph);
+        let reached = applications.invocation_reachability("macos_arm64", &[(10, 2)], &[1]);
+        assert_eq!(reached.machines, [1, 2]);
+        assert!(reached.calls.contains(&10));
+        let language = applications.reachability("macos_arm64", false, &[(10, 2)], Some(&[1]));
+        assert!(language.machines.contains(&3));
+        assert!(!language.machines.contains(&4));
     }
 }

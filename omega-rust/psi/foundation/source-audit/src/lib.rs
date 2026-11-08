@@ -1,25 +1,29 @@
-//! Source scanning shared by the per-crate source guards.
-//!
-//! A guard pins one crate's own non-test sources against a forbidden shape: a
-//! stored text identity, a layering edge, a retired call. The scan is identical
-//! in every guard — walk the crate's `src` tree, read the `.rs` files outside
-//! line comments — so it lives here once. Each guard keeps what is actually
-//! its own: the root it scans, its needles, and the boundary declarations it
-//! exempts by exact trimmed line. The crate is a dev-dependency of the guards
-//! and never part of a shipped product.
+/*
+We scan a crate's non-test Rust source tree and report every `(file, line_number, line)`
+or sorted `file:line: needle` violation outside line comments (`source_lines`,
+`violations`). Each per-crate source guard supplies its own scan root, forbidden
+needles, and exact trimmed declaration lines exempted at known boundaries.
+*/
+
+/*
+Every per-crate source guard pins its non-test sources against forbidden shapes
+such as stored text identities, layering edges, or retired calls. Centralizing
+the directory walk and comment-filtered line scan here keeps individual guards
+focused on their own needles and boundary exemptions without duplicating file
+traversal logic.
+*/
+
+/*
+We report file paths relative to `src/` so guard suffixes match identically
+across host checkouts, and we automatically skip `source_guards.rs`, `tests.rs`,
+and `*_tests.rs` where the forbidden needles themselves are spelled out. This
+crate is a dev-dependency of the test guards and is never linked into shipped
+binaries.
+*/
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Every `(file, line number, line)` of the sources at `root`, outside line
-/// comments.
-///
-/// `root` is a path relative to the crate's `src/`: `""` scans the whole tree
-/// and a file path scans only that file; `manifest_dir` is the calling crate's
-/// `CARGO_MANIFEST_DIR`. `file` is reported relative to `src/`
-/// so a guard matches suffixes without knowing the host checkout. The guard's
-/// own file and the crate's test modules (`tests.rs`, `*_tests.rs`) are never
-/// scanned: the needles are spelled out in them.
 pub fn source_lines(manifest_dir: &str, root: &str) -> Vec<(String, usize, String)> {
     let source_root = Path::new(manifest_dir).join("src");
     let scan_root = if root.is_empty() {
@@ -79,12 +83,6 @@ pub fn source_lines(manifest_dir: &str, root: &str) -> Vec<(String, usize, Strin
     lines
 }
 
-/// Every `file:line: needle` under `root` that names one of `forbidden`,
-/// sorted.
-///
-/// `allowed` pairs are `(file suffix, exact trimmed line)`: only that pinned
-/// declaration is exempt, so a shared `pub` field of the same name still
-/// violates.
 pub fn violations<T: AsRef<str>>(
     manifest_dir: &str,
     root: &str,

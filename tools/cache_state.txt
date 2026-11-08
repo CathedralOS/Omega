@@ -74,7 +74,5 @@
 2 omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment.rs
 2 omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs
 2 omega-rust/psi/compilation/validation/src/value_custody/completed_storage/reference_captures.rs
-1 omega-rust/psi/foundation/arena/src/lib.rs
-9 omega-rust/psi/foundation/arena/src/owned_index.rs
-2 omega-rust/psi/foundation/flow-effects/src/flow_effects/operational.rs
+10 omega-rust/psi/foundation/arena/src/owned_index.rs
 8 omega-rust/psi/foundation/symbols/src/table.rs
