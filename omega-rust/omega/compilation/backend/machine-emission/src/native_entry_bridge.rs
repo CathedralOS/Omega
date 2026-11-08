@@ -1,60 +1,40 @@
-//! Physical native entry transport, separate from an ordinary semantic body.
-//!
-//! Incoming values are snapshotted before any destination register is written:
-//! nominal parameter permutations are parallel moves, not a sequence of copies.
-//! A scalar loan constructs address/codec storage in this activation and passes
-//! its address to the unchanged internal convention. The codec interprets bytes;
-//! it supplies neither borrow permission nor referent extent. Admission of the
-//! exact callback signature remains with the realization owner.
-//! Owned indirect values copy their complete bytes into this frame; their ABI
-//! pointer never becomes a loan. The inbound caller's result pointer is saved
-//! before argument redistribution, separately from the internal result storage.
-//! Over-aligned owned homes reserve padding and align their absolute addresses
-//! inside the fixed ABI frame. Every snapshot access uses that same locator;
-//! offset alignment alone cannot establish a value's promised alignment.
-//! A differing clobber promise saves the internal call's additional writes;
-//! vector saves retain all 128 bits, not just the scalar transport lane. Published
-//! direct result registers are outputs, not incoming state to restore over them.
-//!
-//! This is a physical adapter, not a Terminal machine or another semantic stage.
-//! Its one unresolved ordinary call targets the real body entry symbol. Body
-//! helpers and recursion retain their ordinary convention and artifact namespace.
-//! The retained request is replayed by artifact readers, off the production path.
+/*
+We emit physical native entry bridges that adapt an external calling or interrupt arrival plan to a function's unchanged internal calling plan.
+
+Before any destination register is written, we snapshot incoming values into our bridge activation so nominal parameter permutations execute as parallel moves rather than sequential overwrites. Scalar loans construct address-and-codec descriptor storage in this activation and pass the descriptor address to the internal convention; owned indirect values copy their complete byte extent into our frame so the caller's ABI pointer never becomes a loan. Over-aligned owned homes reserve alignment padding inside the fixed ABI frame, and any internal clobbers excluded from the inbound promise—including all 128 bits of clobbered vector registers and borrowed scratch registers—are saved before redistribution and restored before return. For returning and fatal installed interrupt entries, we validate the hardware return frame, machine-state ceiling, and active root/gate geometry before dispatching to the internal handler body.
+*/
 
 use arena::Arena;
 #[cfg(test)]
 use calling_conventions::StateFootprintEvidence;
 use calling_conventions::{
-    BoundaryEntryPlan, CallPlan, EntryControl, GeneratedEntryEvidence, MachineRegister,
-    RegisterSet, StateEffectsEvidence, ValueClass, ValuePlacement, ValueShape,
+    BoundaryEntryPlan, CallPlan, EntryControl, EntryStack, GeneratedEntryEvidence, MachineRegister,
+    MachineState, MachineStateSet, Preemption, RegisterSet, StateEffectsEvidence, ValueClass,
+    ValuePlacement, ValueShape,
 };
 use register_model::validate_physical_register_model;
+pub use runtime_abi::static_interrupts::{InstalledInterruptEntryPlan, InstalledInterruptFrame};
+use runtime_abi::static_interrupts::{InstalledInterruptProtocol, acknowledgement as ack, root};
 use target::{Architecture, NativeTarget};
 
-mod entry_protocol;
-mod installed_fatal;
-mod installed_interrupt;
-
-pub use installed_interrupt::emit_installed_interrupt_entry_bridge;
-pub use runtime_abi::static_interrupts::{InstalledInterruptEntryPlan, InstalledInterruptFrame};
+use crate::native_bridge_encoding::{
+    AlignedHome, Encoding, NativeBridgeEncodingError, ValueStorage, WordLocation, allocate_home,
+    allocate_value, allocate_word, is_borrowed, value_storage,
+};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NativeEntryParameter {
     pub inbound_ordinal: u32,
-    /// Zero means no descriptor conversion. Nonzero is a closed scalar codec.
-    pub scalar_codec: u64,
+    pub scalar_codec: u64, // Zero means no descriptor conversion; nonzero is a closed scalar codec.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeEntryBridgeRequest {
     pub target: NativeTarget,
     pub internal: CallPlan,
-    /// The entry owns both argument placement and interrupted-state obligations.
-    pub inbound: BoundaryEntryPlan,
-    /// Actual checked body closure, required for asynchronous entry ceilings.
-    pub body_footprint: Option<StateEffectsEvidence>,
-    /// Internal scalar-then-structural order, joined through nominal origins.
-    pub parameters: Arena<NativeEntryParameter>,
+    pub inbound: BoundaryEntryPlan, // Owns both argument placement and interrupted-state obligations.
+    pub body_footprint: Option<StateEffectsEvidence>, // Checked body closure required for asynchronous entry ceilings.
+    pub parameters: Arena<NativeEntryParameter>, // Internal scalar-then-structural order joined through nominal origins.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -116,6 +96,7 @@ pub enum NativeEntryBridgeError {
     ReplayMismatch,
     GeneratedEntryEffects(String),
 }
+
 impl std::fmt::Display for NativeEntryBridgeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let reason = match self {
@@ -152,12 +133,11 @@ impl std::fmt::Display for NativeEntryBridgeError {
         write!(formatter, "native entry bridge failed: {reason}")
     }
 }
+
 impl std::error::Error for NativeEntryBridgeError {}
 type Error = NativeEntryBridgeError;
 
 impl NativeEntryBridgeRequest {
-    /// The unchanged body and the adapter each contribute their real effects.
-    /// An ABI alias contributes an empty adapter, never a missing body claim.
     pub fn checked_complete_effects(
         &self,
         adapter: &StateEffectsEvidence,
@@ -205,11 +185,6 @@ fn finish_native_entry(
     })
 }
 
-use crate::native_bridge_encoding::{
-    AlignedHome, Encoding, NativeBridgeEncodingError, ValueStorage, WordLocation, allocate_home,
-    allocate_value, allocate_word, is_borrowed, value_storage,
-};
-
 impl From<NativeBridgeEncodingError> for NativeEntryBridgeError {
     fn from(error: NativeBridgeEncodingError) -> Self {
         match error {
@@ -240,8 +215,125 @@ struct PreservedRegister {
     byte_size: u8,
 }
 
-/// Return-address word that x86-64 pushes below the caller's entry stack
-/// pointer. AArch64 links in a register, so its frames carry no such word.
+struct EntryProtocol {
+    incoming_argument_bias: u32,
+    frame_alignment_padding: u32,
+    body_clobbers: RegisterSet,
+    preserved_registers: RegisterSet,
+    before_body: &'static [u8],
+    return_bytes: &'static [u8],
+}
+
+const SAVED_GPRS: [u8; 15] = [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+
+fn select_entry_protocol(request: &NativeEntryBridgeRequest) -> Result<EntryProtocol, Error> {
+    match (
+        request.target.architecture,
+        request.inbound.call.entry_control,
+    ) {
+        (architecture, EntryControl::CallReturn) => Ok(EntryProtocol {
+            incoming_argument_bias: call_stack_bias(architecture),
+            frame_alignment_padding: call_stack_bias(architecture),
+            body_clobbers: request.internal.ordinary_clobbers.clone(),
+            preserved_registers: RegisterSet::default(),
+            before_body: &[],
+            return_bytes: match architecture {
+                Architecture::X86_64 => &isa_x86_64::ORDINARY_RETURN_BYTES,
+                Architecture::Aarch64 => &isa_aarch64::ORDINARY_RETURN_BYTES,
+            },
+        }),
+        (Architecture::X86_64, EntryControl::InterruptReturn) => select_interrupt_protocol(request),
+        _ => Err(Error::UnsupportedEntryControl),
+    }
+}
+
+fn select_interrupt_protocol(request: &NativeEntryBridgeRequest) -> Result<EntryProtocol, Error> {
+    let state = &request.inbound.state;
+    let restored = MachineStateSet::new([
+        MachineState::GeneralRegisters,
+        MachineState::Flags,
+        MachineState::InstructionPointer,
+        MachineState::StackPointer,
+    ]);
+    if state.initial_regime.architecture() != Architecture::X86_64
+        || state.saved_state != restored
+        || state.restored_state != restored
+        || !state.interrupted_state.contains_all(restored)
+        || !state.permitted_transitive_use.contains_all(restored)
+        || request.inbound.call.stack_alignment != 16
+        || request.inbound.call.result.is_some()
+    {
+        return Err(Error::UnsupportedInterruptState);
+    }
+    let footprint = interrupt_body_footprint(request)?;
+    if !restored.contains_all(footprint.clobbered_state()) {
+        return Err(Error::InterruptBodyStateExceedsPlan);
+    }
+    Ok(EntryProtocol {
+        incoming_argument_bias: 40,
+        frame_alignment_padding: 8,
+        body_clobbers: footprint.registers().clone(),
+        preserved_registers: RegisterSet::new([
+            MachineRegister::X86Rax,
+            MachineRegister::X86Rbx,
+            MachineRegister::X86Rcx,
+            MachineRegister::X86Rdx,
+            MachineRegister::X86Rsi,
+            MachineRegister::X86Rdi,
+            MachineRegister::X86Rbp,
+            MachineRegister::X86R8,
+            MachineRegister::X86R9,
+            MachineRegister::X86R10,
+            MachineRegister::X86R11,
+            MachineRegister::X86R12,
+            MachineRegister::X86R13,
+            MachineRegister::X86R14,
+            MachineRegister::X86R15,
+        ]),
+        before_body: &isa_x86_64::CLEAR_DIRECTION_FLAG_BYTES,
+        return_bytes: &isa_x86_64::INTERRUPT_RETURN_BYTES,
+    })
+}
+
+fn validate_fatal_entry_protocol(request: &NativeEntryBridgeRequest) -> Result<(), Error> {
+    let state = &request.inbound.state;
+    if !state.interrupted_state.is_empty()
+        || !state.saved_state.is_empty()
+        || !state.restored_state.is_empty()
+    {
+        return Err(Error::UnsupportedFatalInterruptPreservation);
+    }
+    if state.initial_regime.architecture() != Architecture::X86_64
+        || request.inbound.call.stack_alignment != 16
+        || request.inbound.call.result.is_some()
+    {
+        return Err(Error::UnsupportedInterruptState);
+    }
+    interrupt_body_footprint(request).map_err(|error| match error {
+        Error::InterruptBodyStateExceedsPlan => Error::FatalInterruptBodyStateExceedsPlan,
+        error => error,
+    })?;
+    Ok(())
+}
+
+fn interrupt_body_footprint(
+    request: &NativeEntryBridgeRequest,
+) -> Result<&StateEffectsEvidence, Error> {
+    let footprint = request
+        .body_footprint
+        .as_ref()
+        .ok_or(Error::MissingInterruptBodyFootprint)?;
+    if !request
+        .inbound
+        .state
+        .permitted_transitive_use
+        .contains_all(footprint.machine_state())
+    {
+        return Err(Error::InterruptBodyStateExceedsPlan);
+    }
+    Ok(footprint)
+}
+
 fn call_stack_bias(architecture: Architecture) -> u32 {
     u32::from(architecture == Architecture::X86_64) * 8
 }
@@ -287,23 +379,16 @@ fn value_transport(
     })
 }
 
-/// Build an adapter from two already admitted calling plans. Owned ABI pointers
-/// name complete byte extents, not borrows. Interrupt entry preserves its
-/// admitted state around the same body transport; it does not establish the
-/// incoming arguments. Equal pointer geometry never admits a scalar loan.
 pub fn emit_native_entry_bridge(
     request: NativeEntryBridgeRequest,
 ) -> Result<NativeEntryBridge, Error> {
-    let protocol = entry_protocol::select(&request)?;
+    let protocol = select_entry_protocol(&request)?;
     let internal = &request.internal;
     let inbound = &request.inbound.call;
     if internal.policy.architecture() != request.target.architecture
         || inbound.policy.architecture() != request.target.architecture
         || internal.entry_control != EntryControl::CallReturn
         || internal.stack_alignment != 16
-        // A stronger incoming alignment still guarantees the bridge's
-        // 16-byte frame base. Incoming stack offsets are entry-relative;
-        // over-aligned owned homes are aligned independently below.
         || inbound.stack_alignment < 16
         || !inbound.stack_alignment.is_power_of_two()
         || !internal.callback_materializations.is_empty()
@@ -375,17 +460,12 @@ pub fn emit_native_entry_bridge(
                 .chain(transport.destination.pieces())
                 .any(|piece| matches!(piece.location, WordLocation::Stack(_)))
             {
-                // A stack return is a caller-owned result area, not this
-                // activation's argument area. Keep its distinct protocol open.
                 return Err(Error::UnsupportedValueTransport);
             }
             Some(transport)
         }
         _ => return Err(Error::UnsupportedValueTransport),
     };
-    // Every piece contributes to scratch exclusion, including fragmented
-    // results. Save all pieces before redistribution, so cycles across integer
-    // and floating banks cannot overwrite another member.
     let occupied = |register| {
         transports.iter().chain(result.iter()).any(|transport| {
             transport.source.pieces().iter().chain(transport.destination.pieces()).any(|piece|
@@ -414,10 +494,6 @@ pub fn emit_native_entry_bridge(
             MachineRegister::X86R9,
         ],
     };
-    // Scratch registers are the bridge's own writes. Prefer those the inbound
-    // promise already lets this entry clobber. A promise that preserves every
-    // candidate still leaves an unoccupied one usable: it joins the saved set
-    // below, so its caller value is stored before first use and restored last.
     let volatile = |register| inbound.ordinary_clobbers.contains(register);
     let mut scratch = candidates
         .iter()
@@ -512,10 +588,6 @@ pub fn emit_native_entry_bridge(
     } else {
         None
     };
-    // Argument redistribution is a write too, even when a custom internal
-    // promise omits that register from its call clobbers. Hidden result pointers
-    // are inputs; only direct result registers (and x64's result-pointer echo)
-    // supersede the caller's old register value.
     let internal_writes = RegisterSet::new(
         protocol
             .body_clobbers
@@ -578,8 +650,6 @@ pub fn emit_native_entry_bridge(
         .iter()
         .copied()
         .filter(|register| {
-            // The frame epilogue and CPU return frame restore RSP. It is not
-            // an ordinary spill slot, even when the body uses its stack.
             *register != MachineRegister::X86Rsp
                 && (protocol.preserved_registers.contains(*register)
                     || (!inbound.ordinary_clobbers.contains(*register)
@@ -653,7 +723,6 @@ pub fn emit_native_entry_bridge(
         )?;
     }
     bytes.extend_from_slice(protocol.before_body);
-    // Capture registers before any scratch-based stack transfer.
     for (transport, snapshot) in transports.iter().zip(&snapshots) {
         encoding.capture_registers(
             &mut bytes,
@@ -746,8 +815,6 @@ pub fn emit_native_entry_bridge(
                     false,
                 )?;
                 if request.target.architecture == Architecture::X86_64 {
-                    // SysV and Microsoft aggregate returns echo the original
-                    // caller's destination in RAX, not the body's local area.
                     encoding.memory(&mut bytes, MachineRegister::X86Rax, pointer, 8, true)?;
                 }
             }
@@ -770,7 +837,405 @@ pub fn emit_native_entry_bridge(
     finish_native_entry(request, bytes, frame_bytes, call_field_offset, None)
 }
 
-/// Replay physical bytes and frame geometry at an independent artifact boundary.
+pub fn emit_installed_interrupt_entry_bridge(
+    request: NativeEntryBridgeRequest,
+    plan: InstalledInterruptEntryPlan,
+) -> Result<NativeEntryBridge, NativeEntryBridgeError> {
+    if !plan.has_canonical_geometry() {
+        return Err(Error::InvalidInstalledInterruptGeometry);
+    }
+    if matches!(
+        plan.protocol,
+        InstalledInterruptProtocol::FatalContext { .. }
+    ) {
+        return emit_installed_fatal_entry_bridge(request, plan);
+    }
+    let protocol = select_entry_protocol(&request)?;
+    let internal = &request.internal;
+    let inbound = &request.inbound.call;
+    if request.target.architecture != Architecture::X86_64
+        || inbound.entry_control != EntryControl::InterruptReturn
+        || internal.entry_control != EntryControl::CallReturn
+        || internal.policy.architecture() != Architecture::X86_64
+        || inbound.policy.architecture() != Architecture::X86_64
+        || internal.stack_alignment != 16
+        || !matches!(request.inbound.state.stack, EntryStack::Dedicated { .. })
+        || request.inbound.state.preemption != Preemption::Masked
+    {
+        return Err(Error::UnsupportedInterruptState);
+    }
+    if internal.parameters.len() != 1
+        || inbound.parameters.len() != 1
+        || request.parameters.len() != 1
+        || internal.result.is_some()
+        || inbound.result.is_some()
+        || !internal.callback_materializations.is_empty()
+        || !inbound.callback_materializations.is_empty()
+    {
+        return Err(Error::UnsupportedInstalledInterruptSignature);
+    }
+    let (_, parameter) = request
+        .parameters
+        .iter()
+        .next()
+        .ok_or(Error::InvalidParameterJoin)?;
+    if parameter.inbound_ordinal != 0 || parameter.scalar_codec != 0 {
+        return Err(Error::UnsupportedInstalledInterruptSignature);
+    }
+    let source = &inbound.parameters[0];
+    let destination = &internal.parameters[0];
+    if source.shape.byte_size != ack::BYTES
+        || u32::from(source.shape.alignment) != runtime_abi::static_interrupts::ALIGNMENT
+        || is_borrowed(source.shape.class)
+        || is_borrowed(destination.shape.class)
+    {
+        return Err(Error::UnsupportedInstalledInterruptSignature);
+    }
+    let transport = value_transport(source, destination, 0)?;
+    if transport.destination.pieces().iter().any(|piece| {
+        matches!(piece.location, WordLocation::Register(register) if register.codec_index() >= 16)
+    }) {
+        return Err(Error::UnsupportedInstalledInterruptSignature);
+    }
+    let mut cursor = u32::from(internal.shadow_bytes);
+    if let ValueStorage::Indirect {
+        copy_offset: Some(offset),
+        ..
+    } = &transport.destination
+    {
+        cursor = cursor.max(offset.checked_add(ack::BYTES).ok_or(Error::FrameOverflow)?);
+    }
+    for piece in transport.destination.pieces() {
+        if let WordLocation::Stack(offset) = piece.location {
+            cursor = cursor.max(
+                offset
+                    .checked_add(u32::from(piece.byte_size))
+                    .ok_or(Error::FrameOverflow)?,
+            );
+        }
+    }
+    let occupied = |register| {
+        transport.destination.pieces().iter().any(|piece| {
+            matches!(piece.location, WordLocation::Register(candidate) if candidate == register)
+        })
+    };
+    let mut candidates = [
+        MachineRegister::X86R11,
+        MachineRegister::X86R10,
+        MachineRegister::X86Rax,
+        MachineRegister::X86Rcx,
+        MachineRegister::X86Rdx,
+        MachineRegister::X86R8,
+        MachineRegister::X86R9,
+    ]
+    .into_iter()
+    .filter(|register| !occupied(*register));
+    let scratch = candidates.next().ok_or(Error::NoUnoccupiedScratch)?;
+    let address_scratch = candidates.next().ok_or(Error::NoUnoccupiedScratch)?;
+    let mut encoding = Encoding {
+        architecture: Architecture::X86_64,
+        model: validate_physical_register_model(isa_x86_64::x86_64_physical_register_model())
+            .map_err(|_| Error::Encoding)?,
+        scratch,
+        address_scratch,
+        aligned_homes: Vec::new(),
+    };
+    let snapshot = allocate_home(&mut cursor, ack::BYTES, 8, &mut encoding.aligned_homes)?;
+    let saved_root = allocate_word(&mut cursor)?;
+    let local_bytes = cursor
+        .checked_add(15)
+        .map(|value| value & !15)
+        .filter(|value| *value <= i32::MAX as u32)
+        .ok_or(Error::FrameOverflow)?;
+    let frame_bytes = plan
+        .root_slot_from_top
+        .checked_add(plan.saved_register_bytes)
+        .and_then(|value| value.checked_add(local_bytes))
+        .ok_or(Error::FrameOverflow)?;
+    let root_offset = local_bytes
+        .checked_add(plan.saved_register_bytes)
+        .ok_or(Error::FrameOverflow)?;
+    let interval = crate::frame_layout::stack_commit::stack_commit_granule_bytes(request.target)
+        .ok_or(Error::IncompatiblePlan)?;
+    let touches = if u64::from(local_bytes) > interval {
+        u32::try_from(u64::from(local_bytes).div_ceil(interval))
+            .map_err(|_| Error::FrameOverflow)?
+    } else {
+        0
+    };
+    let (prologue, epilogue) = isa_x86_64::encode_system_v_amd64_frame_protocol(
+        &encoding.model,
+        u64::from(local_bytes),
+        isa_x86_64::X86_64StackProbe {
+            interval_bytes: interval,
+            touches,
+        },
+        &[],
+    )
+    .map_err(|_| Error::Encoding)?;
+
+    let mut bytes = Vec::new();
+    let gap = u8::try_from(plan.root_slot_from_top - plan.hardware_frame_bytes())
+        .map_err(|_| Error::InvalidInstalledInterruptGeometry)?;
+    bytes.extend_from_slice(&[0x48, 0x83, 0xec, gap]);
+    for register in SAVED_GPRS {
+        push_or_pop(&mut bytes, register, false);
+    }
+    bytes.extend_from_slice(protocol.before_body);
+    bytes.extend_from_slice(&prologue);
+    encoding.memory(&mut bytes, address_scratch, root_offset, 8, true)?;
+    encoding.memory(&mut bytes, address_scratch, saved_root, 8, false)?;
+    encoding.memory(&mut bytes, address_scratch, snapshot + ack::ROOT, 8, false)?;
+    encoding.pointer_memory(&mut bytes, root::STATE, 8, true)?;
+    require_scratch_equal(&mut bytes, scratch, root::ACTIVE as u8);
+    encoding.pointer_memory(&mut bytes, root::DEBT, 8, true)?;
+    require_scratch_equal(&mut bytes, scratch, 0);
+    encoding.pointer_memory(&mut bytes, root::INVOCATION, 8, true)?;
+    add_one_without_overflow(&mut bytes, scratch);
+    encoding.pointer_memory(&mut bytes, root::INVOCATION, 8, false)?;
+    encoding.pointer_memory(&mut bytes, root::DEBT, 8, false)?;
+    encoding.memory(&mut bytes, scratch, snapshot + ack::INVOCATION, 8, false)?;
+    encoding.memory(&mut bytes, scratch, snapshot + ack::DEBT, 8, false)?;
+    for (root_field, token_field) in [
+        (root::PROVIDER, ack::PROVIDER),
+        (root::COMPLETION, ack::COMPLETION),
+    ] {
+        encoding.pointer_memory(&mut bytes, root_field, 8, true)?;
+        encoding.memory(&mut bytes, scratch, snapshot + token_field, 8, false)?;
+    }
+    encoding.distribute_argument(&mut bytes, &transport.destination, snapshot, ack::BYTES)?;
+    let call_field_offset = bytes.len() + 1;
+    bytes.extend_from_slice(&isa_x86_64::ORDINARY_DIRECT_CALL_BYTES);
+    encoding.memory(&mut bytes, address_scratch, saved_root, 8, true)?;
+    encoding.pointer_memory(&mut bytes, root::DEBT, 8, true)?;
+    require_scratch_equal(&mut bytes, scratch, 0);
+    bytes.extend_from_slice(&epilogue);
+    for register in SAVED_GPRS.into_iter().rev() {
+        push_or_pop(&mut bytes, register, true);
+    }
+    bytes.extend_from_slice(&[0x48, 0x83, 0xc4, 16]);
+    bytes.extend_from_slice(protocol.return_bytes);
+    finish_native_entry(request, bytes, frame_bytes, call_field_offset, Some(plan))
+}
+
+fn emit_installed_fatal_entry_bridge(
+    request: NativeEntryBridgeRequest,
+    plan: InstalledInterruptEntryPlan,
+) -> Result<NativeEntryBridge, Error> {
+    let InstalledInterruptProtocol::FatalContext {
+        anchor_gate_byte_offset,
+        table_bytes,
+        ..
+    } = plan.protocol
+    else {
+        return Err(Error::InvalidInstalledInterruptGeometry);
+    };
+    if !plan.has_canonical_geometry() {
+        return Err(Error::InvalidInstalledInterruptGeometry);
+    }
+    validate_fatal_entry_protocol(&request)?;
+    let inbound = &request.inbound.call;
+    let internal = &request.internal;
+    if request.target.architecture != Architecture::X86_64
+        || inbound.entry_control != EntryControl::InterruptReturn
+        || internal.entry_control != EntryControl::CallReturn
+        || internal.policy.architecture() != Architecture::X86_64
+        || inbound.policy.architecture() != Architecture::X86_64
+        || internal.stack_alignment != 16
+        || !matches!(
+            request.inbound.state.stack,
+            EntryStack::Interrupted | EntryStack::Dedicated { .. }
+        )
+        || request.inbound.state.preemption != Preemption::Masked
+    {
+        return Err(Error::UnsupportedInterruptState);
+    }
+    if internal.parameters.len() != 1
+        || inbound.parameters.len() != 1
+        || request.parameters.len() != 1
+        || internal.result.is_some()
+        || inbound.result.is_some()
+        || !internal.callback_materializations.is_empty()
+        || !inbound.callback_materializations.is_empty()
+    {
+        return Err(Error::UnsupportedFatalInterruptSignature);
+    }
+    let (_, parameter) = request
+        .parameters
+        .iter()
+        .next()
+        .ok_or(Error::InvalidParameterJoin)?;
+    if parameter.inbound_ordinal != 0
+        || parameter.scalar_codec != 0
+        || inbound.parameters[0].shape != ValueShape::integer(8, 8)
+        || internal.parameters[0].shape.class != ValueClass::BorrowedReference
+    {
+        return Err(Error::UnsupportedFatalInterruptSignature);
+    }
+    let transport = value_transport(&inbound.parameters[0], &internal.parameters[0], 0)?;
+    if transport.destination.pieces().iter().any(|piece| {
+        matches!(piece.location, WordLocation::Register(register) if register.codec_index() >= 16)
+    }) {
+        return Err(Error::UnsupportedFatalInterruptSignature);
+    }
+    let mut cursor = u32::from(internal.shadow_bytes);
+    for piece in transport.destination.pieces() {
+        if let WordLocation::Stack(offset) = piece.location {
+            cursor = cursor.max(
+                offset
+                    .checked_add(u32::from(piece.byte_size))
+                    .ok_or(Error::FrameOverflow)?,
+            );
+        }
+    }
+    let encoding = Encoding {
+        architecture: Architecture::X86_64,
+        model: validate_physical_register_model(isa_x86_64::x86_64_physical_register_model())
+            .map_err(|_| Error::Encoding)?,
+        scratch: MachineRegister::X86Rax,
+        address_scratch: MachineRegister::X86Rdx,
+        aligned_homes: Vec::new(),
+    };
+    let idtr = allocate_value(&mut cursor, 16)?;
+    let gdtr = allocate_value(&mut cursor, 16)?;
+    let provider = allocate_word(&mut cursor)?;
+    let ist = allocate_word(&mut cursor)?;
+    let context = allocate_word(&mut cursor)?;
+    let local_bytes = cursor
+        .checked_add(15)
+        .map(|value| value & !15)
+        .filter(|value| *value <= i32::MAX as u32)
+        .ok_or(Error::FrameOverflow)?;
+    let interval = crate::frame_layout::stack_commit::stack_commit_granule_bytes(request.target)
+        .ok_or(Error::IncompatiblePlan)?;
+    let touches = if u64::from(local_bytes) > interval {
+        u32::try_from(u64::from(local_bytes).div_ceil(interval))
+            .map_err(|_| Error::FrameOverflow)?
+    } else {
+        0
+    };
+    let (prologue, _) = isa_x86_64::encode_system_v_amd64_frame_protocol(
+        &encoding.model,
+        u64::from(local_bytes),
+        isa_x86_64::X86_64StackProbe {
+            interval_bytes: interval,
+            touches,
+        },
+        &[],
+    )
+    .map_err(|_| Error::Encoding)?;
+    let cpu_alignment_bytes = match request.inbound.state.stack {
+        EntryStack::Interrupted => 15,
+        EntryStack::Dedicated { .. } => 0,
+        _ => return Err(Error::UnsupportedInterruptState),
+    };
+    let frame_bytes = plan
+        .hardware_frame_bytes()
+        .checked_add(cpu_alignment_bytes)
+        .and_then(|bytes| bytes.checked_add(plan.saved_register_bytes))
+        .and_then(|bytes| bytes.checked_add(15))
+        .and_then(|bytes| bytes.checked_add(local_bytes))
+        .ok_or(Error::FrameOverflow)?;
+    let mut bytes = Vec::new();
+    for register in SAVED_GPRS {
+        push_or_pop(&mut bytes, register, false);
+    }
+    bytes.extend_from_slice(&isa_x86_64::CLEAR_DIRECTION_FLAG_BYTES);
+    bytes.extend_from_slice(&[0x48, 0x83, 0xe4, 0xf0]);
+    bytes.extend_from_slice(&prologue);
+    descriptor_store(&mut bytes, idtr, 1);
+    descriptor_store(&mut bytes, gdtr, 0);
+    encoding.memory(&mut bytes, MachineRegister::X86Rax, idtr, 2, true)?;
+    compare_eax(&mut bytes, table_bytes - 1);
+    require(&mut bytes, 0x74);
+    encoding.memory(&mut bytes, MachineRegister::X86Rdx, idtr + 2, 8, true)?;
+    encoding.pointer_memory(&mut bytes, anchor_gate_byte_offset + 4, 1, true)?;
+    bytes.extend_from_slice(&[0x83, 0xe0, 7, 0x85, 0xc0]);
+    require(&mut bytes, 0x75);
+    encoding.memory(&mut bytes, MachineRegister::X86Rax, ist, 8, false)?;
+    encoding.pointer_memory(&mut bytes, anchor_gate_byte_offset + 8, 4, true)?;
+    bytes.extend_from_slice(&[0x48, 0xc1, 0xe0, 32, 0x48, 0x89, 0xc1]);
+    encoding.pointer_memory(&mut bytes, anchor_gate_byte_offset + 6, 2, true)?;
+    bytes.extend_from_slice(&[0x48, 0xc1, 0xe0, 16, 0x48, 0x09, 0xc1]);
+    encoding.pointer_memory(&mut bytes, anchor_gate_byte_offset, 2, true)?;
+    bytes.extend_from_slice(&[0x48, 0x09, 0xc8]);
+    encoding.memory(&mut bytes, MachineRegister::X86Rax, provider, 8, false)?;
+    bytes.extend_from_slice(&[0x0f, 0x00, 0xc8, 0x0f, 0xb7, 0xc0]);
+    bytes.extend_from_slice(&[0xa9, 7, 0, 0, 0]);
+    require(&mut bytes, 0x74);
+    bytes.extend_from_slice(&[0x85, 0xc0]);
+    require(&mut bytes, 0x75);
+    bytes.extend_from_slice(&[0x48, 0x89, 0xc1, 0x83, 0xc0, 15]);
+    encoding.memory(&mut bytes, MachineRegister::X86Rdx, gdtr, 2, true)?;
+    bytes.extend_from_slice(&[0x39, 0xd0]);
+    require(&mut bytes, 0x76);
+    encoding.memory(&mut bytes, MachineRegister::X86Rdx, gdtr + 2, 8, true)?;
+    bytes.extend_from_slice(&[0x48, 0x01, 0xca]);
+    encoding.pointer_memory(&mut bytes, 4, 4, true)?;
+    bytes.extend_from_slice(&[0x25, 0, 0, 0, 0xff, 0x48, 0x89, 0xc1]);
+    encoding.pointer_memory(&mut bytes, 2, 2, true)?;
+    bytes.extend_from_slice(&[0x48, 0x09, 0xc1]);
+    encoding.pointer_memory(&mut bytes, 4, 1, true)?;
+    bytes.extend_from_slice(&[0x48, 0xc1, 0xe0, 16, 0x48, 0x09, 0xc1]);
+    encoding.pointer_memory(&mut bytes, 8, 4, true)?;
+    bytes.extend_from_slice(&[0x48, 0xc1, 0xe0, 32, 0x48, 0x09, 0xc8, 0x48, 0x89, 0xc2]);
+    encoding.memory(&mut bytes, MachineRegister::X86Rcx, ist, 8, true)?;
+    bytes.extend_from_slice(&[0x48, 0x8b, 0x54, 0xca, 28]);
+    bytes.extend_from_slice(&[0x48, 0x8b, 0x52, 0xc8]);
+    encoding.pointer_memory(&mut bytes, root::STATE, 8, true)?;
+    bytes.extend_from_slice(&[0x48, 0x83, 0xf8, root::ACTIVE as u8]);
+    require(&mut bytes, 0x74);
+    encoding.pointer_memory(&mut bytes, root::PROVIDER, 8, true)?;
+    encoding.memory(&mut bytes, MachineRegister::X86Rcx, provider, 8, true)?;
+    bytes.extend_from_slice(&[0x48, 0x39, 0xc8]);
+    require(&mut bytes, 0x74);
+    encoding.pointer_memory(&mut bytes, root::CONTEXT, 8, true)?;
+    encoding.memory(&mut bytes, MachineRegister::X86Rax, context, 8, false)?;
+    encoding.distribute_argument(&mut bytes, &transport.destination, context, 8)?;
+    let call_field_offset = bytes.len() + 1;
+    bytes.extend_from_slice(&isa_x86_64::ORDINARY_DIRECT_CALL_BYTES);
+    halt(&mut bytes);
+    finish_native_entry(request, bytes, frame_bytes, call_field_offset, Some(plan))
+}
+
+fn push_or_pop(bytes: &mut Vec<u8>, register: u8, pop: bool) {
+    if register >= 8 {
+        bytes.push(0x41);
+    }
+    bytes.push(if pop { 0x58 } else { 0x50 } + (register & 7));
+}
+
+fn require_scratch_equal(bytes: &mut Vec<u8>, register: MachineRegister, value: u8) {
+    let register = register.codec_index();
+    bytes.extend_from_slice(&[0x48 | (register >> 3), 0x83, 0xf8 | (register & 7), value]);
+    bytes.extend_from_slice(&[0x74, 0x02, 0x0f, 0x0b]);
+}
+
+fn add_one_without_overflow(bytes: &mut Vec<u8>, register: MachineRegister) {
+    let register = register.codec_index();
+    bytes.extend_from_slice(&[0x48 | (register >> 3), 0x83, 0xc0 | (register & 7), 1]);
+    bytes.extend_from_slice(&[0x73, 0x02, 0x0f, 0x0b]);
+}
+
+fn descriptor_store(bytes: &mut Vec<u8>, offset: u32, operation: u8) {
+    bytes.extend_from_slice(&[0x0f, 0x01, 0x84 | (operation << 3), 0x24]);
+    bytes.extend_from_slice(&offset.to_le_bytes());
+}
+
+fn compare_eax(bytes: &mut Vec<u8>, value: u32) {
+    bytes.push(0x3d);
+    bytes.extend_from_slice(&value.to_le_bytes());
+}
+
+fn require(bytes: &mut Vec<u8>, condition: u8) {
+    bytes.extend_from_slice(&[condition, 4]);
+    halt(bytes);
+}
+
+fn halt(bytes: &mut Vec<u8>) {
+    bytes.extend_from_slice(&isa_x86_64::PRIVILEGED_STOP_BYTES);
+}
+
 pub fn validate_native_entry_bridge(bridge: &NativeEntryBridge) -> Result<(), Error> {
     let replay = match bridge.installed_interrupt {
         Some(plan) => emit_installed_interrupt_entry_bridge(bridge.request.clone(), plan)?,
@@ -923,9 +1388,6 @@ mod tests {
         assert_eq!(bridge.frame_bytes() % 16, 8);
         validate_native_entry_bridge(&bridge).unwrap();
 
-        // Optional CPU-harness artifact: the adapter comes from the compiler;
-        // its ordinary test body writes T and returns. This is not an Omega
-        // source-body or interrupt-acknowledgement qualification witness.
         if let Some(path) = std::env::var_os("OMEGA_INTERRUPT_BRIDGE_PROBE") {
             let mut payload = bridge.bytes().to_vec();
             let body_offset = payload.len();
@@ -1010,8 +1472,6 @@ mod tests {
         );
     }
 
-    /// Keep only the internal clobbers the case names as inbound, so one
-    /// narrowed set is stated once instead of rebuilt at each case.
     fn narrow_inbound_clobbers(
         request: &mut NativeEntryBridgeRequest,
         keep: impl Fn(&MachineRegister) -> bool,
@@ -1069,8 +1529,6 @@ mod tests {
             Some(ValueShape::integer(8, 8)),
         );
         narrow_inbound_clobbers(&mut request, |r| *r != MachineRegister::Aarch64X(0));
-        // Only result scratch and LR: preserving old X0 would allocate another
-        // slot and, worse, overwrite the published result after distribution.
         assert_eq!(emit_native_entry_bridge(request).unwrap().frame_bytes(), 16);
     }
 
@@ -1122,7 +1580,6 @@ mod tests {
                     .any(|bytes| bytes == restore)
             );
         }
-        // XMM6 through XMM15 preserve both halves, never scalar MOVSD.
         assert!(
             before_call
                 .windows(8)
@@ -1140,17 +1597,11 @@ mod tests {
     fn fully_preserving_inbound_promise_saves_borrowed_scratch() {
         let target = NativeTarget::linux_x64();
         let mut request = request(target, vec![], vec![], &[], &[], None);
-        // Neither promise clobbers anything, so only the bridge's own scratch
-        // use can put a register in the saved set.
         request.inbound.call.ordinary_clobbers = RegisterSet::default();
         request.internal.ordinary_clobbers = RegisterSet::default();
         let bridge = emit_native_entry_bridge(request).unwrap();
         let before_call = &bridge.bytes()[..bridge.call_field_offset() - 1];
         let after_call = &bridge.bytes()[bridge.call_field_offset() + 4..];
-        // R11 is the first scratch candidate. Like every promise-excluded
-        // write it is stored to the frame before first use and loaded after
-        // the call: REX.WR, MOV r/m64 (0x89 store, 0x8b load), ModRM reg=R11
-        // with an RSP-based SIB address at any displacement.
         let moves_r11 = |bytes: &[u8], opcode: u8| {
             bytes.windows(4).any(|window| {
                 window[0] == 0x4c

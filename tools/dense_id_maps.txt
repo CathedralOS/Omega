@@ -7,8 +7,6 @@
 1 omega-rust/omega/compilation/backend/calling-conventions/src/terminal_layout.rs
 2 omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs
 17 omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs
-1 omega-rust/omega/compilation/backend/machine-emission/src/text_placement/placement/validation/calls.rs
-2 omega-rust/omega/compilation/backend/machine-emission/src/text_placement/placement/validation/functions.rs
 1 omega-rust/omega/compilation/backend/runtime/installation-evidence/src/lib.rs
 1 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering/machine/operation/effects.rs
 1 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering/machine/operation/ieee_float.rs
