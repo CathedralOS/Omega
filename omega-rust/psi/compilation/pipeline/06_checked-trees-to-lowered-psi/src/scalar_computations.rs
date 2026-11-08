@@ -3152,7 +3152,6 @@ pub(crate) mod computations {
                     Err(error) => Err(error),
                 };
                 observations.push(PlaceObservation {
-                    state,
                     statement_index: loan.statement_index,
                     symbol: loan.symbol,
                     loan: loan.clone(),

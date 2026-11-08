@@ -2414,23 +2414,15 @@ pub(crate) mod inner {
                         return Ok(());
                     }
                     let mut presented = argument.clone();
-                    if let Source::StructuralLocal { symbol } = argument.source {
-                        let mut aliases =
-                            self.place_loans.iter().filter(|loan| loan.symbol == symbol);
-                        if let Some(alias) = aliases.next() {
-                            if aliases.next().is_some() {
-                                return unsupported(
-                                    "operation storage path has ambiguous place aliases",
-                                );
-                            }
-                            crate::expression_preparation::bindings::structural_paths::retain_place_loan_presentation(
-                                self.checked,
-                                self.state,
-                                alias,
-                                &mut presented,
-                            )
-                            .map_err(|error| self.at_statement(statement, error))?;
-                        }
+                    if let Source::StructuralLocal { symbol } = argument.source
+                        && let Some(alias) =
+                            self.place_loans.iter().find(|loan| loan.symbol == symbol)
+                    {
+                        crate::expression_preparation::bindings::structural_paths::retain_place_loan_presentation(
+                            self.checked,
+                            alias,
+                            &mut presented,
+                        );
                     }
                     let argument = &presented;
                     let root = source_type(
