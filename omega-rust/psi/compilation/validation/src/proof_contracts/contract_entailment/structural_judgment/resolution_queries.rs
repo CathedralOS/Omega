@@ -664,6 +664,7 @@ impl<'program> StructuralJudge<'program> {
             address(&*self.returned_field_owners),
             address(&*self.body_invocations),
             address(&*self.runtime_induction),
+            address(&*self.induction_values),
             address(&*self.normal_memberships),
             address(&*self.normal_content_guarantees),
             address(&*self.invalidated_storage),
@@ -717,6 +718,7 @@ impl<'program> StructuralJudge<'program> {
             && Arc::ptr_eq(&self.returned_field_owners, &other.returned_field_owners)
             && Arc::ptr_eq(&self.body_invocations, &other.body_invocations)
             && Arc::ptr_eq(&self.runtime_induction, &other.runtime_induction)
+            && Arc::ptr_eq(&self.induction_values, &other.induction_values)
             && Arc::ptr_eq(&self.normal_memberships, &other.normal_memberships)
             && Arc::ptr_eq(
                 &self.normal_content_guarantees,

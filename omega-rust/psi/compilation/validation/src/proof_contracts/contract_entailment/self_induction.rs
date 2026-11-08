@@ -74,6 +74,7 @@ pub(crate) fn intake_available_self_induction_hypotheses(
         if !requirements_established {
             continue;
         }
+        judge.retain_induction_value(machine, application);
         map.push((RESULT_BINDER.to_owned(), application.clone()));
         for fact in &ensures {
             let mut predicates = Vec::new();

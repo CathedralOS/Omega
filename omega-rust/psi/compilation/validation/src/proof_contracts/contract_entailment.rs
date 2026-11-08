@@ -672,6 +672,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 {
                     continue;
                 }
+                bound.retain_induction_value(machine, application);
                 map.push((RESULT_BINDER.to_owned(), application.clone()));
                 for predicate in &ensures_terms {
                     bound.intake_observed_predicate(

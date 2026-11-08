@@ -44,6 +44,7 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         self.returned_value_source = None;
+        self.induction_values = std::sync::Arc::new(Vec::new());
         if !self.requires_value_preservation() {
             return Some((
                 parameters
@@ -112,6 +113,7 @@ impl<'program> StructuralJudge<'program> {
         returned: &StructuralTerm,
         completion_version: Option<super::storage_effects::StorageVersion>,
     ) -> Option<Self> {
+        self.induction_values = std::sync::Arc::clone(&caller.induction_values);
         if !self.requires_value_preservation() {
             self.returned_value_source = caller.returned_value_source.clone();
             return Some(self);

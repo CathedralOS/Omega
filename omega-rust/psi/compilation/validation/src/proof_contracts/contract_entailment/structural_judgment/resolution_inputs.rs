@@ -69,7 +69,7 @@ impl<'program, T: Send + Sync + 'program> LiveInputOwner<'program> for Arc<T> {
     }
 }
 
-const OWNER_COUNT: usize = 19;
+const OWNER_COUNT: usize = 20;
 
 #[derive(Clone, Copy, PartialEq)]
 struct Modes {
@@ -235,6 +235,7 @@ impl<'program> StructuralJudge<'program> {
             returned_field_owners,
             body_invocations,
             runtime_induction,
+            induction_values,
             active_application: _,
             resolution_observations: _,
             normal_memberships,
@@ -284,6 +285,7 @@ impl<'program> StructuralJudge<'program> {
                 returned_field_owners,
                 body_invocations,
                 runtime_induction,
+                induction_values,
                 normal_memberships,
                 normal_content_guarantees,
                 invalidated_storage,

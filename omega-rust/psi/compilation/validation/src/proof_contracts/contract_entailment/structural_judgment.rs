@@ -37,8 +37,8 @@ pub(in crate::proof_contracts::contract_entailment) use domain_premises::data_ap
 mod integer_predicates;
 pub(super) use integer_predicates::{CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank};
 mod identity_normalization;
+mod induction_values;
 mod invocation_entry;
-mod le_case_observations;
 mod licenses;
 mod logical_resolution;
 mod mathematical_predicates;
@@ -625,6 +625,8 @@ pub(super) struct StructuralJudge<'program> {
     // A recurrent call consumes its checked contract instead of unfolding again.
     body_invocations: Arc<Vec<SymbolHandle>>,
     runtime_induction: Arc<runtime_induction::RuntimeInduction>,
+    // Exact value applications licensed by conditional induction on this path.
+    induction_values: Arc<Vec<StructuralTerm>>,
     active_application: Option<Arc<resolution_queries::ApplicationResolution<'program>>>,
     resolution_observations: Option<Arc<resolution_queries::ResolutionObservations<'program>>>,
     normal_memberships: Arc<Vec<MembershipGuarantee>>,
@@ -736,6 +738,7 @@ impl Clone for StructuralJudge<'_> {
             returned_field_owners: Arc::clone(&self.returned_field_owners),
             body_invocations: Arc::clone(&self.body_invocations),
             runtime_induction: Arc::clone(&self.runtime_induction),
+            induction_values: Arc::clone(&self.induction_values),
             active_application: self.active_application.clone(),
             resolution_observations: self.resolution_observations.clone(),
             normal_memberships: Arc::clone(&self.normal_memberships),
@@ -787,6 +790,7 @@ impl<'program> StructuralJudge<'program> {
             && self.storage_write_sequence == base.storage_write_sequence
             && self.invalidated_storage.len() == base.invalidated_storage.len()
             && self.captured_result_equations.len() == base.captured_result_equations.len()
+            && Arc::ptr_eq(&self.induction_values, &base.induction_values)
             && Arc::ptr_eq(&self.conditional_guarantees, &base.conditional_guarantees)
             && self.returned_field_owners.len() == base.returned_field_owners.len()
             && self.normal_memberships.len() == base.normal_memberships.len()
@@ -806,7 +810,9 @@ impl<'program> StructuralJudge<'program> {
     /// True when `self` has added no non-boolean rewrites, non-boolean
     /// substitutions, or integer ordering/equality guarantees since `base`.
     pub(super) fn has_no_new_non_boolean_facts_since(&self, base: &Self) -> bool {
-        if !Arc::ptr_eq(&self.conditional_guarantees, &base.conditional_guarantees) {
+        if !Arc::ptr_eq(&self.conditional_guarantees, &base.conditional_guarantees)
+            || !Arc::ptr_eq(&self.induction_values, &base.induction_values)
+        {
             return false;
         }
         let is_bool = |term: &StructuralTerm| term.boolean_value().is_some();
@@ -893,6 +899,7 @@ impl<'program> StructuralJudge<'program> {
         let Some(&first) = outcomes.first() else {
             return rejoined;
         };
+        rejoined.induction_values = induction_values::common_induction_values(outcomes);
         rejoined.capture_sequence = outcomes
             .iter()
             .map(|judge| judge.capture_sequence)
@@ -1204,6 +1211,7 @@ impl<'program> StructuralJudge<'program> {
     /// Tag preservation does not preserve scalar premises or payload equations.
     pub(super) fn restrict_to_case_facts(&mut self) {
         self.case_facts_only = true;
+        self.induction_values = Arc::new(Vec::new());
         self.substitutions = Arc::new(Vec::new());
         self.rewrites = Arc::new(rewrite_table::RewriteTable::default());
         self.disequalities = Arc::new(Vec::new());
@@ -1264,6 +1272,7 @@ impl<'program> StructuralJudge<'program> {
             returned_field_owners: Arc::new(Vec::new()),
             body_invocations: Arc::new(Vec::new()),
             runtime_induction: Arc::new(runtime_induction::RuntimeInduction::default()),
+            induction_values: Arc::new(Vec::new()),
             active_application: None,
             resolution_observations: None,
             normal_memberships: Arc::new(Vec::new()),

@@ -132,6 +132,7 @@ struct PreparedIntegerPremisesCacheKey {
     rewrites: InputOwner<'static>,
     captured_results: InputOwner<'static>,
     normal_results: InputOwner<'static>,
+    induction_values: InputOwner<'static>,
     substitutions: InputOwner<'static>,
     require_closed_computation: bool,
 }
@@ -142,6 +143,7 @@ impl PartialEq for PreparedIntegerPremisesCacheKey {
             && self.rewrites == other.rewrites
             && self.captured_results == other.captured_results
             && self.normal_results == other.normal_results
+            && self.induction_values == other.induction_values
             && self.substitutions == other.substitutions
             && self.require_closed_computation == other.require_closed_computation
     }
@@ -1573,6 +1575,7 @@ impl<'program> StructuralJudge<'program> {
             rewrites: InputOwner::new(&self.rewrites),
             captured_results: InputOwner::new(&self.captured_result_equations),
             normal_results: InputOwner::new(&self.normal_results),
+            induction_values: InputOwner::new(&self.induction_values),
             substitutions: InputOwner::new(&self.substitutions),
             require_closed_computation: self.require_closed_computation,
         };
