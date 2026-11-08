@@ -1,3 +1,11 @@
+/*
+We build and validate the x86-64 machine-effect catalog
+(`x86_64_machine_effect_catalog` and `validate_x86_64_machine_effect_catalog`),
+mapping every x86-64 register-constraint key and normalized foreign call to its
+exact encoded register, flag, memory, stack, control-flow, and trap effects and
+byte-size bounds.
+*/
+
 use register_model::{TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog};
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
@@ -10,8 +18,580 @@ use selected_instructions::{
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
-mod memory;
-mod scalar_call;
+mod memory {
+    use register_model::{RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
+    use selected_instructions::{
+        MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
+        MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
+        MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
+        MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
+        MachineMemoryEffect, MachineSemanticKind as Semantic, MachineSizeKnowledge as Size,
+        MachineTrapBehavior,
+    };
+
+    macro_rules! declared_semantics {
+        () => {
+            Semantic::AccessorScalarAccess(_)
+                | Semantic::CopyBytes
+                | Semantic::ZeroBytes
+                | Semantic::LoadEncodedScalar
+                | Semantic::StoreEncodedScalar
+                | Semantic::ScanByteSequence
+                | Semantic::CompareByteSequences
+                | Semantic::LoadPacked3
+                | Semantic::LoadPacked5
+                | Semantic::LoadPacked6
+                | Semantic::LoadPacked7
+                | Semantic::StorePacked
+                | Semantic::Store
+                | Semantic::AddressOffset
+                | Semantic::Load8Indexed
+                | Semantic::Load8
+                | Semantic::Load16
+                | Semantic::Load32
+                | Semantic::Load64
+                | Semantic::Store64
+                | Semantic::FrameAddress
+                | Semantic::CallUnit
+        };
+    }
+    pub(super) use declared_semantics;
+
+    pub(super) fn declaration(
+        semantic: Semantic,
+        constraint: RegisterConstraintKey,
+        constraints: &ValidatedRegisterConstraintCatalog,
+    ) -> MachineEffectDeclaration {
+        let row = constraints
+            .catalog()
+            .constraint(constraint)
+            .expect("canonical memory instruction constraint");
+        let stack_pointer = crate::x86_64_physical_register_model_ref()
+            .view_named("rsp")
+            .expect("canonical stack pointer")
+            .id;
+        let (memory, trap, reads, writes, encoded_memory, size) = match semantic {
+            Semantic::AccessorScalarAccess(form) => (
+                if form.write {
+                    MachineMemoryEffect::WritePointerV1
+                } else {
+                    MachineMemoryEffect::ReadPointerV1
+                },
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                if form.write { vec![0, 1] } else { vec![0] },
+                if form.write { vec![] } else { vec![1] },
+                if form.write {
+                    MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
+                } else {
+                    MachineEncodedMemoryEffect::ReadPointerV1 {
+                        pointer_operand: 0,
+                        byte_count: u16::from(form.bytes),
+                    }
+                },
+                crate::encoder_resolved(7, Some(9)),
+            ),
+
+            Semantic::CopyBytes => (
+                MachineMemoryEffect::CopyBytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1, 2],
+                vec![3, 4],
+                MachineEncodedMemoryEffect::CopyBytesV1 {
+                    source_pointer_operand: 0,
+                    destination_pointer_operand: 1,
+                    count_operand: 2,
+                },
+                Size::ExactBytes(36),
+            ),
+            Semantic::ZeroBytes => (
+                MachineMemoryEffect::ZeroBytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1],
+                vec![2],
+                MachineEncodedMemoryEffect::ZeroBytesV1 {
+                    destination_pointer_operand: 0,
+                    count_operand: 1,
+                },
+                Size::ExactBytes(25),
+            ),
+            Semantic::LoadEncodedScalar => (
+                MachineMemoryEffect::ReadEncodedScalarV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1],
+                vec![2, 3, 4, 5],
+                MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
+                    pointer_operand: 0,
+                    codec_operand: 1,
+                },
+                crate::encoder_resolved(16, None),
+            ),
+            Semantic::StoreEncodedScalar => (
+                MachineMemoryEffect::WriteEncodedScalarV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1, 2],
+                vec![3, 4, 5],
+                MachineEncodedMemoryEffect::WriteEncodedScalarV1 {
+                    pointer_operand: 0,
+                    codec_operand: 1,
+                },
+                crate::encoder_resolved(16, None),
+            ),
+            Semantic::ScanByteSequence => (
+                MachineMemoryEffect::ScanByteSequenceV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1],
+                vec![2, 3, 4],
+                MachineEncodedMemoryEffect::ScanByteSequenceV1 {
+                    base_pointer_operand: 0,
+                    count_operand: 1,
+                },
+                crate::encoder_resolved(16, None),
+            ),
+            Semantic::CompareByteSequences => (
+                MachineMemoryEffect::CompareByteSequencesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1, 2, 3],
+                vec![4, 5, 6, 7],
+                MachineEncodedMemoryEffect::CompareByteSequencesV1 {
+                    left_base_operand: 0,
+                    left_count_operand: 1,
+                    right_base_operand: 2,
+                    right_count_operand: 3,
+                },
+                crate::encoder_resolved(16, None),
+            ),
+            Semantic::LoadPacked3
+            | Semantic::LoadPacked5
+            | Semantic::LoadPacked6
+            | Semantic::LoadPacked7 => {
+                let byte_count = match semantic {
+                    Semantic::LoadPacked3 => 3,
+                    Semantic::LoadPacked5 => 5,
+                    Semantic::LoadPacked6 => 6,
+                    _ => 7,
+                };
+                (
+                    MachineMemoryEffect::ReadPointerV1,
+                    MachineTrapBehavior::MayArchitecturalFaultV1,
+                    vec![0],
+                    vec![1, 2],
+                    MachineEncodedMemoryEffect::ReadPointerV1 {
+                        pointer_operand: 0,
+                        byte_count,
+                    },
+                    crate::encoder_resolved(
+                        byte_count * 8 + (byte_count - 1) * 7,
+                        Some(byte_count * 9 + (byte_count - 1) * 7),
+                    ),
+                )
+            }
+            Semantic::StorePacked => (
+                MachineMemoryEffect::WritePointerV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1],
+                vec![2],
+                MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+                crate::encoder_resolved(32, Some(83)),
+            ),
+            Semantic::Store => (
+                MachineMemoryEffect::WritePointerV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1],
+                vec![],
+                MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+                crate::encoder_resolved(7, Some(9)),
+            ),
+            Semantic::AddressOffset => (
+                MachineMemoryEffect::NoneV1,
+                MachineTrapBehavior::NeverV1,
+                vec![0],
+                vec![1],
+                MachineEncodedMemoryEffect::NoneV1,
+                crate::encoder_resolved(7, Some(8)),
+            ),
+            Semantic::Load8Indexed => (
+                MachineMemoryEffect::ReadPointerV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1],
+                vec![2],
+                MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
+                    pointer_operand: 0,
+                    index_operand: 1,
+                    byte_count: 1,
+                },
+                Size::ExactBytes(9),
+            ),
+            Semantic::Load8 | Semantic::Load16 => (
+                MachineMemoryEffect::ReadPointerV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0],
+                vec![1],
+                MachineEncodedMemoryEffect::ReadPointerV1 {
+                    pointer_operand: 0,
+                    byte_count: if semantic == Semantic::Load8 { 1 } else { 2 },
+                },
+                crate::encoder_resolved(8, Some(9)),
+            ),
+            Semantic::Load32 | Semantic::Load64 => (
+                MachineMemoryEffect::ReadPointerV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0],
+                vec![1],
+                MachineEncodedMemoryEffect::ReadPointerV1 {
+                    pointer_operand: 0,
+                    byte_count: if semantic == Semantic::Load32 { 4 } else { 8 },
+                },
+                crate::encoder_resolved(7, Some(8)),
+            ),
+            Semantic::Store64 => (
+                MachineMemoryEffect::WriteFrameStorageV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0],
+                vec![1],
+                MachineEncodedMemoryEffect::WriteFrameStorageV1 {
+                    stack_pointer,
+                    byte_count: 8,
+                },
+                crate::encoder_resolved(15, Some(31)),
+            ),
+            Semantic::FrameAddress => (
+                MachineMemoryEffect::NoneV1,
+                MachineTrapBehavior::NeverV1,
+                vec![],
+                vec![0],
+                MachineEncodedMemoryEffect::NoneV1,
+                crate::encoder_resolved(8, Some(23)),
+            ),
+            Semantic::CallUnit => (
+                MachineMemoryEffect::NoneV1,
+                MachineTrapBehavior::NeverV1,
+                row.operands.iter().map(|operand| operand.operand).collect(),
+                vec![],
+                MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+                    stack_pointer,
+                    byte_count: 8,
+                },
+                Size::ExactBytes(5),
+            ),
+            _ => unreachable!("ordinary address/call declaration only"),
+        };
+        let is_call = semantic == Semantic::CallUnit;
+        MachineEffectDeclaration {
+            semantic,
+            constraint,
+            memory,
+            trap,
+            barrier: if matches!(semantic, Semantic::AccessorScalarAccess(_)) {
+                MachineBarrier::ExternalEffect
+            } else if is_call {
+                MachineBarrier::Call
+            } else {
+                MachineBarrier::None
+            },
+            call: if is_call {
+                MachineCallEffect::InternalNormalReturnV1 {
+                    pre_call_stack_alignment: 16,
+                }
+            } else {
+                MachineCallEffect::NoneV1
+            },
+            cleanup: MachineCleanupEffect::NoneV1,
+            alternatives: vec![MachineAlternative {
+                key: MachineAlternativeKey {
+                    family: semantic.into(),
+                    variant: 0,
+                },
+                applicability: MachineAlternativeApplicability::Always,
+                size,
+                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+                encoded: MachineEncodedEffects {
+                    external_operand_reads: reads,
+                    external_operand_writes: writes,
+                    implicit_unit_uses: row.implicit_uses.clone(),
+                    implicit_unit_defs: row.implicit_defs.clone(),
+                    implicit_unit_clobbers: row.clobbers.clone(),
+                    memory: encoded_memory,
+                    stack: if is_call {
+                        MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                            stack_pointer,
+                            return_address_byte_count: 8,
+                        }
+                    } else {
+                        MachineEncodedStackEffect::UnchangedV1
+                    },
+                    trap: if matches!(semantic, Semantic::FrameAddress | Semantic::AddressOffset) {
+                        MachineEncodedTrapBehavior::NeverV1
+                    } else {
+                        MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                    },
+                    control: if is_call {
+                        MachineEncodedControlEffect::DirectRelativeCallV1
+                    } else {
+                        MachineEncodedControlEffect::FallThroughV1
+                    },
+                },
+            }],
+        }
+    }
+}
+mod scalar_call {
+    use register_model::{RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
+    use selected_instructions::{
+        MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
+        MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
+        MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
+        MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
+        MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    };
+
+    pub(crate) fn user_direct_call_effects(
+        row: &register_model::RegisterInstructionConstraint,
+        stack_pointer: register_model::RegisterViewId,
+    ) -> MachineEncodedEffects {
+        MachineEncodedEffects {
+            external_operand_reads: row.operand_reads(),
+            external_operand_writes: row.operand_writes(),
+            implicit_unit_uses: row.implicit_uses.clone(),
+            implicit_unit_defs: row.implicit_defs.clone(),
+            implicit_unit_clobbers: row.clobbers.clone(),
+            memory: MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+                stack_pointer,
+                byte_count: 8,
+            },
+            stack: MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                stack_pointer,
+                return_address_byte_count: 8,
+            },
+            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            control: MachineEncodedControlEffect::DirectRelativeCallV1,
+        }
+    }
+
+    pub(super) fn declaration(
+        semantic: MachineSemanticKind,
+        constraint: RegisterConstraintKey,
+        constraints: &ValidatedRegisterConstraintCatalog,
+    ) -> MachineEffectDeclaration {
+        let row = constraints
+            .catalog()
+            .constraint(constraint)
+            .expect("canonical x86-64 catalog contains its scalar-call constraint");
+        let stack_pointer = crate::x86_64_physical_register_model_ref()
+            .view_named("rsp")
+            .expect("canonical x86-64 model declares rsp")
+            .id;
+        MachineEffectDeclaration::call(
+            semantic,
+            constraint,
+            16,
+            5,
+            (semantic == MachineSemanticKind::NormalizedForeignCall).then_some(12),
+            user_direct_call_effects(row, stack_pointer),
+        )
+    }
+
+    pub fn x86_64_normalized_foreign_call_declaration(
+        record: &selected_instructions::SelectedNormalizedForeignCall,
+        row: &register_model::RegisterInstructionConstraint,
+    ) -> Option<MachineEffectDeclaration> {
+        let expected = normalized_foreign_constraint(record)?;
+        if *row != expected {
+            return None;
+        }
+        let supervisor = record.call.binding.system_call().is_some();
+        let table = if record.call.binding.table_dispatch().is_some() {
+            Some(crate::selected_form_encoding::table_call::table_address(
+                record,
+            )?)
+        } else {
+            None
+        };
+        let stack_pointer = crate::x86_64_physical_register_model_ref()
+            .view_named("rsp")?
+            .id;
+        let mut register_destinations = 0_u16;
+        let mut field_destinations = 0_u16;
+        let mut stack_destinations = 0_u16;
+        let mut callback_byte_count = 0_u16;
+        for callback in &record.call.callbacks {
+            if Some(callback.terminal_operation) != record.invocation_site.operation() {
+                return None;
+            }
+            match callback.destination.clone() {
+                calling_conventions::NativePlace::Parameter(_) => {
+                    let bytes = match callback.application.placement.locations.as_slice() {
+                        [calling_conventions::ValueLocation::Register { .. }] => {
+                            register_destinations = register_destinations.checked_add(1)?;
+                            7
+                        }
+                        [
+                            calling_conventions::ValueLocation::Stack {
+                                stack_byte_offset, ..
+                            },
+                        ] if *stack_byte_offset <= i32::MAX as u32 => {
+                            stack_destinations = stack_destinations.checked_add(1)?;
+                            if *stack_byte_offset <= i8::MAX as u32 {
+                                12
+                            } else {
+                                15
+                            }
+                        }
+                        _ => return None,
+                    };
+                    callback_byte_count = callback_byte_count.checked_add(bytes)?;
+                }
+                calling_conventions::NativePlace::Field { .. } => {
+                    field_destinations = field_destinations.checked_add(1)?;
+                    let [calling_conventions::ValueLocation::Register { register, .. }] =
+                        callback.application.placement.locations.as_slice()
+                    else {
+                        return None;
+                    };
+                    let destination =
+                        crate::X86_64CallbackMaterializationDestination::RecordField {
+                            root_register: *register,
+                            placements: callback.field_placements.clone()?,
+                        };
+                    let bytes = u16::try_from(
+                        crate::selected_form_encoding::callback_group_bytes(destination)?.len(),
+                    )
+                    .ok()?;
+                    callback_byte_count = callback_byte_count.checked_add(bytes)?;
+                }
+            }
+        }
+        if supervisor && !record.call.callbacks.is_empty() {
+            return None;
+        }
+        let variant = u32::from(register_destinations != 0)
+            | (u32::from(field_destinations != 0) << 1)
+            | (u32::from(stack_destinations != 0) << 2);
+        let byte_count = if supervisor {
+            12
+        } else if table.is_some() {
+            10
+        } else {
+            5_u16.checked_add(callback_byte_count)?
+        };
+        Some(MachineEffectDeclaration {
+            semantic: MachineSemanticKind::NormalizedForeignCall,
+            constraint: row.key,
+            memory: if field_destinations != 0 || stack_destinations != 0 {
+                MachineMemoryEffect::PrivateCallbackMaterializationV1
+            } else if table.is_some() {
+                MachineMemoryEffect::ReadPointerV1
+            } else {
+                MachineMemoryEffect::NoneV1
+            },
+            trap: if field_destinations != 0 || stack_destinations != 0 || table.is_some() {
+                MachineTrapBehavior::MayArchitecturalFaultV1
+            } else {
+                MachineTrapBehavior::NeverV1
+            },
+            barrier: MachineBarrier::Call,
+            call: if supervisor {
+                MachineCallEffect::SupervisorNormalReturnV1
+            } else {
+                MachineCallEffect::ExternalNormalReturnV1 {
+                    pre_call_stack_alignment: 16,
+                }
+            },
+            cleanup: MachineCleanupEffect::NoneV1,
+            alternatives: vec![MachineAlternative {
+                key: MachineAlternativeKey {
+                    family: selected_instructions::MachineAlternativeFamily::NormalizedForeignCall,
+                    variant,
+                },
+                applicability: MachineAlternativeApplicability::Always,
+                size: MachineSizeKnowledge::ExactBytes(byte_count),
+                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+                encoded: {
+                    let mut encoded = user_direct_call_effects(row, stack_pointer);
+                    if field_destinations != 0 || stack_destinations != 0 {
+                        encoded.memory =
+                            MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1;
+                    }
+                    if supervisor {
+                        encoded.memory = MachineEncodedMemoryEffect::NoneV1;
+                        encoded.stack = MachineEncodedStackEffect::UnchangedV1;
+                        encoded.control = MachineEncodedControlEffect::SupervisorCallV1;
+                    }
+                    if let Some((_, byte_offset)) = table {
+                        let position =
+                            selected_instructions::calls::constraints::foreign_argument_registers(
+                                &record.call,
+                            )
+                            .iter()
+                            .position(|(parameter, _)| *parameter == 0)?;
+                        encoded.memory = MachineEncodedMemoryEffect::ReadTableFieldV1 {
+                            pointer_operand: u16::try_from(position).ok()?,
+                            byte_offset,
+                        };
+                        encoded.control = MachineEncodedControlEffect::IndirectExternalCallV1;
+                    }
+                    encoded
+                },
+            }],
+        })
+    }
+
+    pub(crate) fn normalized_foreign_constraint(
+        record: &selected_instructions::SelectedNormalizedForeignCall,
+    ) -> Option<register_model::RegisterInstructionConstraint> {
+        let target = record.call.binding.native_target()?;
+        let abi = super::x86_64_selected_abi(target).ok()?;
+        let key = if record.call.binding.system_call().is_some() {
+            *crate::x86_64_linux_system_call_keys().first()?
+        } else {
+            match abi {
+                super::X86_64SelectedAbi::SystemV => {
+                    *crate::x86_64_system_v_normalized_foreign_call_keys().first()?
+                }
+                super::X86_64SelectedAbi::Microsoft => {
+                    *crate::x86_64_microsoft_normalized_foreign_call_keys().first()?
+                }
+            }
+        };
+        let physical = crate::validated_x86_64_physical_register_model();
+        let catalog = crate::x86_64_register_constraint_catalog_for(physical);
+        let base = catalog.constraint(key)?;
+        selected_instructions::calls::constraints::instantiate_foreign_call_constraint(
+            &record.call,
+            base,
+            physical,
+            |register| crate::x86_64_fixed_register_view(physical, register),
+        )
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use target::NativeTarget;
+
+        #[test]
+        fn system_call_effects_reject_user_space_call_state_and_missing_clobbers() {
+            let physical = crate::validated_x86_64_physical_register_model();
+            let constraints = crate::validate_x86_64_register_constraint_catalog(
+                crate::x86_64_register_constraint_catalog(physical),
+                physical,
+            )
+            .unwrap();
+            let target = NativeTarget::linux_x64();
+            let catalog = crate::x86_64_machine_effect_catalog(target, &constraints).unwrap();
+            crate::validate_x86_64_machine_effect_catalog(target, &constraints, catalog.clone())
+                .expect("kernel entry effects");
+            let other =
+                crate::x86_64_machine_effect_catalog(NativeTarget::macos_x64(), &constraints)
+                    .unwrap();
+            isa_conformance::system_call::effects_conformance(
+                &constraints,
+                &catalog,
+                &crate::x86_64_linux_system_call_keys(),
+                physical.model().view_named("rsp").unwrap().id,
+                &other,
+            );
+        }
+    }
+}
 pub use scalar_call::x86_64_normalized_foreign_call_declaration;
 pub(crate) use scalar_call::{normalized_foreign_constraint, user_direct_call_effects};
 
@@ -175,28 +755,16 @@ pub fn x86_64_machine_effect_catalog(
     })
 }
 
-/// The x86-64 encoding matrix declares one call/return ABI family per
-/// supported (architecture, object-format) pair: Linux System-V under ELF
-/// and Microsoft x64 under COFF. Windows and UEFI share the COFF row because
-/// their `NativeTarget` contracts are indistinguishable at this layer. An
-/// undeclared pair — including every non-x86-64 architecture — fails closed
-/// rather than silently inheriting one family's rows; adding a supported
-/// x86-64 format extends this matrix deliberately.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum X86_64SelectedAbi {
     SystemV,
     Microsoft,
 }
 
-/// Resolve the declared pair to its ABI family. Every selected-form encoding
-/// that needs the call/return roster — the machine-effect catalog and the
-/// scalar-call template validator alike — consults this matrix rather than
-/// re-reading the target, so an undeclared pair fails closed once, here.
 pub(crate) fn x86_64_selected_abi(
     target: NativeTarget,
 ) -> Result<X86_64SelectedAbi, X86_64MachineEffectCatalogValidationError> {
     match (target.architecture, target.object_format) {
-        // Intel macOS C calls follow the same System V AMD64 roster as Linux.
         (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::MachO) => {
             Ok(X86_64SelectedAbi::SystemV)
         }
@@ -209,12 +777,6 @@ pub(crate) fn x86_64_selected_abi(
     }
 }
 
-/// The exact register-constraint key roster the x86-64 encoding matrix
-/// declares for one target: every constraint row this target's selected forms
-/// may use, selected by the ABI family its declared pair resolves to. The
-/// machine-effect catalog and the allocator register environment both consume
-/// this one roster instead of deriving their own, so the allocator cannot
-/// drift from the effect declarations. `None` means the pair has no x86-64 ABI.
 pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
     let Ok(abi) = x86_64_selected_abi(target) else {
         return None;
@@ -254,8 +816,6 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             interrupt_control: Some(crate::X86_64_INTERRUPT_CONTROL),
             memory_fence: Some(crate::X86_64_MEMORY_FENCE),
             atomic_fence: Some(crate::X86_64_ATOMIC_FENCE),
-            // LOCK is architectural on every x86-64 target; no feature custody
-            // gates the family the way AArch64's LSE does.
             access_read: Some(crate::X86_64_ACCESSOR_READ),
             access_write: Some(crate::X86_64_ACCESSOR_WRITE),
             atomic_load: Some(crate::X86_64_ATOMIC_LOAD),
@@ -427,17 +987,12 @@ fn declaration(semantic: Semantic, keys: &SelectedConstraintKeys) -> MachineEffe
         Semantic::ExactSubtractI64 | Semantic::WrappingSubtractI64 => {
             binary_alias_ladder(semantic, [3, 3, 6, 6])
         }
-        // `imul r64, r64` is one REX.W + 0F AF form in every alias case; only
-        // the distinct-result variant prepends a three-byte `mov`.
         Semantic::ExactMultiplyI64 | Semantic::WrappingMultiplyI64 => {
             binary_alias_ladder(semantic, [4, 4, 4, 7])
         }
         Semantic::ConditionalBranchU64LessThan | Semantic::ConditionalBranchI64LessThan => {
             vec![always(Size::ExactBytes(6))]
         }
-        // The early-clobber result never shares the pinned RCX count or the
-        // value it is initialized from, so `mov result, value; shX result, cl`
-        // is the only realization and applies to every allocation.
         Semantic::WrappingShiftLeftI64
         | Semantic::WrappingShiftRightI64
         | Semantic::WrappingShiftRightU64
@@ -446,9 +1001,6 @@ fn declaration(semantic: Semantic, keys: &SelectedConstraintKeys) -> MachineEffe
         | Semantic::ExactShiftRightU64 => {
             vec![always(Size::ExactBytes(6))]
         }
-        // Variant 1 is the three-byte `xor r64, r64` zero idiom. The
-        // legality rule never chooses it: `X86SelectXorZeroI64MaterializationV1`
-        // rewrites a zero materialization onto it after proving RFLAGS dead.
         Semantic::MaterializeI64 => vec![
             always(size(semantic)),
             alternative(
@@ -473,9 +1025,6 @@ fn declaration(semantic: Semantic, keys: &SelectedConstraintKeys) -> MachineEffe
         } else {
             MachineMemoryEffect::NoneV1
         },
-        // A Trapping form may stop the process at its inline UD2, which is
-        // as observable as a hosted effect: it is ordered like one and is
-        // never dead. An atomic access dereferences a pointer the cell owns.
         trap: if matches!(semantic, Semantic::TrappingInteger(_)) {
             MachineTrapBehavior::TrappingIntegerV1
         } else if matches!(semantic, Semantic::AtomicAccess(_)) {
@@ -508,9 +1057,6 @@ fn declaration(semantic: Semantic, keys: &SelectedConstraintKeys) -> MachineEffe
     }
 }
 
-/// Two-input ops that define a third result home run the same four-way
-/// ladder: both operands aliased together, each operand aliased alone and
-/// the distinct-result variant. Only the encoded sizes differ per family.
 fn binary_alias_ladder(semantic: Semantic, sizes: [u16; 4]) -> Vec<MachineAlternative> {
     vec![
         alternative(
@@ -642,8 +1188,6 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
         Semantic::FloatResultPolicy(form) => {
             return crate::selected_form_encoding::float_result_policy::effects(form);
         }
-        // The atomic encoder owns both explicit results and implicit effects.
-        // Its outcome tag is a real output, alongside the observed resident.
         Semantic::AtomicAccess(form) => {
             return crate::selected_form_encoding::atomic::effects(form);
         }
@@ -695,8 +1239,6 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
             (vec![], vec![2])
         }
         Semantic::ExactSubtractI64 | Semantic::WrappingSubtractI64 => (vec![0, 1], vec![2]),
-        // `imul r, r` genuinely reads its input to square it, so even the
-        // fully-aliased variant 0 reads both external operands.
         Semantic::ExactMultiplyI64 | Semantic::WrappingMultiplyI64 => (vec![0, 1], vec![2]),
         Semantic::WrappingShiftLeftI64
         | Semantic::WrappingShiftRightI64
@@ -711,8 +1253,6 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
         | Semantic::ReturnAggregate
         | Semantic::Jump
         | Semantic::ReturnUnit => (vec![], vec![]),
-        // The family macro restates the memory module's whole arm set; the
-        // placement form is matched by its own arm above.
         #[allow(unreachable_patterns)]
         Semantic::CallScalar
         | Semantic::InvokeNoNormal
@@ -843,8 +1383,6 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
                     MachineEncodedControlEffect::ReturnFromActivationStackV1,
                 )
             }
-            // The xor-zero idiom defines its destination from no input and
-            // clobbers RFLAGS; the baseline `mov r64, imm64` touches no flag.
             Semantic::MaterializeI64 if variant == 1 => (
                 vec![],
                 vec![],
@@ -877,8 +1415,6 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
     }
 }
 
-/// The realization shape of a saturating semantic, which fixes its operand
-/// reads and writes and its exact size.
 fn saturating_form(semantic: Semantic, carrier: SaturatingCarrier) -> SaturatingForm {
     let operation = match semantic {
         Semantic::SaturatingAdd(_) => SaturatingOperation::Add,
@@ -941,18 +1477,11 @@ fn size(semantic: Semantic) -> Size {
         | Semantic::SignExtendI16 => Size::ExactBytes(4),
         Semantic::ZeroExtendU32 | Semantic::SignExtendI32 => Size::ExactBytes(3),
         Semantic::MaterializeI64 => Size::ExactBytes(10),
-        // `lea r64, [rip+disp32]` with the disp32 left for object construction.
         Semantic::ImageAddress => Size::ExactBytes(7),
         Semantic::ExactDivideU64 => Size::ExactBytes(3),
         Semantic::WrappingRemainderI64 => Size::ExactBytes(17),
-        // `xor` the RDX high half, unsigned `div`, then move the remainder
-        // from RDX into the RAX result home.
         Semantic::ExactRemainderU64 => Size::ExactBytes(9),
-        // `cmp` the divisor against -1, `jne` to the divide, `neg` the
-        // dividend for the wrapping MIN / -1 answer, `jmp` over `cqo; idiv`.
         Semantic::WrappingDivideI64 => Size::ExactBytes(16),
-        // Bare `cqo; idiv` / `cqo; idiv; mov rdx, rax`: the proven exact
-        // obligations exclude every faulting input the guard exists for.
         Semantic::ExactDivideI64 => Size::ExactBytes(5),
         Semantic::ExactRemainderI64 => Size::ExactBytes(8),
         Semantic::SaturatingAdd(carrier)
@@ -962,8 +1491,6 @@ fn size(semantic: Semantic) -> Size {
         | Semantic::SaturatingMultiply(carrier) => {
             Size::ExactBytes(saturating_form(semantic, carrier).byte_count())
         }
-        // Every instruction of a Trapping realization has a register-free
-        // length, so each form has one exact size.
         Semantic::TrappingInteger(form) => Size::ExactBytes(TrappingShape::of(form).byte_count()),
         Semantic::BitwiseAndI64
         | Semantic::BitwiseOrI64
@@ -992,8 +1519,6 @@ fn size(semantic: Semantic) -> Size {
         | Semantic::ExactShiftRightU64 => {
             unreachable!("subtraction, multiplication, and shifts declare explicit alternatives")
         }
-        // The family macro restates the memory module's whole arm set; the
-        // placement form is matched by its own arm above.
         #[allow(unreachable_patterns)]
         Semantic::CallScalar
         | Semantic::InvokeNoNormal
@@ -1011,4 +1536,780 @@ fn size(semantic: Semantic) -> Size {
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::{
+        Architecture, MachineAlternativeApplicability, MachineBarrier, MachineCallEffect,
+        MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
+        MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+        MachineTrapBehavior, NativeTarget, ObjectFormat, Semantic, Size,
+        ValidatedRegisterConstraintCatalog, X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64,
+        X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64,
+        X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
+        X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,
+        x86_64_machine_effect_catalog, x86_64_system_v_register_call_keys,
+    };
+    use crate::{
+        X86_64RegisterConstraintCatalogValidationError,
+        validate_x86_64_register_constraint_catalog, x86_64_physical_register_model,
+        x86_64_register_constraint_catalog,
+    };
+    use register_model::validate_physical_register_model;
+    use selected_instructions::{
+        IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatToIntegerDomain,
+        MachineAlternativeFamily, MachineEffectCatalogValidationError, SaturatingCarrier,
+        SaturatingOperation, TrappingForm, TrappingOperation,
+    };
+
+    fn constraints() -> ValidatedRegisterConstraintCatalog {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        validate_x86_64_register_constraint_catalog(
+            x86_64_register_constraint_catalog(&physical),
+            &physical,
+        )
+        .unwrap_or_else(|error: X86_64RegisterConstraintCatalogValidationError| panic!("{error}"))
+    }
+
+    macro_rules! eq {
+        ($left:expr => $right:expr) => {
+            assert_eq!($left, $right);
+        };
+    }
+
+    #[test]
+    fn raw_bit_classification_catalog_admits_real_flag_clobbers() {
+        let constraints = constraints();
+        let catalog =
+            x86_64_machine_effect_catalog(NativeTarget::linux_x64(), &constraints).unwrap();
+        let physical = x86_64_physical_register_model();
+        let flags = &physical.view_named("condition_flags").unwrap().units;
+        for format in [
+            selected_instructions::IeeeFloatFormat::Binary32,
+            selected_instructions::IeeeFloatFormat::Binary64,
+        ] {
+            for operation in [
+                IeeeFloatArithmeticOperation::IsNan,
+                IeeeFloatArithmeticOperation::IsInfinite,
+                IeeeFloatArithmeticOperation::IsFinite,
+                IeeeFloatArithmeticOperation::IsNormal,
+                IeeeFloatArithmeticOperation::IsSubnormal,
+                IeeeFloatArithmeticOperation::Classify,
+            ] {
+                let row = catalog
+                    .declaration_by_semantic(Semantic::NearestIeeeFloatArithmetic(
+                        IeeeFloatArithmeticForm { operation, format },
+                    ))
+                    .unwrap();
+                assert_eq!(row.constraint, crate::X86_64_IEEE_FLOAT_CONVERSION_CONTROL);
+                let encoded = &row.alternatives[0].encoded;
+                assert!(
+                    flags
+                        .iter()
+                        .all(|unit| encoded.implicit_unit_clobbers.contains(unit))
+                );
+                assert_eq!(encoded.external_operand_reads, [0]);
+                assert_eq!(encoded.external_operand_writes, [1]);
+            }
+        }
+    }
+
+    #[test]
+    fn saturating_catalog_binds_key_size_and_effects_for_every_carrier() {
+        use SaturatingCarrier::{I64, U64};
+        use SaturatingOperation::{Add, Divide, Multiply, Remainder, Subtract};
+        let constraints = constraints();
+        let physical = x86_64_physical_register_model();
+        let rflags = physical
+            .view_named("condition_flags")
+            .unwrap()
+            .units
+            .clone();
+        let rdx = physical.view_named("rdx").unwrap().units.clone();
+        for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
+            let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+            for operation in [Add, Subtract, Divide, Remainder, Multiply] {
+                for carrier in SaturatingCarrier::ALL {
+                    let semantic = match operation {
+                        Add => Semantic::SaturatingAdd(carrier),
+                        Subtract => Semantic::SaturatingSubtract(carrier),
+                        Divide => Semantic::SaturatingDivide(carrier),
+                        Remainder => Semantic::SaturatingRemainder(carrier),
+                        Multiply => Semantic::SaturatingMultiply(carrier),
+                    };
+                    let (key, size) = match (operation, carrier.is_signed(), carrier) {
+                        (Add, _, U64) => (crate::register_model::X86_64_SATURATING_ADD_U64, 19),
+                        (Add, true, I64) => {
+                            (crate::register_model::X86_64_SATURATING_ADD_CLAMPED, 25)
+                        }
+                        (Add, true, _) => {
+                            (crate::register_model::X86_64_SATURATING_ADD_CLAMPED, 40)
+                        }
+                        (Add, false, _) => {
+                            (crate::register_model::X86_64_SATURATING_ADD_CLAMPED, 23)
+                        }
+                        (Subtract, false, _) => (
+                            crate::register_model::X86_64_SATURATING_SUBTRACT_UNSIGNED,
+                            13,
+                        ),
+                        (Subtract, true, I64) => (
+                            crate::register_model::X86_64_SATURATING_SUBTRACT_CLAMPED,
+                            25,
+                        ),
+                        (Subtract, true, _) => (
+                            crate::register_model::X86_64_SATURATING_SUBTRACT_CLAMPED,
+                            40,
+                        ),
+                        (Divide, false, _) => (crate::register_model::X86_64_DIVIDE_U64, 3),
+                        (Divide, true, I64) => {
+                            (crate::register_model::X86_64_SATURATING_DIVIDE_SIGNED, 26)
+                        }
+                        (Divide, true, _) => {
+                            (crate::register_model::X86_64_SATURATING_DIVIDE_SIGNED, 22)
+                        }
+                        (Remainder, false, _) => (crate::register_model::X86_64_REMAINDER_U64, 9),
+                        (Remainder, true, _) => (crate::register_model::X86_64_REMAINDER_I64, 17),
+                        (Multiply, _, U64) => {
+                            (crate::register_model::X86_64_SATURATING_MULTIPLY_U64, 9)
+                        }
+                        (Multiply, true, I64) => (
+                            crate::register_model::X86_64_SATURATING_MULTIPLY_CLAMPED,
+                            29,
+                        ),
+                        (Multiply, true, _) => (
+                            crate::register_model::X86_64_SATURATING_MULTIPLY_CLAMPED,
+                            41,
+                        ),
+                        (Multiply, false, _) => (
+                            crate::register_model::X86_64_SATURATING_MULTIPLY_CLAMPED,
+                            24,
+                        ),
+                    };
+                    let division = operation == Divide;
+                    let remainder = operation == Remainder;
+                    let three_operand = (operation, carrier) == (Add, U64)
+                        || (operation == Subtract && !carrier.is_signed());
+                    let (reads, writes): (Vec<u16>, Vec<u16>) = if division {
+                        (vec![0, 1, 3], vec![2])
+                    } else if three_operand {
+                        (vec![0, 1], vec![2])
+                    } else {
+                        (vec![0, 1], vec![2, 3])
+                    };
+                    let declaration = catalog
+                        .declaration_by_semantic(semantic)
+                        .unwrap_or_else(|| panic!("{semantic:?} declared"));
+                    assert_eq!(declaration.constraint, key, "{semantic:?}");
+                    assert_eq!(declaration.alternatives.len(), 1);
+                    let alternative = &declaration.alternatives[0];
+                    assert_eq!(
+                        alternative.key.family,
+                        selected_instructions::MachineAlternativeFamily::from(semantic)
+                    );
+                    assert_eq!(alternative.size, Size::ExactBytes(size), "{semantic:?}");
+                    eq!(alternative.applicability => MachineAlternativeApplicability::Always);
+                    assert_eq!(
+                        alternative.encoded.external_operand_reads, reads,
+                        "{semantic:?}"
+                    );
+                    assert_eq!(
+                        alternative.encoded.external_operand_writes, writes,
+                        "{semantic:?}"
+                    );
+                    let mut clobbers = rflags.clone();
+                    if division {
+                        clobbers.extend(rdx.iter().copied());
+                        clobbers.sort_unstable();
+                        clobbers.dedup();
+                    }
+                    assert_eq!(alternative.encoded.implicit_unit_clobbers, clobbers);
+                    assert_eq!(
+                        alternative.encoded.trap
+                            == MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                        division || remainder,
+                        "{semantic:?}"
+                    );
+                    if target != NativeTarget::linux_x64() {
+                        continue;
+                    }
+                    for corruption in 0..4 {
+                        let mut changed = catalog.clone();
+                        let alternative = &mut changed
+                            .declaration_by_semantic_mut(semantic)
+                            .unwrap()
+                            .alternatives[0];
+                        match corruption {
+                            0 if division => alternative.encoded.external_operand_reads.truncate(2),
+                            0 if three_operand => {
+                                alternative.encoded.external_operand_reads.truncate(1);
+                            }
+                            0 => alternative.encoded.external_operand_writes.truncate(1),
+                            1 => alternative.encoded.implicit_unit_clobbers.clear(),
+                            2 => alternative.size = Size::ExactBytes(size + 1),
+                            _ => {
+                                let sibling =
+                                    SaturatingCarrier::ALL[(usize::from(carrier.ordinal()) + 1)
+                                        % SaturatingCarrier::ALL.len()];
+                                alternative.key.family = match operation {
+                                Add => selected_instructions::MachineAlternativeFamily::SaturatingAdd(sibling),
+                                Subtract => selected_instructions::MachineAlternativeFamily::SaturatingSubtract(sibling),
+                                Divide => selected_instructions::MachineAlternativeFamily::SaturatingDivide(sibling),
+                                Remainder => selected_instructions::MachineAlternativeFamily::SaturatingRemainder(sibling),
+                                Multiply => selected_instructions::MachineAlternativeFamily::SaturatingMultiply(sibling),
+                            };
+                            }
+                        }
+                        assert!(
+                            validate_x86_64_machine_effect_catalog(target, &constraints, changed)
+                                .is_err(),
+                            "{semantic:?} corruption {corruption}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    const TRAPPING_SIZES: [[u16; 8]; 9] = [
+        [17, 17, 16, 10, 17, 17, 17, 10],
+        [17, 17, 16, 10, 17, 17, 17, 10],
+        [18, 18, 17, 11, 18, 18, 18, 7],
+        [26, 28, 28, 26, 13, 13, 13, 13],
+        [29, 31, 31, 29, 16, 16, 16, 16],
+        [25, 25, 24, 27, 25, 25, 25, 27],
+        [14, 14, 14, 14, 14, 14, 14, 14],
+        [14, 14, 13, 3, 14, 14, 14, 14],
+        [14, 14, 14, 14, 14, 14, 14, 3],
+    ];
+
+    #[test]
+    fn trapping_catalog_binds_row_size_and_trap_effects_for_every_form() {
+        let constraints = constraints();
+        let rflags = x86_64_physical_register_model()
+            .view_named("condition_flags")
+            .unwrap()
+            .units
+            .clone();
+        for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
+            let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+            validate_x86_64_machine_effect_catalog(target, &constraints, catalog.clone()).unwrap();
+            for form in TrappingForm::ALL {
+                let semantic = Semantic::TrappingInteger(form);
+                let (key, reads, writes): (_, Vec<u16>, Vec<u16>) =
+                    match (form.operation, form.carrier) {
+                        (TrappingOperation::Divide | TrappingOperation::Remainder, _)
+                        | (TrappingOperation::Multiply, SaturatingCarrier::U64) => {
+                            (crate::X86_64_TRAPPING_FIXED_PAIR, vec![0, 1], vec![2, 3])
+                        }
+                        (TrappingOperation::ShiftLeft | TrappingOperation::ShiftRight, _) => {
+                            (crate::X86_64_TRAPPING_SHIFT, vec![0, 1], vec![2, 3])
+                        }
+                        (TrappingOperation::Convert { .. }, _) => {
+                            (crate::X86_64_TRAPPING_CONVERT, vec![0], vec![1, 2])
+                        }
+                        _ => (crate::X86_64_TRAPPING_BINARY, vec![0, 1], vec![2, 3]),
+                    };
+                let size = TRAPPING_SIZES[usize::from(form.operation.ordinal())]
+                    [usize::from(form.carrier.ordinal())];
+                let declaration = catalog
+                    .declaration_by_semantic(semantic)
+                    .unwrap_or_else(|| panic!("{form:?} declared"));
+                assert_eq!(declaration.constraint, key, "{form:?}");
+                assert_eq!(declaration.barrier, MachineBarrier::ExternalEffect);
+                assert_eq!(declaration.trap, MachineTrapBehavior::TrappingIntegerV1);
+                assert_eq!(declaration.memory, MachineMemoryEffect::NoneV1);
+                assert_eq!(declaration.call, MachineCallEffect::NoneV1);
+                assert_eq!(declaration.alternatives.len(), 1);
+                let alternative = &declaration.alternatives[0];
+                eq!(alternative.key.family => MachineAlternativeFamily::TrappingInteger(form));
+                assert_eq!(alternative.key.variant, 0);
+                eq!(alternative.applicability => MachineAlternativeApplicability::Always);
+                assert_eq!(alternative.size, Size::ExactBytes(size), "{form:?}");
+                assert_eq!(
+                    alternative.encoded,
+                    MachineEncodedEffects {
+                        external_operand_reads: reads,
+                        external_operand_writes: writes,
+                        implicit_unit_uses: vec![],
+                        implicit_unit_defs: vec![],
+                        implicit_unit_clobbers: rflags.clone(),
+                        memory: MachineEncodedMemoryEffect::NoneV1,
+                        stack: MachineEncodedStackEffect::UnchangedV1,
+                        trap: MachineEncodedTrapBehavior::TrappingIntegerV1,
+                        control: MachineEncodedControlEffect::FallThroughOrTrapV1,
+                    },
+                    "{form:?}"
+                );
+                if target != NativeTarget::linux_x64() {
+                    continue;
+                }
+                let corruption = form.carrier.ordinal();
+                let mut changed = catalog.clone();
+                let row = changed.declaration_by_semantic_mut(semantic).unwrap();
+                let alternative = &mut row.alternatives[0];
+                match corruption {
+                    0 => alternative.encoded.external_operand_writes.truncate(1),
+                    1 => alternative.encoded.implicit_unit_clobbers.clear(),
+                    2 => alternative.size = Size::ExactBytes(size + 1),
+                    3 => alternative.encoded.trap = MachineEncodedTrapBehavior::NeverV1,
+                    4 => alternative.encoded.control = MachineEncodedControlEffect::FallThroughV1,
+                    5 => {
+                        alternative.key.family = MachineAlternativeFamily::TrappingInteger(
+                            TrappingForm::ALL
+                                [(usize::from(form.ordinal()) + 1) % TrappingForm::COUNT],
+                        );
+                    }
+                    6 => row.trap = MachineTrapBehavior::NeverV1,
+                    _ => row.barrier = MachineBarrier::None,
+                }
+                assert!(
+                    validate_x86_64_machine_effect_catalog(target, &constraints, changed).is_err(),
+                    "{form:?} corruption {corruption}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn wrapping_remainder_catalog_defines_scratch_and_clobbers_flags() {
+        let constraints = constraints();
+        for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
+            let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+            let declaration = catalog
+                .declaration_by_semantic(Semantic::WrappingRemainderI64)
+                .unwrap();
+            eq!(declaration.constraint => crate::register_model::X86_64_REMAINDER_I64);
+            let alternative = &declaration.alternatives[0];
+            assert_eq!(alternative.size, Size::ExactBytes(17));
+            assert_eq!(alternative.encoded.external_operand_reads, [0, 1]);
+            assert_eq!(alternative.encoded.external_operand_writes, [2, 3]);
+            assert_eq!(
+                alternative.encoded.implicit_unit_clobbers,
+                x86_64_physical_register_model()
+                    .view_named("condition_flags")
+                    .unwrap()
+                    .units
+            );
+            for corruption in 0..3 {
+                let mut changed = catalog.clone();
+                let alternative = &mut changed
+                    .declaration_by_semantic_mut(Semantic::WrappingRemainderI64)
+                    .unwrap()
+                    .alternatives[0];
+                match corruption {
+                    0 => alternative.encoded.external_operand_writes.truncate(1),
+                    1 => alternative.encoded.implicit_unit_clobbers.clear(),
+                    _ => alternative.size = Size::ExactBytes(3),
+                }
+                assert!(
+                    validate_x86_64_machine_effect_catalog(target, &constraints, changed).is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn integer_normalization_catalog_binds_identity_size_and_effects() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
+            let constraints = constraints();
+            let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+            validate_x86_64_machine_effect_catalog(target, &constraints, catalog.clone()).unwrap();
+            for semantic in [
+                Semantic::ZeroExtendU16,
+                Semantic::SignExtendI8,
+                Semantic::SignExtendI16,
+                Semantic::SignExtendI32,
+            ] {
+                let declaration = catalog.declaration_by_semantic(semantic).unwrap();
+                assert_eq!(declaration.constraint, X86_64_COPY_I64);
+                assert_eq!(declaration.alternatives.len(), 1);
+                let alternative = &declaration.alternatives[0];
+                assert_eq!(alternative.key.family, semantic.into());
+                assert_eq!(
+                    alternative.size,
+                    Size::ExactBytes(if semantic == Semantic::SignExtendI32 {
+                        3
+                    } else {
+                        4
+                    })
+                );
+                eq!(alternative.encoded => MachineEncodedEffects::fallthrough_v1(vec![0], vec![1]));
+                for corruption in 0..3 {
+                    let mut changed = catalog.clone();
+                    let row = changed.declaration_by_semantic_mut(semantic).unwrap();
+                    match corruption {
+                        0 => row.alternatives[0].key.family = Semantic::CopyI64.into(),
+                        1 => row.alternatives[0].size = Size::ExactBytes(1),
+                        _ => row.alternatives[0].encoded.external_operand_reads.clear(),
+                    }
+                    assert!(
+                        validate_x86_64_machine_effect_catalog(target, &constraints, changed)
+                            .is_err()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
+            let constraints = constraints();
+            let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+            let subtract = catalog
+                .declaration_by_semantic(Semantic::ExactSubtractI64)
+                .unwrap();
+            let add = catalog
+                .declaration_by_semantic(Semantic::ExactAddI64)
+                .unwrap();
+            let less_than_branch = catalog
+                .declaration_by_semantic(Semantic::ConditionalBranchU64LessThan)
+                .unwrap();
+            let signed_less_than_branch = catalog
+                .declaration_by_semantic(Semantic::ConditionalBranchI64LessThan)
+                .unwrap();
+            assert_eq!(less_than_branch.constraint, X86_64_CONDITIONAL_BRANCH);
+            assert_eq!(less_than_branch.alternatives.len(), 1);
+            eq!(less_than_branch.alternatives[0].size => Size::ExactBytes(6));
+            assert_eq!(
+                less_than_branch.alternatives[0].encoded.control,
+                MachineEncodedControlEffect::ConditionalRelativeBranchV1
+            );
+            eq!(signed_less_than_branch.constraint => X86_64_CONDITIONAL_BRANCH);
+            assert_eq!(signed_less_than_branch.alternatives.len(), 1);
+            assert_eq!(
+                signed_less_than_branch.alternatives[0].key.family,
+                selected_instructions::MachineAlternativeFamily::ConditionalBranchI64LessThan
+            );
+            eq!(signed_less_than_branch.alternatives[0].size => Size::ExactBytes(6));
+            eq!(add.alternatives[0].applicability => MachineAlternativeApplicability::Always);
+            assert_eq!(subtract.constraint, X86_64_SUBTRACT_I64);
+            let register_effects = constraints
+                .catalog()
+                .constraint(subtract.constraint)
+                .unwrap();
+            assert!(register_effects.implicit_uses.is_empty());
+            assert!(register_effects.implicit_defs.is_empty());
+            assert!(!register_effects.clobbers.is_empty());
+            assert_eq!(subtract.alternatives.len(), 4);
+            assert_eq!(
+                subtract.alternatives[0].applicability,
+                MachineAlternativeApplicability::ResultAliasesOperands {
+                    result: 2,
+                    left: 0,
+                    right: 1,
+                }
+            );
+            assert_eq!(
+                subtract.alternatives[1].applicability,
+                MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
+                    result: 2,
+                    aliased_operand: 0,
+                    distinct_operand: 1,
+                }
+            );
+            assert_eq!(
+                subtract.alternatives[2].applicability,
+                MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
+                    result: 2,
+                    aliased_operand: 1,
+                    distinct_operand: 0,
+                }
+            );
+            assert_eq!(
+                subtract.alternatives[3].applicability,
+                MachineAlternativeApplicability::ResultDistinctFromOperands {
+                    result: 2,
+                    left: 0,
+                    right: 1,
+                }
+            );
+            let expected_barrier = |semantic: Semantic| match semantic {
+                Semantic::ConditionalBranchNonZero
+                | Semantic::ConditionalBranchU64LessThan
+                | Semantic::ConditionalBranchI64LessThan
+                | Semantic::ReturnScalar
+                | Semantic::ReturnAggregate
+                | Semantic::Jump
+                | Semantic::ReturnUnit
+                | Semantic::Crash
+                | Semantic::PrivilegedCrash => MachineBarrier::ControlFlow,
+                Semantic::CallScalar
+                | Semantic::InvokeNoNormal
+                | Semantic::CallUnit
+                | Semantic::CallAggregate
+                | Semantic::NormalizedForeignCall => MachineBarrier::Call,
+                Semantic::HostedReadByte
+                | Semantic::SaveFloatingControl
+                | Semantic::RestoreFloatingControl
+                | Semantic::HostedWriteByteI32
+                | Semantic::HostedExitProcessI32
+                | Semantic::TrappingInteger(_)
+                | Semantic::PortWrite
+                | Semantic::SystemRegisterRead
+                | Semantic::SystemRegisterWrite
+                | Semantic::ControlRegisterRead
+                | Semantic::ControlRegisterWrite
+                | Semantic::GlobalDescriptorTableLoad
+                | Semantic::GlobalDescriptorTableStore
+                | Semantic::TaskRegisterActivate
+                | Semantic::TaskRegisterRead
+                | Semantic::CodeSegmentReload
+                | Semantic::DataSegmentReload
+                | Semantic::SegmentSelectorRead
+                | Semantic::InstalledInterruptCpuCheck
+                | Semantic::InstalledInterruptTaskCommit
+                | Semantic::InstalledInterruptTablePublication
+                | Semantic::PortRegisterRead
+                | Semantic::PortRegisterWrite
+                | Semantic::ModelSpecificRead
+                | Semantic::ModelSpecificWrite
+                | Semantic::ProcessorHalt
+                | Semantic::InterruptControl
+                | Semantic::MemoryFence
+                | Semantic::AtomicFence
+                | Semantic::AtomicAccess(_)
+                | Semantic::AccessorScalarAccess(_) => MachineBarrier::ExternalEffect,
+                Semantic::NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm {
+                    operation:
+                        IeeeFloatArithmeticOperation::TruncateToInteger {
+                            domain: IeeeFloatToIntegerDomain::Trapping,
+                            ..
+                        },
+                    ..
+                }) => MachineBarrier::ExternalEffect,
+                Semantic::FloatResultPolicy(form) if form.can_trap() => {
+                    MachineBarrier::ExternalEffect
+                }
+                _ => MachineBarrier::None,
+            };
+            for row in &catalog.declarations {
+                assert_eq!(
+                    row.barrier,
+                    expected_barrier(row.semantic),
+                    "{:?}",
+                    row.semantic
+                );
+            }
+            assert!(catalog.declarations.iter().any(|row| matches!(
+                row.semantic,
+                Semantic::NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm {
+                    operation: IeeeFloatArithmeticOperation::TruncateToInteger {
+                        domain: IeeeFloatToIntegerDomain::Trapping,
+                        ..
+                    },
+                    ..
+                })
+            )));
+            assert!(catalog.declarations.iter().any(|row| matches!(
+                row.semantic,
+                Semantic::FloatResultPolicy(form) if form.can_trap()
+            )));
+            assert!(catalog.declarations.iter().any(|row| matches!(
+                row.semantic,
+                Semantic::FloatResultPolicy(form) if !form.can_trap()
+            )));
+            let scalar_call = catalog.declaration_by_semantic(Semantic::CallScalar);
+            {
+                let scalar_call = scalar_call.expect("supported target declares scalar call");
+                assert_eq!(
+                    scalar_call.call,
+                    MachineCallEffect::InternalNormalReturnV1 {
+                        pre_call_stack_alignment: 16,
+                    }
+                );
+                eq!(scalar_call.alternatives[0].size => Size::ExactBytes(5));
+                assert!(matches!(
+                    scalar_call.alternatives[0].encoded.memory,
+                    MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+                        byte_count: 8,
+                        ..
+                    }
+                ));
+                assert!(matches!(
+                    scalar_call.alternatives[0].encoded.stack,
+                    MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                        return_address_byte_count: 8,
+                        ..
+                    }
+                ));
+            }
+            let return_unit = catalog
+                .declaration_by_semantic(Semantic::ReturnUnit)
+                .unwrap();
+            assert!(
+                constraints
+                    .catalog()
+                    .constraint(return_unit.constraint)
+                    .unwrap()
+                    .operands
+                    .is_empty()
+            );
+            assert!(validate_x86_64_machine_effect_catalog(target, &constraints, catalog).is_ok());
+            let ordinary = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+            for semantic in [
+                Semantic::Load64,
+                Semantic::Store64,
+                Semantic::FrameAddress,
+                Semantic::CallUnit,
+            ] {
+                assert!(
+                    ordinary
+                        .declarations
+                        .iter()
+                        .any(|row| row.semantic == semantic)
+                );
+            }
+            let load = ordinary.declaration_by_semantic(Semantic::Load64).unwrap();
+            assert_eq!(load.memory, MachineMemoryEffect::ReadPointerV1);
+            assert_eq!(
+                load.alternatives[0].encoded.memory,
+                MachineEncodedMemoryEffect::ReadPointerV1 {
+                    pointer_operand: 0,
+                    byte_count: 8
+                }
+            );
+            assert_eq!(
+                load.alternatives[0].encoded.trap,
+                MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+            );
+        }
+    }
+
+    #[test]
+    fn semantic_validator_rejects_structural_and_target_specific_corruption() {
+        let target = NativeTarget::linux_x64();
+        let constraints = constraints();
+        let mut missing = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+        missing.declarations.pop();
+        assert!(matches!(
+            validate_x86_64_machine_effect_catalog(target, &constraints, missing),
+            Err(X86_64MachineEffectCatalogValidationError::Structural(
+                MachineEffectCatalogValidationError::DeclarationRosterMismatch
+            ))
+        ));
+
+        let mut wrong_size = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+        wrong_size
+            .declaration_by_semantic_mut(Semantic::ExactSubtractI64)
+            .unwrap()
+            .alternatives[0]
+            .size = Size::ExactBytes(4);
+        assert_eq!(
+            validate_x86_64_machine_effect_catalog(target, &constraints, wrong_size),
+            Err(X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch)
+        );
+
+        let mut bad_alias = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+        bad_alias
+            .declaration_by_semantic_mut(Semantic::ExactSubtractI64)
+            .unwrap()
+            .alternatives[0]
+            .applicability = MachineAlternativeApplicability::ResultAliasesOperand {
+            result: 9,
+            operand: 0,
+        };
+        assert!(matches!(
+            validate_x86_64_machine_effect_catalog(target, &constraints, bad_alias),
+            Err(X86_64MachineEffectCatalogValidationError::Structural(
+                MachineEffectCatalogValidationError::InvalidAlternativeApplicability(
+                    Semantic::ExactSubtractI64
+                )
+            ))
+        ));
+
+        let target = NativeTarget::windows_x64();
+        let mut wrong_memory = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+        wrong_memory
+            .declaration_by_semantic_mut(Semantic::Store64)
+            .unwrap()
+            .alternatives[0]
+            .encoded
+            .memory = MachineEncodedMemoryEffect::NoneV1;
+        assert!(
+            validate_x86_64_machine_effect_catalog(target, &constraints, wrong_memory).is_err()
+        );
+    }
+
+    #[test]
+    fn selected_keys_declare_the_supported_x86_64_pairs() {
+        let constraints = constraints();
+        let sysv_call = x86_64_system_v_register_call_keys()[0];
+        let microsoft_call = crate::x86_64_microsoft_register_call_keys()[0];
+        for (target, return_i64, return_unit, call) in [
+            (
+                NativeTarget::linux_x64(),
+                X86_64_SYSTEM_V_RETURN,
+                X86_64_SYSTEM_V_RETURN_UNIT,
+                sysv_call,
+            ),
+            (
+                NativeTarget::macos_x64(),
+                X86_64_SYSTEM_V_RETURN,
+                X86_64_SYSTEM_V_RETURN_UNIT,
+                sysv_call,
+            ),
+            (
+                NativeTarget::windows_x64(),
+                X86_64_MICROSOFT_RETURN,
+                X86_64_MICROSOFT_RETURN_UNIT,
+                microsoft_call,
+            ),
+            (
+                NativeTarget::uefi_x64(),
+                X86_64_MICROSOFT_RETURN,
+                X86_64_MICROSOFT_RETURN_UNIT,
+                microsoft_call,
+            ),
+        ] {
+            let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+            let keys = &catalog.selected_keys;
+            assert_eq!(keys.return_i64, return_i64);
+            assert_eq!(keys.return_unit, return_unit);
+            assert!(keys.call_scalar.contains(&call));
+            assert_eq!(keys.call_scalar[0], call);
+            let hosted = target == NativeTarget::linux_x64() || target == NativeTarget::macos_x64();
+            assert_eq!(
+                keys.hosted_write_byte_i32.is_some(),
+                hosted,
+                "hosted write byte is declared only for the exact Linux and Intel macOS targets"
+            );
+            assert_eq!(keys.hosted_read_byte.is_some(), hosted);
+            assert_eq!(keys.hosted_exit_process_i32.is_some(), hosted);
+        }
+    }
+
+    #[test]
+    fn selected_keys_fail_closed_on_undeclared_pairs() {
+        let constraints = constraints();
+        let aarch64_elf = NativeTarget {
+            architecture: Architecture::Aarch64,
+            object_format: ObjectFormat::Elf,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        };
+        assert_eq!(
+            x86_64_machine_effect_catalog(aarch64_elf, &constraints),
+            Err(X86_64MachineEffectCatalogValidationError::TargetArchitectureMismatch)
+        );
+        assert_eq!(
+            crate::machine_effects::x86_64_selected_abi(aarch64_elf),
+            Err(X86_64MachineEffectCatalogValidationError::UnsupportedTargetAbi)
+        );
+    }
+
+    #[test]
+    fn hosted_rows_follow_the_declared_target_not_the_format_shape() {
+        let constraints = constraints();
+        let undeclared_elf = NativeTarget {
+            pointer_size: 4,
+            pointer_alignment: 4,
+            ..NativeTarget::linux_x64()
+        };
+        let keys = x86_64_machine_effect_catalog(undeclared_elf, &constraints)
+            .unwrap()
+            .selected_keys;
+        assert_eq!(keys.return_i64, X86_64_SYSTEM_V_RETURN);
+        assert!(keys.hosted_write_byte_i32.is_none());
+        assert!(keys.hosted_read_byte.is_none());
+        assert!(keys.hosted_exit_process_i32.is_none());
+    }
+}

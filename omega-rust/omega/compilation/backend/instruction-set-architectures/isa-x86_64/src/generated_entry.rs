@@ -1,5 +1,10 @@
-//! Target replay for generated entry forms. Decoded effects describe bytes;
-//! they supply neither installation authority nor a machine-state allowance.
+/*
+We replay and validate generated x86-64 entry and frame-transport instruction
+bytes (`decode_x86_64_generated_entry`), reconstructing exact general-purpose
+and vector register reads and writes, stack touches, flag writes, and terminal
+control transfers directly from the emitted byte stream.
+*/
+
 use crate::selected_form_encoding::decoding::{DecodedInstruction, decode_one};
 use calling_conventions::{
     GeneratedEntryControl as Control, GeneratedEntryEvidence, GeneratedEntryInstruction,
@@ -308,8 +313,6 @@ fn instruction(bytes: &[u8], offset: usize) -> Result<(usize, Effects, Control),
     };
     let opcode = *bytes.get(cursor).ok_or("truncated generated x86 opcode")?;
     cursor += 1;
-    // Check before the shared decoder too: its atomic store projection uses
-    // parent GPR codes and does not represent the legacy high-byte aliases.
     if rex == 0 {
         let modrm = bytes.get(cursor).copied().unwrap_or(0);
         let high_source = opcode == 0x88 && (modrm >> 3) & 7 >= 4;
@@ -451,8 +454,6 @@ fn instruction(bytes: &[u8], offset: usize) -> Result<(usize, Effects, Control),
             let group = (modrm >> 3) & 7;
             let decoded = operand(bytes, cursor, rex)?;
             cursor = decoded.end;
-            // Entry emitters use REX for SPL/BPL/SIL/DIL. Without REX these
-            // byte codes denote AH/CH/DH/BH, outside this closed form set.
             if rex == 0
                 && ((opcode == 0x88 && register >= 4)
                     || (matches!(opcode, 0x88 | 0x80)
@@ -557,7 +558,6 @@ mod tests {
 
     #[test]
     fn control_register_observation_is_use_without_a_preservation_write() {
-        // SGDT [RSP]; STR AX; RET.
         let evidence =
             decode_x86_64_generated_entry(&[0x0f, 0x01, 0x04, 0x24, 0x0f, 0x00, 0xc8, 0xc3], None)
                 .unwrap();

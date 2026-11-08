@@ -1,9 +1,12 @@
-//! One supervisor-call body over each instruction set's transport rows.
-//!
-//! The roster sweep, the replay, the control and stack effects, the exhaustive
-//! single-bit forgery of one representative form and every refusal a kernel
-//! entry owes are stated once here; an instruction set answers with its rows,
-//! its bytes and the target it must refuse.
+/*
+We verify Linux supervisor-call (`SystemCall`) selected-form encodings and
+machine-effect declarations across `isa-aarch64` and `isa-x86_64`. Given an
+architecture's arity 0..=6 fixed-register transport rows, kernel-entry clobbers,
+encoder, validator, and replay hook, we check every arity and representative
+syscall number, verify control and stack effects, and assert that unsupported
+targets, non-canonical register models, duplicate or reordered operand views,
+and single-bit instruction mutations are refused.
+*/
 
 use register_model::{
     RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
@@ -15,17 +18,12 @@ use selected_instructions::{
     validate_machine_effect_catalog,
 };
 
-/// What one validated supervisor-call encoding reports.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Encoding {
     pub bytes: Vec<u8>,
     pub effects: MachineEncodedEffects,
 }
 
-/// Sweep every transport row and kernel number, replay each encoding, and
-/// require every substituted byte, number, target and view to be refused.
-/// `encode` and `validate` bind the admitted target; `validate_elsewhere`
-/// replays under a target the instruction set must refuse.
 pub fn conformance<E>(
     rows: &[&RegisterInstructionConstraint],
     forged_view: RegisterViewId,
@@ -55,7 +53,6 @@ pub fn conformance<E>(
                 encoded.effects.stack,
                 MachineEncodedStackEffect::UnchangedV1
             );
-            // Exhaust the bits of one representative form, not permutations of source syntax.
             if number == 211 && row.operands.len() == 7 {
                 for position in 0..encoded.bytes.len() {
                     for bit in 0..8 {
@@ -86,10 +83,6 @@ pub fn conformance<E>(
     }
 }
 
-/// Require every supervisor-call row to carry the kernel-entry effects, and
-/// target-neutral admission to refuse each corruption of them without relying
-/// on equality against the instruction set's own catalog. `other` is the
-/// catalog of a target that has no kernel-entry rows.
 pub fn effects_conformance(
     constraints: &ValidatedRegisterConstraintCatalog,
     catalog: &MachineEffectCatalog,
