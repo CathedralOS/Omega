@@ -14251,6 +14251,8 @@ fail/float/local_initializer_range_unproven rejected 5217ms expected @ccdb99ca22
 	cannot prove ensures contract for exit from forwarded at statement 1: result >= 0.0 && result <= 0.5
 fail/float/match_join_requires_preserves_ieee_nan rejected 4498ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand from main: nan == nan (needs fact `value == value` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/float/math_minimum_identity_cannot_follow_maximum rejected 2774ms expected @4789f2d01fda
+	machine `wrong_minimum` ensures contract proof fact `core::Identity<FloatMeaning>(F64.meaning(result), FloatSemantics.minimum(F64.meaning(left), F64.meaning(right)))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 fail/float/mathematical_generic_ieee_equality_requires_non_nan rejected 3612ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from invalid at statement 0: reflexive<f32>(value)
 fail/float/mixed_float_comparison_formats rejected 974ms unexpected @ccdb99ca2214
