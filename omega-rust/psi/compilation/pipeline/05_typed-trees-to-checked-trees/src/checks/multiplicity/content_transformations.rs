@@ -219,15 +219,24 @@ fn prepare(
         {
             return Err("derived transaction has more than one completion");
         }
+        let body_plan = content
+            .body_conservation_plans
+            .get(equation.body_plan_index)
+            .ok_or("derived transaction has no exact completed-body equation")?;
+        if body_plan.owner != equation.machine_symbol || body_plan.callable != equation.state_symbol
+        {
+            return Err("derived equation does not retain its exact completion frame");
+        }
         // Several outgoing uses can discover the very same formation demand.
         // Keep that one equation once; different equations still face joint
         // accounting rather than each spending the same input independently.
         if transaction.equations.iter().any(|derived| {
-            content
-                .body_conservations
-                .get(derived.conservation)
-                .plan_index
-                == equation.plan_index
+            let previous = content.body_conservations.get(derived.conservation);
+            previous.plan_index == equation.plan_index
+                && content
+                    .body_conservation_plans
+                    .get(previous.body_plan_index)
+                    == Some(body_plan)
         }) {
             continue;
         }

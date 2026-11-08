@@ -28,6 +28,9 @@ pub struct ContentProjectionFacts {
     /// to consume an input or establish an output domain. A custody transaction
     /// must additionally check live ownership, predicates and compatible lineage.
     pub body_conservations: arena::Arena<ContentBodyConservationFact>,
+    /// Exact equations in each completed body's parameter namespace. Source
+    /// authorization remains on the separate authored plan table above.
+    pub body_conservation_plans: Vec<ContentConservationPlan>,
     pub body_claim_bindings: arena::Arena<ContentBodyClaimBinding>,
     pub body_available_inputs: arena::Arena<ContentBodyAvailableInput>,
     /// Atomic owned transformations selected at an actual value completion.
@@ -147,8 +150,12 @@ pub struct ContentBodyConservationFact {
     /// Selected invocation lane at that completion. Alternative transition
     /// targets in one statement do not share an ownership frontier.
     pub evaluation: crate::FlowPermissionEvaluation,
-    /// Exact equation in this owner's immutable `conservation_plans` table.
+    /// Original authored demand and authorization in `conservation_plans`.
+    /// This source may belong to a terminal caller, so its parameter positions
+    /// are not the completed body's coordinates.
     pub plan_index: usize,
+    /// Exact proved equation and completion frame in `body_conservation_plans`.
+    pub body_plan_index: usize,
     pub inputs: HandleSpan<ContentBodyClaimBinding>,
     pub outputs: HandleSpan<ContentBodyClaimBinding>,
     /// All inputs, or empty when the ownership walk could not establish their
@@ -300,6 +307,7 @@ pub struct ContentPartitionPlaceSubstitution {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContentWalkRows {
     pub body_conservations: arena::Arena<ContentBodyConservationFact>,
+    pub body_conservation_plans: Vec<ContentConservationPlan>,
     pub body_claim_bindings: arena::Arena<ContentBodyClaimBinding>,
     pub body_available_inputs: arena::Arena<ContentBodyAvailableInput>,
     pub body_transformations: arena::Arena<ContentBodyTransformation>,
@@ -329,6 +337,7 @@ impl ContentProjectionFacts {
     pub fn take_walk_rows(&mut self) -> ContentWalkRows {
         ContentWalkRows {
             body_conservations: std::mem::take(&mut self.body_conservations),
+            body_conservation_plans: std::mem::take(&mut self.body_conservation_plans),
             body_claim_bindings: std::mem::take(&mut self.body_claim_bindings),
             body_available_inputs: std::mem::take(&mut self.body_available_inputs),
             body_transformations: std::mem::take(&mut self.body_transformations),
@@ -343,7 +352,8 @@ impl ContentProjectionFacts {
     /// Append walk rows another producer built from empty after the rows
     /// already here, as if it had appended them here. Handles and spans into
     /// these nine tables, and boundary requirements' positions in
-    /// `boundary_requirement_plans`, move by what is already here. Plan
+    /// `body_conservation_plans` and `boundary_requirement_plans`, move by what
+    /// is already here. Source plan
     /// positions into `conservation_plans`, place segments (flow ownership's)
     /// and flow handles stay as they are. Returns `false`, changing nothing,
     /// when an arena cannot be shifted exactly (`shifted_rows::shiftable`).
@@ -351,6 +361,7 @@ impl ContentProjectionFacts {
         use crate::checked_trees::shifted_rows::{append_rows, shift, shift_span, shiftable};
         let ContentWalkRows {
             body_conservations,
+            body_conservation_plans,
             body_claim_bindings,
             body_available_inputs,
             body_transformations,
@@ -386,6 +397,16 @@ impl ContentProjectionFacts {
             return false;
         };
         let plan_rows = self.boundary_requirement_plans.len();
+        let body_plan_rows = self.body_conservation_plans.len();
+        if body_plan_rows
+            .checked_add(body_conservation_plans.len())
+            .is_none()
+            || body_conservations
+                .iter()
+                .any(|(_, row)| row.body_plan_index >= body_conservation_plans.len())
+        {
+            return false;
+        }
         append_rows(&mut self.body_conservations, body_conservations, |row| {
             let ContentBodyConservationFact {
                 machine_symbol,
@@ -394,6 +415,7 @@ impl ContentProjectionFacts {
                 completed_value,
                 evaluation,
                 plan_index,
+                body_plan_index,
                 inputs,
                 outputs,
                 available_inputs,
@@ -405,11 +427,13 @@ impl ContentProjectionFacts {
                 completed_value,
                 evaluation,
                 plan_index,
+                body_plan_index: body_plan_index + body_plan_rows,
                 inputs: shift_span(inputs, binding_rows),
                 outputs: shift_span(outputs, binding_rows),
                 available_inputs: shift_span(available_inputs, input_rows),
             }
         });
+        self.body_conservation_plans.extend(body_conservation_plans);
         append_rows(&mut self.body_claim_bindings, body_claim_bindings, |row| {
             row
         });

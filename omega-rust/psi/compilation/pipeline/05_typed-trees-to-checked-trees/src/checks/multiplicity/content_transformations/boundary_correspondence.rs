@@ -53,6 +53,20 @@ pub(super) fn prepare(
         .conservation_plans
         .get(equation.plan_index)
         .ok_or("boundary custody law is absent")?;
+    let completed_law = content
+        .body_conservation_plans
+        .get(equation.body_plan_index)
+        .ok_or("boundary custody has no exact completed-body equation")?;
+    if completed_law.owner != equation.machine_symbol
+        || completed_law.callable != equation.state_symbol
+    {
+        return Err("boundary custody equation belongs to another completion frame");
+    }
+    // Transporting an equation does not make a terminal helper the declared
+    // provider implementation. Its caller's public authorization stays there.
+    if law.owner != completed_law.owner {
+        return Err("terminal content demands do not transfer boundary authorization");
+    }
     let sources = validation::content_conservation_plans(program);
     let body = sources
         .iter()

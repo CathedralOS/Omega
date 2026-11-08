@@ -202,6 +202,7 @@ pub(crate) fn observe_body_completion(
                     completed_value,
                     evaluation,
                     plan_index,
+                    body_plan_index: facts.qualifications.content.body_conservation_plans.len(),
                     inputs,
                     outputs,
                     available_inputs: Default::default(),
@@ -210,6 +211,11 @@ pub(crate) fn observe_body_completion(
                 let Ok(available) = available else {
                     continue;
                 };
+                facts
+                    .qualifications
+                    .content
+                    .body_conservation_plans
+                    .push(plan.clone());
                 let conservation = facts
                     .qualifications
                     .content
