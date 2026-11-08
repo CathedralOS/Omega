@@ -228,7 +228,7 @@ jobs:
         run: python tools/ci/build_consent_controls.py
       - name: Enable requested compiler diagnostics
         if: github.event_name == 'workflow_dispatch' && inputs.compiler_diagnostics
-        run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_COMPILER_CHECK_SITES=1\n')"
+        run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_PROVIDER_DEBUG=1\nOMEGA_COMPILER_CHECK_SITES=1\n')"
       - name: Enable requested ownership and state tracing
         if: github.event_name == 'workflow_dispatch' && inputs.structural_trace
         run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_STRUCT_TRACE=1\n')"
