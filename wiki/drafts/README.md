@@ -148,6 +148,11 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Validation subjects](designs/validation_subjects.md): check the selected
+  packages in full and dependencies only through their semantic closure, with
+  `Build::validate`, the workspace default and admission validation; delete
+  when the board item lands.
+
 - [Static binder contract dependencies](designs/static_binder_contract_dependencies.md):
   one published dependency term per contract axis for static callbacks, the
   crash and termination rows, and the `reaches none`/`crashes none` spellings;

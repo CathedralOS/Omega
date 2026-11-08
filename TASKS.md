@@ -57,6 +57,11 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Admit dependency contexts ([scoped_execution.md](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)), run `build.omg` and Psi `00–07` once, clear `FIREWALL_ALLOWANCES` in `tools/check_native_boundary.py`, and drop 256 MiB stacks.
   Acceptance: two-target builds run Psi `00–07` and Build once and Omega `00–09` once per target with clean boundary guards.
 
+- **VALIDATION-SUBJECTS.** Implement [validation subjects](wiki/drafts/designs/validation_subjects.md): check the selected packages in full and dependencies only through their required semantic closure.
+  - First give the toolchain release gate an explicit full-package check of each bundled library; a sample corpus does not count.
+  - Carry the subject set through orchestration, discover dependencies while checking (types, data, proofs, cleanup, conformances, bindings), keep deferred bodies in name resolution; add `Build::validate`, the all-members workspace default, and full validation of the admitted revision.
+  Acceptance: the eight cases in the draft pass; a one-line `omega --check` no longer body-checks unreached library machines and its measured Psi 05 time drops accordingly.
+
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (covers **OPERATOR-BOUNDARY-CALLS**, **TARGET-SEMANTIC-APPLICATIONS**) Settle providers over Terminal Psi in `execution_settlement.rs`.
   - Move `execution_settlement.rs`, `provider_binding.rs`, `operators.rs`, opaque/const/review paths, float/FMA/GUI calls, and target capsules to Terminal Psi.
   Acceptance: two-target builds share one Terminal artifact, and `pass/float/float_computation_route_exit` passes `--both`.

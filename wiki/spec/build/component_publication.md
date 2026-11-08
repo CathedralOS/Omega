@@ -190,7 +190,9 @@ For each target, verify that the complete selected closure's demands fit the
 effective Build ceiling and that this ceiling fits consumer acceptance. Include
 helpers, all possible callbacks, initialization, constructors, cleanup, retained
 dependencies, and selected providers. A library may contain unused functionality
-outside that selected product; this does not waive its ordinary source checks.
+outside that selected product; this does not waive its ordinary source checks,
+which run whenever the library is a [validation subject](validation_subjects.md)
+rather than in every consumer compile.
 Claiming "we will not use it" from an expected runtime workload cannot remove
 a possible demand. A smaller closure must follow from checked selection or
 guarantees. Attenuation neither rewrites a component's verified inventory nor

@@ -72,8 +72,11 @@ producer bugs in the same process, but repeated checking consumes work and
 requires a second implementation of the checked rules.
 
 Source checking, decoding and installation checks remain required at their
-owning boundaries. A new or changed foreign package is verified during review,
-and an untrusted build script is confined and checked while it executes.
+owning boundaries. A compile checks its
+[validation subjects](../wiki/spec/build/validation_subjects.md) in full and
+their dependencies through the required semantic closure. A new or changed
+foreign package is verified during review, and an untrusted build script is
+confined and checked while it executes.
 [Psi consumption](../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
 reuses judgments from a trusted producer's exact artifact under host authorization.
 This includes separately built accepted artifacts; it is not limited to the same

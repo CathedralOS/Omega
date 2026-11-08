@@ -69,9 +69,10 @@ publication route. Disabling every selected rule yields the same identity-phase
 acceptance, diagnostics, and output as an initially empty selection, apart from
 the separately retained rollback provenance.
 
-Checked-tree pruning runs only after all authored source has been parsed,
-resolved, typed, and checked; deleting unreachable code cannot make invalid
-source valid. A root selection that changes the published product retains its
+Checked-tree pruning runs only after every declaration of the check's
+[validation subjects](validation_subjects.md) and their required dependency
+closure has been parsed, resolved, typed, and checked; deleting unreachable
+code cannot make invalid source valid within that declared scope. A root selection that changes the published product retains its
 own explicit identity, not one inferred from the remaining declarations.
 Shared frontend work precedes target fan-out under the
 [target-selection contract](configuration.md).

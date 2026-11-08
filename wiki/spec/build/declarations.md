@@ -256,7 +256,10 @@ admissibility, activation-local state, and identity-preserving staged fan-out.
 A workspace is a path-declared catalog of locatable members, not a combined
 dependency graph or a node with its own package key. Each application/package
 remains an independently selected closure root; building one does not include
-unrelated members. Shared pins and ceilings may be passed into member Build
+unrelated members. A check that names no member takes every declared member as
+a [validation subject](validation_subjects.md); a product may add registered
+dependencies to its own subjects with `Build::validate`. Shared pins and
+ceilings may be passed into member Build
 values, and members may only narrow them. Source code never searches parent
 directories for imports; only tooling discovers the enclosing build/workspace.
 
